@@ -56,7 +56,7 @@ export function LoginForm({ onSwitchToForgot }: LoginFormProps) {
       return
     }
     await refresh()
-    await navigate({ to: ROUTES.home })
+    await navigate({ to: ROUTES.dashboard })
   }
 
   return (

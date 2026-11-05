@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { HomeIcon, InboxIcon, SearchIcon, SettingsIcon } from 'lucide-react'
+import { expect } from 'storybook/test'
 
 import {
   Sidebar,
@@ -56,7 +57,8 @@ export const Basic: Story = {
               <SidebarMenu>
                 {items.map((item) => (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton>
+                    {/* Mark the current page with `isActive`; only it is highlighted. */}
+                    <SidebarMenuButton isActive={item.title === 'Home'}>
                       <item.icon />
                       <span>{item.title}</span>
                     </SidebarMenuButton>
@@ -83,4 +85,11 @@ export const Basic: Story = {
       </SidebarInset>
     </SidebarProvider>
   ),
+  play: async ({ canvas }) => {
+    const button = (name: string) => canvas.getByRole('button', { name })
+    await expect(button('Home')).toHaveAttribute('data-active', 'true')
+    for (const name of ['Inbox', 'Search', 'Settings']) {
+      await expect(button(name)).not.toHaveAttribute('data-active')
+    }
+  },
 }

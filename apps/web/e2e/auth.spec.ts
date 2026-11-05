@@ -24,7 +24,7 @@ test('register, verify email, then log in', async ({ page, request }) => {
   const unique = `e2e${Date.now()}`
   const email = `${unique}@finances.test`
   const password = 'password123'
-  const firstName = unique // user.name's first token, shown on the home page
+  const firstName = unique // user.name is `${firstName} Tester`, shown in the sidebar
 
   // 1. Register the owner account.
   await page.goto('/auth')
@@ -56,6 +56,9 @@ test('register, verify email, then log in', async ({ page, request }) => {
   await page.getByLabel('Mot de passe').fill(password)
   await page.getByRole('button', { name: 'Se connecter' }).click()
 
-  await expect(page).toHaveURL('/')
-  await expect(page.getByText(firstName, { exact: false })).toBeVisible()
+  // Login lands on the dashboard; the sidebar shows who is signed in.
+  await expect(page).toHaveURL('/dashboard')
+  await expect(
+    page.getByText(`${firstName} Tester`, { exact: true }),
+  ).toBeVisible()
 })
