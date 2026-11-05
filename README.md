@@ -80,6 +80,24 @@ pnpm db:studio      # open Drizzle Studio
 
 Real bank exports go in the git-ignored `data/` folder. Never commit real financial data.
 
+## Importing the spreadsheet history
+
+The pre-app history kept in a Google Sheet is imported once from its CSV exports (File → Download → CSV, one file per tab). Put the files in the git-ignored `data/` folder, then, from the repo root:
+
+```bash
+# Dry run: prints counts only, writes nothing
+pnpm --filter @finances/api import:history -- \
+  --transactions data/transactions.csv --balances data/soldes.csv \
+  --report data/history-report.json
+
+# Review the counts and data/history-report.json, then write for real
+pnpm --filter @finances/api import:history -- \
+  --transactions data/transactions.csv --balances data/soldes.csv \
+  --commit --create-rules
+```
+
+Re-running is safe (nothing is inserted twice). `--help` lists the options, including `--accounts`/`--categories` mapping files and `--include-conflicts`.
+
 ## Project structure
 
 ```
