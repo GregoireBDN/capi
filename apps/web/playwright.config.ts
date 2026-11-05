@@ -11,7 +11,8 @@ import { defineConfig, devices } from '@playwright/test'
  * retrieve the verification link — override its origin with MAILPIT_URL.
  */
 const WEB_URL = process.env['WEB_URL'] ?? 'http://localhost:3000'
-const API_URL = process.env['VITE_API_URL'] ?? 'http://localhost:4000'
+// The web dev server proxies /api/* to API_URL (see src/routes/api/$.ts).
+const API_URL = process.env['API_URL'] ?? 'http://localhost:4000'
 
 export default defineConfig({
   testDir: './e2e',

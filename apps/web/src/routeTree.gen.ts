@@ -14,6 +14,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiSplatRouteImport } from './routes/api/$'
 import { Route as AppTransactionsRouteImport } from './routes/_app/transactions'
 import { Route as AppSubscriptionsRouteImport } from './routes/_app/subscriptions'
 import { Route as AppSavingsRouteImport } from './routes/_app/savings'
@@ -44,6 +45,11 @@ const AppRoute = AppRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSplatRoute = ApiSplatRouteImport.update({
+  id: '/api/$',
+  path: '/api/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppTransactionsRoute = AppTransactionsRouteImport.update({
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/savings': typeof AppSavingsRoute
   '/subscriptions': typeof AppSubscriptionsRoute
   '/transactions': typeof AppTransactionsRoute
+  '/api/$': typeof ApiSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/savings': typeof AppSavingsRoute
   '/subscriptions': typeof AppSubscriptionsRoute
   '/transactions': typeof AppTransactionsRoute
+  '/api/$': typeof ApiSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   '/_app/savings': typeof AppSavingsRoute
   '/_app/subscriptions': typeof AppSubscriptionsRoute
   '/_app/transactions': typeof AppTransactionsRoute
+  '/api/$': typeof ApiSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/savings'
     | '/subscriptions'
     | '/transactions'
+    | '/api/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/savings'
     | '/subscriptions'
     | '/transactions'
+    | '/api/$'
   id:
     | '__root__'
     | '/'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/_app/savings'
     | '/_app/subscriptions'
     | '/_app/transactions'
+    | '/api/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -172,6 +184,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
+  ApiSplatRoute: typeof ApiSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -209,6 +222,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/$': {
+      id: '/api/$'
+      path: '/api/$'
+      fullPath: '/api/$'
+      preLoaderRoute: typeof ApiSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/transactions': {
@@ -291,6 +311,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   VerifyEmailRoute: VerifyEmailRoute,
+  ApiSplatRoute: ApiSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

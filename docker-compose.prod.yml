@@ -49,6 +49,11 @@ services:
       dockerfile: apps/web/Dockerfile
     ports:
       - "3000:3000"
+    environment:
+      # The web server proxies /api/* to the API and calls it during SSR, so the
+      # browser only talks to the web origin and the session cookies are
+      # first-party (see CLAUDE.md, Auth).
+      API_URL: http://api:4000
     depends_on:
       api:
         condition: service_healthy

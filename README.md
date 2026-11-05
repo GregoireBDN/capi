@@ -61,6 +61,8 @@ pnpm dev
 | Mailpit (mails) | http://localhost:8025     |
 | PostgreSQL      | localhost:5432            |
 
+The browser reaches the API through the web origin: the web server proxies `/api/*` to `API_URL` (default `http://localhost:4000`, see `apps/web/.env.example`), so the session cookies are first-party. To run the web app against an API on another port: `API_URL=http://localhost:4100 pnpm --filter @finances/web dev`.
+
 Common commands (from the repo root):
 
 ```bash

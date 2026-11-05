@@ -1,11 +1,10 @@
 import { expect, test } from '@playwright/test'
 import { clearMailbox, waitForEmailLink } from './mailpit'
 
-const API_URL = process.env['VITE_API_URL'] ?? 'http://localhost:4000'
-
 /**
  * Happy-path auth journey against the real stack:
- *   register the owner account → receive verification email → verify → log in.
+ *   register the owner account → receive verification email → verify → log in
+ *   → reload after the access token expired.
  *
  * Finances is single-user, so registration is only possible on an empty
  * database: the test skips itself once an account exists (reset the DB, e.g.
@@ -15,7 +14,8 @@ const API_URL = process.env['VITE_API_URL'] ?? 'http://localhost:4000'
  * are started by playwright.config.ts.
  */
 test('register, verify email, then log in', async ({ page, request }) => {
-  const status = await request.get(`${API_URL}/api/auth/registration-status`)
+  // The API is reached through the web origin's /api proxy, like the browser.
+  const status = await request.get('/api/auth/registration-status')
   const { open } = (await status.json()) as { open: boolean }
   test.skip(!open, 'Registration is closed: an account already exists')
 
@@ -39,7 +39,7 @@ test('register, verify email, then log in', async ({ page, request }) => {
   await expect(page).toHaveURL(/\/verify-email/)
 
   // Registration is now closed for everyone else.
-  const closed = await request.get(`${API_URL}/api/auth/registration-status`)
+  const closed = await request.get('/api/auth/registration-status')
   expect(await closed.json()).toEqual({ open: false })
 
   // 2. Pull the verification link out of the email Mailpit captured.
@@ -61,4 +61,41 @@ test('register, verify email, then log in', async ({ page, request }) => {
   await expect(
     page.getByText(`${firstName} Tester`, { exact: true }),
   ).toBeVisible()
+
+  // 4. The access token expires (its cookie lives as long as the JWT): a full
+  //    reload of a protected page renews the session during SSR and renders it
+  //    directly, without a detour through /auth.
+  const context = page.context()
+  const sessionCookies = async () => {
+    const cookies = await context.cookies()
+    return {
+      token: cookies.find((c) => c.name === 'token'),
+      refresh: cookies.find((c) => c.name === 'refresh_token'),
+    }
+  }
+  const before = await sessionCookies()
+  expect(before.refresh?.path).toBe('/')
+  await context.clearCookies({ name: 'token' })
+
+  const visited: string[] = []
+  page.on('framenavigated', (frame) => {
+    if (frame === page.mainFrame()) visited.push(new URL(frame.url()).pathname)
+  })
+  await page.reload()
+  await expect(page).toHaveURL('/dashboard')
+  await expect(
+    page.getByText(`${firstName} Tester`, { exact: true }),
+  ).toBeVisible()
+  expect(visited).not.toContain('/auth')
+
+  // The refresh token was rotated and the browser kept the new pair.
+  const after = await sessionCookies()
+  expect(after.token).toBeDefined()
+  expect(after.refresh?.value).not.toBe(before.refresh?.value)
+
+  // A second expiry + reload works with the rotated refresh token.
+  await context.clearCookies({ name: 'token' })
+  await page.reload()
+  await expect(page).toHaveURL('/dashboard')
+  expect(visited).not.toContain('/auth')
 })
