@@ -3,6 +3,7 @@ export const ROUTES = {
   auth: '/auth',
   dashboard: '/dashboard',
   transactions: '/transactions',
+  review: '/review',
   budget: '/budget',
   subscriptions: '/subscriptions',
   savings: '/savings',

@@ -801,6 +801,50 @@
         ]
       }
     },
+    "/api/categorization-rules/preview": {
+      "post": {
+        "description": "Counts the transactions a rule with this body would categorize once created and applied. Nothing is saved.",
+        "operationId": "CategorizationRulesController_preview",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategorizationRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategorizationRulePreviewDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid regex, min > max, unknown category or account, or invalid body."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Preview the effect of a new rule",
+        "tags": [
+          "Categorization rules"
+        ]
+      }
+    },
     "/api/categorization-rules/apply": {
       "post": {
         "description": "Re-evaluates uncategorized transactions and those categorized by a rule. Manually categorized transactions are never overwritten.",
@@ -1283,6 +1327,272 @@
         "summary": "Discard or undo an import",
         "tags": [
           "Imports"
+        ]
+      }
+    },
+    "/api/transactions": {
+      "get": {
+        "description": "Filtered and paginated, newest booking date first (ties broken by id). `needsReview=true` is the review queue.",
+        "operationId": "TransactionsController_list",
+        "parameters": [
+          {
+            "description": "Only transactions in (true) or out of (false) review.",
+            "required": false,
+            "name": "needsReview",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "required": false,
+            "name": "accountId",
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Cannot be combined with `uncategorized`.",
+            "required": false,
+            "name": "categoryId",
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "true: only transactions without a category; false: only categorized ones.",
+            "required": false,
+            "name": "uncategorized",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "required": false,
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/TransactionKind"
+                }
+              ]
+            }
+          },
+          {
+            "description": "Inclusive lower bound on the booking date (YYYY-MM-DD).",
+            "required": false,
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Inclusive upper bound on the booking date (YYYY-MM-DD).",
+            "required": false,
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Case-insensitive search in the raw label and merchant.",
+            "required": false,
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "required": false,
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "required": false,
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionListDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filters."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "List transactions",
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
+    "/api/transactions/review-count": {
+      "get": {
+        "operationId": "TransactionsController_reviewCount",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewCountDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Number of transactions waiting for review",
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
+    "/api/transactions/bulk-update": {
+      "post": {
+        "description": "At most 500 ids, in one database transaction. Same semantics as `PATCH /transactions/{id}`.",
+        "operationId": "TransactionsController_bulkUpdate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkUpdateTransactionsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkUpdateResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown category or rule, nothing to update, or invalid body."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Apply the same changes to several transactions",
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
+    "/api/transactions/{id}": {
+      "patch": {
+        "description": "Category, kind, one-off flag, note or review flag. A category set here is a manual one: rules never overwrite it.",
+        "operationId": "TransactionsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTransactionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown category or rule, or invalid body."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Correct a transaction",
+        "tags": [
+          "Transactions"
         ]
       }
     }
@@ -1786,6 +2096,23 @@
           "categoryId",
           "kind",
           "merchant"
+        ]
+      },
+      "CategorizationRulePreviewDto": {
+        "type": "object",
+        "properties": {
+          "matched": {
+            "type": "integer",
+            "description": "Transactions the rule would categorize if it were created (last) and the rules re-applied. Manual categorizations are never counted."
+          },
+          "leavingReview": {
+            "type": "integer",
+            "description": "Of those, transactions that would leave the review queue (uncategorized ones waiting for review)."
+          }
+        },
+        "required": [
+          "matched",
+          "leavingReview"
         ]
       },
       "ApplyCategorizationRulesResultDto": {
@@ -2609,6 +2936,282 @@
           "result",
           "removedTransactions"
         ]
+      },
+      "TransactionCategoryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "example": "#d97706"
+          },
+          "kind": {
+            "description": "Category group: the kind its transactions get by default.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "color",
+          "kind"
+        ]
+      },
+      "TransactionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "importId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "bookingDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-10-31"
+          },
+          "valueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Signed integer cents: negative = money out."
+          },
+          "rawLabel": {
+            "type": "string"
+          },
+          "merchant": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind": {
+            "description": "`transfer` = move between the user’s own accounts, never income or expense.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "category": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionCategoryDto"
+              }
+            ]
+          },
+          "ruleId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Rule that set the category. Null with a category = filed by hand (rules never overwrite it)."
+          },
+          "needsReview": {
+            "type": "boolean"
+          },
+          "isOneOff": {
+            "type": "boolean",
+            "description": "Exceptional expense or income, excluded from averages."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "accountId",
+          "accountName",
+          "importId",
+          "bookingDate",
+          "valueDate",
+          "amountCents",
+          "rawLabel",
+          "merchant",
+          "kind",
+          "categoryId",
+          "category",
+          "ruleId",
+          "needsReview",
+          "isOneOff",
+          "note",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "TransactionListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransactionDto"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Transactions matching the filters, all pages included."
+          },
+          "page": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "limit"
+        ]
+      },
+      "ReviewCountDto": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "Transactions waiting in the review queue."
+          }
+        },
+        "required": [
+          "count"
+        ]
+      },
+      "BulkUpdateTransactionsDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Setting a category files the transaction by hand (`ruleId` = null, so rules never overwrite it), gives it the category’s kind unless `kind` is sent, and takes it out of review unless `needsReview` is sent. `null` removes the category (the kind is kept unless sent)."
+          },
+          "ruleId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Restores a categorization made by a rule (e.g. to undo a correction). Requires `categoryId`, equal to the rule’s category."
+          },
+          "kind": {
+            "description": "Overrides the kind (e.g. `transfer` for a move between own accounts). Changing the kind of a rule-categorized transaction files it by hand.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
+          },
+          "needsReview": {
+            "type": "boolean"
+          },
+          "isOneOff": {
+            "type": "boolean"
+          },
+          "ids": {
+            "minItems": 1,
+            "maxItems": 500,
+            "description": "Unknown ids are ignored (see `updated`).",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "ids"
+        ]
+      },
+      "BulkUpdateResultDto": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "integer",
+            "description": "Transactions updated."
+          }
+        },
+        "required": [
+          "updated"
+        ]
+      },
+      "UpdateTransactionDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Setting a category files the transaction by hand (`ruleId` = null, so rules never overwrite it), gives it the category’s kind unless `kind` is sent, and takes it out of review unless `needsReview` is sent. `null` removes the category (the kind is kept unless sent)."
+          },
+          "ruleId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Restores a categorization made by a rule (e.g. to undo a correction). Requires `categoryId`, equal to the rule’s category."
+          },
+          "kind": {
+            "description": "Overrides the kind (e.g. `transfer` for a move between own accounts). Changing the kind of a rule-categorized transaction files it by hand.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
+          },
+          "needsReview": {
+            "type": "boolean"
+          },
+          "isOneOff": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 2000,
+            "description": "Free text; an empty string clears it."
+          }
+        }
       }
     }
   }

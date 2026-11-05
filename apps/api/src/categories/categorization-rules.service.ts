@@ -31,6 +31,7 @@ import {
 } from '#/database/schema'
 import type {
   ApplyCategorizationRulesResultDto,
+  CategorizationRulePreviewDto,
   CreateCategorizationRuleDto,
   SuggestCategorizationRuleDto,
   UpdateCategorizationRuleDto,
@@ -38,6 +39,7 @@ import type {
 import {
   categorize,
   defaultKind,
+  ruleMatches,
   validateRulePattern,
 } from './rules/categorize'
 import {
@@ -93,6 +95,31 @@ function nullIfBlank(
   return value === '' ? null : value
 }
 
+/** Id of the unsaved rule evaluated by `preview`. */
+const PREVIEW_RULE_ID = '00000000-0000-0000-0000-000000000000'
+
+/**
+ * Transactions `apply` re-evaluates: uncategorized, or categorized by a rule.
+ * Manual categorizations (category, no rule) are never overwritten.
+ */
+const APPLY_SCOPE = () =>
+  or(isNull(transactionsTable.categoryId), isNotNull(transactionsTable.ruleId))!
+
+/** Column values of a new rule, before its position is known. */
+function newRuleValues(dto: CreateCategorizationRuleDto) {
+  return {
+    enabled: dto.enabled ?? true,
+    matchType: dto.matchType ?? 'contains',
+    labelPattern: dto.labelPattern,
+    accountId: dto.accountId ?? null,
+    minAmountCents: dto.minAmountCents ?? null,
+    maxAmountCents: dto.maxAmountCents ?? null,
+    categoryId: dto.categoryId,
+    kind: dto.kind ?? null,
+    merchant: nullIfBlank(dto.merchant) ?? null,
+  } satisfies Omit<InsertCategorizationRule, 'position'>
+}
+
 @Injectable()
 export class CategorizationRulesService {
   constructor(private readonly database: DatabaseService) {}
@@ -127,27 +154,55 @@ export class CategorizationRulesService {
   /** Appends a rule at the end of the order (lowest priority). */
   create(dto: CreateCategorizationRuleDto): Promise<SelectCategorizationRule> {
     return this.db.transaction(async (tx) => {
-      const values = {
-        enabled: dto.enabled ?? true,
-        matchType: dto.matchType ?? 'contains',
-        labelPattern: dto.labelPattern,
-        accountId: dto.accountId ?? null,
-        minAmountCents: dto.minAmountCents ?? null,
-        maxAmountCents: dto.maxAmountCents ?? null,
-        categoryId: dto.categoryId,
-        kind: dto.kind ?? null,
-        merchant: nullIfBlank(dto.merchant) ?? null,
-      } satisfies Omit<InsertCategorizationRule, 'position'>
+      const values = newRuleValues(dto)
       await this.assertValidRule(tx, values)
-
-      const [{ last }] = await tx
-        .select({ last: max(categorizationRulesTable.position) })
-        .from(categorizationRulesTable)
       const [rule] = await tx
         .insert(categorizationRulesTable)
-        .values({ ...values, position: (last ?? -1) + 1 })
+        .values({ ...values, position: await this.nextPosition(tx) })
         .returning()
       return rule
+    })
+  }
+
+  /**
+   * What creating `dto` (appended last) and then re-applying the rules would
+   * do, without saving anything: how many transactions the new rule would
+   * categorize, and how many of them would leave the review queue (those
+   * still uncategorized; see `recategorize`). Manual categorizations are
+   * never counted, as `apply` never touches them.
+   */
+  async preview(
+    dto: CreateCategorizationRuleDto,
+  ): Promise<CategorizationRulePreviewDto> {
+    return this.db.transaction(async (tx) => {
+      const values = newRuleValues(dto)
+      await this.assertValidRule(tx, values)
+      const ruleSet = await this.loadRuleSet(tx)
+      const now = new Date()
+      const candidate: SelectCategorizationRule = {
+        ...values,
+        id: PREVIEW_RULE_ID,
+        position: await this.nextPosition(tx),
+        createdAt: now,
+        updatedAt: now,
+      }
+      const rules = [...ruleSet.rules, candidate]
+
+      const result: CategorizationRulePreviewDto = {
+        matched: 0,
+        leavingReview: 0,
+      }
+      for await (const rows of this.chunks(tx, APPLY_SCOPE())) {
+        for (const row of rows) {
+          // Cheap pre-check: most rows do not match the new rule at all.
+          if (!ruleMatches(candidate, row)) continue
+          const outcome = categorize(row, rules, ruleSet.categoriesById)
+          if (outcome?.ruleId !== PREVIEW_RULE_ID) continue
+          result.matched++
+          if (row.needsReview && row.categoryId === null) result.leavingReview++
+        }
+      }
+      return result
     })
   }
 
@@ -267,14 +322,7 @@ export class CategorizationRulesService {
   apply(): Promise<ApplyCategorizationRulesResultDto> {
     return this.db.transaction(async (tx) => {
       const ruleSet = await this.loadRuleSet(tx)
-      const counts = await this.recategorize(
-        tx,
-        or(
-          isNull(transactionsTable.categoryId),
-          isNotNull(transactionsTable.ruleId),
-        )!,
-        ruleSet,
-      )
+      const counts = await this.recategorize(tx, APPLY_SCOPE(), ruleSet)
       const [{ manual }] = await tx
         .select({ manual: count() })
         .from(transactionsTable)
@@ -307,8 +355,9 @@ export class CategorizationRulesService {
    * A match sets category, kind, rule and merchant, and clears the review
    * flag of a transaction that was uncategorized (a flag on an already
    * categorized one may come from elsewhere, so it is kept). No match clears
-   * the category and rule, resets the kind to `defaultKind` and flags the
-   * transaction for review.
+   * the category and rule, flags the transaction for review and resets the
+   * kind of a rule-categorized row to `defaultKind`; a row that was already
+   * uncategorized keeps its kind (e.g. an internal transfer marked by hand).
    */
   private async recategorize(
     executor: Executor,
@@ -321,32 +370,7 @@ export class CategorizationRulesService {
       unmatched: 0,
       updated: 0,
     }
-    let lastId: string | null = null
-
-    for (;;) {
-      const rows = await executor
-        .select({
-          id: transactionsTable.id,
-          accountId: transactionsTable.accountId,
-          rawLabel: transactionsTable.rawLabel,
-          merchant: transactionsTable.merchant,
-          amountCents: transactionsTable.amountCents,
-          categoryId: transactionsTable.categoryId,
-          ruleId: transactionsTable.ruleId,
-          kind: transactionsTable.kind,
-          needsReview: transactionsTable.needsReview,
-        })
-        .from(transactionsTable)
-        .where(
-          lastId === null
-            ? where
-            : and(where, gt(transactionsTable.id, lastId)),
-        )
-        .orderBy(asc(transactionsTable.id))
-        .limit(APPLY_CHUNK_SIZE)
-      if (rows.length === 0) break
-      lastId = rows[rows.length - 1].id
-
+    for await (const rows of this.chunks(executor, where)) {
       const changes: CategorizationChange[] = []
       for (const row of rows) {
         const result = categorize(row, rules, categoriesById)
@@ -363,7 +387,12 @@ export class CategorizationRulesService {
               id: row.id,
               categoryId: null,
               ruleId: null,
-              kind: defaultKind(row.amountCents),
+              // An uncategorized row keeps its kind: it is `defaultKind` from
+              // the import, or one the user set by hand in the review queue.
+              kind:
+                row.categoryId === null
+                  ? row.kind
+                  : defaultKind(row.amountCents),
               merchant: row.merchant,
               needsReview: true,
             }
@@ -385,9 +414,47 @@ export class CategorizationRulesService {
         await this.writeChanges(executor, changes)
         counts.updated += changes.length
       }
-      if (rows.length < APPLY_CHUNK_SIZE) break
     }
     return counts
+  }
+
+  /** The transactions matching `where`, by id-ordered chunks. */
+  private async *chunks(executor: Executor, where: SQL) {
+    let lastId: string | null = null
+    for (;;) {
+      const rows = await executor
+        .select({
+          id: transactionsTable.id,
+          accountId: transactionsTable.accountId,
+          rawLabel: transactionsTable.rawLabel,
+          merchant: transactionsTable.merchant,
+          amountCents: transactionsTable.amountCents,
+          categoryId: transactionsTable.categoryId,
+          ruleId: transactionsTable.ruleId,
+          kind: transactionsTable.kind,
+          needsReview: transactionsTable.needsReview,
+        })
+        .from(transactionsTable)
+        .where(
+          lastId === null
+            ? where
+            : and(where, gt(transactionsTable.id, lastId)),
+        )
+        .orderBy(asc(transactionsTable.id))
+        .limit(APPLY_CHUNK_SIZE)
+      if (rows.length === 0) return
+      lastId = rows[rows.length - 1].id
+      yield rows
+      if (rows.length < APPLY_CHUNK_SIZE) return
+    }
+  }
+
+  /** Position of a rule appended last. */
+  private async nextPosition(executor: Executor): Promise<number> {
+    const [{ last }] = await executor
+      .select({ last: max(categorizationRulesTable.position) })
+      .from(categorizationRulesTable)
+    return (last ?? -1) + 1
   }
 
   /** One `UPDATE ... FROM (VALUES ...)` per chunk. */

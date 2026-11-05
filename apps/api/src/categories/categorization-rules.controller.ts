@@ -28,6 +28,7 @@ import { CategorizationRulesService } from './categorization-rules.service'
 import {
   ApplyCategorizationRulesResultDto,
   CategorizationRuleDto,
+  CategorizationRulePreviewDto,
   CreateCategorizationRuleDto,
   ReorderCategorizationRulesDto,
   SuggestCategorizationRuleDto,
@@ -102,6 +103,25 @@ export class CategorizationRulesController {
     @Body() dto: SuggestCategorizationRuleDto,
   ): Promise<SuggestedCategorizationRuleDto> {
     return this.rulesService.suggest(dto)
+  }
+
+  @Post('preview')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Preview the effect of a new rule',
+    description:
+      'Counts the transactions a rule with this body would categorize once created and applied. Nothing is saved.',
+  })
+  @ApiBody({ type: CreateCategorizationRuleDto })
+  @ApiOkResponse({ type: CategorizationRulePreviewDto })
+  @ApiBadRequestResponse({
+    description:
+      'Invalid regex, min > max, unknown category or account, or invalid body.',
+  })
+  preview(
+    @Body() dto: CreateCategorizationRuleDto,
+  ): Promise<CategorizationRulePreviewDto> {
+    return this.rulesService.preview(dto)
   }
 
   @Post('apply')
