@@ -139,6 +139,8 @@ Pre-commit hook runs `lint-staged`: ESLint + Prettier on `.ts`/`.tsx`, Prettier 
 
 **Testing note**: both apps use **Vitest**. The API's `vitest.config.ts` runs in a Node environment and picks up `src/**/*.spec.ts`; use `pnpm --filter @finances/api test` (or the single-file form above). The web app uses Vitest + Testing Library (`jsdom`), plus Playwright for E2E (`pnpm --filter @finances/web test:e2e`).
 
+**Test database**: API specs never touch the app database. `apps/api/vitest.config.ts` gives the workers `DATABASE_URL` = `TEST_DATABASE_URL`, or the app database name + `_test` (`finances` → `finances_test`), and refuses to run if both point at the same database. Its global setup (`apps/api/vitest.test-database.ts`) creates that database if missing and applies the migrations, so Postgres must be running (`docker compose up -d`). Database specs run inside transactions that are rolled back; never connect them to another URL. When running servers by hand for manual checks, use a throwaway database too (e.g. `createdb finances_scratch`), never `finances`.
+
 ## Typed API client (codegen pipeline)
 
 The web app talks to the API through a **generated, type-safe client** — do not hand-write fetch calls or edit the generated output.
