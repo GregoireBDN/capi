@@ -602,6 +602,326 @@
           "Health"
         ]
       }
+    },
+    "/api/categories": {
+      "get": {
+        "operationId": "CategoriesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Every category, ordered by kind then name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "tags": [
+          "Categories"
+        ]
+      }
+    },
+    "/api/categorization-rules": {
+      "get": {
+        "operationId": "CategorizationRulesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategorizationRuleDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "List rules in evaluation order",
+        "tags": [
+          "Categorization rules"
+        ]
+      },
+      "post": {
+        "description": "The rule is appended last (lowest priority). Existing transactions are only affected by `POST /categorization-rules/apply`.",
+        "operationId": "CategorizationRulesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategorizationRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategorizationRuleDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid regex, min > max, unknown category or account, or invalid body."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Create a rule",
+        "tags": [
+          "Categorization rules"
+        ]
+      }
+    },
+    "/api/categorization-rules/reorder": {
+      "post": {
+        "description": "Takes every rule id exactly once; the first id gets the highest priority.",
+        "operationId": "CategorizationRulesController_reorder",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderCategorizationRulesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategorizationRuleDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The ids are not exactly the current rules."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Set the evaluation order",
+        "tags": [
+          "Categorization rules"
+        ]
+      }
+    },
+    "/api/categorization-rules/suggest": {
+      "post": {
+        "description": "Proposes a `contains` rule (merchant key, else the stable part of the label). Nothing is saved.",
+        "operationId": "CategorizationRulesController_suggest",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestCategorizationRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestedCategorizationRuleDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown category or invalid body."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Suggest a rule from a categorized transaction",
+        "tags": [
+          "Categorization rules"
+        ]
+      }
+    },
+    "/api/categorization-rules/apply": {
+      "post": {
+        "description": "Re-evaluates uncategorized transactions and those categorized by a rule. Manually categorized transactions are never overwritten.",
+        "operationId": "CategorizationRulesController_apply",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyCategorizationRulesResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Re-run the rules on existing transactions",
+        "tags": [
+          "Categorization rules"
+        ]
+      }
+    },
+    "/api/categorization-rules/{id}": {
+      "patch": {
+        "operationId": "CategorizationRulesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCategorizationRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategorizationRuleDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid regex, min > max, unknown category or account, or invalid body."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Update a rule",
+        "tags": [
+          "Categorization rules"
+        ]
+      },
+      "delete": {
+        "description": "Transactions it categorized are re-run through the remaining rules; those left unmatched go back to review.",
+        "operationId": "CategorizationRulesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Delete a rule",
+        "tags": [
+          "Categorization rules"
+        ]
+      }
     }
   },
   "info": {
@@ -789,6 +1109,405 @@
         "required": [
           "token"
         ]
+      },
+      "TransactionKind": {
+        "type": "string",
+        "enum": [
+          "expense",
+          "income",
+          "transfer"
+        ],
+        "description": "Category group: the kind given to its transactions."
+      },
+      "CategoryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string",
+            "description": "Stable identifier referenced by seeds and imports."
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "description": "Category group: the kind given to its transactions.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "example": "#d97706"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "kind",
+          "color",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "RuleMatchType": {
+        "type": "string",
+        "enum": [
+          "contains",
+          "regex"
+        ],
+        "description": "`contains`: case-, accent- and punctuation-insensitive substring of the raw label or merchant. `regex`: case-insensitive regular expression tested against the raw label and merchant."
+      },
+      "CategorizationRuleDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer",
+            "description": "Evaluation order: the first matching rule (lowest) wins."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "matchType": {
+            "description": "`contains`: case-, accent- and punctuation-insensitive substring of the raw label or merchant. `regex`: case-insensitive regular expression tested against the raw label and merchant.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RuleMatchType"
+              }
+            ]
+          },
+          "labelPattern": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "minAmountCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Inclusive lower bound on the signed amount, in cents."
+          },
+          "maxAmountCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Inclusive upper bound on the signed amount, in cents."
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "nullable": true,
+            "description": "Overrides the category's kind when set (e.g. `transfer` for a move to one of the user's own accounts).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
+          },
+          "merchant": {
+            "type": "string",
+            "nullable": true,
+            "description": "Merchant name given to matching transactions, when set."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "position",
+          "enabled",
+          "matchType",
+          "labelPattern",
+          "accountId",
+          "minAmountCents",
+          "maxAmountCents",
+          "categoryId",
+          "kind",
+          "merchant",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateCategorizationRuleDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "matchType": {
+            "description": "`contains`: case-, accent- and punctuation-insensitive substring of the raw label or merchant. `regex`: case-insensitive regular expression tested against the raw label and merchant.",
+            "default": "contains",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RuleMatchType"
+              }
+            ]
+          },
+          "labelPattern": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "minAmountCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "maxAmountCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "nullable": true,
+            "description": "Overrides the category's kind when set (e.g. `transfer` for a move to one of the user's own accounts).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
+          },
+          "merchant": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "labelPattern",
+          "categoryId"
+        ]
+      },
+      "ReorderCategorizationRulesDto": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "description": "Every rule id, in the new evaluation order (first = highest priority).",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "ids"
+        ]
+      },
+      "SuggestCategorizationRuleDto": {
+        "type": "object",
+        "properties": {
+          "rawLabel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "merchant": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Signed integer cents."
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Category the user filed the transaction under."
+          }
+        },
+        "required": [
+          "rawLabel",
+          "merchant",
+          "amountCents",
+          "accountId",
+          "categoryId"
+        ]
+      },
+      "SuggestedCategorizationRuleDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "matchType": {
+            "description": "`contains`: case-, accent- and punctuation-insensitive substring of the raw label or merchant. `regex`: case-insensitive regular expression tested against the raw label and merchant.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RuleMatchType"
+              }
+            ]
+          },
+          "labelPattern": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "minAmountCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "maxAmountCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "nullable": true,
+            "description": "Overrides the category's kind when set (e.g. `transfer` for a move to one of the user's own accounts).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
+          },
+          "merchant": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "enabled",
+          "matchType",
+          "labelPattern",
+          "accountId",
+          "minAmountCents",
+          "maxAmountCents",
+          "categoryId",
+          "kind",
+          "merchant"
+        ]
+      },
+      "ApplyCategorizationRulesResultDto": {
+        "type": "object",
+        "properties": {
+          "scanned": {
+            "type": "integer",
+            "description": "Transactions re-evaluated: uncategorized or categorized by a rule."
+          },
+          "matched": {
+            "type": "integer",
+            "description": "Scanned transactions a rule matched."
+          },
+          "unmatched": {
+            "type": "integer",
+            "description": "Scanned transactions no rule matched (left for review)."
+          },
+          "updated": {
+            "type": "integer",
+            "description": "Transactions whose category, kind, merchant or review flag changed."
+          },
+          "manualSkipped": {
+            "type": "integer",
+            "description": "Transactions categorized by hand, never overwritten."
+          }
+        },
+        "required": [
+          "scanned",
+          "matched",
+          "unmatched",
+          "updated",
+          "manualSkipped"
+        ]
+      },
+      "UpdateCategorizationRuleDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "matchType": {
+            "description": "`contains`: case-, accent- and punctuation-insensitive substring of the raw label or merchant. `regex`: case-insensitive regular expression tested against the raw label and merchant.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RuleMatchType"
+              }
+            ]
+          },
+          "labelPattern": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "minAmountCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "maxAmountCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "nullable": true,
+            "description": "Overrides the category's kind when set (e.g. `transfer` for a move to one of the user's own accounts).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
+          },
+          "merchant": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          }
+        }
       }
     }
   }

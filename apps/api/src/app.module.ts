@@ -6,6 +6,7 @@ import { loggerParams } from './config/logger'
 import { THROTTLE_LIMITS, THROTTLE_TTL } from './throttle.config'
 import { AllExceptionsFilter } from '#/common/filters/all-exceptions.filter'
 import { AuthModule } from '#/auth/auth.module'
+import { CategoriesModule } from '#/categories/categories.module'
 import { DatabaseModule } from '#/database/database.module'
 import { EmailModule } from '#/email/email.module'
 import { HealthModule } from '#/health/health.module'
@@ -27,6 +28,7 @@ import { UserModule } from '#/user/user.module'
     UserModule,
     AuthModule,
     HealthModule,
+    CategoriesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
