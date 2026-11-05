@@ -17,6 +17,10 @@ import { toast } from 'sonner'
 import { registerSchema } from './auth.schemas'
 import type { RegisterValues } from './auth.schemas'
 
+/** Single-user instance: the API answers 403 once the owner account exists. */
+const REGISTRATION_CLOSED_MESSAGE =
+  'Les inscriptions sont fermées : un compte existe déjà sur cette instance.'
+
 export function RegisterForm() {
   const navigate = useNavigate()
   const { refresh } = useAuth()
@@ -39,7 +43,9 @@ export function RegisterForm() {
       toast.error(
         isRateLimited(res.response)
           ? rateLimitMessage(res.response)
-          : getErrorMessage(res.error),
+          : res.response?.status === 403
+            ? REGISTRATION_CLOSED_MESSAGE
+            : getErrorMessage(res.error),
       )
       return
     }

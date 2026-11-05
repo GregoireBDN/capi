@@ -30,16 +30,11 @@ describe('AllExceptionsFilter', () => {
     warn: ReturnType<typeof vi.fn>
     setContext: ReturnType<typeof vi.fn>
   }
-  let analytics: { captureException: ReturnType<typeof vi.fn> }
   let filter: AllExceptionsFilter
 
   beforeEach(() => {
     logger = { error: vi.fn(), warn: vi.fn(), setContext: vi.fn() }
-    analytics = { captureException: vi.fn() }
-    filter = new AllExceptionsFilter(
-      logger as unknown as PinoLogger,
-      analytics as never,
-    )
+    filter = new AllExceptionsFilter(logger as unknown as PinoLogger)
   })
 
   function captureBody(reply: { send: ReturnType<typeof vi.fn> }): ErrorResponse {
@@ -101,19 +96,23 @@ describe('AllExceptionsFilter', () => {
     // The original error is logged (with stack) but never sent to the client.
     expect(logger.error).toHaveBeenCalledOnce()
     expect(JSON.stringify(body)).not.toContain('leaked secret')
-    // 5xx faults are forwarded to error tracking, keyed by the request id.
-    expect(analytics.captureException).toHaveBeenCalledWith(boom, 'req-123', {
-      requestId: 'req-123',
-      path: '/api/widgets',
-    })
+    // The log line carries the exception and the correlation id.
+    expect(logger.error).toHaveBeenCalledWith(
+      { err: boom, requestId: 'req-123', path: '/api/widgets' },
+      'Unhandled exception',
+    )
   })
 
-  it('does not report expected 4xx client errors to error tracking', () => {
+  it('logs expected 4xx client errors at warn, never at error', () => {
     const { host } = createHost()
 
     filter.catch(new NotFoundException('nope'), host)
 
-    expect(analytics.captureException).not.toHaveBeenCalled()
+    expect(logger.warn).toHaveBeenCalledWith(
+      { requestId: 'req-123', path: '/api/widgets', statusCode: 404 },
+      'nope',
+    )
+    expect(logger.error).not.toHaveBeenCalled()
   })
 
   it('echoes the correlation id from the request', () => {

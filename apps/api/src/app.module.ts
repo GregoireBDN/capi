@@ -5,7 +5,6 @@ import { LoggerModule } from 'nestjs-pino'
 import { loggerParams } from './config/logger'
 import { THROTTLE_LIMITS, THROTTLE_TTL } from './throttle.config'
 import { AllExceptionsFilter } from '#/common/filters/all-exceptions.filter'
-import { AnalyticsModule } from '#/analytics/analytics.module'
 import { AuthModule } from '#/auth/auth.module'
 import { DatabaseModule } from '#/database/database.module'
 import { EmailModule } from '#/email/email.module'
@@ -23,7 +22,6 @@ import { UserModule } from '#/user/user.module'
         { name: 'default', ttl: THROTTLE_TTL, limit: THROTTLE_LIMITS.global },
       ],
     }),
-    AnalyticsModule,
     DatabaseModule,
     EmailModule,
     UserModule,

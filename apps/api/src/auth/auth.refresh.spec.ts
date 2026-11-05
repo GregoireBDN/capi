@@ -29,6 +29,7 @@ function buildChain(
     if (captured) captured.where = arg
     return chain
   })
+  chain.limit = vi.fn(() => chain)
   chain.returning = vi.fn(() => Promise.resolve(result))
   chain.set = vi.fn((arg: unknown) => {
     if (captured) captured.set = arg
@@ -51,7 +52,6 @@ function createService() {
     { db: mockDb } as never,
     mockJwt as unknown as JwtService,
     mockEmail as never,
-    { capture: vi.fn(), captureException: vi.fn() } as never,
   )
 }
 

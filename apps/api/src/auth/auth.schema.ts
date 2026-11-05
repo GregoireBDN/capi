@@ -1,19 +1,6 @@
-import { pgTable, timestamp, unique, uuid, varchar } from 'drizzle-orm/pg-core'
+import { pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
 import { coreColumns } from '#/database/schema/core.schema'
 import { usersTable } from '#/user/user.schema'
-
-export const oauthAccountsTable = pgTable(
-  'oauth_accounts',
-  {
-    ...coreColumns,
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => usersTable.id, { onDelete: 'cascade' }),
-    provider: varchar('provider', { length: 32 }).notNull(),
-    providerId: varchar('provider_id', { length: 255 }).notNull(),
-  },
-  (t) => [unique().on(t.provider, t.providerId)],
-)
 
 export const passwordResetTokensTable = pgTable('password_reset_tokens', {
   ...coreColumns,
@@ -55,8 +42,6 @@ export const refreshTokensTable = pgTable('refresh_tokens', {
   revokedAt: timestamp('revoked_at'),
 })
 
-export type OAuthAccount = typeof oauthAccountsTable.$inferSelect
-export type InsertOAuthAccount = typeof oauthAccountsTable.$inferInsert
 export type PasswordResetToken = typeof passwordResetTokensTable.$inferSelect
 export type EmailVerificationToken = typeof emailVerificationTokensTable.$inferSelect
 export type RefreshToken = typeof refreshTokensTable.$inferSelect

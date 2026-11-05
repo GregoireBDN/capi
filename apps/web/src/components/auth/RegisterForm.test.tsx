@@ -87,8 +87,8 @@ describe('RegisterForm', () => {
 
   it('toasts the API error message and does not navigate on failure', async () => {
     authControllerRegister.mockResolvedValue({
-      error: { message: 'Email already in use' },
-      response: new Response(null, { status: 409 }),
+      error: { message: 'name must be shorter than or equal to 255 characters' },
+      response: new Response(null, { status: 400 }),
     })
     const user = userEvent.setup()
     render(<RegisterForm />)
@@ -97,8 +97,30 @@ describe('RegisterForm', () => {
     await user.click(screen.getByRole('button', { name: 'Créer un compte' }))
 
     await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith('Email already in use'),
+      expect(toastError).toHaveBeenCalledWith(
+        'name must be shorter than or equal to 255 characters',
+      ),
     )
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('explains that registration is closed when the API answers 403', async () => {
+    authControllerRegister.mockResolvedValue({
+      error: { message: 'Registration is closed' },
+      response: new Response(null, { status: 403 }),
+    })
+    const user = userEvent.setup()
+    render(<RegisterForm />)
+
+    await fill(user)
+    await user.click(screen.getByRole('button', { name: 'Créer un compte' }))
+
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(
+        'Les inscriptions sont fermées : un compte existe déjà sur cette instance.',
+      ),
+    )
+    expect(refresh).not.toHaveBeenCalled()
     expect(navigate).not.toHaveBeenCalled()
   })
 })

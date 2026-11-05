@@ -8,7 +8,6 @@ import {
 } from '@nestjs/common'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { PinoLogger } from 'nestjs-pino'
-import { AnalyticsService } from '#/analytics/analytics.service'
 
 /**
  * Uniform error envelope returned for every unhandled exception. A single shape
@@ -42,10 +41,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
   // Explicit @Inject(PinoLogger) (rather than relying on reflected constructor
   // metadata) keeps the reference as a value, so esbuild-based runners like tsx
   // — used by the OpenAPI spec generator — don't elide it and break injection.
-  constructor(
-    @Inject(PinoLogger) private readonly logger: PinoLogger,
-    private readonly analytics: AnalyticsService,
-  ) {
+  constructor(@Inject(PinoLogger) private readonly logger: PinoLogger) {
     this.logger.setContext(AllExceptionsFilter.name)
   }
 
@@ -73,15 +69,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
         { err: exception, requestId, path: request.url },
         'Unhandled exception',
       )
-      // Only unexpected faults (5xx) are worth error-tracking; 4xx are expected
-      // client errors. distinctId falls back to the request id when the request
-      // is unauthenticated.
-      const userId = (request as FastifyRequest & { user?: { sub?: string } })
-        .user?.sub
-      this.analytics.captureException(exception, userId ?? requestId, {
-        requestId,
-        path: request.url,
-      })
     } else {
       this.logger.warn(
         { requestId, path: request.url, statusCode: status },

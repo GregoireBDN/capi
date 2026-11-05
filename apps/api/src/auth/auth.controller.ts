@@ -9,7 +9,14 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common'
-import { ApiBody, ApiCookieAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger'
+import {
+  ApiBody,
+  ApiCookieAuth,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger'
 import { Throttle } from '@nestjs/throttler'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { THROTTLE_LIMITS, THROTTLE_TTL } from '#/throttle.config'
@@ -18,6 +25,7 @@ import {
   ForgotPasswordDto,
   LoginDto,
   RegisterDto,
+  RegistrationStatusDto,
   ResetPasswordDto,
   VerifyEmailDto,
 } from '#/auth/dto/auth.dto'
@@ -36,8 +44,6 @@ const COOKIE_DEFAULTS = {
   sameSite: 'lax',
   secure: env.isProduction,
 } as const
-const COOKIE_SECURE = env.isProduction ? '; Secure' : ''
-const OAUTH_STATE_TTL = 60 * 5
 
 /** Access token cookie — sent on every API request for the JwtGuard. */
 const ACCESS_COOKIE = 'token'
@@ -53,82 +59,6 @@ const REFRESH_COOKIE_PATH = '/api/auth'
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Get('google')
-  @ApiExcludeEndpoint()
-  googleAuth(@Res() reply: FastifyReply) {
-    const { url, state, codeVerifier } = this.authService.createGoogleAuthUrl()
-    this.sendRedirect(reply, url, [
-      this.cookie('oauth_state', state, OAUTH_STATE_TTL),
-      this.cookie('code_verifier', codeVerifier, OAUTH_STATE_TTL),
-    ])
-  }
-
-  @Get('google/callback')
-  @ApiExcludeEndpoint()
-  async googleCallback(@Req() req: FastifyRequest, @Res() reply: FastifyReply) {
-    const { code, state } = req.query as Record<string, string>
-    const storedState = req.cookies?.['oauth_state']
-    const codeVerifier = req.cookies?.['code_verifier']
-
-    if (!code || !state || state !== storedState || !codeVerifier) {
-      throw new UnauthorizedException('Invalid OAuth state')
-    }
-
-    const tokens = await this.authService.handleGoogleCallback(code, codeVerifier)
-
-    this.sendRedirect(reply, `${env.APP_URL}/auth/success`, [
-      this.clearCookie('oauth_state'),
-      this.clearCookie('code_verifier'),
-      ...this.sessionCookieStrings(tokens),
-    ])
-  }
-
-  @Get('apple')
-  @ApiExcludeEndpoint()
-  appleAuth(@Res() reply: FastifyReply) {
-    const { url, state } = this.authService.createAppleAuthUrl()
-    this.sendRedirect(reply, url, [this.cookie('oauth_state', state, OAUTH_STATE_TTL)])
-  }
-
-  @Post('apple/callback')
-  @ApiExcludeEndpoint()
-  async appleCallback(@Req() req: FastifyRequest, @Res() reply: FastifyReply) {
-    const body = req.body as { code: string; state: string; user?: string }
-    const storedState = req.cookies?.['oauth_state']
-
-    if (!body.code || !body.state || body.state !== storedState) {
-      throw new UnauthorizedException('Invalid OAuth state')
-    }
-
-    const appleUser = body.user ? (JSON.parse(body.user) as { name?: { firstName?: string; lastName?: string } }) : null
-    const tokens = await this.authService.handleAppleCallback(
-      body.code,
-      appleUser?.name?.firstName,
-      appleUser?.name?.lastName,
-    )
-
-    this.sendRedirect(reply, `${env.APP_URL}/auth/success`, [
-      this.clearCookie('oauth_state'),
-      ...this.sessionCookieStrings(tokens),
-    ])
-  }
-
-  private cookie(name: string, value: string, maxAge: number, path = '/'): string {
-    return `${name}=${value}; Max-Age=${maxAge}; Path=${path}; HttpOnly; SameSite=Lax${COOKIE_SECURE}`
-  }
-
-  private clearCookie(name: string): string {
-    return `${name}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax${COOKIE_SECURE}`
-  }
-
-  /** Raw Set-Cookie strings for the session pair (used by OAuth redirects). */
-  private sessionCookieStrings({ accessToken, refreshToken }: SessionTokens): string[] {
-    return [
-      this.cookie(ACCESS_COOKIE, accessToken, ACCESS_TOKEN_TTL_SECONDS),
-      this.cookie(REFRESH_COOKIE, refreshToken, REFRESH_TOKEN_TTL_SECONDS, REFRESH_COOKIE_PATH),
-    ]
-  }
-
   /** Sets the session pair on a JSON reply via the Fastify cookie API. */
   private setSessionCookies(reply: FastifyReply, { accessToken, refreshToken }: SessionTokens) {
     reply
@@ -140,12 +70,6 @@ export class AuthController {
       })
   }
 
-  private sendRedirect(reply: FastifyReply, url: string, cookies: string[]) {
-    reply.hijack()
-    reply.raw.writeHead(302, { Location: url, 'Set-Cookie': cookies })
-    reply.raw.end()
-  }
-
   @Get('me')
   @UseGuards(JwtGuard)
   @ApiCookieAuth('token')
@@ -155,10 +79,21 @@ export class AuthController {
     return this.authService.getUser(sub)
   }
 
+  /**
+   * Single-user instance: lets the web app hide the sign-up form once the
+   * owner account exists.
+   */
+  @Get('registration-status')
+  @ApiOkResponse({ type: RegistrationStatusDto })
+  async registrationStatus(): Promise<RegistrationStatusDto> {
+    return { open: await this.authService.isRegistrationOpen() }
+  }
+
   @Post('register')
   @Throttle({ default: { ttl: THROTTLE_TTL, limit: THROTTLE_LIMITS.register } })
   @ApiBody({ type: RegisterDto })
   @ApiCreatedResponse({ schema: { example: { success: true } } })
+  @ApiForbiddenResponse({ description: 'Registration is closed: an account already exists.' })
   async register(@Body() dto: RegisterDto, @Res() reply: FastifyReply) {
     const tokens = await this.authService.register(dto)
     this.setSessionCookies(reply, tokens)

@@ -23,17 +23,26 @@ import {
   CardHeader,
   CardTitle,
 } from '@finances/ui'
-import { getMe } from '#/lib/auth'
+import { getMe, getRegistrationOpen } from '#/lib/auth'
 import { ROUTES } from '#/lib/routes'
 
 export const Route = createFileRoute('/')({
-  loader: async () => ({ user: await getMe() }),
+  loader: async () => {
+    const user = await getMe()
+    // Only the anonymous landing page needs to know whether sign-up is open.
+    const registrationOpen = user ? false : await getRegistrationOpen()
+    return { user, registrationOpen }
+  },
   component: HomePage,
 })
 
 function HomePage() {
-  const { user } = Route.useLoaderData()
-  return user ? <LoggedInHome user={user} /> : <LandingPage />
+  const { user, registrationOpen } = Route.useLoaderData()
+  return user ? (
+    <LoggedInHome user={user} />
+  ) : (
+    <LandingPage registrationOpen={registrationOpen} />
+  )
 }
 
 function getGreeting(date = new Date()) {
@@ -163,7 +172,7 @@ const features = [
     icon: ShieldCheckIcon,
     title: 'Auth intégrée',
     description:
-      "JWT httpOnly, OAuth Google, inscription et connexion prêts à l'emploi. Sécurisé par défaut.",
+      "JWT httpOnly, inscription et connexion par mot de passe prêtes à l'emploi. Sécurisé par défaut.",
   },
   {
     icon: ZapIcon,
@@ -199,7 +208,7 @@ const stack = [
   'Turborepo',
 ]
 
-function LandingPage() {
+function LandingPage({ registrationOpen }: { registrationOpen: boolean }) {
   return (
     <main className="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-x-0 -top-32 -z-10 flex justify-center">
@@ -242,17 +251,19 @@ function LandingPage() {
           </p>
 
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
-            <Button
-              asChild
-              size="xl"
-              pill
-              className="transition-transform hover:-translate-y-0.5"
-            >
-              <Link to={ROUTES.auth}>
-                Créer un compte
-                <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-1" />
-              </Link>
-            </Button>
+            {registrationOpen && (
+              <Button
+                asChild
+                size="xl"
+                pill
+                className="transition-transform hover:-translate-y-0.5"
+              >
+                <Link to={ROUTES.auth} search={{ mode: 'register' }}>
+                  Créer un compte
+                  <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-1" />
+                </Link>
+              </Button>
+            )}
             <Button
               asChild
               size="xl"
