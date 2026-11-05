@@ -5,6 +5,7 @@ import { LoggerModule } from 'nestjs-pino'
 import { loggerParams } from './config/logger'
 import { THROTTLE_LIMITS, THROTTLE_TTL } from './throttle.config'
 import { AllExceptionsFilter } from '#/common/filters/all-exceptions.filter'
+import { AccountsModule } from '#/accounts/accounts.module'
 import { AuthModule } from '#/auth/auth.module'
 import { CategoriesModule } from '#/categories/categories.module'
 import { DatabaseModule } from '#/database/database.module'
@@ -29,6 +30,7 @@ import { UserModule } from '#/user/user.module'
     AuthModule,
     HealthModule,
     CategoriesModule,
+    AccountsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
