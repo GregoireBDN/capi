@@ -7,7 +7,7 @@ FROM base AS builder
 WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @temply/web build
+RUN pnpm --filter @finances/web build
 
 FROM node:22-alpine AS runner
 WORKDIR /app

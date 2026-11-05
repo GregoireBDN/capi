@@ -1,5 +1,5 @@
 {
-  "extends": "@temply/config-typescript/react",
+  "extends": "@finances/config-typescript/react",
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "compilerOptions": {
     "types": []

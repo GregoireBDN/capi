@@ -17,7 +17,7 @@ async function generateSpec() {
   app.setGlobalPrefix('api')
 
   const config = new DocumentBuilder()
-    .setTitle('Temply API')
+    .setTitle('Finances API')
     .setVersion('1.0')
     .addCookieAuth('token')
     .build()

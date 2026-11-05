@@ -7,8 +7,8 @@ FROM base AS builder
 WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @temply/api build
-RUN pnpm --filter @temply/api deploy --prod /prod/api
+RUN pnpm --filter @finances/api build
+RUN pnpm --filter @finances/api deploy --prod /prod/api
 
 FROM base AS runner
 WORKDIR /app

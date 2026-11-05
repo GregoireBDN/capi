@@ -12,3 +12,6 @@ dist-ssr
 .vinxi
 __unconfig*
 *.local
+
+# Local real bank exports — never commit
+data/

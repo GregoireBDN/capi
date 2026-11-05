@@ -18,7 +18,7 @@ import {
   FieldError,
   FieldLabel,
   PasswordInput,
-} from '@temply/ui'
+} from '@finances/ui'
 
 export const Route = createFileRoute('/reset-password')({
   validateSearch: z.object({ token: z.string().optional() }),

@@ -14,7 +14,6 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthSuccessRouteImport } from './routes/auth/success'
 
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
   id: '/verify-email',
@@ -41,54 +40,34 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthSuccessRoute = AuthSuccessRouteImport.update({
-  id: '/success',
-  path: '/success',
-  getParentRoute: () => AuthRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRouteWithChildren
+  '/auth': typeof AuthRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
-  '/auth/success': typeof AuthSuccessRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRouteWithChildren
+  '/auth': typeof AuthRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
-  '/auth/success': typeof AuthSuccessRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/auth': typeof AuthRouteWithChildren
+  '/auth': typeof AuthRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
-  '/auth/success': typeof AuthSuccessRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/auth'
-    | '/profile'
-    | '/reset-password'
-    | '/verify-email'
-    | '/auth/success'
+  fullPaths: '/' | '/auth' | '/profile' | '/reset-password' | '/verify-email'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/auth'
-    | '/profile'
-    | '/reset-password'
-    | '/verify-email'
-    | '/auth/success'
+  to: '/' | '/auth' | '/profile' | '/reset-password' | '/verify-email'
   id:
     | '__root__'
     | '/'
@@ -96,12 +75,11 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reset-password'
     | '/verify-email'
-    | '/auth/success'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AuthRoute: typeof AuthRouteWithChildren
+  AuthRoute: typeof AuthRoute
   ProfileRoute: typeof ProfileRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
@@ -144,29 +122,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/auth/success': {
-      id: '/auth/success'
-      path: '/success'
-      fullPath: '/auth/success'
-      preLoaderRoute: typeof AuthSuccessRouteImport
-      parentRoute: typeof AuthRoute
-    }
   }
 }
 
-interface AuthRouteChildren {
-  AuthSuccessRoute: typeof AuthSuccessRoute
-}
-
-const AuthRouteChildren: AuthRouteChildren = {
-  AuthSuccessRoute: AuthSuccessRoute,
-}
-
-const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AuthRoute: AuthRouteWithChildren,
+  AuthRoute: AuthRoute,
   ProfileRoute: ProfileRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   VerifyEmailRoute: VerifyEmailRoute,

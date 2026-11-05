@@ -1,19 +1,16 @@
 import {
   BadRequestException,
-  ConflictException,
+  ForbiddenException,
   Injectable,
-  OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import * as bcrypt from 'bcryptjs'
 import * as crypto from 'node:crypto'
-import { and, eq, isNull } from 'drizzle-orm'
-import { AnalyticsService } from '#/analytics/analytics.service'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { DatabaseService } from '#/database/database.service'
 import {
   emailVerificationTokensTable,
-  oauthAccountsTable,
   passwordResetTokensTable,
   refreshTokensTable,
 } from '#/auth/auth.schema'
@@ -36,143 +33,57 @@ export interface SessionTokens {
   refreshToken: string
 }
 
-interface OAuthTokens {
-  idToken(): string
-}
-
-interface OAuthProvider {
-  createAuthorizationURL(state: string, codeVerifierOrScopes: string | string[], scopes?: string[]): URL
-  validateAuthorizationCode(code: string, codeVerifier?: string): Promise<OAuthTokens>
-}
-
-interface ArcticModule {
-  Google: new (clientId: string, clientSecret: string, redirectURI: string) => OAuthProvider
-  Apple: new (clientId: string, teamId: string, keyId: string, key: Uint8Array, redirectURI: string) => OAuthProvider
-  generateState(): string
-  generateCodeVerifier(): string
-  decodeIdToken(token: string): unknown
-}
+/**
+ * Arbitrary, app-wide key for the Postgres advisory lock that serialises
+ * sign-ups, so two concurrent registrations can't both see an empty `users`
+ * table and create a second account.
+ */
+const REGISTRATION_LOCK_KEY = 4_242_001
 
 @Injectable()
-export class AuthService implements OnModuleInit {
-  private arctic!: ArcticModule
-
+export class AuthService {
   constructor(
     private readonly db: DatabaseService,
     private readonly jwt: JwtService,
     private readonly email: EmailService,
-    private readonly analytics: AnalyticsService,
   ) {}
 
-  async onModuleInit() {
-    this.arctic = (await import('arctic')) as unknown as ArcticModule
-  }
-
-  private get google(): OAuthProvider {
-    return new this.arctic.Google(
-      env.GOOGLE_CLIENT_ID,
-      env.GOOGLE_CLIENT_SECRET,
-      env.GOOGLE_REDIRECT_URI,
-    )
-  }
-
-  private get apple(): OAuthProvider {
-    return new this.arctic.Apple(
-      env.APPLE_CLIENT_ID,
-      env.APPLE_TEAM_ID,
-      env.APPLE_KEY_ID,
-      new TextEncoder().encode(env.APPLE_PRIVATE_KEY),
-      env.APPLE_REDIRECT_URI,
-    )
-  }
-
-  createGoogleAuthUrl() {
-    const state = this.arctic.generateState()
-    const codeVerifier = this.arctic.generateCodeVerifier()
-    const url = this.google.createAuthorizationURL(state, codeVerifier, [
-      'openid',
-      'email',
-      'profile',
-    ])
-    return { url: url.toString(), state, codeVerifier }
-  }
-
-  async handleGoogleCallback(code: string, codeVerifier: string) {
-    const tokens = await this.google.validateAuthorizationCode(code, codeVerifier)
-    const claims = this.arctic.decodeIdToken(tokens.idToken()) as {
-      sub: string
-      email: string
-      name: string
-    }
-    return this.findOrCreateUser('google', claims.sub, claims.email, claims.name)
-  }
-
-  createAppleAuthUrl() {
-    const state = this.arctic.generateState()
-    const url = this.apple.createAuthorizationURL(state, ['email', 'name'])
-    return { url: url.toString(), state }
-  }
-
-  async handleAppleCallback(code: string, firstName?: string, lastName?: string) {
-    const tokens = await this.apple.validateAuthorizationCode(code)
-    const claims = this.arctic.decodeIdToken(tokens.idToken()) as {
-      sub: string
-      email?: string
-    }
-    const name = [firstName, lastName].filter(Boolean).join(' ') || 'Apple User'
-    return this.findOrCreateUser('apple', claims.sub, claims.email ?? '', name)
-  }
-
-  private async findOrCreateUser(
-    provider: string,
-    providerId: string,
-    email: string,
-    name: string,
-  ) {
-    const [existing] = await this.db.db
-      .select()
-      .from(oauthAccountsTable)
-      .where(
-        and(
-          eq(oauthAccountsTable.provider, provider),
-          eq(oauthAccountsTable.providerId, providerId),
-        ),
-      )
-
-    if (existing) {
-      this.analytics.capture(existing.userId, 'user_logged_in', {
-        method: provider,
-      })
-      return this.createSession(existing.userId)
-    }
-
-    const [user] = await this.db.db
-      .insert(usersTable)
-      .values({ email, name })
-      .returning()
-    await this.db.db
-      .insert(oauthAccountsTable)
-      .values({ userId: user.id, provider, providerId })
-
-    this.analytics.capture(user.id, 'user_signed_up', { method: provider })
-    return this.createSession(user.id)
-  }
-
-  async register(dto: RegisterDto): Promise<SessionTokens> {
+  /**
+   * Finances is single-user: public registration is only open until the first
+   * account exists. Afterwards `register` is rejected with 403.
+   */
+  async isRegistrationOpen(): Promise<boolean> {
     const [existing] = await this.db.db
       .select({ id: usersTable.id })
       .from(usersTable)
-      .where(eq(usersTable.email, dto.email))
-    if (existing) throw new ConflictException(AUTH_ERRORS.EMAIL_IN_USE)
+      .limit(1)
+    return !existing
+  }
+
+  async register(dto: RegisterDto): Promise<SessionTokens> {
+    // Cheap pre-check so a closed instance doesn't spend a bcrypt round.
+    if (!(await this.isRegistrationOpen())) {
+      throw new ForbiddenException(AUTH_ERRORS.REGISTRATION_CLOSED)
+    }
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS)
-    const [user] = await this.db.db
-      .insert(usersTable)
-      .values({ email: dto.email, name: dto.name, passwordHash })
-      .returning()
+    const user = await this.db.db.transaction(async (tx) => {
+      // Serialise concurrent sign-ups, then re-check under the lock.
+      await tx.execute(sql`select pg_advisory_xact_lock(${REGISTRATION_LOCK_KEY})`)
+      const [existing] = await tx
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .limit(1)
+      if (existing) throw new ForbiddenException(AUTH_ERRORS.REGISTRATION_CLOSED)
+
+      const [created] = await tx
+        .insert(usersTable)
+        .values({ email: dto.email, name: dto.name, passwordHash })
+        .returning()
+      return created
+    })
 
     await this.sendVerificationEmail(user.id, user.email)
-    this.analytics.capture(user.id, 'user_signed_up', { method: 'password' })
     return this.createSession(user.id)
   }
 
@@ -237,13 +148,13 @@ export class AuthService implements OnModuleInit {
       .select()
       .from(usersTable)
       .where(eq(usersTable.email, dto.email))
-    if (!user) throw new UnauthorizedException('Invalid credentials')
-    if (!user.passwordHash) throw new UnauthorizedException('Please sign in with Google')
+    if (!user?.passwordHash) {
+      throw new UnauthorizedException(AUTH_ERRORS.INVALID_CREDENTIALS)
+    }
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash)
-    if (!valid) throw new UnauthorizedException('Invalid credentials')
+    if (!valid) throw new UnauthorizedException(AUTH_ERRORS.INVALID_CREDENTIALS)
 
-    this.analytics.capture(user.id, 'user_logged_in', { method: 'password' })
     return this.createSession(user.id)
   }
 

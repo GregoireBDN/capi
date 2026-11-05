@@ -13,7 +13,7 @@ import { z } from 'zod'
 const isProduction = process.env['NODE_ENV'] === 'production'
 
 /** Dev/test fallback matching the docker-compose Postgres service. */
-const DEV_DATABASE_URL = 'postgres://user:password@localhost:5432/temply'
+const DEV_DATABASE_URL = 'postgres://user:password@localhost:5432/finances'
 
 /**
  * Required in production (a missing value crashes the boot); outside production
@@ -46,25 +46,6 @@ const envSchema = z.object({
         .min(1, 'JWT_SECRET is required when NODE_ENV=production')
     : z.string().min(1).optional(),
 
-  /**
-   * OAuth credentials are optional — an instance may run without OAuth
-   * configured. They default to empty strings so consumers receive a `string`
-   * (no non-null assertions); hitting an OAuth route without credentials fails
-   * at the provider, exactly as before.
-   */
-  GOOGLE_CLIENT_ID: z.string().default(''),
-  GOOGLE_CLIENT_SECRET: z.string().default(''),
-  GOOGLE_REDIRECT_URI: z
-    .string()
-    .default('http://localhost:4000/api/auth/google/callback'),
-  APPLE_CLIENT_ID: z.string().default(''),
-  APPLE_TEAM_ID: z.string().default(''),
-  APPLE_KEY_ID: z.string().default(''),
-  APPLE_PRIVATE_KEY: z.string().default(''),
-  APPLE_REDIRECT_URI: z
-    .string()
-    .default('http://localhost:4000/api/auth/apple/callback'),
-
   // SMTP — dev defaults target the Mailpit container.
   SMTP_HOST: z.string().min(1).default('localhost'),
   SMTP_PORT: z.coerce.number().int().positive().default(1025),
@@ -75,15 +56,7 @@ const envSchema = z.object({
     .transform((value) => value === 'true'),
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
-  EMAIL_FROM: z.string().default('noreply@temply.app'),
-
-  /**
-   * PostHog server-side analytics/error-tracking. Optional: an empty key
-   * disables capture entirely (the AnalyticsService becomes a no-op), so the
-   * app runs locally without a PostHog project configured.
-   */
-  POSTHOG_KEY: z.string().default(''),
-  POSTHOG_HOST: z.url().default('https://us.i.posthog.com'),
+  EMAIL_FROM: z.string().default('noreply@finances.app'),
 })
 
 function loadEnv() {

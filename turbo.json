@@ -12,8 +12,8 @@
       "inputs": ["src/**/*.ts", "openapi.json", "openapi-ts.config.ts"],
       "outputs": ["openapi.json", "src/api/**"]
     },
-    "@temply/web#generate": {
-      "dependsOn": ["@temply/api#generate"],
+    "@finances/web#generate": {
+      "dependsOn": ["@finances/api#generate"],
       "inputs": ["openapi.json", "openapi-ts.config.ts"],
       "outputs": ["src/api/**"]
     },

@@ -19,7 +19,7 @@ import {
   FieldError,
   FieldLabel,
   Input,
-} from '@temply/ui'
+} from '@finances/ui'
 import {
   ArrowLeftIcon,
   BadgeCheckIcon,

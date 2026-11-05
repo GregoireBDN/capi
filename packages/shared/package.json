@@ -1,5 +1,5 @@
 {
-  "name": "@temply/shared",
+  "name": "@finances/shared",
   "version": "0.0.1",
   "private": true,
   "exports": {
@@ -9,7 +9,7 @@
     }
   },
   "devDependencies": {
-    "@temply/config-typescript": "workspace:*",
+    "@finances/config-typescript": "workspace:*",
     "typescript": "^6.0.2"
   },
   "peerDependencies": {

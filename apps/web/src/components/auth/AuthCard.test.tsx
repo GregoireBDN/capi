@@ -1,0 +1,64 @@
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
+
+import { AuthCard } from './AuthCard'
+
+// The forms themselves are covered by their own tests; stub them so this suite
+// only exercises which view the card shows and which links it offers.
+vi.mock('./LoginForm', () => ({
+  LoginForm: ({ onSwitchToForgot }: { onSwitchToForgot: () => void }) => (
+    <button type="button" onClick={onSwitchToForgot}>
+      login-form
+    </button>
+  ),
+}))
+vi.mock('./RegisterForm', () => ({ RegisterForm: () => <p>register-form</p> }))
+vi.mock('./ForgotForm', () => ({ ForgotForm: () => <p>forgot-form</p> }))
+
+const signUp = () => screen.queryByRole('button', { name: "S'inscrire" })
+
+describe('AuthCard', () => {
+  it('offers sign-up while registration is open', async () => {
+    const user = userEvent.setup()
+    render(<AuthCard registrationOpen />)
+
+    expect(screen.getByText('login-form')).toBeInTheDocument()
+    await user.click(signUp()!)
+
+    expect(screen.getByText('register-form')).toBeInTheDocument()
+    expect(screen.queryByText('login-form')).not.toBeInTheDocument()
+  })
+
+  it('hides every way to sign up once registration is closed', () => {
+    render(<AuthCard registrationOpen={false} />)
+
+    expect(screen.getByText('login-form')).toBeInTheDocument()
+    expect(signUp()).not.toBeInTheDocument()
+    expect(screen.queryByText('register-form')).not.toBeInTheDocument()
+  })
+
+  it('falls back to login when the register view is requested but closed', () => {
+    render(<AuthCard registrationOpen={false} initialMode="register" />)
+
+    expect(screen.getByText('login-form')).toBeInTheDocument()
+    expect(screen.queryByText('register-form')).not.toBeInTheDocument()
+  })
+
+  it('opens the register view directly when requested and open', () => {
+    render(<AuthCard registrationOpen initialMode="register" />)
+
+    expect(screen.getByText('register-form')).toBeInTheDocument()
+  })
+
+  it('switches to forgot-password and back to login', async () => {
+    const user = userEvent.setup()
+    render(<AuthCard registrationOpen={false} />)
+
+    await user.click(screen.getByText('login-form'))
+    expect(screen.getByText('forgot-form')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Retour à la connexion' }))
+    expect(screen.getByText('login-form')).toBeInTheDocument()
+  })
+})

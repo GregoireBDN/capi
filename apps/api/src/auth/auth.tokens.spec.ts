@@ -23,6 +23,7 @@ function buildChain(result: unknown[], captured?: { values?: unknown }) {
   const chain: Record<string, unknown> = {}
   chain.from = vi.fn(() => chain)
   chain.where = vi.fn(() => chain)
+  chain.limit = vi.fn(() => chain)
   chain.returning = vi.fn(() => Promise.resolve(result))
   chain.set = vi.fn(() => chain)
   chain.values = vi.fn((row: unknown) => {
@@ -33,7 +34,14 @@ function buildChain(result: unknown[], captured?: { values?: unknown }) {
   return chain
 }
 
-const mockDb = { select: vi.fn(), insert: vi.fn(), update: vi.fn() }
+const mockDb: Record<string, ReturnType<typeof vi.fn>> = {
+  select: vi.fn(),
+  insert: vi.fn(),
+  update: vi.fn(),
+  execute: vi.fn(),
+  // Run the callback against the same stub, as if it were the transaction.
+  transaction: vi.fn((cb: (tx: unknown) => unknown) => cb(mockDb)),
+}
 const mockEmail = { sendEmailVerification: vi.fn(), sendPasswordReset: vi.fn() }
 const mockJwt = { sign: vi.fn(() => 'mock-token') }
 
@@ -42,7 +50,6 @@ function createService() {
     { db: mockDb } as never,
     mockJwt as unknown as JwtService,
     mockEmail as never,
-    { capture: vi.fn(), captureException: vi.fn() } as never,
   )
 }
 

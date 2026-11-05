@@ -1,10 +1,9 @@
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
-import { Toaster } from '@temply/ui'
+import { Toaster } from '@finances/ui'
 import Header from '../components/Header'
 import NotFound from '../components/NotFound'
-import { AnalyticsProvider } from '../lib/analytics'
 import { AuthProvider } from '../lib/auth-context'
 
 import appCss from '../globals.css?url'
@@ -22,14 +21,14 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'Temply',
+        title: 'Finances',
       },
     ],
     links: [
       {
         rel: 'icon',
         type: 'image/svg+xml',
-        href: '/temply-logo.svg',
+        href: '/logo.svg',
       },
       {
         rel: 'stylesheet',
@@ -49,25 +48,23 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="flex min-h-svh flex-col font-sans antialiased [overflow-wrap:anywhere]">
-        <AnalyticsProvider>
-          <AuthProvider>
-            <Header />
-            {children}
-            <Toaster />
-            <TanStackDevtools
-              config={{
-                position: 'bottom-right',
-              }}
-              plugins={[
-                {
-                  name: 'Tanstack Router',
-                  render: <TanStackRouterDevtoolsPanel />,
-                },
-              ]}
-            />
-            <Scripts />
-          </AuthProvider>
-        </AnalyticsProvider>
+        <AuthProvider>
+          <Header />
+          {children}
+          <Toaster />
+          <TanStackDevtools
+            config={{
+              position: 'bottom-right',
+            }}
+            plugins={[
+              {
+                name: 'Tanstack Router',
+                render: <TanStackRouterDevtoolsPanel />,
+              },
+            ]}
+          />
+          <Scripts />
+        </AuthProvider>
       </body>
     </html>
   )

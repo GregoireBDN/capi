@@ -172,6 +172,27 @@
         ]
       }
     },
+    "/api/auth/registration-status": {
+      "get": {
+        "operationId": "AuthController_registrationStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationStatusDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/auth/register": {
       "post": {
         "operationId": "AuthController_register",
@@ -198,6 +219,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Registration is closed: an account already exists."
           }
         },
         "tags": [
@@ -581,7 +605,7 @@
     }
   },
   "info": {
-    "title": "Temply API",
+    "title": "Finances API",
     "description": "",
     "version": "1.0",
     "contact": {}
@@ -682,6 +706,18 @@
             ]
           }
         }
+      },
+      "RegistrationStatusDto": {
+        "type": "object",
+        "properties": {
+          "open": {
+            "type": "boolean",
+            "description": "True until the single owner account has been created."
+          }
+        },
+        "required": [
+          "open"
+        ]
       },
       "RegisterDto": {
         "type": "object",

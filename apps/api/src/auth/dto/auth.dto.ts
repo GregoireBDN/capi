@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger'
 import { EmailField, NameField, PasswordField, TokenField } from './fields'
 
 export class RegisterDto {
@@ -35,4 +36,12 @@ export class ResetPasswordDto {
 
   @PasswordField()
   password!: string
+}
+
+export class RegistrationStatusDto {
+  @ApiProperty({
+    type: Boolean,
+    description: 'True until the single owner account has been created.',
+  })
+  open!: boolean
 }

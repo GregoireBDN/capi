@@ -1,12 +1,15 @@
-import { ConflictException, UnauthorizedException } from '@nestjs/common'
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthService } from './auth.service'
 
-const mockDb = {
+const mockDb: Record<string, ReturnType<typeof vi.fn>> = {
   select: vi.fn(),
   insert: vi.fn(),
   update: vi.fn(),
+  execute: vi.fn(),
+  // Run the callback against the same stub, as if it were the transaction.
+  transaction: vi.fn((cb: (tx: unknown) => unknown) => cb(mockDb)),
 }
 
 const mockEmail = {
@@ -23,6 +26,7 @@ function buildChain(result: unknown[]) {
   const chain: Record<string, unknown> = {}
   chain.from = vi.fn(() => chain)
   chain.where = vi.fn(() => chain)
+  chain.limit = vi.fn(() => chain)
   chain.returning = vi.fn(() => Promise.resolve(result))
   chain.values = vi.fn(() => chain)
   chain.set = vi.fn(() => chain)
@@ -39,29 +43,52 @@ describe('AuthService', () => {
       { db: mockDb } as never,
       mockJwt as unknown as JwtService,
       mockEmail as never,
-      { capture: vi.fn(), captureException: vi.fn() } as never,
     )
   })
 
-  describe('register', () => {
-    it('throws ConflictException when email already exists', async () => {
-      mockDb.select.mockReturnValue(buildChain([{ id: 'existing-id' }]))
+  describe('isRegistrationOpen', () => {
+    it('is open while no user exists', async () => {
+      mockDb.select.mockReturnValue(buildChain([]))
 
-      await expect(
-        service.register({ email: 'test@test.com', name: 'Test', password: 'password123' }),
-      ).rejects.toThrow(ConflictException)
+      await expect(service.isRegistrationOpen()).resolves.toBe(true)
     })
 
-    it('returns an access + refresh token pair on success', async () => {
+    it('is closed once a user exists', async () => {
+      mockDb.select.mockReturnValue(buildChain([{ id: 'owner-id' }]))
+
+      await expect(service.isRegistrationOpen()).resolves.toBe(false)
+    })
+  })
+
+  describe('register', () => {
+    const dto = { email: 'new@test.com', name: 'New User', password: 'password123' }
+
+    it('throws ForbiddenException when a user already exists', async () => {
+      mockDb.select.mockReturnValue(buildChain([{ id: 'owner-id' }]))
+
+      await expect(service.register(dto)).rejects.toThrow(ForbiddenException)
+      expect(mockDb.transaction).not.toHaveBeenCalled()
+      expect(mockDb.insert).not.toHaveBeenCalled()
+      expect(mockEmail.sendEmailVerification).not.toHaveBeenCalled()
+    })
+
+    it('rejects when another sign-up wins the race (re-check under the lock)', async () => {
+      mockDb.select
+        .mockReturnValueOnce(buildChain([])) // pre-check: empty table
+        .mockReturnValueOnce(buildChain([{ id: 'owner-id' }])) // under the lock
+      await expect(service.register(dto)).rejects.toThrow(ForbiddenException)
+      expect(mockDb.execute).toHaveBeenCalledOnce() // advisory lock taken
+      expect(mockDb.insert).not.toHaveBeenCalled()
+    })
+
+    it('creates the first account and returns an access + refresh token pair', async () => {
       mockDb.select.mockReturnValue(buildChain([]))
-      mockDb.insert.mockReturnValue(buildChain([{ id: 'new-id' }]))
+      mockDb.insert.mockReturnValue(buildChain([{ id: 'new-id', email: 'new@test.com' }]))
 
-      const tokens = await service.register({
-        email: 'new@test.com',
-        name: 'New User',
-        password: 'password123',
-      })
+      const tokens = await service.register(dto)
 
+      expect(mockDb.transaction).toHaveBeenCalledOnce()
+      expect(mockDb.execute).toHaveBeenCalledOnce()
       expect(tokens.accessToken).toBe('mock-token')
       expect(tokens.refreshToken).toMatch(/^[a-f0-9]{64}$/) // 32 random bytes, hex
       expect(mockJwt.sign).toHaveBeenCalledWith({ sub: 'new-id' }, expect.any(Object))
@@ -77,11 +104,11 @@ describe('AuthService', () => {
       ).rejects.toThrow(UnauthorizedException)
     })
 
-    it('throws UnauthorizedException for OAuth-only accounts', async () => {
+    it('throws UnauthorizedException for accounts without a password', async () => {
       mockDb.select.mockReturnValue(buildChain([{ id: 'id', passwordHash: null }]))
 
       await expect(
-        service.login({ email: 'google@test.com', password: 'password123' }),
+        service.login({ email: 'nopassword@test.com', password: 'password123' }),
       ).rejects.toThrow(UnauthorizedException)
     })
   })
@@ -97,10 +124,10 @@ describe('AuthService', () => {
       expect(mockEmail.sendPasswordReset).not.toHaveBeenCalled()
     })
 
-    it('does nothing silently for OAuth-only accounts', async () => {
-      mockDb.select.mockReturnValue(buildChain([{ id: 'id', email: 'oauth@test.com', passwordHash: null }]))
+    it('does nothing silently for accounts without a password', async () => {
+      mockDb.select.mockReturnValue(buildChain([{ id: 'id', email: 'nopassword@test.com', passwordHash: null }]))
 
-      await service.forgotPassword({ email: 'oauth@test.com' })
+      await service.forgotPassword({ email: 'nopassword@test.com' })
 
       expect(mockEmail.sendPasswordReset).not.toHaveBeenCalled()
     })

@@ -1,1 +1,1 @@
-export { useIsMobile } from "@temply/ui"
+export { useIsMobile } from "@finances/ui"
