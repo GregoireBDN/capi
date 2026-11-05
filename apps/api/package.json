@@ -16,6 +16,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/database/seed.ts",
+    "import:history": "tsx src/database/import-history.ts",
     "generate": "tsx src/generate-spec.ts"
   },
   "dependencies": {
