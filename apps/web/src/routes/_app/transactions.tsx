@@ -1,14 +1,27 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ArrowLeftRightIcon } from 'lucide-react'
-import { PlaceholderPage } from '#/components/app-shell/PlaceholderPage'
+import { TransactionsPage } from '#/components/transactions/TransactionsPage'
+import { parseTransactionsSearch } from '#/components/transactions/search'
 
 export const Route = createFileRoute('/_app/transactions')({
+  // Filters live in the URL: reload, back/forward and shared links keep them.
+  validateSearch: parseTransactionsSearch,
   head: () => ({ meta: [{ title: 'Opérations · Finances' }] }),
-  component: () => (
-    <PlaceholderPage
-      title="Opérations"
-      icon={ArrowLeftRightIcon}
-      description="Retrouvez bientôt ici toutes vos opérations importées, catégorisées automatiquement et faciles à filtrer."
-    />
-  ),
+  component: TransactionsRoute,
 })
+
+function TransactionsRoute() {
+  const search = Route.useSearch()
+  const navigate = Route.useNavigate()
+  return (
+    <TransactionsPage
+      search={search}
+      onSearchChange={(next, options) =>
+        void navigate({
+          search: next,
+          replace: options?.replace,
+          resetScroll: false,
+        })
+      }
+    />
+  )
+}

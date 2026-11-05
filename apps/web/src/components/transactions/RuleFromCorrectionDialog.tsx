@@ -27,6 +27,7 @@ import type {
   CreateCategorizationRuleDto,
   TransactionDto,
 } from '#/api/types.gen'
+import { plural } from '#/lib/plural'
 import { CategoryBadge } from './CategoryBadge'
 
 /** Delay between the last keystroke and the preview request. */
@@ -50,10 +51,6 @@ interface RuleFromCorrectionDialogProps {
   onCreated: (result: RuleCreatedResult) => void
 }
 
-function plural(count: number, one: string, many: string) {
-  return `${count} ${count > 1 ? many : one}`
-}
-
 function previewText({ matched, leavingReview }: CategorizationRulePreviewDto) {
   if (matched === 0) {
     return 'Aucune autre opération ne correspond pour l’instant.'
@@ -70,7 +67,7 @@ function previewText({ matched, leavingReview }: CategorizationRulePreviewDto) {
  * many transactions it would re-categorize (`preview`), then creates the rule
  * and applies the rules so similar transactions leave the review queue.
  *
- * Shared by the review queue and, later, the transactions page.
+ * Shared by the review queue and the transactions page.
  */
 export function RuleFromCorrectionDialog({
   open,

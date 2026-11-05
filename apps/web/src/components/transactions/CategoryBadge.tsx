@@ -13,7 +13,9 @@ export function CategoryBadge({
         className="size-2 shrink-0 rounded-full"
         style={{ backgroundColor: category.color ?? 'currentColor' }}
       />
-      <span className="truncate">{category.name}</span>
+      <span className="truncate" title={category.name}>
+        {category.name}
+      </span>
     </span>
   )
 }

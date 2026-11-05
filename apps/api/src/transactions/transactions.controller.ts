@@ -30,7 +30,9 @@ import {
   ListTransactionsQueryDto,
   ReviewCountDto,
   TransactionDto,
+  TransactionFiltersQueryDto,
   TransactionListDto,
+  TransactionSummaryDto,
   UpdateTransactionDto,
 } from './dto/transaction.dto'
 import { TransactionsService } from './transactions.service'
@@ -49,7 +51,7 @@ export class TransactionsController {
   @ApiOperation({
     summary: 'List transactions',
     description:
-      'Filtered and paginated, newest booking date first (ties broken by id). `needsReview=true` is the review queue.',
+      'Filtered and paginated, newest booking date first unless `sort` says otherwise (ties broken by id). `needsReview=true` is the review queue.',
   })
   // Explicit: the spec is generated without decorator metadata (tsx), so
   // Swagger cannot infer the query DTO from the parameter type.
@@ -58,6 +60,21 @@ export class TransactionsController {
   @ApiBadRequestResponse({ description: 'Invalid filters.' })
   list(@Query() query: ListTransactionsQueryDto): Promise<TransactionListDto> {
     return this.transactionsService.list(query)
+  }
+
+  @Get('summary')
+  @ApiOperation({
+    summary: 'Totals of the transactions matching the filters',
+    description:
+      'Same filters as the list. Income and expense exclude transfers between own accounts, which are only counted (`transferCount`); one-off amounts are reported apart as well as included.',
+  })
+  @ApiQuery({ type: TransactionFiltersQueryDto })
+  @ApiOkResponse({ type: TransactionSummaryDto })
+  @ApiBadRequestResponse({ description: 'Invalid filters.' })
+  summary(
+    @Query() query: TransactionFiltersQueryDto,
+  ): Promise<TransactionSummaryDto> {
+    return this.transactionsService.summary(query)
   }
 
   @Get('review-count')

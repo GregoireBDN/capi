@@ -1332,13 +1332,22 @@
     },
     "/api/transactions": {
       "get": {
-        "description": "Filtered and paginated, newest booking date first (ties broken by id). `needsReview=true` is the review queue.",
+        "description": "Filtered and paginated, newest booking date first unless `sort` says otherwise (ties broken by id). `needsReview=true` is the review queue.",
         "operationId": "TransactionsController_list",
         "parameters": [
           {
             "description": "Only transactions in (true) or out of (false) review.",
             "required": false,
             "name": "needsReview",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only one-off (true) or recurring (false) transactions.",
+            "required": false,
+            "name": "isOneOff",
             "in": "query",
             "schema": {
               "type": "boolean"
@@ -1405,6 +1414,17 @@
             }
           },
           {
+            "description": "Calendar month (YYYY-MM): shortcut for `from` = its first day and `to` = its last day. Cannot be combined with `from` or `to`.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
+            }
+          },
+          {
             "description": "Case-insensitive search in the raw label and merchant.",
             "required": false,
             "name": "q",
@@ -1412,6 +1432,20 @@
             "schema": {
               "maxLength": 200,
               "type": "string"
+            }
+          },
+          {
+            "description": "By booking date or by signed amount (`amount_asc` = biggest expenses first). Ties: booking date, newest first, then id.",
+            "required": false,
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "default": "date_desc",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/TransactionSort"
+                }
+              ]
             }
           },
           {
@@ -1460,6 +1494,140 @@
           }
         ],
         "summary": "List transactions",
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
+    "/api/transactions/summary": {
+      "get": {
+        "description": "Same filters as the list. Income and expense exclude transfers between own accounts, which are only counted (`transferCount`); one-off amounts are reported apart as well as included.",
+        "operationId": "TransactionsController_summary",
+        "parameters": [
+          {
+            "description": "Only transactions in (true) or out of (false) review.",
+            "required": false,
+            "name": "needsReview",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only one-off (true) or recurring (false) transactions.",
+            "required": false,
+            "name": "isOneOff",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "required": false,
+            "name": "accountId",
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Cannot be combined with `uncategorized`.",
+            "required": false,
+            "name": "categoryId",
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "true: only transactions without a category; false: only categorized ones.",
+            "required": false,
+            "name": "uncategorized",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "required": false,
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/TransactionKind"
+                }
+              ]
+            }
+          },
+          {
+            "description": "Inclusive lower bound on the booking date (YYYY-MM-DD).",
+            "required": false,
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Inclusive upper bound on the booking date (YYYY-MM-DD).",
+            "required": false,
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Calendar month (YYYY-MM): shortcut for `from` = its first day and `to` = its last day. Cannot be combined with `from` or `to`.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Case-insensitive search in the raw label and merchant.",
+            "required": false,
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionSummaryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filters."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Totals of the transactions matching the filters",
         "tags": [
           "Transactions"
         ]
@@ -2937,6 +3105,16 @@
           "removedTransactions"
         ]
       },
+      "TransactionSort": {
+        "type": "string",
+        "enum": [
+          "date_desc",
+          "date_asc",
+          "amount_asc",
+          "amount_desc"
+        ],
+        "description": "By booking date or by signed amount (`amount_asc` = biggest expenses first). Ties: booking date, newest first, then id."
+      },
       "TransactionCategoryDto": {
         "type": "object",
         "properties": {
@@ -3106,6 +3284,48 @@
           "total",
           "page",
           "limit"
+        ]
+      },
+      "TransactionSummaryDto": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "Transactions matching the filters, transfers included."
+          },
+          "incomeCents": {
+            "type": "integer",
+            "description": "Signed sum of `income` transactions, in cents. Transfers are never counted."
+          },
+          "expenseCents": {
+            "type": "integer",
+            "description": "Signed sum of `expense` transactions, in cents (negative when money went out; refunds filed as expenses reduce it). Transfers are never counted."
+          },
+          "netCents": {
+            "type": "integer",
+            "description": "`incomeCents` + `expenseCents`: transfers excluded."
+          },
+          "oneOffIncomeCents": {
+            "type": "integer",
+            "description": "Part of `incomeCents` from one-off transactions."
+          },
+          "oneOffExpenseCents": {
+            "type": "integer",
+            "description": "Part of `expenseCents` from one-off transactions."
+          },
+          "transferCount": {
+            "type": "integer",
+            "description": "Transfers between own accounts among the matches, left out of the sums."
+          }
+        },
+        "required": [
+          "count",
+          "incomeCents",
+          "expenseCents",
+          "netCents",
+          "oneOffIncomeCents",
+          "oneOffExpenseCents",
+          "transferCount"
         ]
       },
       "ReviewCountDto": {

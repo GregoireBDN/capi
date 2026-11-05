@@ -32,6 +32,8 @@ export const BULK_UPDATE_MAX_IDS = 500
 
 const NOTE_MAX = 2000
 const SEARCH_MAX = 200
+/** `YYYY-MM` with a real month. */
+const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/
 
 /** Present and non-null when sent; may be omitted (PATCH semantics). */
 const NotNullIfPresent = () =>
@@ -169,13 +171,30 @@ export class TransactionListDto {
   limit!: number
 }
 
-export class ListTransactionsQueryDto {
+/** Orders of `GET /transactions`; ties are always broken by id. */
+export const TRANSACTION_SORTS = [
+  'date_desc',
+  'date_asc',
+  'amount_asc',
+  'amount_desc',
+] as const
+export type TransactionSort = (typeof TRANSACTION_SORTS)[number]
+
+/** Filters shared by the list and the summary. */
+export class TransactionFiltersQueryDto {
   @ApiPropertyOptional({
     type: Boolean,
     description: 'Only transactions in (true) or out of (false) review.',
   })
   @QueryBoolean()
   needsReview?: boolean
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    description: 'Only one-off (true) or recurring (false) transactions.',
+  })
+  @QueryBoolean()
+  isOneOff?: boolean
 
   @ApiPropertyOptional({ type: String, format: 'uuid' })
   @IsOptional()
@@ -222,6 +241,17 @@ export class ListTransactionsQueryDto {
 
   @ApiPropertyOptional({
     type: String,
+    pattern: MONTH_PATTERN.source,
+    example: '2026-10',
+    description:
+      'Calendar month (YYYY-MM): shortcut for `from` = its first day and `to` = its last day. Cannot be combined with `from` or `to`.',
+  })
+  @IsOptional()
+  @Matches(MONTH_PATTERN, { message: '$property must be YYYY-MM' })
+  month?: string
+
+  @ApiPropertyOptional({
+    type: String,
     maxLength: SEARCH_MAX,
     description: 'Case-insensitive search in the raw label and merchant.',
   })
@@ -232,6 +262,19 @@ export class ListTransactionsQueryDto {
   @IsString()
   @MaxLength(SEARCH_MAX)
   q?: string
+}
+
+export class ListTransactionsQueryDto extends TransactionFiltersQueryDto {
+  @ApiPropertyOptional({
+    enum: TRANSACTION_SORTS,
+    enumName: 'TransactionSort',
+    default: 'date_desc',
+    description:
+      'By booking date or by signed amount (`amount_asc` = biggest expenses first). Ties: booking date, newest first, then id.',
+  })
+  @IsOptional()
+  @IsIn(TRANSACTION_SORTS)
+  sort?: TransactionSort
 
   @ApiPropertyOptional({ type: 'integer', minimum: 1, default: 1 })
   @IsOptional()
@@ -253,6 +296,53 @@ export class ListTransactionsQueryDto {
   @Min(1)
   @Max(TRANSACTIONS_PAGE_LIMIT_MAX)
   limit?: number
+}
+
+export class TransactionSummaryDto {
+  @ApiProperty({
+    type: 'integer',
+    description: 'Transactions matching the filters, transfers included.',
+  })
+  count!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Signed sum of `income` transactions, in cents. Transfers are never counted.',
+  })
+  incomeCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Signed sum of `expense` transactions, in cents (negative when money went out; refunds filed as expenses reduce it). Transfers are never counted.',
+  })
+  expenseCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: '`incomeCents` + `expenseCents`: transfers excluded.',
+  })
+  netCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Part of `incomeCents` from one-off transactions.',
+  })
+  oneOffIncomeCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Part of `expenseCents` from one-off transactions.',
+  })
+  oneOffExpenseCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Transfers between own accounts among the matches, left out of the sums.',
+  })
+  transferCount!: number
 }
 
 export class ReviewCountDto {

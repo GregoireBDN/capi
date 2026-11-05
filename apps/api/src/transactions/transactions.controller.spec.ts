@@ -33,6 +33,7 @@ describe('TransactionsController (HTTP)', () => {
   let cookie: string
   const service = {
     list: vi.fn(),
+    summary: vi.fn(),
     reviewCount: vi.fn(),
     update: vi.fn(),
     bulkUpdate: vi.fn(),
@@ -70,6 +71,7 @@ describe('TransactionsController (HTTP)', () => {
   beforeEach(() => {
     for (const fn of Object.values(service)) fn.mockReset()
     service.list.mockResolvedValue({ items: [], total: 0, page: 1, limit: 20 })
+    service.summary.mockResolvedValue({ count: 0 })
     service.reviewCount.mockResolvedValue(3)
     service.update.mockResolvedValue({ id: ID })
     service.bulkUpdate.mockResolvedValue({ updated: 1 })
@@ -105,8 +107,27 @@ describe('TransactionsController (HTTP)', () => {
       })
     })
 
+    it('parses the sort, one-off and month filters', async () => {
+      const response = await request(
+        'GET',
+        '/transactions?sort=amount_asc&isOneOff=false&month=2026-02',
+      )
+
+      expect(response.statusCode).toBe(200)
+      expect(service.list).toHaveBeenCalledWith({
+        sort: 'amount_asc',
+        isOneOff: false,
+        month: '2026-02',
+      })
+    })
+
     it.each([
       ['needsReview=yes'],
+      ['isOneOff=1'],
+      ['sort=amount'],
+      ['month=2026-13'],
+      ['month=2026-1'],
+      ['month=2026-01-01'],
       ['accountId=not-a-uuid'],
       ['kind=refund'],
       ['from=01/01/2026'],
@@ -123,6 +144,45 @@ describe('TransactionsController (HTTP)', () => {
 
     it('requires authentication', async () => {
       const response = await request('GET', '/transactions', undefined, {})
+      expect(response.statusCode).toBe(401)
+    })
+  })
+
+  describe('GET /transactions/summary', () => {
+    it('parses the filters and returns the totals', async () => {
+      const response = await request(
+        'GET',
+        `/transactions/summary?month=2026-02&accountId=${ID}&uncategorized=true&kind=expense&isOneOff=true&q=shop`,
+      )
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({ count: 0 })
+      expect(service.summary).toHaveBeenCalledWith({
+        month: '2026-02',
+        accountId: ID,
+        uncategorized: true,
+        kind: 'expense',
+        isOneOff: true,
+        q: 'shop',
+      })
+    })
+
+    it.each([['month=2026-00'], ['sort=date_desc'], ['page=2'], ['kind=x']])(
+      'rejects %s',
+      async (query) => {
+        const response = await request('GET', `/transactions/summary?${query}`)
+        expect(response.statusCode).toBe(400)
+        expect(service.summary).not.toHaveBeenCalled()
+      },
+    )
+
+    it('requires authentication', async () => {
+      const response = await request(
+        'GET',
+        '/transactions/summary',
+        undefined,
+        {},
+      )
       expect(response.statusCode).toBe(401)
     })
   })

@@ -8,23 +8,13 @@ import {
 import { commitErrorMessage, uploadErrorMessage } from './errors'
 import {
   conflictReasonFr,
-  formatCents,
   formatDate,
   formatPeriod,
   parseIssueFr,
 } from './format'
 import { previewRows } from './test-fixtures'
 
-/** Intl uses narrow no-break spaces in fr-FR; compare with plain spaces. */
-const spaces = (text: string) => text.replace(/[\u202f\u00a0]/g, ' ')
-
 describe('format', () => {
-  it('formats integer cents as euros only at display', () => {
-    expect(spaces(formatCents(123456))).toBe('1 234,56 €')
-    expect(spaces(formatCents(-1250))).toBe('-12,50 €')
-    expect(spaces(formatCents(0))).toBe('0,00 €')
-  })
-
   it('formats calendar dates without a time zone shift', () => {
     expect(formatDate('2026-01-01')).toBe('01/01/2026')
     expect(formatDate('2026-12-31')).toBe('31/12/2026')
