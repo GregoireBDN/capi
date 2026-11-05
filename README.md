@@ -68,7 +68,7 @@ Common commands (from the repo root):
 ```bash
 pnpm dev            # start all apps
 pnpm build          # production build
-pnpm test           # tests (Vitest)
+pnpm test           # tests (Vitest; API specs use the finances_test database, needs Postgres running)
 pnpm lint           # ESLint
 pnpm check-types    # tsc --noEmit
 pnpm generate       # regenerate the OpenAPI spec + typed web client
