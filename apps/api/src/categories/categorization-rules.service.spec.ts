@@ -486,5 +486,105 @@ describe.skipIf(!process.env.DATABASE_URL)(
         })
       })
     })
+
+    describe('apply (kind of unmatched rows)', () => {
+      it('keeps the kind set by hand on an uncategorized row', async () => {
+        await withFixture(async ({ tx, service, accountId }) => {
+          const [marked] = await tx
+            .insert(transactionsTable)
+            .values(
+              transaction(accountId, {
+                rawLabel: 'VIR MYSELF OTHER BANK',
+                kind: 'transfer',
+                needsReview: true,
+              }),
+            )
+            .returning()
+
+          const result = await service.apply()
+
+          expect(result).toMatchObject({ unmatched: 1, updated: 0 })
+          expect(await reload(tx, marked.id)).toMatchObject({
+            categoryId: null,
+            kind: 'transfer',
+            needsReview: true,
+          })
+        })
+      })
+    })
+
+    describe('preview', () => {
+      it('counts what a new rule would categorize, without saving it', async () => {
+        await withFixture(
+          async ({ tx, service, accountId, groceries, salary }) => {
+            const earlier = await service.create({
+              labelPattern: 'FAKEMART EXPRESS',
+              categoryId: salary,
+            })
+            await tx.insert(transactionsTable).values([
+              // Uncategorized, in review: would leave the queue.
+              transaction(accountId, { needsReview: true }),
+              transaction(accountId, {
+                rawLabel: 'CB FAKEMART 0202',
+                needsReview: true,
+              }),
+              // Uncategorized but already reviewed: categorized, not counted
+              // as leaving the queue.
+              transaction(accountId, { rawLabel: 'CB FAKEMART 0303' }),
+              // Filed by hand: apply never touches it.
+              transaction(accountId, {
+                rawLabel: 'CB FAKEMART 0404',
+                categoryId: salary,
+                needsReview: true,
+              }),
+              // An earlier rule wins.
+              transaction(accountId, {
+                rawLabel: 'CB FAKEMART EXPRESS 0505',
+                categoryId: salary,
+                ruleId: earlier.id,
+                kind: 'income',
+              }),
+              // Does not match.
+              transaction(accountId, {
+                rawLabel: 'CB OTHER SHOP',
+                needsReview: true,
+              }),
+            ])
+
+            const preview = await service.preview({
+              labelPattern: 'fakemart',
+              categoryId: groceries,
+            })
+
+            expect(preview).toEqual({ matched: 3, leavingReview: 2 })
+            expect(await service.list()).toHaveLength(1)
+
+            // Creating and applying the rule does what the preview said.
+            await service.create({
+              labelPattern: 'fakemart',
+              categoryId: groceries,
+            })
+            await service.apply()
+            const inReview = await tx
+              .select({ id: transactionsTable.id })
+              .from(transactionsTable)
+              .where(eq(transactionsTable.needsReview, true))
+            expect(inReview).toHaveLength(2)
+          },
+        )
+      })
+
+      it('validates the rule like create does', async () => {
+        await withFixture(async ({ service, groceries }) => {
+          await expect(
+            service.preview({
+              matchType: 'regex',
+              labelPattern: 'FAKEMART (',
+              categoryId: groceries,
+            }),
+          ).rejects.toBeInstanceOf(BadRequestException)
+        })
+      })
+    })
   },
 )

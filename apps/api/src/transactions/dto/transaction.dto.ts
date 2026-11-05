@@ -1,0 +1,352 @@
+import { applyDecorators } from '@nestjs/common'
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
+import { Transform, Type } from 'class-transformer'
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  ValidateIf,
+} from 'class-validator'
+import {
+  TRANSACTION_KINDS,
+  type TransactionKind,
+} from '#/database/schema/domain-enums'
+
+/** Same bounds as `paginationSchema` in `@finances/shared`. */
+export const TRANSACTIONS_PAGE_LIMIT_DEFAULT = 20
+export const TRANSACTIONS_PAGE_LIMIT_MAX = 100
+/** Most transactions one bulk update may touch. */
+export const BULK_UPDATE_MAX_IDS = 500
+
+const NOTE_MAX = 2000
+const SEARCH_MAX = 200
+
+/** Present and non-null when sent; may be omitted (PATCH semantics). */
+const NotNullIfPresent = () =>
+  ValidateIf((_object: object, value: unknown) => value !== undefined)
+
+/** Query-string booleans: only the literal `true` / `false` are accepted. */
+const QueryBoolean = () =>
+  applyDecorators(
+    IsOptional(),
+    Transform(({ value }: { value: unknown }) =>
+      value === 'true' ? true : value === 'false' ? false : value,
+    ),
+    IsBoolean(),
+  )
+
+/** A `YYYY-MM-DD` calendar date that exists. */
+const CalendarDate = () =>
+  applyDecorators(
+    IsOptional(),
+    Matches(/^\d{4}-\d{2}-\d{2}$/, { message: '$property must be YYYY-MM-DD' }),
+    IsISO8601({ strict: true }),
+  )
+
+const KIND_DOC = {
+  enum: TRANSACTION_KINDS,
+  enumName: 'TransactionKind',
+} as const
+
+export class TransactionCategoryDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string
+
+  @ApiProperty({ type: String })
+  slug!: string
+
+  @ApiProperty({ type: String })
+  name!: string
+
+  @ApiProperty({ type: String, nullable: true, example: '#d97706' })
+  color!: string | null
+
+  @ApiProperty({
+    ...KIND_DOC,
+    description: 'Category group: the kind its transactions get by default.',
+  })
+  kind!: TransactionKind
+}
+
+export class TransactionDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  accountId!: string
+
+  @ApiProperty({ type: String })
+  accountName!: string
+
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  importId!: string | null
+
+  @ApiProperty({ type: String, format: 'date', example: '2026-10-31' })
+  bookingDate!: string
+
+  @ApiProperty({ type: String, format: 'date', nullable: true })
+  valueDate!: string | null
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Signed integer cents: negative = money out.',
+  })
+  amountCents!: number
+
+  @ApiProperty({ type: String })
+  rawLabel!: string
+
+  @ApiProperty({ type: String, nullable: true })
+  merchant!: string | null
+
+  @ApiProperty({
+    ...KIND_DOC,
+    description:
+      '`transfer` = move between the user’s own accounts, never income or expense.',
+  })
+  kind!: TransactionKind
+
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  categoryId!: string | null
+
+  @ApiProperty({ type: TransactionCategoryDto, nullable: true })
+  category!: TransactionCategoryDto | null
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Rule that set the category. Null with a category = filed by hand (rules never overwrite it).',
+  })
+  ruleId!: string | null
+
+  @ApiProperty({ type: Boolean })
+  needsReview!: boolean
+
+  @ApiProperty({
+    type: Boolean,
+    description: 'Exceptional expense or income, excluded from averages.',
+  })
+  isOneOff!: boolean
+
+  @ApiProperty({ type: String, nullable: true })
+  note!: string | null
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: Date
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  updatedAt!: Date
+}
+
+export class TransactionListDto {
+  @ApiProperty({ type: [TransactionDto] })
+  items!: TransactionDto[]
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Transactions matching the filters, all pages included.',
+  })
+  total!: number
+
+  @ApiProperty({ type: 'integer' })
+  page!: number
+
+  @ApiProperty({ type: 'integer' })
+  limit!: number
+}
+
+export class ListTransactionsQueryDto {
+  @ApiPropertyOptional({
+    type: Boolean,
+    description: 'Only transactions in (true) or out of (false) review.',
+  })
+  @QueryBoolean()
+  needsReview?: boolean
+
+  @ApiPropertyOptional({ type: String, format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  accountId?: string
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    description: 'Cannot be combined with `uncategorized`.',
+  })
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    description:
+      'true: only transactions without a category; false: only categorized ones.',
+  })
+  @QueryBoolean()
+  uncategorized?: boolean
+
+  @ApiPropertyOptional(KIND_DOC)
+  @IsOptional()
+  @IsIn(TRANSACTION_KINDS)
+  kind?: TransactionKind
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date',
+    description: 'Inclusive lower bound on the booking date (YYYY-MM-DD).',
+  })
+  @CalendarDate()
+  from?: string
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date',
+    description: 'Inclusive upper bound on the booking date (YYYY-MM-DD).',
+  })
+  @CalendarDate()
+  to?: string
+
+  @ApiPropertyOptional({
+    type: String,
+    maxLength: SEARCH_MAX,
+    description: 'Case-insensitive search in the raw label and merchant.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MaxLength(SEARCH_MAX)
+  q?: string
+
+  @ApiPropertyOptional({ type: 'integer', minimum: 1, default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1_000_000)
+  page?: number
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: TRANSACTIONS_PAGE_LIMIT_MAX,
+    default: TRANSACTIONS_PAGE_LIMIT_DEFAULT,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(TRANSACTIONS_PAGE_LIMIT_MAX)
+  limit?: number
+}
+
+export class ReviewCountDto {
+  @ApiProperty({
+    type: 'integer',
+    description: 'Transactions waiting in the review queue.',
+  })
+  count!: number
+}
+
+const CATEGORY_CHANGE_DOC =
+  'Setting a category files the transaction by hand (`ruleId` = null, so rules never overwrite it), gives it the category’s kind unless `kind` is sent, and takes it out of review unless `needsReview` is sent. `null` removes the category (the kind is kept unless sent).'
+
+const RULE_ID_DOC =
+  'Restores a categorization made by a rule (e.g. to undo a correction). Requires `categoryId`, equal to the rule’s category.'
+
+/** Fields shared by the single and the bulk update. */
+class TransactionChangesDto {
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: CATEGORY_CHANGE_DOC,
+  })
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string | null
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: RULE_ID_DOC,
+  })
+  @IsOptional()
+  @IsUUID()
+  ruleId?: string | null
+
+  @ApiPropertyOptional({
+    ...KIND_DOC,
+    description:
+      'Overrides the kind (e.g. `transfer` for a move between own accounts). Changing the kind of a rule-categorized transaction files it by hand.',
+  })
+  @NotNullIfPresent()
+  @IsIn(TRANSACTION_KINDS)
+  kind?: TransactionKind
+
+  @ApiPropertyOptional({ type: Boolean })
+  @NotNullIfPresent()
+  @IsBoolean()
+  needsReview?: boolean
+
+  @ApiPropertyOptional({ type: Boolean })
+  @NotNullIfPresent()
+  @IsBoolean()
+  isOneOff?: boolean
+}
+
+/** Partial update: omitted fields are left unchanged. */
+export class UpdateTransactionDto extends TransactionChangesDto {
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    maxLength: NOTE_MAX,
+    description: 'Free text; an empty string clears it.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => {
+    if (typeof value !== 'string') return value
+    const trimmed = value.trim()
+    return trimmed === '' ? null : trimmed
+  })
+  @IsString()
+  @MaxLength(NOTE_MAX)
+  note?: string | null
+}
+
+export class BulkUpdateTransactionsDto extends TransactionChangesDto {
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    minItems: 1,
+    maxItems: BULK_UPDATE_MAX_IDS,
+    description: 'Unknown ids are ignored (see `updated`).',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(BULK_UPDATE_MAX_IDS)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  ids!: string[]
+}
+
+export class BulkUpdateResultDto {
+  @ApiProperty({ type: 'integer', description: 'Transactions updated.' })
+  updated!: number
+}

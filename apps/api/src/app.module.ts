@@ -12,6 +12,7 @@ import { DatabaseModule } from '#/database/database.module'
 import { EmailModule } from '#/email/email.module'
 import { HealthModule } from '#/health/health.module'
 import { ImportsModule } from '#/imports/imports.module'
+import { TransactionsModule } from '#/transactions/transactions.module'
 import { UserModule } from '#/user/user.module'
 
 @Module({
@@ -33,6 +34,7 @@ import { UserModule } from '#/user/user.module'
     CategoriesModule,
     AccountsModule,
     ImportsModule,
+    TransactionsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

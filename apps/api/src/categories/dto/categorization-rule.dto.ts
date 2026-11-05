@@ -339,3 +339,19 @@ export class ApplyCategorizationRulesResultDto {
   })
   manualSkipped!: number
 }
+
+export class CategorizationRulePreviewDto {
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Transactions the rule would categorize if it were created (last) and the rules re-applied. Manual categorizations are never counted.',
+  })
+  matched!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Of those, transactions that would leave the review queue (uncategorized ones waiting for review).',
+  })
+  leavingReview!: number
+}
