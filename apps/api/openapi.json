@@ -20,7 +20,9 @@
             }
           }
         },
-        "tags": ["Users"]
+        "tags": [
+          "Users"
+        ]
       },
       "post": {
         "operationId": "UserController_create",
@@ -47,7 +49,9 @@
             }
           }
         },
-        "tags": ["Users"]
+        "tags": [
+          "Users"
+        ]
       }
     },
     "/api/users/{id}": {
@@ -76,7 +80,9 @@
             }
           }
         },
-        "tags": ["Users"]
+        "tags": [
+          "Users"
+        ]
       },
       "patch": {
         "operationId": "UserController_update",
@@ -113,7 +119,9 @@
             }
           }
         },
-        "tags": ["Users"]
+        "tags": [
+          "Users"
+        ]
       },
       "delete": {
         "operationId": "UserController_remove",
@@ -133,7 +141,9 @@
             "description": ""
           }
         },
-        "tags": ["Users"]
+        "tags": [
+          "Users"
+        ]
       }
     },
     "/api/auth/me": {
@@ -157,7 +167,9 @@
             "token": []
           }
         ],
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/auth/registration-status": {
@@ -176,7 +188,9 @@
             }
           }
         },
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/auth/register": {
@@ -210,7 +224,9 @@
             "description": "Registration is closed: an account already exists."
           }
         },
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/auth/login": {
@@ -241,7 +257,9 @@
             }
           }
         },
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/auth/refresh": {
@@ -262,7 +280,9 @@
             }
           }
         },
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/auth/logout": {
@@ -283,7 +303,9 @@
             }
           }
         },
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/auth/forgot-password": {
@@ -314,7 +336,9 @@
             }
           }
         },
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/auth/reset-password": {
@@ -345,7 +369,9 @@
             }
           }
         },
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/auth/verify-email": {
@@ -376,7 +402,9 @@
             }
           }
         },
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/auth/resend-verification": {
@@ -402,7 +430,9 @@
             "token": []
           }
         ],
-        "tags": ["Auth"]
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/health": {
@@ -430,7 +460,9 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "required": ["status"],
+                        "required": [
+                          "status"
+                        ],
                         "properties": {
                           "status": {
                             "type": "string"
@@ -445,7 +477,9 @@
                       "example": {},
                       "additionalProperties": {
                         "type": "object",
-                        "required": ["status"],
+                        "required": [
+                          "status"
+                        ],
                         "properties": {
                           "status": {
                             "type": "string"
@@ -464,7 +498,9 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "required": ["status"],
+                        "required": [
+                          "status"
+                        ],
                         "properties": {
                           "status": {
                             "type": "string"
@@ -498,7 +534,9 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "required": ["status"],
+                        "required": [
+                          "status"
+                        ],
                         "properties": {
                           "status": {
                             "type": "string"
@@ -518,7 +556,9 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "required": ["status"],
+                        "required": [
+                          "status"
+                        ],
                         "properties": {
                           "status": {
                             "type": "string"
@@ -541,7 +581,9 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "required": ["status"],
+                        "required": [
+                          "status"
+                        ],
                         "properties": {
                           "status": {
                             "type": "string"
@@ -556,7 +598,9 @@
             }
           }
         },
-        "tags": ["Health"]
+        "tags": [
+          "Health"
+        ]
       }
     },
     "/api/categories": {
@@ -586,7 +630,9 @@
             "token": []
           }
         ],
-        "tags": ["Categories"]
+        "tags": [
+          "Categories"
+        ]
       }
     },
     "/api/categorization-rules": {
@@ -617,7 +663,9 @@
           }
         ],
         "summary": "List rules in evaluation order",
-        "tags": ["Categorization rules"]
+        "tags": [
+          "Categorization rules"
+        ]
       },
       "post": {
         "description": "The rule is appended last (lowest priority). Existing transactions are only affected by `POST /categorization-rules/apply`.",
@@ -657,7 +705,9 @@
           }
         ],
         "summary": "Create a rule",
-        "tags": ["Categorization rules"]
+        "tags": [
+          "Categorization rules"
+        ]
       }
     },
     "/api/categorization-rules/reorder": {
@@ -702,7 +752,9 @@
           }
         ],
         "summary": "Set the evaluation order",
-        "tags": ["Categorization rules"]
+        "tags": [
+          "Categorization rules"
+        ]
       }
     },
     "/api/categorization-rules/suggest": {
@@ -744,7 +796,9 @@
           }
         ],
         "summary": "Suggest a rule from a categorized transaction",
-        "tags": ["Categorization rules"]
+        "tags": [
+          "Categorization rules"
+        ]
       }
     },
     "/api/categorization-rules/apply": {
@@ -773,7 +827,9 @@
           }
         ],
         "summary": "Re-run the rules on existing transactions",
-        "tags": ["Categorization rules"]
+        "tags": [
+          "Categorization rules"
+        ]
       }
     },
     "/api/categorization-rules/{id}": {
@@ -827,7 +883,9 @@
           }
         ],
         "summary": "Update a rule",
-        "tags": ["Categorization rules"]
+        "tags": [
+          "Categorization rules"
+        ]
       },
       "delete": {
         "description": "Transactions it categorized are re-run through the remaining rules; those left unmatched go back to review.",
@@ -860,7 +918,9 @@
           }
         ],
         "summary": "Delete a rule",
-        "tags": ["Categorization rules"]
+        "tags": [
+          "Categorization rules"
+        ]
       }
     },
     "/api/accounts": {
@@ -892,7 +952,9 @@
           }
         ],
         "summary": "List accounts with their current balance",
-        "tags": ["Accounts"]
+        "tags": [
+          "Accounts"
+        ]
       },
       "post": {
         "description": "The account is appended last in the display order.",
@@ -932,7 +994,9 @@
           }
         ],
         "summary": "Create an account",
-        "tags": ["Accounts"]
+        "tags": [
+          "Accounts"
+        ]
       }
     },
     "/api/accounts/{id}": {
@@ -987,7 +1051,9 @@
           }
         ],
         "summary": "Update an account",
-        "tags": ["Accounts"]
+        "tags": [
+          "Accounts"
+        ]
       }
     },
     "/api/imports/preview": {
@@ -1035,7 +1101,9 @@
           }
         ],
         "summary": "Upload a bank export and preview it",
-        "tags": ["Imports"]
+        "tags": [
+          "Imports"
+        ]
       }
     },
     "/api/imports/{id}/commit": {
@@ -1093,7 +1161,9 @@
           }
         ],
         "summary": "Commit a previewed import",
-        "tags": ["Imports"]
+        "tags": [
+          "Imports"
+        ]
       }
     },
     "/api/imports": {
@@ -1125,7 +1195,9 @@
           }
         ],
         "summary": "Import history",
-        "tags": ["Imports"]
+        "tags": [
+          "Imports"
+        ]
       }
     },
     "/api/imports/{id}": {
@@ -1167,7 +1239,9 @@
           }
         ],
         "summary": "Get an import",
-        "tags": ["Imports"]
+        "tags": [
+          "Imports"
+        ]
       },
       "delete": {
         "description": "A pending import is discarded. A committed import is undone: it is deleted with every transaction it wrote.",
@@ -1207,7 +1281,9 @@
           }
         ],
         "summary": "Discard or undo an import",
-        "tags": ["Imports"]
+        "tags": [
+          "Imports"
+        ]
       }
     }
   },
@@ -1243,7 +1319,11 @@
           },
           "theme": {
             "type": "string",
-            "enum": ["light", "dark", "auto"]
+            "enum": [
+              "light",
+              "dark",
+              "auto"
+            ]
           },
           "emailVerifiedAt": {
             "type": "string",
@@ -1259,7 +1339,14 @@
             "format": "date-time"
           }
         },
-        "required": ["id", "email", "name", "theme", "createdAt", "updatedAt"]
+        "required": [
+          "id",
+          "email",
+          "name",
+          "theme",
+          "createdAt",
+          "updatedAt"
+        ]
       },
       "CreateUserDto": {
         "type": "object",
@@ -1272,10 +1359,17 @@
           },
           "theme": {
             "type": "string",
-            "enum": ["light", "dark", "auto"]
+            "enum": [
+              "light",
+              "dark",
+              "auto"
+            ]
           }
         },
-        "required": ["email", "name"]
+        "required": [
+          "email",
+          "name"
+        ]
       },
       "UpdateUserDto": {
         "type": "object",
@@ -1288,7 +1382,11 @@
           },
           "theme": {
             "type": "string",
-            "enum": ["light", "dark", "auto"]
+            "enum": [
+              "light",
+              "dark",
+              "auto"
+            ]
           }
         }
       },
@@ -1300,7 +1398,9 @@
             "description": "True until the single owner account has been created."
           }
         },
-        "required": ["open"]
+        "required": [
+          "open"
+        ]
       },
       "RegisterDto": {
         "type": "object",
@@ -1315,7 +1415,11 @@
             "type": "string"
           }
         },
-        "required": ["email", "name", "password"]
+        "required": [
+          "email",
+          "name",
+          "password"
+        ]
       },
       "LoginDto": {
         "type": "object",
@@ -1327,7 +1431,10 @@
             "type": "string"
           }
         },
-        "required": ["email", "password"]
+        "required": [
+          "email",
+          "password"
+        ]
       },
       "ForgotPasswordDto": {
         "type": "object",
@@ -1336,7 +1443,9 @@
             "type": "string"
           }
         },
-        "required": ["email"]
+        "required": [
+          "email"
+        ]
       },
       "ResetPasswordDto": {
         "type": "object",
@@ -1348,7 +1457,10 @@
             "type": "string"
           }
         },
-        "required": ["token", "password"]
+        "required": [
+          "token",
+          "password"
+        ]
       },
       "VerifyEmailDto": {
         "type": "object",
@@ -1357,11 +1469,17 @@
             "type": "string"
           }
         },
-        "required": ["token"]
+        "required": [
+          "token"
+        ]
       },
       "TransactionKind": {
         "type": "string",
-        "enum": ["expense", "income", "transfer"],
+        "enum": [
+          "expense",
+          "income",
+          "transfer"
+        ],
         "description": "Category group: the kind given to its transactions."
       },
       "CategoryDto": {
@@ -1412,7 +1530,10 @@
       },
       "RuleMatchType": {
         "type": "string",
-        "enum": ["contains", "regex"],
+        "enum": [
+          "contains",
+          "regex"
+        ],
         "description": "`contains`: case-, accent- and punctuation-insensitive substring of the raw label or merchant. `regex`: case-insensitive regular expression tested against the raw label and merchant."
       },
       "CategorizationRuleDto": {
@@ -1551,7 +1672,10 @@
             "maxLength": 255
           }
         },
-        "required": ["labelPattern", "categoryId"]
+        "required": [
+          "labelPattern",
+          "categoryId"
+        ]
       },
       "ReorderCategorizationRulesDto": {
         "type": "object",
@@ -1565,7 +1689,9 @@
             }
           }
         },
-        "required": ["ids"]
+        "required": [
+          "ids"
+        ]
       },
       "SuggestCategorizationRuleDto": {
         "type": "object",
@@ -1846,7 +1972,10 @@
             "example": "CIC"
           }
         },
-        "required": ["name", "type"]
+        "required": [
+          "name",
+          "type"
+        ]
       },
       "UpdateAccountDto": {
         "type": "object",
@@ -1873,7 +2002,9 @@
       },
       "ImportUploadSource": {
         "type": "string",
-        "enum": ["cic_csv"]
+        "enum": [
+          "cic_csv"
+        ]
       },
       "PreviewImportBodyDto": {
         "type": "object",
@@ -1897,15 +2028,24 @@
             ]
           }
         },
-        "required": ["file", "accountId"]
+        "required": [
+          "file",
+          "accountId"
+        ]
       },
       "ImportSource": {
         "type": "string",
-        "enum": ["cic_csv", "spreadsheet"]
+        "enum": [
+          "cic_csv",
+          "spreadsheet"
+        ]
       },
       "ImportStatus": {
         "type": "string",
-        "enum": ["pending", "committed"],
+        "enum": [
+          "pending",
+          "committed"
+        ],
         "description": "`pending`: previewed, nothing written yet."
       },
       "ImportCountsDto": {
@@ -1962,7 +2102,10 @@
             "format": "date-time"
           }
         },
-        "required": ["importId", "committedAt"]
+        "required": [
+          "importId",
+          "committedAt"
+        ]
       },
       "ContinuityGapDto": {
         "type": "object",
@@ -2010,7 +2153,11 @@
           },
           "order": {
             "type": "string",
-            "enum": ["ascending", "descending", "unknown"]
+            "enum": [
+              "ascending",
+              "descending",
+              "unknown"
+            ]
           },
           "gaps": {
             "type": "array",
@@ -2029,7 +2176,13 @@
             ]
           }
         },
-        "required": ["checked", "ok", "order", "gaps", "openingMismatch"]
+        "required": [
+          "checked",
+          "ok",
+          "order",
+          "gaps",
+          "openingMismatch"
+        ]
       },
       "ParseIssueDto": {
         "type": "object",
@@ -2042,11 +2195,18 @@
             "type": "string"
           }
         },
-        "required": ["lineNumber", "message"]
+        "required": [
+          "lineNumber",
+          "message"
+        ]
       },
       "ImportRowStatus": {
         "type": "string",
-        "enum": ["new", "duplicate", "conflict"]
+        "enum": [
+          "new",
+          "duplicate",
+          "conflict"
+        ]
       },
       "ExistingTransactionDto": {
         "type": "object",
@@ -2066,7 +2226,12 @@
             "type": "string"
           }
         },
-        "required": ["id", "bookingDate", "amountCents", "rawLabel"]
+        "required": [
+          "id",
+          "bookingDate",
+          "amountCents",
+          "rawLabel"
+        ]
       },
       "ImportPreviewRowDto": {
         "type": "object",
@@ -2188,7 +2353,12 @@
             }
           }
         },
-        "required": ["previousBalanceCents", "continuity", "issues", "rows"]
+        "required": [
+          "previousBalanceCents",
+          "continuity",
+          "issues",
+          "rows"
+        ]
       },
       "ImportDetailDto": {
         "type": "object",
@@ -2283,7 +2453,10 @@
       },
       "ConflictAction": {
         "type": "string",
-        "enum": ["import", "skip"],
+        "enum": [
+          "import",
+          "skip"
+        ],
         "description": "`import` keeps the row as a separate transaction, `skip` leaves it out."
       },
       "ConflictResolutionDto": {
@@ -2302,7 +2475,10 @@
             ]
           }
         },
-        "required": ["rowIndex", "action"]
+        "required": [
+          "rowIndex",
+          "action"
+        ]
       },
       "CategoryOverrideDto": {
         "type": "object",
@@ -2316,7 +2492,10 @@
             "format": "uuid"
           }
         },
-        "required": ["rowIndex", "categoryId"]
+        "required": [
+          "rowIndex",
+          "categoryId"
+        ]
       },
       "CommitImportDto": {
         "type": "object",
@@ -2415,14 +2594,21 @@
           },
           "result": {
             "type": "string",
-            "enum": ["discarded", "undone"],
+            "enum": [
+              "discarded",
+              "undone"
+            ],
             "description": "`discarded`: a pending preview was dropped. `undone`: a committed import and its transactions were deleted."
           },
           "removedTransactions": {
             "type": "integer"
           }
         },
-        "required": ["id", "result", "removedTransactions"]
+        "required": [
+          "id",
+          "result",
+          "removedTransactions"
+        ]
       }
     }
   }
