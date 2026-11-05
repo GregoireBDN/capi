@@ -46,7 +46,10 @@ cp apps/api/.env.example apps/api/.env
 # 4. Apply database migrations
 pnpm db:migrate
 
-# 5. Start all apps
+# 5. Seed the default categories (idempotent, safe to re-run)
+pnpm db:seed
+
+# 6. Start all apps
 pnpm dev
 ```
 
@@ -68,6 +71,8 @@ pnpm lint           # ESLint
 pnpm check-types    # tsc --noEmit
 pnpm generate       # regenerate the OpenAPI spec + typed web client
 pnpm db:generate    # generate a Drizzle migration
+pnpm db:migrate     # apply migrations
+pnpm db:seed        # seed the default categories (idempotent)
 pnpm db:studio      # open Drizzle Studio
 ```
 

@@ -115,6 +115,7 @@ pnpm --filter @finances/ui-docs dev   # Storybook
 # Database (root shortcuts for the @finances/api scripts)
 pnpm db:generate   # generate Drizzle migrations
 pnpm db:migrate    # apply migrations
+pnpm db:seed       # seed reference data (default categories); idempotent, safe to re-run
 pnpm db:studio     # Drizzle Studio
 
 # Run a single web test
@@ -143,6 +144,8 @@ The web app talks to the API through a **generated, type-safe client** — do no
 Standard NestJS module structure: each domain has a `*.module.ts`, `*.controller.ts`, `*.service.ts` and `*.schema.ts` (Drizzle tables). Base modules: `Auth`, `User`, `Email`, `Database`, `Health`. Finance domains (accounts, imports, transactions, categories, budgets, snapshots, ...) follow the same layout, one module per domain.
 
 **Database**: `DatabaseService` exposes `db` (a Drizzle `PostgresJsDatabase`). All tables extend `coreColumns` from `apps/api/src/database/schema/core.schema.ts`, which adds `id` (UUID PK), `createdAt` and `updatedAt`. Export every schema from `apps/api/src/database/schema/index.ts` and import from there. Money columns are integer cents and transaction dates are `date` columns (see Domain rules).
+
+**Seed data**: `pnpm db:seed` runs `apps/api/src/database/seed.ts`. The default categories (English snake_case `slug`, French display `name`, `kind` = group, hex `color`) live in `apps/api/src/categories/default-categories.ts`; `seedDefaultCategories` inserts the missing slugs with `ON CONFLICT (slug) DO NOTHING`, so it is idempotent and never overwrites a category the user renamed or recoloured. Rules and imports should reference categories by `slug`, never by display name. Where `tsx` is not installed (production image), run the compiled script instead: `node dist/database/seed.js` from `apps/api`.
 
 **Auth (single user)**: password auth only — no OAuth. The owner account is created through the normal sign-up form on first launch; as soon as one user exists, `POST /api/auth/register` returns 403 (re-checked under a Postgres advisory lock so concurrent sign-ups can't create a second account) and `GET /api/auth/registration-status` returns `{ open: false }`, which the web app uses to hide sign-up. Email verification (`verify-email`, `resend-verification`) is kept. Cookie-based JWT (`httpOnly`, `sameSite: lax`, `Secure` in production): the `token` cookie holds a short-lived access JWT, and a rotating `refresh_token` cookie (scoped to `/api/auth`) renews it via `POST /api/auth/refresh`. Passwords are hashed with `bcryptjs`; password reset goes through `forgot-password` / `reset-password` (tokens handled in `apps/api/src/email/tokens.ts`). Use `@UseGuards(JwtGuard)` on every non-public route — `JwtGuard` verifies the cookie and attaches `{ sub: userId }` to `request.user`; read it with the `@CurrentUser()` decorator (`apps/api/src/auth/decorators/`).
 

@@ -11,7 +11,8 @@
     "generate": "turbo run generate",
     "db:generate": "pnpm --filter @finances/api db:generate",
     "db:migrate": "pnpm --filter @finances/api db:migrate",
-    "db:studio": "pnpm --filter @finances/api db:studio"
+    "db:studio": "pnpm --filter @finances/api db:studio",
+    "db:seed": "pnpm --filter @finances/api db:seed"
   },
   "devDependencies": {
     "lint-staged": "^16.0.0",
