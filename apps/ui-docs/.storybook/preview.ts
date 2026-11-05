@@ -20,7 +20,7 @@ const preview: Preview = {
       toc: true,
     },
     viewport: {
-      viewports: {
+      options: {
         mobile: {
           name: 'Mobile (375)',
           styles: { width: '375px', height: '667px' },
