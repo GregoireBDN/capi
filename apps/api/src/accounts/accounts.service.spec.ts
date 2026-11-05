@@ -189,18 +189,16 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService (database)', () => {
   it('sums the amounts when no row has a running balance', async () => {
     await inRollback(async ({ tx, service }) => {
       const account = await service.create({ name: 'Test', type: 'savings' })
-      await tx
-        .insert(transactionsTable)
-        .values([
-          transaction(account.id, {
-            amountCents: 20_000,
-            bookingDate: '2026-09-01',
-          }),
-          transaction(account.id, {
-            amountCents: -5_000,
-            bookingDate: '2026-09-15',
-          }),
-        ])
+      await tx.insert(transactionsTable).values([
+        transaction(account.id, {
+          amountCents: 20_000,
+          bookingDate: '2026-09-01',
+        }),
+        transaction(account.id, {
+          amountCents: -5_000,
+          bookingDate: '2026-09-15',
+        }),
+      ])
       expect(await service.findOne(account.id)).toMatchObject({
         balanceCents: 15_000,
         balanceDate: '2026-09-15',
@@ -211,21 +209,121 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService (database)', () => {
   it('returns no balance when the latest balances do not chain', async () => {
     await inRollback(async ({ tx, service }) => {
       const account = await service.create({ name: 'Test', type: 'checking' })
-      await tx
-        .insert(transactionsTable)
-        .values([
-          transaction(account.id, {
-            amountCents: -100,
-            balanceAfterCents: 1_000,
-          }),
-          transaction(account.id, {
-            amountCents: -100,
-            balanceAfterCents: 5_000,
-          }),
-        ])
+      await tx.insert(transactionsTable).values([
+        transaction(account.id, {
+          amountCents: -100,
+          balanceAfterCents: 1_000,
+        }),
+        transaction(account.id, {
+          amountCents: -100,
+          balanceAfterCents: 5_000,
+        }),
+      ])
       expect(await service.findOne(account.id)).toMatchObject({
         balanceCents: null,
         balanceDate: null,
+      })
+    })
+  })
+
+  it('anchors history without running balances on the latest snapshot', async () => {
+    await inRollback(async ({ tx, service }) => {
+      const account = await service.create({ name: 'Test', type: 'checking' })
+      await tx.insert(transactionsTable).values([
+        // Before the snapshot: already part of the statement balance.
+        transaction(account.id, {
+          bookingDate: '2026-08-10',
+          amountCents: -700,
+        }),
+        transaction(account.id, {
+          bookingDate: '2026-08-31',
+          amountCents: -300,
+        }),
+        // After the snapshot.
+        transaction(account.id, {
+          bookingDate: '2026-09-03',
+          amountCents: -1_200,
+        }),
+        transaction(account.id, {
+          bookingDate: '2026-09-04',
+          amountCents: 500,
+        }),
+      ])
+      await tx.insert(balanceSnapshotsTable).values([
+        { accountId: account.id, date: '2026-07-31', valueCents: 1 },
+        { accountId: account.id, date: '2026-08-31', valueCents: 50_000 },
+      ])
+
+      expect(await service.findOne(account.id)).toMatchObject({
+        balanceCents: 49_300,
+        balanceDate: '2026-09-04',
+      })
+    })
+  })
+
+  it('prefers whichever of the running balance and the snapshot is newer', async () => {
+    await inRollback(async ({ tx, service }) => {
+      const running = await service.create({ name: 'Run', type: 'checking' })
+      const snapshotted = await service.create({
+        name: 'Snap',
+        type: 'checking',
+      })
+      const tie = await service.create({ name: 'Tie', type: 'savings' })
+      const onlySnapshot = await service.create({
+        name: 'Only snapshot',
+        type: 'savings',
+      })
+      await tx.insert(transactionsTable).values([
+        // Running balance on 10-05 is newer than the 09-30 snapshot.
+        transaction(running.id, {
+          bookingDate: '2026-10-05',
+          amountCents: -100,
+          balanceAfterCents: 7_000,
+        }),
+        transaction(running.id, {
+          bookingDate: '2026-10-06',
+          amountCents: -50,
+        }),
+        // Snapshot on 10-31 is newer than the 10-05 running balance.
+        transaction(snapshotted.id, {
+          bookingDate: '2026-10-05',
+          amountCents: -100,
+          balanceAfterCents: 7_000,
+        }),
+        transaction(snapshotted.id, {
+          bookingDate: '2026-11-02',
+          amountCents: -40,
+        }),
+        // Same day: the snapshot (statement) wins.
+        transaction(tie.id, {
+          bookingDate: '2026-10-31',
+          amountCents: 100,
+          balanceAfterCents: 3_000,
+        }),
+      ])
+      await tx.insert(balanceSnapshotsTable).values([
+        { accountId: running.id, date: '2026-09-30', valueCents: 1 },
+        { accountId: snapshotted.id, date: '2026-10-31', valueCents: 8_000 },
+        { accountId: tie.id, date: '2026-10-31', valueCents: 3_100 },
+        { accountId: onlySnapshot.id, date: '2026-10-31', valueCents: 4_200 },
+      ])
+
+      const byId = new Map((await service.list()).map((a) => [a.id, a]))
+      expect(byId.get(running.id)).toMatchObject({
+        balanceCents: 6_950,
+        balanceDate: '2026-10-06',
+      })
+      expect(byId.get(snapshotted.id)).toMatchObject({
+        balanceCents: 7_960,
+        balanceDate: '2026-11-02',
+      })
+      expect(byId.get(tie.id)).toMatchObject({
+        balanceCents: 3_100,
+        balanceDate: '2026-10-31',
+      })
+      expect(byId.get(onlySnapshot.id)).toMatchObject({
+        balanceCents: 4_200,
+        balanceDate: '2026-10-31',
       })
     })
   })

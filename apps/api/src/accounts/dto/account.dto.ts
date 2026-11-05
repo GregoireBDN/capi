@@ -75,7 +75,7 @@ export class AccountDto {
     type: 'integer',
     nullable: true,
     description:
-      'Current balance in cents. Transactional accounts: running balance at the end of the latest day that has one, plus any later transaction without a balance; else the sum of all amounts. Investment accounts: latest value snapshot. Null when there is no data, or when the latest balances do not tell the end-of-day balance.',
+      'Current balance in cents. Transactional accounts: the most recent of the end-of-day running balance and the latest balance snapshot (the snapshot wins a tie), plus the transactions booked after that day; else the sum of all amounts. Investment accounts: latest value snapshot. Null when there is no data, or when the latest balances do not tell the end-of-day balance.',
   })
   balanceCents!: number | null
 
