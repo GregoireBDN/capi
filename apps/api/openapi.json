@@ -989,6 +989,226 @@
         "summary": "Update an account",
         "tags": ["Accounts"]
       }
+    },
+    "/api/imports/preview": {
+      "post": {
+        "description": "Parses the file, classifies every row (new / duplicate / conflict) against the account, proposes categories and checks the running balance. Stores a pending import; no transaction is written until `POST /imports/{id}/commit`. Pending previews older than 24 h are discarded when a new one is made.",
+        "operationId": "ImportsController_preview",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewImportBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing file or fields, not a CIC CSV export, unknown, archived or non-transactional account."
+          },
+          "401": {
+            "description": ""
+          },
+          "413": {
+            "description": "The file exceeds 5 MB."
+          },
+          "415": {
+            "description": "Not a multipart body."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Upload a bank export and preview it",
+        "tags": ["Imports"]
+      }
+    },
+    "/api/imports/{id}/commit": {
+      "post": {
+        "description": "Writes the new rows and the conflicts resolved as `import`, atomically. Unresolved conflicts are skipped. Rows stored by another import since the preview count as duplicates.",
+        "operationId": "ImportsController_commit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitImportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown row index, resolution of a non-conflict row, unknown category."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "Already committed, or the preview is outdated."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Commit a previewed import",
+        "tags": ["Imports"]
+      }
+    },
+    "/api/imports": {
+      "get": {
+        "description": "Committed and pending imports, newest first.",
+        "operationId": "ImportsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ImportSummaryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Import history",
+        "tags": ["Imports"]
+      }
+    },
+    "/api/imports/{id}": {
+      "get": {
+        "description": "Includes the preview rows while the import is pending.",
+        "operationId": "ImportsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportDetailDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Get an import",
+        "tags": ["Imports"]
+      },
+      "delete": {
+        "description": "A pending import is discarded. A committed import is undone: it is deleted with every transaction it wrote.",
+        "operationId": "ImportsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteImportResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Discard or undo an import",
+        "tags": ["Imports"]
+      }
     }
   },
   "info": {
@@ -1650,6 +1870,559 @@
             "description": "true archives the account (kept with its history), false restores it."
           }
         }
+      },
+      "ImportUploadSource": {
+        "type": "string",
+        "enum": ["cic_csv"]
+      },
+      "PreviewImportBodyDto": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "Bank export (CIC CSV, Windows-1252), at most 5 MB."
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Target account (checking or savings)."
+          },
+          "source": {
+            "default": "cic_csv",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImportUploadSource"
+              }
+            ]
+          }
+        },
+        "required": ["file", "accountId"]
+      },
+      "ImportSource": {
+        "type": "string",
+        "enum": ["cic_csv", "spreadsheet"]
+      },
+      "ImportStatus": {
+        "type": "string",
+        "enum": ["pending", "committed"],
+        "description": "`pending`: previewed, nothing written yet."
+      },
+      "ImportCountsDto": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "integer",
+            "description": "Parsed rows."
+          },
+          "new": {
+            "type": "integer",
+            "description": "Rows classified as new."
+          },
+          "duplicates": {
+            "type": "integer",
+            "description": "Rows already stored. Once committed, also counts rows that another import stored in the meantime."
+          },
+          "conflicts": {
+            "type": "integer",
+            "description": "Probable duplicates of a transaction from another source."
+          },
+          "issues": {
+            "type": "integer",
+            "description": "Lines that could not be parsed."
+          },
+          "inserted": {
+            "type": "integer",
+            "description": "Transactions written (0 while pending)."
+          },
+          "skipped": {
+            "type": "integer",
+            "description": "Conflicts left out (0 while pending)."
+          }
+        },
+        "required": [
+          "rows",
+          "new",
+          "duplicates",
+          "conflicts",
+          "issues",
+          "inserted",
+          "skipped"
+        ]
+      },
+      "AlreadyImportedDto": {
+        "type": "object",
+        "properties": {
+          "importId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "committedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["importId", "committedAt"]
+      },
+      "ContinuityGapDto": {
+        "type": "object",
+        "properties": {
+          "lineNumber": {
+            "type": "integer"
+          },
+          "expectedCents": {
+            "type": "integer",
+            "description": "Balance the row should have had."
+          },
+          "actualCents": {
+            "type": "integer",
+            "description": "Balance the file gives."
+          },
+          "fromDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Missing rows are between fromDate and toDate (inclusive); null for an opening mismatch."
+          },
+          "toDate": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "lineNumber",
+          "expectedCents",
+          "actualCents",
+          "fromDate",
+          "toDate"
+        ]
+      },
+      "ContinuityReportDto": {
+        "type": "object",
+        "properties": {
+          "checked": {
+            "type": "boolean",
+            "description": "False when no balance could be compared."
+          },
+          "ok": {
+            "type": "boolean",
+            "description": "No gap and no opening mismatch (meaningful when checked)."
+          },
+          "order": {
+            "type": "string",
+            "enum": ["ascending", "descending", "unknown"]
+          },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContinuityGapDto"
+            }
+          },
+          "openingMismatch": {
+            "nullable": true,
+            "description": "The first balance of the file does not follow the balance already stored for the previous day.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContinuityGapDto"
+              }
+            ]
+          }
+        },
+        "required": ["checked", "ok", "order", "gaps", "openingMismatch"]
+      },
+      "ParseIssueDto": {
+        "type": "object",
+        "properties": {
+          "lineNumber": {
+            "type": "integer",
+            "description": "1-based line in the file."
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": ["lineNumber", "message"]
+      },
+      "ImportRowStatus": {
+        "type": "string",
+        "enum": ["new", "duplicate", "conflict"]
+      },
+      "ExistingTransactionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bookingDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "amountCents": {
+            "type": "integer"
+          },
+          "rawLabel": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "bookingDate", "amountCents", "rawLabel"]
+      },
+      "ImportPreviewRowDto": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "0-based row index, referenced by the commit body."
+          },
+          "lineNumber": {
+            "type": "integer"
+          },
+          "bookingDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "valueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Signed cents."
+          },
+          "balanceAfterCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "rawLabel": {
+            "type": "string"
+          },
+          "merchant": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImportRowStatus"
+              }
+            ]
+          },
+          "conflictReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "existing": {
+            "nullable": true,
+            "description": "The stored transaction this row duplicates or conflicts with, as it was when previewed.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ExistingTransactionDto"
+              }
+            ]
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Proposed by the rules; null when no rule matched."
+          },
+          "ruleId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
+          },
+          "needsReview": {
+            "type": "boolean",
+            "description": "No rule matched: the transaction goes to the review queue."
+          }
+        },
+        "required": [
+          "index",
+          "lineNumber",
+          "bookingDate",
+          "valueDate",
+          "amountCents",
+          "balanceAfterCents",
+          "rawLabel",
+          "merchant",
+          "status",
+          "conflictReason",
+          "existing",
+          "categoryId",
+          "ruleId",
+          "kind",
+          "needsReview"
+        ]
+      },
+      "ImportPreviewDto": {
+        "type": "object",
+        "properties": {
+          "previousBalanceCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Stored balance the file continues from."
+          },
+          "continuity": {
+            "$ref": "#/components/schemas/ContinuityReportDto"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParseIssueDto"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportPreviewRowDto"
+            }
+          }
+        },
+        "required": ["previousBalanceCents", "continuity", "issues", "rows"]
+      },
+      "ImportDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "source": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImportSource"
+              }
+            ]
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "status": {
+            "description": "`pending`: previewed, nothing written yet.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImportStatus"
+              }
+            ]
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ImportCountsDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "committedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "alreadyImported": {
+            "nullable": true,
+            "description": "Another committed import of this account has the same file (same SHA-256).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AlreadyImportedDto"
+              }
+            ]
+          },
+          "preview": {
+            "nullable": true,
+            "description": "Rows to review; null once committed.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImportPreviewDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "accountId",
+          "accountName",
+          "source",
+          "fileName",
+          "status",
+          "periodStart",
+          "periodEnd",
+          "counts",
+          "createdAt",
+          "committedAt",
+          "alreadyImported",
+          "preview"
+        ]
+      },
+      "ConflictAction": {
+        "type": "string",
+        "enum": ["import", "skip"],
+        "description": "`import` keeps the row as a separate transaction, `skip` leaves it out."
+      },
+      "ConflictResolutionDto": {
+        "type": "object",
+        "properties": {
+          "rowIndex": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "action": {
+            "description": "`import` keeps the row as a separate transaction, `skip` leaves it out.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ConflictAction"
+              }
+            ]
+          }
+        },
+        "required": ["rowIndex", "action"]
+      },
+      "CategoryOverrideDto": {
+        "type": "object",
+        "properties": {
+          "rowIndex": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": ["rowIndex", "categoryId"]
+      },
+      "CommitImportDto": {
+        "type": "object",
+        "properties": {
+          "conflictResolutions": {
+            "description": "Decision for `conflict` rows. Conflicts without a decision are skipped.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConflictResolutionDto"
+            }
+          },
+          "categoryOverrides": {
+            "description": "Category chosen in the preview, replacing the proposed one (the row then leaves the review queue). Ignored for rows that are not imported.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategoryOverrideDto"
+            }
+          }
+        }
+      },
+      "ImportSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "source": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImportSource"
+              }
+            ]
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "status": {
+            "description": "`pending`: previewed, nothing written yet.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImportStatus"
+              }
+            ]
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ImportCountsDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "committedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "accountId",
+          "accountName",
+          "source",
+          "fileName",
+          "status",
+          "periodStart",
+          "periodEnd",
+          "counts",
+          "createdAt",
+          "committedAt"
+        ]
+      },
+      "DeleteImportResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "result": {
+            "type": "string",
+            "enum": ["discarded", "undone"],
+            "description": "`discarded`: a pending preview was dropped. `undone`: a committed import and its transactions were deleted."
+          },
+          "removedTransactions": {
+            "type": "integer"
+          }
+        },
+        "required": ["id", "result", "removedTransactions"]
       }
     }
   }

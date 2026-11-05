@@ -11,6 +11,7 @@ import { CategoriesModule } from '#/categories/categories.module'
 import { DatabaseModule } from '#/database/database.module'
 import { EmailModule } from '#/email/email.module'
 import { HealthModule } from '#/health/health.module'
+import { ImportsModule } from '#/imports/imports.module'
 import { UserModule } from '#/user/user.module'
 
 @Module({
@@ -31,6 +32,7 @@ import { UserModule } from '#/user/user.module'
     HealthModule,
     CategoriesModule,
     AccountsModule,
+    ImportsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
