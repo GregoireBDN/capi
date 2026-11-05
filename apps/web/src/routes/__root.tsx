@@ -2,7 +2,6 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { Toaster } from '@finances/ui'
-import Header from '../components/Header'
 import NotFound from '../components/NotFound'
 import { AuthProvider } from '../lib/auth-context'
 
@@ -42,14 +41,13 @@ export const Route = createRootRoute({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="fr" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <HeadContent />
       </head>
       <body className="flex min-h-svh flex-col font-sans antialiased [overflow-wrap:anywhere]">
         <AuthProvider>
-          <Header />
           {children}
           <Toaster />
           <TanStackDevtools

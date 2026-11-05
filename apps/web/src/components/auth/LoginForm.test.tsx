@@ -40,7 +40,7 @@ describe('LoginForm', () => {
     expect(authControllerLogin).not.toHaveBeenCalled()
   })
 
-  it('logs in, refreshes auth and navigates home on success', async () => {
+  it('logs in, refreshes auth and navigates to the dashboard on success', async () => {
     authControllerLogin.mockResolvedValue({ error: null })
     const { user } = setup()
 
@@ -55,7 +55,7 @@ describe('LoginForm', () => {
       }),
     )
     expect(refresh).toHaveBeenCalled()
-    expect(navigate).toHaveBeenCalledWith({ to: '/' })
+    expect(navigate).toHaveBeenCalledWith({ to: '/dashboard' })
   })
 
   it('surfaces an error alert and stays on the page when credentials are wrong', async () => {

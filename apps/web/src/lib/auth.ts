@@ -1,4 +1,4 @@
-import { createServerFn } from '@tanstack/react-start'
+import { createIsomorphicFn, createServerFn } from '@tanstack/react-start'
 import { createClient } from '#/api/client'
 import { authControllerMe, authControllerRegistrationStatus } from '#/api'
 import { withServerCookies } from '#/lib/server-api'
@@ -21,6 +21,23 @@ export const getMe = createServerFn().handler(
     return res.data
   },
 )
+
+/**
+ * The current user, or null when signed out. Use this in route guards
+ * (`beforeLoad`) rather than calling `getMe` directly:
+ *
+ * - during SSR it runs `getMe` with the incoming request's cookies, so the
+ *   guard decides before any protected markup is rendered;
+ * - in the browser it calls the API directly through the shared client, whose
+ *   interceptor transparently renews an expired access token with the refresh
+ *   cookie (which never reaches the web server, see `api-client.ts`).
+ */
+export const fetchCurrentUser = createIsomorphicFn()
+  .server((): Promise<UserDto | null> => getMe())
+  .client(async (): Promise<UserDto | null> => {
+    const res = await authControllerMe({ throwOnError: false })
+    return res.error || !res.data ? null : res.data
+  })
 
 /**
  * Whether public sign-up is still open. Finances is single-user: once the owner

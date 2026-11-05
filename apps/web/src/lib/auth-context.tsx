@@ -1,7 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from 'react'
 import { authControllerLogout, authControllerMe } from '#/api'
 import type { UserDto } from '#/api/types.gen'
-import { applyThemeMode } from '#/lib/use-theme'
+import { storeThemeMode } from '#/lib/use-theme'
 
 type AuthState = {
   user: UserDto | null
@@ -26,7 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const fetched = res.error || !res.data ? null : res.data
     setUser(fetched)
     setLoading(false)
-    if (fetched) applyThemeMode(fetched.theme)
+    if (fetched) storeThemeMode(fetched.theme)
   }, [])
 
   const logout = useCallback(async () => {
