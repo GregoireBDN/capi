@@ -140,14 +140,18 @@ export class AccountsService {
   }
 
   /**
-   * Current balance of each account, in three queries whatever the number of
+   * Current balance of each account, in four queries whatever the number of
    * accounts:
    *
-   * - transactional accounts: end-of-day running balance of the latest day
-   *   that has balances (`endOfDayBalance`, which tells the last row of a day
-   *   in any order and returns null when the balances do not chain), plus the
-   *   amounts booked after that day; without any running balance, the sum of
-   *   all amounts;
+   * - transactional accounts: the most recent of two end-of-day anchors, plus
+   *   the amounts booked after its day:
+   *   - the running balance of the latest day that has balances
+   *     (`endOfDayBalance`, which tells the last row of a day in any order and
+   *     returns null when the balances do not chain);
+   *   - the latest balance snapshot (statement closing balance, e.g. from the
+   *     spreadsheet history, whose rows carry no running balance). It wins a
+   *     tie with the running balance.
+   *   Without either, the sum of all amounts;
    * - investment accounts: the latest value snapshot.
    */
   private async loadBalances(
@@ -163,6 +167,24 @@ export class AccountsService {
         (INVESTMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type),
       )
       .map((a) => a.id)
+
+    const s = balanceSnapshotsTable
+    const accountIds = [...transactionalIds, ...investmentIds]
+    const latestSnapshots =
+      accountIds.length === 0
+        ? []
+        : await executor
+            .selectDistinctOn([s.accountId], {
+              accountId: s.accountId,
+              date: s.date,
+              valueCents: s.valueCents,
+            })
+            .from(s)
+            .where(inArray(s.accountId, accountIds))
+            .orderBy(s.accountId, desc(s.date))
+    const snapshotByAccount = new Map(
+      latestSnapshots.map((snapshot) => [snapshot.accountId, snapshot]),
+    )
 
     if (transactionalIds.length > 0) {
       const t = transactionsTable
@@ -180,6 +202,16 @@ export class AccountsService {
             ),
           )
           .groupBy(t.accountId),
+      )
+      const snap = executor.$with('snap').as(
+        executor
+          .selectDistinctOn([s.accountId], {
+            accountId: s.accountId,
+            day: sql<string>`${s.date}`.as('snap_day'),
+          })
+          .from(s)
+          .where(inArray(s.accountId, transactionalIds))
+          .orderBy(s.accountId, desc(s.date)),
       )
 
       const [lastDayRows, totals] = await Promise.all([
@@ -201,7 +233,7 @@ export class AccountsService {
           )
           .where(isNotNull(t.balanceAfterCents)),
         executor
-          .with(latest)
+          .with(latest, snap)
           .select({
             accountId: t.accountId,
             lastDay: max(t.bookingDate),
@@ -210,9 +242,13 @@ export class AccountsService {
               string | null
             >`sum(${t.amountCents}) filter (where ${gt(t.bookingDate, latest.day)})`,
             latestDay: sql<string | null>`max(${latest.day})`,
+            afterSnapshot: sql<
+              string | null
+            >`sum(${t.amountCents}) filter (where ${gt(t.bookingDate, snap.day)})`,
           })
           .from(t)
           .leftJoin(latest, eq(latest.accountId, t.accountId))
+          .leftJoin(snap, eq(snap.accountId, t.accountId))
           .where(inArray(t.accountId, transactionalIds))
           .groupBy(t.accountId),
       ])
@@ -233,7 +269,23 @@ export class AccountsService {
 
       for (const row of totals) {
         const rows = dayRows.get(row.accountId)
-        if (row.latestDay === null || !rows) {
+        const hasRunning = row.latestDay !== null && rows !== undefined
+        const snapshot = snapshotByAccount.get(row.accountId)
+        if (
+          snapshot &&
+          (!hasRunning || snapshot.date >= (row.latestDay as string))
+        ) {
+          balances.set(row.accountId, {
+            balanceCents:
+              snapshot.valueCents + (toCents(row.afterSnapshot) ?? 0),
+            balanceDate:
+              row.lastDay !== null && row.lastDay > snapshot.date
+                ? row.lastDay
+                : snapshot.date,
+          })
+          continue
+        }
+        if (!hasRunning) {
           balances.set(row.accountId, {
             balanceCents: toCents(row.total),
             balanceDate: row.lastDay,
@@ -253,23 +305,14 @@ export class AccountsService {
       }
     }
 
-    if (investmentIds.length > 0) {
-      const s = balanceSnapshotsTable
-      const snapshots = await executor
-        .selectDistinctOn([s.accountId], {
-          accountId: s.accountId,
-          date: s.date,
-          valueCents: s.valueCents,
-        })
-        .from(s)
-        .where(inArray(s.accountId, investmentIds))
-        .orderBy(s.accountId, desc(s.date))
-      for (const snapshot of snapshots) {
-        balances.set(snapshot.accountId, {
-          balanceCents: snapshot.valueCents,
-          balanceDate: snapshot.date,
-        })
-      }
+    // Investment accounts, and transactional accounts with snapshots but no
+    // transactions yet: the latest snapshot as is.
+    for (const snapshot of latestSnapshots) {
+      if (balances.has(snapshot.accountId)) continue
+      balances.set(snapshot.accountId, {
+        balanceCents: snapshot.valueCents,
+        balanceDate: snapshot.date,
+      })
     }
 
     return balances
