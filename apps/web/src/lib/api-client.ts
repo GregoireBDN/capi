@@ -1,12 +1,21 @@
 import { client } from '#/api/client.gen'
 
-const baseUrl = import.meta.env['VITE_API_URL'] ?? 'http://localhost:4000'
+/**
+ * The browser always calls the API on its own origin: the web server proxies
+ * `/api/*` to the API (`routes/api/$.ts`), so the session cookies belong to the
+ * web origin and reach the SSR guard too. Generated paths already start with
+ * `/api`, hence the empty (relative) base URL. On the server, the default
+ * client targets the API directly.
+ */
+const baseUrl = import.meta.env.SSR
+  ? (process.env['API_URL'] ?? 'http://localhost:4000')
+  : ''
 
 // Configure the default client used by all generated API services.
 // Import this file at the app entry point (router.tsx) before any API call.
 client.setConfig({
   baseUrl,
-  credentials: 'include',
+  credentials: 'same-origin',
 })
 
 /**
@@ -19,7 +28,7 @@ client.setConfig({
  * multiple rotations for one expiry.
  */
 
-const REFRESH_URL = `${baseUrl}/api/auth/refresh`
+const REFRESH_URL = '/api/auth/refresh'
 
 /**
  * Endpoints where a 401 is a genuine auth failure (bad credentials, missing
@@ -35,7 +44,7 @@ let refreshInFlight: Promise<boolean> | null = null
 function refreshSession(): Promise<boolean> {
   refreshInFlight ??= fetch(REFRESH_URL, {
     method: 'POST',
-    credentials: 'include',
+    credentials: 'same-origin',
   })
     .then((res) => res.ok)
     .catch(() => false)
