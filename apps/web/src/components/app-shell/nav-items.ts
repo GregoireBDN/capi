@@ -1,5 +1,6 @@
 import {
   ArrowLeftRightIcon,
+  InboxIcon,
   LayoutDashboardIcon,
   PiggyBankIcon,
   RepeatIcon,
@@ -14,17 +15,26 @@ export interface NavItem {
   to: (typeof ROUTES)[
     | 'dashboard'
     | 'transactions'
+    | 'review'
     | 'budget'
     | 'subscriptions'
     | 'savings'
     | 'import']
   icon: LucideIcon
+  /** Counter shown next to the label: the review queue size. */
+  badge?: 'reviewCount'
 }
 
 /** Main navigation of the authenticated app, in display order. */
 export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Tableau de bord', to: ROUTES.dashboard, icon: LayoutDashboardIcon },
   { label: 'Opérations', to: ROUTES.transactions, icon: ArrowLeftRightIcon },
+  {
+    label: 'À revoir',
+    to: ROUTES.review,
+    icon: InboxIcon,
+    badge: 'reviewCount',
+  },
   { label: 'Budget', to: ROUTES.budget, icon: TargetIcon },
   { label: 'Abonnements', to: ROUTES.subscriptions, icon: RepeatIcon },
   { label: 'Épargne', to: ROUTES.savings, icon: PiggyBankIcon },
