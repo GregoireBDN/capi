@@ -22,7 +22,7 @@
       "persistent": true
     },
     "lint": {
-      "dependsOn": ["^lint"]
+      "dependsOn": ["generate", "^lint"]
     },
     "check-types": {
       "dependsOn": ["generate", "^check-types"]
