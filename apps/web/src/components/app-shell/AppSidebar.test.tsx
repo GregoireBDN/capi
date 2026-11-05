@@ -23,8 +23,13 @@ vi.mock('#/api', () => ({
 
 const reviewCount = vi.mocked(transactionsControllerReviewCount)
 
+/** A generated-client result carrying `data`. */
+function ok<T>(data: T) {
+  return Promise.resolve({ data }) as never
+}
+
 function reviewCountIs(count: number) {
-  reviewCount.mockResolvedValue({ data: { count } } as never)
+  reviewCount.mockReturnValue(ok({ count }))
 }
 
 beforeEach(() => {
