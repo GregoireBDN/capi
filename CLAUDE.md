@@ -55,6 +55,16 @@ The running balance is used to **check continuity** (previous balance + amount =
 - Legitimate identical transactions on the same day (same date, amount and label, e.g. two identical card payments) must be **kept**. The dedupe hash includes an occurrence index among identical (date, amount, normalized label) rows in file order, so they stay distinct and a re-imported file still matches. Rows from different sources (e.g. the spreadsheet history vs a CSV export) are compared by a fuzzy probable-duplicate check and shown as conflicts in the preview, never dropped automatically. See `apps/api/src/imports/dedupe/dedupe.ts`.
 - Every import goes through a **preview** (new / duplicate / conflicting rows, continuity check) before it is committed. Nothing is written until the user confirms.
 
+### Spreadsheet history import (one-shot)
+
+The owner's pre-app history (a Google Sheet, ~3,250 categorized rows since 07/2023) is imported once from its CSV exports with `pnpm --filter @finances/api import:history` (code in `apps/api/src/imports/history/`, entry `apps/api/src/database/import-history.ts`; `node dist/database/import-history.js` where `tsx` is missing).
+
+- **Dry run by default**: everything runs in one DB transaction that is rolled back unless `--commit` is passed. It prints counts only; `--report <path>` writes a detailed JSON report (merchant keys, line numbers, conflicts) and refuses any path inside the repo outside `data/`.
+- **Inputs**: `Transactions` tab (`Date,Mois,Compte,Libellé,Montant (€),Catégorie,Groupe,Relevé,Ponctuel`, UTF-8, `,`-separated, `-1 234,56 €` amounts) and optionally the `Soldes` tab (`Fin de mois` + one column per account) → `balance_snapshots` on the last day of each month, upserted on (account, date). Columns are matched by name; bad rows are reported, never fatal.
+- **Mapping** (`history/mapping.ts`): sheet category slugs → seeded slugs; the kind comes from `Groupe` (`Mouvement` → transfer, `Revenu` → income, `Dépense` → expense) and wins over the category's kind. Unknown/ambiguous slugs (`paypal`, `virement_emis` outside `Mouvement`, ...) get no or a best-effort category and `needsReview = true`. Account codes `CC`/`LA`/`LJ` → Compte courant / Livret A / Livret Jeune (found by name or created, institution CIC); override with `--accounts <file.json>` and `--categories <file.json>`.
+- **Dedupe**: same hashes as bank imports (`computeDedupeHashes`, `classifyRows`), so a re-run inserts nothing. Probable duplicates of rows from another source (CIC CSV) are conflicts: counted and **not inserted** unless `--include-conflicts` (then flagged for review). One `imports` row (`source = 'spreadsheet'`) per account that received rows.
+- **Rules**: merchants seen ≥ 3 times and ≥ 90 % in one category and kind get a proposed `contains` rule on their merchant key (skipped when an existing rule already covers them or the pattern would also catch rows filed differently); created at the end of the rule order only with `--create-rules`.
+
 ### Categorization
 
 - Categories are assigned by **ordered rules** first (first matching rule wins).
