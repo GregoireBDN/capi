@@ -160,6 +160,8 @@ File-based routing via TanStack Router — routes live in `apps/web/src/routes/`
 
 **Auth state**: client auth context in `apps/web/src/lib/auth-context.tsx`; theme via `apps/web/src/lib/use-theme.ts`.
 
+**Authenticated layout**: every signed-in page lives under the pathless layout route `routes/_app.tsx` (files in `routes/_app/`). Its `beforeLoad` guard (`requireUser` in `apps/web/src/lib/auth-guard.ts`) redirects anonymous visitors to `/auth` during SSR, before any protected markup renders, and exposes `user` through the route context. The shell (`apps/web/src/components/app-shell/`) is the `@finances/ui` sidebar (a sheet below `md`, opened from a top bar); add a section by creating `routes/_app/<name>.tsx` and an entry in `app-shell/nav-items.ts`. `/` only redirects (dashboard or login); there is no public landing page.
+
 **Styling**: Tailwind CSS v4 via `@tailwindcss/vite`. Global styles in `apps/web/src/globals.css`; shared design tokens come from `@finances/ui/globals.css`. Theme (light/dark/auto) is initialized via an inline script in `__root.tsx` before hydration to avoid a flash.
 
 **Mobile**: the app is mainly used from the phone — design mobile-first. The PWA (manifest, service worker) is planned for M5.
