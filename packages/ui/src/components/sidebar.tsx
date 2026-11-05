@@ -1035,7 +1035,8 @@ function SidebarMenuButton({
       data-slot="sidebar-menu-button"
       data-sidebar="menu-button"
       data-size={size}
-      data-active={isActive}
+      // Omit when inactive: Tailwind's `data-active:` variant matches presence.
+      data-active={isActive || undefined}
       className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
       {...props}
     />
@@ -1323,7 +1324,8 @@ function SidebarMenuSubButton({
       data-slot="sidebar-menu-sub-button"
       data-sidebar="menu-sub-button"
       data-size={size}
-      data-active={isActive}
+      // Omit when inactive: Tailwind's `data-active:` variant matches presence.
+      data-active={isActive || undefined}
       className={cn(
         [
           // Layout
