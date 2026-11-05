@@ -53,7 +53,8 @@ export const transactionsTable = pgTable(
     /**
      * Identity of the row in its source, computed by the importer. Re-importing
      * the same row yields the same hash; legitimate identical transactions on
-     * the same day get distinct hashes (the running balance differs).
+     * the same day get distinct hashes through their occurrence index (see
+     * `imports/dedupe/dedupe.ts`).
      */
     dedupeHash: varchar('dedupe_hash', { length: 64 }).notNull(),
   },

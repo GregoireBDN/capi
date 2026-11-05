@@ -47,12 +47,12 @@ The first supported bank is CIC. Its CSV export:
 - uses `dd/mm/yyyy` dates;
 - has the columns `Date` / `Date de valeur` / `Débit` / `Crédit` / `Libellé` / `Solde`, where `Solde` is the running balance after the row.
 
-The running balance is used to **check continuity** (previous balance + amount = new balance, within a file and across imports) and to **disambiguate duplicates**.
+The running balance is used to **check continuity** (previous balance + amount = new balance, within a file and across imports) and to rank probable duplicates between sources; it is not part of the dedupe hash.
 
 ### Imports
 
 - Imports are **idempotent**: re-importing a file, or a file whose period overlaps a previous import, must not create duplicates.
-- Legitimate identical transactions on the same day (same date, amount and label, e.g. two identical card payments) must be **kept**. Use the running balance to tell them apart from re-imported rows.
+- Legitimate identical transactions on the same day (same date, amount and label, e.g. two identical card payments) must be **kept**. The dedupe hash includes an occurrence index among identical (date, amount, normalized label) rows in file order, so they stay distinct and a re-imported file still matches. Rows from different sources (e.g. the spreadsheet history vs a CSV export) are compared by a fuzzy probable-duplicate check and shown as conflicts in the preview, never dropped automatically. See `apps/api/src/imports/dedupe/dedupe.ts`.
 - Every import goes through a **preview** (new / duplicate / conflicting rows, continuity check) before it is committed. Nothing is written until the user confirms.
 
 ### Categorization
