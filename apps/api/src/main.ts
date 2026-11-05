@@ -84,6 +84,9 @@ async function bootstrap() {
     }),
   )
 
+  // The web app reaches the API through its own origin (`/api` proxy), so
+  // browser calls are same-origin; CORS only matters for direct calls from the
+  // web origin (e.g. a dev setup without the proxy) and stays limited to it.
   app.enableCors({
     origin: env.APP_URL,
     credentials: true,
