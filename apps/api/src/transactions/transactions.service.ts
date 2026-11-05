@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common'
 import {
   and,
+  asc,
   count,
   desc,
   eq,
@@ -13,6 +14,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
   or,
   type SQL,
@@ -32,7 +34,10 @@ import {
   type ListTransactionsQueryDto,
   TRANSACTIONS_PAGE_LIMIT_DEFAULT,
   type TransactionDto,
+  type TransactionFiltersQueryDto,
   type TransactionListDto,
+  type TransactionSort,
+  type TransactionSummaryDto,
   type UpdateTransactionDto,
 } from './dto/transaction.dto'
 
@@ -110,6 +115,44 @@ function toDto(row: TransactionRow): TransactionDto {
   }
 }
 
+/**
+ * First day of a `YYYY-MM` month and first day of the next one, as calendar
+ * date strings: plain arithmetic, no `Date`, so no time zone can shift them.
+ */
+export function monthBounds(month: string): { start: string; next: string } {
+  const [year, monthNumber] = month.split('-').map(Number)
+  const nextYear = monthNumber === 12 ? year + 1 : year
+  const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1
+  const pad = (value: number, length: number) =>
+    String(value).padStart(length, '0')
+  return {
+    start: `${month}-01`,
+    next: `${pad(nextYear, 4)}-${pad(nextMonth, 2)}-01`,
+  }
+}
+
+/** ORDER BY of each sort; ties end on id so pages never overlap. */
+function orderBy(sort: TransactionSort): SQL[] {
+  const t = transactionsTable
+  switch (sort) {
+    case 'date_asc':
+      return [asc(t.bookingDate), asc(t.id)]
+    case 'amount_asc':
+      return [asc(t.amountCents), desc(t.bookingDate), desc(t.id)]
+    case 'amount_desc':
+      return [desc(t.amountCents), desc(t.bookingDate), desc(t.id)]
+    case 'date_desc':
+      return [desc(t.bookingDate), desc(t.id)]
+  }
+}
+
+/** `coalesce(sum(amount) filter (where ...), 0)` as a JS number of cents. */
+function sumWhere(condition: SQL) {
+  return sql<number>`coalesce(sum(${transactionsTable.amountCents}) filter (where ${condition}), 0)::bigint`.mapWith(
+    Number,
+  )
+}
+
 /** Escapes `%`, `_` and `\` for a literal `ILIKE` pattern. */
 function likePattern(text: string): string {
   return `%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`
@@ -132,16 +175,14 @@ export class TransactionsService {
     return this.database.db
   }
 
-  /** Filtered page, newest booking date first (ties: id, descending). */
+  /**
+   * Filtered page, newest booking date first by default (ties: id,
+   * descending); see `ListTransactionsQueryDto.sort` for the other orders.
+   */
   async list(
     query: ListTransactionsQueryDto,
     executor: Executor = this.db,
   ): Promise<TransactionListDto> {
-    if (query.categoryId !== undefined && query.uncategorized !== undefined) {
-      throw new BadRequestException(
-        'categoryId and uncategorized cannot be combined',
-      )
-    }
     const page = query.page ?? 1
     const limit = query.limit ?? TRANSACTIONS_PAGE_LIMIT_DEFAULT
     const where = this.filters(query)
@@ -149,15 +190,49 @@ export class TransactionsService {
     const [rows, [{ total }]] = await Promise.all([
       this.select(executor)
         .where(where)
-        .orderBy(
-          desc(transactionsTable.bookingDate),
-          desc(transactionsTable.id),
-        )
+        .orderBy(...orderBy(query.sort ?? 'date_desc'))
         .limit(limit)
         .offset((page - 1) * limit),
       executor.select({ total: count() }).from(transactionsTable).where(where),
     ])
     return { items: rows.map(toDto), total, page, limit }
+  }
+
+  /**
+   * Totals of the transactions matching the filters. Income and expense only
+   * sum their own kind: transfers between the user's own accounts are counted
+   * apart (`transferCount`) and never reach the sums.
+   */
+  async summary(
+    query: TransactionFiltersQueryDto,
+    executor: Executor = this.db,
+  ): Promise<TransactionSummaryDto> {
+    const t = transactionsTable
+    const isIncome = eq(t.kind, 'income')
+    const isExpense = eq(t.kind, 'expense')
+    const [row] = await executor
+      .select({
+        count: count(),
+        transferCount:
+          sql<number>`count(*) filter (where ${eq(t.kind, 'transfer')})`.mapWith(
+            Number,
+          ),
+        incomeCents: sumWhere(isIncome),
+        expenseCents: sumWhere(isExpense),
+        oneOffIncomeCents: sumWhere(and(isIncome, eq(t.isOneOff, true))!),
+        oneOffExpenseCents: sumWhere(and(isExpense, eq(t.isOneOff, true))!),
+      })
+      .from(t)
+      .where(this.filters(query))
+    return {
+      count: row.count,
+      incomeCents: row.incomeCents,
+      expenseCents: row.expenseCents,
+      netCents: row.incomeCents + row.expenseCents,
+      oneOffIncomeCents: row.oneOffIncomeCents,
+      oneOffExpenseCents: row.oneOffExpenseCents,
+      transferCount: row.transferCount,
+    }
   }
 
   /** Size of the review queue. */
@@ -231,10 +306,25 @@ export class TransactionsService {
       )
   }
 
-  private filters(query: ListTransactionsQueryDto): SQL | undefined {
+  /** WHERE clause of the filters; rejects contradictory combinations. */
+  private filters(query: TransactionFiltersQueryDto): SQL | undefined {
+    if (query.categoryId !== undefined && query.uncategorized !== undefined) {
+      throw new BadRequestException(
+        'categoryId and uncategorized cannot be combined',
+      )
+    }
+    if (
+      query.month !== undefined &&
+      (query.from !== undefined || query.to !== undefined)
+    ) {
+      throw new BadRequestException('month cannot be combined with from or to')
+    }
     const conditions: (SQL | undefined)[] = []
     if (query.needsReview !== undefined) {
       conditions.push(eq(transactionsTable.needsReview, query.needsReview))
+    }
+    if (query.isOneOff !== undefined) {
+      conditions.push(eq(transactionsTable.isOneOff, query.isOneOff))
     }
     if (query.accountId !== undefined) {
       conditions.push(eq(transactionsTable.accountId, query.accountId))
@@ -257,6 +347,13 @@ export class TransactionsService {
     }
     if (query.to !== undefined) {
       conditions.push(lte(transactionsTable.bookingDate, query.to))
+    }
+    if (query.month !== undefined) {
+      const { start, next } = monthBounds(query.month)
+      conditions.push(
+        gte(transactionsTable.bookingDate, start),
+        lt(transactionsTable.bookingDate, next),
+      )
     }
     if (query.q) {
       const pattern = likePattern(query.q)

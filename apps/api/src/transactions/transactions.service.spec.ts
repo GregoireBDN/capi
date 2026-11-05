@@ -236,11 +236,213 @@ describe.skipIf(!process.env.DATABASE_URL)(
         )
       })
 
+      it('sorts by date or by signed amount, ties broken by date then id', async () => {
+        await withFixture(async ({ tx, service, checking }) => {
+          const [a, b, c, d] = await insert(tx, [
+            transaction(checking, {
+              bookingDate: '2026-01-10',
+              amountCents: -5_000,
+            }),
+            transaction(checking, {
+              bookingDate: '2026-01-20',
+              amountCents: 200_000,
+            }),
+            transaction(checking, {
+              bookingDate: '2026-01-05',
+              amountCents: -5_000,
+            }),
+            transaction(checking, {
+              bookingDate: '2026-01-15',
+              amountCents: -120,
+            }),
+          ])
+          const ids = async (
+            sort: Parameters<typeof service.list>[0]['sort'],
+          ) => (await service.list({ sort })).items.map((t) => t.id)
+
+          expect(await ids(undefined)).toEqual([b.id, d.id, a.id, c.id])
+          expect(await ids('date_desc')).toEqual([b.id, d.id, a.id, c.id])
+          expect(await ids('date_asc')).toEqual([c.id, a.id, d.id, b.id])
+          // Same amount: newest first.
+          expect(await ids('amount_asc')).toEqual([a.id, c.id, d.id, b.id])
+          expect(await ids('amount_desc')).toEqual([b.id, d.id, a.id, c.id])
+        })
+      })
+
+      it('filters by the one-off flag', async () => {
+        await withFixture(async ({ tx, service, checking }) => {
+          const [oneOff, regular] = await insert(tx, [
+            transaction(checking, { isOneOff: true }),
+            transaction(checking),
+          ])
+          const ids = async (isOneOff: boolean) =>
+            (await service.list({ isOneOff })).items.map((t) => t.id)
+          expect(await ids(true)).toEqual([oneOff.id])
+          expect(await ids(false)).toEqual([regular.id])
+        })
+      })
+
+      it('takes a calendar month, first and last days included', async () => {
+        await withFixture(async ({ tx, service, checking }) => {
+          await insert(
+            tx,
+            [
+              '2023-12-31',
+              '2024-01-01',
+              '2024-01-31',
+              '2024-02-01',
+              '2024-02-29',
+              '2024-03-01',
+              '2024-12-31',
+              '2025-01-01',
+            ].map((bookingDate) => transaction(checking, { bookingDate })),
+          )
+          const dates = async (month: string) =>
+            (await service.list({ month, sort: 'date_asc' })).items.map(
+              (t) => t.bookingDate,
+            )
+
+          expect(await dates('2024-01')).toEqual(['2024-01-01', '2024-01-31'])
+          // Leap year.
+          expect(await dates('2024-02')).toEqual(['2024-02-01', '2024-02-29'])
+          // Year rollover.
+          expect(await dates('2024-12')).toEqual(['2024-12-31'])
+          expect(await dates('2023-12')).toEqual(['2023-12-31'])
+          expect(await dates('2024-06')).toEqual([])
+        })
+      })
+
+      it('rejects month combined with from or to', async () => {
+        await withFixture(async ({ service }) => {
+          await expect(
+            service.list({ month: '2026-01', from: '2026-01-01' }),
+          ).rejects.toBeInstanceOf(BadRequestException)
+          await expect(
+            service.summary({ month: '2026-01', to: '2026-01-31' }),
+          ).rejects.toBeInstanceOf(BadRequestException)
+        })
+      })
+
       it('rejects categoryId combined with uncategorized', async () => {
         await withFixture(async ({ service, groceries }) => {
           await expect(
             service.list({ categoryId: groceries, uncategorized: true }),
           ).rejects.toBeInstanceOf(BadRequestException)
+        })
+      })
+    })
+
+    describe('summary', () => {
+      it('sums income and expense, never transfers, with one-offs apart', async () => {
+        await withFixture(
+          async ({ tx, service, checking, savings, groceries, livret }) => {
+            await insert(tx, [
+              transaction(checking, { kind: 'income', amountCents: 250_000 }),
+              transaction(checking, {
+                kind: 'income',
+                amountCents: 30_000,
+                isOneOff: true,
+              }),
+              transaction(checking, {
+                categoryId: groceries,
+                amountCents: -4_550,
+              }),
+              transaction(checking, { amountCents: -90_000, isOneOff: true }),
+              // A refund filed as an expense reduces the expenses.
+              transaction(checking, { amountCents: 1_000 }),
+              // Moves between own accounts: counted, never summed.
+              transaction(checking, {
+                kind: 'transfer',
+                categoryId: livret,
+                amountCents: -50_000,
+              }),
+              transaction(savings, {
+                kind: 'transfer',
+                categoryId: livret,
+                amountCents: 50_000,
+              }),
+            ])
+
+            expect(await service.summary({})).toEqual({
+              count: 7,
+              incomeCents: 280_000,
+              expenseCents: -93_550,
+              netCents: 186_450,
+              oneOffIncomeCents: 30_000,
+              oneOffExpenseCents: -90_000,
+              transferCount: 2,
+            })
+          },
+        )
+      })
+
+      it('applies the same filters as the list', async () => {
+        await withFixture(async ({ tx, service, checking, savings }) => {
+          await insert(tx, [
+            transaction(checking, {
+              bookingDate: '2026-01-31',
+              amountCents: -1_000,
+            }),
+            transaction(checking, {
+              bookingDate: '2026-02-01',
+              amountCents: -2_000,
+              needsReview: true,
+            }),
+            transaction(savings, {
+              bookingDate: '2026-02-28',
+              kind: 'income',
+              amountCents: 500,
+              rawLabel: 'INTERETS TEST',
+            }),
+            transaction(checking, {
+              bookingDate: '2026-02-10',
+              kind: 'transfer',
+              amountCents: -10_000,
+            }),
+          ])
+
+          expect(await service.summary({ month: '2026-02' })).toMatchObject({
+            count: 3,
+            incomeCents: 500,
+            expenseCents: -2_000,
+            netCents: -1_500,
+            transferCount: 1,
+          })
+          expect(
+            await service.summary({ month: '2026-02', accountId: checking }),
+          ).toMatchObject({ count: 2, incomeCents: 0, expenseCents: -2_000 })
+          expect(await service.summary({ needsReview: true })).toMatchObject({
+            count: 1,
+            expenseCents: -2_000,
+          })
+          expect(await service.summary({ q: 'interets' })).toMatchObject({
+            count: 1,
+            incomeCents: 500,
+            expenseCents: 0,
+          })
+          expect(await service.summary({ kind: 'transfer' })).toEqual({
+            count: 1,
+            incomeCents: 0,
+            expenseCents: 0,
+            netCents: 0,
+            oneOffIncomeCents: 0,
+            oneOffExpenseCents: 0,
+            transferCount: 1,
+          })
+        })
+      })
+
+      it('returns zeros when nothing matches', async () => {
+        await withFixture(async ({ service }) => {
+          expect(await service.summary({ month: '1999-01' })).toEqual({
+            count: 0,
+            incomeCents: 0,
+            expenseCents: 0,
+            netCents: 0,
+            oneOffIncomeCents: 0,
+            oneOffExpenseCents: 0,
+            transferCount: 0,
+          })
         })
       })
     })
