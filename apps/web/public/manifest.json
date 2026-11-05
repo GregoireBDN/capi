@@ -1,9 +1,9 @@
 {
-  "short_name": "Temply",
-  "name": "Temply",
+  "short_name": "Finances",
+  "name": "Finances",
   "icons": [
     {
-      "src": "temply-logo.svg",
+      "src": "logo.svg",
       "sizes": "any",
       "type": "image/svg+xml"
     }

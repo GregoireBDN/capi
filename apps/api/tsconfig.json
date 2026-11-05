@@ -1,11 +1,11 @@
 {
-  "extends": "@temply/config-typescript/nestjs",
+  "extends": "@finances/config-typescript/nestjs",
   "compilerOptions": {
     "jsx": "react-jsx",
     "outDir": "./dist",
     "paths": {
       "#/*": ["./src/*"],
-      "@temply/shared": ["../../packages/shared/src/index.ts"]
+      "@finances/shared": ["../../packages/shared/src/index.ts"]
     }
   },
   "include": ["src", "drizzle.config.ts"],

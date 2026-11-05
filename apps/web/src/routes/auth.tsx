@@ -19,7 +19,7 @@ import {
   FieldLabel,
   Input,
   Separator,
-} from '@temply/ui'
+} from '@finances/ui'
 import { FcGoogle } from 'react-icons/fc'
 
 export const Route = createFileRoute('/auth')({
@@ -94,8 +94,8 @@ function AuthPage() {
           </CardTitle>
           <CardDescription>
             {mode === 'login'
-              ? 'Connectez-vous à votre compte Temply'
-              : 'Créez votre compte Temply'}
+              ? 'Connectez-vous à votre compte Finances'
+              : 'Créez votre compte Finances'}
           </CardDescription>
         </CardHeader>
 

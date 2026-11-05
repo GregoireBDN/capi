@@ -13,7 +13,7 @@ import { z } from 'zod'
 const isProduction = process.env['NODE_ENV'] === 'production'
 
 /** Dev/test fallback matching the docker-compose Postgres service. */
-const DEV_DATABASE_URL = 'postgres://user:password@localhost:5432/temply'
+const DEV_DATABASE_URL = 'postgres://user:password@localhost:5432/finances'
 
 /**
  * Required in production (a missing value crashes the boot); outside production
@@ -75,7 +75,7 @@ const envSchema = z.object({
     .transform((value) => value === 'true'),
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
-  EMAIL_FROM: z.string().default('noreply@temply.app'),
+  EMAIL_FROM: z.string().default('noreply@finances.app'),
 
   /**
    * PostHog server-side analytics/error-tracking. Optional: an empty key

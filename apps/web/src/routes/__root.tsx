@@ -1,7 +1,7 @@
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
-import { Toaster } from '@temply/ui'
+import { Toaster } from '@finances/ui'
 import Header from '../components/Header'
 import NotFound from '../components/NotFound'
 import { AnalyticsProvider } from '../lib/analytics'
@@ -22,14 +22,14 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'Temply',
+        title: 'Finances',
       },
     ],
     links: [
       {
         rel: 'icon',
         type: 'image/svg+xml',
-        href: '/temply-logo.svg',
+        href: '/logo.svg',
       },
       {
         rel: 'stylesheet',

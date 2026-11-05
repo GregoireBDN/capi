@@ -6,7 +6,7 @@ import { authControllerForgotPassword } from '#/api'
 import { isRateLimited, rateLimitMessage } from '#/lib/api-errors'
 import { forgotSchema } from './auth.schemas'
 import type { ForgotValues } from './auth.schemas'
-import { Button, Field, FieldError, FieldLabel, Input } from '@temply/ui'
+import { Button, Field, FieldError, FieldLabel, Input } from '@finances/ui'
 
 export function ForgotForm() {
   const [sent, setSent] = useState(false)

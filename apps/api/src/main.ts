@@ -104,7 +104,7 @@ async function bootstrap() {
   app.enableShutdownHooks()
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Temply API')
+    .setTitle('Finances API')
     .setVersion('1.0')
     .addCookieAuth('token')
     .build()

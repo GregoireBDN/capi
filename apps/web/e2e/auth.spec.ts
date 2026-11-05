@@ -12,7 +12,7 @@ test('register, verify email, then log in', async ({ page, request }) => {
   await clearMailbox(request)
 
   const unique = `e2e${Date.now()}`
-  const email = `${unique}@temply.test`
+  const email = `${unique}@finances.test`
   const password = 'password123'
   const firstName = unique // user.name's first token, shown on the home page
 

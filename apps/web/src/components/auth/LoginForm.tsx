@@ -21,7 +21,7 @@ import {
   FieldLabel,
   Input,
   PasswordInput,
-} from '@temply/ui'
+} from '@finances/ui'
 import { loginSchema } from './auth.schemas'
 import type { LoginValues } from './auth.schemas'
 

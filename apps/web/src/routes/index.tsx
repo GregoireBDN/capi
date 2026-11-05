@@ -22,7 +22,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@temply/ui'
+} from '@finances/ui'
 import { getMe } from '#/lib/auth'
 import { ROUTES } from '#/lib/routes'
 
@@ -76,7 +76,7 @@ function LoggedInHome({ user }: { user: UserDto }) {
           </h1>
           <p className="text-muted-foreground text-lg">
             {needsVerification
-              ? 'Bienvenue sur Temply ! Une dernière étape avant de profiter pleinement de votre compte.'
+              ? 'Bienvenue sur Finances ! Une dernière étape avant de profiter pleinement de votre compte.'
               : `Heureux de vous revoir. Membre depuis ${memberSince}.`}
           </p>
         </header>
@@ -237,7 +237,7 @@ function LandingPage() {
           </h1>
 
           <p className="text-muted-foreground mx-auto mt-6 max-w-xl text-lg animate-in fade-in slide-in-from-bottom-4 duration-700 delay-150">
-            Temply vous offre une base complète — authentification, API, base de données et
+            Finances vous offre une base complète — authentification, API, base de données et
             composants UI — prête à l'emploi. Concentrez-vous sur votre produit.
           </p>
 

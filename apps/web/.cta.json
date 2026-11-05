@@ -1,5 +1,5 @@
 {
-  "projectName": "temply-front",
+  "projectName": "finances-web",
   "mode": "file-router",
   "typescript": true,
   "packageManager": "pnpm",

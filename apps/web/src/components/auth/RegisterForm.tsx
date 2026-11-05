@@ -11,7 +11,7 @@ import {
   FieldLabel,
   Input,
   PasswordInput,
-} from '@temply/ui'
+} from '@finances/ui'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { registerSchema } from './auth.schemas'

@@ -17,7 +17,7 @@ interface VerifyEmailProps {
   verifyUrl: string
 }
 
-const APP_NAME = 'Temply'
+const APP_NAME = 'Finances'
 const APP_URL = process.env['APP_URL'] ?? 'http://localhost:3000'
 
 export function VerifyEmail({ verifyUrl }: VerifyEmailProps) {
@@ -31,7 +31,7 @@ export function VerifyEmail({ verifyUrl }: VerifyEmailProps) {
           {/* Header */}
           <Section style={header}>
             <Img
-              src={`${APP_URL}/temply-logo.svg`}
+              src={`${APP_URL}/logo.svg`}
               alt={APP_NAME}
               height={36}
               style={logoImg}

@@ -4,13 +4,13 @@
     {
       "name": "api",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@temply/api", "dev"],
+      "runtimeArgs": ["--filter", "@finances/api", "dev"],
       "port": 4000
     },
     {
       "name": "web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@temply/web", "dev"],
+      "runtimeArgs": ["--filter", "@finances/web", "dev"],
       "port": 3000
     }
   ]

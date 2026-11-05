@@ -1,7 +1,7 @@
 import { useAuth } from '#/lib/auth-context'
 import { ROUTES } from '#/lib/routes'
 import { Link, useLocation, useNavigate } from '@tanstack/react-router'
-import { Button, ConfirmDialog } from '@temply/ui'
+import { Button, ConfirmDialog } from '@finances/ui'
 import { LogOutIcon, SettingsIcon } from 'lucide-react'
 import { useState } from 'react'
 
@@ -30,7 +30,7 @@ export default function Header() {
       <nav className="page-wrap flex flex-wrap items-center gap-x-3 gap-y-2 py-3 sm:py-4">
         <h2 className="m-0 flex-shrink-0 text-base font-semibold tracking-tight">
           <Link to={ROUTES.home} className="inline-flex items-center no-underline">
-            <img src="/temply-logo.svg" alt="Temply" className="h-8 w-auto" />
+            <img src="/logo.svg" alt="Finances" className="h-8 w-auto" />
           </Link>
         </h2>
 

@@ -1,10 +1,10 @@
 {
-  "extends": "@temply/config-typescript/react",
+  "extends": "@finances/config-typescript/react",
   "include": [".storybook/**/*.ts", ".storybook/**/*.tsx", "src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
   "compilerOptions": {
     "paths": {
-      "@temply/ui": ["../../packages/ui/src/index.ts"],
-      "@temply/ui/*": ["../../packages/ui/src/*"]
+      "@finances/ui": ["../../packages/ui/src/index.ts"],
+      "@finances/ui/*": ["../../packages/ui/src/*"]
     }
   }
 }

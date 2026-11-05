@@ -1,5 +1,5 @@
 {
-  "extends": "@temply/config-typescript/base",
+  "extends": "@finances/config-typescript/base",
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "bundler",

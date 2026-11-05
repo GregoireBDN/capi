@@ -47,7 +47,7 @@ export const Basic: Story = {
     <SidebarProvider>
       <Sidebar>
         <SidebarHeader>
-          <div className="px-2 py-1.5 font-semibold">Temply</div>
+          <div className="px-2 py-1.5 font-semibold">Finances</div>
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>

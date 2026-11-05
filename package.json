@@ -1,5 +1,5 @@
 {
-  "name": "temply",
+  "name": "finances",
   "private": true,
   "scripts": {
     "dev": "turbo dev",
@@ -9,9 +9,9 @@
     "test": "turbo test",
     "check-types": "turbo check-types",
     "generate": "turbo run generate",
-    "db:generate": "pnpm --filter @temply/api db:generate",
-    "db:migrate": "pnpm --filter @temply/api db:migrate",
-    "db:studio": "pnpm --filter @temply/api db:studio"
+    "db:generate": "pnpm --filter @finances/api db:generate",
+    "db:migrate": "pnpm --filter @finances/api db:migrate",
+    "db:studio": "pnpm --filter @finances/api db:studio"
   },
   "devDependencies": {
     "lint-staged": "^16.0.0",

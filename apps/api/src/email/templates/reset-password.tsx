@@ -18,7 +18,7 @@ interface ResetPasswordEmailProps {
   resetUrl: string
 }
 
-const APP_NAME = 'Temply'
+const APP_NAME = 'Finances'
 const APP_URL = process.env['APP_URL'] ?? 'http://localhost:3000'
 
 export function ResetPasswordEmail({ resetUrl }: ResetPasswordEmailProps) {
@@ -32,7 +32,7 @@ export function ResetPasswordEmail({ resetUrl }: ResetPasswordEmailProps) {
           {/* Header */}
           <Section style={header}>
             <Img
-              src={`${APP_URL}/temply-logo.svg`}
+              src={`${APP_URL}/logo.svg`}
               alt={APP_NAME}
               height={36}
               style={logoImg}

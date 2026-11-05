@@ -37,7 +37,7 @@ describe('env', () => {
   const PROD_BASE = {
     NODE_ENV: 'production',
     JWT_SECRET: 'a-real-production-secret',
-    DATABASE_URL: 'postgres://user:password@db:5432/temply',
+    DATABASE_URL: 'postgres://user:password@db:5432/finances',
   }
 
   it('throws when JWT_SECRET is missing in production', async () => {
@@ -85,11 +85,11 @@ describe('env', () => {
     })
     expect(env.PORT).toBe(4000)
     expect(env.APP_URL).toBe('http://localhost:3000')
-    expect(env.DATABASE_URL).toBe('postgres://user:password@localhost:5432/temply')
+    expect(env.DATABASE_URL).toBe('postgres://user:password@localhost:5432/finances')
     expect(env.SMTP_HOST).toBe('localhost')
     expect(env.SMTP_PORT).toBe(1025)
     expect(env.SMTP_SECURE).toBe(false)
-    expect(env.EMAIL_FROM).toBe('noreply@temply.app')
+    expect(env.EMAIL_FROM).toBe('noreply@finances.app')
     expect(env.isProduction).toBe(false)
   })
 
