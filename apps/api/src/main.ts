@@ -13,6 +13,7 @@ import { Logger } from 'nestjs-pino'
 import { AppModule } from './app.module'
 import { env } from './config/env'
 import { genReqId, REQUEST_ID_HEADER } from './config/logger'
+import { registerMultipart } from './imports/upload/multipart'
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -38,6 +39,10 @@ async function bootstrap() {
     })
 
   await app.register(fastifyCookie)
+
+  // File uploads (bank exports): one file per request, size-limited. Only
+  // the import preview reads multipart bodies (`readMultipartUpload`).
+  await registerMultipart(app)
 
   // Security headers (CSP, HSTS, X-Frame-Options, etc.). The default CSP is
   // strict: the API only returns JSON, so no inline scripts/styles are needed.

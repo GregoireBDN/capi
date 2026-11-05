@@ -3,6 +3,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   timestamp,
@@ -12,6 +13,7 @@ import {
 import { createSelectSchema } from 'drizzle-zod'
 import { accountsTable } from '#/accounts/accounts.schema'
 import { coreColumns } from '#/database/schema/core.schema'
+import type { ImportPreviewData } from '#/imports/preview/preview.types'
 
 export const importSourceEnum = pgEnum('import_source', IMPORT_SOURCES)
 
@@ -19,6 +21,12 @@ export const importSourceEnum = pgEnum('import_source', IMPORT_SOURCES)
  * One uploaded file. Created when the file is previewed; `committedAt` is set
  * once the user confirms and its transactions are written. Deleting an import
  * deletes its transactions (undo).
+ *
+ * Counters: `rowCount` parsed rows, of which `newCount` / `duplicateCount` /
+ * `conflictCount` as classified by the preview, and `issueCount` lines that
+ * could not be parsed. On commit `insertedCount` and `skippedCount` (conflicts
+ * left out) are set, and `duplicateCount` also counts rows that turned out to
+ * be stored meanwhile, so `inserted + duplicate + skipped = rowCount`.
  */
 export const importsTable = pgTable(
   'imports',
@@ -36,6 +44,15 @@ export const importsTable = pgTable(
     rowCount: integer('row_count').notNull().default(0),
     insertedCount: integer('inserted_count').notNull().default(0),
     duplicateCount: integer('duplicate_count').notNull().default(0),
+    newCount: integer('new_count').notNull().default(0),
+    conflictCount: integer('conflict_count').notNull().default(0),
+    skippedCount: integer('skipped_count').notNull().default(0),
+    issueCount: integer('issue_count').notNull().default(0),
+    /**
+     * Classified rows of a pending import, so committing does not need the
+     * file again. Null once committed (the transactions are the record then).
+     */
+    preview: jsonb('preview').$type<ImportPreviewData>(),
     committedAt: timestamp('committed_at'),
   },
   (t) => [index().on(t.accountId), index().on(t.fileHash)],

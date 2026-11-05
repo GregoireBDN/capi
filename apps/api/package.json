@@ -21,6 +21,7 @@
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
     "@fastify/helmet": "^13.0.2",
+    "@fastify/multipart": "10.1.4",
     "@fastify/static": "^9.1.3",
     "@finances/shared": "workspace:*",
     "@nestjs/common": "^11.0.0",
