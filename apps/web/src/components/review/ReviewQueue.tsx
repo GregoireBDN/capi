@@ -11,12 +11,7 @@ import {
   EmptyTitle,
   Skeleton,
 } from '@finances/ui'
-import {
-  CheckIcon,
-  CircleCheckBigIcon,
-  SparklesIcon,
-  XIcon,
-} from 'lucide-react'
+import { CheckIcon, CircleCheckBigIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
@@ -32,11 +27,14 @@ import type {
   UpdateTransactionDto,
 } from '#/api/types.gen'
 import { PageHeader } from '#/components/app-shell/PageHeader'
-import { CategoryBadge } from '#/components/transactions/CategoryBadge'
 import { CategoryPicker } from '#/components/transactions/CategoryPicker'
 import { displayLabel } from '#/components/transactions/labels'
+import { restoreTransactions } from '#/components/transactions/restore'
 import { RuleFromCorrectionDialog } from '#/components/transactions/RuleFromCorrectionDialog'
 import type { RuleCreatedResult } from '#/components/transactions/RuleFromCorrectionDialog'
+import { RuleOfferBanner } from '#/components/transactions/RuleOfferBanner'
+import type { RuleOffer } from '#/components/transactions/RuleOfferBanner'
+import { plural } from '#/lib/plural'
 import {
   adjustReviewCount,
   refreshReviewCount,
@@ -51,36 +49,12 @@ const UNDO_TOAST_MS = 8000
 /** Transactions fetched per page ("Charger plus"). */
 export const REVIEW_PAGE_SIZE = 50
 
-/** The correction a rule can be created from. */
-interface RuleOffer {
-  transaction: TransactionDto
-  category: CategoryDto
-}
-
-function plural(count: number, one: string, many: string) {
-  return `${count} ${count > 1 ? many : one}`
-}
-
 /** Queue order, as the API sorts it: newest date first, then id descending. */
 function byQueueOrder(a: TransactionDto, b: TransactionDto) {
   if (a.bookingDate !== b.bookingDate) {
     return a.bookingDate < b.bookingDate ? 1 : -1
   }
   return a.id < b.id ? 1 : a.id > b.id ? -1 : 0
-}
-
-/**
- * Body that puts a transaction back as it was before a correction (undo).
- * A rule categorization is restored with its rule, so rules keep managing it.
- */
-function restoreBody(item: TransactionDto): UpdateTransactionDto {
-  return {
-    categoryId: item.categoryId,
-    ...(item.categoryId && item.ruleId ? { ruleId: item.ruleId } : {}),
-    kind: item.kind,
-    isOneOff: item.isOneOff,
-    needsReview: true,
-  }
 }
 
 /**
@@ -205,33 +179,9 @@ export function ReviewQueue() {
 
   /** Puts corrected transactions back in the queue as they were. */
   async function undo(previous: readonly TransactionDto[]) {
-    const groups = new Map<
-      string,
-      { body: UpdateTransactionDto; ids: string[] }
-    >()
-    for (const item of previous) {
-      const body = restoreBody(item)
-      const key = JSON.stringify(body)
-      const group = groups.get(key) ?? { body, ids: [] }
-      group.ids.push(item.id)
-      groups.set(key, group)
-    }
-    const results = await Promise.all(
-      [...groups.values()].map(({ body, ids }) =>
-        ids.length === 1
-          ? transactionsControllerUpdate({
-              path: { id: ids[0] },
-              body,
-              throwOnError: false,
-            })
-          : transactionsControllerBulkUpdate({
-              body: { ...body, ids },
-              throwOnError: false,
-            }),
-      ),
-    )
+    const restored = await restoreTransactions(previous)
     scheduleReviewCountRefresh()
-    if (results.some((result) => !result.data)) {
+    if (!restored) {
       toast.error('Impossible d’annuler la correction.')
       void load({ silent: true })
       return
@@ -383,38 +333,11 @@ export function ReviewQueue() {
       <PageHeader title="À revoir" description={description} />
 
       {offer && (
-        <div
-          role="region"
-          aria-label="Créer une règle"
-          className="bg-card sticky top-16 z-10 flex flex-col gap-3 rounded-xl border p-3 shadow-sm md:top-4 lg:flex-row lg:items-center"
-        >
-          <p className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-sm">
-            <span className="break-words">
-              « {displayLabel(offer.transaction)} » classée dans
-            </span>
-            <CategoryBadge category={offer.category} />
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              iconStart={<SparklesIcon />}
-              className="h-auto min-h-8 flex-1 py-1.5 whitespace-normal lg:flex-none"
-              onClick={() => setRuleDialogOpen(true)}
-            >
-              Créer une règle pour les opérations similaires
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              ghost
-              iconOnly
-              aria-label="Ignorer"
-              onClick={() => setOffer(null)}
-            >
-              <XIcon />
-            </Button>
-          </div>
-        </div>
+        <RuleOfferBanner
+          offer={offer}
+          onCreateRule={() => setRuleDialogOpen(true)}
+          onDismiss={() => setOffer(null)}
+        />
       )}
 
       {status === 'loading' && (

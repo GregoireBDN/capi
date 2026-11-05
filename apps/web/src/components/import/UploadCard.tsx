@@ -20,7 +20,8 @@ import type { AccountDto, ImportDetailDto } from '#/api'
 import { importKeys, MAX_FILE_BYTES, unwrap } from './api'
 import { uploadErrorMessage } from './errors'
 import { FileDropzone } from './FileDropzone'
-import { formatCents, formatDate } from './format'
+import { formatCents } from '#/lib/money'
+import { formatDate } from './format'
 
 interface UploadCardProps {
   /** Transactional accounts only. */

@@ -19,8 +19,8 @@ import type {
   ImportDetailDto,
   ParseIssueDto,
 } from '#/api'
+import { formatCents } from '#/lib/money'
 import {
-  formatCents,
   formatDate,
   formatDateTime,
   formatPeriod,

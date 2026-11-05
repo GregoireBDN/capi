@@ -8,6 +8,7 @@ interface KindSelectProps {
   label: string
   disabled?: boolean
   className?: string
+  id?: string
 }
 
 /** Kind override: expense, income or internal transfer. */
@@ -17,9 +18,11 @@ export function KindSelect({
   label,
   disabled,
   className,
+  id,
 }: KindSelectProps) {
   return (
     <NativeSelect
+      id={id}
       aria-label={label}
       value={value}
       disabled={disabled}

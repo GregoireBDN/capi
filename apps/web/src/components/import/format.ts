@@ -1,14 +1,6 @@
 import { format, parseISO } from 'date-fns'
 
-const euros = new Intl.NumberFormat('fr-FR', {
-  style: 'currency',
-  currency: 'EUR',
-})
-
-/** Integer cents → "1 234,56 €". The only place cents become a decimal. */
-export function formatCents(cents: number): string {
-  return euros.format(cents / 100)
-}
+export { plural } from '#/lib/plural'
 
 /**
  * Calendar date `YYYY-MM-DD` → `dd/MM/yyyy`. Parsed as a local date (no time
@@ -28,11 +20,6 @@ export function formatPeriod(start: string | null, end: string | null): string {
   if (!start || !end) return '—'
   if (start === end) return `le ${formatDate(start)}`
   return `du ${formatDate(start)} au ${formatDate(end)}`
-}
-
-/** "1 opération" / "3 opérations". */
-export function plural(count: number, singular: string, pluralForm?: string) {
-  return `${count} ${count > 1 ? (pluralForm ?? `${singular}s`) : singular}`
 }
 
 const REASON_PARTS: [RegExp, string][] = [
