@@ -7,6 +7,7 @@ export const ROUTES = {
   review: '/review',
   budget: '/budget',
   subscriptions: '/subscriptions',
+  forecast: '/forecast',
   savings: '/savings',
   accounts: '/accounts',
   account: '/accounts/$accountId',

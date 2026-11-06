@@ -13,6 +13,7 @@ import { CryptoModule } from '#/crypto/crypto.module'
 import { DashboardModule } from '#/dashboard/dashboard.module'
 import { DatabaseModule } from '#/database/database.module'
 import { EmailModule } from '#/email/email.module'
+import { ForecastModule } from '#/forecast/forecast.module'
 import { HealthModule } from '#/health/health.module'
 import { ImportsModule } from '#/imports/imports.module'
 import { InvestmentsModule } from '#/investments/investments.module'
@@ -47,6 +48,7 @@ import { UserModule } from '#/user/user.module'
     InvestmentsModule,
     RecurringModule,
     CryptoModule,
+    ForecastModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
