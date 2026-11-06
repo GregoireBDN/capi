@@ -167,9 +167,9 @@ function ProgressMeter({
               )}
             />
           ) : null}
-          <span>{statusText}</span>
+          <span className="min-w-0">{statusText}</span>
           {share ? (
-            <span className="ml-auto text-muted-foreground tabular-nums">
+            <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground tabular-nums">
               {share}
             </span>
           ) : null}
