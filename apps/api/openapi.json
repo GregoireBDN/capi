@@ -2854,6 +2854,406 @@
         ]
       }
     },
+    "/api/accounts/{id}/holdings": {
+      "get": {
+        "description": "When the last valuation is older than the price cache TTL, prices are refreshed first (if the price API is enabled) and today's balance snapshot is written. A failing price API never fails the request: the last known prices are used and flagged stale.",
+        "operationId": "AccountHoldingsController_list",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountHoldingsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a crypto account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Holdings of a crypto account, valued at the last known prices",
+        "tags": [
+          "Crypto"
+        ]
+      },
+      "post": {
+        "description": "One asset at one location (wallet, exchange) per account. The account is valued again.",
+        "operationId": "AccountHoldingsController_create",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveHoldingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoldingDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, not a crypto account, archived account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "Same asset and location already held."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Add a holding",
+        "tags": [
+          "Crypto"
+        ]
+      }
+    },
+    "/api/accounts/{id}/holdings/valuate": {
+      "post": {
+        "description": "Asks the price API for every held asset (each at most every 15 s), values the holdings and upserts today's balance snapshot when every holding has a price. Contributions are the sum of the invested amounts when every holding has one, null otherwise.",
+        "operationId": "AccountHoldingsController_valuate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountHoldingsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a crypto account, archived account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Refresh prices and write today's snapshot",
+        "tags": [
+          "Crypto"
+        ]
+      }
+    },
+    "/api/accounts/{id}/holdings/{holdingId}": {
+      "put": {
+        "description": "Omitted optional fields are cleared.",
+        "operationId": "AccountHoldingsController_update",
+        "parameters": [
+          {
+            "name": "holdingId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveHoldingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoldingDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, not a crypto account, archived account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "Same asset and location already held."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Replace a holding",
+        "tags": [
+          "Crypto"
+        ]
+      },
+      "delete": {
+        "operationId": "AccountHoldingsController_remove",
+        "parameters": [
+          {
+            "name": "holdingId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Not a crypto account, archived account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Delete a holding",
+        "tags": [
+          "Crypto"
+        ]
+      }
+    },
+    "/api/crypto/summary": {
+      "get": {
+        "description": "Non-archived crypto accounts, valued with one batched price request (refreshed when the last valuation is older than the TTL).",
+        "operationId": "CryptoController_summary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CryptoSummaryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Holdings, prices, values and gains of every crypto account",
+        "tags": [
+          "Crypto"
+        ]
+      }
+    },
+    "/api/crypto/assets": {
+      "get": {
+        "description": "Proxied to the price API search (only the search text is sent), or a built-in list of common assets when it is disabled or unreachable.",
+        "operationId": "CryptoController_search",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "Name, ticker or id (1 to 50 characters).",
+            "schema": {
+              "example": "bitcoin",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CryptoAssetDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Search assets to hold",
+        "tags": [
+          "Crypto"
+        ]
+      }
+    },
+    "/api/crypto/prices/{assetId}": {
+      "put": {
+        "description": "Used when the price API is disabled or does not know the asset; a later price API refresh replaces it. The accounts holding the asset are valued again.",
+        "operationId": "CryptoController_setPrice",
+        "parameters": [
+          {
+            "name": "assetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "bitcoin",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualPriceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CryptoPriceDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Set the EUR price of an asset by hand",
+        "tags": [
+          "Crypto"
+        ]
+      }
+    },
     "/api/forecast": {
       "get": {
         "description": "Current balance of the selected accounts, the remaining occurrences of their confirmed, active recurring items until the end of the month (Europe/Paris), and optionally an estimate of the day-to-day spending; projected day by day with the lowest point and the first day under the threshold. Transfers and one-offs never count in the estimate.",
@@ -6417,6 +6817,460 @@
         "required": [
           "totals",
           "accounts"
+        ]
+      },
+      "ValuedHoldingDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "assetId": {
+            "type": "string",
+            "description": "Price provider asset id (CoinGecko id).",
+            "example": "bitcoin"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Quantity as an exact decimal string with a dot (up to 18 decimals).",
+            "example": "0.12345678"
+          },
+          "location": {
+            "type": "string",
+            "description": "Empty for a single place."
+          },
+          "investedCents": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "description": "Total EUR invested in this holding, in cents, when known."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "priceEur": {
+            "type": "string",
+            "nullable": true,
+            "description": "Last known EUR price per unit (exact decimal), if any.",
+            "example": "61234.56"
+          },
+          "priceSource": {
+            "type": "string",
+            "enum": [
+              "provider",
+              "manual",
+              null
+            ],
+            "nullable": true
+          },
+          "priceFetchedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "priceStale": {
+            "type": "boolean",
+            "description": "Price API price older than the cache TTL: the last refresh failed."
+          },
+          "valueCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "quantity × price in cents, rounded half to even."
+          },
+          "gainCents": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "accountId",
+          "assetId",
+          "symbol",
+          "name",
+          "quantity",
+          "location",
+          "investedCents",
+          "note",
+          "priceEur",
+          "priceSource",
+          "priceFetchedAt",
+          "priceStale",
+          "valueCents",
+          "gainCents"
+        ]
+      },
+      "HoldingsTotalsDto": {
+        "type": "object",
+        "properties": {
+          "valueCents": {
+            "type": "integer",
+            "description": "Sum over the holdings that have a price."
+          },
+          "investedCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Sum of the invested amounts, when every holding has one."
+          },
+          "gainCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "missingPriceCount": {
+            "type": "integer"
+          },
+          "staleCount": {
+            "type": "integer"
+          },
+          "withoutInvestedCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "valueCents",
+          "investedCents",
+          "gainCents",
+          "missingPriceCount",
+          "staleCount",
+          "withoutInvestedCount"
+        ]
+      },
+      "ValuationSnapshotDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "valueCents": {
+            "type": "integer"
+          },
+          "contributionsCents": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "date",
+          "valueCents",
+          "contributionsCents"
+        ]
+      },
+      "AccountHoldingsDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "holdings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValuedHoldingDto"
+            }
+          },
+          "totals": {
+            "$ref": "#/components/schemas/HoldingsTotalsDto"
+          },
+          "complete": {
+            "type": "boolean",
+            "description": "Every holding has a price, so the total values the account."
+          },
+          "snapshot": {
+            "nullable": true,
+            "description": "Today's balance snapshot written by this request (null when none was written).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ValuationSnapshotDto"
+              }
+            ]
+          },
+          "priceApiEnabled": {
+            "type": "boolean"
+          },
+          "refreshFailed": {
+            "type": "boolean",
+            "description": "A price refresh was attempted in this request and failed."
+          }
+        },
+        "required": [
+          "accountId",
+          "holdings",
+          "totals",
+          "complete",
+          "snapshot",
+          "priceApiEnabled",
+          "refreshFailed"
+        ]
+      },
+      "SaveHoldingDto": {
+        "type": "object",
+        "properties": {
+          "assetId": {
+            "type": "string",
+            "description": "Price provider asset id (CoinGecko id).",
+            "example": "bitcoin"
+          },
+          "symbol": {
+            "type": "string",
+            "maxLength": 20,
+            "example": "BTC"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "Bitcoin"
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Quantity as an exact decimal string with a dot (up to 18 decimals).",
+            "example": "0.12345678"
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Wallet or exchange label; empty for a single place.",
+            "example": "Ledger"
+          },
+          "investedCents": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "description": "Total EUR invested in this holding, in cents, when known."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "assetId",
+          "symbol",
+          "name",
+          "quantity"
+        ]
+      },
+      "HoldingDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "assetId": {
+            "type": "string",
+            "description": "Price provider asset id (CoinGecko id).",
+            "example": "bitcoin"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Quantity as an exact decimal string with a dot (up to 18 decimals).",
+            "example": "0.12345678"
+          },
+          "location": {
+            "type": "string",
+            "description": "Empty for a single place."
+          },
+          "investedCents": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "description": "Total EUR invested in this holding, in cents, when known."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "accountId",
+          "assetId",
+          "symbol",
+          "name",
+          "quantity",
+          "location",
+          "investedCents",
+          "note"
+        ]
+      },
+      "CryptoSummaryAccountDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "holdings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValuedHoldingDto"
+            }
+          },
+          "totals": {
+            "$ref": "#/components/schemas/HoldingsTotalsDto"
+          },
+          "complete": {
+            "type": "boolean",
+            "description": "Every holding has a price, so the total values the account."
+          },
+          "snapshot": {
+            "nullable": true,
+            "description": "Today's balance snapshot written by this request (null when none was written).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ValuationSnapshotDto"
+              }
+            ]
+          },
+          "priceApiEnabled": {
+            "type": "boolean"
+          },
+          "refreshFailed": {
+            "type": "boolean",
+            "description": "A price refresh was attempted in this request and failed."
+          },
+          "name": {
+            "type": "string"
+          },
+          "institution": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "accountId",
+          "holdings",
+          "totals",
+          "complete",
+          "snapshot",
+          "priceApiEnabled",
+          "refreshFailed",
+          "name",
+          "institution"
+        ]
+      },
+      "CryptoSummaryDto": {
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CryptoSummaryAccountDto"
+            }
+          },
+          "totals": {
+            "$ref": "#/components/schemas/HoldingsTotalsDto"
+          },
+          "priceApiEnabled": {
+            "type": "boolean"
+          },
+          "refreshFailed": {
+            "type": "boolean",
+            "description": "A price refresh was attempted in this request and failed."
+          }
+        },
+        "required": [
+          "accounts",
+          "totals",
+          "priceApiEnabled",
+          "refreshFailed"
+        ]
+      },
+      "CryptoAssetDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Price provider asset id (CoinGecko id).",
+            "example": "bitcoin"
+          },
+          "symbol": {
+            "type": "string",
+            "example": "BTC"
+          },
+          "name": {
+            "type": "string",
+            "example": "Bitcoin"
+          },
+          "rank": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "symbol",
+          "name",
+          "rank"
+        ]
+      },
+      "ManualPriceDto": {
+        "type": "object",
+        "properties": {
+          "priceEur": {
+            "type": "string",
+            "description": "EUR price per unit, exact decimal with a dot (≤ 12 decimals).",
+            "example": "0.000123"
+          }
+        },
+        "required": [
+          "priceEur"
+        ]
+      },
+      "CryptoPriceDto": {
+        "type": "object",
+        "properties": {
+          "assetId": {
+            "type": "string",
+            "description": "Price provider asset id (CoinGecko id).",
+            "example": "bitcoin"
+          },
+          "priceEur": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "provider",
+              "manual"
+            ]
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "assetId",
+          "priceEur",
+          "source",
+          "fetchedAt"
         ]
       },
       "ForecastAccountDto": {

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import type { AccountDto, SnapshotDto } from '#/api/types.gen'
+import { HoldingsPanel } from '#/components/crypto/HoldingsPanel'
 import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { formatCalendarDate } from '#/lib/money'
 import { ApiRequestError } from '#/lib/queries'
@@ -87,7 +88,8 @@ function AccountHeader({ account }: { account: AccountDto }) {
  * values of investment accounts), the history chart and the snapshots
  * themselves, added one by one or pasted from a statement history. Checking
  * and savings accounts show their current balance and their statement
- * balances, and link to their transactions.
+ * balances, and link to their transactions. Crypto accounts also list their
+ * holdings, valued every day at the last known prices.
  */
 export function AccountDetailPage({ accountId }: { accountId: string }) {
   const account = useQuery(accountQuery(accountId))
@@ -147,6 +149,8 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
   const data = performance.data
   const current = account.data
   const investment = isInvestmentType(current.type)
+  // Crypto accounts are valued from their holdings (one snapshot per day).
+  const crypto = current.type === 'crypto'
   const writable = current.archivedAt === null
   const openAdd = () => setEditor({ open: true })
 
@@ -186,24 +190,28 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
         </Alert>
       )}
 
+      {crypto && <HoldingsPanel accountId={current.id} writable={writable} />}
+
       {investment ? (
         data.valueCents === null ? (
-          <Empty className="border">
-            <EmptyHeader>
-              <EmptyTitle>Aucune valeur pour ce compte</EmptyTitle>
-              <EmptyDescription>
-                Saisissez la valeur indiquée sur un relevé, ou collez
-                l’historique de vos relevés.
-              </EmptyDescription>
-            </EmptyHeader>
-            {writable && (
-              <EmptyContent>
-                <Button iconStart={<PlusIcon />} onClick={openAdd}>
-                  Ajouter une valeur
-                </Button>
-              </EmptyContent>
-            )}
-          </Empty>
+          crypto ? null : (
+            <Empty className="border">
+              <EmptyHeader>
+                <EmptyTitle>Aucune valeur pour ce compte</EmptyTitle>
+                <EmptyDescription>
+                  Saisissez la valeur indiquée sur un relevé, ou collez
+                  l’historique de vos relevés.
+                </EmptyDescription>
+              </EmptyHeader>
+              {writable && (
+                <EmptyContent>
+                  <Button iconStart={<PlusIcon />} onClick={openAdd}>
+                    Ajouter une valeur
+                  </Button>
+                </EmptyContent>
+              )}
+            </Empty>
+          )
         ) : (
           <>
             {!data.stale && data.valueDate && data.daysSinceLatest !== null && (

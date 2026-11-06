@@ -112,10 +112,15 @@ export function computePerformance(
     }
   }
 
-  const withContributions = findLast(
-    snapshots,
-    (snapshot) => snapshot.contributionsCents !== null,
-  )
+  // Crypto values come from holdings, valued daily with their invested
+  // amounts: contributions from an earlier day may predate assets added
+  // since, so only those of the latest snapshot count.
+  const withContributions =
+    type === 'crypto'
+      ? latest.contributionsCents === null
+        ? undefined
+        : latest
+      : findLast(snapshots, (snapshot) => snapshot.contributionsCents !== null)
   const contributionsCents = withContributions?.contributionsCents ?? null
   const gainCents =
     contributionsCents === null ? null : latest.valueCents - contributionsCents

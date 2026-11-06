@@ -120,6 +120,23 @@ describe('computePerformance', () => {
     expect(result.sincePrevious?.fromDate).toBe('2025-10-01')
   })
 
+  it('only trusts the latest contributions of a crypto account', () => {
+    const snapshots = [
+      { ...point('2026-11-04', 80_000), contributionsCents: 40_000 },
+      point('2026-11-05', 114_300),
+    ]
+    expect(computePerformance(snapshots, 'crypto', '2026-11-05')).toMatchObject(
+      { contributionsCents: null, gainCents: null, returnRate: null },
+    )
+    // Statement-based accounts keep the latest known contributions.
+    expect(
+      computePerformance(snapshots, 'brokerage', '2026-11-05'),
+    ).toMatchObject({
+      contributionsCents: 40_000,
+      contributionsDate: '2026-11-04',
+    })
+  })
+
   it('has no change rate from a zero value', () => {
     const result = computePerformance(
       [point('2026-01-01', 0), point('2026-02-01', 5_000)],

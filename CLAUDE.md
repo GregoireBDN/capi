@@ -37,6 +37,13 @@ These rules are non-negotiable. Code, tests and reviews must enforce them.
 - **Transactional accounts** (checking, savings) are fed by imports; their balance comes from transactions.
 - **Investment accounts** (brokerage, life_insurance, employee_savings, crypto) are tracked by **dated value snapshots**. For crypto, the value can also be derived from holdings × price.
 
+### Crypto prices
+
+- Crypto accounts hold **holdings** (`crypto_holdings`: asset, location label such as a wallet or exchange, quantity, optional invested cents). Quantities (`numeric(38, 18)`) and EUR prices (`numeric(38, 12)`) are **exact decimal strings** handled with the BigInt helper in `apps/api/src/crypto/decimal.ts`; never `parseFloat` them. Value = round half to even of quantity × price, in cents.
+- Prices come from a key-less public API (CoinGecko `simple/price`, behind the `PriceProvider` interface), **server-side only**, all assets batched in one request, cached in `crypto_prices` for `PRICE_CACHE_TTL_SECONDS` (default 600) and kept as last known price when the API fails (flagged stale, never a 500). `PRICE_API_ENABLED=false` disables it: only manual prices (`PUT /api/crypto/prices/:assetId`) are used.
+- **Privacy**: the price API only receives asset ids (and the asset search text), never quantities or values. Never log quantities, prices × quantities or values.
+- Valuing an account upserts **today's** `balance_snapshot` (Europe/Paris), so balances and net worth use the normal snapshot path; there is no separate crypto net-worth path.
+
 ### CIC CSV import format
 
 The first supported bank is CIC. Its CSV export:
@@ -219,5 +226,6 @@ Copy `apps/api/.env.example` to `apps/api/.env` and fill in:
 
 The web app reads one runtime variable, `API_URL` (see `apps/web/.env.example`): the API origin as reached from the web server (default `http://localhost:4000`). It is never exposed to the browser.
 - SMTP config (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM`) — defaults target the dev Mailpit container
+- Crypto prices (`PRICE_API_ENABLED`, `PRICE_API_URL`, `PRICE_CACHE_TTL_SECONDS`) — default to the CoinGecko public API with a 10-minute cache (see Crypto prices)
 
 Never put real credentials or real financial data in `.env.example`.

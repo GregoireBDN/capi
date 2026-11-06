@@ -60,3 +60,7 @@ export const RECURRING_STATUSES = [
   'dismissed',
 ] as const
 export type RecurringStatus = (typeof RECURRING_STATUSES)[number]
+
+/** `provider` = fetched from the price API, `manual` = entered by the user. */
+export const CRYPTO_PRICE_SOURCES = ['provider', 'manual'] as const
+export type CryptoPriceSource = (typeof CRYPTO_PRICE_SOURCES)[number]

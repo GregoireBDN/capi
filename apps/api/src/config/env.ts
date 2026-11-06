@@ -28,7 +28,9 @@ const requiredInProduction = (name: string, devDefault: string) =>
     : z.string().min(1).default(devDefault)
 
 const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  NODE_ENV: z
+    .enum(['development', 'test', 'production'])
+    .default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
   APP_URL: z.url().default('http://localhost:3000'),
 
@@ -57,6 +59,16 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   EMAIL_FROM: z.string().default('noreply@finances.app'),
+
+  // Crypto prices (CoinGecko public API, key-less). Only asset ids are sent.
+  // Anything but the literal "false" keeps it enabled.
+  PRICE_API_ENABLED: z
+    .string()
+    .optional()
+    .transform((value) => value !== 'false'),
+  PRICE_API_URL: z.url().default('https://api.coingecko.com/api/v3'),
+  /** How long a fetched price is fresh before it is asked again. */
+  PRICE_CACHE_TTL_SECONDS: z.coerce.number().int().min(30).default(600),
 })
 
 function loadEnv() {
