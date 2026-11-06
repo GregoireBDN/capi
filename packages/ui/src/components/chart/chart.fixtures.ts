@@ -1,6 +1,6 @@
 /**
  * Synthetic finance data for the chart stories. Every amount is made up and
- * expressed in integer cents; periods are calendar months of 2026.
+ * expressed in integer cents; periods are calendar months or dates.
  */
 
 import type { ChartConfig } from './chart-container'
@@ -117,3 +117,42 @@ export const budgets2026 = [
   { label: 'Loisirs', value: 16450, target: 12000 },
   { label: 'Transport', value: 4500, target: 18000 },
 ] as const
+
+/** All-zero months (e.g. a fresh install): the value axis must stay clean. */
+export const zeroCashflow2026 = MONTHS_2026.map((month) => ({
+  month,
+  income: 0,
+  expenses: 0,
+  savings: 0,
+}))
+
+/**
+ * Investment snapshots on an uneven rhythm (quarterly, then a gap, then
+ * monthly): value and net contributions, in cents.
+ */
+export const investmentSnapshots = [
+  { date: '2024-03-31', value: 1_000_000, contributions: 1_000_000 },
+  { date: '2024-06-30', value: 1_085_000, contributions: 1_050_000 },
+  { date: '2024-09-30', value: 1_140_000, contributions: 1_100_000 },
+  { date: '2025-09-30', value: 1_420_000, contributions: 1_300_000 },
+  { date: '2025-10-31', value: 1_395_000, contributions: 1_320_000 },
+  { date: '2025-11-30', value: 1_460_000, contributions: 1_340_000 },
+  { date: '2025-12-31', value: 1_512_000, contributions: 1_360_000 },
+]
+
+export const investmentConfig = {
+  value: { label: 'Valeur', color: 'var(--chart-1)' },
+  contributions: { label: 'Versements nets', color: 'var(--chart-2)' },
+} satisfies ChartConfig
+
+/** Daily projected balance from "today" (2026-11-06) to the month end. */
+export const FORECAST_TODAY = '2026-11-06'
+export const forecastNovember = Array.from({ length: 25 }, (_, i) => ({
+  date: `2026-11-${String(6 + i).padStart(2, '0')}`,
+  balance:
+    182_000 - i * 4_100 - (i >= 3 ? 65_000 : 0) + (i >= 22 ? 210_000 : 0),
+}))
+
+export const forecastConfig = {
+  balance: { label: 'Solde prévu', color: 'var(--chart-savings)' },
+} satisfies ChartConfig

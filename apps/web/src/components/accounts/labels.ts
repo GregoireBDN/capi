@@ -17,15 +17,3 @@ export function formatAge(days: number): string {
 export function valueAgeText(date: string, days: number): string {
   return `Valeur du ${formatCalendarDate(date)}, ${formatAge(days)}`
 }
-
-const monthYear = new Intl.DateTimeFormat('fr-FR', {
-  month: 'short',
-  year: '2-digit',
-  timeZone: 'UTC',
-})
-
-/** Chart axis tick for a `YYYY-MM-DD` date: `sept. 26`. */
-export function formatAxisDate(date: string): string {
-  const [year, month, day] = date.split('-').map(Number)
-  return monthYear.format(new Date(Date.UTC(year, month - 1, day)))
-}

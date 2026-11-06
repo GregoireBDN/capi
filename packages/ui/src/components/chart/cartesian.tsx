@@ -11,11 +11,14 @@ import {
   type ChartDatum,
 } from './chart-container'
 import {
+  calendarToTime,
   formatCompactEuros,
   formatEuros,
+  timeToCalendar,
   type IndexFormatter,
   type ValueFormatter,
 } from './format'
+import { timeDomain, timeTicks } from './time-axis'
 
 /* ============================================================================
  * TYPES
@@ -27,6 +30,34 @@ type ChartReferenceLine = {
   value: number
   /** Short label printed on the line, e.g. `Objectif`. */
   label?: string
+}
+
+/** A vertical reference line at an index value (e.g. a "today" marker). */
+type ChartIndexReferenceLine = {
+  /** Index value, e.g. the `YYYY-MM-DD` date of today. */
+  value: string
+  /** Short label printed above the line, e.g. `Aujourd’hui`. */
+  label?: string
+}
+
+/**
+ * How the index axis is scaled: `category` spaces rows evenly (default);
+ * `time` reads the index as `YYYY-MM-DD` / `YYYY-MM` calendar dates (UTC)
+ * and spaces rows by the time between them.
+ */
+type ChartIndexScale = 'category' | 'time'
+
+/** Index-axis options of the time-series charts (line, area). */
+type TimeSeriesChartProps = {
+  /**
+   * `time`: numeric time axis, rows sorted by date and spaced by time, ticks
+   * on calendar boundaries labelled in French (`14 mars`, `mars 26`,
+   * `2026`); `indexFormatter` is then only the tooltip default. Rows whose
+   * index is not a calendar date are left out. Default `category`.
+   */
+  indexScale?: ChartIndexScale
+  /** Vertical reference lines at index values (e.g. today). */
+  indexReferenceLines?: ReadonlyArray<ChartIndexReferenceLine>
 }
 
 /** Props shared by the ready-made cartesian charts (bar, line, area). */
@@ -193,6 +224,68 @@ function indexAxisProps(
   }
 }
 
+/** Data field holding the timestamp of each row on a time axis. */
+const TIME_KEY = '__time'
+
+/**
+ * Index axis of a line / area chart, category or time-scaled: the rows to
+ * plot, the X axis props, the tooltip heading formatter and the position of
+ * an index value on the axis (`undefined` when it cannot be placed).
+ */
+function useIndexAxis<TDatum extends ChartDatum>({
+  data,
+  index,
+  indexScale = 'category',
+  indexFormatter,
+  tooltipIndexFormatter,
+}: {
+  data: ReadonlyArray<TDatum>
+  index: string
+  indexScale?: ChartIndexScale
+  indexFormatter: IndexFormatter
+  tooltipIndexFormatter: IndexFormatter
+}): {
+  rows: ChartDatum[]
+  axisProps: XAxisProps
+  tooltipLabelFormatter: IndexFormatter
+  position: (value: string) => string | number | undefined
+} {
+  return React.useMemo(() => {
+    if (indexScale !== 'time') {
+      return {
+        rows: data as unknown as ChartDatum[],
+        axisProps: indexAxisProps(index, indexFormatter),
+        tooltipLabelFormatter: tooltipIndexFormatter,
+        position: (value: string) => value,
+      }
+    }
+    const rows = data
+      .flatMap((row) => {
+        const time = calendarToTime(String(row[index]))
+        return time === undefined ? [] : [{ ...row, [TIME_KEY]: time }]
+      })
+      .sort((a, b) => a[TIME_KEY] - b[TIME_KEY])
+    const domain = timeDomain(
+      rows[0]?.[TIME_KEY] ?? 0,
+      rows[rows.length - 1]?.[TIME_KEY] ?? 0,
+    )
+    const { ticks, format } = timeTicks(domain[0], domain[1])
+    return {
+      rows,
+      axisProps: {
+        ...indexAxisProps(TIME_KEY, (value) => format(Number(value))),
+        type: 'number',
+        scale: 'time',
+        domain,
+        ticks,
+      },
+      tooltipLabelFormatter: (label: string) =>
+        tooltipIndexFormatter(timeToCalendar(Number(label))),
+      position: calendarToTime,
+    }
+  }, [data, index, indexScale, indexFormatter, tooltipIndexFormatter])
+}
+
 /** Rounds a raw step up to 1, 2, 2.5 or 5 × 10^n. */
 function niceStep(rough: number): number {
   const base = 10 ** Math.floor(Math.log10(rough))
@@ -212,22 +305,34 @@ function niceStep(rough: number): number {
 
 /**
  * Clean, evenly spaced ticks covering `[min, max]` (at most ~`count`).
- * Works on cents: a round step in cents is a round step in euros.
+ * Works on cents: a round step in cents is a round step in euros. The step
+ * never goes below `minStep` (one cent), so ticks never round onto each
+ * other; they are unique, ascending and free of `-0` (Recharts keys axis
+ * ticks by value, so a repeated tick is a duplicate React key). An all-zero
+ * range gets a `0 → 100 × minStep` axis (`0 €`, `1 €`).
  */
-function niceTicks(min: number, max: number, count = 5): number[] {
+function niceTicks(min: number, max: number, count = 5, minStep = 1): number[] {
   let low = Math.min(min, max)
   let high = Math.max(min, max)
   if (low === high) {
-    const pad = low === 0 ? 1 : Math.abs(low) * 0.1
+    if (low === 0) return [0, 100 * minStep]
+    const pad = Math.abs(low) * 0.1
     low -= pad
     high += pad
   }
-  const step = niceStep((high - low) / Math.max(1, count - 1))
-  const start = Math.floor(low / step) * step
-  const end = Math.ceil(high / step) * step
+  const step = Math.max(
+    minStep,
+    niceStep((high - low) / Math.max(1, count - 1)),
+  )
+  const first = Math.floor(low / step)
+  const last = Math.ceil(high / step)
   const ticks: number[] = []
-  for (let value = start; value <= end + step / 2; value += step) {
-    ticks.push(Math.round(value))
+  for (let i = first; i <= last; i++) {
+    const value = Number.isInteger(step)
+      ? i * step
+      : Number((i * step).toPrecision(12))
+    // `+ 0` turns `-0` into `0`.
+    ticks.push(value + 0)
   }
   return ticks
 }
@@ -313,6 +418,10 @@ export {
   useCartesianDefaults,
   valueAxisProps,
   valueExtent,
+  useIndexAxis,
   type CartesianChartProps,
+  type ChartIndexReferenceLine,
+  type ChartIndexScale,
   type ChartReferenceLine,
+  type TimeSeriesChartProps,
 }

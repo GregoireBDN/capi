@@ -18,7 +18,10 @@ export {
   niceTicks,
   valueExtent,
   type CartesianChartProps,
+  type ChartIndexReferenceLine,
+  type ChartIndexScale,
   type ChartReferenceLine,
+  type TimeSeriesChartProps,
 } from './chart/cartesian'
 export * from './chart/chart-container'
 export * from './chart/donut-chart'

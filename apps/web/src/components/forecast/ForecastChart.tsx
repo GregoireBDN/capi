@@ -17,8 +17,8 @@ const CONFIG = {
 } satisfies ChartConfig
 
 /**
- * End-of-day projected balance from today (first tick, "Auj.") to the end of
- * the month, with the low-balance threshold as a reference line.
+ * End-of-day projected balance from today (marked by a vertical line) to the
+ * end of the month, with the low-balance threshold as a reference line.
  */
 export function ForecastChart({ forecast }: { forecast: ForecastDto }) {
   const { points, today, thresholdCents } = forecast
@@ -41,9 +41,10 @@ export function ForecastChart({ forecast }: { forecast: ForecastDto }) {
           indexLabel="Jour"
           config={CONFIG}
           height={240}
-          indexFormatter={(date) => (date === today ? 'Auj.' : formatDay(date))}
+          indexFormatter={formatDay}
           tooltipIndexFormatter={formatLongDay}
           referenceLines={[{ value: thresholdCents, label: 'Seuil' }]}
+          indexReferenceLines={[{ value: today, label: 'Aujourd’hui' }]}
           label={`Solde prévu par jour, du ${formatLongDay(today)} au ${formatLongDay(forecast.monthEnd)}`}
           dataTable="details"
         />
