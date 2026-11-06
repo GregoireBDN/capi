@@ -122,7 +122,12 @@ function CardDescription({ className, ...props }: CardDescriptionProps) {
   return (
     <div
       data-slot="card-description"
-      className={cn('text-sm text-muted-foreground', className)}
+      className={cn(
+        // Under the title and action on narrow cards, beside the title
+        // (left of the action) on wide ones
+        'col-span-full text-sm text-muted-foreground @md/card-header:col-span-1',
+        className,
+      )}
       {...props}
     />
   )
@@ -138,8 +143,9 @@ function CardAction({ className, ...props }: CardActionProps) {
       data-slot="card-action"
       className={cn(
         [
-          // Grid positioning (top-right corner of header)
-          'col-start-2 row-span-2 row-start-1',
+          // Grid positioning (top-right corner of header; next to the
+          // title only on narrow cards, so the description gets the width)
+          'col-start-2 row-start-1 @md/card-header:row-span-2',
           'self-start justify-self-end',
         ].join(' '),
         className,

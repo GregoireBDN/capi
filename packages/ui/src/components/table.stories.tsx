@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { expect } from 'storybook/test'
 
 import { Badge } from './badge'
 import {
@@ -76,4 +77,47 @@ export const Invoices: Story = {
       </TableFooter>
     </Table>
   ),
+}
+
+/**
+ * Wider than its container (a phone): the table scrolls sideways inside its
+ * frame, a fade on the right edge shows there is more, and the scroller
+ * becomes focusable so keyboard users can scroll it too.
+ */
+export const ScrollsInsideNarrowContainer: Story = {
+  render: () => (
+    <div className="w-72">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Category</TableHead>
+            {['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'].map((month) => (
+              <TableHead key={month} className="text-right">
+                {month}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {['Groceries', 'Transport', 'Leisure'].map((category) => (
+            <TableRow key={category}>
+              <TableCell>{category}</TableCell>
+              {[120, 95, 143, 88, 101, 76].map((value, index) => (
+                <TableCell key={index} className="text-right tabular-nums">
+                  {value},00&nbsp;€
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const scroller = canvasElement.querySelector(
+      '[data-slot="table-container"]',
+    )
+    await expect(scroller).toHaveAttribute('data-scrollable', 'true')
+    await expect(scroller).toHaveAttribute('tabindex', '0')
+  },
 }

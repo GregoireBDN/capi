@@ -24,27 +24,75 @@ type TableCaptionProps = React.ComponentProps<'caption'>
 /**
  * Table
  * Responsive table container with horizontal scroll on overflow
- * Wraps the native table element in a scrollable container
+ * Wraps the native table element in a scrollable container. When the table is
+ * wider than its container, a fade on the clipped edge(s) shows that it
+ * scrolls sideways, and the container becomes keyboard-focusable.
  */
 function Table({ className, ...props }: TableProps) {
-  return (
-    <div
-      data-slot="table-container"
-      className="relative w-full overflow-x-auto"
-    >
-      <table
-        data-slot="table"
-        className={cn(
-          [
-            // Layout
-            'w-full',
+  const scrollerRef = React.useRef<HTMLDivElement>(null)
+  const [overflow, setOverflow] = React.useState({ start: false, end: false })
 
-            // Typography
-            'caption-bottom text-sm',
-          ].join(' '),
-          className,
+  React.useEffect(() => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    const update = () => {
+      const max = scroller.scrollWidth - scroller.clientWidth
+      const next = {
+        start: scroller.scrollLeft > 1,
+        end: scroller.scrollLeft < max - 1,
+      }
+      setOverflow((prev) =>
+        prev.start === next.start && prev.end === next.end ? prev : next,
+      )
+    }
+    update()
+    scroller.addEventListener('scroll', update, { passive: true })
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
+    observer?.observe(scroller)
+    if (scroller.firstElementChild)
+      observer?.observe(scroller.firstElementChild)
+    return () => {
+      scroller.removeEventListener('scroll', update)
+      observer?.disconnect()
+    }
+  }, [])
+
+  const scrollable = overflow.start || overflow.end
+  const fade =
+    'pointer-events-none absolute inset-y-0 z-20 w-8 from-card to-transparent transition-opacity motion-reduce:transition-none'
+
+  return (
+    <div data-slot="table-frame" className="relative w-full">
+      <div
+        ref={scrollerRef}
+        data-slot="table-container"
+        data-scrollable={scrollable || undefined}
+        tabIndex={scrollable ? 0 : undefined}
+        className="relative w-full overflow-x-auto rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <table
+          data-slot="table"
+          className={cn(
+            [
+              // Layout
+              'w-full',
+
+              // Typography
+              'caption-bottom text-sm',
+            ].join(' '),
+            className,
+          )}
+          {...props}
+        />
+      </div>
+      <div
+        aria-hidden
+        className={cn(
+          fade,
+          'right-0 bg-gradient-to-l',
+          overflow.end ? 'opacity-100' : 'opacity-0',
         )}
-        {...props}
       />
     </div>
   )
