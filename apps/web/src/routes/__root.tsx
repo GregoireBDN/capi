@@ -19,7 +19,11 @@ export const Route = createRootRoute({
       {
         name: 'viewport',
         // `viewport-fit=cover` + `env(safe-area-inset-*)` in globals.css.
-        content: 'width=device-width, initial-scale=1, viewport-fit=cover',
+        // `interactive-widget=resizes-content`: on Android the on-screen
+        // keyboard shrinks the page, so bottom bars and sheets stay above it
+        // (iOS ignores it; bottom sheets track the visual viewport instead).
+        content:
+          'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content',
       },
       {
         title: 'Finances',
