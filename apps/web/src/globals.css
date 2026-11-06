@@ -102,18 +102,6 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --color-chart-6: var(--chart-6);
-  --color-chart-7: var(--chart-7);
-  --color-chart-8: var(--chart-8);
-  --color-chart-income: var(--chart-income);
-  --color-chart-expense: var(--chart-expense);
-  --color-chart-savings: var(--chart-savings);
-  --color-chart-target: var(--chart-target);
-  --color-chart-other: var(--chart-other);
-  --color-chart-warning: var(--chart-warning);
-  --color-chart-over: var(--chart-over);
-  --color-chart-delta-good: var(--chart-delta-good);
-  --color-chart-delta-bad: var(--chart-delta-bad);
 
   /* Sidebar Colors */
   --color-sidebar: var(--sidebar);
@@ -177,28 +165,11 @@
   --input: oklch(from var(--background) calc(l - 0.085) c h);
   --ring: var(--primary);
 
-  /*
-   * Charts: same validated tokens as `@finances/ui/globals.css` (categorical
-   * order, finance semantics, delta text, chart surface). Keep them in sync.
-   */
-  --chart-1: #2a78d6; /* blue */
-  --chart-2: #eb6834; /* orange */
-  --chart-3: #1baf7a; /* aqua */
-  --chart-4: #eda100; /* yellow */
-  --chart-5: #e87ba4; /* magenta */
-  --chart-6: #008300; /* green */
-  --chart-7: #6250d6; /* violet */
-  --chart-8: #e34948; /* red */
-  --chart-income: #1baf7a;
-  --chart-expense: #eb6834;
-  --chart-savings: #2a78d6;
-  --chart-target: #6b6f7b;
-  --chart-other: #8a8f9c;
-  --chart-warning: #fab219;
-  --chart-over: #d03b3b;
-  --chart-delta-good: #006300;
-  --chart-delta-bad: #c0392b;
-  --chart-surface: var(--card);
+  --chart-1: var(--primary); /* royal blue */
+  --chart-2: oklch(0.72 0.16 213); /* sky blue */
+  --chart-3: oklch(0.5 0.22 276); /* violet-blue */
+  --chart-4: oklch(0.82 0.09 213); /* pale sky */
+  --chart-5: oklch(0.4 0.2 265); /* deep blue */
 
   --sidebar: oklch(from var(--background) calc(l - 0.005) c h);
   --sidebar-foreground: var(--foreground);
@@ -256,24 +227,11 @@
   --input: oklch(from var(--foreground) l c h / 15%); /* foreground at 15% opacity */
   --ring: var(--primary);
 
-  --chart-1: #3987e5;
-  --chart-2: #d95926;
-  --chart-3: #199e70;
-  --chart-4: #c98500;
-  --chart-5: #d55181;
-  --chart-6: #008300;
-  --chart-7: #9085e9;
-  --chart-8: #e66767;
-  --chart-income: #199e70;
-  --chart-expense: #d95926;
-  --chart-savings: #3987e5;
-  --chart-target: #9aa0ad;
-  --chart-other: #7d8291;
-  --chart-warning: #fab219;
-  --chart-over: #e66767;
-  --chart-delta-good: #3fbf6a;
-  --chart-delta-bad: #f07a7a;
-  --chart-surface: var(--card);
+  --chart-1: oklch(0.72 0.16 213); /* sky blue */
+  --chart-2: oklch(0.54 0.2 264); /* royal blue */
+  --chart-3: oklch(0.5 0.22 276); /* violet-blue */
+  --chart-4: oklch(0.82 0.09 213); /* pale sky */
+  --chart-5: oklch(0.4 0.2 265); /* deep blue */
 
   --sidebar: oklch(from var(--background) calc(l + 0.05) c h);
   --sidebar-foreground: var(--foreground);
@@ -328,25 +286,6 @@
     --border: oklch(from var(--foreground) l c h / 10%);
     --input: oklch(from var(--foreground) l c h / 15%);
     --ring: var(--primary);
-
-    --chart-1: #3987e5;
-    --chart-2: #d95926;
-    --chart-3: #199e70;
-    --chart-4: #c98500;
-    --chart-5: #d55181;
-    --chart-6: #008300;
-    --chart-7: #9085e9;
-    --chart-8: #e66767;
-    --chart-income: #199e70;
-    --chart-expense: #d95926;
-    --chart-savings: #3987e5;
-    --chart-target: #9aa0ad;
-    --chart-other: #7d8291;
-    --chart-warning: #fab219;
-    --chart-over: #e66767;
-    --chart-delta-good: #3fbf6a;
-    --chart-delta-bad: #f07a7a;
-    --chart-surface: var(--card);
 
     --sidebar: oklch(from var(--background) calc(l + 0.05) c h);
     --sidebar-foreground: var(--foreground);
