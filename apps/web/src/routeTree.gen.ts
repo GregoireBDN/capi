@@ -24,6 +24,8 @@ import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppImportRouteImport } from './routes/_app/import'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppBudgetRouteImport } from './routes/_app/budget'
+import { Route as AppAccountsIndexRouteImport } from './routes/_app/accounts.index'
+import { Route as AppAccountsAccountIdRouteImport } from './routes/_app/accounts.$accountId'
 
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
   id: '/verify-email',
@@ -99,6 +101,16 @@ const AppBudgetRoute = AppBudgetRouteImport.update({
   path: '/budget',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAccountsIndexRoute = AppAccountsIndexRouteImport.update({
+  id: '/accounts/',
+  path: '/accounts/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAccountsAccountIdRoute = AppAccountsAccountIdRouteImport.update({
+  id: '/accounts/$accountId',
+  path: '/accounts/$accountId',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -115,6 +127,8 @@ export interface FileRoutesByFullPath {
   '/subscriptions': typeof AppSubscriptionsRoute
   '/transactions': typeof AppTransactionsRoute
   '/api/$': typeof ApiSplatRoute
+  '/accounts/$accountId': typeof AppAccountsAccountIdRoute
+  '/accounts/': typeof AppAccountsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -131,6 +145,8 @@ export interface FileRoutesByTo {
   '/subscriptions': typeof AppSubscriptionsRoute
   '/transactions': typeof AppTransactionsRoute
   '/api/$': typeof ApiSplatRoute
+  '/accounts/$accountId': typeof AppAccountsAccountIdRoute
+  '/accounts': typeof AppAccountsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -149,6 +165,8 @@ export interface FileRoutesById {
   '/_app/subscriptions': typeof AppSubscriptionsRoute
   '/_app/transactions': typeof AppTransactionsRoute
   '/api/$': typeof ApiSplatRoute
+  '/_app/accounts/$accountId': typeof AppAccountsAccountIdRoute
+  '/_app/accounts/': typeof AppAccountsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -167,6 +185,8 @@ export interface FileRouteTypes {
     | '/subscriptions'
     | '/transactions'
     | '/api/$'
+    | '/accounts/$accountId'
+    | '/accounts/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -183,6 +203,8 @@ export interface FileRouteTypes {
     | '/subscriptions'
     | '/transactions'
     | '/api/$'
+    | '/accounts/$accountId'
+    | '/accounts'
   id:
     | '__root__'
     | '/'
@@ -200,6 +222,8 @@ export interface FileRouteTypes {
     | '/_app/subscriptions'
     | '/_app/transactions'
     | '/api/$'
+    | '/_app/accounts/$accountId'
+    | '/_app/accounts/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -318,6 +342,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppBudgetRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/accounts/': {
+      id: '/_app/accounts/'
+      path: '/accounts'
+      fullPath: '/accounts/'
+      preLoaderRoute: typeof AppAccountsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/accounts/$accountId': {
+      id: '/_app/accounts/$accountId'
+      path: '/accounts/$accountId'
+      fullPath: '/accounts/$accountId'
+      preLoaderRoute: typeof AppAccountsAccountIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -331,6 +369,8 @@ interface AppRouteChildren {
   AppSpendingRoute: typeof AppSpendingRoute
   AppSubscriptionsRoute: typeof AppSubscriptionsRoute
   AppTransactionsRoute: typeof AppTransactionsRoute
+  AppAccountsAccountIdRoute: typeof AppAccountsAccountIdRoute
+  AppAccountsIndexRoute: typeof AppAccountsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -343,6 +383,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppSpendingRoute: AppSpendingRoute,
   AppSubscriptionsRoute: AppSubscriptionsRoute,
   AppTransactionsRoute: AppTransactionsRoute,
+  AppAccountsAccountIdRoute: AppAccountsAccountIdRoute,
+  AppAccountsIndexRoute: AppAccountsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

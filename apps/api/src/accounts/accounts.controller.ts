@@ -53,6 +53,18 @@ export class AccountsController {
     })
   }
 
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Get an account with its current balance',
+    description: 'Archived accounts included.',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiOkResponse({ type: AccountDto })
+  @ApiNotFoundResponse()
+  findOne(@Param('id', ParseUUIDPipe) id: string): Promise<AccountDto> {
+    return this.accountsService.findOne(id)
+  }
+
   @Post()
   @ApiOperation({
     summary: 'Create an account',
