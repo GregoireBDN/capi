@@ -190,7 +190,17 @@ File-based routing via TanStack Router — routes live in `apps/web/src/routes/`
 
 **Styling**: Tailwind CSS v4 via `@tailwindcss/vite`. Global styles in `apps/web/src/globals.css`; shared design tokens come from `@finances/ui/globals.css`. Theme (light/dark/auto) is initialized via an inline script in `__root.tsx` before hydration to avoid a flash.
 
-**Mobile**: the app is mainly used from the phone — design mobile-first. The PWA (manifest, service worker) is planned for M5.
+**Mobile**: the app is mainly used from the phone — design mobile-first. It is installable as a PWA (see below); `viewport-fit=cover` is set, and `body` is padded with `env(safe-area-inset-*)` in `globals.css`.
+
+### PWA
+
+- **Manifest** `apps/web/public/manifest.json` (`start_url: /dashboard`, shortcuts to Tableau de bord / Opérations / À revoir / Import), linked from `__root.tsx` with the iOS meta tags and light/dark `theme-color` (light `--background` `#f4f7fc`, dark `#090c1a`; update them, the manifest and `offline.html` together if the theme changes).
+- **Icons** (`public/icons/*.png`, `public/favicon.ico`) are generated from `public/logo.svg` by `pnpm --filter @finances/web icons` (`apps/web/scripts/generate-icons.mjs`, `sharp`) and committed; re-run it when the logo changes.
+- **Service worker**: a small hand-written worker (`src/sw/worker/service-worker.ts`, decisions in `src/sw/routing.ts`, unit tested), bundled into `/sw.js` by the Vite plugin `apps/web/plugins/service-worker.ts` in **production client builds only** (not `vite dev`), and registered by `components/pwa/ServiceWorkerUpdates.tsx` only when `import.meta.env.PROD` and on a secure context (HTTPS or localhost). `vite-plugin-pwa` was not used: the plugin only touches the client environment, so the Nitro SSR bundle and the `/api` server route are unaffected.
+  - **Cached** (precache, cache-first): the hashed client assets (JS/CSS) of the build and the shell files listed in `src/sw/precache.ts` (`offline.html`, manifest, icons, favicon, logo). The cache is named `finances-shell-<content hash>`; a new build gets a new name and older caches are deleted when it activates.
+  - **Never cached**: `/api/*` (not even intercepted), non-GET and cross-origin requests (Google Fonts included), any other same-origin URL, and server-rendered pages: navigations go network-first and fall back to the static `offline.html` ("Hors ligne", no data) only when the network fails. Requests made by the worker carry no cookies. So nothing sensitive is ever in Cache Storage, before or after logout. Keep it that way: do not add runtime caching of pages or API responses.
+  - **Updates**: a new worker waits; the app shows a "Nouvelle version disponible" toast and, on "Recharger", the worker skips waiting and open pages reload. Waiting (rather than `skipWaiting` on install) keeps an open old page from lazy-loading chunks that the new deploy no longer serves. Installed apps re-check for updates when brought back to the foreground (at most hourly).
+- **Testing**: unit tests cover the routing/precache logic. To check the worker itself, `pnpm --filter @finances/web build` and run `node .output/server/index.mjs` against a throwaway database, open `http://localhost:3000` (secure context), then in DevTools > Application inspect the manifest, the service worker and Cache Storage (only `finances-shell-*` with `/assets/*` and shell files), and tick "Offline" to see the offline page.
 
 ## Component library (`@finances/ui` + `apps/ui-docs`)
 

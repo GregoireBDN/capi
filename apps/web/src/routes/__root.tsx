@@ -3,6 +3,7 @@ import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { Toaster } from '@finances/ui'
 import NotFound from '../components/NotFound'
+import { ServiceWorkerUpdates } from '../components/pwa/ServiceWorkerUpdates'
 import { AuthProvider } from '../lib/auth-context'
 
 import appCss from '../globals.css?url'
@@ -17,18 +18,30 @@ export const Route = createRootRoute({
       },
       {
         name: 'viewport',
-        content: 'width=device-width, initial-scale=1',
+        // `viewport-fit=cover` + `env(safe-area-inset-*)` in globals.css.
+        content: 'width=device-width, initial-scale=1, viewport-fit=cover',
       },
       {
         title: 'Finances',
       },
+      // PWA / installed app (see CLAUDE.md, "PWA"); theme-color is in <head>.
+      { name: 'application-name', content: 'Finances' },
+      { name: 'mobile-web-app-capable', content: 'yes' },
+      { name: 'apple-mobile-web-app-capable', content: 'yes' },
+      { name: 'apple-mobile-web-app-title', content: 'Finances' },
+      { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
+      // Keep iOS from turning amounts or account numbers into phone links.
+      { name: 'format-detection', content: 'telephone=no' },
     ],
     links: [
+      { rel: 'manifest', href: '/manifest.json' },
+      { rel: 'icon', href: '/favicon.ico', sizes: '32x32' },
       {
         rel: 'icon',
         type: 'image/svg+xml',
         href: '/logo.svg',
       },
+      { rel: 'apple-touch-icon', href: '/icons/apple-touch-icon.png' },
       {
         rel: 'stylesheet',
         href: appCss,
@@ -45,11 +58,23 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <HeadContent />
+        {/* Rendered here: `head()` keeps a single meta per name. */}
+        <meta
+          name="theme-color"
+          content="#f4f7fc"
+          media="(prefers-color-scheme: light)"
+        />
+        <meta
+          name="theme-color"
+          content="#090c1a"
+          media="(prefers-color-scheme: dark)"
+        />
       </head>
       <body className="flex min-h-svh flex-col font-sans antialiased [overflow-wrap:anywhere]">
         <AuthProvider>
           {children}
           <Toaster />
+          <ServiceWorkerUpdates />
           <TanStackDevtools
             config={{
               position: 'bottom-right',
