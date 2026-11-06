@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common'
 import {
   and,
@@ -40,6 +41,7 @@ import {
   parseCicCsv,
 } from '#/imports/parsers/cic-csv.parser'
 import type { ParseResult } from '#/imports/parsers/parsed-row'
+import { RecurringService } from '#/recurring/recurring.service'
 import { buildPreview, periodOf } from '#/imports/preview/build-preview'
 import {
   PREVIEW_VERSION,
@@ -90,6 +92,8 @@ export class ImportsService {
   constructor(
     private readonly database: DatabaseService,
     private readonly rulesService: CategorizationRulesService,
+    // Optional so the service can be built without it (tests, scripts).
+    @Optional() private readonly recurringService?: RecurringService,
   ) {}
 
   private get db(): Db {
@@ -156,8 +160,8 @@ export class ImportsService {
    * skipped). Rows stored by another import since the preview are counted as
    * duplicates (`ON CONFLICT DO NOTHING` on the dedupe hash).
    */
-  commit(id: string, dto: CommitImportDto): Promise<ImportDetailDto> {
-    return this.db.transaction(async (tx) => {
+  async commit(id: string, dto: CommitImportDto): Promise<ImportDetailDto> {
+    const detail = await this.db.transaction(async (tx) => {
       // Locks the import: a concurrent commit or undo waits, then sees the result.
       const [record] = await tx
         .select()
@@ -241,6 +245,9 @@ export class ImportsService {
       const accountName = await this.accountName(tx, committed.accountId)
       return this.toDetail(committed, accountName, tx)
     })
+    // New transactions may start, continue or end recurring series.
+    this.recurringService?.detectInBackground()
+    return detail
   }
 
   /** Every import, newest first, without rows. */
@@ -273,8 +280,8 @@ export class ImportsService {
    * Discards a pending import, or undoes a committed one: the import and the
    * transactions it wrote are deleted.
    */
-  remove(id: string): Promise<DeleteImportResultDto> {
-    return this.db.transaction(async (tx) => {
+  async remove(id: string): Promise<DeleteImportResultDto> {
+    const result = await this.db.transaction(async (tx) => {
       const [record] = await tx
         .select({ id: importsTable.id, committedAt: importsTable.committedAt })
         .from(importsTable)
@@ -290,10 +297,15 @@ export class ImportsService {
       await tx.delete(importsTable).where(eq(importsTable.id, id))
       return {
         id,
-        result: record.committedAt ? 'undone' : 'discarded',
+        result: record.committedAt
+          ? ('undone' as const)
+          : ('discarded' as const),
         removedTransactions: removed.length,
       }
     })
+    // Removed transactions may end or shorten recurring series.
+    if (result.result === 'undone') this.recurringService?.detectInBackground()
+    return result
   }
 
   // --- Helpers --------------------------------------------------------------

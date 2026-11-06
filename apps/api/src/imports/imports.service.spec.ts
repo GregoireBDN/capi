@@ -7,7 +7,7 @@ import {
 import { asc, eq } from 'drizzle-orm'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { CategorizationRulesService } from '#/categories/categorization-rules.service'
 import * as schema from '#/database/schema'
 import {
@@ -70,6 +70,8 @@ interface Fixture {
   groceries: string
   salary: string
   groceriesRule: string
+  /** Stand-in for the recurring detection run after a commit or an undo. */
+  detectInBackground: ReturnType<typeof vi.fn>
   preview: (file: Buffer, accountId?: string) => Promise<ImportDetailDto>
 }
 
@@ -124,9 +126,11 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
 
         // The services only read `db`; their transactions become savepoints.
         const database = { db: tx } as never
+        const detectInBackground = vi.fn()
         const service = new ImportsService(
           database,
           new CategorizationRulesService(database),
+          { detectInBackground } as never,
         )
         await fn({
           tx,
@@ -135,6 +139,7 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
           groceries: groceries.id,
           salary: salary.id,
           groceriesRule: groceriesRule.id,
+          detectInBackground,
           preview: (file, accountId = account.id) =>
             service.preview({
               accountId,
@@ -285,6 +290,19 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
             .from(importsTable)
             .where(eq(importsTable.accountId, pea.id)),
         ).toHaveLength(0)
+      })
+    })
+
+    it('runs the recurring detection after a commit and an undo', async () => {
+      await withFixture(async ({ service, preview, detectInBackground }) => {
+        const discarded = await preview(FILE_A)
+        await service.remove(discarded.id)
+        expect(detectInBackground).not.toHaveBeenCalled()
+
+        const committed = await service.commit((await preview(FILE_A)).id, {})
+        expect(detectInBackground).toHaveBeenCalledTimes(1)
+        await service.remove(committed.id)
+        expect(detectInBackground).toHaveBeenCalledTimes(2)
       })
     })
 

@@ -1372,6 +1372,220 @@
         ]
       }
     },
+    "/api/recurring/detect": {
+      "post": {
+        "description": "Runs the detector over every transaction (transfers and one-offs ignored). New active series become suggestions; confirmed and dismissed items keep their status and user fields, only their stats are refreshed. Dismissed items are never suggested again. Idempotent.",
+        "operationId": "RecurringController_detect",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringDetectResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Detect recurring transactions",
+        "tags": [
+          "Recurring"
+        ]
+      }
+    },
+    "/api/recurring": {
+      "get": {
+        "description": "Stats are computed from the transactions: typical and latest amounts, monthly-equivalent and yearly costs, next expected date, price change, active or not, latest occurrences.",
+        "operationId": "RecurringController_list",
+        "parameters": [
+          {
+            "description": "Only items with this status. Default: every item.",
+            "required": false,
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/RecurringStatus"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecurringItemDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid status."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Recurring items with their stats",
+        "tags": [
+          "Recurring"
+        ]
+      }
+    },
+    "/api/recurring/summary": {
+      "get": {
+        "description": "Confirmed, active items only: debits (fixed costs, the others, subscriptions) and credits. Yearly = sum of the yearly costs; monthly = yearly / 12.",
+        "operationId": "RecurringController_summary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringSummaryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Monthly and yearly recurring costs",
+        "tags": [
+          "Recurring"
+        ]
+      }
+    },
+    "/api/recurring/confirm": {
+      "post": {
+        "description": "Unknown ids and already confirmed items are ignored.",
+        "operationId": "RecurringController_confirm",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmRecurringItemsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringConfirmResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid ids."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Confirm several items",
+        "tags": [
+          "Recurring"
+        ]
+      }
+    },
+    "/api/recurring/{id}": {
+      "patch": {
+        "description": "Confirm or dismiss it, rename it, change its category, fixed-cost flag, cadence or notes. Omitted fields are kept.",
+        "operationId": "RecurringController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRecurringItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringItemDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body or unknown category."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown item."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Edit a recurring item",
+        "tags": [
+          "Recurring"
+        ]
+      }
+    },
     "/api/transactions": {
       "get": {
         "description": "Filtered and paginated, newest booking date first unless `sort` says otherwise (ties broken by id). `needsReview=true` is the review queue.",
@@ -3980,6 +4194,479 @@
           "result",
           "removedTransactions"
         ]
+      },
+      "RecurringDetectResultDto": {
+        "type": "object",
+        "properties": {
+          "detectedCount": {
+            "type": "integer",
+            "description": "Series found (active or not)."
+          },
+          "createdCount": {
+            "type": "integer",
+            "description": "New suggestions."
+          },
+          "updatedCount": {
+            "type": "integer",
+            "description": "Existing items whose stats were refreshed."
+          },
+          "removedCount": {
+            "type": "integer",
+            "description": "Suggestions no longer detected, removed."
+          },
+          "suggestedCount": {
+            "type": "integer",
+            "description": "Suggestions waiting for review."
+          }
+        },
+        "required": [
+          "detectedCount",
+          "createdCount",
+          "updatedCount",
+          "removedCount",
+          "suggestedCount"
+        ]
+      },
+      "RecurringStatus": {
+        "type": "string",
+        "enum": [
+          "suggested",
+          "confirmed",
+          "dismissed"
+        ],
+        "description": "Only items with this status. Default: every item."
+      },
+      "RecurringDirection": {
+        "type": "string",
+        "enum": [
+          "debit",
+          "credit"
+        ],
+        "description": "`debit` = money out, `credit` = money in."
+      },
+      "RecurringCadence": {
+        "type": "string",
+        "enum": [
+          "weekly",
+          "monthly",
+          "quarterly",
+          "yearly"
+        ],
+        "description": "Cadence in use: the override, else the detected one."
+      },
+      "RecurringAmountType": {
+        "type": "string",
+        "enum": [
+          "fixed",
+          "variable"
+        ],
+        "description": "`fixed`: same price every time (±1 % or ±1 €), possibly after a price change; `variable` otherwise."
+      },
+      "RecurringOccurrenceDto": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06"
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Positive cents."
+          }
+        },
+        "required": [
+          "transactionId",
+          "date",
+          "amountCents"
+        ]
+      },
+      "RecurringItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "merchantKey": {
+            "type": "string",
+            "example": "STREAMFLIX"
+          },
+          "searchText": {
+            "type": "string",
+            "description": "Text to search the transactions with (`/transactions?q=`): the merchant as stored, or the merchant key."
+          },
+          "name": {
+            "type": "string"
+          },
+          "direction": {
+            "description": "`debit` = money out, `credit` = money in.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecurringDirection"
+              }
+            ]
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecurringStatus"
+              }
+            ]
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "categorySlug": {
+            "type": "string",
+            "nullable": true
+          },
+          "categoryName": {
+            "type": "string",
+            "nullable": true
+          },
+          "categoryColor": {
+            "type": "string",
+            "nullable": true,
+            "example": "#7c3aed"
+          },
+          "isFixedCost": {
+            "type": "boolean"
+          },
+          "isSubscription": {
+            "type": "boolean",
+            "description": "Filed under the `subscriptions` category."
+          },
+          "cadence": {
+            "description": "Cadence in use: the override, else the detected one.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecurringCadence"
+              }
+            ]
+          },
+          "detectedCadence": {
+            "description": "Detected cadence.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecurringCadence"
+              }
+            ]
+          },
+          "cadenceOverridden": {
+            "type": "boolean"
+          },
+          "amountType": {
+            "description": "`fixed`: same price every time (±1 % or ±1 €), possibly after a price change; `variable` otherwise.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecurringAmountType"
+              }
+            ]
+          },
+          "typicalAmountCents": {
+            "type": "integer",
+            "description": "Positive cents: current price (fixed) or median of the recent amounts (variable)."
+          },
+          "latestAmountCents": {
+            "type": "integer",
+            "description": "Latest occurrence."
+          },
+          "minAmountCents": {
+            "type": "integer"
+          },
+          "maxAmountCents": {
+            "type": "integer"
+          },
+          "yearlyCostCents": {
+            "type": "integer",
+            "description": "Typical amount × occurrences per year."
+          },
+          "monthlyEquivalentCents": {
+            "type": "integer",
+            "description": "Yearly cost / 12, rounded to the cent."
+          },
+          "previousAmountCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Price before the latest change (fixed amounts only)."
+          },
+          "priceChangeCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Current − previous price; null without a change."
+          },
+          "priceChangedOn": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06",
+            "nullable": true,
+            "description": "First occurrence at the current price."
+          },
+          "confidence": {
+            "type": "number",
+            "example": 0.92,
+            "description": "Detection confidence in [0, 1]."
+          },
+          "active": {
+            "type": "boolean",
+            "description": "False after 1.5 periods without an occurrence (judged against the latest imported transaction of the account)."
+          },
+          "firstSeenDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06"
+          },
+          "lastSeenDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06"
+          },
+          "nextExpectedDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06",
+            "nullable": true
+          },
+          "occurrenceCount": {
+            "type": "integer"
+          },
+          "occurrences": {
+            "description": "The 6 latest, newest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecurringOccurrenceDto"
+            }
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "accountId",
+          "accountName",
+          "merchantKey",
+          "searchText",
+          "name",
+          "direction",
+          "status",
+          "categoryId",
+          "categorySlug",
+          "categoryName",
+          "categoryColor",
+          "isFixedCost",
+          "isSubscription",
+          "cadence",
+          "detectedCadence",
+          "cadenceOverridden",
+          "amountType",
+          "typicalAmountCents",
+          "latestAmountCents",
+          "minAmountCents",
+          "maxAmountCents",
+          "yearlyCostCents",
+          "monthlyEquivalentCents",
+          "previousAmountCents",
+          "priceChangeCents",
+          "priceChangedOn",
+          "confidence",
+          "active",
+          "firstSeenDate",
+          "lastSeenDate",
+          "nextExpectedDate",
+          "occurrenceCount",
+          "occurrences",
+          "notes"
+        ]
+      },
+      "RecurringTotalDto": {
+        "type": "object",
+        "properties": {
+          "monthlyCents": {
+            "type": "integer",
+            "description": "round(yearlyCents / 12)."
+          },
+          "yearlyCents": {
+            "type": "integer",
+            "description": "Sum of the yearly costs of the items."
+          },
+          "count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "monthlyCents",
+          "yearlyCents",
+          "count"
+        ]
+      },
+      "RecurringDebitsSummaryDto": {
+        "type": "object",
+        "properties": {
+          "monthlyCents": {
+            "type": "integer",
+            "description": "round(yearlyCents / 12)."
+          },
+          "yearlyCents": {
+            "type": "integer",
+            "description": "Sum of the yearly costs of the items."
+          },
+          "count": {
+            "type": "integer"
+          },
+          "fixed": {
+            "description": "Items counted as fixed costs.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecurringTotalDto"
+              }
+            ]
+          },
+          "variable": {
+            "description": "Items not counted as fixed costs.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecurringTotalDto"
+              }
+            ]
+          },
+          "subscriptions": {
+            "description": "Items filed under the `subscriptions` category (also in fixed or variable).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecurringTotalDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "monthlyCents",
+          "yearlyCents",
+          "count",
+          "fixed",
+          "variable",
+          "subscriptions"
+        ]
+      },
+      "RecurringSummaryDto": {
+        "type": "object",
+        "properties": {
+          "debits": {
+            "description": "Confirmed, active debits.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecurringDebitsSummaryDto"
+              }
+            ]
+          },
+          "credits": {
+            "description": "Confirmed, active credits (salary, benefits, ...).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecurringTotalDto"
+              }
+            ]
+          },
+          "suggestedCount": {
+            "type": "integer",
+            "description": "Suggestions to review."
+          },
+          "inactiveCount": {
+            "type": "integer",
+            "description": "Confirmed items that are inactive (left out of the totals)."
+          }
+        },
+        "required": [
+          "debits",
+          "credits",
+          "suggestedCount",
+          "inactiveCount"
+        ]
+      },
+      "ConfirmRecurringItemsDto": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "minItems": 1,
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "ids"
+        ]
+      },
+      "RecurringConfirmResultDto": {
+        "type": "object",
+        "properties": {
+          "confirmedCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "confirmedCount"
+        ]
+      },
+      "UpdateRecurringItemDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "description": "Confirm, dismiss, or put back among the suggestions.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecurringStatus"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Null removes the category."
+          },
+          "isFixedCost": {
+            "type": "boolean"
+          },
+          "cadence": {
+            "nullable": true,
+            "description": "Cadence used instead of the detected one; null = detected.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecurringCadence"
+              }
+            ]
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000,
+            "description": "Null or empty removes the notes."
+          }
+        }
       },
       "TransactionSort": {
         "type": "string",
