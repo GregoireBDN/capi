@@ -1,33 +1,33 @@
-"use client";
+'use client'
 
-import { XIcon } from "lucide-react";
-import { Dialog as SheetPrimitive } from "radix-ui";
-import * as React from "react";
+import { XIcon } from 'lucide-react'
+import { Dialog as SheetPrimitive } from 'radix-ui'
+import * as React from 'react'
 
-import { Button } from "./button";
-import { cn } from "../lib/utils";
+import { Button } from './button'
+import { cn } from '../lib/utils'
 
 /* ============================================================================
  * TYPES
  * ========================================================================= */
 
-type SheetSide = "top" | "right" | "bottom" | "left";
+type SheetSide = 'top' | 'right' | 'bottom' | 'left'
 
-type SheetProps = React.ComponentProps<typeof SheetPrimitive.Root>;
-type SheetTriggerProps = React.ComponentProps<typeof SheetPrimitive.Trigger>;
-type SheetCloseProps = React.ComponentProps<typeof SheetPrimitive.Close>;
-type SheetPortalProps = React.ComponentProps<typeof SheetPrimitive.Portal>;
-type SheetOverlayProps = React.ComponentProps<typeof SheetPrimitive.Overlay>;
+type SheetProps = React.ComponentProps<typeof SheetPrimitive.Root>
+type SheetTriggerProps = React.ComponentProps<typeof SheetPrimitive.Trigger>
+type SheetCloseProps = React.ComponentProps<typeof SheetPrimitive.Close>
+type SheetPortalProps = React.ComponentProps<typeof SheetPrimitive.Portal>
+type SheetOverlayProps = React.ComponentProps<typeof SheetPrimitive.Overlay>
 type SheetContentProps = React.ComponentProps<typeof SheetPrimitive.Content> & {
-  side?: SheetSide;
-  showCloseButton?: boolean;
-};
-type SheetHeaderProps = React.ComponentProps<"div">;
-type SheetFooterProps = React.ComponentProps<"div">;
-type SheetTitleProps = React.ComponentProps<typeof SheetPrimitive.Title>;
+  side?: SheetSide
+  showCloseButton?: boolean
+}
+type SheetHeaderProps = React.ComponentProps<'div'>
+type SheetFooterProps = React.ComponentProps<'div'>
+type SheetTitleProps = React.ComponentProps<typeof SheetPrimitive.Title>
 type SheetDescriptionProps = React.ComponentProps<
   typeof SheetPrimitive.Description
->;
+>
 
 /* ============================================================================
  * COMPONENTS
@@ -39,7 +39,7 @@ type SheetDescriptionProps = React.ComponentProps<
  * Built on Radix UI Dialog - provides modal drawer from screen edges
  */
 function Sheet({ ...props }: SheetProps) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />;
+  return <SheetPrimitive.Root data-slot="sheet" {...props} />
 }
 
 /**
@@ -47,7 +47,7 @@ function Sheet({ ...props }: SheetProps) {
  * Button or element that opens the sheet on click
  */
 function SheetTrigger({ ...props }: SheetTriggerProps) {
-  return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />;
+  return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />
 }
 
 /**
@@ -55,7 +55,7 @@ function SheetTrigger({ ...props }: SheetTriggerProps) {
  * Programmatic close trigger for the sheet
  */
 function SheetClose({ ...props }: SheetCloseProps) {
-  return <SheetPrimitive.Close data-slot="sheet-close" {...props} />;
+  return <SheetPrimitive.Close data-slot="sheet-close" {...props} />
 }
 
 /**
@@ -63,7 +63,7 @@ function SheetClose({ ...props }: SheetCloseProps) {
  * Renders sheet content in a portal (outside normal DOM hierarchy)
  */
 function SheetPortal({ ...props }: SheetPortalProps) {
-  return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />;
+  return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />
 }
 
 /**
@@ -78,30 +78,30 @@ function SheetOverlay({ className, ...props }: SheetOverlayProps) {
       className={cn(
         [
           // Positioning
-          "fixed inset-0 z-50",
+          'fixed inset-0 z-50',
 
           // Styling
-          "bg-black/10",
+          'bg-black/10',
 
           // Backdrop Blur (when supported)
-          "supports-backdrop-filter:backdrop-blur-xs",
+          'supports-backdrop-filter:backdrop-blur-xs',
 
           // Transitions
-          "duration-100",
+          'duration-100',
 
           // Open Animations
-          "data-open:animate-in",
-          "data-open:fade-in-0",
+          'data-open:animate-in',
+          'data-open:fade-in-0',
 
           // Close Animations
-          "data-closed:animate-out",
-          "data-closed:fade-out-0",
-        ].join(" "),
+          'data-closed:animate-out',
+          'data-closed:fade-out-0',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -112,7 +112,7 @@ function SheetOverlay({ className, ...props }: SheetOverlayProps) {
 function SheetContent({
   className,
   children,
-  side = "right",
+  side = 'right',
   showCloseButton = true,
   ...props
 }: SheetContentProps) {
@@ -125,65 +125,65 @@ function SheetContent({
         className={cn(
           [
             // Positioning
-            "fixed z-50",
+            'fixed z-50',
 
             // Layout
-            "flex flex-col gap-4",
+            'flex flex-col gap-4',
 
             // Styling
-            "bg-popover bg-clip-padding text-popover-foreground",
-            "shadow-lg",
+            'bg-popover bg-clip-padding text-popover-foreground',
+            'shadow-lg',
 
             // Typography
-            "text-sm",
+            'text-sm',
 
             // Transitions
-            "transition duration-200 ease-in-out",
+            'transition duration-200 ease-in-out',
 
             // Side: Bottom
-            "data-[side=bottom]:inset-x-0",
-            "data-[side=bottom]:bottom-0",
-            "data-[side=bottom]:h-auto",
-            "data-[side=bottom]:border-t",
+            'data-[side=bottom]:inset-x-0',
+            'data-[side=bottom]:bottom-0',
+            'data-[side=bottom]:h-auto',
+            'data-[side=bottom]:border-t',
 
             // Side: Left
-            "data-[side=left]:inset-y-0",
-            "data-[side=left]:left-0",
-            "data-[side=left]:h-full",
-            "data-[side=left]:w-3/4",
-            "data-[side=left]:border-r",
-            "data-[side=left]:sm:max-w-sm",
+            'data-[side=left]:inset-y-0',
+            'data-[side=left]:left-0',
+            'data-[side=left]:h-full',
+            'data-[side=left]:w-3/4',
+            'data-[side=left]:border-r',
+            'data-[side=left]:sm:max-w-sm',
 
             // Side: Right
-            "data-[side=right]:inset-y-0",
-            "data-[side=right]:right-0",
-            "data-[side=right]:h-full",
-            "data-[side=right]:w-3/4",
-            "data-[side=right]:border-l",
-            "data-[side=right]:sm:max-w-sm",
+            'data-[side=right]:inset-y-0',
+            'data-[side=right]:right-0',
+            'data-[side=right]:h-full',
+            'data-[side=right]:w-3/4',
+            'data-[side=right]:border-l',
+            'data-[side=right]:sm:max-w-sm',
 
             // Side: Top
-            "data-[side=top]:inset-x-0",
-            "data-[side=top]:top-0",
-            "data-[side=top]:h-auto",
-            "data-[side=top]:border-b",
+            'data-[side=top]:inset-x-0',
+            'data-[side=top]:top-0',
+            'data-[side=top]:h-auto',
+            'data-[side=top]:border-b',
 
             // Open Animations
-            "data-open:animate-in",
-            "data-open:fade-in-0",
-            "data-[side=bottom]:data-open:slide-in-from-bottom-10",
-            "data-[side=left]:data-open:slide-in-from-left-10",
-            "data-[side=right]:data-open:slide-in-from-right-10",
-            "data-[side=top]:data-open:slide-in-from-top-10",
+            'data-open:animate-in',
+            'data-open:fade-in-0',
+            'data-[side=bottom]:data-open:slide-in-from-bottom-10',
+            'data-[side=left]:data-open:slide-in-from-left-10',
+            'data-[side=right]:data-open:slide-in-from-right-10',
+            'data-[side=top]:data-open:slide-in-from-top-10',
 
             // Close Animations
-            "data-closed:animate-out",
-            "data-closed:fade-out-0",
-            "data-[side=bottom]:data-closed:slide-out-to-bottom-10",
-            "data-[side=left]:data-closed:slide-out-to-left-10",
-            "data-[side=right]:data-closed:slide-out-to-right-10",
-            "data-[side=top]:data-closed:slide-out-to-top-10",
-          ].join(" "),
+            'data-closed:animate-out',
+            'data-closed:fade-out-0',
+            'data-[side=bottom]:data-closed:slide-out-to-bottom-10',
+            'data-[side=left]:data-closed:slide-out-to-left-10',
+            'data-[side=right]:data-closed:slide-out-to-right-10',
+            'data-[side=top]:data-closed:slide-out-to-top-10',
+          ].join(' '),
           className,
         )}
         {...props}
@@ -199,7 +199,7 @@ function SheetContent({
         )}
       </SheetPrimitive.Content>
     </SheetPortal>
-  );
+  )
 }
 
 /**
@@ -213,16 +213,16 @@ function SheetHeader({ className, ...props }: SheetHeaderProps) {
       className={cn(
         [
           // Layout
-          "flex flex-col gap-0.5",
+          'flex flex-col gap-0.5',
 
           // Spacing
-          "p-4",
-        ].join(" "),
+          'p-4',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -237,16 +237,16 @@ function SheetFooter({ className, ...props }: SheetFooterProps) {
       className={cn(
         [
           // Layout
-          "mt-auto flex flex-col gap-2",
+          'mt-auto flex flex-col gap-2',
 
           // Spacing
-          "p-4",
-        ].join(" "),
+          'p-4',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -261,13 +261,13 @@ function SheetTitle({ className, ...props }: SheetTitleProps) {
       className={cn(
         [
           // Typography
-          "font-heading text-base font-medium text-foreground",
-        ].join(" "),
+          'font-heading text-base font-medium text-foreground',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -278,10 +278,10 @@ function SheetDescription({ className, ...props }: SheetDescriptionProps) {
   return (
     <SheetPrimitive.Description
       data-slot="sheet-description"
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn('text-sm text-muted-foreground', className)}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -308,4 +308,4 @@ export {
   type SheetSide,
   type SheetTitleProps,
   type SheetTriggerProps,
-};
+}

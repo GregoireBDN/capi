@@ -1,19 +1,19 @@
-import { ChevronDownIcon } from "lucide-react";
-import * as React from "react";
+import { ChevronDownIcon } from 'lucide-react'
+import * as React from 'react'
 
-import { cn } from "../lib/utils";
+import { cn } from '../lib/utils'
 
 /* ============================================================================
  * TYPES
  * ========================================================================= */
 
-type NativeSelectSize = "sm" | "default";
+type NativeSelectSize = 'sm' | 'default'
 
-type NativeSelectProps = Omit<React.ComponentProps<"select">, "size"> & {
-  size?: NativeSelectSize;
-};
-type NativeSelectOptionProps = React.ComponentProps<"option">;
-type NativeSelectOptGroupProps = React.ComponentProps<"optgroup">;
+type NativeSelectProps = Omit<React.ComponentProps<'select'>, 'size'> & {
+  size?: NativeSelectSize
+}
+type NativeSelectOptionProps = React.ComponentProps<'option'>
+type NativeSelectOptGroupProps = React.ComponentProps<'optgroup'>
 
 /* ============================================================================
  * COMPONENTS
@@ -26,7 +26,7 @@ type NativeSelectOptGroupProps = React.ComponentProps<"optgroup">;
  */
 function NativeSelect({
   className,
-  size = "default",
+  size = 'default',
   ...props
 }: NativeSelectProps) {
   return (
@@ -34,14 +34,14 @@ function NativeSelect({
       className={cn(
         [
           // Grouping
-          "group/native-select",
+          'group/native-select',
 
           // Layout
-          "relative w-fit",
+          'relative w-fit',
 
           // Disabled State
-          "has-[select:disabled]:opacity-50",
-        ].join(" "),
+          'has-[select:disabled]:opacity-50',
+        ].join(' '),
         className,
       )}
       data-slot="native-select-wrapper"
@@ -53,55 +53,55 @@ function NativeSelect({
         className={cn(
           [
             // Layout & Sizing
-            "h-8 w-full min-w-0",
+            'h-8 w-full min-w-0',
 
             // Spacing
-            "py-1 pr-8 pl-2.5",
+            'py-1 pr-8 pl-2.5',
 
             // Styling
-            "appearance-none rounded-lg border border-input bg-transparent",
+            'appearance-none rounded-lg border border-input bg-transparent',
 
             // Typography
-            "text-sm",
+            'text-sm',
 
             // Transitions
-            "transition-colors outline-none",
+            'transition-colors outline-none',
 
             // Selection
-            "select-none",
-            "selection:bg-primary",
-            "selection:text-primary-foreground",
+            'select-none',
+            'selection:bg-primary',
+            'selection:text-primary-foreground',
 
             // Placeholder
-            "placeholder:text-muted-foreground",
+            'placeholder:text-muted-foreground',
 
             // Focus States
-            "focus-visible:border-ring",
-            "focus-visible:ring-3",
-            "focus-visible:ring-ring/50",
+            'focus-visible:border-ring',
+            'focus-visible:ring-3',
+            'focus-visible:ring-ring/50',
 
             // Disabled States
-            "disabled:pointer-events-none",
-            "disabled:cursor-not-allowed",
+            'disabled:pointer-events-none',
+            'disabled:cursor-not-allowed',
 
             // Invalid States (Light)
-            "aria-invalid:border-destructive",
-            "aria-invalid:ring-3",
-            "aria-invalid:ring-destructive/20",
+            'aria-invalid:border-destructive',
+            'aria-invalid:ring-3',
+            'aria-invalid:ring-destructive/20',
 
             // Small Size Variant
-            "data-[size=sm]:h-7",
-            "data-[size=sm]:rounded-[min(var(--radius-md),10px)]",
-            "data-[size=sm]:py-0.5",
+            'data-[size=sm]:h-7',
+            'data-[size=sm]:rounded-[min(var(--radius-md),10px)]',
+            'data-[size=sm]:py-0.5',
 
             // Dark Mode - Background
-            "dark:bg-input/30",
-            "dark:hover:bg-input/50",
+            'dark:bg-input/30',
+            'dark:hover:bg-input/50',
 
             // Dark Mode - Invalid
-            "dark:aria-invalid:border-destructive/50",
-            "dark:aria-invalid:ring-destructive/40",
-          ].join(" "),
+            'dark:aria-invalid:border-destructive/50',
+            'dark:aria-invalid:ring-destructive/40',
+          ].join(' '),
         )}
         {...props}
       />
@@ -111,7 +111,7 @@ function NativeSelect({
         data-slot="native-select-icon"
       />
     </div>
-  );
+  )
 }
 
 /**
@@ -126,13 +126,13 @@ function NativeSelectOption({ className, ...props }: NativeSelectOptionProps) {
       className={cn(
         [
           // System Colors (adapts to OS theme)
-          "bg-[Canvas] text-[CanvasText]",
-        ].join(" "),
+          'bg-[Canvas] text-[CanvasText]',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -150,13 +150,13 @@ function NativeSelectOptGroup({
       className={cn(
         [
           // System Colors (adapts to OS theme)
-          "bg-[Canvas] text-[CanvasText]",
-        ].join(" "),
+          'bg-[Canvas] text-[CanvasText]',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -171,4 +171,4 @@ export {
   type NativeSelectOptionProps,
   type NativeSelectProps,
   type NativeSelectSize,
-};
+}

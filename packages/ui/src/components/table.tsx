@@ -1,21 +1,21 @@
-"use client";
+'use client'
 
-import * as React from "react";
+import * as React from 'react'
 
-import { cn } from "../lib/utils";
+import { cn } from '../lib/utils'
 
 /* ============================================================================
  * TYPES
  * ========================================================================= */
 
-type TableProps = React.ComponentProps<"table">;
-type TableHeaderProps = React.ComponentProps<"thead">;
-type TableBodyProps = React.ComponentProps<"tbody">;
-type TableFooterProps = React.ComponentProps<"tfoot">;
-type TableRowProps = React.ComponentProps<"tr">;
-type TableHeadProps = React.ComponentProps<"th">;
-type TableCellProps = React.ComponentProps<"td">;
-type TableCaptionProps = React.ComponentProps<"caption">;
+type TableProps = React.ComponentProps<'table'>
+type TableHeaderProps = React.ComponentProps<'thead'>
+type TableBodyProps = React.ComponentProps<'tbody'>
+type TableFooterProps = React.ComponentProps<'tfoot'>
+type TableRowProps = React.ComponentProps<'tr'>
+type TableHeadProps = React.ComponentProps<'th'>
+type TableCellProps = React.ComponentProps<'td'>
+type TableCaptionProps = React.ComponentProps<'caption'>
 
 /* ============================================================================
  * COMPONENTS
@@ -37,17 +37,17 @@ function Table({ className, ...props }: TableProps) {
         className={cn(
           [
             // Layout
-            "w-full",
+            'w-full',
 
             // Typography
-            "caption-bottom text-sm",
-          ].join(" "),
+            'caption-bottom text-sm',
+          ].join(' '),
           className,
         )}
         {...props}
       />
     </div>
-  );
+  )
 }
 
 /**
@@ -58,10 +58,10 @@ function TableHeader({ className, ...props }: TableHeaderProps) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b", className)}
+      className={cn('[&_tr]:border-b', className)}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -73,10 +73,10 @@ function TableBody({ className, ...props }: TableBodyProps) {
   return (
     <tbody
       data-slot="table-body"
-      className={cn("[&_tr:last-child]:border-0", className)}
+      className={cn('[&_tr:last-child]:border-0', className)}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -90,19 +90,19 @@ function TableFooter({ className, ...props }: TableFooterProps) {
       className={cn(
         [
           // Styling
-          "border-t bg-muted/50",
+          'border-t bg-muted/50',
 
           // Typography
-          "font-medium",
+          'font-medium',
 
           // Remove border from last row
-          "[&>tr]:last:border-b-0",
-        ].join(" "),
+          '[&>tr]:last:border-b-0',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -116,25 +116,25 @@ function TableRow({ className, ...props }: TableRowProps) {
       className={cn(
         [
           // Styling
-          "border-b",
+          'border-b',
 
           // Transitions
-          "transition-colors",
+          'transition-colors',
 
           // Hover State
-          "hover:bg-muted/50",
+          'hover:bg-muted/50',
 
           // Expanded State (for expandable rows)
-          "has-aria-expanded:bg-muted/50",
+          'has-aria-expanded:bg-muted/50',
 
           // Selected State
-          "data-[state=selected]:bg-muted",
-        ].join(" "),
+          'data-[state=selected]:bg-muted',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -149,19 +149,19 @@ function TableHead({ className, ...props }: TableHeadProps) {
       className={cn(
         [
           // Layout
-          "h-10 px-2",
+          'h-10 px-2',
 
           // Typography
-          "text-left align-middle font-medium whitespace-nowrap text-foreground",
+          'text-left align-middle font-medium whitespace-nowrap text-foreground',
 
           // Checkbox cell adjustment
-          "[&:has([role=checkbox])]:pr-0",
-        ].join(" "),
+          '[&:has([role=checkbox])]:pr-0',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -176,19 +176,19 @@ function TableCell({ className, ...props }: TableCellProps) {
       className={cn(
         [
           // Spacing
-          "p-2",
+          'p-2',
 
           // Typography
-          "align-middle whitespace-nowrap",
+          'align-middle whitespace-nowrap',
 
           // Checkbox cell adjustment
-          "[&:has([role=checkbox])]:pr-0",
-        ].join(" "),
+          '[&:has([role=checkbox])]:pr-0',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -202,16 +202,16 @@ function TableCaption({ className, ...props }: TableCaptionProps) {
       className={cn(
         [
           // Spacing
-          "mt-4",
+          'mt-4',
 
           // Typography
-          "text-sm text-muted-foreground",
-        ].join(" "),
+          'text-sm text-muted-foreground',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -235,4 +235,4 @@ export {
   type TableHeadProps,
   type TableProps,
   type TableRowProps,
-};
+}

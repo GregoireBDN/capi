@@ -58,7 +58,9 @@ export const Default: Story = {
     <Card className="w-96">
       <CardHeader>
         <CardTitle>Default Card</CardTitle>
-        <CardDescription>This is a card with header, content, and footer.</CardDescription>
+        <CardDescription>
+          This is a card with header, content, and footer.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <p>Card body content goes here.</p>

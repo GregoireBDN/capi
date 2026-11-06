@@ -20,7 +20,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "Polymorphic button with semantic intent variants (primary, secondary, success, warning, danger, info), four visual styles (solid, outline, ghost, link), five sizes, icon slots, loading and full-width states. Built on top of Radix `Slot` so it can render `asChild` for any element.",
+          'Polymorphic button with semantic intent variants (primary, secondary, success, warning, danger, info), four visual styles (solid, outline, ghost, link), five sizes, icon slots, loading and full-width states. Built on top of Radix `Slot` so it can render `asChild` for any element.',
       },
     },
   },
@@ -28,11 +28,14 @@ const meta = {
     variant: {
       control: 'select',
       options: ['primary', 'secondary', 'success', 'warning', 'danger', 'info'],
-      description: 'Semantic intent — drives both color and contextual meaning.',
+      description:
+        'Semantic intent — drives both color and contextual meaning.',
       table: {
         category: 'Appearance',
         defaultValue: { summary: 'primary' },
-        type: { summary: 'primary | secondary | success | warning | danger | info' },
+        type: {
+          summary: 'primary | secondary | success | warning | danger | info',
+        },
       },
     },
     size: {
@@ -73,7 +76,8 @@ const meta = {
     },
     iconStart: {
       control: false,
-      description: 'Icon rendered before the label (replaced by a spinner when `loading`).',
+      description:
+        'Icon rendered before the label (replaced by a spinner when `loading`).',
       table: { category: 'Content', type: { summary: 'ReactNode' } },
     },
     iconEnd: {
@@ -88,7 +92,8 @@ const meta = {
     },
     loading: {
       control: 'boolean',
-      description: 'Replaces `iconStart` with a spinner and disables the button.',
+      description:
+        'Replaces `iconStart` with a spinner and disables the button.',
       table: { category: 'State' },
     },
     disabled: {
@@ -126,7 +131,11 @@ export const Playground: Story = {}
 
 export const Variants: Story = {
   parameters: {
-    docs: { description: { story: 'All six semantic variants in their default solid style.' } },
+    docs: {
+      description: {
+        story: 'All six semantic variants in their default solid style.',
+      },
+    },
   },
   render: () => (
     <div className="flex flex-wrap gap-3">
@@ -142,42 +151,78 @@ export const Variants: Story = {
 
 export const Outline: Story = {
   parameters: {
-    docs: { description: { story: 'Outline visual style — border with transparent background.' } },
+    docs: {
+      description: {
+        story: 'Outline visual style — border with transparent background.',
+      },
+    },
   },
   render: () => (
     <div className="flex flex-wrap gap-3">
-      <Button variant="primary" outline>Primary</Button>
-      <Button variant="secondary" outline>Secondary</Button>
-      <Button variant="success" outline>Success</Button>
-      <Button variant="warning" outline>Warning</Button>
-      <Button variant="danger" outline>Danger</Button>
-      <Button variant="info" outline>Info</Button>
+      <Button variant="primary" outline>
+        Primary
+      </Button>
+      <Button variant="secondary" outline>
+        Secondary
+      </Button>
+      <Button variant="success" outline>
+        Success
+      </Button>
+      <Button variant="warning" outline>
+        Warning
+      </Button>
+      <Button variant="danger" outline>
+        Danger
+      </Button>
+      <Button variant="info" outline>
+        Info
+      </Button>
     </div>
   ),
 }
 
 export const Ghost: Story = {
   parameters: {
-    docs: { description: { story: 'Ghost visual style — no border, subtle hover background.' } },
+    docs: {
+      description: {
+        story: 'Ghost visual style — no border, subtle hover background.',
+      },
+    },
   },
   render: () => (
     <div className="flex flex-wrap gap-3">
-      <Button variant="primary" ghost>Primary</Button>
-      <Button variant="secondary" ghost>Secondary</Button>
-      <Button variant="success" ghost>Success</Button>
-      <Button variant="danger" ghost>Danger</Button>
+      <Button variant="primary" ghost>
+        Primary
+      </Button>
+      <Button variant="secondary" ghost>
+        Secondary
+      </Button>
+      <Button variant="success" ghost>
+        Success
+      </Button>
+      <Button variant="danger" ghost>
+        Danger
+      </Button>
     </div>
   ),
 }
 
 export const Link: Story = {
   parameters: {
-    docs: { description: { story: 'Link visual style — text only with underline on hover.' } },
+    docs: {
+      description: {
+        story: 'Link visual style — text only with underline on hover.',
+      },
+    },
   },
   render: () => (
     <div className="flex flex-wrap gap-3">
-      <Button variant="primary" link>Primary Link</Button>
-      <Button variant="danger" link>Danger Link</Button>
+      <Button variant="primary" link>
+        Primary Link
+      </Button>
+      <Button variant="danger" link>
+        Danger Link
+      </Button>
     </div>
   ),
 }
@@ -199,7 +244,12 @@ export const Sizes: Story = {
 
 export const WithIcons: Story = {
   parameters: {
-    docs: { description: { story: 'Icons via `iconStart` / `iconEnd` slots, plus `iconOnly` for square buttons.' } },
+    docs: {
+      description: {
+        story:
+          'Icons via `iconStart` / `iconEnd` slots, plus `iconOnly` for square buttons.',
+      },
+    },
   },
   render: () => (
     <div className="flex flex-wrap items-center gap-3">
@@ -220,7 +270,12 @@ export const WithIcons: Story = {
 
 export const States: Story = {
   parameters: {
-    docs: { description: { story: 'Loading replaces `iconStart` with a spinner and disables interaction.' } },
+    docs: {
+      description: {
+        story:
+          'Loading replaces `iconStart` with a spinner and disables interaction.',
+      },
+    },
   },
   render: () => (
     <div className="space-y-3">
@@ -231,7 +286,9 @@ export const States: Story = {
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <Button pill>Pill Shape</Button>
-        <Button pill iconStart={<PlusIcon />}>Pill with Icon</Button>
+        <Button pill iconStart={<PlusIcon />}>
+          Pill with Icon
+        </Button>
       </div>
     </div>
   ),
