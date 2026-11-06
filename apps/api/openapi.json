@@ -2853,6 +2853,73 @@
           "Investments"
         ]
       }
+    },
+    "/api/forecast": {
+      "get": {
+        "description": "Current balance of the selected accounts, the remaining occurrences of their confirmed, active recurring items until the end of the month (Europe/Paris), and optionally an estimate of the day-to-day spending; projected day by day with the lowest point and the first day under the threshold. Transfers and one-offs never count in the estimate.",
+        "operationId": "ForecastController_forecast",
+        "parameters": [
+          {
+            "description": "Comma-separated ids of checking or savings accounts. Default: every non-archived checking account.",
+            "required": false,
+            "name": "accountIds",
+            "in": "query",
+            "schema": {
+              "example": "a1b2c3d4-0000-4000-8000-000000000001",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Low-balance threshold in signed cents: `belowThreshold` is the first day the projection goes under it.",
+            "required": false,
+            "name": "threshold",
+            "in": "query",
+            "schema": {
+              "minimum": -100000000000,
+              "maximum": 100000000000,
+              "default": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Adds the variable-spending estimate (average daily day-to-day spending). `false` projects the recurring items only.",
+            "required": false,
+            "name": "includeVariable",
+            "in": "query",
+            "schema": {
+              "default": true,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query, or an unknown or investment account."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "End-of-month cash-flow forecast",
+        "tags": [
+          "Forecast"
+        ]
+      }
     }
   },
   "info": {
@@ -6350,6 +6417,308 @@
         "required": [
           "totals",
           "accounts"
+        ]
+      },
+      "ForecastAccountDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountType"
+              }
+            ]
+          },
+          "balanceCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Current balance in cents; null when it cannot be computed (it then counts as 0)."
+          },
+          "balanceDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "balanceCents",
+          "balanceDate"
+        ]
+      },
+      "ForecastItemDto": {
+        "type": "object",
+        "properties": {
+          "recurringItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06",
+            "description": "Day the projection applies it: the expected date, or today when it is late or not imported yet."
+          },
+          "expectedDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06",
+            "description": "Date the series expects it on."
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Signed cents (negative for a debit): the typical amount."
+          },
+          "direction": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecurringDirection"
+              }
+            ]
+          },
+          "amountType": {
+            "description": "`variable`: the amount is the median of recent ones.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecurringAmountType"
+              }
+            ]
+          },
+          "isFixedCost": {
+            "type": "boolean"
+          },
+          "categoryName": {
+            "type": "string",
+            "nullable": true
+          },
+          "categoryColor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "recurringItemId",
+          "accountId",
+          "name",
+          "date",
+          "expectedDate",
+          "amountCents",
+          "direction",
+          "amountType",
+          "isFixedCost",
+          "categoryName",
+          "categoryColor"
+        ]
+      },
+      "ForecastEstimateDto": {
+        "type": "object",
+        "properties": {
+          "dailyCents": {
+            "type": "integer",
+            "description": "Average daily spending in positive cents: `expense` transactions of the selected accounts that are not part of a confirmed recurring item, not one-offs (transfers never count)."
+          },
+          "days": {
+            "type": "integer",
+            "description": "Days left to estimate (after the balance date, until month end)."
+          },
+          "totalCents": {
+            "type": "integer",
+            "description": "Estimated spending until month end, in signed cents (≤ 0)."
+          },
+          "basedOnFrom": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06",
+            "description": "First day of the averaged period (the last 3 full months, from the first transaction)."
+          },
+          "basedOnTo": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06",
+            "description": "Last day of the averaged period."
+          }
+        },
+        "required": [
+          "dailyCents",
+          "days",
+          "totalCents",
+          "basedOnFrom",
+          "basedOnTo"
+        ]
+      },
+      "ForecastPointDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06"
+          },
+          "balanceCents": {
+            "type": "integer"
+          },
+          "items": {
+            "description": "Recurring items applied that day.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ForecastItemDto"
+            }
+          },
+          "estimateCents": {
+            "type": "integer",
+            "description": "Variable-spending estimate applied that day (≤ 0)."
+          }
+        },
+        "required": [
+          "date",
+          "balanceCents",
+          "items",
+          "estimateCents"
+        ]
+      },
+      "ForecastBalanceAtDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06"
+          },
+          "balanceCents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "balanceCents"
+        ]
+      },
+      "ForecastDto": {
+        "type": "object",
+        "properties": {
+          "today": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06",
+            "description": "Today in Europe/Paris."
+          },
+          "monthEnd": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06",
+            "description": "Last day of the current month."
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ForecastAccountDto"
+            }
+          },
+          "startingBalanceCents": {
+            "type": "integer",
+            "description": "Sum of the selected accounts’ current balances, in cents."
+          },
+          "startingBalanceDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06",
+            "nullable": true,
+            "description": "Latest balance date of the selected accounts."
+          },
+          "thresholdCents": {
+            "type": "integer"
+          },
+          "recurringItemCount": {
+            "type": "integer",
+            "description": "Confirmed, active recurring items on the selected accounts (0: nothing to project)."
+          },
+          "items": {
+            "description": "Expected recurring items until month end, by date.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ForecastItemDto"
+            }
+          },
+          "expectedDebitsCents": {
+            "type": "integer",
+            "description": "Sum of the expected debits, in signed cents (≤ 0)."
+          },
+          "expectedCreditsCents": {
+            "type": "integer",
+            "description": "Sum of the expected credits, in cents (≥ 0)."
+          },
+          "estimate": {
+            "nullable": true,
+            "description": "Variable-spending estimate; null when disabled or without history.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ForecastEstimateDto"
+              }
+            ]
+          },
+          "points": {
+            "description": "End-of-day projected balance from today to month end (one point on the last day).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ForecastPointDto"
+            }
+          },
+          "endBalanceCents": {
+            "type": "integer"
+          },
+          "lowest": {
+            "description": "Lowest projected balance (earliest on a tie).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ForecastBalanceAtDto"
+              }
+            ]
+          },
+          "belowThreshold": {
+            "nullable": true,
+            "description": "First day the projection goes under `thresholdCents`, null if never.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ForecastBalanceAtDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "today",
+          "monthEnd",
+          "accounts",
+          "startingBalanceCents",
+          "startingBalanceDate",
+          "thresholdCents",
+          "recurringItemCount",
+          "items",
+          "expectedDebitsCents",
+          "expectedCreditsCents",
+          "estimate",
+          "points",
+          "endBalanceCents",
+          "lowest",
+          "belowThreshold"
         ]
       }
     }

@@ -8,12 +8,14 @@ import type {
   DashboardHistoryDto,
   DashboardOverviewDto,
 } from '#/api/types.gen'
+import { forecast } from '#/components/forecast/test-fixtures'
 import { formatCents } from '#/lib/money'
 import { DashboardPage } from './DashboardPage'
 
 const api = vi.hoisted(() => ({
   dashboardControllerOverview: vi.fn(),
   dashboardControllerHistory: vi.fn(),
+  forecastControllerForecast: vi.fn(),
 }))
 
 vi.mock('#/api', () => api)
@@ -178,6 +180,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   api.dashboardControllerOverview.mockImplementation(() => ok(overview))
   api.dashboardControllerHistory.mockImplementation(() => ok(history))
+  api.forecastControllerForecast.mockImplementation(() => ok(forecast()))
 })
 
 describe('DashboardPage', () => {
@@ -295,6 +298,31 @@ describe('DashboardPage', () => {
     expect(api.dashboardControllerHistory).toHaveBeenCalledWith(
       expect.objectContaining({ query: { months: 12 } }),
     )
+  })
+
+  it('sums up the end-of-month forecast', async () => {
+    renderPage()
+    const card = (await screen.findByText('Fin de mois')).closest(
+      '[data-slot="card"]',
+    ) as HTMLElement
+    expect(card).toHaveTextContent(euros(267_000))
+    expect(card).toHaveTextContent(`Point bas ${euros(18_000)} le dim. 29 nov.`)
+    expect(
+      within(card).getByRole('link', { name: /Voir la prévision/ }),
+    ).toHaveAttribute('href', '/forecast')
+
+    api.forecastControllerForecast.mockImplementation(() =>
+      ok(
+        forecast({
+          thresholdCents: 50_000,
+          belowThreshold: { date: '2026-11-29', balanceCents: 18_000 },
+        }),
+      ),
+    )
+    renderPage()
+    expect(
+      await screen.findByText(`Sous ${euros(50_000)} le dim. 29 nov.`),
+    ).toBeInTheDocument()
   })
 
   it('shows skeletons while loading', () => {

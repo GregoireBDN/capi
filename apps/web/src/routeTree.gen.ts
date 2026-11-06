@@ -22,6 +22,7 @@ import { Route as AppSavingsRouteImport } from './routes/_app/savings'
 import { Route as AppReviewRouteImport } from './routes/_app/review'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppImportRouteImport } from './routes/_app/import'
+import { Route as AppForecastRouteImport } from './routes/_app/forecast'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppBudgetRouteImport } from './routes/_app/budget'
 import { Route as AppAccountsIndexRouteImport } from './routes/_app/accounts.index'
@@ -91,6 +92,11 @@ const AppImportRoute = AppImportRouteImport.update({
   path: '/import',
   getParentRoute: () => AppRoute,
 } as any)
+const AppForecastRoute = AppForecastRouteImport.update({
+  id: '/forecast',
+  path: '/forecast',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -119,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/verify-email': typeof VerifyEmailRoute
   '/budget': typeof AppBudgetRoute
   '/dashboard': typeof AppDashboardRoute
+  '/forecast': typeof AppForecastRoute
   '/import': typeof AppImportRoute
   '/profile': typeof AppProfileRoute
   '/review': typeof AppReviewRoute
@@ -137,6 +144,7 @@ export interface FileRoutesByTo {
   '/verify-email': typeof VerifyEmailRoute
   '/budget': typeof AppBudgetRoute
   '/dashboard': typeof AppDashboardRoute
+  '/forecast': typeof AppForecastRoute
   '/import': typeof AppImportRoute
   '/profile': typeof AppProfileRoute
   '/review': typeof AppReviewRoute
@@ -157,6 +165,7 @@ export interface FileRoutesById {
   '/verify-email': typeof VerifyEmailRoute
   '/_app/budget': typeof AppBudgetRoute
   '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/forecast': typeof AppForecastRoute
   '/_app/import': typeof AppImportRoute
   '/_app/profile': typeof AppProfileRoute
   '/_app/review': typeof AppReviewRoute
@@ -177,6 +186,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/budget'
     | '/dashboard'
+    | '/forecast'
     | '/import'
     | '/profile'
     | '/review'
@@ -195,6 +205,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/budget'
     | '/dashboard'
+    | '/forecast'
     | '/import'
     | '/profile'
     | '/review'
@@ -214,6 +225,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/_app/budget'
     | '/_app/dashboard'
+    | '/_app/forecast'
     | '/_app/import'
     | '/_app/profile'
     | '/_app/review'
@@ -328,6 +340,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppImportRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/forecast': {
+      id: '/_app/forecast'
+      path: '/forecast'
+      fullPath: '/forecast'
+      preLoaderRoute: typeof AppForecastRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/dashboard': {
       id: '/_app/dashboard'
       path: '/dashboard'
@@ -362,6 +381,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppBudgetRoute: typeof AppBudgetRoute
   AppDashboardRoute: typeof AppDashboardRoute
+  AppForecastRoute: typeof AppForecastRoute
   AppImportRoute: typeof AppImportRoute
   AppProfileRoute: typeof AppProfileRoute
   AppReviewRoute: typeof AppReviewRoute
@@ -376,6 +396,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppBudgetRoute: AppBudgetRoute,
   AppDashboardRoute: AppDashboardRoute,
+  AppForecastRoute: AppForecastRoute,
   AppImportRoute: AppImportRoute,
   AppProfileRoute: AppProfileRoute,
   AppReviewRoute: AppReviewRoute,
