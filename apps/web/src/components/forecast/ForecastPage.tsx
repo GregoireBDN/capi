@@ -45,8 +45,7 @@ export function BelowThresholdAlert({ forecast }: { forecast: ForecastDto }) {
         Solde sous {formatCents(forecast.thresholdCents)} le{' '}
         {formatShortDay(below.date)}
       </AlertTitle>
-      {/* The warning variant's description keeps a dark ink in dark mode. */}
-      <AlertDescription className="dark:text-warning/90!">
+      <AlertDescription>
         Point bas prévu : {formatCents(forecast.lowest.balanceCents)} le{' '}
         {formatShortDay(forecast.lowest.date)}
       </AlertDescription>
