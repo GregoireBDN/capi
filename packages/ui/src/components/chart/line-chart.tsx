@@ -14,6 +14,7 @@ import {
 import {
   CartesianFooter,
   REFERENCE_LINE_PROPS,
+  ReferenceLineLabel,
   useCartesianDefaults,
   useIndexAxis,
   valueAxisProps,
@@ -93,11 +94,7 @@ function referenceLineElements(
       key={`${line.value}-${line.label ?? ''}`}
       y={line.value}
       {...REFERENCE_LINE_PROPS}
-      label={
-        line.label
-          ? { value: line.label, position: 'insideTopRight', fontSize: 11 }
-          : undefined
-      }
+      label={line.label ? <ReferenceLineLabel text={line.label} /> : undefined}
     />
   ))
 }

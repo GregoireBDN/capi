@@ -1,7 +1,13 @@
 'use client'
 
 import * as React from 'react'
-import type { XAxisProps, YAxisProps } from 'recharts'
+import {
+  Text,
+  useChartWidth,
+  usePlotArea,
+  type XAxisProps,
+  type YAxisProps,
+} from 'recharts'
 
 import {
   ChartDataTable,
@@ -208,18 +214,123 @@ function CartesianFooter({
   )
 }
 
-/** Index axis: no rules, thinned ticks so labels never collide at 375 px. */
+/** Average advance of a 12 px tick character, rounded up so labels never touch. */
+const TICK_CHAR_WIDTH = 7
+/** Minimum air between two index labels, in px. */
+const TICK_GAP = 8
+/** Estimated width of a tick label, in px (no layout needed, SSR-safe). */
+function estimateLabelWidth(
+  label: string,
+  charWidth = TICK_CHAR_WIDTH,
+): number {
+  return label.length * charWidth
+}
+
+/**
+ * Which of `count` evenly spaced category ticks get a label, so labels of
+ * `labelWidth` px never overlap on a `plotWidth` px axis: the first and the
+ * last (most recent) are always kept, and as many as fit are spread evenly
+ * between them (gaps differ by one category at most, e.g. every 2nd or
+ * 3rd month on a phone). Indices are ascending.
+ */
+function categoryTickIndices(
+  count: number,
+  plotWidth: number,
+  labelWidth: number,
+  gap = TICK_GAP,
+): number[] {
+  if (count <= 0) return []
+  const last = count - 1
+  if (count === 1 || !(plotWidth > 0)) return count === 1 ? [0] : [0, last]
+  const band = plotWidth / count
+  // Minimum distance between two labels, in categories.
+  const need = Math.max(1, Math.ceil((labelWidth + gap) / band))
+  if (need > last) return [last]
+  // Every gap is floor or ceil of last / intervals, both >= need.
+  const intervals = Math.floor(last / need)
+  return Array.from({ length: intervals + 1 }, (_, i) =>
+    Math.round((i * last) / intervals),
+  )
+}
+
+type CategoryTickProps = React.ComponentProps<typeof Text> & {
+  payload?: { value?: unknown }
+  index?: number
+  visibleTicksCount?: number
+  tickFormatter?: (value: unknown, index: number) => string
+  /** Width of the widest label of the axis, in px. */
+  labelWidth: number
+}
+
+/**
+ * Index-axis tick: draws only the labels picked by `categoryTickIndices`
+ * for the current plot width, so a phone gets every 2nd or 3rd month,
+ * deliberately, instead of whatever Recharts manages to fit. The first and
+ * last labels are nudged inside the chart so they are never clipped.
+ */
+function CategoryTick({
+  payload,
+  index = 0,
+  visibleTicksCount = 0,
+  tickFormatter,
+  labelWidth,
+  x,
+  ...props
+}: CategoryTickProps) {
+  const plot = usePlotArea()
+  const chartWidth = useChartWidth()
+  const indices = React.useMemo(
+    () =>
+      new Set(
+        categoryTickIndices(visibleTicksCount, plot?.width ?? 0, labelWidth),
+      ),
+    [visibleTicksCount, plot?.width, labelWidth],
+  )
+  if (!indices.has(index)) return null
+  const text = tickFormatter
+    ? tickFormatter(payload?.value, index)
+    : String(payload?.value ?? '')
+  const half = estimateLabelWidth(text) / 2
+  const center = Number(x)
+  const clamped =
+    chartWidth && Number.isFinite(center)
+      ? Math.min(Math.max(center, half), chartWidth - half)
+      : x
+  return (
+    <Text {...props} x={clamped}>
+      {text}
+    </Text>
+  )
+}
+
+/** Shared props of every index axis: no rules, muted labels. */
+const INDEX_AXIS_BASE = {
+  tickLine: false,
+  axisLine: false,
+  tickMargin: 8,
+} as const
+
+/**
+ * Category index axis (one label slot per row): every row gets a tick, and
+ * `CategoryTick` labels a regular subset that fits the plot width, first
+ * and last included, so labels never collide at 375 px.
+ */
 function indexAxisProps(
   index: string,
   indexFormatter: IndexFormatter,
+  data: ReadonlyArray<ChartDatum>,
 ): XAxisProps {
+  const labelWidth = Math.max(
+    0,
+    ...data.map((row) =>
+      estimateLabelWidth(indexFormatter(String(row[index]))),
+    ),
+  )
   return {
+    ...INDEX_AXIS_BASE,
     dataKey: index,
-    tickLine: false,
-    axisLine: false,
-    tickMargin: 8,
-    minTickGap: 12,
-    interval: 'preserveStartEnd',
+    interval: 0,
+    tick: <CategoryTick labelWidth={labelWidth} />,
     tickFormatter: (value: unknown) => indexFormatter(String(value)),
   }
 }
@@ -254,7 +365,7 @@ function useIndexAxis<TDatum extends ChartDatum>({
     if (indexScale !== 'time') {
       return {
         rows: data as unknown as ChartDatum[],
-        axisProps: indexAxisProps(index, indexFormatter),
+        axisProps: indexAxisProps(index, indexFormatter, data),
         tooltipLabelFormatter: tooltipIndexFormatter,
         position: (value: string) => value,
       }
@@ -273,7 +384,13 @@ function useIndexAxis<TDatum extends ChartDatum>({
     return {
       rows,
       axisProps: {
-        ...indexAxisProps(TIME_KEY, (value) => format(Number(value))),
+        ...INDEX_AXIS_BASE,
+        dataKey: TIME_KEY,
+        // Calendar ticks are already few (at most 5); Recharts only drops
+        // one if it would still touch its neighbour.
+        minTickGap: 12,
+        interval: 'preserveStartEnd',
+        tickFormatter: (value: unknown) => format(Number(value)),
         type: 'number',
         scale: 'time',
         domain,
@@ -390,6 +507,94 @@ function valueAxisProps(
   }
 }
 
+/** Which end of a horizontal reference line carries its label. */
+type ReferenceLabelSide = 'start' | 'end'
+
+/** Rows under a label at the end of the line (two bands on a phone). */
+const LABEL_EDGE_ROWS = 2
+
+/**
+ * Share of the value range around the line that the label covers (a 16 px
+ * tag on a ~200 px plot, rounded up).
+ */
+const LABEL_VALUE_MARGIN = 0.08
+
+/**
+ * End of a horizontal reference line where its label covers no bar: the
+ * end (right) by default, the start when the last bars reach the line (or
+ * come close enough to touch the label) and the first ones do not. The
+ * label has its own background either way, so it stays readable when both
+ * ends are crossed.
+ */
+function referenceLabelSide(
+  data: ReadonlyArray<ChartDatum>,
+  keys: string[],
+  value: number,
+  stacked = false,
+): ReferenceLabelSide {
+  const [low, high] = valueExtent(data, keys, {
+    stacked,
+    includeZero: true,
+    referenceLines: [{ value }],
+  })
+  const margin = (high - low) * LABEL_VALUE_MARGIN
+  const reaches = (row: ChartDatum) => {
+    const [min, max] = valueExtent([row], keys, { stacked })
+    return value >= 0 ? max >= value - margin : min <= value + margin
+  }
+  const atEnd = data.slice(-LABEL_EDGE_ROWS).some(reaches)
+  const atStart = data.slice(0, LABEL_EDGE_ROWS).some(reaches)
+  return atEnd && !atStart ? 'start' : 'end'
+}
+
+/** Average advance of an 11 px label character. */
+const REFERENCE_LABEL_CHAR_WIDTH = 6.5
+const REFERENCE_LABEL_HEIGHT = 16
+
+/**
+ * Label of a horizontal reference line: a small tag sitting on the line at
+ * one end of the plot, on the chart surface with a hairline border, so it
+ * reads the same over a bar, a line or the empty plot, in light and dark.
+ */
+function ReferenceLineLabel({
+  text,
+  side = 'end',
+  viewBox,
+}: {
+  text: string
+  side?: ReferenceLabelSide
+  viewBox?: { x?: number; y?: number; width?: number }
+}) {
+  if (viewBox?.x === undefined || viewBox.y === undefined) return null
+  const width = estimateLabelWidth(text, REFERENCE_LABEL_CHAR_WIDTH) + 2 * 5
+  const left =
+    side === 'end' ? viewBox.x + (viewBox.width ?? 0) - width : viewBox.x
+  return (
+    <g data-slot="chart-reference-label" data-side={side}>
+      <rect
+        x={left}
+        y={viewBox.y - REFERENCE_LABEL_HEIGHT / 2}
+        width={width}
+        height={REFERENCE_LABEL_HEIGHT}
+        rx={4}
+        fill="var(--chart-surface)"
+        stroke="var(--chart-target)"
+        strokeWidth={1}
+      />
+      <text
+        x={left + width / 2}
+        y={viewBox.y}
+        dy="0.35em"
+        textAnchor="middle"
+        fontSize={11}
+        fill="var(--muted-foreground)"
+      >
+        {text}
+      </text>
+    </g>
+  )
+}
+
 /** Shared styling of the zero baseline and reference lines. */
 const ZERO_LINE_PROPS = {
   y: 0,
@@ -411,6 +616,9 @@ const REFERENCE_LINE_PROPS = {
 export {
   CartesianFooter,
   REFERENCE_LINE_PROPS,
+  ReferenceLineLabel,
+  categoryTickIndices,
+  referenceLabelSide,
   ZERO_LINE_PROPS,
   buildChartSummary,
   indexAxisProps,
@@ -423,5 +631,6 @@ export {
   type ChartIndexReferenceLine,
   type ChartIndexScale,
   type ChartReferenceLine,
+  type ReferenceLabelSide,
   type TimeSeriesChartProps,
 }
