@@ -88,8 +88,8 @@ export function SavingsChart({
               Afficher les versements vers l’épargne
             </Label>
             <p className="text-muted-foreground text-xs">
-              Virements du compte courant classés « Épargne » ou «
-              Investissement », retraits déduits.
+              Virements reçus par vos livrets, plus les virements du compte
+              courant classés « Investissement », retraits déduits.
             </p>
           </div>
         </div>

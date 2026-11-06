@@ -42,7 +42,7 @@ type Executor = Db | Tx
 /** `app_settings` key of the monthly savings target (integer cents). */
 export const MONTHLY_TARGET_KEY = 'savings.monthly_target_cents'
 
-/** Categories whose checking-side transfers count as "moved to savings". */
+/** Categories of the checking-side transfers to savings / investments. */
 const MOVED_CATEGORIES = {
   savings: 'savings_transfer',
   investments: 'investment_transfer',
@@ -56,13 +56,25 @@ const LONGEST_WINDOW = Math.max(...AVERAGE_WINDOWS)
  * and transfers between the user's own accounts are never income or expense
  * (the net savings of a month is exactly the dashboard's).
  *
- * "Moved to savings" is measured on the checking side only, so a move that
- * appears on both accounts (checking −100, Livret +100) is counted once: the
- * `transfer` transactions booked on `checking` accounts with the
- * `savings_transfer` (savings) or `investment_transfer` (investments)
- * category, sign flipped (money leaving checking is positive; a withdrawal
- * back to checking with the same category reduces it). Transfers filed under
- * another category (e.g. `internal_transfer`) are not counted.
+ * Money moved to savings and investments in a month (`movedTo*Cents`):
+ *
+ * - **Savings** (`movedToSavingsCents`): when any `savings` account has
+ *   transaction rows, the net of the `transfer` rows booked on `savings`
+ *   accounts, whatever their category (deposits positive, withdrawals
+ *   negative; a move between two savings accounts nets to zero). The
+ *   checking side of those moves is ignored, so a move recorded on both
+ *   accounts counts once. Only when no savings account has any row (savings
+ *   not imported) does it fall back to the `savings_transfer` rows on
+ *   `checking` accounts, sign flipped.
+ * - **Investments** (`movedToInvestmentsCents`): investment accounts have no
+ *   transaction rows (snapshots only), so it is measured on the checking
+ *   side: the `transfer` rows on `checking` accounts with the
+ *   `investment_transfer` category, sign flipped (money leaving checking is
+ *   positive, money coming back reduces it).
+ *
+ * Not counted: transfers on checking filed under any other category (e.g.
+ * `internal_transfer` between checking accounts). A move to a savings
+ * account filed `investment_transfer` on checking would be counted twice.
  */
 @Injectable()
 export class SavingsService {
@@ -190,28 +202,36 @@ export class SavingsService {
       sql<number>`coalesce(sum(${t.amountCents}) filter (where ${condition}), 0)::bigint`.mapWith(
         Number,
       )
-    const moved = (slug: string) =>
+    const onChecking = (slug: string) =>
       sql`${t.kind} = 'transfer' and ${accountsTable.type} = 'checking' and ${categoriesTable.slug} = ${slug}`
 
-    const rows = await executor
-      .select({
-        month,
-        incomeCents: sumWhere(sql`${t.kind} = 'income'`),
-        expenseCents: sumWhere(sql`${t.kind} = 'expense'`),
-        oneOffIncomeCents: sumWhere(
-          sql`${t.kind} = 'income' and ${t.isOneOff}`,
-        ),
-        oneOffExpenseCents: sumWhere(
-          sql`${t.kind} = 'expense' and ${t.isOneOff}`,
-        ),
-        movedToSavings: sumWhere(moved(MOVED_CATEGORIES.savings)),
-        movedToInvestments: sumWhere(moved(MOVED_CATEGORIES.investments)),
-      })
-      .from(t)
-      .innerJoin(accountsTable, eq(accountsTable.id, t.accountId))
-      .leftJoin(categoriesTable, eq(categoriesTable.id, t.categoryId))
-      .where(and(gte(t.bookingDate, from), lt(t.bookingDate, until)))
-      .groupBy(month)
+    const [rows, savingsSideKnown] = await Promise.all([
+      executor
+        .select({
+          month,
+          incomeCents: sumWhere(sql`${t.kind} = 'income'`),
+          expenseCents: sumWhere(sql`${t.kind} = 'expense'`),
+          oneOffIncomeCents: sumWhere(
+            sql`${t.kind} = 'income' and ${t.isOneOff}`,
+          ),
+          oneOffExpenseCents: sumWhere(
+            sql`${t.kind} = 'expense' and ${t.isOneOff}`,
+          ),
+          intoSavingsAccounts: sumWhere(
+            sql`${t.kind} = 'transfer' and ${accountsTable.type} = 'savings'`,
+          ),
+          checkingToSavings: sumWhere(onChecking(MOVED_CATEGORIES.savings)),
+          checkingToInvestments: sumWhere(
+            onChecking(MOVED_CATEGORIES.investments),
+          ),
+        })
+        .from(t)
+        .innerJoin(accountsTable, eq(accountsTable.id, t.accountId))
+        .leftJoin(categoriesTable, eq(categoriesTable.id, t.categoryId))
+        .where(and(gte(t.bookingDate, from), lt(t.bookingDate, until)))
+        .groupBy(month),
+      this.savingsAccountsHaveRows(executor),
+    ])
 
     return new Map(
       rows.map((row) => [
@@ -222,12 +242,26 @@ export class SavingsService {
           expenseCents: row.expenseCents,
           oneOffIncomeCents: row.oneOffIncomeCents,
           oneOffExpenseCents: row.oneOffExpenseCents,
-          // `0 - 0` would give -0.
-          movedToSavingsCents: -row.movedToSavings || 0,
-          movedToInvestmentsCents: -row.movedToInvestments || 0,
+          // `|| 0` turns a `-0` into 0.
+          movedToSavingsCents: savingsSideKnown
+            ? row.intoSavingsAccounts
+            : -row.checkingToSavings || 0,
+          movedToInvestmentsCents: -row.checkingToInvestments || 0,
         },
       ]),
     )
+  }
+
+  /** Whether any `savings` account has transaction rows (see the class doc). */
+  private async savingsAccountsHaveRows(executor: Executor): Promise<boolean> {
+    const t = transactionsTable
+    const [row] = await executor
+      .select({ id: t.id })
+      .from(t)
+      .innerJoin(accountsTable, eq(accountsTable.id, t.accountId))
+      .where(eq(accountsTable.type, 'savings'))
+      .limit(1)
+    return row !== undefined
   }
 
   /** Month of the first income or expense transaction, if any. */

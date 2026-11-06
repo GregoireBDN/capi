@@ -268,14 +268,14 @@ export class SavingsMonthDto {
   @ApiProperty({
     type: 'integer',
     description:
-      'Net amount moved from checking accounts to savings: minus the sum of the `transfer` transactions booked on checking accounts with the `savings_transfer` category (withdrawals back to checking reduce it).',
+      'Net amount moved to savings accounts: the sum of the `transfer` transactions booked on `savings` accounts, any category (deposits positive, withdrawals negative). Falls back to minus the `savings_transfer` transfers on checking accounts only when no savings account has any transaction. A move recorded on both accounts counts once.',
   })
   movedToSavingsCents!: number
 
   @ApiProperty({
     type: 'integer',
     description:
-      'Same as `movedToSavingsCents` with the `investment_transfer` category.',
+      'Net amount moved to investment accounts (which have no transactions): minus the sum of the `transfer` transactions booked on checking accounts with the `investment_transfer` category.',
   })
   movedToInvestmentsCents!: number
 

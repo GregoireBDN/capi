@@ -121,12 +121,14 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
   }
 
   /**
-   * Checking + Livret + PEA, August to November 2026:
-   * - Aug: +3 000 salary, −1 000 rent, 500 to the Livret (both sides
-   *   recorded), 200 to the PEA.
-   * - Sep: negative month (−1 500 one-off), 300 back from the Livret, 100
-   *   internal transfer (not counted).
-   * - Oct: +1 000 one-off bonus, 600 to the Livret (checking side only).
+   * Checking + Livret + PEA, August to November 2026, filed as the
+   * spreadsheet history import does: moves to the Livret are
+   * `internal_transfer` on both sides, PEA contributions `investment_transfer`
+   * on checking only (the PEA has snapshots, no rows).
+   * - Aug: +3 000 salary, −1 000 rent, 500 to the Livret, 200 to the PEA.
+   * - Sep: negative month (−1 500 one-off), 300 withdrawn from the Livret,
+   *   100 to another checking account (not counted).
+   * - Oct: +1 000 one-off bonus, 600 to the Livret.
    * - Nov (current): +3 000, −500.
    */
   async function seed(tx: Tx) {
@@ -139,28 +141,30 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
       ])
       .returning()
     const cat = await transferCategories(tx)
-    const savingsCat = { categoryId: cat.get('savings_transfer')! }
+    const internal = { categoryId: cat.get('internal_transfer')! }
     const investCat = { categoryId: cat.get('investment_transfer')! }
-    await tx.insert(transactionsTable).values([
-      row(checking.id, '2026-08-01', 300_000, 'income'),
-      row(checking.id, '2026-08-05', -100_000, 'expense'),
-      row(checking.id, '2026-08-10', -50_000, 'transfer', savingsCat),
-      row(livret.id, '2026-08-10', 50_000, 'transfer', savingsCat),
-      row(checking.id, '2026-08-12', -20_000, 'transfer', investCat),
-      row(checking.id, '2026-09-01', 300_000, 'income'),
-      row(checking.id, '2026-09-03', -200_000, 'expense'),
-      row(checking.id, '2026-09-20', -150_000, 'expense', { isOneOff: true }),
-      row(checking.id, '2026-09-25', 30_000, 'transfer', savingsCat),
-      row(checking.id, '2026-09-26', -10_000, 'transfer', {
-        categoryId: cat.get('internal_transfer')!,
-      }),
-      row(checking.id, '2026-10-01', 300_000, 'income'),
-      row(checking.id, '2026-10-15', 100_000, 'income', { isOneOff: true }),
-      row(checking.id, '2026-10-20', -120_000, 'expense'),
-      row(checking.id, '2026-10-31', -60_000, 'transfer', savingsCat),
-      row(checking.id, '2026-11-01', 300_000, 'income'),
-      row(checking.id, '2026-11-02', -50_000, 'expense'),
-    ])
+    await tx
+      .insert(transactionsTable)
+      .values([
+        row(checking.id, '2026-08-01', 300_000, 'income'),
+        row(checking.id, '2026-08-05', -100_000, 'expense'),
+        row(checking.id, '2026-08-10', -50_000, 'transfer', internal),
+        row(livret.id, '2026-08-10', 50_000, 'transfer', internal),
+        row(checking.id, '2026-08-12', -20_000, 'transfer', investCat),
+        row(checking.id, '2026-09-01', 300_000, 'income'),
+        row(checking.id, '2026-09-03', -200_000, 'expense'),
+        row(checking.id, '2026-09-20', -150_000, 'expense', { isOneOff: true }),
+        row(livret.id, '2026-09-25', -30_000, 'transfer', internal),
+        row(checking.id, '2026-09-25', 30_000, 'transfer', internal),
+        row(checking.id, '2026-09-26', -10_000, 'transfer', internal),
+        row(checking.id, '2026-10-01', 300_000, 'income'),
+        row(checking.id, '2026-10-15', 100_000, 'income', { isOneOff: true }),
+        row(checking.id, '2026-10-20', -120_000, 'expense'),
+        row(checking.id, '2026-10-31', -60_000, 'transfer', internal),
+        row(livret.id, '2026-10-31', 60_000, 'transfer', internal),
+        row(checking.id, '2026-11-01', 300_000, 'income'),
+        row(checking.id, '2026-11-02', -50_000, 'expense'),
+      ])
     await tx.insert(balanceSnapshotsTable).values([
       {
         accountId: pea.id,
@@ -273,9 +277,9 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
       const { livret, pea } = await seed(tx)
       const { stock } = await savings.overview(12, { now: NOW })
       expect(stock.cash).toEqual({
-        totalCents: 50_000,
+        totalCents: 80_000,
         accounts: [
-          expect.objectContaining({ id: livret.id, balanceCents: 50_000 }),
+          expect.objectContaining({ id: livret.id, balanceCents: 80_000 }),
         ],
       })
       expect(stock.investments.totals).toMatchObject({
@@ -284,7 +288,7 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
         gainCents: 20_000,
       })
       expect(stock.investments.accounts.map((a) => a.id)).toEqual([pea.id])
-      expect(stock.totalCents).toBe(180_000)
+      expect(stock.totalCents).toBe(210_000)
       expect(stock.gainCents).toBe(20_000)
     })
   })
@@ -302,6 +306,69 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
       ])
       await savings.setTarget(null, tx)
       expect(await savings.readTarget(tx)).toBeNull()
+    })
+  })
+
+  it('counts a move recorded on both accounts once, whatever its category', async () => {
+    await inRollback(async ({ tx, savings }) => {
+      const [checking, livret, livretJeune] = await tx
+        .insert(accountsTable)
+        .values([
+          { name: 'Compte test', type: 'checking' },
+          { name: 'Livret test', type: 'savings' },
+          { name: 'Livret jeune test', type: 'savings' },
+        ])
+        .returning()
+      const cat = await transferCategories(tx)
+      const savingsCat = { categoryId: cat.get('savings_transfer')! }
+      const internal = { categoryId: cat.get('internal_transfer')! }
+      await tx.insert(transactionsTable).values([
+        // Filed `savings_transfer` on both sides: only the Livret side counts.
+        row(checking.id, '2026-10-05', -40_000, 'transfer', savingsCat),
+        row(livret.id, '2026-10-05', 40_000, 'transfer', savingsCat),
+        // Livret → Livret jeune: nets to zero.
+        row(livret.id, '2026-10-06', -10_000, 'transfer', internal),
+        row(livretJeune.id, '2026-10-06', 10_000, 'transfer', internal),
+        // Uncategorized deposit on the Livret jeune still counts.
+        row(livretJeune.id, '2026-10-07', 5_000, 'transfer'),
+      ])
+      const { months } = await savings.overview(2, { now: NOW })
+      expect(months[0]).toMatchObject({
+        month: '2026-10',
+        movedToSavingsCents: 45_000,
+        movedToInvestmentsCents: 0,
+        movedCents: 45_000,
+      })
+    })
+  })
+
+  it('falls back to checking-side savings transfers when no savings account has rows', async () => {
+    await inRollback(async ({ tx, savings }) => {
+      const [checking] = await tx
+        .insert(accountsTable)
+        .values([
+          { name: 'Compte test', type: 'checking' },
+          { name: 'Livret test', type: 'savings' },
+        ])
+        .returning()
+      const cat = await transferCategories(tx)
+      await tx.insert(transactionsTable).values([
+        row(checking.id, '2026-10-05', -40_000, 'transfer', {
+          categoryId: cat.get('savings_transfer')!,
+        }),
+        row(checking.id, '2026-10-06', -15_000, 'transfer', {
+          categoryId: cat.get('investment_transfer')!,
+        }),
+        row(checking.id, '2026-10-07', -9_000, 'transfer', {
+          categoryId: cat.get('internal_transfer')!,
+        }),
+      ])
+      const { months } = await savings.overview(2, { now: NOW })
+      expect(months[0]).toMatchObject({
+        movedToSavingsCents: 40_000,
+        movedToInvestmentsCents: 15_000,
+        movedCents: 55_000,
+      })
     })
   })
 
@@ -323,10 +390,10 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
         accountIds: [livret.id, pea.id],
         manualAmountCents: null,
         archived: false,
-        currentCents: 180_000,
-        remainingCents: 220_000,
+        currentCents: 210_000,
+        remainingCents: 190_000,
         monthsLeft: 5,
-        requiredMonthlyCents: 44_000,
+        requiredMonthlyCents: 38_000,
         targetDatePassed: false,
         projection: {
           averageMonthlyCents: 160_000,
