@@ -1,0 +1,215 @@
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  Skeleton,
+} from '@finances/ui'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { RepeatIcon, ScanSearchIcon } from 'lucide-react'
+import { useState } from 'react'
+import { toast } from 'sonner'
+import type { RecurringItemDto } from '#/api/types.gen'
+import { PageHeader } from '#/components/app-shell/PageHeader'
+import { plural } from '#/lib/plural'
+import { categoriesQuery } from '#/lib/queries'
+import { groupItems, todayInParis } from './format'
+import {
+  afterRecurringChanged,
+  detectRecurring,
+  recurringErrorMessage,
+  recurringListQuery,
+  recurringSummaryQuery,
+} from './queries'
+import { RecurringEditor } from './RecurringEditor'
+import { RecurringKpis } from './RecurringKpis'
+import { RecurringList } from './RecurringList'
+import { SuggestionsSection } from './SuggestionsSection'
+import { UpcomingTimeline } from './UpcomingTimeline'
+
+function PageSkeleton() {
+  return (
+    <div className="space-y-3" aria-busy="true" aria-label="Chargement">
+      <Skeleton className="h-36 w-full rounded-xl" />
+      {[0, 1, 2].map((i) => (
+        <Skeleton key={i} className="h-20 w-full rounded-xl" />
+      ))}
+    </div>
+  )
+}
+
+/**
+ * Subscriptions and fixed costs: recurring series detected from the
+ * transactions (transfers and one-offs never count), reviewed by the user,
+ * with their monthly and yearly costs, price changes and the next debits.
+ */
+export function SubscriptionsPage() {
+  const today = todayInParis()
+  const queryClient = useQueryClient()
+  const list = useQuery(recurringListQuery)
+  const summary = useQuery(recurringSummaryQuery)
+  const categories = useQuery(categoriesQuery)
+  const [editing, setEditing] = useState<RecurringItemDto | null>(null)
+
+  const detect = useMutation({
+    mutationFn: detectRecurring,
+    onSuccess: async (result) => {
+      toast.success(
+        result.createdCount > 0
+          ? `${plural(result.createdCount, 'nouvelle suggestion', 'nouvelles suggestions')}`
+          : 'Analyse terminée : aucune nouvelle suggestion',
+      )
+      await afterRecurringChanged(queryClient)
+    },
+    onError: (error) => toast.error(recurringErrorMessage(error)),
+  })
+
+  const groups = list.data ? groupItems(list.data) : null
+  const confirmedCount = groups
+    ? groups.subscriptions.length +
+      groups.fixed.length +
+      groups.variable.length +
+      groups.incomes.length
+    : 0
+  const empty =
+    groups !== null && confirmedCount === 0 && groups.suggestions.length === 0
+
+  const analyse = (
+    <Button
+      iconStart={<ScanSearchIcon />}
+      loading={detect.isPending}
+      onClick={() => detect.mutate()}
+    >
+      Analyser mes opérations
+    </Button>
+  )
+
+  return (
+    <div className="@container space-y-6">
+      <PageHeader
+        title="Abonnements & charges fixes"
+        description="Vos dépenses et revenus qui reviennent chaque semaine, mois ou année."
+      />
+
+      {list.isPending && <PageSkeleton />}
+
+      {list.isError && (
+        <Alert variant="destructive">
+          <AlertTitle>Impossible de charger les abonnements.</AlertTitle>
+          <AlertDescription>
+            <Button size="sm" outline onClick={() => void list.refetch()}>
+              Réessayer
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {empty && (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <RepeatIcon />
+            </EmptyMedia>
+            <EmptyTitle>Aucune opération récurrente</EmptyTitle>
+            <EmptyDescription>
+              Lancez l’analyse : loyer, abonnements, assurances ou salaire
+              seront repérés dans vos opérations importées. Les virements entre
+              vos comptes et les opérations ponctuelles sont ignorés.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>{analyse}</EmptyContent>
+        </Empty>
+      )}
+
+      {groups && !empty && (
+        <>
+          <div className="flex justify-end">{analyse}</div>
+          {summary.isSuccess && <RecurringKpis summary={summary.data} />}
+
+          {groups.suggestions.length > 0 && (
+            <SuggestionsSection
+              suggestions={groups.suggestions}
+              onEdit={setEditing}
+            />
+          )}
+
+          {confirmedCount > 0 && (
+            <div className="grid gap-6 @3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @3xl:items-start">
+              <section
+                aria-label="Opérations récurrentes"
+                className="space-y-5"
+              >
+                <RecurringList
+                  title="Abonnements"
+                  items={groups.subscriptions}
+                  today={today}
+                  onEdit={setEditing}
+                />
+                <RecurringList
+                  title="Autres charges fixes"
+                  items={groups.fixed}
+                  today={today}
+                  onEdit={setEditing}
+                />
+                <RecurringList
+                  title="Charges variables"
+                  description="Récurrentes, mais pas comptées comme charges fixes."
+                  items={groups.variable}
+                  today={today}
+                  onEdit={setEditing}
+                />
+                <RecurringList
+                  title="Revenus récurrents"
+                  items={groups.incomes}
+                  today={today}
+                  onEdit={setEditing}
+                />
+              </section>
+              <UpcomingTimeline items={list.data ?? []} today={today} />
+            </div>
+          )}
+
+          {groups.dismissed.length > 0 && (
+            <details className="group">
+              <summary className="text-muted-foreground cursor-pointer text-sm">
+                {plural(
+                  groups.dismissed.length,
+                  'élément ignoré',
+                  'éléments ignorés',
+                )}
+              </summary>
+              <ul className="mt-2 divide-y rounded-xl border">
+                {groups.dismissed.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      className="hover:bg-muted/50 w-full truncate p-3 text-left text-sm"
+                      onClick={() => setEditing(item)}
+                    >
+                      {item.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </>
+      )}
+
+      <RecurringEditor
+        item={editing}
+        onOpenChange={(open) => {
+          if (!open) setEditing(null)
+        }}
+        categories={categories.data ?? []}
+        today={today}
+      />
+    </div>
+  )
+}

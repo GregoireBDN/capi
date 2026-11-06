@@ -14,6 +14,7 @@ import { DatabaseModule } from '#/database/database.module'
 import { EmailModule } from '#/email/email.module'
 import { HealthModule } from '#/health/health.module'
 import { ImportsModule } from '#/imports/imports.module'
+import { RecurringModule } from '#/recurring/recurring.module'
 import { SpendingModule } from '#/spending/spending.module'
 import { TransactionsModule } from '#/transactions/transactions.module'
 import { UserModule } from '#/user/user.module'
@@ -41,6 +42,7 @@ import { UserModule } from '#/user/user.module'
     BudgetsModule,
     DashboardModule,
     SpendingModule,
+    RecurringModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

@@ -36,3 +36,27 @@ export type RuleMatchType = (typeof RULE_MATCH_TYPES)[number]
 
 export const IMPORT_SOURCES = ['cic_csv', 'spreadsheet'] as const
 export type ImportSource = (typeof IMPORT_SOURCES)[number]
+
+export const RECURRING_CADENCES = [
+  'weekly',
+  'monthly',
+  'quarterly',
+  'yearly',
+] as const
+export type RecurringCadence = (typeof RECURRING_CADENCES)[number]
+
+/** `debit` = money out (subscriptions, rent), `credit` = money in (salary). */
+export const RECURRING_DIRECTIONS = ['debit', 'credit'] as const
+export type RecurringDirection = (typeof RECURRING_DIRECTIONS)[number]
+
+/** `fixed` = same price every time (±1 % or ±1 €), `variable` otherwise. */
+export const RECURRING_AMOUNT_TYPES = ['fixed', 'variable'] as const
+export type RecurringAmountType = (typeof RECURRING_AMOUNT_TYPES)[number]
+
+/** Detected items start `suggested`; `dismissed` ones are never suggested again. */
+export const RECURRING_STATUSES = [
+  'suggested',
+  'confirmed',
+  'dismissed',
+] as const
+export type RecurringStatus = (typeof RECURRING_STATUSES)[number]
