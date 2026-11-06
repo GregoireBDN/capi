@@ -13,6 +13,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
   InputGroupText,
+  ProgressMeter,
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CircleCheckIcon, PencilIcon, TargetIcon } from 'lucide-react'
@@ -28,7 +29,6 @@ import { formatMonth } from '#/lib/calendar'
 import { formatCents } from '#/lib/money'
 import { savingsErrorMessage } from './errors'
 import { afterSavingsChanged, saveTarget } from './queries'
-import { SavingsMeter } from './SavingsMeter'
 
 /**
  * The monthly savings target ("Épargne cible") against this month's net
@@ -94,10 +94,14 @@ function TargetProgress({
   return (
     <>
       <div className="space-y-1.5">
-        <SavingsMeter
-          name={`${formatMonth(current.month)} (en cours)`}
-          valueCents={current.netCents}
-          targetCents={target}
+        <ProgressMeter
+          goal="reach"
+          label={`${formatMonth(current.month)} (en cours)`}
+          value={current.netCents}
+          target={target}
+          valueFormatter={formatCents}
+          // The line below says what is left, or by how much it is passed.
+          hideStatus
         />
         <p className="text-muted-foreground flex items-center gap-1 text-xs">
           {gap >= 0 ? (
