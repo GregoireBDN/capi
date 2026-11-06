@@ -13,13 +13,15 @@ import {
 
 import {
   CartesianFooter,
-  indexAxisProps,
   REFERENCE_LINE_PROPS,
   useCartesianDefaults,
+  useIndexAxis,
   valueAxisProps,
   valueExtent,
   ZERO_LINE_PROPS,
   type CartesianChartProps,
+  type ChartIndexReferenceLine,
+  type TimeSeriesChartProps,
 } from './cartesian'
 import {
   ChartContainer,
@@ -34,18 +36,20 @@ import {
  * TYPES
  * ========================================================================= */
 
-type LineChartProps<TDatum extends ChartDatum> = CartesianChartProps<TDatum> & {
-  /**
-   * Forces the value axis to start at zero. Default `false`: the axis fits the
-   * data, which shows the trend of slow-moving series such as net worth.
-   */
-  zeroBaseline?: boolean
-}
+type LineChartProps<TDatum extends ChartDatum> = CartesianChartProps<TDatum> &
+  TimeSeriesChartProps & {
+    /**
+     * Forces the value axis to start at zero. Default `false`: the axis fits the
+     * data, which shows the trend of slow-moving series such as net worth.
+     */
+    zeroBaseline?: boolean
+  }
 
-type AreaChartProps<TDatum extends ChartDatum> = CartesianChartProps<TDatum> & {
-  /** Stacks the areas (part-to-whole over time). Default: overlapping. */
-  stacked?: boolean
-}
+type AreaChartProps<TDatum extends ChartDatum> = CartesianChartProps<TDatum> &
+  TimeSeriesChartProps & {
+    /** Stacks the areas (part-to-whole over time). Default: overlapping. */
+    stacked?: boolean
+  }
 
 /* ============================================================================
  * CONSTANTS
@@ -62,6 +66,8 @@ const ACTIVE_DOT = {
 const AREA_FILL_OPACITY = 0.12
 const CURSOR = { stroke: 'var(--border)', strokeWidth: 1 } as const
 const MARGIN = { top: 8, right: 8, bottom: 0, left: 0 } as const
+/** Extra top room for the labels of vertical reference lines. */
+const MARGIN_WITH_INDEX_LABELS = { ...MARGIN, top: 24 } as const
 
 /* ============================================================================
  * HELPERS
@@ -96,6 +102,57 @@ function referenceLineElements(
   ))
 }
 
+/**
+ * Label of a vertical reference line: above the plot, reading rightwards
+ * from the line, so it clears the value-axis labels on the left.
+ */
+function IndexLineLabel({
+  text,
+  viewBox,
+}: {
+  text: string
+  viewBox?: { x?: number; y?: number }
+}) {
+  if (viewBox?.x === undefined || viewBox.y === undefined) return null
+  return (
+    <text
+      x={viewBox.x + 4}
+      y={viewBox.y - 8}
+      textAnchor="start"
+      fontSize={11}
+      fill="var(--muted-foreground)"
+    >
+      {text}
+    </text>
+  )
+}
+
+/** Vertical reference lines (e.g. today), labelled above the plot. */
+function indexReferenceLineElements(
+  lines: ReadonlyArray<ChartIndexReferenceLine> | undefined,
+  position: (value: string) => string | number | undefined,
+) {
+  return lines?.flatMap((line) => {
+    const x = position(line.value)
+    if (x === undefined) return []
+    return [
+      <ReferenceLine
+        key={`index-${line.value}-${line.label ?? ''}`}
+        x={x}
+        {...REFERENCE_LINE_PROPS}
+        label={line.label ? <IndexLineLabel text={line.label} /> : undefined}
+      />,
+    ]
+  })
+}
+
+/** Chart margin, with room above the plot for vertical line labels. */
+function chartMargin(
+  lines: ReadonlyArray<ChartIndexReferenceLine> | undefined,
+) {
+  return lines?.some((line) => line.label) ? MARGIN_WITH_INDEX_LABELS : MARGIN
+}
+
 /* ============================================================================
  * LINE CHART
  * ========================================================================= */
@@ -121,12 +178,21 @@ function LineChart<TDatum extends ChartDatum>(props: LineChartProps<TDatum>) {
     config,
     zeroBaseline = false,
     referenceLines,
+    indexScale,
+    indexReferenceLines,
     emptyMessage,
     indexLabel,
     className,
   } = props
   const defaults = useCartesianDefaults(props, 'Courbe')
   const { keys } = defaults
+  const indexAxis = useIndexAxis({
+    data,
+    index,
+    indexScale,
+    indexFormatter: defaults.indexFormatter,
+    tooltipIndexFormatter: defaults.tooltipIndexFormatter,
+  })
 
   if (!data.length) {
     return (
@@ -158,9 +224,12 @@ function LineChart<TDatum extends ChartDatum>(props: LineChartProps<TDatum>) {
         />
       }
     >
-      <RechartsLineChart data={data as TDatum[]} margin={MARGIN}>
+      <RechartsLineChart
+        data={indexAxis.rows}
+        margin={chartMargin(indexReferenceLines)}
+      >
         {defaults.showGrid ? <CartesianGrid vertical={false} /> : null}
-        <XAxis {...indexAxisProps(index, defaults.indexFormatter)} />
+        <XAxis {...indexAxis.axisProps} />
         <YAxis
           {...valueAxisProps(
             defaults.axisFormatter,
@@ -175,12 +244,13 @@ function LineChart<TDatum extends ChartDatum>(props: LineChartProps<TDatum>) {
           content={
             <ChartTooltipContent
               valueFormatter={defaults.valueFormatter}
-              labelFormatter={defaults.tooltipIndexFormatter}
+              labelFormatter={indexAxis.tooltipLabelFormatter}
             />
           }
         />
         {showZero ? <ReferenceLine {...ZERO_LINE_PROPS} /> : null}
         {referenceLineElements(referenceLines)}
+        {indexReferenceLineElements(indexReferenceLines, indexAxis.position)}
         {keys.map((key) => (
           <Line
             key={key}
@@ -217,6 +287,8 @@ function AreaChart<TDatum extends ChartDatum>(props: AreaChartProps<TDatum>) {
     config,
     stacked = false,
     referenceLines,
+    indexScale,
+    indexReferenceLines,
     emptyMessage,
     indexLabel,
     className,
@@ -226,6 +298,13 @@ function AreaChart<TDatum extends ChartDatum>(props: AreaChartProps<TDatum>) {
     stacked ? 'Graphique en aires empilées' : 'Graphique en aires',
   )
   const { keys } = defaults
+  const indexAxis = useIndexAxis({
+    data,
+    index,
+    indexScale,
+    indexFormatter: defaults.indexFormatter,
+    tooltipIndexFormatter: defaults.tooltipIndexFormatter,
+  })
 
   if (!data.length) {
     return (
@@ -256,12 +335,12 @@ function AreaChart<TDatum extends ChartDatum>(props: AreaChartProps<TDatum>) {
       }
     >
       <RechartsAreaChart
-        data={data as TDatum[]}
-        margin={MARGIN}
+        data={indexAxis.rows}
+        margin={chartMargin(indexReferenceLines)}
         stackOffset={stacked ? 'sign' : undefined}
       >
         {defaults.showGrid ? <CartesianGrid vertical={false} /> : null}
-        <XAxis {...indexAxisProps(index, defaults.indexFormatter)} />
+        <XAxis {...indexAxis.axisProps} />
         <YAxis
           {...valueAxisProps(
             defaults.axisFormatter,
@@ -277,7 +356,7 @@ function AreaChart<TDatum extends ChartDatum>(props: AreaChartProps<TDatum>) {
           content={
             <ChartTooltipContent
               valueFormatter={defaults.valueFormatter}
-              labelFormatter={defaults.tooltipIndexFormatter}
+              labelFormatter={indexAxis.tooltipLabelFormatter}
             />
           }
         />
@@ -285,6 +364,7 @@ function AreaChart<TDatum extends ChartDatum>(props: AreaChartProps<TDatum>) {
           <ReferenceLine {...ZERO_LINE_PROPS} />
         ) : null}
         {referenceLineElements(referenceLines)}
+        {indexReferenceLineElements(indexReferenceLines, indexAxis.position)}
         {keys.map((key) => (
           <Area
             key={key}

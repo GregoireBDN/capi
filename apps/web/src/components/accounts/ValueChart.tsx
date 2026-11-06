@@ -9,7 +9,6 @@ import {
 import type { ChartConfig } from '@finances/ui'
 import type { SnapshotDto } from '#/api/types.gen'
 import { formatCalendarDate } from '#/lib/money'
-import { formatAxisDate } from './labels'
 
 const investmentConfig = {
   value: { label: 'Valeur', color: 'var(--chart-1)' },
@@ -27,7 +26,7 @@ const cashConfig = {
 /**
  * Value over time, with the net contributions underneath for investment
  * accounts: the gap between the two is the gain. One point per snapshot,
- * spaced evenly (statements are not on a regular rhythm).
+ * spaced by date on a time axis (statements are not on a regular rhythm).
  */
 export function ValueChart({
   snapshots,
@@ -72,7 +71,7 @@ export function ValueChart({
                   ? valueConfig
                   : cashConfig
             }
-            indexFormatter={formatAxisDate}
+            indexScale="time"
             tooltipIndexFormatter={formatCalendarDate}
             indexLabel="Date"
             label={

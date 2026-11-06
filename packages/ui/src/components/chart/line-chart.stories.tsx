@@ -1,21 +1,33 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect } from 'storybook/test'
+import { expect, waitFor } from 'storybook/test'
 
 import {
+  cashflowConfig,
+  FORECAST_TODAY,
+  forecastConfig,
+  forecastNovember,
   netWorth2026,
   netWorthConfig,
   netWorthSplitConfig,
   savings2026,
   savingsConfig,
+  zeroCashflow2026,
 } from './chart.fixtures'
 import {
+  captureReactWarnings,
   ChartFrame,
   DARK,
   expectKeyboardTooltip,
+  expectNoDuplicateKeys,
   findChartGraphic,
   MOBILE,
 } from './chart.story-utils'
-import { formatEuros, formatMonthLong, formatMonthShort } from './format'
+import {
+  formatDay,
+  formatEuros,
+  formatMonthLong,
+  formatMonthShort,
+} from './format'
 import { LineChart } from './line-chart'
 
 const meta = {
@@ -27,7 +39,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Time series such as net worth by month: 2px lines, a crosshair tooltip listing every series, optional `referenceLines` and `zeroBaseline`. Amounts are **integer cents**.',
+          'Time series such as net worth by month: 2px lines, a crosshair tooltip listing every series, optional `referenceLines` (horizontal), `indexReferenceLines` (vertical, e.g. today) and `zeroBaseline`. `indexScale="time"` spaces `YYYY-MM-DD` rows by date. Amounts are **integer cents**.',
       },
     },
   },
@@ -108,4 +120,66 @@ export const Empty: Story = {
       canvas.getByText('Aucun relevé de solde pour le moment'),
     ).toBeVisible()
   },
+}
+
+/** All-zero series: clean `0 €` / `1 €` axis, no duplicate-key warning. */
+export const AllZero: Story = {
+  args: {
+    data: zeroCashflow2026,
+    config: cashflowConfig,
+    label: 'Flux mensuels sans opération',
+  },
+  beforeEach: captureReactWarnings,
+  play: async ({ canvasElement }) => {
+    await findChartGraphic(canvasElement, /Flux mensuels sans opération/)
+    await expectNoDuplicateKeys()
+  },
+}
+
+const forecastArgs = {
+  data: forecastNovember,
+  index: 'date',
+  config: forecastConfig,
+  indexFormatter: formatDay,
+  tooltipIndexFormatter: formatDay,
+  indexLabel: 'Jour',
+  referenceLines: [{ value: 50_000, label: 'Seuil' }],
+  indexReferenceLines: [{ value: FORECAST_TODAY, label: 'Aujourd’hui' }],
+  label: 'Solde prévu par jour, du 6 au 30 novembre 2026',
+} as const
+
+/** A vertical "today" marker, labelled above the plot, plus a threshold. */
+export const TodayMarker: Story = {
+  args: forecastArgs,
+  render: (args) => (
+    <ChartFrame title="Projection jour par jour" description="Novembre 2026">
+      <LineChart {...args} />
+    </ChartFrame>
+  ),
+  beforeEach: captureReactWarnings,
+  play: async ({ canvasElement }) => {
+    await findChartGraphic(canvasElement, /Solde prévu par jour/)
+    await waitFor(() =>
+      expect(canvasElement.querySelector('svg')?.textContent).toContain(
+        'Aujourd’hui',
+      ),
+    )
+    await expectNoDuplicateKeys()
+  },
+}
+
+export const TodayMarkerDark: Story = {
+  ...TodayMarker,
+  globals: DARK,
+}
+
+export const TodayMarkerMobile: Story = {
+  ...TodayMarker,
+  globals: MOBILE,
+  parameters: { layout: 'padded' },
+  render: (args) => (
+    <ChartFrame title="Projection jour par jour" className="w-full">
+      <LineChart {...args} height={200} />
+    </ChartFrame>
+  ),
 }

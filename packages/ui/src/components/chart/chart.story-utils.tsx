@@ -72,3 +72,29 @@ export async function expectKeyboardTooltip(
     }
   })
 }
+
+/** React warnings captured while a story renders (see `captureReactWarnings`). */
+const reactWarnings: string[] = []
+
+/**
+ * Story `beforeEach`: records `console.error` calls during the render so a
+ * play step can assert that React logged no duplicate-key warning.
+ */
+export function captureReactWarnings(): () => void {
+  reactWarnings.length = 0
+  const original = console.error
+  console.error = (...args: unknown[]) => {
+    reactWarnings.push(args.map(String).join(' '))
+    original(...args)
+  }
+  return () => {
+    console.error = original
+  }
+}
+
+/** Fails if React warned about two children with the same key. */
+export async function expectNoDuplicateKeys(): Promise<void> {
+  await expect(
+    reactWarnings.filter((warning) => /same key/i.test(warning)),
+  ).toEqual([])
+}

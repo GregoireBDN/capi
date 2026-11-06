@@ -113,7 +113,7 @@ export function PasteHistorySheet({
           </Field>
 
           {errors.length > 0 && (
-            <Alert variant="destructive">
+            <Alert variant="warning">
               <AlertTitle>
                 {plural(errors.length, 'ligne ignorée', 'lignes ignorées')}
               </AlertTitle>

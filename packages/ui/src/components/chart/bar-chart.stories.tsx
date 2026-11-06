@@ -9,11 +9,14 @@ import {
   savingsConfig,
   signedCashflow2026,
   signedCashflowConfig,
+  zeroCashflow2026,
 } from './chart.fixtures'
 import {
+  captureReactWarnings,
   ChartFrame,
   DARK,
   expectKeyboardTooltip,
+  expectNoDuplicateKeys,
   findChartGraphic,
   MOBILE,
 } from './chart.story-utils'
@@ -128,5 +131,18 @@ export const Empty: Story = {
     await expect(
       within(canvasElement).getByText('Aucune donnée pour cette période'),
     ).toBeVisible()
+  },
+}
+
+/**
+ * All-zero months (fresh install): the value axis shows `0 €` and `1 €`, and
+ * Recharts gets unique ticks, so React logs no duplicate-key warning.
+ */
+export const AllZero: Story = {
+  args: { data: zeroCashflow2026, label: 'Flux mensuels sans opération' },
+  beforeEach: captureReactWarnings,
+  play: async ({ canvasElement }) => {
+    await findChartGraphic(canvasElement, /Flux mensuels sans opération/)
+    await expectNoDuplicateKeys()
   },
 }
