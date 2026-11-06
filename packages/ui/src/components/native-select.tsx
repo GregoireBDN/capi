@@ -91,6 +91,8 @@ function NativeSelect({
 
             // Small Size Variant
             'data-[size=sm]:h-7',
+            // Touch screens: 44px high whatever the size
+            'pointer-coarse:data-[size=sm]:h-8',
             'data-[size=sm]:rounded-[min(var(--radius-md),10px)]',
             'data-[size=sm]:py-0.5',
 

@@ -563,7 +563,7 @@ function ChartDataTable({
         data-slot="chart-data-table"
         className={cn('group text-xs', className)}
       >
-        <summary className="w-fit cursor-pointer rounded-sm text-muted-foreground select-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+        <summary className="relative w-fit cursor-pointer pointer-coarse:touch-hitbox rounded-sm text-muted-foreground select-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
           Voir les données
         </summary>
         <div className="mt-2">{table}</div>

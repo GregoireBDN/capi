@@ -17,7 +17,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
           className={cn(
             [
               'h-9 w-full min-w-0',
-              'px-3 py-1 pr-9',
+              'px-3 py-1 pr-11',
               'rounded-lg border border-input bg-transparent',
               'text-base md:text-sm',
               'transition-colors outline-none',
@@ -37,7 +37,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
           aria-label={
             visible ? 'Masquer le mot de passe' : 'Afficher le mot de passe'
           }
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-muted-foreground hover:text-foreground transition-colors"
           tabIndex={-1}
         >
           {visible ? (

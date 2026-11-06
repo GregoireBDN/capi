@@ -36,7 +36,7 @@ function Checkbox({ className, ...props }: CheckboxProps) {
           'transition-colors outline-none',
 
           // Click area expansion
-          'after:absolute after:-inset-x-3 after:-inset-y-2',
+          'touch-hitbox',
 
           // Focus states
           'focus-visible:border-ring',

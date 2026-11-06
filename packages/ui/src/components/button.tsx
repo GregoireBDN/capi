@@ -48,13 +48,17 @@ type ButtonProps = React.ComponentProps<'button'> &
 const buttonBase = cva(
   [
     // Layout & Display
-    'group/button inline-flex shrink-0 items-center justify-center',
+    'group/button relative inline-flex shrink-0 items-center justify-center',
+
+    // Touch screens: at least a 44×44 px hit area, whatever the size
+    'pointer-coarse:touch-hitbox',
 
     // Spacing & Sizing
     'rounded-lg border border-transparent bg-clip-padding',
 
-    // Typography
-    'text-sm font-medium whitespace-nowrap',
+    // Typography: one line, but a label wider than its container wraps
+    // (centred) instead of overflowing it (narrow phones, 22px root)
+    'text-sm font-medium text-center text-balance max-w-full',
 
     // Transitions & Interactivity
     'transition-all outline-none select-none',
@@ -81,23 +85,27 @@ const buttonBase = cva(
     variants: {
       size: {
         xs: [
-          'h-6 gap-1 px-2 text-xs',
+          'min-h-6 gap-1 px-2 py-0.5 text-xs',
           'rounded-[min(var(--radius-md),10px)]',
           'in-data-[slot=button-group]:rounded-lg',
           '[&_svg]:size-3',
         ].join(' '),
 
         sm: [
-          'h-7 gap-1 px-2.5 text-[0.8rem]',
+          'min-h-7 gap-1 px-2.5 py-0.5 text-[0.8rem]',
           'rounded-[min(var(--radius-md),12px)]',
           'in-data-[slot=button-group]:rounded-lg',
           '[&_svg]:size-3.5',
         ].join(' '),
 
-        default: ['h-8 gap-1.5 px-2.5', '[&_svg]:size-4'].join(' '),
+        default: ['min-h-8 gap-1.5 px-2.5 py-1', '[&_svg]:size-4'].join(' '),
 
-        lg: ['h-9 gap-1.5 px-2.5 font-medium', '[&_svg]:size-4'].join(' '),
-        xl: ['h-12 gap-2 px-4 font-medium', '[&_svg]:size-6'].join(' '),
+        lg: ['min-h-9 gap-1.5 px-2.5 py-1 font-medium', '[&_svg]:size-4'].join(
+          ' ',
+        ),
+        xl: ['min-h-12 gap-2 px-4 py-1.5 font-medium', '[&_svg]:size-6'].join(
+          ' ',
+        ),
       },
     },
     defaultVariants: {

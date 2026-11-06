@@ -322,3 +322,24 @@ export const LoadingDoesNotFire: Story = {
     await expect(args.onClick).not.toHaveBeenCalled()
   },
 }
+
+/**
+ * A label wider than its container wraps (centred) instead of overflowing it,
+ * e.g. on a 320px phone with the app's 22px root font. On touch screens
+ * (`pointer: coarse`) every button also gets an invisible hit area of at least
+ * 44×44 px (`touch-hitbox`), whatever its size.
+ */
+export const LongLabelInNarrowContainer: Story = {
+  render: () => (
+    <div className="w-40 rounded-md border border-dashed p-2">
+      <Button fullWidth>Enregistrer les modifications</Button>
+    </div>
+  ),
+  play: async ({ canvas }) => {
+    const button = canvas.getByRole('button')
+    const box = button.parentElement!.getBoundingClientRect()
+    await expect(button.getBoundingClientRect().width).toBeLessThanOrEqual(
+      box.width,
+    )
+  },
+}

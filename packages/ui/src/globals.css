@@ -1,4 +1,22 @@
 /**
+ * Touch Hit Area
+ * Grows the hit area of a small control to at least 44×44 px (Apple HIG /
+ * WCAG 2.5.5) with an invisible ::after, without changing its look or layout.
+ * The element must be positioned (`relative`, `absolute`, ...).
+ * Usage: relative touch-hitbox, or pointer-coarse:touch-hitbox
+ */
+@utility touch-hitbox {
+  &::after {
+    content: '';
+    position: absolute;
+    /* Negative only when the control is smaller than 44px on that axis:
+     * top/bottom percentages resolve against its height, left/right against
+     * its width. */
+    inset: min(0px, calc((100% - 44px) / 2));
+  }
+}
+
+/**
  * Dark Mode Variant
  * Enables dark mode styling via class-based dark mode
  * Usage: dark:bg-background

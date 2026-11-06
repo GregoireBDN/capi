@@ -199,6 +199,8 @@ function DropdownMenuItem({
 
           // Layout
           'flex items-center gap-1.5',
+          // Touch screens: 44px-high rows
+          'pointer-coarse:min-h-11',
 
           // Spacing
           'px-1.5 py-1',
@@ -259,6 +261,8 @@ function DropdownMenuCheckboxItem({
         [
           // Layout
           'relative flex items-center gap-1.5',
+          // Touch screens: 44px-high rows
+          'pointer-coarse:min-h-11',
 
           // Spacing
           'py-1 pr-8 pl-1.5',
@@ -343,6 +347,8 @@ function DropdownMenuRadioItem({
         [
           // Layout
           'relative flex items-center gap-1.5',
+          // Touch screens: 44px-high rows
+          'pointer-coarse:min-h-11',
 
           // Spacing
           'py-1 pr-8 pl-1.5',
@@ -507,6 +513,8 @@ function DropdownMenuSubTrigger({
         [
           // Layout
           'flex items-center gap-1.5',
+          // Touch screens: 44px-high rows
+          'pointer-coarse:min-h-11',
 
           // Spacing
           'px-1.5 py-1',

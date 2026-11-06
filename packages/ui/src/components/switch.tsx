@@ -44,7 +44,7 @@ function Switch({ className, size = 'default', ...props }: SwitchProps) {
           'transition-all outline-none',
 
           // Expanded clickable area
-          'after:absolute after:-inset-x-3 after:-inset-y-2',
+          'touch-hitbox',
 
           // Focus States
           'focus-visible:border-ring',

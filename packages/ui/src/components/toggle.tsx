@@ -32,7 +32,10 @@ const toggleVariants = cva(
     'group/toggle',
 
     // Layout
-    'inline-flex items-center justify-center gap-1',
+    'relative inline-flex items-center justify-center gap-1',
+
+    // Touch screens: at least a 44×44 px hit area, whatever the size
+    'pointer-coarse:touch-hitbox',
 
     // Styling
     'rounded-lg',
