@@ -1763,6 +1763,274 @@
           "Transactions"
         ]
       }
+    },
+    "/api/budgets": {
+      "get": {
+        "description": "Per budgeted category: target in effect, spent (expense transactions of the category, refunds deducted, transfers never counted), remaining, share used and status; totals; and the spending outside budgeted categories.",
+        "operationId": "BudgetsController_month",
+        "parameters": [
+          {
+            "description": "Calendar month (YYYY-MM). Default: the current month in Europe/Paris.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-11",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetMonthDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid month."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Targets vs spending for a month",
+        "tags": [
+          "Budgets"
+        ]
+      }
+    },
+    "/api/budgets/history": {
+      "get": {
+        "description": "For every category budgeted in at least one month of the window, plus monthly totals over the budgeted categories.",
+        "operationId": "BudgetsController_history",
+        "parameters": [
+          {
+            "description": "Number of months, ending with `month`.",
+            "required": false,
+            "name": "months",
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 24,
+              "default": 6,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Last month of the window (YYYY-MM). Default: the current month in Europe/Paris.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-11",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetHistoryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid months or month."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Target and spending per month",
+        "tags": [
+          "Budgets"
+        ]
+      }
+    },
+    "/api/budgets/suggest": {
+      "post": {
+        "description": "Average monthly spending of each expense category over the full months before `month`, one-offs excluded, rounded to the euro. Nothing is saved.",
+        "operationId": "BudgetsController_suggest",
+        "parameters": [
+          {
+            "description": "Number of full months averaged, before `month`.",
+            "required": false,
+            "name": "months",
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 12,
+              "default": 3,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Month the targets are for (YYYY-MM); the averaged months are the ones before it. Default: the current month in Europe/Paris.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-11",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetSuggestionsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid months or month."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Suggest targets from past spending",
+        "tags": [
+          "Budgets"
+        ]
+      }
+    },
+    "/api/budgets/{categoryId}": {
+      "put": {
+        "description": "Applies from `effectiveFrom` (default: the current month) on; earlier months keep their target. Only expense categories can have a budget.",
+        "operationId": "BudgetsController_upsert",
+        "parameters": [
+          {
+            "name": "categoryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertBudgetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an expense category, or invalid body."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown category."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Set the monthly target of a category",
+        "tags": [
+          "Budgets"
+        ]
+      },
+      "delete": {
+        "description": "From `from` (default: the current month) on. Targets planned for later months are deleted; earlier months keep their target.",
+        "operationId": "BudgetsController_remove",
+        "parameters": [
+          {
+            "description": "First month without a budget (YYYY-MM). Default: the current month in Europe/Paris. Earlier months keep their target.",
+            "required": false,
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-11",
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Invalid month."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "The category never had a budget."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Stop budgeting a category",
+        "tags": [
+          "Budgets"
+        ]
+      }
     }
   },
   "info": {
@@ -3432,6 +3700,504 @@
             "description": "Free text; an empty string clears it."
           }
         }
+      },
+      "BudgetStatus": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "warning",
+          "over"
+        ],
+        "description": "`ok` below 80 % of the target, `warning` from 80 % to 100 % included, `over` above 100 %."
+      },
+      "BudgetLineDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "example": "#d97706"
+          },
+          "targetCents": {
+            "type": "integer",
+            "description": "Monthly target in cents."
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "example": "2026-11",
+            "description": "Month the target in effect was set from."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "spentCents": {
+            "type": "integer",
+            "description": "Spent in the month, in positive cents: `expense` transactions of the category (refunds filed in it reduce it). Transfers never count."
+          },
+          "spentExcludingOneOffsCents": {
+            "type": "integer",
+            "description": "`spentCents` without the one-off transactions."
+          },
+          "remainingCents": {
+            "type": "integer",
+            "description": "`targetCents` − `spentCents` (negative when over)."
+          },
+          "percentUsed": {
+            "type": "number",
+            "example": 85.3,
+            "description": "Spent / target × 100, one decimal."
+          },
+          "status": {
+            "description": "`ok` below 80 % of the target, `warning` from 80 % to 100 % included, `over` above 100 %.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BudgetStatus"
+              }
+            ]
+          }
+        },
+        "required": [
+          "categoryId",
+          "slug",
+          "name",
+          "color",
+          "targetCents",
+          "effectiveFrom",
+          "note",
+          "spentCents",
+          "spentExcludingOneOffsCents",
+          "remainingCents",
+          "percentUsed",
+          "status"
+        ]
+      },
+      "BudgetTotalsDto": {
+        "type": "object",
+        "properties": {
+          "targetCents": {
+            "type": "integer",
+            "description": "Sum of the targets of the month."
+          },
+          "spentCents": {
+            "type": "integer",
+            "description": "Spent in the budgeted categories."
+          },
+          "spentExcludingOneOffsCents": {
+            "type": "integer"
+          },
+          "remainingCents": {
+            "type": "integer"
+          },
+          "percentUsed": {
+            "type": "number",
+            "description": "Zero when nothing is budgeted."
+          },
+          "status": {
+            "description": "`ok` below 80 % of the target, `warning` from 80 % to 100 % included, `over` above 100 %.",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BudgetStatus"
+              }
+            ]
+          },
+          "budgetCount": {
+            "type": "integer"
+          },
+          "overCount": {
+            "type": "integer",
+            "description": "Categories over target."
+          },
+          "warningCount": {
+            "type": "integer",
+            "description": "Categories between 80 % and 100 % of target."
+          }
+        },
+        "required": [
+          "targetCents",
+          "spentCents",
+          "spentExcludingOneOffsCents",
+          "remainingCents",
+          "percentUsed",
+          "status",
+          "budgetCount",
+          "overCount",
+          "warningCount"
+        ]
+      },
+      "UnbudgetedCategoryDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Null for expenses without a category."
+          },
+          "slug": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "budgetable": {
+            "type": "boolean",
+            "description": "Whether a budget can be set (an `expense` category)."
+          },
+          "spentCents": {
+            "type": "integer",
+            "description": "Spent, in positive cents."
+          }
+        },
+        "required": [
+          "categoryId",
+          "slug",
+          "name",
+          "color",
+          "budgetable",
+          "spentCents"
+        ]
+      },
+      "UnbudgetedSpendingDto": {
+        "type": "object",
+        "properties": {
+          "totalCents": {
+            "type": "integer",
+            "description": "Expenses of the month outside the budgeted categories (uncategorized included), in positive cents."
+          },
+          "categoryCount": {
+            "type": "integer",
+            "description": "Groups (categories, or \"uncategorized\") with spending."
+          },
+          "top": {
+            "description": "The 5 biggest, most spent first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnbudgetedCategoryDto"
+            }
+          }
+        },
+        "required": [
+          "totalCents",
+          "categoryCount",
+          "top"
+        ]
+      },
+      "BudgetMonthDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "example": "2026-11"
+          },
+          "items": {
+            "description": "Budgeted categories, highest share used first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetLineDto"
+            }
+          },
+          "totals": {
+            "$ref": "#/components/schemas/BudgetTotalsDto"
+          },
+          "unbudgeted": {
+            "$ref": "#/components/schemas/UnbudgetedSpendingDto"
+          }
+        },
+        "required": [
+          "month",
+          "items",
+          "totals",
+          "unbudgeted"
+        ]
+      },
+      "BudgetHistoryCellDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "example": "2026-11"
+          },
+          "targetCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Target in effect, null when not budgeted that month."
+          },
+          "spentCents": {
+            "type": "integer"
+          },
+          "status": {
+            "description": "`ok` below 80 % of the target, `warning` from 80 % to 100 % included, `over` above 100 %.",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BudgetStatus"
+              }
+            ]
+          }
+        },
+        "required": [
+          "month",
+          "targetCents",
+          "spentCents",
+          "status"
+        ]
+      },
+      "BudgetHistoryCategoryDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "example": "#d97706"
+          },
+          "months": {
+            "description": "Oldest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetHistoryCellDto"
+            }
+          }
+        },
+        "required": [
+          "categoryId",
+          "slug",
+          "name",
+          "color",
+          "months"
+        ]
+      },
+      "BudgetHistoryTotalDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "example": "2026-11"
+          },
+          "targetCents": {
+            "type": "integer",
+            "description": "Sum of the targets."
+          },
+          "spentCents": {
+            "type": "integer",
+            "description": "Spent in the categories budgeted that month."
+          },
+          "status": {
+            "description": "`ok` below 80 % of the target, `warning` from 80 % to 100 % included, `over` above 100 %.",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BudgetStatus"
+              }
+            ]
+          }
+        },
+        "required": [
+          "month",
+          "targetCents",
+          "spentCents",
+          "status"
+        ]
+      },
+      "BudgetHistoryDto": {
+        "type": "object",
+        "properties": {
+          "months": {
+            "description": "Oldest first.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "categories": {
+            "description": "Categories budgeted in at least one month of the window, by name.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetHistoryCategoryDto"
+            }
+          },
+          "totals": {
+            "description": "Oldest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetHistoryTotalDto"
+            }
+          }
+        },
+        "required": [
+          "months",
+          "categories",
+          "totals"
+        ]
+      },
+      "BudgetSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "example": "#d97706"
+          },
+          "suggestedCents": {
+            "type": "integer",
+            "description": "Average rounded to the euro, in cents."
+          },
+          "averageCents": {
+            "type": "integer",
+            "description": "Exact monthly average, in cents."
+          },
+          "currentTargetCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Target in effect for `month`, if any."
+          }
+        },
+        "required": [
+          "categoryId",
+          "slug",
+          "name",
+          "color",
+          "suggestedCents",
+          "averageCents",
+          "currentTargetCents"
+        ]
+      },
+      "BudgetSuggestionsDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "example": "2026-11",
+            "description": "Month the targets are for."
+          },
+          "months": {
+            "description": "Averaged months, oldest first.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "monthsWithData": {
+            "type": "integer",
+            "description": "Averaged months that have transactions: the divisor of the average, so a short history is not diluted."
+          },
+          "items": {
+            "description": "Expense categories with spending, biggest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetSuggestionDto"
+            }
+          }
+        },
+        "required": [
+          "month",
+          "months",
+          "monthsWithData",
+          "items"
+        ]
+      },
+      "UpsertBudgetDto": {
+        "type": "object",
+        "properties": {
+          "monthlyTargetCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000,
+            "example": 40000,
+            "description": "Monthly target in integer cents."
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "example": "2026-11",
+            "description": "First month the target applies to (YYYY-MM). Default: the current month in Europe/Paris. Earlier months keep their target; a target already set for a later month still takes over from that month."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500,
+            "description": "Free note. Omitted: kept from the target in effect; null or empty: removed."
+          }
+        },
+        "required": [
+          "monthlyTargetCents"
+        ]
+      },
+      "BudgetDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "example": "2026-11",
+            "description": "First month the target applies to."
+          },
+          "monthlyTargetCents": {
+            "type": "integer",
+            "description": "Monthly target in cents."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "categoryId",
+          "effectiveFrom",
+          "monthlyTargetCents",
+          "note"
+        ]
       }
     }
   }

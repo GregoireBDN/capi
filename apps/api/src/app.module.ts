@@ -7,6 +7,7 @@ import { THROTTLE_LIMITS, THROTTLE_TTL } from './throttle.config'
 import { AllExceptionsFilter } from '#/common/filters/all-exceptions.filter'
 import { AccountsModule } from '#/accounts/accounts.module'
 import { AuthModule } from '#/auth/auth.module'
+import { BudgetsModule } from '#/budgets/budgets.module'
 import { CategoriesModule } from '#/categories/categories.module'
 import { DatabaseModule } from '#/database/database.module'
 import { EmailModule } from '#/email/email.module'
@@ -35,6 +36,7 @@ import { UserModule } from '#/user/user.module'
     AccountsModule,
     ImportsModule,
     TransactionsModule,
+    BudgetsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
