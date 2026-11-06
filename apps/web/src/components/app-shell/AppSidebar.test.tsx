@@ -58,6 +58,7 @@ async function renderAt(path: string) {
   })
   const pages = [
     '/dashboard',
+    '/spending',
     '/transactions',
     '/transactions/$id',
     '/review',
@@ -92,6 +93,7 @@ describe('AppSidebar', () => {
       links.map((link) => [link.textContent, link.getAttribute('href')]),
     ).toEqual([
       ['Tableau de bord', '/dashboard'],
+      ['Dépenses', '/spending'],
       ['Opérations', '/transactions'],
       ['À revoir', '/review'],
       ['Budget', '/budget'],
@@ -115,6 +117,17 @@ describe('AppSidebar', () => {
       expect(link).not.toHaveAttribute('aria-current')
       expect(link).not.toHaveAttribute('data-active')
     }
+  })
+
+  it('highlights "Dépenses" on the spending page', async () => {
+    const nav = await renderAt('/spending')
+    expect(nav.getByRole('link', { name: 'Dépenses' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(
+      nav.getByRole('link', { name: 'Tableau de bord' }),
+    ).not.toHaveAttribute('aria-current')
   })
 
   it('keeps the section highlighted on nested pages', async () => {

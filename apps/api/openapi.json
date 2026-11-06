@@ -1763,6 +1763,184 @@
           "Transactions"
         ]
       }
+    },
+    "/api/spending/by-category": {
+      "get": {
+        "description": "Every `expense` transaction of the month, netted per category (refunds reduce their category), with the previous month and the average of the previous full months. Transfers never count; one-offs only with `includeOneOffs=true`.",
+        "operationId": "SpendingController_byCategory",
+        "parameters": [
+          {
+            "description": "Calendar month (YYYY-MM). Default: the current month in Europe/Paris.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Counts one-off (exceptional) expenses in every figure. Default: they are left out.",
+            "required": false,
+            "name": "includeOneOffs",
+            "in": "query",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only this account. Default: every account.",
+            "required": false,
+            "name": "accountId",
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Full months before `month` that the averages cover (months before the first transaction are left out).",
+            "required": false,
+            "name": "averageMonths",
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 24,
+              "default": 6,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpendingByCategoryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filters."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Spending of a month by category",
+        "tags": [
+          "Spending"
+        ]
+      }
+    },
+    "/api/spending/trend": {
+      "get": {
+        "description": "Per month, the top categories of the period plus `other`, or a single category with `categoryId` / `uncategorized=true`. Same rules as `by-category`.",
+        "operationId": "SpendingController_trend",
+        "parameters": [
+          {
+            "description": "Calendar month (YYYY-MM). Default: the current month in Europe/Paris.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Counts one-off (exceptional) expenses in every figure. Default: they are left out.",
+            "required": false,
+            "name": "includeOneOffs",
+            "in": "query",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only this account. Default: every account.",
+            "required": false,
+            "name": "accountId",
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Months shown, ending with `month` (included).",
+            "required": false,
+            "name": "months",
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 36,
+              "default": 12,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Only this category (one series). Cannot be combined with `uncategorized`.",
+            "required": false,
+            "name": "categoryId",
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`true`: only expenses without a category (one series). Cannot be combined with `categoryId`.",
+            "required": false,
+            "name": "uncategorized",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpendingTrendDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filters."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown category."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Monthly spending over the last months",
+        "tags": [
+          "Spending"
+        ]
+      }
     }
   },
   "info": {
@@ -3432,6 +3610,242 @@
             "description": "Free text; an empty string clears it."
           }
         }
+      },
+      "CategorySpendingDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Null for the bucket of expenses without a category."
+          },
+          "slug": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "example": "#d97706"
+          },
+          "spentCents": {
+            "type": "integer",
+            "description": "Positive integer cents: expenses minus the refunds filed in the same category. Negative when refunds exceed expenses."
+          },
+          "share": {
+            "type": "number",
+            "description": "Part of the month’s total (0 to 1); 0 when the total is 0."
+          },
+          "transactionCount": {
+            "type": "integer"
+          },
+          "previousSpentCents": {
+            "type": "integer",
+            "description": "Spent the month before."
+          },
+          "deltaCents": {
+            "type": "integer",
+            "description": "`spentCents` - `previousSpentCents` (positive = spent more)."
+          },
+          "averageCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Average monthly spending over the average window (months without spending count as 0). Null without history."
+          }
+        },
+        "required": [
+          "categoryId",
+          "slug",
+          "name",
+          "color",
+          "spentCents",
+          "share",
+          "transactionCount",
+          "previousSpentCents",
+          "deltaCents",
+          "averageCents"
+        ]
+      },
+      "SpendingByCategoryDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "previousMonth": {
+            "type": "string",
+            "example": "2026-09"
+          },
+          "includeOneOffs": {
+            "type": "boolean"
+          },
+          "averageMonths": {
+            "type": "integer",
+            "description": "Months the averages actually cover: `averageMonths` asked, fewer when the history starts later."
+          },
+          "averageFrom": {
+            "type": "string",
+            "nullable": true,
+            "description": "First month of the average window; null without history."
+          },
+          "totalCents": {
+            "type": "integer",
+            "description": "Spent in the month."
+          },
+          "transactionCount": {
+            "type": "integer"
+          },
+          "previousTotalCents": {
+            "type": "integer",
+            "description": "Spent the month before."
+          },
+          "averageTotalCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "oneOffCents": {
+            "type": "integer",
+            "description": "One-off spending in the month: part of `totalCents` when `includeOneOffs`, left out of it otherwise."
+          },
+          "categories": {
+            "description": "Categories with expenses this month or the month before, biggest spending first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategorySpendingDto"
+            }
+          }
+        },
+        "required": [
+          "month",
+          "previousMonth",
+          "includeOneOffs",
+          "averageMonths",
+          "averageFrom",
+          "totalCents",
+          "transactionCount",
+          "previousTotalCents",
+          "averageTotalCents",
+          "oneOffCents",
+          "categories"
+        ]
+      },
+      "SpendingTrendSeriesType": {
+        "type": "string",
+        "enum": [
+          "category",
+          "uncategorized",
+          "other"
+        ]
+      },
+      "SpendingTrendSeriesDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Stable key: the category id, `uncategorized` or `other` (the remaining categories)."
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpendingTrendSeriesType"
+              }
+            ]
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "slug": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "valuesCents": {
+            "description": "One value per month of `months`. Positive integer cents: expenses minus the refunds filed in the same category. Negative when refunds exceed expenses.",
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "totalCents": {
+            "type": "integer",
+            "description": "Sum of `valuesCents`."
+          }
+        },
+        "required": [
+          "key",
+          "type",
+          "categoryId",
+          "slug",
+          "name",
+          "color",
+          "valuesCents",
+          "totalCents"
+        ]
+      },
+      "SpendingTrendDto": {
+        "type": "object",
+        "properties": {
+          "months": {
+            "example": [
+              "2026-09",
+              "2026-10"
+            ],
+            "description": "Months shown, oldest first.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "includeOneOffs": {
+            "type": "boolean"
+          },
+          "series": {
+            "description": "Top categories by spending over the period, then `other`; a single series when filtered by category.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpendingTrendSeriesDto"
+            }
+          },
+          "totalsCents": {
+            "description": "Spent per month, every series together.",
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "averageCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Average of `totalsCents` over the complete months shown (the current month and months before the first transaction are left out). Null when there is none."
+          },
+          "averageMonths": {
+            "type": "integer",
+            "description": "Months in that average."
+          }
+        },
+        "required": [
+          "months",
+          "includeOneOffs",
+          "series",
+          "totalsCents",
+          "averageCents",
+          "averageMonths"
+        ]
       }
     }
   }

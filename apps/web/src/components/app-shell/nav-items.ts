@@ -1,5 +1,6 @@
 import {
   ArrowLeftRightIcon,
+  ChartPieIcon,
   InboxIcon,
   LayoutDashboardIcon,
   PiggyBankIcon,
@@ -14,6 +15,7 @@ export interface NavItem {
   label: string
   to: (typeof ROUTES)[
     | 'dashboard'
+    | 'spending'
     | 'transactions'
     | 'review'
     | 'budget'
@@ -28,6 +30,7 @@ export interface NavItem {
 /** Main navigation of the authenticated app, in display order. */
 export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Tableau de bord', to: ROUTES.dashboard, icon: LayoutDashboardIcon },
+  { label: 'Dépenses', to: ROUTES.spending, icon: ChartPieIcon },
   { label: 'Opérations', to: ROUTES.transactions, icon: ArrowLeftRightIcon },
   {
     label: 'À revoir',
