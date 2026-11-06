@@ -33,6 +33,7 @@ import {
   ChartCardSkeleton,
   NetWorthChart,
 } from './DashboardCharts'
+import { ForecastCard } from './ForecastCard'
 import { KpiTiles } from './KpiTiles'
 import { dashboardHistoryQuery, dashboardOverviewQuery } from './queries'
 
@@ -159,6 +160,8 @@ export function DashboardPage({ banner }: { banner?: ReactNode }) {
           {data.reviewCount > 0 && <ReviewCallout count={data.reviewCount} />}
 
           <KpiTiles overview={data} history={history.data?.months} />
+
+          <ForecastCard />
 
           <div className="grid gap-4 @4xl:grid-cols-2">
             {history.data ? (
