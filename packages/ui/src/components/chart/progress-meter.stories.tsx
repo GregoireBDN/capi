@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { PencilIcon } from 'lucide-react'
 import { expect } from 'storybook/test'
 
-import { budgets2026 } from './chart.fixtures'
-import { DARK, MOBILE } from './chart.story-utils'
+import { Button } from '../button'
+import { budgets2026, savingsGoals } from './chart.fixtures'
+import { DARK, expectContrast, MOBILE } from './chart.story-utils'
 import { formatPercent } from './format'
 import { ProgressMeter } from './progress-meter'
 
@@ -15,7 +17,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Budget actual vs target (integer cents). States: on track, warning (from `warningThreshold`, default 90 %) and over target, where the overspent part is drawn past a gap marking the target. The state is repeated in words with an icon, and exposed as `role="meter"` with a full `aria-valuetext`.',
+          'Actual vs target (integer cents). `goal="limit"` (default, budgets): on track, warning (from `warningThreshold`, default 90 %) and over target, where the overspent part is drawn past a gap marking the target. `goal="reach"` (savings): in progress, then reached in green, with the extra part past the same gap; never a warning, and a negative amount is shown as is with an empty bar. The state is repeated in words with an icon, and exposed as `role="meter"` with a full `aria-valuetext`. The header wraps on a phone and takes an optional `action`.',
       },
     },
   },
@@ -53,6 +55,97 @@ export const OverTarget: Story = {
 
 export const NoBudget: Story = {
   args: { label: 'Cadeaux', value: 2100, target: 0 },
+}
+
+/** Savings goal under way: no warning close to the target. */
+export const ReachInProgress: Story = {
+  args: { goal: 'reach', label: 'Vacances', value: 142000, target: 150000 },
+  play: async ({ canvasElement, canvas }) => {
+    const meter = canvas.getByRole('meter', { name: 'Vacances' })
+    await expect(meter.getAttribute('aria-valuetext')).toContain('reste')
+    await expect(
+      canvasElement.querySelector('[data-slot="progress-meter"]'),
+    ).toHaveAttribute('data-state', 'under')
+  },
+}
+
+/** Past the target is good news: green, the extra part beyond the gap. */
+export const ReachExceeded: Story = {
+  args: { goal: 'reach', label: 'Vacances', value: 180000, target: 150000 },
+  play: async ({ canvasElement, canvas }) => {
+    const status = canvas.getByText(/Objectif atteint/)
+    await expect(status).toBeVisible()
+    await expect(
+      canvas
+        .getByRole('meter', { name: 'Vacances' })
+        .getAttribute('aria-valuetext'),
+    ).toContain('objectif atteint')
+    await expect(
+      canvasElement.querySelector('[data-slot="progress-meter-overflow"]'),
+    ).not.toBeNull()
+    await expectContrast(
+      getComputedStyle(status).color,
+      getComputedStyle(canvasElement.querySelector('.bg-card')!)
+        .backgroundColor,
+    )
+  },
+  render: (args) => (
+    <div className="w-80 rounded-xl bg-card p-4">
+      <ProgressMeter {...args} />
+    </div>
+  ),
+}
+
+export const ReachExceededDark: Story = { ...ReachExceeded, globals: DARK }
+
+/** A month in the red: the amount is shown as is, the bar stays empty. */
+export const ReachNegative: Story = {
+  args: {
+    goal: 'reach',
+    label: 'Novembre 2026 (en cours)',
+    value: -12000,
+    target: 50000,
+  },
+}
+
+/** Savings goals, as on the savings page: wrapping names, an edit action. */
+export const SavingsGoals: Story = {
+  render: () => (
+    <ul className="grid w-[min(calc(100vw-2rem),24rem)] gap-5 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+      {savingsGoals.map((goal) => (
+        <li key={goal.label}>
+          <ProgressMeter
+            goal="reach"
+            {...goal}
+            action={
+              <Button
+                ghost
+                size="sm"
+                className="-mt-1 shrink-0"
+                aria-label={`Modifier l’objectif ${goal.label}`}
+              >
+                <PencilIcon aria-hidden />
+              </Button>
+            }
+          />
+        </li>
+      ))}
+    </ul>
+  ),
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByRole('button', { name: /Modifier l’objectif Vacances/ }),
+    ).toBeVisible()
+    await expect(canvas.getAllByRole('meter')).toHaveLength(savingsGoals.length)
+  },
+}
+
+export const SavingsGoalsDark: Story = { ...SavingsGoals, globals: DARK }
+
+export const SavingsGoalsMobile: Story = {
+  ...SavingsGoals,
+  globals: MOBILE,
+  parameters: { layout: 'padded' },
 }
 
 /** A budget list, as on the budget page. */

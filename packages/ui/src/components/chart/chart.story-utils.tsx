@@ -98,3 +98,76 @@ export async function expectNoDuplicateKeys(): Promise<void> {
     reactWarnings.filter((warning) => /same key/i.test(warning)),
   ).toEqual([])
 }
+
+/** sRGB channels (0–255) of any CSS colour, resolved by a canvas. */
+function resolveColor(color: string): [number, number, number] {
+  const canvas = document.createElement('canvas')
+  canvas.width = 1
+  canvas.height = 1
+  const context = canvas.getContext('2d', { willReadFrequently: true })!
+  context.fillStyle = color
+  context.fillRect(0, 0, 1, 1)
+  const [r, g, b] = context.getImageData(0, 0, 1, 1).data
+  return [r!, g!, b!]
+}
+
+function luminance([r, g, b]: [number, number, number]): number {
+  const linear = (channel: number) => {
+    const c = channel / 255
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }
+  return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
+}
+
+/** WCAG contrast ratio between two CSS colours (any syntax the browser knows). */
+export function contrastRatio(foreground: string, background: string): number {
+  const [high, low] = [
+    luminance(resolveColor(foreground)),
+    luminance(resolveColor(background)),
+  ].sort((a, b) => b - a)
+  return (high! + 0.05) / (low! + 0.05)
+}
+
+/** Fails unless the two CSS colours reach `minimum`:1 (default 4.5, normal text). */
+export async function expectContrast(
+  foreground: string,
+  background: string,
+  minimum = 4.5,
+): Promise<void> {
+  await expect(contrastRatio(foreground, background)).toBeGreaterThanOrEqual(
+    minimum,
+  )
+}
+
+/** Whether two boxes overlap (touching edges do not count). */
+export function boxesOverlap(a: DOMRect, b: DOMRect): boolean {
+  return (
+    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+  )
+}
+
+/**
+ * Checks the index-axis labels: the `expected` ones are drawn (e.g. the
+ * first and last months) and no two labels overlap.
+ */
+export async function expectReadableIndexTicks(
+  canvasElement: HTMLElement,
+  expected: string[],
+): Promise<void> {
+  await waitFor(
+    () => {
+      const labels = [
+        ...canvasElement.querySelectorAll<SVGTextElement>(
+          '.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value',
+        ),
+      ]
+      const texts = labels.map((label) => label.textContent ?? '')
+      for (const text of expected) expect(texts).toContain(text)
+      const boxes = labels.map((label) => label.getBoundingClientRect())
+      for (let i = 1; i < boxes.length; i++) {
+        expect(boxesOverlap(boxes[i - 1]!, boxes[i]!)).toBe(false)
+      }
+    },
+    { timeout: 5000 },
+  )
+}

@@ -133,7 +133,7 @@
   --accent: oklch(0.93 0.05 270); /* soft periwinkle hover */
   --accent-foreground: oklch(0.22 0.04 265);
 
-  --destructive: oklch(61.892% 0.16585 18.437); /* coral-red */
+  --destructive: oklch(0.54 0.17 18); /* red, >= 4.5:1 as text on background, card and muted */
   --destructive-foreground: oklch(0.98 0 0);
   --success: oklch(83.329% 0.20139 140.499);
   --success-foreground: oklch(from var(--success) calc(l - 0.50) calc(c + 0.08) h);
@@ -224,7 +224,7 @@
   --accent-foreground: var(--foreground);
 
   --destructive: oklch(0.7 0.19 22);
-  --destructive-foreground: oklch(0.94 0.018 82);
+  --destructive-foreground: oklch(0.16 0.03 272); /* dark ink: cream on this red is 2.4:1 */
   --success: oklch(0.7 0.15 145);
   --success-foreground: oklch(from var(--success) calc(l - 0.50) calc(c + 0.08) h);
   --warning: oklch(0.8 0.16 75); /* warm amber — keeps warmth */
@@ -302,7 +302,7 @@
     --accent-foreground: var(--foreground);
 
     --destructive: oklch(0.7 0.19 22);
-    --destructive-foreground: oklch(0.94 0.018 82);
+    --destructive-foreground: oklch(0.16 0.03 272);
     --success: oklch(0.7 0.15 145);
     --success-foreground: oklch(from var(--success) calc(l - 0.50) calc(c + 0.08) h);
     --warning: oklch(0.8 0.16 75);

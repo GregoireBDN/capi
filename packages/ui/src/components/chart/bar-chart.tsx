@@ -16,6 +16,8 @@ import {
   CartesianFooter,
   indexAxisProps,
   REFERENCE_LINE_PROPS,
+  ReferenceLineLabel,
+  referenceLabelSide,
   useCartesianDefaults,
   valueAxisProps,
   valueExtent,
@@ -204,7 +206,7 @@ function BarChart<TDatum extends ChartDatum>(props: BarChartProps<TDatum>) {
         barCategoryGap="20%"
       >
         {defaults.showGrid ? <CartesianGrid vertical={false} /> : null}
-        <XAxis {...indexAxisProps(index, defaults.indexFormatter)} />
+        <XAxis {...indexAxisProps(index, defaults.indexFormatter, data)} />
         <YAxis
           {...valueAxisProps(
             defaults.axisFormatter,
@@ -242,13 +244,12 @@ function BarChart<TDatum extends ChartDatum>(props: BarChartProps<TDatum>) {
             y={line.value}
             {...REFERENCE_LINE_PROPS}
             label={
-              line.label
-                ? {
-                    value: line.label,
-                    position: 'insideTopRight',
-                    fontSize: 11,
-                  }
-                : undefined
+              line.label ? (
+                <ReferenceLineLabel
+                  text={line.label}
+                  side={referenceLabelSide(data, keys, line.value, stacked)}
+                />
+              ) : undefined
             }
           />
         ))}

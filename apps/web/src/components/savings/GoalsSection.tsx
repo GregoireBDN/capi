@@ -14,6 +14,7 @@ import {
   EmptyMedia,
   EmptyTitle,
   Label,
+  ProgressMeter,
   Skeleton,
   Switch,
 } from '@finances/ui'
@@ -31,7 +32,6 @@ import { formatCalendarDate, formatCents } from '#/lib/money'
 import { GoalEditor } from './GoalEditor'
 import { formatMonthOf } from './format'
 import { savingsGoalsQuery } from './queries'
-import { SavingsMeter } from './SavingsMeter'
 
 /** Plain-language status of a goal's projection, with its tone. */
 function projectionText(goal: SavingsGoalDto): {
@@ -73,10 +73,14 @@ function GoalItem({
 
   return (
     <li className="space-y-2 py-3">
-      <SavingsMeter
-        name={goal.name}
-        valueCents={goal.currentCents}
-        targetCents={goal.targetCents}
+      <ProgressMeter
+        goal="reach"
+        label={goal.name}
+        value={goal.currentCents}
+        target={goal.targetCents}
+        valueFormatter={formatCents}
+        // The goal's own lines below say what is left and when.
+        hideStatus
         action={
           <Button
             ghost

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, within } from 'storybook/test'
+import { expect, waitFor, within } from 'storybook/test'
 
 import { BarChart } from './bar-chart'
 import {
@@ -12,15 +12,61 @@ import {
   zeroCashflow2026,
 } from './chart.fixtures'
 import {
+  boxesOverlap,
   captureReactWarnings,
   ChartFrame,
   DARK,
+  expectContrast,
+  expectReadableIndexTicks,
   expectKeyboardTooltip,
   expectNoDuplicateKeys,
   findChartGraphic,
   MOBILE,
 } from './chart.story-utils'
 import { formatEuros, formatMonthLong, formatMonthShort } from './format'
+
+/** Monthly savings where December beats a 1 000 € target (the last bar crosses the line). */
+const savingsAboveTarget = savings2026.map((row) =>
+  row.month === '2026-12' ? { ...row, savings: 110000 } : row,
+)
+
+/**
+ * Checks the reference-line tag: drawn on `side`, its text readable on its
+ * own background (>= 4.5:1), and, when `clear`, covering no bar.
+ */
+async function expectReferenceLabel(
+  canvasElement: HTMLElement,
+  text: string,
+  side: 'start' | 'end',
+  clear: boolean,
+) {
+  await waitFor(() =>
+    expect(
+      canvasElement.querySelector('[data-slot="chart-reference-label"]'),
+    ).not.toBeNull(),
+  )
+  const tag = canvasElement.querySelector<SVGGElement>(
+    '[data-slot="chart-reference-label"]',
+  )!
+  await expect(tag).toHaveAttribute('data-side', side)
+  await expect(tag.textContent).toBe(text)
+  const label = tag.querySelector('text')!
+  const background = tag.querySelector('rect')!
+  await expectContrast(
+    getComputedStyle(label).fill,
+    getComputedStyle(background).fill,
+  )
+  if (clear) {
+    // Let the bars finish growing before measuring them.
+    await new Promise((resolve) => setTimeout(resolve, 800))
+    const box = background.getBoundingClientRect()
+    for (const bar of canvasElement.querySelectorAll(
+      '.recharts-bar-rectangle path',
+    )) {
+      await expect(boxesOverlap(box, bar.getBoundingClientRect())).toBe(false)
+    }
+  }
+}
 
 const meta = {
   title: 'Charts/BarChart',
@@ -88,6 +134,69 @@ export const NegativeValues: Story = {
   },
 }
 
+/**
+ * The target tag moves to the start of the line when the last months cross
+ * it, so it never sits on a bar it would hide (or be hidden by).
+ */
+export const TargetAboveLastBar: Story = {
+  args: {
+    data: savingsAboveTarget,
+    config: savingsConfig,
+    label: 'Épargne mensuelle en 2026, cible de 1 000 € dépassée en décembre',
+    referenceLines: [{ value: 100000, label: 'Cible' }],
+  },
+  play: async ({ canvasElement }) => {
+    await findChartGraphic(canvasElement, /cible de 1 000 €/)
+    await expectReferenceLabel(canvasElement, 'Cible', 'start', true)
+  },
+}
+
+export const TargetAboveLastBarDark: Story = {
+  ...TargetAboveLastBar,
+  globals: DARK,
+}
+
+/**
+ * Both ends cross the line: the tag stays at the end, on its own surface,
+ * still readable over the bar.
+ */
+export const TargetCrossedAtBothEnds: Story = {
+  args: {
+    ...TargetAboveLastBar.args,
+    label: 'Épargne mensuelle en 2026, cible de 500 €',
+    referenceLines: [{ value: 50000, label: 'Cible' }],
+  },
+  play: async ({ canvasElement }) => {
+    await findChartGraphic(canvasElement, /cible de 500 €/)
+    await expectReferenceLabel(canvasElement, 'Cible', 'end', false)
+  },
+}
+
+/**
+ * 12 months in a 343 px card (a 375 px phone): every 2nd or 3rd month is
+ * labelled, first and last kept, and no two labels touch. The tag stays
+ * clear of the bars.
+ */
+export const NarrowMonthAxis: Story = {
+  args: TargetAboveLastBar.args,
+  parameters: { layout: 'padded' },
+  render: (args) => (
+    <ChartFrame title="Épargne par mois" className="w-[343px]">
+      <BarChart {...args} />
+    </ChartFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    await findChartGraphic(canvasElement, /cible de 1 000 €/)
+    await expectReadableIndexTicks(canvasElement, ['janv.', 'déc.'])
+    await expectReferenceLabel(canvasElement, 'Cible', 'start', true)
+  },
+}
+
+export const NarrowMonthAxisDark: Story = {
+  ...NarrowMonthAxis,
+  globals: DARK,
+}
+
 /** The data table twin made visible (relief for low-contrast hues). */
 export const VisibleDataTable: Story = {
   args: { dataTable: 'details' },
@@ -112,6 +221,10 @@ export const Mobile: Story = {
       <BarChart {...args} height={220} />
     </ChartFrame>
   ),
+  play: async ({ canvasElement }) => {
+    await findChartGraphic(canvasElement, /Revenus/)
+    await expectReadableIndexTicks(canvasElement, ['janv.', 'déc.'])
+  },
 }
 
 export const MobileDarkStacked: Story = {

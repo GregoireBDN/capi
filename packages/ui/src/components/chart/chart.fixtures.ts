@@ -118,6 +118,18 @@ export const budgets2026 = [
   { label: 'Transport', value: 4500, target: 18000 },
 ] as const
 
+/** Savings goals (`goal="reach"`): under way, reached, passed, long name. */
+export const savingsGoals = [
+  { label: 'Vacances', value: 142000, target: 150000 },
+  { label: 'Fonds de secours', value: 600000, target: 600000 },
+  { label: 'Vélo', value: 98000, target: 80000 },
+  {
+    label: 'Apport pour un appartement en centre-ville',
+    value: 1250000,
+    target: 4000000,
+  },
+] as const
+
 /** All-zero months (e.g. a fresh install): the value axis must stay clean. */
 export const zeroCashflow2026 = MONTHS_2026.map((month) => ({
   month,
