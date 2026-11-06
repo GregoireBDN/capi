@@ -64,3 +64,10 @@ export type RecurringStatus = (typeof RECURRING_STATUSES)[number]
 /** `provider` = fetched from the price API, `manual` = entered by the user. */
 export const CRYPTO_PRICE_SOURCES = ['provider', 'manual'] as const
 export type CryptoPriceSource = (typeof CRYPTO_PRICE_SOURCES)[number]
+
+/**
+ * Where a savings goal's current amount comes from: the balances of its
+ * linked accounts, or an amount entered by hand.
+ */
+export const SAVINGS_GOAL_SOURCES = ['accounts', 'manual'] as const
+export type SavingsGoalSource = (typeof SAVINGS_GOAL_SOURCES)[number]

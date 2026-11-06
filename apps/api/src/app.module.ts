@@ -18,6 +18,7 @@ import { HealthModule } from '#/health/health.module'
 import { ImportsModule } from '#/imports/imports.module'
 import { InvestmentsModule } from '#/investments/investments.module'
 import { RecurringModule } from '#/recurring/recurring.module'
+import { SavingsModule } from '#/savings/savings.module'
 import { SpendingModule } from '#/spending/spending.module'
 import { TransactionsModule } from '#/transactions/transactions.module'
 import { UserModule } from '#/user/user.module'
@@ -49,6 +50,7 @@ import { UserModule } from '#/user/user.module'
     RecurringModule,
     CryptoModule,
     ForecastModule,
+    SavingsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
