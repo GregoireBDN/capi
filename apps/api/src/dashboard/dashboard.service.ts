@@ -1,0 +1,223 @@
+import { Injectable } from '@nestjs/common'
+import { and, eq, gte, lt, sql } from 'drizzle-orm'
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
+import {
+  type AccountWithBalance,
+  AccountsService,
+  isTransactionalAccount,
+} from '#/accounts/accounts.service'
+import { DatabaseService } from '#/database/database.service'
+import * as schema from '#/database/schema'
+import { transactionsTable } from '#/database/schema'
+import {
+  monthBounds,
+  TransactionsService,
+} from '#/transactions/transactions.service'
+import { currentMonth, monthEnd, monthsUntil, shiftMonth } from './calendar'
+import type {
+  DashboardAccountDto,
+  DashboardHistoryDto,
+  DashboardOverviewDto,
+  HistoryMonthDto,
+  MonthFlowDto,
+} from './dto/dashboard.dto'
+
+type Db = PostgresJsDatabase<typeof schema>
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
+/** The database or an open transaction. */
+type Executor = Db | Tx
+
+/** Net over income, or null when there is no positive income to divide by. */
+export function savingsRate(incomeCents: number, netCents: number) {
+  return incomeCents > 0 ? netCents / incomeCents : null
+}
+
+/** Sum of the known balances, or null when none is known. */
+function sumBalances(accounts: AccountWithBalance[]): number | null {
+  let total: number | null = null
+  for (const account of accounts) {
+    if (account.balanceCents === null) continue
+    total = (total ?? 0) + account.balanceCents
+  }
+  return total
+}
+
+/**
+ * Aggregates for the dashboard. Every figure follows the domain rules:
+ * amounts are integer cents, months are Europe/Paris calendar months
+ * compared on `booking_date` strings, and transfers between the user's own
+ * accounts are never income or expense (only `kind = income` / `expense`
+ * reach the sums).
+ */
+@Injectable()
+export class DashboardService {
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly accounts: AccountsService,
+    private readonly transactions: TransactionsService,
+  ) {}
+
+  private get db(): Db {
+    return this.database.db
+  }
+
+  /**
+   * Net worth now and per account, income / expenses of `month` and of the
+   * month before, and the review queue size. The net worth does not depend on
+   * `month`: it is today's, compared with the end of the previous calendar
+   * month relative to `now`.
+   */
+  async overview(
+    month: string = currentMonth(),
+    {
+      now = new Date(),
+      executor = this.db,
+    }: { now?: Date; executor?: Executor } = {},
+  ): Promise<DashboardOverviewDto> {
+    const lastMonthEnd = monthEnd(shiftMonth(currentMonth(now), -1))
+    const [accounts, previousAccounts, current, previous, reviewCount] =
+      await Promise.all([
+        this.accounts.list({}, executor),
+        this.accounts.list({ asOf: lastMonthEnd }, executor),
+        this.monthFlow(month, executor),
+        this.monthFlow(shiftMonth(month, -1), executor),
+        this.transactions.reviewCount(executor),
+      ])
+
+    let cashCents = 0
+    let investmentsCents = 0
+    let unknownBalanceCount = 0
+    const rows: DashboardAccountDto[] = accounts.map((account) => {
+      const group = isTransactionalAccount(account) ? 'cash' : 'investments'
+      if (account.balanceCents === null) unknownBalanceCount++
+      else if (group === 'cash') cashCents += account.balanceCents
+      else investmentsCents += account.balanceCents
+      return {
+        id: account.id,
+        name: account.name,
+        type: account.type,
+        institution: account.institution,
+        group,
+        balanceCents: account.balanceCents,
+        balanceDate: account.balanceDate,
+      }
+    })
+
+    return {
+      netWorth: {
+        totalCents: cashCents + investmentsCents,
+        cashCents,
+        investmentsCents,
+        previousMonthEndCents: sumBalances(previousAccounts),
+        unknownBalanceCount,
+      },
+      accounts: rows,
+      current,
+      previous,
+      reviewCount,
+    }
+  }
+
+  /**
+   * The `count` calendar months ending with the current one (Europe/Paris),
+   * oldest first: income, expenses and net of each month (transfers
+   * excluded), and the net worth at its last day.
+   *
+   * Month-end net worth is the sum, over the non-archived accounts (the ones
+   * the overview totals, so the last point matches it), of each account's
+   * balance at the end of that day, computed by `AccountsService.list` with
+   * `asOf` = the month end, i.e. the very method of the current balances
+   * restricted to what was known then:
+   *
+   * - transactional accounts: the newer of the latest balance snapshot on or
+   *   before the month end and the latest end-of-day running balance on or
+   *   before it, plus the amounts booked after that anchor up to the month
+   *   end; without either anchor, the sum of the amounts up to the month end;
+   * - investment accounts: the latest value snapshot on or before the month
+   *   end.
+   *
+   * Accounts with no balance yet at a month end count for nothing; a month
+   * where no account has one gets `netWorthCents = null`.
+   */
+  async history(
+    count: number,
+    {
+      now = new Date(),
+      executor = this.db,
+    }: { now?: Date; executor?: Executor } = {},
+  ): Promise<DashboardHistoryDto> {
+    const months = monthsUntil(currentMonth(now), count)
+    const [flows, netWorths] = await Promise.all([
+      this.monthlyFlows(months, executor),
+      Promise.all(
+        months.map(async (month) =>
+          sumBalances(
+            await this.accounts.list({ asOf: monthEnd(month) }, executor),
+          ),
+        ),
+      ),
+    ])
+
+    return {
+      months: months.map((month, i): HistoryMonthDto => {
+        const flow = flows.get(month) ?? { incomeCents: 0, expenseCents: 0 }
+        return {
+          month,
+          incomeCents: flow.incomeCents,
+          expenseCents: flow.expenseCents,
+          netCents: flow.incomeCents + flow.expenseCents,
+          netWorthCents: netWorths[i],
+        }
+      }),
+    }
+  }
+
+  /** Income and expenses of one month, as the transactions summary. */
+  private async monthFlow(
+    month: string,
+    executor: Executor,
+  ): Promise<MonthFlowDto> {
+    const summary = await this.transactions.summary({ month }, executor)
+    return {
+      month,
+      incomeCents: summary.incomeCents,
+      expenseCents: summary.expenseCents,
+      netCents: summary.netCents,
+      oneOffIncomeCents: summary.oneOffIncomeCents,
+      oneOffExpenseCents: summary.oneOffExpenseCents,
+      savingsRate: savingsRate(summary.incomeCents, summary.netCents),
+    }
+  }
+
+  /** Income and expense sums per `YYYY-MM`, in one grouped query. */
+  private async monthlyFlows(
+    months: string[],
+    executor: Executor,
+  ): Promise<Map<string, { incomeCents: number; expenseCents: number }>> {
+    const t = transactionsTable
+    const from = monthBounds(months[0]).start
+    const until = monthBounds(months[months.length - 1]).next
+    const month = sql<string>`to_char(${t.bookingDate}, 'YYYY-MM')`
+    const sumOf = (kind: 'income' | 'expense') =>
+      sql<number>`coalesce(sum(${t.amountCents}) filter (where ${eq(t.kind, kind)}), 0)::bigint`.mapWith(
+        Number,
+      )
+
+    const rows = await executor
+      .select({
+        month,
+        incomeCents: sumOf('income'),
+        expenseCents: sumOf('expense'),
+      })
+      .from(t)
+      .where(and(gte(t.bookingDate, from), lt(t.bookingDate, until)))
+      .groupBy(month)
+
+    return new Map(
+      rows.map((row) => [
+        row.month,
+        { incomeCents: row.incomeCents, expenseCents: row.expenseCents },
+      ]),
+    )
+  }
+}

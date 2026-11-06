@@ -17,6 +17,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiSplatRouteImport } from './routes/api/$'
 import { Route as AppTransactionsRouteImport } from './routes/_app/transactions'
 import { Route as AppSubscriptionsRouteImport } from './routes/_app/subscriptions'
+import { Route as AppSpendingRouteImport } from './routes/_app/spending'
 import { Route as AppSavingsRouteImport } from './routes/_app/savings'
 import { Route as AppReviewRouteImport } from './routes/_app/review'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
@@ -63,6 +64,11 @@ const AppSubscriptionsRoute = AppSubscriptionsRouteImport.update({
   path: '/subscriptions',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSpendingRoute = AppSpendingRouteImport.update({
+  id: '/spending',
+  path: '/spending',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSavingsRoute = AppSavingsRouteImport.update({
   id: '/savings',
   path: '/savings',
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof AppProfileRoute
   '/review': typeof AppReviewRoute
   '/savings': typeof AppSavingsRoute
+  '/spending': typeof AppSpendingRoute
   '/subscriptions': typeof AppSubscriptionsRoute
   '/transactions': typeof AppTransactionsRoute
   '/api/$': typeof ApiSplatRoute
@@ -120,6 +127,7 @@ export interface FileRoutesByTo {
   '/profile': typeof AppProfileRoute
   '/review': typeof AppReviewRoute
   '/savings': typeof AppSavingsRoute
+  '/spending': typeof AppSpendingRoute
   '/subscriptions': typeof AppSubscriptionsRoute
   '/transactions': typeof AppTransactionsRoute
   '/api/$': typeof ApiSplatRoute
@@ -137,6 +145,7 @@ export interface FileRoutesById {
   '/_app/profile': typeof AppProfileRoute
   '/_app/review': typeof AppReviewRoute
   '/_app/savings': typeof AppSavingsRoute
+  '/_app/spending': typeof AppSpendingRoute
   '/_app/subscriptions': typeof AppSubscriptionsRoute
   '/_app/transactions': typeof AppTransactionsRoute
   '/api/$': typeof ApiSplatRoute
@@ -154,6 +163,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/review'
     | '/savings'
+    | '/spending'
     | '/subscriptions'
     | '/transactions'
     | '/api/$'
@@ -169,6 +179,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/review'
     | '/savings'
+    | '/spending'
     | '/subscriptions'
     | '/transactions'
     | '/api/$'
@@ -185,6 +196,7 @@ export interface FileRouteTypes {
     | '/_app/profile'
     | '/_app/review'
     | '/_app/savings'
+    | '/_app/spending'
     | '/_app/subscriptions'
     | '/_app/transactions'
     | '/api/$'
@@ -257,6 +269,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSubscriptionsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/spending': {
+      id: '/_app/spending'
+      path: '/spending'
+      fullPath: '/spending'
+      preLoaderRoute: typeof AppSpendingRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/savings': {
       id: '/_app/savings'
       path: '/savings'
@@ -309,6 +328,7 @@ interface AppRouteChildren {
   AppProfileRoute: typeof AppProfileRoute
   AppReviewRoute: typeof AppReviewRoute
   AppSavingsRoute: typeof AppSavingsRoute
+  AppSpendingRoute: typeof AppSpendingRoute
   AppSubscriptionsRoute: typeof AppSubscriptionsRoute
   AppTransactionsRoute: typeof AppTransactionsRoute
 }
@@ -320,6 +340,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppProfileRoute: AppProfileRoute,
   AppReviewRoute: AppReviewRoute,
   AppSavingsRoute: AppSavingsRoute,
+  AppSpendingRoute: AppSpendingRoute,
   AppSubscriptionsRoute: AppSubscriptionsRoute,
   AppTransactionsRoute: AppTransactionsRoute,
 }

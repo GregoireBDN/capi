@@ -1,0 +1,129 @@
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  cn,
+} from '@finances/ui'
+import { Link } from '@tanstack/react-router'
+import { ChevronRightIcon } from 'lucide-react'
+import type { DashboardAccountDto, NetWorthDto } from '#/api/types.gen'
+import { formatCalendarDate, formatCents } from '#/lib/money'
+import { ROUTES } from '#/lib/routes'
+import { ACCOUNT_TYPE_LABELS } from './labels'
+
+const GROUPS = [
+  {
+    group: 'cash',
+    title: 'Liquidités',
+    total: (netWorth: NetWorthDto) => netWorth.cashCents,
+  },
+  {
+    group: 'investments',
+    title: 'Investissements',
+    total: (netWorth: NetWorthDto) => netWorth.investmentsCents,
+  },
+] as const
+
+function AccountDetails({ account }: { account: DashboardAccountDto }) {
+  const kind = [ACCOUNT_TYPE_LABELS[account.type], account.institution]
+    .filter(Boolean)
+    .join(' · ')
+  return (
+    <>
+      <div className="min-w-0 flex-1">
+        <p className="font-medium break-words">{account.name}</p>
+        <p className="text-muted-foreground truncate text-xs">{kind}</p>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="font-medium tabular-nums">
+          {account.balanceCents === null
+            ? '—'
+            : formatCents(account.balanceCents)}
+        </p>
+        <p className="text-muted-foreground text-xs">
+          {account.balanceDate === null
+            ? 'Solde inconnu'
+            : `au ${formatCalendarDate(account.balanceDate)}`}
+        </p>
+      </div>
+    </>
+  )
+}
+
+/**
+ * Accounts and their balances, cash (checking, savings) apart from
+ * investments, each group with its subtotal. Cash accounts open their
+ * transactions; investment accounts are valued by snapshots and have none.
+ */
+export function AccountsList({
+  accounts,
+  netWorth,
+}: {
+  accounts: DashboardAccountDto[]
+  netWorth: NetWorthDto
+}) {
+  return (
+    <Card className="min-w-0">
+      <CardHeader>
+        <CardTitle>Comptes</CardTitle>
+        <CardDescription>
+          Solde de chaque compte à sa dernière date connue.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {GROUPS.map(({ group, title, total }) => {
+          const items = accounts.filter((account) => account.group === group)
+          if (items.length === 0) return null
+          const headingId = `accounts-${group}`
+          return (
+            <section key={group} aria-labelledby={headingId}>
+              <div className="flex items-baseline justify-between gap-3 border-b pb-1.5">
+                <h3
+                  id={headingId}
+                  className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
+                >
+                  {title}
+                </h3>
+                <p className="text-sm font-semibold tabular-nums">
+                  {formatCents(total(netWorth))}
+                </p>
+              </div>
+              <ul className="divide-y">
+                {items.map((account) => {
+                  const row = 'flex items-center gap-3 py-2.5 text-sm'
+                  return (
+                    <li key={account.id}>
+                      {group === 'cash' ? (
+                        <Link
+                          to={ROUTES.transactions}
+                          search={{ account: account.id }}
+                          title="Voir les opérations"
+                          className={cn(
+                            row,
+                            'hover:bg-muted/50 focus-visible:ring-ring -mx-2 rounded-md px-2 outline-none focus-visible:ring-2',
+                          )}
+                        >
+                          <AccountDetails account={account} />
+                          <ChevronRightIcon
+                            aria-hidden
+                            className="text-muted-foreground size-4 shrink-0"
+                          />
+                        </Link>
+                      ) : (
+                        <div className={row}>
+                          <AccountDetails account={account} />
+                        </div>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          )
+        })}
+      </CardContent>
+    </Card>
+  )
+}

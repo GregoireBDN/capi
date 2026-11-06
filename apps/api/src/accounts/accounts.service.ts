@@ -8,7 +8,9 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lte,
   max,
+  type SQL,
   sql,
 } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -62,9 +64,16 @@ export class AccountsService {
     return this.database.db
   }
 
-  /** Accounts by `position`, with their current balance. */
+  /**
+   * Accounts by `position`, with their current balance, or their balance at
+   * the end of the calendar day `asOf` (`YYYY-MM-DD`): the same computation
+   * restricted to the transactions and snapshots dated on or before it.
+   */
   async list(
-    { includeArchived = false }: { includeArchived?: boolean } = {},
+    {
+      includeArchived = false,
+      asOf,
+    }: { includeArchived?: boolean; asOf?: string } = {},
     executor: Executor = this.db,
   ): Promise<AccountWithBalance[]> {
     const accounts = await executor
@@ -76,7 +85,7 @@ export class AccountsService {
         asc(accountsTable.createdAt),
         asc(accountsTable.id),
       )
-    const balances = await this.loadBalances(executor, accounts)
+    const balances = await this.loadBalances(executor, accounts, asOf)
     return accounts.map((account) => ({
       ...account,
       ...(balances.get(account.id) ?? NO_BALANCE),
@@ -153,10 +162,15 @@ export class AccountsService {
    *     tie with the running balance.
    *   Without either, the sum of all amounts;
    * - investment accounts: the latest value snapshot.
+   *
+   * With `asOf`, every query only sees the transactions and snapshots dated
+   * on or before that day, so the result is the balance at the end of it
+   * (e.g. a month-end net worth): the same anchors as of that day.
    */
   private async loadBalances(
     executor: Executor,
     accounts: Pick<SelectAccount, 'id' | 'type'>[],
+    asOf?: string,
   ): Promise<Map<string, AccountBalance>> {
     const balances = new Map<string, AccountBalance>()
     const transactionalIds = accounts
@@ -169,6 +183,11 @@ export class AccountsService {
       .map((a) => a.id)
 
     const s = balanceSnapshotsTable
+    const t = transactionsTable
+    const snapshotUntil: SQL | undefined =
+      asOf === undefined ? undefined : lte(s.date, asOf)
+    const bookedUntil: SQL | undefined =
+      asOf === undefined ? undefined : lte(t.bookingDate, asOf)
     const accountIds = [...transactionalIds, ...investmentIds]
     const latestSnapshots =
       accountIds.length === 0
@@ -180,14 +199,13 @@ export class AccountsService {
               valueCents: s.valueCents,
             })
             .from(s)
-            .where(inArray(s.accountId, accountIds))
+            .where(and(inArray(s.accountId, accountIds), snapshotUntil))
             .orderBy(s.accountId, desc(s.date))
     const snapshotByAccount = new Map(
       latestSnapshots.map((snapshot) => [snapshot.accountId, snapshot]),
     )
 
     if (transactionalIds.length > 0) {
-      const t = transactionsTable
       const latest = executor.$with('latest').as(
         executor
           .select({
@@ -199,6 +217,7 @@ export class AccountsService {
             and(
               inArray(t.accountId, transactionalIds),
               isNotNull(t.balanceAfterCents),
+              bookedUntil,
             ),
           )
           .groupBy(t.accountId),
@@ -210,7 +229,7 @@ export class AccountsService {
             day: sql<string>`${s.date}`.as('snap_day'),
           })
           .from(s)
-          .where(inArray(s.accountId, transactionalIds))
+          .where(and(inArray(s.accountId, transactionalIds), snapshotUntil))
           .orderBy(s.accountId, desc(s.date)),
       )
 
@@ -249,7 +268,7 @@ export class AccountsService {
           .from(t)
           .leftJoin(latest, eq(latest.accountId, t.accountId))
           .leftJoin(snap, eq(snap.accountId, t.accountId))
-          .where(inArray(t.accountId, transactionalIds))
+          .where(and(inArray(t.accountId, transactionalIds), bookedUntil))
           .groupBy(t.accountId),
       ])
 

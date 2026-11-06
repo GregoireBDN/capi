@@ -9,10 +9,12 @@ import { AccountsModule } from '#/accounts/accounts.module'
 import { AuthModule } from '#/auth/auth.module'
 import { BudgetsModule } from '#/budgets/budgets.module'
 import { CategoriesModule } from '#/categories/categories.module'
+import { DashboardModule } from '#/dashboard/dashboard.module'
 import { DatabaseModule } from '#/database/database.module'
 import { EmailModule } from '#/email/email.module'
 import { HealthModule } from '#/health/health.module'
 import { ImportsModule } from '#/imports/imports.module'
+import { SpendingModule } from '#/spending/spending.module'
 import { TransactionsModule } from '#/transactions/transactions.module'
 import { UserModule } from '#/user/user.module'
 
@@ -37,6 +39,8 @@ import { UserModule } from '#/user/user.module'
     ImportsModule,
     TransactionsModule,
     BudgetsModule,
+    DashboardModule,
+    SpendingModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
