@@ -55,7 +55,8 @@ function AccountDetails({ account }: { account: DashboardAccountDto }) {
 /**
  * Accounts and their balances, cash (checking, savings) apart from
  * investments, each group with its subtotal. Cash accounts open their
- * transactions; investment accounts are valued by snapshots and have none.
+ * transactions; investment accounts, valued by snapshots, open their detail
+ * page (value history, gain).
  */
 export function AccountsList({
   accounts,
@@ -92,7 +93,19 @@ export function AccountsList({
               </div>
               <ul className="divide-y">
                 {items.map((account) => {
-                  const row = 'flex items-center gap-3 py-2.5 text-sm'
+                  const row = cn(
+                    'flex items-center gap-3 py-2.5 text-sm',
+                    'hover:bg-muted/50 focus-visible:ring-ring -mx-2 rounded-md px-2 outline-none focus-visible:ring-2',
+                  )
+                  const content = (
+                    <>
+                      <AccountDetails account={account} />
+                      <ChevronRightIcon
+                        aria-hidden
+                        className="text-muted-foreground size-4 shrink-0"
+                      />
+                    </>
+                  )
                   return (
                     <li key={account.id}>
                       {group === 'cash' ? (
@@ -100,21 +113,19 @@ export function AccountsList({
                           to={ROUTES.transactions}
                           search={{ account: account.id }}
                           title="Voir les opérations"
-                          className={cn(
-                            row,
-                            'hover:bg-muted/50 focus-visible:ring-ring -mx-2 rounded-md px-2 outline-none focus-visible:ring-2',
-                          )}
+                          className={row}
                         >
-                          <AccountDetails account={account} />
-                          <ChevronRightIcon
-                            aria-hidden
-                            className="text-muted-foreground size-4 shrink-0"
-                          />
+                          {content}
                         </Link>
                       ) : (
-                        <div className={row}>
-                          <AccountDetails account={account} />
-                        </div>
+                        <Link
+                          to={ROUTES.account}
+                          params={{ accountId: account.id }}
+                          title="Voir la valeur et la plus-value"
+                          className={row}
+                        >
+                          {content}
+                        </Link>
                       )}
                     </li>
                   )

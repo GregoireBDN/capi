@@ -20,21 +20,31 @@ vi.mock('#/api', () => api)
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
     to,
+    params,
     search,
     children,
     ...props
   }: {
     to: string
+    params?: Record<string, string>
     search?: Record<string, string>
     children: ReactNode
-  }) => (
-    <a
-      href={search ? `${to}?${new URLSearchParams(search).toString()}` : to}
-      {...props}
-    >
-      {children}
-    </a>
-  ),
+  }) => {
+    const path = Object.entries(params ?? {}).reduce(
+      (url, [key, value]) => url.replace(`$${key}`, value),
+      to,
+    )
+    return (
+      <a
+        href={
+          search ? `${path}?${new URLSearchParams(search).toString()}` : path
+        }
+        {...props}
+      >
+        {children}
+      </a>
+    )
+  },
 }))
 
 /** Testing Library collapses the narrow no-break spaces `Intl` emits. */
@@ -227,8 +237,10 @@ describe('DashboardPage', () => {
 
     const investments = screen.getByRole('region', { name: 'Investissements' })
     expect(investments).toHaveTextContent(euros(1_000_000))
-    // Investment accounts have no transactions to open.
-    expect(within(investments).queryByRole('link')).not.toBeInTheDocument()
+    // Investment accounts open their valuation page.
+    expect(
+      within(investments).getByRole('link', { name: /PEA test/ }),
+    ).toHaveAttribute('href', `/accounts/${pea.id}`)
     expect(investments).toHaveTextContent('PEA / compte-titres')
     expect(investments).toHaveTextContent('Solde inconnu')
   })

@@ -1044,6 +1044,48 @@
       }
     },
     "/api/accounts/{id}": {
+      "get": {
+        "description": "Archived accounts included.",
+        "operationId": "AccountsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Get an account with its current balance",
+        "tags": [
+          "Accounts"
+        ]
+      },
       "patch": {
         "description": "Rename, reorder, archive or restore. Accounts are never deleted: archive them instead.",
         "operationId": "AccountsController_update",
@@ -2300,6 +2342,301 @@
         "summary": "Monthly spending over the last months",
         "tags": [
           "Spending"
+        ]
+      }
+    },
+    "/api/accounts/{id}/snapshots": {
+      "get": {
+        "description": "Oldest first. Any account type.",
+        "operationId": "AccountSnapshotsController_list",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SnapshotDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "List the value snapshots of an account",
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
+    "/api/accounts/{id}/snapshots/{date}": {
+      "put": {
+        "description": "Value (and net contributions) at the end of `date`, which may not be after today (Europe/Paris). Omitted fields are cleared. Refused on an archived account.",
+        "operationId": "AccountSnapshotsController_upsert",
+        "parameters": [
+          {
+            "name": "date",
+            "required": true,
+            "in": "path",
+            "description": "Calendar day of the snapshot (`YYYY-MM-DD`).",
+            "schema": {
+              "format": "date",
+              "example": "2026-09-30",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertSnapshotDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or future date, invalid body, archived account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Create or replace the snapshot of a day",
+        "tags": [
+          "Accounts"
+        ]
+      },
+      "delete": {
+        "operationId": "AccountSnapshotsController_remove",
+        "parameters": [
+          {
+            "name": "date",
+            "required": true,
+            "in": "path",
+            "description": "Calendar day of the snapshot (`YYYY-MM-DD`).",
+            "schema": {
+              "format": "date",
+              "example": "2026-09-30",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Invalid date, archived account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown account, or no snapshot."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Delete the snapshot of a day",
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
+    "/api/accounts/{id}/snapshots/bulk": {
+      "post": {
+        "description": "Up to 500 days in one transaction: all rows are written or none. An existing day gets the new value; its contributions are replaced only when the row has some, and its note is kept.",
+        "operationId": "AccountSnapshotsController_bulk",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkSnapshotsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkSnapshotsResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid rows, duplicate or future dates, archived account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Upsert a statement history",
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
+    "/api/accounts/{id}/performance": {
+      "get": {
+        "description": "Computed from its snapshots: latest value, latest known net contributions, gain and simple return, changes since the previous snapshot and over one year, staleness, and every snapshot for the chart.",
+        "operationId": "AccountSnapshotsController_performance",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountPerformanceDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Value, contributions, gain and history of an account",
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
+    "/api/investments/summary": {
+      "get": {
+        "description": "Non-archived brokerage, life insurance, employee savings and crypto accounts, from their latest snapshots. The gain only covers accounts whose contributions are known.",
+        "operationId": "InvestmentsController_summary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestmentsSummaryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Value, contributions and gain of the investment accounts",
+        "tags": [
+          "Investments"
         ]
       }
     }
@@ -4931,6 +5268,401 @@
           "totalsCents",
           "averageCents",
           "averageMonths"
+        ]
+      },
+      "SnapshotDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "valueCents": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Value of the account at the end of the day, in cents."
+          },
+          "contributionsCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Net contributions to date (deposits minus withdrawals) in cents, when known."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "valueCents",
+          "contributionsCents",
+          "note"
+        ]
+      },
+      "UpsertSnapshotDto": {
+        "type": "object",
+        "properties": {
+          "valueCents": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Value of the account at the end of the day, in cents."
+          },
+          "contributionsCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Net contributions to date (deposits minus withdrawals) in cents, when known."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "valueCents"
+        ]
+      },
+      "BulkSnapshotRowDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-09-30"
+          },
+          "valueCents": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Value of the account at the end of the day, in cents."
+          },
+          "contributionsCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Net contributions to date (deposits minus withdrawals) in cents, when known. Omitted or null keeps the contributions already known for that day."
+          }
+        },
+        "required": [
+          "date",
+          "valueCents"
+        ]
+      },
+      "BulkSnapshotsDto": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "minItems": 1,
+            "maxItems": 500,
+            "description": "One row per day; a day may appear only once.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BulkSnapshotRowDto"
+            }
+          }
+        },
+        "required": [
+          "rows"
+        ]
+      },
+      "BulkSnapshotsResultDto": {
+        "type": "object",
+        "properties": {
+          "created": {
+            "type": "integer",
+            "description": "Days that had no snapshot."
+          },
+          "updated": {
+            "type": "integer",
+            "description": "Days whose snapshot was replaced."
+          }
+        },
+        "required": [
+          "created",
+          "updated"
+        ]
+      },
+      "ValueChangeDto": {
+        "type": "object",
+        "properties": {
+          "fromDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Date of the snapshot the latest value is compared with."
+          },
+          "fromValueCents": {
+            "type": "integer"
+          },
+          "changeCents": {
+            "type": "integer"
+          },
+          "changeRate": {
+            "type": "number",
+            "nullable": true,
+            "description": "`changeCents / fromValueCents`, null when that value is 0."
+          },
+          "contributionsChangeCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Net contributions added between the two snapshots, null unless both carry contributions. `changeCents` minus this is the market gain over the period."
+          }
+        },
+        "required": [
+          "fromDate",
+          "fromValueCents",
+          "changeCents",
+          "changeRate",
+          "contributionsChangeCents"
+        ]
+      },
+      "AccountPerformanceDto": {
+        "type": "object",
+        "properties": {
+          "valueCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Latest snapshot value; null without snapshots."
+          },
+          "valueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "contributionsCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Latest known net contributions. When the latest snapshot has none, those of the latest snapshot that has them (see `contributionsDate`)."
+          },
+          "contributionsDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Snapshot the contributions come from; earlier than `valueDate` when the latest snapshot has no contributions."
+          },
+          "gainCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "`valueCents - contributionsCents`."
+          },
+          "returnRate": {
+            "type": "number",
+            "nullable": true,
+            "description": "Simple return `gainCents / contributionsCents` (e.g. 0.12), null when contributions are unknown or not positive."
+          },
+          "daysSinceLatest": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Days since the latest snapshot, today in Europe/Paris."
+          },
+          "staleAfterDays": {
+            "type": "integer",
+            "description": "Usual statement rhythm of the account type, in days."
+          },
+          "stale": {
+            "type": "boolean",
+            "description": "`daysSinceLatest > staleAfterDays`."
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountType"
+              }
+            ]
+          },
+          "sincePrevious": {
+            "nullable": true,
+            "description": "Latest value compared with the snapshot before it.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ValueChangeDto"
+              }
+            ]
+          },
+          "sinceOneYear": {
+            "nullable": true,
+            "description": "Latest value compared with the last snapshot on or before the same day one year earlier.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ValueChangeDto"
+              }
+            ]
+          },
+          "snapshots": {
+            "description": "Every snapshot, oldest first (value and contributions series).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SnapshotDto"
+            }
+          }
+        },
+        "required": [
+          "valueCents",
+          "valueDate",
+          "contributionsCents",
+          "contributionsDate",
+          "gainCents",
+          "returnRate",
+          "daysSinceLatest",
+          "staleAfterDays",
+          "stale",
+          "accountId",
+          "type",
+          "sincePrevious",
+          "sinceOneYear",
+          "snapshots"
+        ]
+      },
+      "InvestmentsTotalsDto": {
+        "type": "object",
+        "properties": {
+          "valueCents": {
+            "type": "integer",
+            "description": "Sum of the latest values of the accounts that have one."
+          },
+          "contributionsCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Sum of the latest known contributions, over the accounts that have both a value and contributions; null when none has."
+          },
+          "gainCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Gain over the same accounts as `contributionsCents`."
+          },
+          "returnRate": {
+            "type": "number",
+            "nullable": true
+          },
+          "withoutContributionsCount": {
+            "type": "integer",
+            "description": "Accounts with a value but no known contributions, left out of the gain."
+          },
+          "withoutValueCount": {
+            "type": "integer",
+            "description": "Accounts with no snapshot."
+          },
+          "staleCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "valueCents",
+          "contributionsCents",
+          "gainCents",
+          "returnRate",
+          "withoutContributionsCount",
+          "withoutValueCount",
+          "staleCount"
+        ]
+      },
+      "InvestmentAccountSummaryDto": {
+        "type": "object",
+        "properties": {
+          "valueCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Latest snapshot value; null without snapshots."
+          },
+          "valueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "contributionsCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Latest known net contributions. When the latest snapshot has none, those of the latest snapshot that has them (see `contributionsDate`)."
+          },
+          "contributionsDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Snapshot the contributions come from; earlier than `valueDate` when the latest snapshot has no contributions."
+          },
+          "gainCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "`valueCents - contributionsCents`."
+          },
+          "returnRate": {
+            "type": "number",
+            "nullable": true,
+            "description": "Simple return `gainCents / contributionsCents` (e.g. 0.12), null when contributions are unknown or not positive."
+          },
+          "daysSinceLatest": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Days since the latest snapshot, today in Europe/Paris."
+          },
+          "staleAfterDays": {
+            "type": "integer",
+            "description": "Usual statement rhythm of the account type, in days."
+          },
+          "stale": {
+            "type": "boolean",
+            "description": "`daysSinceLatest > staleAfterDays`."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountType"
+              }
+            ]
+          },
+          "institution": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "valueCents",
+          "valueDate",
+          "contributionsCents",
+          "contributionsDate",
+          "gainCents",
+          "returnRate",
+          "daysSinceLatest",
+          "staleAfterDays",
+          "stale",
+          "id",
+          "name",
+          "type",
+          "institution"
+        ]
+      },
+      "InvestmentsSummaryDto": {
+        "type": "object",
+        "properties": {
+          "totals": {
+            "$ref": "#/components/schemas/InvestmentsTotalsDto"
+          },
+          "accounts": {
+            "description": "Non-archived investment accounts, by display order.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvestmentAccountSummaryDto"
+            }
+          }
+        },
+        "required": [
+          "totals",
+          "accounts"
         ]
       }
     }
