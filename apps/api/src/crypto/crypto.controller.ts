@@ -97,7 +97,7 @@ export class AccountHoldingsController {
   @ApiOperation({
     summary: "Refresh prices and write today's snapshot",
     description:
-      "Asks the price API for every held asset (each at most every 15 s), values the holdings and upserts today's balance snapshot when every holding has a price. Contributions become the sum of the invested amounts when every holding has one.",
+      "Asks the price API for every held asset (each at most every 15 s), values the holdings and upserts today's balance snapshot when every holding has a price. Contributions are the sum of the invested amounts when every holding has one, null otherwise.",
   })
   @ApiParam(ID_PARAM)
   @ApiOkResponse({ type: AccountHoldingsDto })

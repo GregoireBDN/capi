@@ -226,20 +226,37 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
     })
   })
 
-  it('keeps existing contributions when an invested amount is missing', async () => {
+  it('makes contributions unknown when a holding has no invested amount', async () => {
     await inRollback(async ({ crypto, investments, account }) => {
       const id = await account()
+      // Yesterday: a fully invested holding.
       await investments.upsert(
         id,
-        '2026-11-05',
-        { valueCents: 1, contributionsCents: 123_400 },
+        '2026-11-04',
+        { valueCents: 80_000, contributionsCents: 40_000 },
         NOW,
       )
-      await crypto.create(id, { ...ETH, quantity: '1' }, NOW)
-      const [snapshot] = await investments.list(id)
-      expect(snapshot).toMatchObject({
-        valueCents: 250_012,
-        contributionsCents: 123_400,
+      await crypto.create(
+        id,
+        { ...ETH, quantity: '0.4', investedCents: 40_000 },
+        NOW,
+      )
+      expect((await investments.performance(id, NOW)).returnRate).toBe(
+        (100_005 - 40_000) / 40_000,
+      )
+      // An asset without invested amount is added: pairing the old 400 €
+      // with the larger value used to report an inflated return (+185 %).
+      await crypto.create(id, { ...BTC, quantity: '0.01' }, NOW)
+      const [, today] = await investments.list(id)
+      expect(today).toMatchObject({
+        date: '2026-11-05',
+        valueCents: 100_005 + 60_000,
+        contributionsCents: null,
+      })
+      expect(await investments.performance(id, NOW)).toMatchObject({
+        contributionsCents: null,
+        gainCents: null,
+        returnRate: null,
       })
     })
   })

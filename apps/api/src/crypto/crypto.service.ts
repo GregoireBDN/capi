@@ -236,8 +236,8 @@ export class CryptoService {
   /**
    * Values the accounts at the stored prices (refreshed per `mode`) and, when
    * `write`, upserts today's snapshot of each writable account whose holdings
-   * all have a price. Contributions become the sum of the invested amounts when
-   * every holding has one; otherwise the day keeps the contributions it had.
+   * all have a price. Contributions are the sum of the invested amounts when
+   * every holding has one, and unknown (null) otherwise.
    */
   private async valuate(
     accounts: CryptoAccount[],
@@ -330,9 +330,9 @@ export class CryptoService {
         target: [s.accountId, s.date],
         set: {
           valueCents,
-          ...(investedCents === null
-            ? {}
-            : { contributionsCents: investedCents }),
+          // Unknown when a holding has no invested amount: an older total
+          // would leave out the assets added since.
+          contributionsCents: investedCents,
           updatedAt: now,
         },
       })
