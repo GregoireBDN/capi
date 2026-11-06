@@ -78,6 +78,13 @@
       "when": 1793962616266,
       "tag": "0010_recurring_items",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793966036137,
+      "tag": "0011_crypto_holdings",
+      "breakpoints": true
     }
   ]
 }

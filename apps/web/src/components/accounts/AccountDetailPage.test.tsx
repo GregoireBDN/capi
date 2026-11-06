@@ -16,6 +16,7 @@ const api = vi.hoisted(() => ({
   accountSnapshotsControllerUpsert: vi.fn(),
   accountSnapshotsControllerRemove: vi.fn(),
   accountSnapshotsControllerBulk: vi.fn(),
+  accountHoldingsControllerList: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
@@ -431,5 +432,55 @@ describe('AccountDetailPage', () => {
     )
     renderPage()
     expect(await screen.findByText('Compte introuvable')).toBeInTheDocument()
+  })
+  it('lists the holdings of a crypto account instead of the empty state', async () => {
+    api.accountsControllerFindOne.mockImplementation(() =>
+      ok(account({ type: 'crypto', name: 'Crypto test', balanceCents: null })),
+    )
+    api.accountSnapshotsControllerPerformance.mockImplementation(() =>
+      ok(
+        performance({
+          type: 'crypto',
+          valueCents: null,
+          valueDate: null,
+          contributionsCents: null,
+          contributionsDate: null,
+          gainCents: null,
+          returnRate: null,
+          sincePrevious: null,
+          sinceOneYear: null,
+          daysSinceLatest: null,
+          stale: false,
+          snapshots: [],
+        }),
+      ),
+    )
+    api.accountHoldingsControllerList.mockImplementation(() =>
+      ok({
+        accountId: ACCOUNT_ID,
+        holdings: [],
+        totals: {
+          valueCents: 0,
+          investedCents: null,
+          gainCents: null,
+          missingPriceCount: 0,
+          staleCount: 0,
+          withoutInvestedCount: 0,
+        },
+        complete: true,
+        snapshot: null,
+        priceApiEnabled: true,
+        refreshFailed: false,
+      }),
+    )
+    renderPage()
+
+    expect(await screen.findByText('Aucun avoir')).toBeInTheDocument()
+    expect(
+      screen.getByRole('region', { name: 'Avoirs crypto' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('Aucune valeur pour ce compte'),
+    ).not.toBeInTheDocument()
   })
 })
