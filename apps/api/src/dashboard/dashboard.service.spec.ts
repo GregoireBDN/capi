@@ -1,0 +1,438 @@
+import '#/load-env'
+import { ValidationPipe } from '@nestjs/common'
+import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
+import postgres from 'postgres'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { AccountsService } from '#/accounts/accounts.service'
+import * as schema from '#/database/schema'
+import {
+  balanceSnapshotsTable,
+  type InsertTransaction,
+  transactionsTable,
+} from '#/database/schema'
+import { TransactionsService } from '#/transactions/transactions.service'
+import { DashboardService, savingsRate } from './dashboard.service'
+import {
+  DashboardHistoryQueryDto,
+  DashboardOverviewQueryDto,
+} from './dto/dashboard.dto'
+
+/**
+ * Integration checks against the dedicated test database (see
+ * `vitest.config.ts`). Every test runs in a transaction that is rolled back.
+ * Synthetic data only.
+ */
+
+type Db = PostgresJsDatabase<typeof schema>
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
+
+const ROLLBACK = Symbol('rollback')
+
+/** 5 November 2026, mid-morning in Paris. */
+const NOW = new Date('2026-11-05T10:00:00Z')
+
+describe.skipIf(!process.env.DATABASE_URL)(
+  'DashboardService (database)',
+  () => {
+    let client: postgres.Sql
+    let db: Db
+
+    beforeAll(() => {
+      client = postgres(process.env.DATABASE_URL!, { max: 1 })
+      db = drizzle(client, { schema })
+    })
+
+    afterAll(async () => {
+      await client.end()
+    })
+
+    async function inRollback(
+      fn: (f: {
+        tx: Tx
+        accounts: AccountsService
+        dashboard: DashboardService
+      }) => Promise<void>,
+    ) {
+      await db
+        .transaction(async (tx) => {
+          const database = { db: tx } as never
+          const accounts = new AccountsService(database)
+          const dashboard = new DashboardService(
+            database,
+            accounts,
+            new TransactionsService(database),
+          )
+          await fn({ tx, accounts, dashboard })
+          throw ROLLBACK
+        })
+        .catch((error: unknown) => {
+          if (error !== ROLLBACK) throw error
+        })
+    }
+
+    let hash = 0
+    function transaction(
+      accountId: string,
+      overrides: Partial<InsertTransaction> = {},
+    ) {
+      hash++
+      return {
+        accountId,
+        bookingDate: '2026-10-01',
+        amountCents: -1_000,
+        rawLabel: 'PAIEMENT CB 0110 VILLE-TEST FAUX MAGASIN',
+        kind: 'expense',
+        dedupeHash: `dashboard-test-${hash}`,
+        ...overrides,
+      } satisfies InsertTransaction
+    }
+
+    it('returns zeros and no net worth on an empty database', async () => {
+      await inRollback(async ({ dashboard }) => {
+        const overview = await dashboard.overview('2026-11', { now: NOW })
+        expect(overview).toEqual({
+          netWorth: {
+            totalCents: 0,
+            cashCents: 0,
+            investmentsCents: 0,
+            previousMonthEndCents: null,
+            unknownBalanceCount: 0,
+          },
+          accounts: [],
+          current: {
+            month: '2026-11',
+            incomeCents: 0,
+            expenseCents: 0,
+            netCents: 0,
+            oneOffIncomeCents: 0,
+            oneOffExpenseCents: 0,
+            savingsRate: null,
+          },
+          previous: expect.objectContaining({
+            month: '2026-10',
+            netCents: 0,
+            savingsRate: null,
+          }),
+          reviewCount: 0,
+        })
+
+        const { months } = await dashboard.history(12, { now: NOW })
+        expect(months.map((m) => m.month)).toEqual([
+          '2025-12',
+          '2026-01',
+          '2026-02',
+          '2026-03',
+          '2026-04',
+          '2026-05',
+          '2026-06',
+          '2026-07',
+          '2026-08',
+          '2026-09',
+          '2026-10',
+          '2026-11',
+        ])
+        for (const month of months) {
+          expect(month).toMatchObject({
+            incomeCents: 0,
+            expenseCents: 0,
+            netCents: 0,
+            netWorthCents: null,
+          })
+        }
+      })
+    })
+
+    it('never counts transfers as income or expense, and cuts months on calendar dates', async () => {
+      await inRollback(async ({ tx, accounts, dashboard }) => {
+        const checking = await accounts.create({
+          name: 'Test checking',
+          type: 'checking',
+        })
+        const savings = await accounts.create({
+          name: 'Test savings',
+          type: 'savings',
+        })
+        await tx.insert(transactionsTable).values([
+          // September: last day.
+          transaction(checking.id, {
+            bookingDate: '2026-09-30',
+            amountCents: -2_000,
+          }),
+          // October: first and last day, a one-off, a refund.
+          transaction(checking.id, {
+            bookingDate: '2026-10-01',
+            amountCents: 300_000,
+            kind: 'income',
+          }),
+          transaction(checking.id, {
+            bookingDate: '2026-10-20',
+            amountCents: -10_000,
+            isOneOff: true,
+          }),
+          transaction(checking.id, {
+            bookingDate: '2026-10-22',
+            amountCents: 1_500,
+          }),
+          transaction(checking.id, {
+            bookingDate: '2026-10-31',
+            amountCents: -5_000,
+            needsReview: true,
+          }),
+          // Transfer checking → savings: both legs are left out.
+          transaction(checking.id, {
+            bookingDate: '2026-10-15',
+            amountCents: -50_000,
+            kind: 'transfer',
+          }),
+          transaction(savings.id, {
+            bookingDate: '2026-10-15',
+            amountCents: 50_000,
+            kind: 'transfer',
+          }),
+          // November: first day.
+          transaction(checking.id, {
+            bookingDate: '2026-11-01',
+            amountCents: -7_000,
+          }),
+        ])
+
+        const overview = await dashboard.overview('2026-10', { now: NOW })
+        expect(overview.current).toEqual({
+          month: '2026-10',
+          incomeCents: 300_000,
+          expenseCents: -13_500,
+          netCents: 286_500,
+          oneOffIncomeCents: 0,
+          oneOffExpenseCents: -10_000,
+          savingsRate: 286_500 / 300_000,
+        })
+        expect(overview.previous).toMatchObject({
+          month: '2026-09',
+          incomeCents: 0,
+          expenseCents: -2_000,
+          netCents: -2_000,
+          savingsRate: null,
+        })
+        expect(overview.reviewCount).toBe(1)
+        // Transfers move money between accounts, never out of the net worth.
+        expect(overview.netWorth).toMatchObject({
+          totalCents: 300_000 - 2_000 - 13_500 - 7_000,
+          cashCents: 300_000 - 2_000 - 13_500 - 7_000,
+          investmentsCents: 0,
+        })
+        expect(
+          overview.accounts.map((a) => [a.name, a.group, a.balanceCents]),
+        ).toEqual([
+          ['Test checking', 'cash', 300_000 - 2_000 - 13_500 - 7_000 - 50_000],
+          ['Test savings', 'cash', 50_000],
+        ])
+
+        const { months } = await dashboard.history(3, { now: NOW })
+        expect(
+          months.map((m) => [
+            m.month,
+            m.incomeCents,
+            m.expenseCents,
+            m.netCents,
+          ]),
+        ).toEqual([
+          ['2026-09', 0, -2_000, -2_000],
+          ['2026-10', 300_000, -13_500, 286_500],
+          ['2026-11', 0, -7_000, -7_000],
+        ])
+      })
+    })
+
+    it('takes the current month in Europe/Paris', async () => {
+      await inRollback(async ({ dashboard }) => {
+        // Still October 31st in UTC, already November 1st in Paris.
+        const { months } = await dashboard.history(1, {
+          now: new Date('2026-10-31T23:30:00Z'),
+        })
+        expect(months.map((m) => m.month)).toEqual(['2026-11'])
+
+        const overview = await dashboard.overview('2026-11', {
+          now: new Date('2026-10-31T23:30:00Z'),
+        })
+        expect(overview.previous.month).toBe('2026-10')
+      })
+    })
+
+    it('rebuilds month-end net worth from snapshots, running balances and later transactions', async () => {
+      await inRollback(async ({ tx, accounts, dashboard }) => {
+        // Spreadsheet history: month-end snapshots, rows without balance.
+        const checking = await accounts.create({
+          name: 'Test checking',
+          type: 'checking',
+        })
+        // Bank export: running balances, then a row entered by hand.
+        const exported = await accounts.create({
+          name: 'Test exported',
+          type: 'checking',
+        })
+        // No anchor at all: the sum of the amounts.
+        const savings = await accounts.create({
+          name: 'Test savings',
+          type: 'savings',
+        })
+        const pea = await accounts.create({
+          name: 'Test PEA',
+          type: 'brokerage',
+        })
+        const closed = await accounts.create({
+          name: 'Test closed',
+          type: 'savings',
+        })
+        await accounts.update(closed.id, { archived: true })
+
+        await tx.insert(balanceSnapshotsTable).values([
+          { accountId: checking.id, date: '2026-08-31', valueCents: 100_000 },
+          { accountId: pea.id, date: '2026-08-31', valueCents: 200_000 },
+          { accountId: pea.id, date: '2026-10-31', valueCents: 210_000 },
+          { accountId: closed.id, date: '2026-08-31', valueCents: 99_999 },
+        ])
+        await tx.insert(transactionsTable).values([
+          // Already in the 08-31 snapshot.
+          transaction(checking.id, {
+            bookingDate: '2026-08-20',
+            amountCents: -999,
+          }),
+          transaction(checking.id, {
+            bookingDate: '2026-09-10',
+            amountCents: -20_000,
+          }),
+          transaction(checking.id, {
+            bookingDate: '2026-09-15',
+            amountCents: -50_000,
+            kind: 'transfer',
+          }),
+          transaction(savings.id, {
+            bookingDate: '2026-09-15',
+            amountCents: 50_000,
+            kind: 'transfer',
+          }),
+          transaction(checking.id, {
+            bookingDate: '2026-10-05',
+            amountCents: 5_000,
+            kind: 'income',
+          }),
+          transaction(checking.id, {
+            bookingDate: '2026-11-02',
+            amountCents: -1_000,
+          }),
+          transaction(exported.id, {
+            bookingDate: '2026-09-05',
+            amountCents: -100,
+            balanceAfterCents: 10_000,
+          }),
+          transaction(exported.id, {
+            bookingDate: '2026-10-03',
+            amountCents: -200,
+            balanceAfterCents: 9_800,
+          }),
+          transaction(exported.id, {
+            bookingDate: '2026-10-10',
+            amountCents: -300,
+          }),
+        ])
+
+        const { months } = await dashboard.history(5, { now: NOW })
+        expect(months.map((m) => [m.month, m.netWorthCents])).toEqual([
+          // Before any data.
+          ['2026-07', null],
+          // checking 100 000 + PEA 200 000 (exported, savings: nothing yet).
+          ['2026-08', 300_000],
+          // checking 30 000 + exported 10 000 + savings 50 000 + PEA 200 000.
+          ['2026-09', 290_000],
+          // checking 35 000 + exported 9 500 + savings 50 000 + PEA 210 000.
+          ['2026-10', 304_500],
+          // checking 34 000 + the rest unchanged.
+          ['2026-11', 303_500],
+        ])
+
+        const overview = await dashboard.overview('2026-11', { now: NOW })
+        expect(overview.netWorth).toEqual({
+          totalCents: 303_500,
+          cashCents: 93_500,
+          investmentsCents: 210_000,
+          previousMonthEndCents: 304_500,
+          unknownBalanceCount: 0,
+        })
+        expect(overview.accounts.map((a) => a.name)).not.toContain(
+          'Test closed',
+        )
+        expect(overview.accounts.find((a) => a.id === pea.id)).toMatchObject({
+          group: 'investments',
+          balanceCents: 210_000,
+          balanceDate: '2026-10-31',
+        })
+
+        // Same figures as the accounts list as of each month end.
+        const asOf = await accounts.list({ asOf: '2026-09-30' })
+        expect(asOf.find((a) => a.id === checking.id)).toMatchObject({
+          balanceCents: 30_000,
+          balanceDate: '2026-09-15',
+        })
+      })
+    })
+
+    it('counts accounts without a known balance apart', async () => {
+      await inRollback(async ({ accounts, dashboard }) => {
+        await accounts.create({ name: 'Test crypto', type: 'crypto' })
+        const overview = await dashboard.overview('2026-11', { now: NOW })
+        expect(overview.netWorth).toMatchObject({
+          totalCents: 0,
+          unknownBalanceCount: 1,
+          previousMonthEndCents: null,
+        })
+        expect(overview.accounts[0]).toMatchObject({
+          group: 'investments',
+          balanceCents: null,
+        })
+      })
+    })
+  },
+)
+
+describe('savingsRate', () => {
+  it('divides the net by a positive income only', () => {
+    expect(savingsRate(200_000, 50_000)).toBe(0.25)
+    expect(savingsRate(200_000, -10_000)).toBe(-0.05)
+    expect(savingsRate(0, -10_000)).toBeNull()
+    expect(savingsRate(-500, 0)).toBeNull()
+  })
+})
+
+describe('dashboard query validation', () => {
+  const pipe = new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+  })
+
+  function validate<T>(metatype: new () => T, value: unknown) {
+    return pipe.transform(value, { type: 'query', metatype }) as Promise<T>
+  }
+
+  it('accepts a YYYY-MM month and rejects anything else', async () => {
+    await expect(
+      validate(DashboardOverviewQueryDto, { month: '2026-02' }),
+    ).resolves.toMatchObject({ month: '2026-02' })
+    for (const month of ['2026-13', '2026-1', '2026-02-01', 'now']) {
+      await expect(
+        validate(DashboardOverviewQueryDto, { month }),
+      ).rejects.toThrow()
+    }
+  })
+
+  it('parses months between 1 and 60', async () => {
+    await expect(
+      validate(DashboardHistoryQueryDto, { months: '24' }),
+    ).resolves.toMatchObject({ months: 24 })
+    for (const months of ['0', '61', '1.5', 'abc']) {
+      await expect(
+        validate(DashboardHistoryQueryDto, { months }),
+      ).rejects.toThrow()
+    }
+  })
+})
