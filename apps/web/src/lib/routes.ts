@@ -8,6 +8,8 @@ export const ROUTES = {
   budget: '/budget',
   subscriptions: '/subscriptions',
   savings: '/savings',
+  accounts: '/accounts',
+  account: '/accounts/$accountId',
   import: '/import',
   profile: '/profile',
   verifyEmail: '/verify-email',
