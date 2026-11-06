@@ -11,6 +11,7 @@ import fastifyHelmet from '@fastify/helmet'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { Logger } from 'nestjs-pino'
 import { AppModule } from './app.module'
+import { registerNoStoreHeaders } from './common/http/no-store'
 import { env } from './config/env'
 import { genReqId, REQUEST_ID_HEADER } from './config/logger'
 import { registerMultipart } from './imports/upload/multipart'
@@ -37,6 +38,10 @@ async function bootstrap() {
       reply.header(REQUEST_ID_HEADER, request.id)
       done()
     })
+
+  // `Cache-Control: no-store` on every response (see `common/http/no-store.ts`).
+  // Helmet sets no caching headers, so nothing conflicts with it.
+  registerNoStoreHeaders(app.getHttpAdapter().getInstance())
 
   await app.register(fastifyCookie)
 

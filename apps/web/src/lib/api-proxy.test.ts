@@ -7,13 +7,17 @@ const API_URL = 'http://api.test:4000'
 
 type Captured = { url: string; init: RequestInit }
 
-function upstream(handler: (url: URL, init: RequestInit) => Response | Promise<Response>) {
+function upstream(
+  handler: (url: URL, init: RequestInit) => Response | Promise<Response>,
+) {
   const calls: Captured[] = []
-  const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-    const url = new URL(input instanceof Request ? input.url : input)
-    calls.push({ url: url.toString(), init: init ?? {} })
-    return handler(url, init ?? {})
-  })
+  const fetchImpl = vi.fn(
+    async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(input instanceof Request ? input.url : input)
+      calls.push({ url: url.toString(), init: init ?? {} })
+      return handler(url, init ?? {})
+    },
+  )
   return { fetch: fetchImpl as unknown as typeof fetch, calls }
 }
 
@@ -76,21 +80,55 @@ describe('proxyToApi (/api/* → API)', () => {
       return new Response('{}', { status: 200, headers })
     })
 
-    const response = await proxyToApi(new Request('http://web.test/api/auth/login', { method: 'POST' }), {
-      apiUrl: API_URL,
-      fetch: api.fetch,
-    })
+    const response = await proxyToApi(
+      new Request('http://web.test/api/auth/login', { method: 'POST' }),
+      {
+        apiUrl: API_URL,
+        fetch: api.fetch,
+      },
+    )
 
-    expect(response.headers.getSetCookie()).toEqual(['token=a; Path=/', 'refresh_token=r; Path=/'])
+    expect(response.headers.getSetCookie()).toEqual([
+      'token=a; Path=/',
+      'refresh_token=r; Path=/',
+    ])
     expect(response.headers.get('content-encoding')).toBeNull()
     expect(response.headers.get('x-request-id')).toBe('req-1')
   })
 
+  it('forwards the API cache headers and Clear-Site-Data on logout', async () => {
+    const api = upstream(
+      () =>
+        new Response('{"success":true}', {
+          status: 200,
+          headers: {
+            'cache-control': 'no-store',
+            pragma: 'no-cache',
+            expires: '0',
+            'clear-site-data': '"cache"',
+          },
+        }),
+    )
+
+    const response = await proxyToApi(
+      new Request('http://web.test/api/auth/logout', { method: 'POST' }),
+      { apiUrl: API_URL, fetch: api.fetch },
+    )
+
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(response.headers.get('pragma')).toBe('no-cache')
+    expect(response.headers.get('expires')).toBe('0')
+    expect(response.headers.get('clear-site-data')).toBe('"cache"')
+  })
+
   it('answers 502 when the API is unreachable', async () => {
-    const response = await proxyToApi(new Request('http://web.test/api/health'), {
-      apiUrl: API_URL,
-      fetch: vi.fn(() => Promise.reject(new Error('ECONNREFUSED'))),
-    })
+    const response = await proxyToApi(
+      new Request('http://web.test/api/health'),
+      {
+        apiUrl: API_URL,
+        fetch: vi.fn(() => Promise.reject(new Error('ECONNREFUSED'))),
+      },
+    )
 
     expect(response.status).toBe(502)
   })
@@ -119,7 +157,9 @@ describe('proxyToApi (/api/* → API)', () => {
       resolveServerSession('refresh_token=refresh-0', target),
     ])
 
-    expect(api.calls.filter((c) => c.url.endsWith('/api/auth/refresh'))).toHaveLength(1)
+    expect(
+      api.calls.filter((c) => c.url.endsWith('/api/auth/refresh')),
+    ).toHaveLength(1)
     expect(proxied.status).toBe(200)
     expect(await proxied.json()).toEqual({ success: true })
     expect(proxied.headers.getSetCookie()).toEqual(ssr.setCookies)
@@ -127,7 +167,9 @@ describe('proxyToApi (/api/* → API)', () => {
   })
 
   it('lets the API answer a refresh without a refresh cookie', async () => {
-    const api = upstream(() => Response.json({ statusCode: 401 }, { status: 401 }))
+    const api = upstream(() =>
+      Response.json({ statusCode: 401 }, { status: 401 }),
+    )
 
     const response = await proxyToApi(
       new Request('http://web.test/api/auth/refresh', { method: 'POST' }),
@@ -140,7 +182,9 @@ describe('proxyToApi (/api/* → API)', () => {
 
   it('forgets replayable rotations on logout', async () => {
     const api = upstream((url) =>
-      url.pathname === '/api/auth/refresh' ? rotatedResponse() : Response.json({ success: true }),
+      url.pathname === '/api/auth/refresh'
+        ? rotatedResponse()
+        : Response.json({ success: true }),
     )
     const target = { apiUrl: API_URL, fetch: api.fetch }
     const refresh = () =>
@@ -160,6 +204,8 @@ describe('proxyToApi (/api/* → API)', () => {
     await refresh()
 
     // The second refresh reached the API (which would now reject it).
-    expect(api.calls.filter((c) => c.url.endsWith('/api/auth/refresh'))).toHaveLength(2)
+    expect(
+      api.calls.filter((c) => c.url.endsWith('/api/auth/refresh')),
+    ).toHaveLength(2)
   })
 })

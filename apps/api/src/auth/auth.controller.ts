@@ -70,10 +70,19 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   /** Sets the session pair on a JSON reply via the Fastify cookie API. */
-  private setSessionCookies(reply: FastifyReply, { accessToken, refreshToken }: SessionTokens) {
+  private setSessionCookies(
+    reply: FastifyReply,
+    { accessToken, refreshToken }: SessionTokens,
+  ) {
     reply
-      .clearCookie(REFRESH_COOKIE, { ...COOKIE_DEFAULTS, path: LEGACY_REFRESH_COOKIE_PATH })
-      .cookie(ACCESS_COOKIE, accessToken, { ...COOKIE_DEFAULTS, maxAge: ACCESS_TOKEN_TTL_SECONDS })
+      .clearCookie(REFRESH_COOKIE, {
+        ...COOKIE_DEFAULTS,
+        path: LEGACY_REFRESH_COOKIE_PATH,
+      })
+      .cookie(ACCESS_COOKIE, accessToken, {
+        ...COOKIE_DEFAULTS,
+        maxAge: ACCESS_TOKEN_TTL_SECONDS,
+      })
       .cookie(REFRESH_COOKIE, refreshToken, {
         ...COOKIE_DEFAULTS,
         path: REFRESH_COOKIE_PATH,
@@ -104,7 +113,9 @@ export class AuthController {
   @Throttle({ default: { ttl: THROTTLE_TTL, limit: THROTTLE_LIMITS.register } })
   @ApiBody({ type: RegisterDto })
   @ApiCreatedResponse({ schema: { example: { success: true } } })
-  @ApiForbiddenResponse({ description: 'Registration is closed: an account already exists.' })
+  @ApiForbiddenResponse({
+    description: 'Registration is closed: an account already exists.',
+  })
   async register(@Body() dto: RegisterDto, @Res() reply: FastifyReply) {
     const tokens = await this.authService.register(dto)
     this.setSessionCookies(reply, tokens)
@@ -138,15 +149,28 @@ export class AuthController {
   @ApiOkResponse({ schema: { example: { success: true } } })
   async logout(@Req() req: FastifyRequest, @Res() reply: FastifyReply) {
     await this.authService.revokeSession(req.cookies?.[REFRESH_COOKIE])
+    // Drop pages and API responses the browser may still hold in its HTTP
+    // cache. Not "storage": it would also unregister the service worker and
+    // wipe its (non-sensitive) shell cache and the theme preference; not
+    // "cookies": the session cookies are cleared explicitly below.
     await reply
+      .header('Clear-Site-Data', '"cache"')
       .clearCookie(ACCESS_COOKIE, { ...COOKIE_DEFAULTS })
-      .clearCookie(REFRESH_COOKIE, { ...COOKIE_DEFAULTS, path: REFRESH_COOKIE_PATH })
-      .clearCookie(REFRESH_COOKIE, { ...COOKIE_DEFAULTS, path: LEGACY_REFRESH_COOKIE_PATH })
+      .clearCookie(REFRESH_COOKIE, {
+        ...COOKIE_DEFAULTS,
+        path: REFRESH_COOKIE_PATH,
+      })
+      .clearCookie(REFRESH_COOKIE, {
+        ...COOKIE_DEFAULTS,
+        path: LEGACY_REFRESH_COOKIE_PATH,
+      })
       .send({ success: true })
   }
 
   @Post('forgot-password')
-  @Throttle({ default: { ttl: THROTTLE_TTL, limit: THROTTLE_LIMITS.forgotPassword } })
+  @Throttle({
+    default: { ttl: THROTTLE_TTL, limit: THROTTLE_LIMITS.forgotPassword },
+  })
   @HttpCode(200)
   @ApiBody({ type: ForgotPasswordDto })
   @ApiOkResponse({ schema: { example: { success: true } } })
@@ -174,7 +198,9 @@ export class AuthController {
   }
 
   @Post('resend-verification')
-  @Throttle({ default: { ttl: THROTTLE_TTL, limit: THROTTLE_LIMITS.resendVerification } })
+  @Throttle({
+    default: { ttl: THROTTLE_TTL, limit: THROTTLE_LIMITS.resendVerification },
+  })
   @HttpCode(200)
   @UseGuards(JwtGuard)
   @ApiCookieAuth('token')
