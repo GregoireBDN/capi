@@ -87,7 +87,7 @@ function SheetOverlay({ className, ...props }: SheetOverlayProps) {
           'supports-backdrop-filter:backdrop-blur-xs',
 
           // Transitions
-          'duration-100',
+          'duration-100 motion-reduce:duration-0',
 
           // Open Animations
           'data-open:animate-in',
@@ -109,23 +109,66 @@ function SheetOverlay({ className, ...props }: SheetOverlayProps) {
  * The sheet panel that slides in from the specified side
  * Includes optional close button and smooth slide animations
  */
+/**
+ * Height of the on-screen keyboard over the layout viewport, as
+ * `--keyboard-inset` on the element, so a bottom sheet (and its actions)
+ * stays above the keyboard. iOS Safari overlays the keyboard on the page (the
+ * visual viewport shrinks, the layout viewport does not); Android Chrome
+ * resizes the page instead (`interactive-widget=resizes-content`), so the
+ * inset stays 0 there.
+ */
+function useKeyboardInset(node: HTMLElement | null, enabled: boolean) {
+  React.useEffect(() => {
+    const viewport =
+      typeof window === 'undefined' ? null : window.visualViewport
+    if (!enabled || !node || !viewport) return
+    const update = () => {
+      const inset = Math.max(
+        0,
+        window.innerHeight - viewport.height - viewport.offsetTop,
+      )
+      node.style.setProperty('--keyboard-inset', `${Math.round(inset)}px`)
+    }
+    update()
+    viewport.addEventListener('resize', update)
+    viewport.addEventListener('scroll', update)
+    return () => {
+      viewport.removeEventListener('resize', update)
+      viewport.removeEventListener('scroll', update)
+    }
+  }, [node, enabled])
+}
+
 function SheetContent({
   className,
   children,
   side = 'right',
   showCloseButton = true,
+  ref,
   ...props
 }: SheetContentProps) {
+  const [node, setNode] = React.useState<HTMLDivElement | null>(null)
+  useKeyboardInset(node, side === 'bottom')
+  const setRefs = React.useCallback(
+    (element: HTMLDivElement | null) => {
+      setNode(element)
+      if (typeof ref === 'function') ref(element)
+      else if (ref) ref.current = element
+    },
+    [ref],
+  )
+
   return (
     <SheetPortal>
       <SheetOverlay />
       <SheetPrimitive.Content
+        ref={setRefs}
         data-slot="sheet-content"
         data-side={side}
         className={cn(
           [
             // Positioning
-            'fixed z-50',
+            'group/sheet fixed z-50',
 
             // Layout
             'flex flex-col gap-4',
@@ -139,12 +182,18 @@ function SheetContent({
 
             // Transitions
             'transition duration-200 ease-in-out',
+            'motion-reduce:duration-0',
 
             // Side: Bottom
             'data-[side=bottom]:inset-x-0',
             'data-[side=bottom]:bottom-0',
             'data-[side=bottom]:h-auto',
             'data-[side=bottom]:border-t',
+            // Clear of the home indicator and, in landscape, of the notch
+            'data-[side=bottom]:pb-[env(safe-area-inset-bottom)]',
+            'data-[side=bottom]:px-[env(safe-area-inset-left)]',
+            // Above the on-screen keyboard (see useKeyboardInset)
+            'data-[side=bottom]:bottom-(--keyboard-inset,0px)',
 
             // Side: Left
             'data-[side=left]:inset-y-0',
@@ -153,6 +202,11 @@ function SheetContent({
             'data-[side=left]:w-3/4',
             'data-[side=left]:border-r',
             'data-[side=left]:sm:max-w-sm',
+            // Scrolls when taller than the screen (phone in landscape)
+            'data-[side=left]:overflow-y-auto',
+            'data-[side=left]:pt-[env(safe-area-inset-top)]',
+            'data-[side=left]:pb-[env(safe-area-inset-bottom)]',
+            'data-[side=left]:pl-[env(safe-area-inset-left)]',
 
             // Side: Right
             'data-[side=right]:inset-y-0',
@@ -161,12 +215,18 @@ function SheetContent({
             'data-[side=right]:w-3/4',
             'data-[side=right]:border-l',
             'data-[side=right]:sm:max-w-sm',
+            // Scrolls when taller than the screen (phone in landscape)
+            'data-[side=right]:overflow-y-auto',
+            'data-[side=right]:pt-[env(safe-area-inset-top)]',
+            'data-[side=right]:pb-[env(safe-area-inset-bottom)]',
+            'data-[side=right]:pr-[env(safe-area-inset-right)]',
 
             // Side: Top
             'data-[side=top]:inset-x-0',
             'data-[side=top]:top-0',
             'data-[side=top]:h-auto',
             'data-[side=top]:border-b',
+            'data-[side=top]:pt-[env(safe-area-inset-top)]',
 
             // Open Animations
             'data-open:animate-in',
@@ -191,7 +251,19 @@ function SheetContent({
         {children}
         {showCloseButton && (
           <SheetPrimitive.Close data-slot="sheet-close" asChild>
-            <Button ghost iconOnly size="sm" className="absolute top-3 right-3">
+            <Button
+              ghost
+              iconOnly
+              size="sm"
+              className={cn(
+                'absolute top-3 right-3',
+                // Stay clear of the notch / status bar on edge-to-edge sides
+                'group-data-[side=left]/sheet:top-[calc(--spacing(3)+env(safe-area-inset-top))]',
+                'group-data-[side=right]/sheet:top-[calc(--spacing(3)+env(safe-area-inset-top))]',
+                'group-data-[side=right]/sheet:right-[calc(--spacing(3)+env(safe-area-inset-right))]',
+                'group-data-[side=bottom]/sheet:right-[calc(--spacing(3)+env(safe-area-inset-right))]',
+              )}
+            >
               <XIcon />
               <span className="sr-only">Close</span>
             </Button>

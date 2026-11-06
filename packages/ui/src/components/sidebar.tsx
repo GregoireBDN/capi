@@ -506,6 +506,13 @@ function Sidebar({
                   'group-data-[collapsible=icon]:w-(--sidebar-width-icon)',
                   'group-data-[side=left]:border-r',
                   'group-data-[side=right]:border-l',
+                  // Edge-to-edge (viewport-fit=cover): keep the column clear
+                  // of the notch in landscape and of the home indicator. The
+                  // in-flow gap is already offset by the body's safe-area
+                  // padding.
+                  'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]',
+                  'data-[side=left]:left-[env(safe-area-inset-left)]',
+                  'data-[side=right]:right-[env(safe-area-inset-right)]',
                 ].join(' '),
           ].join(' '),
           className,

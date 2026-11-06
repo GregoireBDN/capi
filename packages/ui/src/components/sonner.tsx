@@ -59,9 +59,26 @@ function Toaster({ ...props }: ToasterComponentProps) {
           '--border-radius': 'var(--radius)',
         } as React.CSSProperties
       }
+      // Edge-to-edge (viewport-fit=cover): clear of the notch and the home
+      // indicator. Sonner's defaults are 24px (desktop) and 16px (phones).
+      offset={{
+        top: 'calc(24px + env(safe-area-inset-top))',
+        right: 'calc(24px + env(safe-area-inset-right))',
+        bottom: 'calc(24px + env(safe-area-inset-bottom))',
+        left: 'calc(24px + env(safe-area-inset-left))',
+      }}
+      mobileOffset={{
+        top: 'calc(16px + env(safe-area-inset-top))',
+        right: 'calc(16px + env(safe-area-inset-right))',
+        bottom: 'calc(16px + env(safe-area-inset-bottom))',
+        left: 'calc(16px + env(safe-area-inset-left))',
+      }}
       toastOptions={{
         classNames: {
           toast: 'cn-toast',
+          // Touch screens: 44px-high action buttons ("Recharger", "Annuler")
+          actionButton: 'pointer-coarse:!h-11 pointer-coarse:!px-4',
+          cancelButton: 'pointer-coarse:!h-11 pointer-coarse:!px-4',
           success: '!bg-success !text-success-foreground !border-success/50',
           error:
             '!bg-destructive !text-destructive-foreground !border-destructive/50',
