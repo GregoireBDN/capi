@@ -50,9 +50,11 @@ function AccountRow({
         className="hover:bg-muted/50 focus-visible:ring-ring -mx-2 flex items-center gap-2 rounded-md px-2 py-2.5 text-sm outline-none focus-visible:ring-2"
       >
         <div className="min-w-0 flex-1 space-y-0.5">
-          <div className="flex items-baseline justify-between gap-3">
-            <p className="min-w-0 font-medium break-words">{account.name}</p>
-            <p className="shrink-0 font-medium tabular-nums">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+            <p className="min-w-[7rem] flex-1 font-medium break-words">
+              {account.name}
+            </p>
+            <p className="ml-auto font-medium whitespace-nowrap tabular-nums">
               {account.balanceCents === null
                 ? '—'
                 : formatCents(account.balanceCents)}

@@ -49,7 +49,7 @@ export function Delta({
       </span>
       <span
         className={cn(
-          'font-medium',
+          'font-medium whitespace-nowrap',
           direction === 'up' && 'text-chart-delta-bad',
           direction === 'down' && 'text-chart-delta-good',
         )}

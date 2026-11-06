@@ -77,8 +77,9 @@ function HoldingRow({
   now: Date
 }) {
   return (
-    <>
-      <div className="min-w-0 flex-1 space-y-0.5">
+    // The amounts go under the asset when both don't fit side by side.
+    <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-3 gap-y-1">
+      <div className="min-w-[8rem] flex-1 space-y-0.5">
         <p className="flex min-w-0 items-baseline gap-1.5">
           <span className="shrink-0 font-medium">{holding.symbol}</span>
           <span className="text-muted-foreground truncate text-xs">
@@ -90,7 +91,7 @@ function HoldingRow({
         </p>
         <PriceLine holding={holding} now={now} />
       </div>
-      <div className="shrink-0 space-y-0.5 text-right">
+      <div className="ml-auto space-y-0.5 text-right whitespace-nowrap">
         <p className="font-medium tabular-nums">
           {holding.valueCents === null ? '—' : formatCents(holding.valueCents)}
         </p>
@@ -112,7 +113,7 @@ function HoldingRow({
           </p>
         )}
       </div>
-    </>
+    </div>
   )
 }
 

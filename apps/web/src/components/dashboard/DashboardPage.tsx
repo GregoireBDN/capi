@@ -57,7 +57,7 @@ function ReviewCallout({ count }: { count: number }) {
         <p>Non catégorisées ou signalées lors d’un import.</p>
         <Link
           to={ROUTES.review}
-          className="text-foreground inline-flex items-center gap-1 font-medium underline-offset-4 hover:underline"
+          className="text-foreground relative inline-flex items-center gap-1 font-medium pointer-coarse:touch-hitbox underline-offset-4 hover:underline"
         >
           Ouvrir la file de revue
           <ArrowRightIcon aria-hidden className="size-4" />

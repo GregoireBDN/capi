@@ -96,11 +96,12 @@ export function TransactionList({
           const heading = formatDay(group.date)
           return (
             <section key={group.date} aria-label={heading}>
-              <h2 className="bg-background/95 sticky top-14 z-[1] flex items-baseline justify-between gap-3 border-b px-3 py-1.5 text-xs font-medium backdrop-blur md:top-0">
+              {/* top-12: under the mobile top bar (AppTopBar, h-12) */}
+              <h2 className="bg-background/95 sticky top-12 z-[1] flex items-baseline justify-between gap-3 border-b px-3 py-1.5 text-xs font-medium backdrop-blur md:top-0">
                 <time dateTime={group.date}>{heading}</time>
                 {group.hasTotal && (
                   <span
-                    className="text-muted-foreground tabular-nums"
+                    className="text-muted-foreground whitespace-nowrap tabular-nums"
                     title="Total du jour, mouvements internes exclus"
                   >
                     {formatCents(group.totalCents)}

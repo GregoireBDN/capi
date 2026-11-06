@@ -53,7 +53,7 @@ function BackLink() {
   return (
     <Link
       to={ROUTES.accounts}
-      className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+      className="text-muted-foreground hover:text-foreground relative inline-flex items-center gap-1 text-sm pointer-coarse:touch-hitbox"
     >
       <ArrowLeftIcon aria-hidden className="size-4" />
       Comptes

@@ -26,16 +26,19 @@ function SnapshotDetails({
   withContributions: boolean
 }) {
   return (
-    <>
-      <div className="min-w-0 flex-1">
-        <p className="font-medium">{formatCalendarDate(snapshot.date)}</p>
+    // The amounts go under the date when both don't fit side by side.
+    <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-3 gap-y-1">
+      <div className="min-w-[7rem] flex-1">
+        <p className="font-medium whitespace-nowrap">
+          {formatCalendarDate(snapshot.date)}
+        </p>
         {snapshot.note && (
           <p className="text-muted-foreground text-xs break-words">
             {snapshot.note}
           </p>
         )}
       </div>
-      <div className="shrink-0 text-right">
+      <div className="ml-auto text-right whitespace-nowrap">
         <p className="font-medium tabular-nums">
           {formatCents(snapshot.valueCents)}
         </p>
@@ -47,7 +50,7 @@ function SnapshotDetails({
           </p>
         )}
       </div>
-    </>
+    </div>
   )
 }
 

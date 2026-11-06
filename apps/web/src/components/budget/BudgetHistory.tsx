@@ -76,7 +76,7 @@ export function BudgetHistory({ history }: { history: BudgetHistoryDto }) {
           Dépensé / objectif des {history.months.length} derniers mois.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="group/history">
         <Table>
           <TableHeader>
             <TableRow>
@@ -135,6 +135,10 @@ export function BudgetHistory({ history }: { history: BudgetHistoryDto }) {
             </TableRow>
           </TableFooter>
         </Table>
+        {/* Shown only while the table is wider than the card. */}
+        <p className="text-muted-foreground mt-2 hidden text-xs group-has-data-scrollable/history:block">
+          Faites glisser le tableau pour voir tous les mois.
+        </p>
       </CardContent>
     </Card>
   )

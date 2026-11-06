@@ -140,7 +140,7 @@ export function SubscriptionsPage() {
           )}
 
           {confirmedCount > 0 && (
-            <div className="grid gap-6 @3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @3xl:items-start">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-6 @3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @3xl:items-start">
               <section
                 aria-label="Opérations récurrentes"
                 className="space-y-5"
