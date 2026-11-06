@@ -4,11 +4,25 @@ const euros = new Intl.NumberFormat('fr-FR', {
 })
 
 /**
- * Formats signed integer cents as euros (`-1 234,56 €`). Money stays in
- * integer cents everywhere else; this is the display edge.
+ * Formats `value` with `format`, without a sign when it prints as zero.
+ * `Intl` keeps the minus of `-0` and of negatives that round to zero
+ * (`-0,00 €`, `-0 €`); those are printed as a plain zero instead.
+ */
+export function formatUnsignedZero(
+  format: Intl.NumberFormat,
+  value: number,
+): string {
+  const text = format.format(value)
+  const negative = value < 0 || Object.is(value, -0)
+  return negative && !/[1-9]/.test(text) ? format.format(0) : text
+}
+
+/**
+ * Formats signed integer cents as euros (`-1 234,56 €`, never `-0,00 €`).
+ * Money stays in integer cents everywhere else; this is the display edge.
  */
 export function formatCents(cents: number): string {
-  return euros.format(cents / 100)
+  return formatUnsignedZero(euros, cents / 100)
 }
 
 const calendarDate = new Intl.DateTimeFormat('fr-FR', {

@@ -58,4 +58,8 @@ describe('formatBudgetAmount', () => {
     expect(plain(10)).toBe('0,10 €')
     expect(plain(155_200)).toBe('1 552 €')
   })
+
+  it('prints zero without a sign', () => {
+    expect(formatBudgetAmount(-0).replace(/\s/g, ' ')).toBe('0 €')
+  })
 })

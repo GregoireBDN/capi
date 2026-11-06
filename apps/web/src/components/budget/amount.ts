@@ -3,6 +3,8 @@
  * is split on the decimal separator and never goes through `parseFloat`.
  */
 
+import { formatUnsignedZero } from '#/lib/money'
+
 /** Highest target the API accepts (10 000 000 €). */
 export const MAX_TARGET_CENTS = 1_000_000_000
 
@@ -55,7 +57,8 @@ const exactEuros = new Intl.NumberFormat('fr-FR', {
  * `44,59 €` otherwise (rounding would hide a 0,10 € overrun).
  */
 export function formatBudgetAmount(cents: number): string {
-  return cents % 100 === 0
-    ? wholeEuros.format(cents / 100)
-    : exactEuros.format(cents / 100)
+  return formatUnsignedZero(
+    cents % 100 === 0 ? wholeEuros : exactEuros,
+    cents / 100,
+  )
 }
