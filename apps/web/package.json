@@ -14,8 +14,9 @@
     "lint": "eslint",
     "format": "prettier --write . && eslint --fix",
     "check": "prettier --check .",
-    "check-types": "tsc --noEmit",
-    "generate": "openapi-ts"
+    "check-types": "tsc --noEmit && tsc --noEmit -p src/sw/worker",
+    "generate": "openapi-ts",
+    "icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
     "@finances/shared": "workspace:*",
@@ -66,6 +67,7 @@
     "eslint": "^9.20.0",
     "jsdom": "^28.1.0",
     "prettier": "^3.8.1",
+    "sharp": "0.35.5",
     "typescript": "^6.0.2",
     "vite": "^8.0.0",
     "vitest": "^4.1.5"

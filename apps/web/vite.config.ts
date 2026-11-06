@@ -8,13 +8,20 @@ import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
 import { multipleSetCookieInDev } from './dev/multiple-set-cookie'
+import { serviceWorker } from './plugins/service-worker'
 
 const config = defineConfig({
   resolve: {
     tsconfigPaths: true,
     alias: [
-      { find: /^@\//, replacement: path.resolve(import.meta.dirname, 'src') + '/' },
-      { find: /^#\//, replacement: path.resolve(import.meta.dirname, 'src') + '/' },
+      {
+        find: /^@\//,
+        replacement: path.resolve(import.meta.dirname, 'src') + '/',
+      },
+      {
+        find: /^#\//,
+        replacement: path.resolve(import.meta.dirname, 'src') + '/',
+      },
     ],
   },
   plugins: [
@@ -24,6 +31,7 @@ const config = defineConfig({
     tailwindcss(),
     tanstackStart(),
     viteReact(),
+    serviceWorker(),
   ],
 })
 
