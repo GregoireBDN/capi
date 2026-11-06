@@ -149,7 +149,7 @@ function StatCard({
     <Card
       data-slot="stat-card"
       size="sm"
-      className={cn('min-w-0 gap-2', className)}
+      className={cn('@container min-w-0 gap-2', className)}
       {...props}
     >
       <div className="flex items-center gap-2 px-3 text-sm text-muted-foreground">
@@ -161,17 +161,19 @@ function StatCard({
         <span className="min-w-0 truncate">{label}</span>
       </div>
 
-      <div className="px-3 text-xl leading-tight font-semibold tracking-tight break-words text-foreground sm:text-2xl">
+      {/* Amounts never break (narrow no-break spaces): the size follows the
+          tile's width so "-12 345,67 €" fits two tiles abreast on a phone. */}
+      <div className="px-3 text-[clamp(0.75rem,13cqi,1.25rem)] leading-tight font-semibold tracking-tight break-words text-foreground sm:text-2xl">
         {valueFormatter(value)}
       </div>
 
       {delta ? (
-        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 px-3 text-xs">
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 px-3 text-[clamp(0.6rem,9cqi,0.75rem)]">
           <span
             data-slot="stat-card-delta"
             data-tone={delta.tone}
             className={cn(
-              'inline-flex items-center gap-1 font-medium tabular-nums',
+              'inline-flex items-center gap-1 font-medium whitespace-nowrap tabular-nums',
               TONE_CLASSES[delta.tone],
             )}
           >

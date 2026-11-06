@@ -87,7 +87,7 @@ export function RecurringList({
                     <span className="min-w-0 font-medium break-words">
                       {item.name}
                     </span>
-                    <span className="ml-auto shrink-0 font-semibold tabular-nums">
+                    <span className="ml-auto max-w-full text-right font-semibold tabular-nums">
                       {credit ? '+' : ''}
                       {formatAmountPerPeriod(item)}
                     </span>

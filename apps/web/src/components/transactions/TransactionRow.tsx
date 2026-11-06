@@ -160,7 +160,7 @@ export function TransactionRow({
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetContent
               side="bottom"
-              className="max-h-[90svh] overflow-y-auto rounded-t-xl"
+              className="max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl"
             >
               <SheetHeader className="pb-0">
                 <SheetTitle>Modifier l’opération</SheetTitle>

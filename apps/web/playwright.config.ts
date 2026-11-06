@@ -16,6 +16,8 @@ const API_URL = process.env['API_URL'] ?? 'http://localhost:4000'
 
 export default defineConfig({
   testDir: './e2e',
+  // The mobile layout audit has its own config (playwright.mobile.config.ts).
+  testIgnore: 'mobile-layout.spec.ts',
   fullyParallel: false,
   forbidOnly: !!process.env['CI'],
   retries: process.env['CI'] ? 1 : 0,

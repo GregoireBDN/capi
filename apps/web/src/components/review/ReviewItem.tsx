@@ -51,8 +51,9 @@ export function ReviewItem({
           aria-label={`Sélectionner ${name}`}
         />
         <div className="min-w-0 flex-1 space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 space-y-0.5">
+          {/* The amount goes under the label when both don't fit abreast. */}
+          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+            <div className="min-w-[7rem] flex-1 space-y-0.5">
               <p className="text-sm font-medium break-words sm:text-base">
                 {item.rawLabel}
               </p>
@@ -67,7 +68,10 @@ export function ReviewItem({
                 {item.accountName}
               </p>
             </div>
-            <Amount cents={item.amountCents} className="pt-0.5" />
+            <Amount
+              cents={item.amountCents}
+              className="ml-auto pt-0.5 whitespace-nowrap"
+            />
           </div>
 
           {item.category && (
@@ -88,7 +92,7 @@ export function ReviewItem({
               value={item.kind}
               onChange={onKind}
               label={`Type de ${name}`}
-              className="min-w-40 flex-1 sm:w-44 sm:flex-none"
+              className="min-w-[min(10rem,100%)] flex-1 sm:w-44 sm:flex-none"
             />
             <div className="flex shrink-0 items-center gap-2">
               <Switch

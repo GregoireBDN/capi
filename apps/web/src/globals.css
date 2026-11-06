@@ -12,20 +12,23 @@
  * IMPORTS
  * ============================================================================= */
 
-@import url("https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap');
 
 /* Tailwind CSS v4 base styles */
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* Scan workspace UI package sources (symlinked into node_modules) */
 @source "../../../packages/ui/src/**/*.{ts,tsx}";
 
 /* Tailwind Animate CSS - Animation utilities */
-@import "tw-animate-css";
+@import 'tw-animate-css';
 
 /* Theme (variants, tokens, light/dark) shared with @finances/ui and Storybook */
-@import "@finances/ui/globals.css";
+@import '@finances/ui/globals.css';
 
+/* Short viewports (a phone held in landscape, small phones): keep docked
+ * bars to one row. */
+@custom-variant short-screen (@media (max-height: 600px));
 
 /* =============================================================================
  * BASE LAYER STYLES
@@ -81,7 +84,7 @@
     /* On s'assure que la police est appliquée partout avec un lissage optimal */
     @apply font-sans antialiased;
     font-feature-settings:
-      "ss01", "ss03"; /* Options spécifiques à Instrument Sans pour plus de style */
+      'ss01', 'ss03'; /* Options spécifiques à Instrument Sans pour plus de style */
   }
 
   html {

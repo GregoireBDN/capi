@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { Outlet, createFileRoute } from '@tanstack/react-router'
 import { SidebarInset, SidebarProvider } from '@finances/ui'
 import { AppSidebar } from '#/components/app-shell/AppSidebar'
@@ -24,7 +25,11 @@ function AppLayout() {
   const currentUser = user ?? guardUser
 
   return (
-    <SidebarProvider>
+    // Narrower fixed sidebar on small landscape screens (≥ md, e.g. a phone
+    // held sideways) so the page keeps room; 16rem from ~1100px up.
+    <SidebarProvider
+      style={{ '--sidebar-width': 'min(16rem, 32vw)' } as CSSProperties}
+    >
       <AppSidebar user={currentUser} />
       <SidebarInset className="min-w-0">
         <AppTopBar />

@@ -54,18 +54,23 @@ function Row({ row }: { row: StockRow }) {
         title="Voir le détail du compte"
         className={ROW_CLASS}
       >
-        <div className="min-w-0 flex-1">
-          <p className="font-medium break-words">{row.name}</p>
-          <p className="text-muted-foreground truncate text-xs">
-            {kind}
-            {row.stale && ' · à mettre à jour'}
-          </p>
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="font-medium tabular-nums">
-            {row.valueCents === null ? '—' : formatCents(row.valueCents)}
-          </p>
-          <p className="text-muted-foreground text-xs tabular-nums">{detail}</p>
+        {/* The amounts go under the name when both don't fit side by side. */}
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+          <div className="min-w-[7rem] flex-1">
+            <p className="font-medium break-words">{row.name}</p>
+            <p className="text-muted-foreground truncate text-xs">
+              {kind}
+              {row.stale && ' · à mettre à jour'}
+            </p>
+          </div>
+          <div className="ml-auto text-right">
+            <p className="font-medium whitespace-nowrap tabular-nums">
+              {row.valueCents === null ? '—' : formatCents(row.valueCents)}
+            </p>
+            <p className="text-muted-foreground text-xs whitespace-nowrap tabular-nums">
+              {detail}
+            </p>
+          </div>
         </div>
         <ChevronRightIcon
           aria-hidden
@@ -89,7 +94,7 @@ function Group({
 }) {
   return (
     <section aria-labelledby={id}>
-      <div className="flex items-baseline justify-between gap-3 border-b pb-1.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 border-b pb-1.5">
         <h3
           id={id}
           className="text-muted-foreground text-xs font-medium tracking-wide uppercase"

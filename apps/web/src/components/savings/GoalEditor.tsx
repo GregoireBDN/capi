@@ -209,7 +209,7 @@ export function GoalEditor({
           side={isMobile ? 'bottom' : 'right'}
           className={
             isMobile
-              ? 'max-h-[90svh] overflow-y-auto rounded-t-xl'
+              ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
               : 'overflow-y-auto'
           }
         >
@@ -273,19 +273,20 @@ export function GoalEditor({
 
             <fieldset className="space-y-2">
               <legend className="mb-2 text-sm font-medium">Déjà épargné</legend>
+              {/* 44px rows: each radio's touch area stays its own. */}
               <RadioGroup
                 value={values.source}
                 onValueChange={(value) =>
                   set('source', value as SavingsGoalSource)
                 }
               >
-                <div className="flex items-center gap-2">
+                <div className="flex min-h-11 items-center gap-2">
                   <RadioGroupItem value="accounts" id={`${id}-accounts`} />
                   <Label htmlFor={`${id}-accounts`} className="font-normal">
                     Solde de comptes liés
                   </Label>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex min-h-11 items-center gap-2">
                   <RadioGroupItem value="manual" id={`${id}-manual`} />
                   <Label htmlFor={`${id}-manual`} className="font-normal">
                     Montant saisi à la main

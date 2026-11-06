@@ -86,7 +86,7 @@ function AlertAction({ className, ...props }: React.ComponentProps<'button'>) {
       type="button"
       data-slot="alert-action"
       className={cn(
-        'absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 opacity-60 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current',
+        'absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 opacity-60 pointer-coarse:touch-hitbox transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current',
         className,
       )}
       {...props}

@@ -54,7 +54,7 @@ export function ForecastCard() {
         )}
         <Link
           to={ROUTES.forecast}
-          className="text-foreground inline-flex items-center gap-1 text-sm font-medium underline-offset-4 hover:underline"
+          className="text-foreground relative inline-flex items-center gap-1 text-sm font-medium pointer-coarse:touch-hitbox underline-offset-4 hover:underline"
         >
           Voir la prévision
           <ArrowRightIcon aria-hidden className="size-4" />

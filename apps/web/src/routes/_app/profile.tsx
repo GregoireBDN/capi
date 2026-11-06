@@ -132,7 +132,7 @@ function ProfilePage() {
           <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-info text-xl font-bold text-primary-foreground shadow-sm ring-1 ring-foreground/10">
             {initials}
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="w-full min-w-0 flex-1">
             <h1 className="truncate text-2xl font-bold tracking-tight">
               {currentUser.name}
             </h1>
@@ -152,7 +152,11 @@ function ProfilePage() {
                   Email non vérifié
                 </Badge>
               )}
-              <Badge variant="secondary" outline>
+              <Badge
+                variant="secondary"
+                outline
+                className="h-auto min-h-5 max-w-full shrink whitespace-normal"
+              >
                 <CalendarDaysIcon />
                 Membre depuis {memberSince}
               </Badge>
@@ -209,10 +213,14 @@ function ProfilePage() {
             <div className="flex justify-end">
               <Button
                 type="submit"
+                className="w-full sm:w-auto"
                 loading={form.formState.isSubmitting}
                 disabled={!isDirty}
               >
-                Enregistrer les modifications
+                <span className="sm:hidden">Enregistrer</span>
+                <span className="hidden sm:inline">
+                  Enregistrer les modifications
+                </span>
               </Button>
             </div>
           </form>
@@ -232,7 +240,7 @@ function ProfilePage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
             {themes.map((value) => {
               const { label, description, icon: Icon } = themeOptions[value]
               const selected = mode === value
@@ -243,14 +251,15 @@ function ProfilePage() {
                   aria-pressed={selected}
                   onClick={() => void setPreference(value)}
                   className={[
-                    'flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-all',
+                    // One row per theme on phones, three tiles side by side from sm.
+                    'grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5 rounded-lg border p-3 text-left transition-all sm:flex sm:flex-col sm:gap-2 sm:p-4 sm:text-center',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                     selected
                       ? 'border-primary bg-primary/5 text-primary shadow-sm'
                       : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground',
                   ].join(' ')}
                 >
-                  <Icon className="size-5" />
+                  <Icon className="row-span-2 size-5" />
                   <span className="text-sm font-medium">{label}</span>
                   <span className="text-xs opacity-70">{description}</span>
                 </button>
@@ -283,7 +292,7 @@ function ProfilePage() {
             variant="danger"
             loading={deleting}
             trigger={
-              <Button variant="danger" outline>
+              <Button variant="danger" outline className="w-full sm:w-auto">
                 Supprimer mon compte
               </Button>
             }

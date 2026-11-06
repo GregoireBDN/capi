@@ -21,11 +21,16 @@ function ComparisonTile({
   detail: ReactNode
 }) {
   return (
-    <Card size="sm" className="min-w-0 gap-2" data-slot="spending-kpi">
+    <Card
+      size="sm"
+      className="@container min-w-0 gap-2"
+      data-slot="spending-kpi"
+    >
       <p className="text-muted-foreground px-3 text-sm leading-tight">
         {label}
       </p>
-      <div className="min-w-0 px-3 text-base leading-tight font-semibold break-words @2xl:text-xl">
+      {/* Sized on the tile (container units): amounts never break. */}
+      <div className="min-w-0 px-3 text-[clamp(0.75rem,12cqi,1.25rem)] leading-tight font-semibold">
         {children}
       </div>
       <p className="text-muted-foreground px-3 text-xs">{detail}</p>
@@ -43,7 +48,7 @@ function percentOf(delta: number, previous: number | null): string {
 export function SpendingKpisSkeleton() {
   return (
     <div
-      className="grid grid-cols-2 gap-2 @2xl:grid-cols-4"
+      className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 @2xl:grid-cols-4"
       aria-busy="true"
       aria-label="Chargement des indicateurs"
     >
@@ -84,7 +89,7 @@ export function SpendingKpis({
 
   return (
     <section aria-label="Indicateurs du mois">
-      <div className="grid grid-cols-2 gap-2 @2xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 @2xl:grid-cols-4">
         <StatCard
           label="Dépensé"
           value={data.totalCents}

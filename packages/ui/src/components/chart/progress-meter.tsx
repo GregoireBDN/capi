@@ -159,11 +159,15 @@ function ProgressMeter({
           <span className="min-w-0 flex-auto font-medium break-words text-foreground">
             {label}
           </span>
-          <span className="ml-auto shrink-0 text-muted-foreground tabular-nums">
-            <span className="font-medium text-foreground">
+          {/* Amounts never break inside; on a narrow card the target goes
+              under the value rather than overflowing. */}
+          <span className="ml-auto max-w-full text-right text-muted-foreground tabular-nums">
+            <span className="font-medium whitespace-nowrap text-foreground">
               {valueFormatter(shown)}
             </span>{' '}
-            / {valueFormatter(budget)}
+            <span className="whitespace-nowrap">
+              / {valueFormatter(budget)}
+            </span>
           </span>
         </div>
         {action}

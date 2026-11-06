@@ -18,7 +18,10 @@ interface BulkActionsBarProps {
   onClear: () => void
 }
 
-/** Actions on the selected transactions, docked at the bottom. */
+/**
+ * Actions on the selected transactions, docked at the bottom (one row that
+ * scrolls sideways on short screens, e.g. a phone in landscape).
+ */
 export function BulkActionsBar({
   selected,
   categories,
@@ -33,10 +36,10 @@ export function BulkActionsBar({
     <div
       role="region"
       aria-label="Actions groupées"
-      className="bg-card sticky bottom-4 z-10 flex flex-col gap-2 rounded-xl border p-3 shadow-lg @2xl:flex-row @2xl:flex-wrap @2xl:items-center @2xl:gap-3"
+      className="bg-card short-screen:flex-row short-screen:items-center short-screen:overflow-x-auto short-screen:py-2 sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex flex-col gap-2 rounded-xl border p-3 shadow-lg @2xl:flex-row @2xl:flex-wrap @2xl:items-center @2xl:gap-3"
     >
-      <div className="flex shrink-0 items-center justify-between gap-2 @2xl:justify-start">
-        <p className="text-sm font-medium whitespace-nowrap">
+      <div className="short-screen:shrink-0 flex items-center justify-between gap-2 @2xl:shrink-0 @2xl:justify-start">
+        <p className="short-screen:whitespace-nowrap min-w-0 text-sm font-medium @2xl:whitespace-nowrap">
           {plural(
             selected.length,
             'opération sélectionnée',
@@ -47,7 +50,7 @@ export function BulkActionsBar({
           Désélectionner
         </Button>
       </div>
-      <div className="grid grid-cols-2 gap-2 @2xl:flex @2xl:min-w-0 @2xl:flex-1 @2xl:flex-wrap @2xl:items-center @2xl:justify-end">
+      <div className="short-screen:flex short-screen:shrink-0 grid grid-cols-2 gap-2 @2xl:flex @2xl:min-w-0 @2xl:flex-1 @2xl:flex-wrap @2xl:items-center @2xl:justify-end">
         <CategoryPicker
           categories={categories}
           value={null}
@@ -55,13 +58,13 @@ export function BulkActionsBar({
           label="Classer la sélection dans"
           placeholder="Classer dans…"
           disabled={busy}
-          className="w-full @2xl:w-44"
+          className="short-screen:w-44 w-full @2xl:w-44"
         />
         <NativeSelect
           aria-label="Changer le type de la sélection"
           value=""
           disabled={busy}
-          className="w-full @2xl:w-40"
+          className="short-screen:w-40 w-full @2xl:w-40"
           onChange={(event) => {
             if (event.target.value) {
               onApply({ kind: event.target.value as TransactionKind })

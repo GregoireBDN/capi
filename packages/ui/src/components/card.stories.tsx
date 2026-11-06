@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { Button } from './button'
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -58,7 +59,9 @@ export const Default: Story = {
     <Card className="w-96">
       <CardHeader>
         <CardTitle>Default Card</CardTitle>
-        <CardDescription>This is a card with header, content, and footer.</CardDescription>
+        <CardDescription>
+          This is a card with header, content, and footer.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <p>Card body content goes here.</p>
@@ -79,6 +82,30 @@ export const Small: Story = {
       </CardHeader>
       <CardContent>
         <p>Smaller padding and spacing.</p>
+      </CardContent>
+    </Card>
+  ),
+}
+
+/**
+ * With an action on a narrow card (a phone): the action stays next to the
+ * title and the description takes the full width below; from a 28rem-wide
+ * header the description sits beside the title, left of the action.
+ */
+export const ActionOnNarrowCard: Story = {
+  render: () => (
+    <Card className="w-72">
+      <CardHeader>
+        <CardTitle>Goals</CardTitle>
+        <CardDescription>
+          Projection at your average savings of the last six months.
+        </CardDescription>
+        <CardAction>
+          <Button size="sm">Add</Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        <p>Card body content goes here.</p>
       </CardContent>
     </Card>
   ),

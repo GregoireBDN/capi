@@ -221,7 +221,7 @@ function HistoryItem({
         </p>
       </div>
       {!active && (
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           {committed ? (
             <Button
               size="sm"

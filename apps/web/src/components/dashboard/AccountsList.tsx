@@ -31,12 +31,13 @@ function AccountDetails({ account }: { account: DashboardAccountDto }) {
     .filter(Boolean)
     .join(' · ')
   return (
-    <>
-      <div className="min-w-0 flex-1">
+    // The balance goes under the name when both don't fit side by side.
+    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+      <div className="min-w-[7rem] flex-1">
         <p className="font-medium break-words">{account.name}</p>
         <p className="text-muted-foreground truncate text-xs">{kind}</p>
       </div>
-      <div className="shrink-0 text-right">
+      <div className="ml-auto text-right whitespace-nowrap">
         <p className="font-medium tabular-nums">
           {account.balanceCents === null
             ? '—'
@@ -48,7 +49,7 @@ function AccountDetails({ account }: { account: DashboardAccountDto }) {
             : `au ${formatCalendarDate(account.balanceDate)}`}
         </p>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -80,14 +81,14 @@ export function AccountsList({
           const headingId = `accounts-${group}`
           return (
             <section key={group} aria-labelledby={headingId}>
-              <div className="flex items-baseline justify-between gap-3 border-b pb-1.5">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 border-b pb-1.5">
                 <h3
                   id={headingId}
                   className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
                 >
                   {title}
                 </h3>
-                <p className="text-sm font-semibold tabular-nums">
+                <p className="text-sm font-semibold whitespace-nowrap tabular-nums">
                   {formatCents(total(netWorth))}
                 </p>
               </div>

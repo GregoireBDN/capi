@@ -1,21 +1,21 @@
-"use client";
+'use client'
 
-import * as React from "react";
+import * as React from 'react'
 
-import { cn } from "../lib/utils";
+import { cn } from '../lib/utils'
 
 /* ============================================================================
  * TYPES
  * ========================================================================= */
 
-type TableProps = React.ComponentProps<"table">;
-type TableHeaderProps = React.ComponentProps<"thead">;
-type TableBodyProps = React.ComponentProps<"tbody">;
-type TableFooterProps = React.ComponentProps<"tfoot">;
-type TableRowProps = React.ComponentProps<"tr">;
-type TableHeadProps = React.ComponentProps<"th">;
-type TableCellProps = React.ComponentProps<"td">;
-type TableCaptionProps = React.ComponentProps<"caption">;
+type TableProps = React.ComponentProps<'table'>
+type TableHeaderProps = React.ComponentProps<'thead'>
+type TableBodyProps = React.ComponentProps<'tbody'>
+type TableFooterProps = React.ComponentProps<'tfoot'>
+type TableRowProps = React.ComponentProps<'tr'>
+type TableHeadProps = React.ComponentProps<'th'>
+type TableCellProps = React.ComponentProps<'td'>
+type TableCaptionProps = React.ComponentProps<'caption'>
 
 /* ============================================================================
  * COMPONENTS
@@ -24,30 +24,78 @@ type TableCaptionProps = React.ComponentProps<"caption">;
 /**
  * Table
  * Responsive table container with horizontal scroll on overflow
- * Wraps the native table element in a scrollable container
+ * Wraps the native table element in a scrollable container. When the table is
+ * wider than its container, a fade on the clipped edge(s) shows that it
+ * scrolls sideways, and the container becomes keyboard-focusable.
  */
 function Table({ className, ...props }: TableProps) {
-  return (
-    <div
-      data-slot="table-container"
-      className="relative w-full overflow-x-auto"
-    >
-      <table
-        data-slot="table"
-        className={cn(
-          [
-            // Layout
-            "w-full",
+  const scrollerRef = React.useRef<HTMLDivElement>(null)
+  const [overflow, setOverflow] = React.useState({ start: false, end: false })
 
-            // Typography
-            "caption-bottom text-sm",
-          ].join(" "),
-          className,
+  React.useEffect(() => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    const update = () => {
+      const max = scroller.scrollWidth - scroller.clientWidth
+      const next = {
+        start: scroller.scrollLeft > 1,
+        end: scroller.scrollLeft < max - 1,
+      }
+      setOverflow((prev) =>
+        prev.start === next.start && prev.end === next.end ? prev : next,
+      )
+    }
+    update()
+    scroller.addEventListener('scroll', update, { passive: true })
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
+    observer?.observe(scroller)
+    if (scroller.firstElementChild)
+      observer?.observe(scroller.firstElementChild)
+    return () => {
+      scroller.removeEventListener('scroll', update)
+      observer?.disconnect()
+    }
+  }, [])
+
+  const scrollable = overflow.start || overflow.end
+  const fade =
+    'pointer-events-none absolute inset-y-0 z-20 w-8 from-card to-transparent transition-opacity motion-reduce:transition-none'
+
+  return (
+    <div data-slot="table-frame" className="relative w-full">
+      <div
+        ref={scrollerRef}
+        data-slot="table-container"
+        data-scrollable={scrollable || undefined}
+        tabIndex={scrollable ? 0 : undefined}
+        className="relative w-full overflow-x-auto rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <table
+          data-slot="table"
+          className={cn(
+            [
+              // Layout
+              'w-full',
+
+              // Typography
+              'caption-bottom text-sm',
+            ].join(' '),
+            className,
+          )}
+          {...props}
+        />
+      </div>
+      <div
+        aria-hidden
+        className={cn(
+          fade,
+          'right-0 bg-gradient-to-l',
+          overflow.end ? 'opacity-100' : 'opacity-0',
         )}
-        {...props}
       />
     </div>
-  );
+  )
 }
 
 /**
@@ -58,10 +106,10 @@ function TableHeader({ className, ...props }: TableHeaderProps) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b", className)}
+      className={cn('[&_tr]:border-b', className)}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -73,10 +121,10 @@ function TableBody({ className, ...props }: TableBodyProps) {
   return (
     <tbody
       data-slot="table-body"
-      className={cn("[&_tr:last-child]:border-0", className)}
+      className={cn('[&_tr:last-child]:border-0', className)}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -90,19 +138,19 @@ function TableFooter({ className, ...props }: TableFooterProps) {
       className={cn(
         [
           // Styling
-          "border-t bg-muted/50",
+          'border-t bg-muted/50',
 
           // Typography
-          "font-medium",
+          'font-medium',
 
           // Remove border from last row
-          "[&>tr]:last:border-b-0",
-        ].join(" "),
+          '[&>tr]:last:border-b-0',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -116,25 +164,25 @@ function TableRow({ className, ...props }: TableRowProps) {
       className={cn(
         [
           // Styling
-          "border-b",
+          'border-b',
 
           // Transitions
-          "transition-colors",
+          'transition-colors',
 
           // Hover State
-          "hover:bg-muted/50",
+          'hover:bg-muted/50',
 
           // Expanded State (for expandable rows)
-          "has-aria-expanded:bg-muted/50",
+          'has-aria-expanded:bg-muted/50',
 
           // Selected State
-          "data-[state=selected]:bg-muted",
-        ].join(" "),
+          'data-[state=selected]:bg-muted',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -149,19 +197,19 @@ function TableHead({ className, ...props }: TableHeadProps) {
       className={cn(
         [
           // Layout
-          "h-10 px-2",
+          'h-10 px-2',
 
           // Typography
-          "text-left align-middle font-medium whitespace-nowrap text-foreground",
+          'text-left align-middle font-medium whitespace-nowrap text-foreground',
 
           // Checkbox cell adjustment
-          "[&:has([role=checkbox])]:pr-0",
-        ].join(" "),
+          '[&:has([role=checkbox])]:pr-0',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -176,19 +224,19 @@ function TableCell({ className, ...props }: TableCellProps) {
       className={cn(
         [
           // Spacing
-          "p-2",
+          'p-2',
 
           // Typography
-          "align-middle whitespace-nowrap",
+          'align-middle whitespace-nowrap',
 
           // Checkbox cell adjustment
-          "[&:has([role=checkbox])]:pr-0",
-        ].join(" "),
+          '[&:has([role=checkbox])]:pr-0',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -202,16 +250,16 @@ function TableCaption({ className, ...props }: TableCaptionProps) {
       className={cn(
         [
           // Spacing
-          "mt-4",
+          'mt-4',
 
           // Typography
-          "text-sm text-muted-foreground",
-        ].join(" "),
+          'text-sm text-muted-foreground',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -235,4 +283,4 @@ export {
   type TableHeadProps,
   type TableProps,
   type TableRowProps,
-};
+}

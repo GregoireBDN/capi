@@ -436,10 +436,10 @@ export function ReviewQueue() {
         <div
           role="region"
           aria-label="Actions groupées"
-          className="bg-card sticky bottom-4 z-10 flex flex-col gap-2 rounded-xl border p-3 shadow-lg lg:flex-row lg:items-center lg:gap-3"
+          className="bg-card short-screen:flex-row short-screen:items-center short-screen:overflow-x-auto short-screen:py-2 sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex flex-col gap-2 rounded-xl border p-3 shadow-lg lg:flex-row lg:items-center lg:gap-3"
         >
-          <div className="flex items-center justify-between gap-2 lg:justify-start">
-            <p className="text-sm font-medium">
+          <div className="short-screen:shrink-0 flex items-center justify-between gap-2 lg:justify-start">
+            <p className="short-screen:whitespace-nowrap min-w-0 text-sm font-medium">
               {plural(
                 selectedItems.length,
                 'opération sélectionnée',
@@ -455,7 +455,7 @@ export function ReviewQueue() {
               Désélectionner
             </Button>
           </div>
-          <div className="flex flex-1 items-center gap-2 lg:justify-end">
+          <div className="short-screen:flex-none flex flex-1 items-center gap-2 lg:justify-end">
             <CategoryPicker
               categories={categories}
               value={null}
@@ -463,7 +463,7 @@ export function ReviewQueue() {
               label="Classer la sélection dans"
               placeholder="Classer dans…"
               disabled={bulkBusy}
-              className="min-w-0 flex-1 lg:w-56 lg:flex-none"
+              className="short-screen:w-44 short-screen:flex-none min-w-0 flex-1 lg:w-56 lg:flex-none"
             />
             <Button
               size="sm"

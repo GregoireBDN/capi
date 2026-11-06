@@ -1,82 +1,80 @@
-"use client";
+'use client'
 
-import { CheckIcon, ChevronRightIcon } from "lucide-react";
-import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
-import * as React from "react";
+import { CheckIcon, ChevronRightIcon } from 'lucide-react'
+import { DropdownMenu as DropdownMenuPrimitive } from 'radix-ui'
+import * as React from 'react'
 
-import { cn } from "../lib/utils";
+import { cn } from '../lib/utils'
 
 /* ============================================================================
  * TYPES
  * ========================================================================= */
 
-type DropdownMenuProps = React.ComponentProps<
-  typeof DropdownMenuPrimitive.Root
->;
+type DropdownMenuProps = React.ComponentProps<typeof DropdownMenuPrimitive.Root>
 type DropdownMenuPortalProps = React.ComponentProps<
   typeof DropdownMenuPrimitive.Portal
->;
+>
 type DropdownMenuTriggerProps = React.ComponentProps<
   typeof DropdownMenuPrimitive.Trigger
->;
+>
 type DropdownMenuContentProps = React.ComponentProps<
   typeof DropdownMenuPrimitive.Content
->;
+>
 type DropdownMenuGroupProps = React.ComponentProps<
   typeof DropdownMenuPrimitive.Group
->;
+>
 type DropdownMenuLabelProps = React.ComponentProps<
   typeof DropdownMenuPrimitive.Label
 > & {
   /** Indent the label (for use with inset items) */
-  inset?: boolean;
-};
+  inset?: boolean
+}
 type DropdownMenuItemProps = React.ComponentProps<
   typeof DropdownMenuPrimitive.Item
 > & {
   /** Indent the item */
-  inset?: boolean;
+  inset?: boolean
   /** Variant style (default: default, destructive for dangerous actions) */
-  variant?: "default" | "destructive";
-};
+  variant?: 'default' | 'destructive'
+}
 type DropdownMenuCheckboxItemProps = React.ComponentProps<
   typeof DropdownMenuPrimitive.CheckboxItem
 > & {
   /** Indent the checkbox item */
-  inset?: boolean;
-};
+  inset?: boolean
+}
 type DropdownMenuRadioGroupProps = React.ComponentProps<
   typeof DropdownMenuPrimitive.RadioGroup
->;
+>
 type DropdownMenuRadioItemProps = React.ComponentProps<
   typeof DropdownMenuPrimitive.RadioItem
 > & {
   /** Indent the radio item */
-  inset?: boolean;
-};
+  inset?: boolean
+}
 type DropdownMenuSeparatorProps = React.ComponentProps<
   typeof DropdownMenuPrimitive.Separator
->;
-type DropdownMenuShortcutProps = React.ComponentProps<"span">;
+>
+type DropdownMenuShortcutProps = React.ComponentProps<'span'>
 type DropdownMenuSubProps = React.ComponentProps<
   typeof DropdownMenuPrimitive.Sub
->;
+>
 type DropdownMenuSubTriggerProps = React.ComponentProps<
   typeof DropdownMenuPrimitive.SubTrigger
 > & {
   /** Indent the sub trigger */
-  inset?: boolean;
-};
+  inset?: boolean
+}
 type DropdownMenuSubContentProps = React.ComponentProps<
   typeof DropdownMenuPrimitive.SubContent
->;
+>
 
 /* ============================================================================
  * DROPDOWN MENU (ROOT COMPONENT)
  * ========================================================================= */
 
 function DropdownMenu({ ...props }: DropdownMenuProps) {
-  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
+  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
 }
 
 /* ============================================================================
@@ -86,7 +84,7 @@ function DropdownMenu({ ...props }: DropdownMenuProps) {
 function DropdownMenuPortal({ ...props }: DropdownMenuPortalProps) {
   return (
     <DropdownMenuPrimitive.Portal data-slot="dropdown-menu-portal" {...props} />
-  );
+  )
 }
 
 /* ============================================================================
@@ -99,7 +97,7 @@ function DropdownMenuTrigger({ ...props }: DropdownMenuTriggerProps) {
       data-slot="dropdown-menu-trigger"
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -108,7 +106,7 @@ function DropdownMenuTrigger({ ...props }: DropdownMenuTriggerProps) {
 
 function DropdownMenuContent({
   className,
-  align = "start",
+  align = 'start',
   sideOffset = 4,
   ...props
 }: DropdownMenuContentProps) {
@@ -121,52 +119,52 @@ function DropdownMenuContent({
         className={cn(
           [
             // Z-index
-            "z-50",
+            'z-50',
 
             // Layout & Sizing
-            "max-h-(--radix-dropdown-menu-content-available-height)",
-            "w-(--radix-dropdown-menu-trigger-width)",
-            "min-w-32",
+            'max-h-(--radix-dropdown-menu-content-available-height)',
+            'w-(--radix-dropdown-menu-trigger-width)',
+            'min-w-32',
 
             // Transform origin for animations
-            "origin-(--radix-dropdown-menu-content-transform-origin)",
+            'origin-(--radix-dropdown-menu-content-transform-origin)',
 
             // Overflow
-            "overflow-x-hidden overflow-y-auto",
+            'overflow-x-hidden overflow-y-auto',
 
             // Styling
-            "rounded-lg bg-popover p-1",
-            "text-popover-foreground",
-            "shadow-md ring-1 ring-foreground/10",
+            'rounded-lg bg-popover p-1',
+            'text-popover-foreground',
+            'shadow-md ring-1 ring-foreground/10',
 
             // Transitions
-            "duration-100",
+            'duration-100',
 
             // Slide animations based on side
-            "data-[side=bottom]:slide-in-from-top-2",
-            "data-[side=left]:slide-in-from-right-2",
-            "data-[side=right]:slide-in-from-left-2",
-            "data-[side=top]:slide-in-from-bottom-2",
+            'data-[side=bottom]:slide-in-from-top-2',
+            'data-[side=left]:slide-in-from-right-2',
+            'data-[side=right]:slide-in-from-left-2',
+            'data-[side=top]:slide-in-from-bottom-2',
 
             // Overflow management for closed state
-            "data-[state=closed]:overflow-hidden",
+            'data-[state=closed]:overflow-hidden',
 
             // Open animations
-            "data-open:animate-in",
-            "data-open:fade-in-0",
-            "data-open:zoom-in-95",
+            'data-open:animate-in',
+            'data-open:fade-in-0',
+            'data-open:zoom-in-95',
 
             // Close animations
-            "data-closed:animate-out",
-            "data-closed:fade-out-0",
-            "data-closed:zoom-out-95",
-          ].join(" "),
+            'data-closed:animate-out',
+            'data-closed:fade-out-0',
+            'data-closed:zoom-out-95',
+          ].join(' '),
           className,
         )}
         {...props}
       />
     </DropdownMenuPrimitive.Portal>
-  );
+  )
 }
 
 /* ============================================================================
@@ -176,7 +174,7 @@ function DropdownMenuContent({
 function DropdownMenuGroup({ ...props }: DropdownMenuGroupProps) {
   return (
     <DropdownMenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />
-  );
+  )
 }
 
 /* ============================================================================
@@ -186,7 +184,7 @@ function DropdownMenuGroup({ ...props }: DropdownMenuGroupProps) {
 function DropdownMenuItem({
   className,
   inset,
-  variant = "default",
+  variant = 'default',
   ...props
 }: DropdownMenuItemProps) {
   return (
@@ -197,49 +195,51 @@ function DropdownMenuItem({
       className={cn(
         [
           // Group marker
-          "group/dropdown-menu-item relative",
+          'group/dropdown-menu-item relative',
 
           // Layout
-          "flex items-center gap-1.5",
+          'flex items-center gap-1.5',
+          // Touch screens: 44px-high rows
+          'pointer-coarse:min-h-11',
 
           // Spacing
-          "px-1.5 py-1",
+          'px-1.5 py-1',
 
           // Styling
-          "rounded-md",
+          'rounded-md',
 
           // Typography
-          "text-sm",
+          'text-sm',
 
           // Interactivity
-          "cursor-default outline-hidden select-none",
+          'cursor-default outline-hidden select-none',
 
           // Focus states (default variant)
-          "focus:bg-accent focus:text-accent-foreground",
-          "not-data-[variant=destructive]:focus:**:text-accent-foreground",
+          'focus:bg-accent focus:text-accent-foreground',
+          'not-data-[variant=destructive]:focus:**:text-accent-foreground',
 
           // Inset variant
-          "data-inset:pl-7",
+          'data-inset:pl-7',
 
           // Destructive variant
-          "data-[variant=destructive]:text-destructive",
-          "data-[variant=destructive]:focus:bg-destructive/10",
-          "data-[variant=destructive]:focus:text-destructive",
-          "dark:data-[variant=destructive]:focus:bg-destructive/20",
+          'data-[variant=destructive]:text-destructive',
+          'data-[variant=destructive]:focus:bg-destructive/10',
+          'data-[variant=destructive]:focus:text-destructive',
+          'dark:data-[variant=destructive]:focus:bg-destructive/20',
 
           // Disabled states
-          "data-disabled:pointer-events-none data-disabled:opacity-50",
+          'data-disabled:pointer-events-none data-disabled:opacity-50',
 
           // Icon styling
-          "[&_svg]:pointer-events-none [&_svg]:shrink-0",
+          '[&_svg]:pointer-events-none [&_svg]:shrink-0',
           "[&_svg:not([class*='size-'])]:size-4",
-          "data-[variant=destructive]:*:[svg]:text-destructive",
-        ].join(" "),
+          'data-[variant=destructive]:*:[svg]:text-destructive',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -260,34 +260,36 @@ function DropdownMenuCheckboxItem({
       className={cn(
         [
           // Layout
-          "relative flex items-center gap-1.5",
+          'relative flex items-center gap-1.5',
+          // Touch screens: 44px-high rows
+          'pointer-coarse:min-h-11',
 
           // Spacing
-          "py-1 pr-8 pl-1.5",
+          'py-1 pr-8 pl-1.5',
 
           // Styling
-          "rounded-md",
+          'rounded-md',
 
           // Typography
-          "text-sm",
+          'text-sm',
 
           // Interactivity
-          "cursor-default outline-hidden select-none",
+          'cursor-default outline-hidden select-none',
 
           // Focus states
-          "focus:bg-accent focus:text-accent-foreground",
-          "focus:**:text-accent-foreground",
+          'focus:bg-accent focus:text-accent-foreground',
+          'focus:**:text-accent-foreground',
 
           // Inset variant
-          "data-inset:pl-7",
+          'data-inset:pl-7',
 
           // Disabled states
-          "data-disabled:pointer-events-none data-disabled:opacity-50",
+          'data-disabled:pointer-events-none data-disabled:opacity-50',
 
           // Icon styling
-          "[&_svg]:pointer-events-none [&_svg]:shrink-0",
+          '[&_svg]:pointer-events-none [&_svg]:shrink-0',
           "[&_svg:not([class*='size-'])]:size-4",
-        ].join(" "),
+        ].join(' '),
         className,
       )}
       checked={checked}
@@ -297,11 +299,11 @@ function DropdownMenuCheckboxItem({
         className={cn(
           [
             // Positioning
-            "pointer-events-none absolute right-2",
+            'pointer-events-none absolute right-2',
 
             // Layout
-            "flex items-center justify-center",
-          ].join(" "),
+            'flex items-center justify-center',
+          ].join(' '),
         )}
         data-slot="dropdown-menu-checkbox-item-indicator"
       >
@@ -311,7 +313,7 @@ function DropdownMenuCheckboxItem({
       </span>
       {children}
     </DropdownMenuPrimitive.CheckboxItem>
-  );
+  )
 }
 
 /* ============================================================================
@@ -324,7 +326,7 @@ function DropdownMenuRadioGroup({ ...props }: DropdownMenuRadioGroupProps) {
       data-slot="dropdown-menu-radio-group"
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -344,34 +346,36 @@ function DropdownMenuRadioItem({
       className={cn(
         [
           // Layout
-          "relative flex items-center gap-1.5",
+          'relative flex items-center gap-1.5',
+          // Touch screens: 44px-high rows
+          'pointer-coarse:min-h-11',
 
           // Spacing
-          "py-1 pr-8 pl-1.5",
+          'py-1 pr-8 pl-1.5',
 
           // Styling
-          "rounded-md",
+          'rounded-md',
 
           // Typography
-          "text-sm",
+          'text-sm',
 
           // Interactivity
-          "cursor-default outline-hidden select-none",
+          'cursor-default outline-hidden select-none',
 
           // Focus states
-          "focus:bg-accent focus:text-accent-foreground",
-          "focus:**:text-accent-foreground",
+          'focus:bg-accent focus:text-accent-foreground',
+          'focus:**:text-accent-foreground',
 
           // Inset variant
-          "data-inset:pl-7",
+          'data-inset:pl-7',
 
           // Disabled states
-          "data-disabled:pointer-events-none data-disabled:opacity-50",
+          'data-disabled:pointer-events-none data-disabled:opacity-50',
 
           // Icon styling
-          "[&_svg]:pointer-events-none [&_svg]:shrink-0",
+          '[&_svg]:pointer-events-none [&_svg]:shrink-0',
           "[&_svg:not([class*='size-'])]:size-4",
-        ].join(" "),
+        ].join(' '),
         className,
       )}
       {...props}
@@ -380,11 +384,11 @@ function DropdownMenuRadioItem({
         className={cn(
           [
             // Positioning
-            "pointer-events-none absolute right-2",
+            'pointer-events-none absolute right-2',
 
             // Layout
-            "flex items-center justify-center",
-          ].join(" "),
+            'flex items-center justify-center',
+          ].join(' '),
         )}
         data-slot="dropdown-menu-radio-item-indicator"
       >
@@ -394,7 +398,7 @@ function DropdownMenuRadioItem({
       </span>
       {children}
     </DropdownMenuPrimitive.RadioItem>
-  );
+  )
 }
 
 /* ============================================================================
@@ -413,19 +417,19 @@ function DropdownMenuLabel({
       className={cn(
         [
           // Spacing
-          "px-1.5 py-1",
+          'px-1.5 py-1',
 
           // Typography
-          "text-xs font-medium text-muted-foreground",
+          'text-xs font-medium text-muted-foreground',
 
           // Inset variant
-          "data-inset:pl-7",
-        ].join(" "),
+          'data-inset:pl-7',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -442,16 +446,16 @@ function DropdownMenuSeparator({
       className={cn(
         [
           // Spacing
-          "-mx-1 my-1",
+          '-mx-1 my-1',
 
           // Styling
-          "h-px bg-border",
-        ].join(" "),
+          'h-px bg-border',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -468,19 +472,19 @@ function DropdownMenuShortcut({
       className={cn(
         [
           // Alignment
-          "ml-auto",
+          'ml-auto',
 
           // Typography
-          "text-xs tracking-widest text-muted-foreground",
+          'text-xs tracking-widest text-muted-foreground',
 
           // Focus states
-          "group-focus/dropdown-menu-item:text-accent-foreground",
-        ].join(" "),
+          'group-focus/dropdown-menu-item:text-accent-foreground',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -488,7 +492,7 @@ function DropdownMenuShortcut({
  * ========================================================================= */
 
 function DropdownMenuSub({ ...props }: DropdownMenuSubProps) {
-  return <DropdownMenuPrimitive.Sub data-slot="dropdown-menu-sub" {...props} />;
+  return <DropdownMenuPrimitive.Sub data-slot="dropdown-menu-sub" {...props} />
 }
 
 /* ============================================================================
@@ -508,34 +512,36 @@ function DropdownMenuSubTrigger({
       className={cn(
         [
           // Layout
-          "flex items-center gap-1.5",
+          'flex items-center gap-1.5',
+          // Touch screens: 44px-high rows
+          'pointer-coarse:min-h-11',
 
           // Spacing
-          "px-1.5 py-1",
+          'px-1.5 py-1',
 
           // Styling
-          "rounded-md",
+          'rounded-md',
 
           // Typography
-          "text-sm",
+          'text-sm',
 
           // Interactivity
-          "cursor-default outline-hidden select-none",
+          'cursor-default outline-hidden select-none',
 
           // Focus states
-          "focus:bg-accent focus:text-accent-foreground",
-          "not-data-[variant=destructive]:focus:**:text-accent-foreground",
+          'focus:bg-accent focus:text-accent-foreground',
+          'not-data-[variant=destructive]:focus:**:text-accent-foreground',
 
           // Inset variant
-          "data-inset:pl-7",
+          'data-inset:pl-7',
 
           // Open state
-          "data-open:bg-accent data-open:text-accent-foreground",
+          'data-open:bg-accent data-open:text-accent-foreground',
 
           // Icon styling
-          "[&_svg]:pointer-events-none [&_svg]:shrink-0",
+          '[&_svg]:pointer-events-none [&_svg]:shrink-0',
           "[&_svg:not([class*='size-'])]:size-4",
-        ].join(" "),
+        ].join(' '),
         className,
       )}
       {...props}
@@ -543,7 +549,7 @@ function DropdownMenuSubTrigger({
       {children}
       <ChevronRightIcon className="ml-auto size-4" />
     </DropdownMenuPrimitive.SubTrigger>
-  );
+  )
 }
 
 /* ============================================================================
@@ -560,46 +566,46 @@ function DropdownMenuSubContent({
       className={cn(
         [
           // Z-index
-          "z-50",
+          'z-50',
 
           // Sizing
-          "min-w-[96px]",
+          'min-w-[96px]',
 
           // Transform origin for animations
-          "origin-(--radix-dropdown-menu-content-transform-origin)",
+          'origin-(--radix-dropdown-menu-content-transform-origin)',
 
           // Overflow
-          "overflow-hidden",
+          'overflow-hidden',
 
           // Styling
-          "rounded-lg bg-popover p-1",
-          "text-popover-foreground",
-          "shadow-lg ring-1 ring-foreground/10",
+          'rounded-lg bg-popover p-1',
+          'text-popover-foreground',
+          'shadow-lg ring-1 ring-foreground/10',
 
           // Transitions
-          "duration-100",
+          'duration-100',
 
           // Slide animations based on side
-          "data-[side=bottom]:slide-in-from-top-2",
-          "data-[side=left]:slide-in-from-right-2",
-          "data-[side=right]:slide-in-from-left-2",
-          "data-[side=top]:slide-in-from-bottom-2",
+          'data-[side=bottom]:slide-in-from-top-2',
+          'data-[side=left]:slide-in-from-right-2',
+          'data-[side=right]:slide-in-from-left-2',
+          'data-[side=top]:slide-in-from-bottom-2',
 
           // Open animations
-          "data-open:animate-in",
-          "data-open:fade-in-0",
-          "data-open:zoom-in-95",
+          'data-open:animate-in',
+          'data-open:fade-in-0',
+          'data-open:zoom-in-95',
 
           // Close animations
-          "data-closed:animate-out",
-          "data-closed:fade-out-0",
-          "data-closed:zoom-out-95",
-        ].join(" "),
+          'data-closed:animate-out',
+          'data-closed:fade-out-0',
+          'data-closed:zoom-out-95',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -637,4 +643,4 @@ export {
   type DropdownMenuSubProps,
   type DropdownMenuSubTriggerProps,
   type DropdownMenuTriggerProps,
-};
+}

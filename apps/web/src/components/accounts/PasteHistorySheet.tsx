@@ -82,7 +82,7 @@ export function PasteHistorySheet({
         side={isMobile ? 'bottom' : 'right'}
         className={
           isMobile
-            ? 'max-h-[90svh] overflow-y-auto rounded-t-xl'
+            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
             : 'overflow-y-auto sm:max-w-lg'
         }
       >

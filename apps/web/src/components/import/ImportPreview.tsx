@@ -136,7 +136,7 @@ export function ImportPreview({
 
       <Card
         size="sm"
-        className="bg-background/95 sticky bottom-0 z-10 backdrop-blur"
+        className="bg-background/95 sticky bottom-[env(safe-area-inset-bottom)] z-10 backdrop-blur"
       >
         <CardContent className="mb-0 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm">

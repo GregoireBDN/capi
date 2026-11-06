@@ -26,8 +26,8 @@ function Amount({
     <span
       className={
         cents > 0
-          ? 'text-success-foreground dark:text-success shrink-0 tabular-nums'
-          : 'shrink-0 tabular-nums'
+          ? 'text-success-foreground dark:text-success ml-auto shrink-0 whitespace-nowrap tabular-nums'
+          : 'ml-auto shrink-0 whitespace-nowrap tabular-nums'
       }
     >
       {approximate ? '~ ' : ''}
@@ -40,20 +40,24 @@ function Amount({
 function ItemRow({ item }: { item: ForecastItemDto }) {
   const late = item.expectedDate !== item.date
   return (
-    <li className="flex items-center gap-2 text-sm">
-      <CategoryDot color={item.categoryColor} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate">{item.name}</span>
+    <li className="flex items-start gap-2 text-sm">
+      <span className="mt-1.5 flex">
+        <CategoryDot color={item.categoryColor} />
+      </span>
+      {/* Name and amount on one line; the "not imported yet" note under both
+          so a long name keeps the width it needs. */}
+      <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+        <span className="min-w-0 flex-1 break-words">{item.name}</span>
+        <Amount
+          cents={item.amountCents}
+          approximate={item.amountType === 'variable'}
+        />
         {late && (
-          <span className="text-muted-foreground block text-xs">
+          <span className="text-muted-foreground basis-full text-xs">
             Prévu le {formatShortDay(item.expectedDate)}, pas encore importé
           </span>
         )}
       </span>
-      <Amount
-        cents={item.amountCents}
-        approximate={item.amountType === 'variable'}
-      />
     </li>
   )
 }

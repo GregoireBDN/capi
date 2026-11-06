@@ -1,30 +1,30 @@
-import * as React from "react";
+import * as React from 'react'
 
-import { cn } from "../lib/utils";
+import { cn } from '../lib/utils'
 
 /* ============================================================================
  * TYPES
  * ========================================================================= */
 
-type CardSize = "default" | "sm";
+type CardSize = 'default' | 'sm'
 
-type CardProps = React.ComponentProps<"div"> & {
+type CardProps = React.ComponentProps<'div'> & {
   /** Size variant of the card */
-  size?: CardSize;
-};
+  size?: CardSize
+}
 
-type CardHeaderProps = React.ComponentProps<"div">;
-type CardTitleProps = React.ComponentProps<"div">;
-type CardDescriptionProps = React.ComponentProps<"div">;
-type CardActionProps = React.ComponentProps<"div">;
-type CardContentProps = React.ComponentProps<"div">;
-type CardFooterProps = React.ComponentProps<"div">;
+type CardHeaderProps = React.ComponentProps<'div'>
+type CardTitleProps = React.ComponentProps<'div'>
+type CardDescriptionProps = React.ComponentProps<'div'>
+type CardActionProps = React.ComponentProps<'div'>
+type CardContentProps = React.ComponentProps<'div'>
+type CardFooterProps = React.ComponentProps<'div'>
 
 /* ============================================================================
  * CARD (ROOT COMPONENT)
  * ========================================================================= */
 
-function Card({ className, size = "default", ...props }: CardProps) {
+function Card({ className, size = 'default', ...props }: CardProps) {
   return (
     <div
       data-slot="card"
@@ -32,30 +32,30 @@ function Card({ className, size = "default", ...props }: CardProps) {
       className={cn(
         [
           // Layout
-          "group/card flex flex-col overflow-hidden",
+          'group/card flex flex-col overflow-hidden',
 
           // Spacing
-          "gap-4 py-4",
-          "data-[size=sm]:gap-3 data-[size=sm]:py-3",
+          'gap-4 py-4',
+          'data-[size=sm]:gap-3 data-[size=sm]:py-3',
 
           // Styling
-          "rounded-xl bg-card text-sm text-card-foreground",
-          "ring-1 ring-foreground/10",
+          'rounded-xl bg-card text-sm text-card-foreground',
+          'ring-1 ring-foreground/10',
 
           // Footer spacing adjustment
-          "has-data-[slot=card-footer]:pb-0",
-          "data-[size=sm]:has-data-[slot=card-footer]:pb-0",
+          'has-data-[slot=card-footer]:pb-0',
+          'data-[size=sm]:has-data-[slot=card-footer]:pb-0',
 
           // Image handling (first/last child)
-          "has-[>img:first-child]:pt-0",
-          "*:[img:first-child]:rounded-t-xl",
-          "*:[img:last-child]:rounded-b-xl",
-        ].join(" "),
+          'has-[>img:first-child]:pt-0',
+          '*:[img:first-child]:rounded-t-xl',
+          '*:[img:last-child]:rounded-b-xl',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -69,28 +69,28 @@ function CardHeader({ className, ...props }: CardHeaderProps) {
       className={cn(
         [
           // Container
-          "group/card-header @container/card-header",
+          'group/card-header @container/card-header',
 
           // Layout
-          "grid auto-rows-min items-start",
+          'grid auto-rows-min items-start',
 
           // Spacing
-          "gap-1 rounded-t-xl px-4",
-          "group-data-[size=sm]/card:px-3",
+          'gap-1 rounded-t-xl px-4',
+          'group-data-[size=sm]/card:px-3',
 
           // Grid configuration
-          "has-data-[slot=card-action]:grid-cols-[1fr_auto]",
-          "has-data-[slot=card-description]:grid-rows-[auto_auto]",
+          'has-data-[slot=card-action]:grid-cols-[1fr_auto]',
+          'has-data-[slot=card-description]:grid-rows-[auto_auto]',
 
           // Border bottom spacing (when border-b class is applied)
-          "[.border-b]:pb-4",
-          "group-data-[size=sm]/card:[.border-b]:pb-3",
-        ].join(" "),
+          '[.border-b]:pb-4',
+          'group-data-[size=sm]/card:[.border-b]:pb-3',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -104,14 +104,14 @@ function CardTitle({ className, ...props }: CardTitleProps) {
       className={cn(
         [
           // Typography
-          "font-heading text-base leading-snug font-medium",
-          "group-data-[size=sm]/card:text-sm",
-        ].join(" "),
+          'font-heading text-base leading-snug font-medium',
+          'group-data-[size=sm]/card:text-sm',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -122,10 +122,15 @@ function CardDescription({ className, ...props }: CardDescriptionProps) {
   return (
     <div
       data-slot="card-description"
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn(
+        // Under the title and action on narrow cards, beside the title
+        // (left of the action) on wide ones
+        'col-span-full text-sm text-muted-foreground @md/card-header:col-span-1',
+        className,
+      )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -138,15 +143,16 @@ function CardAction({ className, ...props }: CardActionProps) {
       data-slot="card-action"
       className={cn(
         [
-          // Grid positioning (top-right corner of header)
-          "col-start-2 row-span-2 row-start-1",
-          "self-start justify-self-end",
-        ].join(" "),
+          // Grid positioning (top-right corner of header; next to the
+          // title only on narrow cards, so the description gets the width)
+          'col-start-2 row-start-1 @md/card-header:row-span-2',
+          'self-start justify-self-end',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -160,15 +166,15 @@ function CardContent({ className, ...props }: CardContentProps) {
       className={cn(
         [
           // Spacing
-          "px-4",
-          "group-data-[size=sm]/card:px-3",
-          "mb-4",
-        ].join(" "),
+          'px-4',
+          'group-data-[size=sm]/card:px-3',
+          'mb-4',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -182,20 +188,20 @@ function CardFooter({ className, ...props }: CardFooterProps) {
       className={cn(
         [
           // Layout
-          "flex items-center",
+          'flex items-center',
 
           // Spacing
-          "p-4",
-          "group-data-[size=sm]/card:p-3",
+          'p-4',
+          'group-data-[size=sm]/card:p-3',
 
           // Styling
-          "rounded-b-xl border-t bg-muted/50",
-        ].join(" "),
+          'rounded-b-xl border-t bg-muted/50',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -210,4 +216,4 @@ export {
   CardFooter,
   CardHeader,
   CardTitle,
-};
+}
