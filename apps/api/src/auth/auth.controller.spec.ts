@@ -21,6 +21,7 @@ const authService = {
 function createReply() {
   const reply = {
     cookie: vi.fn(() => reply),
+    header: vi.fn(() => reply),
     clearCookie: vi.fn(() => reply),
     status: vi.fn(() => reply),
     send: vi.fn(() => Promise.resolve(reply)),
@@ -39,13 +40,17 @@ describe('AuthController registration lock', () => {
   it('reports registration as open while no account exists', async () => {
     authService.isRegistrationOpen.mockResolvedValue(true)
 
-    await expect(controller.registrationStatus()).resolves.toEqual({ open: true })
+    await expect(controller.registrationStatus()).resolves.toEqual({
+      open: true,
+    })
   })
 
   it('reports registration as closed once the owner account exists', async () => {
     authService.isRegistrationOpen.mockResolvedValue(false)
 
-    await expect(controller.registrationStatus()).resolves.toEqual({ open: false })
+    await expect(controller.registrationStatus()).resolves.toEqual({
+      open: false,
+    })
   })
 
   it('propagates a 403 from register and sets no session cookie', async () => {
@@ -56,7 +61,11 @@ describe('AuthController registration lock', () => {
 
     const error = await controller
       .register(
-        { email: 'intruder@test.com', name: 'Intruder', password: 'password123' },
+        {
+          email: 'intruder@test.com',
+          name: 'Intruder',
+          password: 'password123',
+        },
         reply as unknown as FastifyReply,
       )
       .catch((e: unknown) => e)
@@ -68,7 +77,10 @@ describe('AuthController registration lock', () => {
   })
 
   it('sets the session cookies and replies 201 when registration succeeds', async () => {
-    authService.register.mockResolvedValue({ accessToken: 'a', refreshToken: 'r' })
+    authService.register.mockResolvedValue({
+      accessToken: 'a',
+      refreshToken: 'r',
+    })
     const reply = createReply()
 
     await controller.register(
@@ -91,7 +103,10 @@ describe('AuthController session cookies', () => {
   })
 
   it('rotates the refresh cookie at path / (visible to the web SSR guard) and clears the legacy /api/auth one', async () => {
-    authService.rotateRefreshToken.mockResolvedValue({ accessToken: 'a2', refreshToken: 'r2' })
+    authService.rotateRefreshToken.mockResolvedValue({
+      accessToken: 'a2',
+      refreshToken: 'r2',
+    })
     const reply = createReply()
 
     await controller.refresh(
@@ -141,7 +156,10 @@ describe('AuthController session cookies', () => {
     )
 
     expect(authService.revokeSession).toHaveBeenCalledWith('r1')
-    expect(reply.clearCookie).toHaveBeenCalledWith('token', expect.objectContaining({ path: '/' }))
+    expect(reply.clearCookie).toHaveBeenCalledWith(
+      'token',
+      expect.objectContaining({ path: '/' }),
+    )
     expect(reply.clearCookie).toHaveBeenCalledWith(
       'refresh_token',
       expect.objectContaining({ path: '/' }),
@@ -150,5 +168,6 @@ describe('AuthController session cookies', () => {
       'refresh_token',
       expect.objectContaining({ path: '/api/auth' }),
     )
+    expect(reply.header).toHaveBeenCalledWith('Clear-Site-Data', '"cache"')
   })
 })

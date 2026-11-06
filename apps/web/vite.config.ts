@@ -27,7 +27,16 @@ const config = defineConfig({
   plugins: [
     multipleSetCookieInDev(),
     devtools(),
-    nitro(),
+    nitro({
+      // Static files keep their own caching (`/assets/*`: a year, immutable);
+      // the worker and manifest are revalidated on every fetch so a deploy is
+      // picked up at once. Responses of the Start handler (pages, `/api`) get
+      // `no-store` from `src/start.ts`.
+      routeRules: {
+        '/sw.js': { headers: { 'cache-control': 'no-cache' } },
+        '/manifest.json': { headers: { 'cache-control': 'no-cache' } },
+      },
+    }),
     tailwindcss(),
     tanstackStart(),
     viteReact(),
