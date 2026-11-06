@@ -103,7 +103,9 @@ function HoldingRow({
           <p
             className={cn(
               'text-xs tabular-nums',
-              holding.gainCents >= 0 ? 'text-success' : 'text-destructive',
+              holding.gainCents >= 0
+                ? 'text-success-foreground dark:text-success'
+                : 'text-destructive',
             )}
           >
             {signed(holding.gainCents)}
