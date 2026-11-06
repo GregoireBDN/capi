@@ -8,6 +8,7 @@ import { InvestmentsService } from './investments.service'
 @Module({
   // AuthModule provides JwtGuard and the JwtService it depends on.
   imports: [AuthModule, AccountsModule],
+  exports: [InvestmentsService],
   controllers: [AccountSnapshotsController, InvestmentsController],
   providers: [InvestmentsService],
 })
