@@ -92,7 +92,7 @@ The owner's pre-app history (a Google Sheet, ~3,250 categorized rows since 07/20
 - **Conventional commits in English**, scoped by app or package when relevant: `feat(api): ...`, `fix(web): ...`, `docs: ...`, `chore(ci): ...`.
 - PR descriptions follow `.github/pull_request_template.md` and contain `Closes #<issue>`.
 - CI (lint, types, tests, build) must be green before merging. Merge with **squash merge**.
-- Releases are git tags `vX.Y.Z`.
+- Releases are git tags `vX.Y.Z` on `main`. Pushing one runs `.github/workflows/release.yml`: CI (`ci.yml` as a reusable workflow), then the API and web images are pushed to GHCR (`ghcr.io/gregoirebdn/finances-{api,web}`, tags `vX.Y.Z` and `sha-<short>`) and deployed over Tailscale with `deploy/deploy.sh` (pull, migrate, seed, `up -d`, health check, automatic rollback to the previous version). Running the workflow manually with an existing tag redeploys it without rebuilding (rollback). Setup, releasing and rollback: [`docs/runbooks/deploy.md`](docs/runbooks/deploy.md). `deploy/test-deploy.sh` tests `deploy.sh` with a fake `docker` (run by the `Deploy checks` workflow, with shellcheck and actionlint).
 - Issues use the templates in `.github/ISSUE_TEMPLATE/` (feature, bug, chore — each with Context / Scope / Acceptance criteria / Out of scope), get a type label (`feat`, `fix`, `chore`, `docs`) plus an `area:*` label, and belong to a milestone:
   - **M1** Foundations
   - **M2** Import

@@ -1,0 +1,30 @@
+# Checks for the deploy tooling: shellcheck, the deploy.sh tests (fake docker,
+# no server) and actionlint on the workflows. Only runs when they change.
+name: Deploy checks
+
+on:
+  push:
+    branches: [main]
+    paths: ['deploy/**', '.github/workflows/**']
+  pull_request:
+    paths: ['deploy/**', '.github/workflows/**']
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: shellcheck · deploy.sh tests · actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: shellcheck
+        run: shellcheck deploy/*.sh
+
+      - name: Test deploy.sh
+        run: bash deploy/test-deploy.sh
+
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
