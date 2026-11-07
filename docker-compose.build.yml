@@ -1,0 +1,20 @@
+# Build the production images from this checkout instead of pulling them from
+# GHCR. Use on top of docker-compose.prod.yml, from the repo root:
+#
+#   FINANCES_VERSION=local docker compose -p finances-local \
+#     -f docker-compose.prod.yml -f docker-compose.build.yml build
+#
+# The images are tagged like the GHCR ones (ghcr.io/gregoirebdn/finances-*:
+# ${FINANCES_VERSION}); `pull_policy: build` keeps `up` from pulling them.
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    pull_policy: build
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    pull_policy: build

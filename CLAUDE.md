@@ -170,7 +170,7 @@ Standard NestJS module structure: each domain has a `*.module.ts`, `*.controller
 
 **Email**: `EmailModule` renders React Email templates (`apps/api/src/email/templates/*.tsx`) to HTML via `react-email` and sends them with `nodemailer` over SMTP (used for password reset). In dev, SMTP points at **Mailpit** (`localhost:1025`, web UI at `localhost:8025`) started by `docker compose`.
 
-**Health**: `HealthModule` exposes `GET /api/health` (Terminus), checking the database and SMTP. The production compose healthcheck relies on it.
+**Health**: `HealthModule` exposes `GET /api/health` (Terminus), checking the database and, when SMTP is configured, SMTP. The production healthchecks and the deploy script rely on it.
 
 **Path alias**: `#/*` resolves to `./src/*` in both the API and web apps.
 
@@ -223,17 +223,25 @@ File-based routing via TanStack Router — routes live in `apps/web/src/routes/`
 # Dev — starts PostgreSQL + Mailpit (apps run on the host)
 docker compose up -d
 
-# Production — builds and starts all services
-docker compose -f docker-compose.prod.yml up --build -d
+# Production images built from this checkout, stack run locally under a throwaway
+# project name (the dev stack is also called `finances`; never omit -p locally)
+FINANCES_VERSION=local docker compose -p finances-local --env-file <env> \
+  -f docker-compose.prod.yml -f docker-compose.build.yml up --build -d
 ```
 
 `docker-compose.yml` exposes PostgreSQL on `localhost:5432` and Mailpit (SMTP `localhost:1025`, UI `localhost:8025`) with credentials matching the defaults in `apps/api/.env.example`.
 
-`docker-compose.prod.yml` expects these variables (from a root `.env` file or the shell environment): `POSTGRES_USER`, `POSTGRES_PASSWORD`, optionally `POSTGRES_DB`, `JWT_SECRET`, `APP_URL` (the public web origin, used in email links and as the CORS origin), and the SMTP configuration.
+**Production stack** (`docker-compose.prod.yml`, runbook [`docs/runbooks/production-stack.md`](docs/runbooks/production-stack.md), deploys [`docs/runbooks/deploy.md`](docs/runbooks/deploy.md)):
 
-The browser only talks to the `web` service: it proxies `/api/*` to the `api` service (`API_URL=http://api:4000`, set in the compose file) and calls it directly during SSR. A future reverse proxy (Caddy) in front of the stack should forward everything, `/api` included, to `web`; routing `/api` straight to `api` would also work but would bypass the web process's refresh deduplication for client-side refreshes.
+- Compose project `name: finances`, deployed in `/srv/finances` (owned by the `deploy` user) with the compose file of the deployed tag and a mode-600 `.env`. Every variable is documented in [`.env.production.example`](.env.production.example); required ones use `${VAR:?}` so the stack refuses to start without them.
+- Services `db` (`postgres:17-alpine`, volume `db_data`), `api`, `web`, all `restart: unless-stopped` with healthchecks (`web` checks the whole chain through `/api/health`). **No `ports:` on any service**: `web` also joins the external `proxy` network with the alias `finances-web`, which the server's Caddy (`infra` repo) targets as `finances-web:3000`; `api` and `db` stay on the project network. Never publish a port of this stack (the API trusts forwarded client IPs from private addresses, #49).
+- Images `ghcr.io/gregoirebdn/finances-{api,web}:${FINANCES_VERSION}` (`vX.Y.Z` or `sha-<shortsha>`). `docker-compose.build.yml` adds `build:` sections (`pull_policy: build`) to build them from the checkout instead.
+- Migrations: `docker compose -f docker-compose.prod.yml run --rm api node dist/database/migrate.js` (`apps/api/src/database/migrate.ts`, Drizzle's runtime migrator; the image ships `drizzle/` through the API package's `files`). Seed: `... run --rm api node dist/database/seed.js`. Both are idempotent and run on every deploy.
+- The API image sets `NODE_ENV=production` (session cookies `Secure`) and `HOST=0.0.0.0` (Fastify listens on localhost otherwise). SMTP is optional in production: without `SMTP_HOST` no email is sent and `/api/health` leaves SMTP out; when it is configured, an unreachable SMTP server fails the health check (and a deploy).
 
-The Dockerfiles (`apps/api/Dockerfile`, `apps/web/Dockerfile`) use multi-stage builds with the monorepo root as context. The API uses `pnpm deploy --prod` to produce a slim image. The web image copies only the Nitro `.output/` directory (self-contained SSR bundle).
+The browser only talks to the `web` service: it proxies `/api/*` to the `api` service (`API_URL=http://api:4000`, set in the compose file) and calls it directly during SSR. Caddy forwards everything, `/api` included, to `web`; routing `/api` straight to `api` would bypass the web process's refresh deduplication for client-side refreshes.
+
+The Dockerfiles (`apps/api/Dockerfile`, `apps/web/Dockerfile`) use multi-stage builds with the monorepo root as context (`.dockerignore` keeps `data/`, `.env*` and `.claude/` out of it). The API uses `pnpm deploy --prod --legacy`, which copies the package's `files` (`dist`, `drizzle`) and its production dependencies, so anything `dist/` requires at runtime must be in `dependencies`. The web image copies only the Nitro `.output/` directory; a package imported by `@finances/ui` that bundles CommonJS code requiring `react` (e.g. `recharts`) must also be a dependency of `apps/web`, or the SSR bundle keeps a runtime `require('react')` that fails in the image.
 
 Target deployment (M6): a VPS running the production compose stack, reachable only through Tailscale. The hosting decisions (Compose per app + one server-level Caddy on a shared `proxy` network, server config in a separate `infra` repo, own domain on the tailnet, one Postgres per app, GHCR images, deploys over Tailscale, restic backups) are in [`docs/adr/0001-multi-app-hosting.md`](docs/adr/0001-multi-app-hosting.md).
 
@@ -248,7 +256,7 @@ Copy `apps/api/.env.example` to `apps/api/.env` and fill in:
 
 The web app reads two runtime variables (see `apps/web/.env.example`), never exposed to the browser: `API_URL`, the API origin as reached from the web server (default `http://localhost:4000`), and `TRUSTED_PROXIES` (see Client IP).
 
-- SMTP config (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM`) — defaults target the dev Mailpit container
+- SMTP config (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM`) — defaults target the dev Mailpit container; in production `SMTP_HOST` is optional (unset = no email)
 - Crypto prices (`PRICE_API_ENABLED`, `PRICE_API_URL`, `PRICE_CACHE_TTL_SECONDS`) — default to the CoinGecko public API with a 10-minute cache (see Crypto prices)
 
 Never put real credentials or real financial data in `.env.example`.

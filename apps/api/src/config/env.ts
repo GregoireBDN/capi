@@ -37,6 +37,8 @@ const envSchema = z.object({
     .enum(['development', 'test', 'production'])
     .default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
+  /** Listen address: localhost by default; 0.0.0.0 in the Docker image. */
+  HOST: z.string().min(1).default('localhost'),
   APP_URL: z.url().default('http://localhost:3000'),
 
   /**
@@ -72,8 +74,15 @@ const envSchema = z.object({
         .min(1, 'JWT_SECRET is required when NODE_ENV=production')
     : z.string().min(1).optional(),
 
-  // SMTP — dev defaults target the Mailpit container.
-  SMTP_HOST: z.string().min(1).default('localhost'),
+  // SMTP — dev defaults target the Mailpit container. In production SMTP is
+  // optional: without SMTP_HOST (unset or empty) no email is sent (verification
+  // and password-reset emails are skipped) and `/api/health` leaves SMTP out.
+  SMTP_HOST: isProduction
+    ? z.preprocess(
+        (value) => (value === '' ? undefined : value),
+        z.string().min(1).optional(),
+      )
+    : z.string().min(1).default('localhost'),
   SMTP_PORT: z.coerce.number().int().positive().default(1025),
   // Env values are strings; only the literal "true" enables TLS.
   SMTP_SECURE: z
@@ -109,6 +118,8 @@ function loadEnv() {
     ...parsed.data,
     JWT_SECRET: parsed.data.JWT_SECRET ?? randomBytes(32).toString('hex'),
     isProduction,
+    /** Whether emails can be sent (SMTP_HOST set; always true outside production). */
+    smtpEnabled: Boolean(parsed.data.SMTP_HOST),
   }
 }
 

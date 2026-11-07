@@ -1,40 +1,70 @@
+# Production stack (ADR 0001, runbook: docs/runbooks/production-stack.md).
+#
+# Deployed in /srv/finances with a root-only `.env` next to this file (template:
+# .env.production.example). No service publishes a port: Caddy (infra repo)
+# reaches `web` on the external `proxy` network as `finances-web:3000`, and
+# `api`/`db` stay on this project's internal network.
+#
+# Images come from GHCR, pinned by FINANCES_VERSION. To build them locally
+# instead, add docker-compose.build.yml (see the runbook), and on a dev machine
+# always pass `-p finances-local`: the dev stack (docker-compose.yml) is also
+# named `finances`.
+name: finances
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '5'
+
 services:
   db:
     image: postgres:17-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-finances}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-finances}"]
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
       interval: 5s
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    logging: *logging
 
   api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    ports:
-      - "4000:4000"
+    image: ghcr.io/gregoirebdn/finances-api:${FINANCES_VERSION:?set FINANCES_VERSION in .env}
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-finances}
-      JWT_SECRET: ${JWT_SECRET}
-      APP_URL: ${APP_URL}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      APP_URL: ${APP_URL:?set APP_URL in .env}
+      # Peers allowed to set the client IP (X-Forwarded-For): `web`, on this
+      # project's network (#49).
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-loopback,uniquelocal}
+      # SMTP is optional: without SMTP_HOST no email is sent and /api/health
+      # does not check it.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@finances.app}
+      PRICE_API_ENABLED: ${PRICE_API_ENABLED:-true}
+      PRICE_API_URL: ${PRICE_API_URL:-https://api.coingecko.com/api/v3}
+      PRICE_CACHE_TTL_SECONDS: ${PRICE_CACHE_TTL_SECONDS:-600}
     depends_on:
       db:
         condition: service_healthy
     healthcheck:
-      # Hit the real Terminus endpoint, which checks the DB (and SMTP) — a 5xx
-      # (dependency down) makes `fetch` resolve with `ok: false` → exit 1.
+      # Hit the real Terminus endpoint, which checks the DB (and SMTP when it is
+      # configured) — a 5xx makes `fetch` resolve with `ok: false` → exit 1.
       test:
         [
-          "CMD",
-          "node",
-          "-e",
+          'CMD',
+          'node',
+          '-e',
           "fetch('http://localhost:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 10s
@@ -42,22 +72,47 @@ services:
       retries: 5
       start_period: 20s
     restart: unless-stopped
+    logging: *logging
 
   web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-    ports:
-      - "3000:3000"
+    image: ghcr.io/gregoirebdn/finances-web:${FINANCES_VERSION:?set FINANCES_VERSION in .env}
     environment:
       # The web server proxies /api/* to the API and calls it during SSR, so the
       # browser only talks to the web origin and the session cookies are
       # first-party (see CLAUDE.md, Auth).
       API_URL: http://api:4000
+      # Peers allowed to set the client IP (X-Forwarded-For): Caddy, on the
+      # `proxy` network (#49).
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-loopback,uniquelocal}
+    networks:
+      default: {}
+      proxy:
+        # Caddy's upstream: finances-web:3000.
+        aliases:
+          - finances-web
     depends_on:
       api:
         condition: service_healthy
+    healthcheck:
+      # The whole chain: web → /api proxy → api → db.
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     restart: unless-stopped
+    logging: *logging
+
+networks:
+  # Shared with the server's Caddy; created by the infra bootstrap.
+  proxy:
+    external: true
 
 volumes:
-  postgres_data:
+  db_data:

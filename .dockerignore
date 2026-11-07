@@ -1,9 +1,12 @@
 .git
+.claude
 **/.turbo
 **/.DS_Store
 **/node_modules
 **/.output
 **/dist
-apps/api/drizzle
 **/.env
+**/.env.*
 !**/.env.example
+# Real bank exports: never part of a build context.
+data
