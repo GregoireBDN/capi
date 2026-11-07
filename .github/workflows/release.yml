@@ -1,0 +1,212 @@
+# Release and deploy (ADR 0001 §5–6, runbook: docs/runbooks/deploy.md).
+#
+# - Push a tag vX.Y.Z (on main): CI, then build and push the API and web images
+#   to GHCR (tags vX.Y.Z and sha-<short>), then deploy to production once the
+#   `production` environment is approved.
+# - Run manually with an existing tag: redeploys that version without
+#   rebuilding (rollback).
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing release tag to redeploy without rebuilding (vX.Y.Z), e.g. to roll back
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io/gregoirebdn
+
+jobs:
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - name: Resolve and validate the version
+        id: resolve
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ $EVENT == workflow_dispatch ]]; then version=$INPUT_VERSION; else version=$REF_NAME; fi
+          if [[ ! $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'$version' is not a release tag (vX.Y.Z)"
+            exit 1
+          fi
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # main is always deployable: only release commits that are on it.
+      - name: Check the tag is on main
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          if ! sha=$(git rev-parse -q --verify "refs/tags/$VERSION^{commit}"); then
+            echo "::error::tag $VERSION does not exist"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$sha" origin/main; then
+            echo "::error::tag $VERSION ($sha) is not on main"
+            exit 1
+          fi
+
+      - name: Log in to GHCR
+        if: github.event_name == 'workflow_dispatch'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check the images exist
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          for app in api web; do
+            docker buildx imagetools inspect "$REGISTRY/finances-$app:$VERSION" >/dev/null
+          done
+
+  ci:
+    name: CI
+    needs: version
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  images:
+    name: Image (${{ matrix.app }})
+    needs: [version, ci]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        app: [api, web]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/finances-${{ matrix.app }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ needs.version.outputs.version }}
+            type=sha,format=short,prefix=sha-
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=finances-${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=finances-${{ matrix.app }}
+
+  deploy:
+    name: Deploy to production
+    needs: [version, images]
+    # Tag push: after the images are pushed. Manual run: images already exist.
+    if: >-
+      !cancelled() && needs.version.result == 'success' &&
+      (needs.images.result == 'success' ||
+      (github.event_name == 'workflow_dispatch' && needs.images.result == 'skipped'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://finances.gbodin.cloud
+    # One deploy at a time; never cancel one halfway.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST || 'vps' }}
+      RELEASE_DIR: /srv/finances/releases/${{ needs.version.outputs.version }}
+    steps:
+      # The deploy script and compose file come from the release being deployed.
+      - name: Checkout ${{ needs.version.outputs.version }}
+        uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ needs.version.outputs.version }}
+
+      # Ephemeral node tagged tag:ci; ACLs only let it SSH to the server as `deploy`.
+      - name: Join the tailnet
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      # Tailscale SSH authenticates the node itself (no key). DEPLOY_SSH_KEY is
+      # an optional fallback for plain OpenSSH over the tailnet. The host key is
+      # accepted on first use: the name only resolves to a tailnet peer.
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -d -m 700 ~/.ssh
+          if [[ -n $DEPLOY_SSH_KEY ]]; then
+            (umask 077 && printf '%s\n' "$DEPLOY_SSH_KEY" >~/.ssh/id_ed25519)
+          fi
+          cat >>~/.ssh/config <<EOF
+          Host $DEPLOY_HOST
+            User deploy
+            BatchMode yes
+            StrictHostKeyChecking accept-new
+            ConnectTimeout 30
+            ServerAliveInterval 15
+            ServerAliveCountMax 8
+          EOF
+
+      # VERSION is validated (vX.Y.Z), so expanding it client-side is safe.
+      - name: Upload the release files
+        run: |
+          # shellcheck disable=SC2029
+          tar -cf - deploy/deploy.sh docker-compose.prod.yml |
+            ssh "$DEPLOY_HOST" "rm -rf '$RELEASE_DIR' && mkdir -p '$RELEASE_DIR' && tar -xf - -C '$RELEASE_DIR' &&
+              cp '$RELEASE_DIR/deploy/deploy.sh' /srv/finances/deploy.sh.new && mv -f /srv/finances/deploy.sh.new /srv/finances/deploy.sh"
+
+      - name: Deploy ${{ needs.version.outputs.version }}
+        run: |
+          # shellcheck disable=SC2029
+          ssh "$DEPLOY_HOST" "'$RELEASE_DIR/deploy/deploy.sh' '$VERSION' '$RELEASE_DIR/docker-compose.prod.yml'"
+          echo "Deployed **$VERSION** to https://finances.gbodin.cloud" >>"$GITHUB_STEP_SUMMARY"
