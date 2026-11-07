@@ -1,5 +1,9 @@
 import { Controller, Get } from '@nestjs/common'
-import { ApiOkResponse, ApiServiceUnavailableResponse, ApiTags } from '@nestjs/swagger'
+import {
+  ApiOkResponse,
+  ApiServiceUnavailableResponse,
+  ApiTags,
+} from '@nestjs/swagger'
 import { HealthCheck, HealthCheckService } from '@nestjs/terminus'
 import { DatabaseHealthIndicator } from './database.health'
 import { SmtpHealthIndicator } from './smtp.health'
@@ -31,7 +35,9 @@ export class HealthController {
   check() {
     return this.health.check([
       () => this.database.isHealthy('database'),
-      () => this.smtp.isHealthy('smtp'),
+      // SMTP is optional in production: when it is not configured, no email
+      // is sent and there is nothing to check (see `config/env.ts`).
+      ...(this.smtp.enabled ? [() => this.smtp.isHealthy('smtp')] : []),
     ])
   }
 }

@@ -1,8 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import {
-  HealthIndicatorResult,
-  HealthIndicatorService,
-} from '@nestjs/terminus'
+import { HealthIndicatorResult, HealthIndicatorService } from '@nestjs/terminus'
 import { EmailService } from '#/email/email.service'
 
 /**
@@ -15,6 +12,11 @@ export class SmtpHealthIndicator {
     private readonly healthIndicatorService: HealthIndicatorService,
     private readonly emailService: EmailService,
   ) {}
+
+  /** False when SMTP is not configured: the health check then skips it. */
+  get enabled(): boolean {
+    return this.emailService.enabled
+  }
 
   async isHealthy(key: string): Promise<HealthIndicatorResult> {
     const indicator = this.healthIndicatorService.check(key)

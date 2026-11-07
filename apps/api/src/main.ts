@@ -124,7 +124,9 @@ async function bootstrap() {
   })
 
   const port = env.PORT
-  await app.listen(port)
+  // Fastify listens on localhost unless told otherwise: the Docker image sets
+  // HOST=0.0.0.0 so `web` can reach the API on the compose network.
+  await app.listen(port, env.HOST)
 
   const logger = app.get(Logger)
   logger.log(`API running on http://localhost:${port}/api`)

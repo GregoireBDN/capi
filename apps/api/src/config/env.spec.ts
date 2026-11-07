@@ -115,6 +115,28 @@ describe('env', () => {
     ).rejects.toThrow(/TRUSTED_PROXIES/)
   })
 
+  it('makes SMTP optional in production (unset or empty SMTP_HOST)', async () => {
+    for (const SMTP_HOST of [undefined, '']) {
+      const { env } = await importEnv({ ...PROD_BASE, SMTP_HOST })
+      expect(env.SMTP_HOST).toBeUndefined()
+      expect(env.smtpEnabled).toBe(false)
+    }
+    const { env } = await importEnv({
+      ...PROD_BASE,
+      SMTP_HOST: 'smtp.example.test',
+    })
+    expect(env.SMTP_HOST).toBe('smtp.example.test')
+    expect(env.smtpEnabled).toBe(true)
+  })
+
+  it('keeps SMTP on the local Mailpit outside production', async () => {
+    const { env } = await importEnv({
+      NODE_ENV: 'development',
+      SMTP_HOST: undefined,
+    })
+    expect(env.smtpEnabled).toBe(true)
+  })
+
   it('coerces numeric and boolean string variables', async () => {
     const { env } = await importEnv({
       NODE_ENV: 'development',
