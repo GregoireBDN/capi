@@ -6,4 +6,4 @@ Each ADR states its **status** (Proposed, Accepted, Superseded by NNNN), the **c
 
 | #                                 | Decision                          | Status   |
 | --------------------------------- | --------------------------------- | -------- |
-| [0001](0001-multi-app-hosting.md) | Multi-app hosting on a single VPS | Proposed |
+| [0001](0001-multi-app-hosting.md) | Multi-app hosting on a single VPS | Accepted |

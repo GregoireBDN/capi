@@ -1,6 +1,6 @@
 # ADR 0001 — Multi-app hosting on a single VPS
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Date**: 2026-11-07
 - **Issue**: #86 (epic #38, milestone M6 Deployment)
 
