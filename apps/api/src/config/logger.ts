@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import type { IncomingHttpHeaders } from 'node:http'
+import type { IncomingHttpHeaders, IncomingMessage } from 'node:http'
 import type { Params } from 'nestjs-pino'
 import { env } from './env'
+import { clientIp, compileTrustedProxies } from './trusted-proxies'
+
+const trustProxy = compileTrustedProxies(env.TRUSTED_PROXIES)
 
 /**
  * Header carrying the request-correlation id. Honoured on the way in (a value
@@ -42,6 +45,16 @@ export const loggerParams: Params = {
             ignore: 'pid,hostname',
           },
         },
+
+    // Log the client IP Fastify uses (`request.ip`, i.e. `X-Forwarded-For`
+    // when it comes from a trusted proxy) rather than the web server's socket
+    // address, which is the same for every request behind the `/api` proxy.
+    serializers: {
+      req: (req: { raw?: IncomingMessage; remoteAddress?: string }) => {
+        if (req.raw) req.remoteAddress = clientIp(req.raw, trustProxy)
+        return req
+      },
+    },
 
     // Never log credentials or session cookies.
     redact: {

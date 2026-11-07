@@ -2,10 +2,7 @@ import './load-env'
 import 'reflect-metadata'
 import { ValidationPipe } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
-import {
-  FastifyAdapter,
-  NestFastifyApplication,
-} from '@nestjs/platform-fastify'
+import type { NestFastifyApplication } from '@nestjs/platform-fastify'
 import fastifyCookie from '@fastify/cookie'
 import fastifyHelmet from '@fastify/helmet'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
@@ -13,15 +10,15 @@ import { Logger } from 'nestjs-pino'
 import { AppModule } from './app.module'
 import { registerNoStoreHeaders } from './common/http/no-store'
 import { env } from './config/env'
-import { genReqId, REQUEST_ID_HEADER } from './config/logger'
+import { createFastifyAdapter } from './config/fastify-adapter'
+import { REQUEST_ID_HEADER } from './config/logger'
 import { registerMultipart } from './imports/upload/multipart'
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    // Honour an inbound x-request-id (or mint one) as Fastify's req.id, which
-    // nestjs-pino surfaces as `reqId` on every log line for the request.
-    new FastifyAdapter({ genReqId }),
+    // Request ids and trusted proxies (client IP for rate limits and logs).
+    createFastifyAdapter(),
     // Buffer bootstrap logs until the pino logger is wired in below, so even
     // early framework logs go through the structured logger.
     { bufferLogs: true },

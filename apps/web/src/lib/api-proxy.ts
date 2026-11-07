@@ -6,6 +6,8 @@ import {
   refreshSession,
 } from '#/lib/server-session'
 import type { ApiTarget } from '#/lib/server-session'
+import { resolveClientIp, trustedProxies } from '#/lib/client-ip'
+import type { TrustProxyFn } from '#/lib/client-ip'
 
 /**
  * Same-origin gateway: the web server forwards `/api/*` to the API, so the
@@ -34,6 +36,14 @@ const DROPPED_REQUEST_HEADERS = new Set([
   'content-length',
   // Let the API answer uncompressed: `fetch` would decode the body anyway.
   'accept-encoding',
+  // Client-supplied forwarding headers: the proxy sets its own (see
+  // `upstreamHeaders`), so a client can't choose the IP the API rate-limits.
+  'x-forwarded-for',
+  'x-forwarded-host',
+  'x-forwarded-proto',
+  'x-forwarded-port',
+  'x-real-ip',
+  'forwarded',
 ])
 
 const DROPPED_RESPONSE_HEADERS = new Set([
@@ -52,15 +62,22 @@ const DROPPED_RESPONSE_HEADERS = new Set([
 
 const LOGOUT_PATH = '/api/auth/logout'
 
-function upstreamHeaders(request: Request, url: URL, clientIp?: string): Headers {
+/**
+ * Headers for the API. `X-Forwarded-For` is rebuilt from scratch with only the
+ * client IP (`resolveClientIp`): taken from the incoming header when the peer
+ * is a trusted proxy (Caddy), the socket address otherwise. The API trusts it
+ * because it comes from `web` (see `apps/api/src/config/trusted-proxies.ts`).
+ */
+function upstreamHeaders(
+  request: Request,
+  url: URL,
+  clientIp?: string,
+): Headers {
   const headers = new Headers()
   request.headers.forEach((value, name) => {
     if (!DROPPED_REQUEST_HEADERS.has(name)) headers.set(name, value)
   })
-  const forwardedFor = [request.headers.get('x-forwarded-for'), clientIp]
-    .filter(Boolean)
-    .join(', ')
-  if (forwardedFor) headers.set('x-forwarded-for', forwardedFor)
+  if (clientIp) headers.set('x-forwarded-for', clientIp)
   headers.set('x-forwarded-host', url.host)
   headers.set('x-forwarded-proto', url.protocol.replace(/:$/, ''))
   return headers
@@ -82,10 +99,13 @@ function downstreamResponse(upstream: Response): Response {
 }
 
 /** `POST /api/auth/refresh`, deduplicated with the SSR guard's refreshes. */
-async function proxyRefresh(request: Request, target: ApiTarget): Promise<Response | null> {
-  const token = parseCookieHeader(request.headers.get('cookie') ?? undefined).get(
-    REFRESH_COOKIE,
-  )
+async function proxyRefresh(
+  request: Request,
+  target: ApiTarget,
+): Promise<Response | null> {
+  const token = parseCookieHeader(
+    request.headers.get('cookie') ?? undefined,
+  ).get(REFRESH_COOKIE)
   // Without a token there is nothing to dedupe: let the API answer the 401.
   if (!token) return null
 
@@ -96,12 +116,25 @@ async function proxyRefresh(request: Request, target: ApiTarget): Promise<Respon
   return new Response(outcome.body || null, { status: outcome.status, headers })
 }
 
+/**
+ * Forwards `request` to the API.
+ *
+ * @param socketAddress the TCP peer of the request (`getRequestIP()` without
+ *   `xForwardedFor`): the client, or Caddy in production.
+ * @param trust which peers may set the client IP (`TRUSTED_PROXIES`).
+ */
 export async function proxyToApi(
   request: Request,
   target: ApiTarget,
-  clientIp?: string,
+  socketAddress?: string,
+  trust: TrustProxyFn = trustedProxies(),
 ): Promise<Response> {
   const url = new URL(request.url)
+  const clientIp = resolveClientIp(
+    socketAddress,
+    request.headers.get('x-forwarded-for'),
+    trust,
+  )
 
   if (request.method === 'POST' && url.pathname === REFRESH_PATH) {
     const response = await proxyRefresh(request, target)
