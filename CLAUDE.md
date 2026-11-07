@@ -233,7 +233,7 @@ The browser only talks to the `web` service: it proxies `/api/*` to the `api` se
 
 The Dockerfiles (`apps/api/Dockerfile`, `apps/web/Dockerfile`) use multi-stage builds with the monorepo root as context. The API uses `pnpm deploy --prod` to produce a slim image. The web image copies only the Nitro `.output/` directory (self-contained SSR bundle).
 
-Target deployment (M6): a VPS running the production compose stack, reachable only through Tailscale.
+Target deployment (M6): a VPS running the production compose stack, reachable only through Tailscale. The hosting decisions (Compose per app + one server-level Caddy on a shared `proxy` network, server config in a separate `infra` repo, own domain on the tailnet, one Postgres per app, GHCR images, deploys over Tailscale, restic backups) are in [`docs/adr/0001-multi-app-hosting.md`](docs/adr/0001-multi-app-hosting.md).
 
 ## Environment setup (API)
 
