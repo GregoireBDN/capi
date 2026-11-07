@@ -129,3 +129,9 @@ The choice is cheap to reverse: the server is rebuilt from the `infra` repo and 
 - **#30 Backups**: restic to an EU S3-compatible bucket outside Hostinger, healthchecks-style alerting, config and runbooks in `infra`.
 - **#85 Real-device checks**: unchanged, run against `https://finances.<base>` once deployed.
 - **New prerequisite**: buy the domain and move its DNS to Cloudflare (part of #87).
+
+## Amendments
+
+Factual updates made while implementing the decision; the decision itself is unchanged.
+
+- **2026-11-07 (#87)**: the VPS was ordered as a Hostinger KVM 2 in the **Paris** datacenter, prepaid **24 months** instead of 12, on plain Ubuntu 24.04 LTS. Auto-renew is off; it expires on 2028-11-07, with a calendar reminder a month before. The domain is `gbodin.cloud`, registered at Hostinger with auto-renew on; its DNS is at Cloudflare as decided in §3. The server joined the tailnet as `vps` (`tag:server`), and public inbound traffic is blocked by both `ufw` and the Hostinger firewall. Setup and runbooks are in the `infra` repo.
