@@ -1,5 +1,10 @@
 import { randomBytes } from 'node:crypto'
 import { z } from 'zod'
+import {
+  compileTrustedProxies,
+  DEFAULT_TRUSTED_PROXIES,
+  parseTrustedProxies,
+} from './trusted-proxies'
 
 /**
  * Validated environment configuration, parsed once at module load.
@@ -33,6 +38,25 @@ const envSchema = z.object({
     .default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
   APP_URL: z.url().default('http://localhost:3000'),
+
+  /**
+   * Peers allowed to set the client IP through `X-Forwarded-For` (Fastify
+   * `trustProxy`): the web server's `/api` proxy. See `trusted-proxies.ts`.
+   */
+  TRUSTED_PROXIES: z
+    .string()
+    .default(DEFAULT_TRUSTED_PROXIES)
+    .transform(parseTrustedProxies)
+    .superRefine((entries, ctx) => {
+      try {
+        compileTrustedProxies(entries)
+      } catch (error) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `invalid entry (${(error as Error).message}); expected IPs, CIDR ranges, loopback, linklocal, uniquelocal or none`,
+        })
+      }
+    }),
 
   DATABASE_URL: requiredInProduction('DATABASE_URL', DEV_DATABASE_URL),
 

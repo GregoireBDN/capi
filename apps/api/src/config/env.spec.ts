@@ -85,12 +85,34 @@ describe('env', () => {
     })
     expect(env.PORT).toBe(4000)
     expect(env.APP_URL).toBe('http://localhost:3000')
-    expect(env.DATABASE_URL).toBe('postgres://user:password@localhost:5432/finances')
+    expect(env.DATABASE_URL).toBe(
+      'postgres://user:password@localhost:5432/finances',
+    )
     expect(env.SMTP_HOST).toBe('localhost')
     expect(env.SMTP_PORT).toBe(1025)
     expect(env.SMTP_SECURE).toBe(false)
     expect(env.EMAIL_FROM).toBe('noreply@finances.app')
     expect(env.isProduction).toBe(false)
+  })
+
+  it('trusts loopback and private ranges as proxies by default', async () => {
+    const { env } = await importEnv({
+      ...PROD_BASE,
+      TRUSTED_PROXIES: undefined,
+    })
+    expect(env.TRUSTED_PROXIES).toEqual(['loopback', 'uniquelocal'])
+  })
+
+  it('parses TRUSTED_PROXIES and rejects invalid entries', async () => {
+    const { env } = await importEnv({
+      ...PROD_BASE,
+      TRUSTED_PROXIES: '172.18.0.0/16, 10.0.0.2',
+    })
+    expect(env.TRUSTED_PROXIES).toEqual(['172.18.0.0/16', '10.0.0.2'])
+
+    await expect(
+      importEnv({ ...PROD_BASE, TRUSTED_PROXIES: 'web' }),
+    ).rejects.toThrow(/TRUSTED_PROXIES/)
   })
 
   it('coerces numeric and boolean string variables', async () => {

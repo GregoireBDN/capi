@@ -19,6 +19,7 @@
     "icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
+    "@fastify/proxy-addr": "^5.1.0",
     "@finances/shared": "workspace:*",
     "@finances/ui": "workspace:*",
     "@hey-api/client-fetch": "^0.13.1",

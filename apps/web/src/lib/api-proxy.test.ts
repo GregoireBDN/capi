@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { proxyToApi } from './api-proxy'
+import { DEFAULT_TRUSTED_PROXIES, compileTrustedProxies } from './client-ip'
 import { forgetRefreshes, resolveServerSession } from './server-session'
 
 const API_URL = 'http://api.test:4000'
@@ -207,5 +208,92 @@ describe('proxyToApi (/api/* → API)', () => {
     expect(
       api.calls.filter((c) => c.url.endsWith('/api/auth/refresh')),
     ).toHaveLength(2)
+  })
+})
+
+describe('proxyToApi client IP (X-Forwarded-For)', () => {
+  const CADDY = '172.20.0.2'
+  const CLIENT = '100.101.102.103'
+  const trust = compileTrustedProxies(DEFAULT_TRUSTED_PROXIES)
+
+  async function forwardedFor(
+    socketAddress: string | undefined,
+    incoming?: string,
+  ): Promise<string | null> {
+    const api = upstream(() => Response.json({}))
+    await proxyToApi(
+      new Request('http://web.test/api/auth/login', {
+        method: 'POST',
+        headers: incoming ? { 'x-forwarded-for': incoming } : {},
+      }),
+      { apiUrl: API_URL, fetch: api.fetch },
+      socketAddress,
+      trust,
+    )
+    return new Headers(api.calls[0].init.headers).get('x-forwarded-for')
+  }
+
+  it('forwards the client IP set by Caddy (a trusted proxy)', async () => {
+    expect(await forwardedFor(CADDY, CLIENT)).toBe(CLIENT)
+  })
+
+  it('ignores a spoofed header from a client that is not a trusted proxy', async () => {
+    expect(await forwardedFor(CLIENT, '203.0.113.99')).toBe(CLIENT)
+  })
+
+  it('ignores addresses a client prepended to the header Caddy extended', async () => {
+    expect(await forwardedFor(CADDY, `203.0.113.99, ${CLIENT}`)).toBe(CLIENT)
+  })
+
+  it('forwards only the client IP, never the incoming chain', async () => {
+    const header = await forwardedFor(CADDY, `10.0.0.9, ${CLIENT}, 172.20.0.7`)
+    expect(header).toBe(CLIENT)
+  })
+
+  it('uses the socket address when no header is sent', async () => {
+    expect(await forwardedFor(CLIENT)).toBe(CLIENT)
+  })
+
+  it('drops a client-sent header when the socket address is unknown', async () => {
+    expect(await forwardedFor(undefined, '203.0.113.99')).toBeNull()
+  })
+
+  it('does not forward a malformed entry from a trusted proxy', async () => {
+    expect(await forwardedFor(CADDY, 'not-an-ip')).toBe(CADDY)
+  })
+
+  it('trusts nobody with TRUSTED_PROXIES=none', async () => {
+    const api = upstream(() => Response.json({}))
+    await proxyToApi(
+      new Request('http://web.test/api/accounts', {
+        headers: { 'x-forwarded-for': CLIENT },
+      }),
+      { apiUrl: API_URL, fetch: api.fetch },
+      CADDY,
+      compileTrustedProxies('none'),
+    )
+    expect(new Headers(api.calls[0].init.headers).get('x-forwarded-for')).toBe(
+      CADDY,
+    )
+  })
+
+  it('drops other client-sent forwarding headers', async () => {
+    const api = upstream(() => Response.json({}))
+    await proxyToApi(
+      new Request('http://web.test/api/accounts', {
+        headers: {
+          forwarded: 'for=203.0.113.99',
+          'x-real-ip': '203.0.113.99',
+          'x-forwarded-host': 'evil.test',
+        },
+      }),
+      { apiUrl: API_URL, fetch: api.fetch },
+      CLIENT,
+      trust,
+    )
+    const headers = new Headers(api.calls[0].init.headers)
+    expect(headers.get('forwarded')).toBeNull()
+    expect(headers.get('x-real-ip')).toBeNull()
+    expect(headers.get('x-forwarded-host')).toBe('web.test')
   })
 })
