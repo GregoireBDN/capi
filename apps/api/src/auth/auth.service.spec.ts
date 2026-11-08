@@ -1,7 +1,14 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { env } from '#/config/env'
 import { AuthService } from './auth.service'
+
+// Mutable copy of the validated env, so tests can switch SMTP on and off.
+vi.mock('#/config/env', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/config/env')>()
+  return { ...actual, env: { ...actual.env } }
+})
 
 const mockDb: Record<string, ReturnType<typeof vi.fn>> = {
   select: vi.fn(),
@@ -30,7 +37,8 @@ function buildChain(result: unknown[]) {
   chain.returning = vi.fn(() => Promise.resolve(result))
   chain.values = vi.fn(() => chain)
   chain.set = vi.fn(() => chain)
-  chain.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve)
+  chain.then = (resolve: (v: unknown) => unknown) =>
+    Promise.resolve(result).then(resolve)
   return chain
 }
 
@@ -39,6 +47,7 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    env.smtpEnabled = true
     service = new AuthService(
       { db: mockDb } as never,
       mockJwt as unknown as JwtService,
@@ -61,7 +70,11 @@ describe('AuthService', () => {
   })
 
   describe('register', () => {
-    const dto = { email: 'new@test.com', name: 'New User', password: 'password123' }
+    const dto = {
+      email: 'new@test.com',
+      name: 'New User',
+      password: 'password123',
+    }
 
     it('throws ForbiddenException when a user already exists', async () => {
       mockDb.select.mockReturnValue(buildChain([{ id: 'owner-id' }]))
@@ -83,7 +96,9 @@ describe('AuthService', () => {
 
     it('creates the first account and returns an access + refresh token pair', async () => {
       mockDb.select.mockReturnValue(buildChain([]))
-      mockDb.insert.mockReturnValue(buildChain([{ id: 'new-id', email: 'new@test.com' }]))
+      mockDb.insert.mockReturnValue(
+        buildChain([{ id: 'new-id', email: 'new@test.com' }]),
+      )
 
       const tokens = await service.register(dto)
 
@@ -91,7 +106,90 @@ describe('AuthService', () => {
       expect(mockDb.execute).toHaveBeenCalledOnce()
       expect(tokens.accessToken).toBe('mock-token')
       expect(tokens.refreshToken).toMatch(/^[a-f0-9]{64}$/) // 32 random bytes, hex
-      expect(mockJwt.sign).toHaveBeenCalledWith({ sub: 'new-id' }, expect.any(Object))
+      expect(mockJwt.sign).toHaveBeenCalledWith(
+        { sub: 'new-id' },
+        expect.any(Object),
+      )
+    })
+
+    it('leaves the account unverified and sends a verification email when SMTP is on', async () => {
+      mockDb.select.mockReturnValue(buildChain([]))
+      const userChain = buildChain([{ id: 'new-id', email: 'new@test.com' }])
+      const tokenChain = buildChain([])
+      mockDb.insert.mockReturnValueOnce(userChain).mockReturnValue(tokenChain)
+
+      await service.register(dto)
+
+      expect(userChain.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'new@test.com',
+          emailVerifiedAt: null,
+        }),
+      )
+      expect(mockEmail.sendEmailVerification).toHaveBeenCalledOnce()
+    })
+
+    it('creates the owner already verified and sends no email when SMTP is off', async () => {
+      env.smtpEnabled = false
+      mockDb.select.mockReturnValue(buildChain([]))
+      const userChain = buildChain([{ id: 'new-id', email: 'new@test.com' }])
+      mockDb.insert.mockReturnValue(userChain)
+
+      await service.register(dto)
+
+      expect(userChain.values).toHaveBeenCalledWith(
+        expect.objectContaining({ emailVerifiedAt: expect.any(Date) }),
+      )
+      expect(mockEmail.sendEmailVerification).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('getUser', () => {
+    const unverified = {
+      id: 'owner-id',
+      email: 'owner@test.com',
+      emailVerifiedAt: null,
+    }
+
+    it('returns the user unchanged when SMTP is on', async () => {
+      mockDb.select.mockReturnValue(buildChain([unverified]))
+
+      await expect(service.getUser('owner-id')).resolves.toEqual(unverified)
+      expect(mockDb.update).not.toHaveBeenCalled()
+    })
+
+    it('marks an unverified owner verified when SMTP is off', async () => {
+      env.smtpEnabled = false
+      mockDb.select.mockReturnValue(buildChain([unverified]))
+      const updateChain = buildChain([])
+      mockDb.update.mockReturnValue(updateChain)
+
+      const user = await service.getUser('owner-id')
+
+      expect(user?.emailVerifiedAt).toBeInstanceOf(Date)
+      expect(updateChain.set).toHaveBeenCalledWith({
+        emailVerifiedAt: expect.any(Date),
+      })
+    })
+
+    it('does not write for an already verified owner', async () => {
+      env.smtpEnabled = false
+      const verified = {
+        ...unverified,
+        emailVerifiedAt: new Date('2026-01-01'),
+      }
+      mockDb.select.mockReturnValue(buildChain([verified]))
+
+      await expect(service.getUser('owner-id')).resolves.toEqual(verified)
+      expect(mockDb.update).not.toHaveBeenCalled()
+    })
+
+    it('returns undefined for an unknown user', async () => {
+      env.smtpEnabled = false
+      mockDb.select.mockReturnValue(buildChain([]))
+
+      await expect(service.getUser('missing')).resolves.toBeUndefined()
+      expect(mockDb.update).not.toHaveBeenCalled()
     })
   })
 
@@ -105,10 +203,15 @@ describe('AuthService', () => {
     })
 
     it('throws UnauthorizedException for accounts without a password', async () => {
-      mockDb.select.mockReturnValue(buildChain([{ id: 'id', passwordHash: null }]))
+      mockDb.select.mockReturnValue(
+        buildChain([{ id: 'id', passwordHash: null }]),
+      )
 
       await expect(
-        service.login({ email: 'nopassword@test.com', password: 'password123' }),
+        service.login({
+          email: 'nopassword@test.com',
+          password: 'password123',
+        }),
       ).rejects.toThrow(UnauthorizedException)
     })
   })
@@ -125,7 +228,11 @@ describe('AuthService', () => {
     })
 
     it('does nothing silently for accounts without a password', async () => {
-      mockDb.select.mockReturnValue(buildChain([{ id: 'id', email: 'nopassword@test.com', passwordHash: null }]))
+      mockDb.select.mockReturnValue(
+        buildChain([
+          { id: 'id', email: 'nopassword@test.com', passwordHash: null },
+        ]),
+      )
 
       await service.forgotPassword({ email: 'nopassword@test.com' })
 
@@ -134,7 +241,9 @@ describe('AuthService', () => {
 
     it('sends a reset email for password accounts', async () => {
       mockDb.select.mockReturnValue(
-        buildChain([{ id: 'user-id', email: 'user@test.com', passwordHash: 'hash' }]),
+        buildChain([
+          { id: 'user-id', email: 'user@test.com', passwordHash: 'hash' },
+        ]),
       )
       mockDb.insert.mockReturnValue(buildChain([{}]))
 
