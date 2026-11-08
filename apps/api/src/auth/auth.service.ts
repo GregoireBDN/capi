@@ -69,25 +69,38 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS)
     const user = await this.db.db.transaction(async (tx) => {
       // Serialise concurrent sign-ups, then re-check under the lock.
-      await tx.execute(sql`select pg_advisory_xact_lock(${REGISTRATION_LOCK_KEY})`)
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(${REGISTRATION_LOCK_KEY})`,
+      )
       const [existing] = await tx
         .select({ id: usersTable.id })
         .from(usersTable)
         .limit(1)
-      if (existing) throw new ForbiddenException(AUTH_ERRORS.REGISTRATION_CLOSED)
+      if (existing)
+        throw new ForbiddenException(AUTH_ERRORS.REGISTRATION_CLOSED)
 
       const [created] = await tx
         .insert(usersTable)
-        .values({ email: dto.email, name: dto.name, passwordHash })
+        .values({
+          email: dto.email,
+          name: dto.name,
+          passwordHash,
+          // Without SMTP the address can never be verified by email: the
+          // single owner is trusted from the start (see verifiedWithoutSmtp).
+          emailVerifiedAt: env.smtpEnabled ? null : new Date(),
+        })
         .returning()
       return created
     })
 
-    await this.sendVerificationEmail(user.id, user.email)
+    if (env.smtpEnabled) await this.sendVerificationEmail(user.id, user.email)
     return this.createSession(user.id)
   }
 
-  private async sendVerificationEmail(userId: string, email: string): Promise<void> {
+  private async sendVerificationEmail(
+    userId: string,
+    email: string,
+  ): Promise<void> {
     const token = crypto.randomBytes(32).toString('hex')
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
     const expiresAt = new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS)
@@ -163,7 +176,10 @@ export class AuthService {
   }
 
   private signAccessToken(userId: string): string {
-    return this.jwt.sign({ sub: userId }, { expiresIn: ACCESS_TOKEN_TTL_SECONDS })
+    return this.jwt.sign(
+      { sub: userId },
+      { expiresIn: ACCESS_TOKEN_TTL_SECONDS },
+    )
   }
 
   /**
@@ -171,7 +187,10 @@ export class AuthService {
    * The token itself is random and returned to the caller; only its hash is
    * stored, so a database leak cannot be replayed.
    */
-  private async issueRefreshToken(userId: string, familyId: string): Promise<SessionTokens> {
+  private async issueRefreshToken(
+    userId: string,
+    familyId: string,
+  ): Promise<SessionTokens> {
     const refreshToken = crypto.randomBytes(32).toString('hex')
     await this.db.db.insert(refreshTokensTable).values({
       userId,
@@ -245,7 +264,27 @@ export class AuthService {
       .select()
       .from(usersTable)
       .where(eq(usersTable.id, userId))
-    return user
+    return user ? this.verifiedWithoutSmtp(user) : user
+  }
+
+  /**
+   * Single-user instance without SMTP (production without `SMTP_HOST`): no
+   * verification email can ever arrive, so an owner created before SMTP was
+   * turned off, or before this rule existed, is marked verified the next time
+   * the session loads. Idempotent: only rows still unverified are updated.
+   */
+  private async verifiedWithoutSmtp<
+    T extends { id: string; emailVerifiedAt: Date | null },
+  >(user: T): Promise<T> {
+    if (env.smtpEnabled || user.emailVerifiedAt) return user
+    const emailVerifiedAt = new Date()
+    await this.db.db
+      .update(usersTable)
+      .set({ emailVerifiedAt })
+      .where(
+        and(eq(usersTable.id, user.id), isNull(usersTable.emailVerifiedAt)),
+      )
+    return { ...user, emailVerifiedAt }
   }
 
   async forgotPassword(dto: ForgotPasswordDto): Promise<void> {
