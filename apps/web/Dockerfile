@@ -7,6 +7,9 @@ FROM base AS builder
 WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile
+# The typed API client (apps/web/src/api) is generated and git-ignored: build
+# it from the API's OpenAPI spec before bundling the web app.
+RUN pnpm generate
 RUN pnpm --filter @finances/web build
 
 FROM node:22-alpine AS runner
