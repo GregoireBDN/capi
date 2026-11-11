@@ -9,12 +9,15 @@ export function Delta({
   cents,
   suffix,
   className,
+  iconClassName,
 }: {
   /** Spent now minus spent before, integer cents. */
   cents: number
   /** What it is compared with, e.g. "vs oct.". */
   suffix?: string
   className?: string
+  /** Overrides the arrow size, e.g. `size-[0.8em]` to scale it with the text. */
+  iconClassName?: string
 }) {
   const direction = cents > 0 ? 'up' : cents < 0 ? 'down' : 'flat'
   const Icon =
@@ -38,6 +41,7 @@ export function Delta({
           direction === 'up' && 'text-chart-delta-bad',
           direction === 'down' && 'text-chart-delta-good',
           direction === 'flat' && 'text-muted-foreground',
+          iconClassName,
         )}
       />
       <span className="sr-only">
