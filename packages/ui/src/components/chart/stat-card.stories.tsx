@@ -121,3 +121,52 @@ export const KpiRow: Story = {
 }
 
 export const KpiRowDark: Story = { ...KpiRow, globals: { ...MOBILE, ...DARK } }
+
+/**
+ * Six-digit deltas in two tiles abreast on a 320px phone (288px of content),
+ * with the web app's 22px root font: the delta shrinks with the tile, arrow
+ * included, and never breaks or overflows the tile's padding.
+ */
+export const LargeDeltaNarrow: Story = {
+  parameters: { layout: 'padded' },
+  beforeEach: () => {
+    const root = document.documentElement
+    const previous = root.style.fontSize
+    root.style.fontSize = '22px'
+    return () => {
+      root.style.fontSize = previous
+    }
+  },
+  render: () => (
+    <div className="grid grid-cols-2 gap-2" style={{ width: 288 }}>
+      <StatCard
+        label="Épargne"
+        value={116_200}
+        previousValue={-12_234_578}
+        deltaDisplay="value"
+      />
+      <StatCard
+        label="Dépenses"
+        value={12_480_000}
+        previousValue={128_759}
+        increaseIsGood={false}
+        deltaDisplay="value"
+      />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const deltas = canvasElement.querySelectorAll<HTMLElement>(
+      '[data-slot="stat-card-delta"]',
+    )
+    await expect(deltas).toHaveLength(2)
+    for (const delta of deltas) {
+      const line = delta.parentElement!
+      const right =
+        line.getBoundingClientRect().right -
+        parseFloat(getComputedStyle(line).paddingRight)
+      await expect(delta.getBoundingClientRect().right).toBeLessThanOrEqual(
+        right + 1,
+      )
+    }
+  },
+}

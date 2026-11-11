@@ -168,16 +168,18 @@ function StatCard({
       </div>
 
       {delta ? (
-        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 px-3 text-[clamp(0.6rem,9cqi,0.75rem)]">
+        // The delta never breaks either: its arrow and gap scale with the
+        // text (em) so "+123 456,78 €" fits a 320px phone's half-width tile.
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 px-3 text-[clamp(0.55rem,9cqi,0.75rem)]">
           <span
             data-slot="stat-card-delta"
             data-tone={delta.tone}
             className={cn(
-              'inline-flex items-center gap-1 font-medium whitespace-nowrap tabular-nums',
+              'inline-flex items-center gap-[0.3em] font-medium whitespace-nowrap tabular-nums',
               TONE_CLASSES[delta.tone],
             )}
           >
-            <DeltaIcon aria-hidden className="size-3.5 shrink-0" />
+            <DeltaIcon aria-hidden className="size-[1.1em] shrink-0" />
             <span className="sr-only">
               {DIRECTION_TEXT[delta.direction]}
               {TONE_TEXT[delta.tone]} :{' '}

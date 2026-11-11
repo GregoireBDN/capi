@@ -38,6 +38,15 @@ function ComparisonTile({
   )
 }
 
+/**
+ * Headline deltas: sized on the tile with their arrow and gap (em), never
+ * broken, so "-123 456,78 €" fits two tiles abreast on a 360px phone.
+ */
+const TILE_DELTA = {
+  className: 'gap-[0.25em] text-[clamp(0.55rem,10cqi,1.25rem)]',
+  iconClassName: 'size-[0.8em]',
+} as const
+
 /** `+12,5 %` of `previous`, or nothing when there is no base to compare. */
 function percentOf(delta: number, previous: number | null): string {
   return previous && previous > 0
@@ -102,7 +111,7 @@ export function SpendingKpis({
           label={`vs ${previous}`}
           detail={`${formatEuros(data.previousTotalCents)} en ${previous}${percentOf(vsPrevious, data.previousTotalCents)}`}
         >
-          <Delta cents={vsPrevious} />
+          <Delta cents={vsPrevious} {...TILE_DELTA} />
         </ComparisonTile>
         <ComparisonTile
           label="vs moyenne"
@@ -115,7 +124,7 @@ export function SpendingKpis({
           {vsAverage === null ? (
             <span className="text-muted-foreground">—</span>
           ) : (
-            <Delta cents={vsAverage} />
+            <Delta cents={vsAverage} {...TILE_DELTA} />
           )}
         </ComparisonTile>
         <ComparisonTile
