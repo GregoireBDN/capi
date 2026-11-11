@@ -1,4 +1,4 @@
-import { userControllerRemove, userControllerUpdate } from '#/api'
+import { profileControllerRemove, profileControllerUpdate } from '#/api'
 import { getInitials } from '#/components/app-shell/user-initials'
 import { useAuth } from '#/lib/auth-context'
 import { ROUTES } from '#/lib/routes'
@@ -68,7 +68,7 @@ function ProfilePage() {
   const navigate = useNavigate()
 
   const currentUser = user ?? guardUser
-  const { mode, setPreference } = useThemePreference(currentUser.id)
+  const { mode, setPreference } = useThemePreference()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -84,8 +84,7 @@ function ProfilePage() {
   }, [currentUser.name, form])
 
   async function onSubmitName(values: NameValues) {
-    const res = await userControllerUpdate({
-      path: { id: currentUser.id },
+    const res = await profileControllerUpdate({
       body: { name: values.name },
       throwOnError: false,
     })
@@ -99,8 +98,7 @@ function ProfilePage() {
 
   async function onDeleteAccount() {
     setDeleting(true)
-    const res = await userControllerRemove({
-      path: { id: currentUser.id },
+    const res = await profileControllerRemove({
       throwOnError: false,
     })
     if (res.error) {

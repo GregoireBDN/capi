@@ -26,3 +26,19 @@ export const selectUserSchema = createSelectSchema(usersTable).omit({
 
 export type InsertUser = typeof usersTable.$inferInsert
 export type SelectUser = typeof usersTable.$inferSelect
+
+/**
+ * The columns a response may carry: an explicit allow-list, so the password
+ * hash (or any secret column added later) is never selected into a reply.
+ */
+export const publicUserColumns = {
+  id: usersTable.id,
+  email: usersTable.email,
+  name: usersTable.name,
+  theme: usersTable.theme,
+  emailVerifiedAt: usersTable.emailVerifiedAt,
+  createdAt: usersTable.createdAt,
+  updatedAt: usersTable.updatedAt,
+}
+
+export type PublicUser = Omit<SelectUser, 'passwordHash'>

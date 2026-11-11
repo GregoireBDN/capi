@@ -51,7 +51,7 @@ interface UserMenuProps {
 export function UserMenu({ user, onNavigate }: UserMenuProps) {
   const { logout } = useAuth()
   const navigate = useNavigate()
-  const { mode, setPreference } = useThemePreference(user.id)
+  const { mode, setPreference } = useThemePreference()
 
   async function handleLogout() {
     onNavigate?.()
