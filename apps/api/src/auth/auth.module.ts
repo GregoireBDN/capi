@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common'
 import { JwtModule } from '@nestjs/jwt'
+import { AccessTokenAuditHook } from '#/auth/access-tokens/access-token-audit.hook'
+import { AccessTokensController } from '#/auth/access-tokens/access-tokens.controller'
+import { AccessTokensService } from '#/auth/access-tokens/access-tokens.service'
 import { AuthController } from '#/auth/auth.controller'
 import { AuthService } from '#/auth/auth.service'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
@@ -11,8 +14,9 @@ import { env } from '#/config/env'
       secret: env.JWT_SECRET,
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtGuard],
-  exports: [AuthService, JwtGuard, JwtModule],
+  controllers: [AuthController, AccessTokensController],
+  providers: [AuthService, JwtGuard, AccessTokensService, AccessTokenAuditHook],
+  // JwtGuard is instantiated in each consuming module: export what it injects.
+  exports: [AuthService, JwtGuard, JwtModule, AccessTokensService],
 })
 export class AuthModule {}

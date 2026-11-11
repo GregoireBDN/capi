@@ -16,7 +16,7 @@ import {
   it,
   vi,
 } from 'vitest'
-import { JwtGuard } from '#/auth/guards/jwt.guard'
+import { JWT_GUARD_TEST_PROVIDERS } from '#/auth/guards/jwt-guard.testing'
 import { BudgetsController } from './budgets.controller'
 import { BudgetsService } from './budgets.service'
 
@@ -43,7 +43,10 @@ describe('BudgetsController (HTTP)', () => {
     const moduleRef = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [BudgetsController],
-      providers: [JwtGuard, { provide: BudgetsService, useValue: service }],
+      providers: [
+        ...JWT_GUARD_TEST_PROVIDERS,
+        { provide: BudgetsService, useValue: service },
+      ],
     }).compile()
     app = moduleRef.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),

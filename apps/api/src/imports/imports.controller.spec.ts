@@ -15,7 +15,7 @@ import {
   it,
   vi,
 } from 'vitest'
-import { JwtGuard } from '#/auth/guards/jwt.guard'
+import { JWT_GUARD_TEST_PROVIDERS } from '#/auth/guards/jwt-guard.testing'
 import { cicCsv } from '#/imports/testing/cic-csv-fixture'
 import { ImportsController } from './imports.controller'
 import { ImportsService } from './imports.service'
@@ -73,7 +73,10 @@ describe('ImportsController (HTTP)', () => {
     const moduleRef = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [ImportsController],
-      providers: [JwtGuard, { provide: ImportsService, useValue: service }],
+      providers: [
+        ...JWT_GUARD_TEST_PROVIDERS,
+        { provide: ImportsService, useValue: service },
+      ],
     }).compile()
     app = moduleRef.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),

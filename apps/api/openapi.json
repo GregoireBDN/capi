@@ -354,6 +354,173 @@
         ]
       }
     },
+    "/api/access-tokens": {
+      "get": {
+        "operationId": "AccessTokensController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccessTokenDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "403": {
+            "description": "Called with an access token."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "List personal access tokens (revoked ones excluded)",
+        "tags": [
+          "Access tokens"
+        ]
+      },
+      "post": {
+        "description": "The token is returned once in `token` and only its hash is stored.",
+        "operationId": "AccessTokensController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccessTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedAccessTokenDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or too many active tokens."
+          },
+          "401": {
+            "description": ""
+          },
+          "403": {
+            "description": "Called with an access token."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Create a personal access token",
+        "tags": [
+          "Access tokens"
+        ]
+      }
+    },
+    "/api/access-tokens/audit": {
+      "get": {
+        "description": "Method, route pattern and status only. Kept 90 days.",
+        "operationId": "AccessTokensController_audit",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 200,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccessTokenAuditEntryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "403": {
+            "description": "Called with an access token."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Latest API calls made with access tokens",
+        "tags": [
+          "Access tokens"
+        ]
+      }
+    },
+    "/api/access-tokens/{id}": {
+      "delete": {
+        "operationId": "AccessTokensController_revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "403": {
+            "description": "Called with an access token."
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Revoke a personal access token",
+        "tags": [
+          "Access tokens"
+        ]
+      }
+    },
     "/api/health": {
       "get": {
         "operationId": "HealthController_check",
@@ -3680,6 +3847,193 @@
         },
         "required": [
           "token"
+        ]
+      },
+      "AccessTokenScope": {
+        "type": "string",
+        "enum": [
+          "read",
+          "write"
+        ]
+      },
+      "AccessTokenDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tokenPrefix": {
+            "type": "string",
+            "description": "First characters of the token, to recognise it.",
+            "example": "fin_pat_AbCd"
+          },
+          "scope": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccessTokenScope"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "expired": {
+            "type": "boolean",
+            "description": "True once `expiresAt` is past."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "tokenPrefix",
+          "scope",
+          "createdAt",
+          "expiresAt",
+          "lastUsedAt",
+          "expired"
+        ]
+      },
+      "CreateAccessTokenDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "example": "Claude (MCP)"
+          },
+          "scope": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccessTokenScope"
+              }
+            ]
+          },
+          "expiresInDays": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 365,
+            "nullable": true,
+            "description": "Days until the token expires. Omitted or null: never expires."
+          }
+        },
+        "required": [
+          "name",
+          "scope"
+        ]
+      },
+      "CreatedAccessTokenDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tokenPrefix": {
+            "type": "string",
+            "description": "First characters of the token, to recognise it.",
+            "example": "fin_pat_AbCd"
+          },
+          "scope": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccessTokenScope"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "expired": {
+            "type": "boolean",
+            "description": "True once `expiresAt` is past."
+          },
+          "token": {
+            "type": "string",
+            "description": "The token itself. Returned only once, never stored in clear."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "tokenPrefix",
+          "scope",
+          "createdAt",
+          "expiresAt",
+          "lastUsedAt",
+          "expired",
+          "token"
+        ]
+      },
+      "AccessTokenAuditEntryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tokenId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tokenName": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "example": "GET"
+          },
+          "route": {
+            "type": "string",
+            "description": "Route pattern, without ids or query string.",
+            "example": "/api/transactions/:id"
+          },
+          "statusCode": {
+            "type": "number",
+            "example": 200
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "tokenId",
+          "tokenName",
+          "method",
+          "route",
+          "statusCode",
+          "createdAt"
         ]
       },
       "TransactionKind": {

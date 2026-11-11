@@ -24,6 +24,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
+import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import { BudgetsService } from './budgets.service'
 import {
@@ -87,6 +88,7 @@ export class BudgetsController {
   }
 
   @Post('suggest')
+  @TokenAccess('read')
   @HttpCode(200)
   @ApiOperation({
     summary: 'Suggest targets from past spending',
@@ -106,6 +108,7 @@ export class BudgetsController {
   }
 
   @Put(':categoryId')
+  @TokenAccess('write')
   @ApiOperation({
     summary: 'Set the monthly target of a category',
     description:

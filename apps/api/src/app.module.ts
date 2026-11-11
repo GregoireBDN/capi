@@ -6,6 +6,7 @@ import { loggerParams } from './config/logger'
 import { THROTTLE_LIMITS, THROTTLE_TTL } from './throttle.config'
 import { AllExceptionsFilter } from '#/common/filters/all-exceptions.filter'
 import { AccountsModule } from '#/accounts/accounts.module'
+import { accessTokenThrottler } from '#/auth/access-tokens/access-token.throttler'
 import { AuthModule } from '#/auth/auth.module'
 import { BudgetsModule } from '#/budgets/budgets.module'
 import { CategoriesModule } from '#/categories/categories.module'
@@ -32,6 +33,8 @@ import { UserModule } from '#/user/user.module'
     ThrottlerModule.forRoot({
       throttlers: [
         { name: 'default', ttl: THROTTLE_TTL, limit: THROTTLE_LIMITS.global },
+        // Personal access tokens get their own bucket on top of the IP one.
+        accessTokenThrottler,
       ],
     }),
     DatabaseModule,

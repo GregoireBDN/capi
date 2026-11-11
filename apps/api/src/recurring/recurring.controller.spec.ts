@@ -15,7 +15,7 @@ import {
   it,
   vi,
 } from 'vitest'
-import { JwtGuard } from '#/auth/guards/jwt.guard'
+import { JWT_GUARD_TEST_PROVIDERS } from '#/auth/guards/jwt-guard.testing'
 import { RecurringController } from './recurring.controller'
 import { RecurringService } from './recurring.service'
 
@@ -42,7 +42,10 @@ describe('RecurringController (HTTP)', () => {
     const moduleRef = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [RecurringController],
-      providers: [JwtGuard, { provide: RecurringService, useValue: service }],
+      providers: [
+        ...JWT_GUARD_TEST_PROVIDERS,
+        { provide: RecurringService, useValue: service },
+      ],
     }).compile()
     app = moduleRef.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),

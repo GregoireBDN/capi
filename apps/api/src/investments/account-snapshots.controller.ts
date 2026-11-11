@@ -22,6 +22,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
+import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import { ParseCalendarDatePipe } from './calendar-date'
 import {
@@ -63,6 +64,7 @@ export class AccountSnapshotsController {
   }
 
   @Put('snapshots/:date')
+  @TokenAccess('write')
   @ApiOperation({
     summary: 'Create or replace the snapshot of a day',
     description:
@@ -100,6 +102,7 @@ export class AccountSnapshotsController {
   }
 
   @Post('snapshots/bulk')
+  @TokenAccess('write')
   @HttpCode(200)
   @ApiOperation({
     summary: 'Upsert a statement history',
