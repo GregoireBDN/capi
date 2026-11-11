@@ -1,108 +1,16 @@
 {
   "openapi": "3.0.0",
   "paths": {
-    "/api/users": {
-      "get": {
-        "operationId": "UserController_findAll",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/UserDto"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Users"
-        ]
-      },
-      "post": {
-        "operationId": "UserController_create",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateUserDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Users"
-        ]
-      }
-    },
-    "/api/users/{id}": {
-      "get": {
-        "operationId": "UserController_findOne",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Users"
-        ]
-      },
+    "/api/profile": {
       "patch": {
-        "operationId": "UserController_update",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
+        "operationId": "ProfileController_update",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateUserDto"
+                "$ref": "#/components/schemas/UpdateProfileDto"
               }
             }
           }
@@ -117,32 +25,43 @@
                 }
               }
             }
-          }
-        },
-        "tags": [
-          "Users"
-        ]
-      },
-      "delete": {
-        "operationId": "UserController_remove",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
+          },
+          "400": {
+            "description": "Invalid body."
+          },
+          "401": {
             "description": ""
           }
         },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Update the name or theme of the signed-in user",
         "tags": [
-          "Users"
+          "Profile"
+        ]
+      },
+      "delete": {
+        "operationId": "ProfileController_remove",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Delete the signed-in user account",
+        "tags": [
+          "Profile"
         ]
       }
     },
@@ -3607,6 +3526,24 @@
       }
     },
     "schemas": {
+      "UpdateProfileDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "theme": {
+            "type": "string",
+            "enum": [
+              "light",
+              "dark",
+              "auto"
+            ]
+          }
+        }
+      },
       "UserDto": {
         "type": "object",
         "properties": {
@@ -3650,48 +3587,6 @@
           "createdAt",
           "updatedAt"
         ]
-      },
-      "CreateUserDto": {
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "theme": {
-            "type": "string",
-            "enum": [
-              "light",
-              "dark",
-              "auto"
-            ]
-          }
-        },
-        "required": [
-          "email",
-          "name"
-        ]
-      },
-      "UpdateUserDto": {
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "theme": {
-            "type": "string",
-            "enum": [
-              "light",
-              "dark",
-              "auto"
-            ]
-          }
-        }
       },
       "RegistrationStatusDto": {
         "type": "object",

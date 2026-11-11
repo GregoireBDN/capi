@@ -17,7 +17,7 @@ import { AppSidebar } from './AppSidebar'
 import { NAV_ITEMS, isNavItemActive } from './nav-items'
 
 vi.mock('#/api', () => ({
-  userControllerUpdate: vi.fn(),
+  profileControllerUpdate: vi.fn(),
   transactionsControllerReviewCount: vi.fn(),
 }))
 
