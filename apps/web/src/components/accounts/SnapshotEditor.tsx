@@ -253,19 +253,22 @@ export function SnapshotEditor({
                 )}
               </Field>
             )}
-            <Field>
-              <FieldLabel htmlFor={`${id}-note`}>Note</FieldLabel>
-              <Textarea
-                id={`${id}-note`}
-                rows={2}
-                maxLength={NOTE_MAX}
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-              />
-              <FieldDescription>
-                Facultative, par ex. « relevé annuel ».
-              </FieldDescription>
-            </Field>
+            {/* Opened away from the account page: the value, quickly. */}
+            {(snapshot || !accountName) && (
+              <Field>
+                <FieldLabel htmlFor={`${id}-note`}>Note</FieldLabel>
+                <Textarea
+                  id={`${id}-note`}
+                  rows={2}
+                  maxLength={NOTE_MAX}
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                />
+                <FieldDescription>
+                  Facultative, par ex. « relevé annuel ».
+                </FieldDescription>
+              </Field>
+            )}
             <div className="flex flex-col-reverse gap-2 sm:flex-row">
               {snapshot && (
                 <Button

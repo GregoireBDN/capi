@@ -20,7 +20,7 @@ import {
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { PlusIcon } from 'lucide-react'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { AccountDto } from '#/api/types.gen'
 import { parseAmountToCents } from './amount'
@@ -138,6 +138,12 @@ export function AddInvestmentSheet({
   const [submitted, setSubmitted] = useState(false)
   /** The account created by the first step: the sheet shows the second. */
   const [created, setCreated] = useState<AccountDto | null>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  // The second step starts at its top, not where the first was scrolled to.
+  useEffect(() => {
+    if (created && contentRef.current) contentRef.current.scrollTop = 0
+  }, [created])
 
   // Fresh form on every opening.
   useEffect(() => {
@@ -203,6 +209,7 @@ export function AddInvestmentSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
+        ref={contentRef}
         side={isMobile ? 'bottom' : 'right'}
         className={
           isMobile
@@ -246,7 +253,9 @@ export function AddInvestmentSheet({
                 </legend>
                 <RadioCardGroup
                   aria-labelledby={`${id}-type-legend`}
-                  className="grid-cols-1 sm:grid-cols-3"
+                  // Sized to their labels, wrapping: two short rows on a phone
+                  // keep the value field in view.
+                  className="flex flex-wrap"
                   value={values.type}
                   onValueChange={(value) => {
                     const type = value as InvestmentType
@@ -262,7 +271,7 @@ export function AddInvestmentSheet({
                       key={type}
                       value={type}
                       indicator={false}
-                      className="items-center justify-center px-3 text-center font-medium"
+                      className="w-auto flex-auto items-center justify-center px-3 font-medium whitespace-nowrap"
                     >
                       {label}
                     </RadioCard>
@@ -292,7 +301,7 @@ export function AddInvestmentSheet({
                   id={`${id}-institution`}
                   autoComplete="off"
                   maxLength={NAME_MAX}
-                  placeholder="Banque, assureur… (facultatif)"
+                  placeholder="Banque, assureur…"
                   value={values.institution}
                   aria-invalid={shown.institution !== undefined}
                   onChange={(event) => set({ institution: event.target.value })}

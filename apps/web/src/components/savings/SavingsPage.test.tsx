@@ -303,12 +303,12 @@ describe('SavingsPage', () => {
     // accounts are fed by imports.
     expect(
       screen.getByRole('button', {
-        name: 'Mettre à jour la valeur de PEA test',
+        name: 'Mettre à jour « PEA test »',
       }),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', {
-        name: 'Mettre à jour la valeur de Livret test',
+        name: 'Mettre à jour « Livret test »',
       }),
     ).not.toBeInTheDocument()
     expect(

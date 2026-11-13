@@ -151,7 +151,7 @@ describe('StaleValuesReminder', () => {
 
     await user.click(
       within(items[0]).getByRole('button', {
-        name: 'Mettre à jour la valeur de PEA test',
+        name: 'Mettre à jour « PEA test »',
       }),
     )
     await user.type(await screen.findByLabelText('Valeur'), '10 200')

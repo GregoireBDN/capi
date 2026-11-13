@@ -36,7 +36,7 @@ export function UpdateValueButton({
           variant="secondary"
           ghost
           iconOnly
-          aria-label={`Mettre à jour la valeur de ${account.name}`}
+          aria-label={`Mettre à jour « ${account.name} »`}
           title="Mettre à jour la valeur"
           onClick={() => setOpen(true)}
         >
@@ -48,7 +48,7 @@ export function UpdateValueButton({
           variant="secondary"
           outline
           iconStart={<PencilLineIcon />}
-          aria-label={`Mettre à jour la valeur de ${account.name}`}
+          aria-label={`Mettre à jour « ${account.name} »`}
           onClick={() => setOpen(true)}
         >
           Mettre à jour

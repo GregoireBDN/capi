@@ -421,13 +421,13 @@ describe('DashboardPage', () => {
     // Crypto values come from holdings, not typed by hand.
     expect(
       within(missing).queryByRole('button', {
-        name: 'Mettre à jour la valeur de Crypto test',
+        name: 'Mettre à jour « Crypto test »',
       }),
     ).not.toBeInTheDocument()
 
     await user.click(
       within(missing).getByRole('button', {
-        name: 'Mettre à jour la valeur de PEA test',
+        name: 'Mettre à jour « PEA test »',
       }),
     )
     await user.type(await screen.findByLabelText('Valeur'), '10 500')
@@ -519,7 +519,7 @@ describe('DashboardPage', () => {
     // Tap 1: the row's action, no detour through the account page.
     await user.click(
       within(investments).getByRole('button', {
-        name: 'Mettre à jour la valeur de PEA test',
+        name: 'Mettre à jour « PEA test »',
       }),
     )
     const sheet = await screen.findByRole('dialog', {
@@ -547,7 +547,7 @@ describe('DashboardPage', () => {
     // Crypto values come from holdings: no quick update.
     expect(
       within(investments).queryByRole('button', {
-        name: 'Mettre à jour la valeur de Crypto test',
+        name: 'Mettre à jour « Crypto test »',
       }),
     ).not.toBeInTheDocument()
   })

@@ -311,6 +311,8 @@ function MissingAccounts({
   accounts: ReviewMissingAccountDto[]
 }) {
   const needsImport = accounts.some((account) => account.group === 'cash')
+  // Rows keep one height when some carry the 44px update button.
+  const withActions = accounts.some((account) => isValuedByHand(account.type))
   return (
     <section
       aria-label="Comptes à mettre à jour"
@@ -319,7 +321,13 @@ function MissingAccounts({
       <p className="text-sm font-medium">À mettre à jour</p>
       <ul className="space-y-1 text-sm">
         {accounts.map((account) => (
-          <li key={account.id} className="flex items-center gap-x-2">
+          <li
+            key={account.id}
+            className={cn(
+              'flex items-center gap-x-2',
+              withActions && 'min-h-11',
+            )}
+          >
             <span className="flex min-w-0 flex-1 flex-wrap justify-between gap-x-3">
               <span className="min-w-0 truncate">{account.name}</span>
               <span className="text-muted-foreground whitespace-nowrap">
