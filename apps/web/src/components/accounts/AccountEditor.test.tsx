@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccountDto, CreateAccountDto } from '#/api/types.gen'
@@ -23,7 +23,7 @@ vi.mock('#/api', () => api)
 vi.mock('sonner', () => ({ toast }))
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }))
 
-// Radix RadioGroup measures itself; jsdom has no ResizeObserver.
+// Radix RadioGroup (radio cards) measures itself; jsdom has no ResizeObserver.
 if (!('ResizeObserver' in globalThis)) {
   globalThis.ResizeObserver = class {
     observe() {}
@@ -154,11 +154,13 @@ describe('AccountEditor', () => {
     ).toBeInTheDocument()
 
     await user.click(screen.getByRole('radio', { name: /^Wallet/ }))
-    const wallet = screen.getByLabelText('Wallet')
+    const wallets = screen.getByRole('radiogroup', { name: 'Wallet' })
     expect(
-      Array.from(wallet.querySelectorAll('option')).map((o) => o.textContent),
-    ).toEqual(['Choisir…', 'Ledger', 'Trezor', 'MetaMask', 'Autre…'])
-    await user.selectOptions(wallet, 'Ledger')
+      within(wallets)
+        .getAllByRole('radio')
+        .map((radio) => radio.textContent),
+    ).toEqual(['Ledger', 'Trezor', 'MetaMask', 'Autre…'])
+    await user.click(within(wallets).getByRole('radio', { name: 'Ledger' }))
     // The name follows the wallet until it is typed.
     expect(screen.getByLabelText('Nom')).toHaveValue('Ledger')
     await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
@@ -177,10 +179,13 @@ describe('AccountEditor', () => {
     renderWithClient(<NewAccountButton defaultType="crypto" />)
 
     await user.click(screen.getByRole('button', { name: 'Nouveau compte' }))
+    await user.click(await screen.findByRole('radio', { name: /^Plateforme/ }))
     await user.click(
-      await screen.findByRole('radio', { name: /^Plateforme d’échange/ }),
+      within(screen.getByRole('radiogroup', { name: 'Plateforme' })).getByRole(
+        'radio',
+        { name: 'Autre…' },
+      ),
     )
-    await user.selectOptions(screen.getByLabelText('Plateforme'), 'other')
     await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
     expect(screen.getByText('Indiquez son nom')).toBeInTheDocument()
 

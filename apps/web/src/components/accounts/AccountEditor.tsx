@@ -10,11 +10,10 @@ import {
   InputGroupAddon,
   InputGroupInput,
   InputGroupText,
-  Label,
   NativeSelect,
   NativeSelectOption,
-  RadioGroup,
-  RadioGroupItem,
+  RadioCard,
+  RadioCardGroup,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -24,7 +23,7 @@ import {
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { PlusIcon } from 'lucide-react'
+import { Building2Icon, PlusIcon, WalletIcon } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import type { AccountDto, AccountType } from '#/api/types.gen'
@@ -85,7 +84,7 @@ export const ACCOUNT_TYPE_OPTIONS: readonly {
     type: 'crypto',
     label: 'Crypto',
     defaultName: 'Crypto',
-    hint: 'Une plateforme ou un wallet par compte, valorisé chaque jour à partir de ses avoirs.',
+    hint: 'Un compte par plateforme ou par wallet.',
   },
 ]
 
@@ -116,14 +115,14 @@ const CRYPTO_KIND_TEXT: Record<
   { label: string; description: string; field: string; other: string }
 > = {
   exchange: {
-    label: 'Plateforme d’échange',
-    description: 'Binance, Coinbase… : la plateforme garde vos cryptos.',
+    label: 'Plateforme',
+    description: 'Binance, Coinbase…',
     field: 'Plateforme',
     other: 'Nom de la plateforme',
   },
   wallet: {
     label: 'Wallet',
-    description: 'Ledger, MetaMask… : vous gardez vos clés.',
+    description: 'Ledger, MetaMask…',
     field: 'Wallet',
     other: 'Nom du wallet',
   },
@@ -425,16 +424,19 @@ export function AccountEditor({
             )}
             {picksCryptoProvider(values, creating) && (
               <>
-                <fieldset
-                  className="space-y-1"
-                  aria-describedby={
-                    shown.cryptoKind ? `${id}-kind-error` : undefined
-                  }
-                >
-                  <legend className="mb-2 text-sm font-medium">
+                <fieldset className="space-y-2">
+                  <legend
+                    id={`${id}-kind-legend`}
+                    className="mb-2 text-sm font-medium"
+                  >
                     Où sont ces cryptos ?
                   </legend>
-                  <RadioGroup
+                  <RadioCardGroup
+                    aria-labelledby={`${id}-kind-legend`}
+                    aria-describedby={
+                      shown.cryptoKind ? `${id}-kind-error` : undefined
+                    }
+                    className="grid-cols-1 sm:grid-cols-2"
                     value={values.cryptoKind}
                     onValueChange={(value) =>
                       choose({
@@ -444,30 +446,32 @@ export function AccountEditor({
                       })
                     }
                   >
-                    {(['exchange', 'wallet'] as const).map((kind) => (
-                      <div
-                        key={kind}
-                        className="flex min-h-11 items-start gap-2 py-1"
-                      >
-                        <RadioGroupItem
+                    {(['exchange', 'wallet'] as const).map((kind) => {
+                      const Icon =
+                        kind === 'exchange' ? Building2Icon : WalletIcon
+                      return (
+                        <RadioCard
+                          key={kind}
                           value={kind}
-                          id={`${id}-kind-${kind}`}
-                          className="mt-1"
-                        />
-                        <Label
-                          htmlFor={`${id}-kind-${kind}`}
-                          className="flex flex-col items-start gap-0.5 font-normal"
+                          aria-invalid={shown.cryptoKind !== undefined}
+                          className="flex-row items-center gap-3"
                         >
-                          <span className="font-medium">
-                            {CRYPTO_KIND_TEXT[kind].label}
+                          <Icon
+                            aria-hidden
+                            className="text-muted-foreground shrink-0 group-data-[state=checked]/radio-card:text-primary"
+                          />
+                          <span className="flex min-w-0 flex-col gap-0.5">
+                            <span className="font-medium">
+                              {CRYPTO_KIND_TEXT[kind].label}
+                            </span>
+                            <span className="text-muted-foreground text-xs">
+                              {CRYPTO_KIND_TEXT[kind].description}
+                            </span>
                           </span>
-                          <span className="text-muted-foreground text-sm">
-                            {CRYPTO_KIND_TEXT[kind].description}
-                          </span>
-                        </Label>
-                      </div>
-                    ))}
-                  </RadioGroup>
+                        </RadioCard>
+                      )
+                    })}
+                  </RadioCardGroup>
                   {shown.cryptoKind && (
                     <FieldError id={`${id}-kind-error`}>
                       {shown.cryptoKind}
@@ -475,35 +479,43 @@ export function AccountEditor({
                   )}
                 </fieldset>
                 {values.cryptoKind !== '' && (
-                  <Field data-invalid={shown.provider !== undefined}>
-                    <FieldLabel htmlFor={`${id}-provider`}>
-                      {CRYPTO_KIND_TEXT[values.cryptoKind].field}
-                    </FieldLabel>
-                    <NativeSelect
-                      id={`${id}-provider`}
-                      className="w-full"
-                      value={values.provider}
-                      aria-invalid={shown.provider !== undefined}
-                      onChange={(event) =>
-                        choose({ provider: event.target.value })
-                      }
+                  <fieldset className="space-y-2">
+                    <legend
+                      id={`${id}-provider-legend`}
+                      className="mb-2 text-sm font-medium"
                     >
-                      <NativeSelectOption value="" disabled>
-                        Choisir…
-                      </NativeSelectOption>
-                      {CRYPTO_PROVIDERS[values.cryptoKind].map((name) => (
-                        <NativeSelectOption key={name} value={name}>
-                          {name}
-                        </NativeSelectOption>
+                      {CRYPTO_KIND_TEXT[values.cryptoKind].field}
+                    </legend>
+                    <RadioCardGroup
+                      aria-labelledby={`${id}-provider-legend`}
+                      aria-describedby={
+                        shown.provider ? `${id}-provider-error` : undefined
+                      }
+                      className="grid-cols-2"
+                      value={values.provider}
+                      onValueChange={(provider) => choose({ provider })}
+                    >
+                      {[
+                        ...CRYPTO_PROVIDERS[values.cryptoKind],
+                        OTHER_PROVIDER,
+                      ].map((provider) => (
+                        <RadioCard
+                          key={provider}
+                          value={provider}
+                          aria-invalid={shown.provider !== undefined}
+                          indicator={false}
+                          className="items-center justify-center px-3 font-medium"
+                        >
+                          {provider === OTHER_PROVIDER ? 'Autre…' : provider}
+                        </RadioCard>
                       ))}
-                      <NativeSelectOption value={OTHER_PROVIDER}>
-                        Autre…
-                      </NativeSelectOption>
-                    </NativeSelect>
+                    </RadioCardGroup>
                     {shown.provider && (
-                      <FieldError>{shown.provider}</FieldError>
+                      <FieldError id={`${id}-provider-error`}>
+                        {shown.provider}
+                      </FieldError>
                     )}
-                  </Field>
+                  </fieldset>
                 )}
                 {values.cryptoKind !== '' &&
                   values.provider === OTHER_PROVIDER && (
@@ -545,10 +557,7 @@ export function AccountEditor({
                 <FieldError>{shown.name}</FieldError>
               ) : (
                 picksCryptoProvider(values, creating) && (
-                  <FieldDescription>
-                    Utile si vous avez plusieurs comptes chez le même acteur,
-                    par ex. « Ledger perso ».
-                  </FieldDescription>
+                  <FieldDescription>Ex. « Ledger perso ».</FieldDescription>
                 )
               )}
             </Field>
