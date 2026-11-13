@@ -14,6 +14,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { PiggyBankIcon, UploadIcon } from 'lucide-react'
+import { NewAccountButton } from '#/components/accounts/AccountEditor'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import type { SavingsOverviewDto } from '#/api/types.gen'
 import { formatMonth } from '#/lib/calendar'
@@ -94,17 +95,23 @@ export function SavingsPage() {
             </EmptyMedia>
             <EmptyTitle>Pas encore d’épargne à suivre</EmptyTitle>
             <EmptyDescription>
-              Importez vos relevés : l’épargne de chaque mois, votre taux
-              d’épargne et vos placements s’afficheront ici.
+              Importez vos relevés ou ajoutez vos livrets et placements :
+              l’épargne de chaque mois, votre taux d’épargne et vos placements
+              s’afficheront ici.
             </EmptyDescription>
           </EmptyHeader>
-          <EmptyContent>
+          <EmptyContent className="flex-row flex-wrap justify-center">
             <Button asChild>
               <Link to={ROUTES.import}>
                 <UploadIcon aria-hidden />
                 Importer un relevé
               </Link>
             </Button>
+            <NewAccountButton
+              label="Ajouter un placement"
+              defaultType="brokerage"
+              outline
+            />
           </EmptyContent>
         </Empty>
       )}

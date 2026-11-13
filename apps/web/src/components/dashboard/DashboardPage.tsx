@@ -23,6 +23,7 @@ import {
   UploadIcon,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { NewAccountButton } from '#/components/accounts/AccountEditor'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { formatMonth } from '#/lib/calendar'
 import { plural } from '#/lib/plural'
@@ -140,17 +141,18 @@ export function DashboardPage({ banner }: { banner?: ReactNode }) {
             </EmptyMedia>
             <EmptyTitle>Aucun compte pour l’instant</EmptyTitle>
             <EmptyDescription>
-              Importez un relevé bancaire : vos comptes, votre patrimoine et le
-              bilan du mois s’afficheront ici.
+              Importez un relevé bancaire ou ajoutez vos comptes et placements :
+              votre patrimoine et le bilan du mois s’afficheront ici.
             </EmptyDescription>
           </EmptyHeader>
-          <EmptyContent>
+          <EmptyContent className="flex-row flex-wrap justify-center">
             <Button asChild>
               <Link to={ROUTES.import}>
                 <UploadIcon aria-hidden />
                 Importer un relevé
               </Link>
             </Button>
+            <NewAccountButton label="Ajouter un compte" outline />
           </EmptyContent>
         </Empty>
       )}

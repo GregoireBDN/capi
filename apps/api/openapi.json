@@ -890,7 +890,18 @@
       "get": {
         "description": "Ordered by position. Archived accounts are left out unless `includeArchived=true`.",
         "operationId": "AccountsController_list",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "Also return archived accounts.",
+            "required": false,
+            "name": "includeArchived",
+            "in": "query",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",

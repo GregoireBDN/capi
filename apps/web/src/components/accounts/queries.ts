@@ -1,15 +1,24 @@
 import { queryOptions } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
 import {
+  accountsControllerCreate,
   accountsControllerFindOne,
+  accountsControllerList,
+  accountsControllerUpdate,
   accountSnapshotsControllerBulk,
   accountSnapshotsControllerPerformance,
   accountSnapshotsControllerRemove,
   accountSnapshotsControllerUpsert,
   investmentsControllerSummary,
 } from '#/api'
-import type { BulkSnapshotRowDto, UpsertSnapshotDto } from '#/api/types.gen'
+import type {
+  BulkSnapshotRowDto,
+  CreateAccountDto,
+  UpdateAccountDto,
+  UpsertSnapshotDto,
+} from '#/api/types.gen'
 import { dashboardKeys } from '#/components/dashboard/queries'
+import { savingsKeys } from '#/components/savings/queries'
 import { referenceKeys, unwrap } from '#/lib/queries'
 
 export const accountKeys = {
@@ -81,6 +90,43 @@ export function saveSnapshotHistory(id: string, rows: BulkSnapshotRowDto[]) {
       throwOnError: false,
     }),
   )
+}
+
+/** Archived accounts (the list endpoint leaves them out by default). */
+export const archivedAccountsQuery = queryOptions({
+  queryKey: [...referenceKeys.accounts, 'archived'] as const,
+  queryFn: async () =>
+    (
+      await unwrap(
+        accountsControllerList({
+          query: { includeArchived: true },
+          throwOnError: false,
+        }),
+      )
+    ).filter((account) => account.archivedAt !== null),
+})
+
+export function createAccount(body: CreateAccountDto) {
+  return unwrap(accountsControllerCreate({ body, throwOnError: false }))
+}
+
+export function updateAccount(id: string, body: UpdateAccountDto) {
+  return unwrap(
+    accountsControllerUpdate({ path: { id }, body, throwOnError: false }),
+  )
+}
+
+/**
+ * A new, renamed or archived account changes every list of accounts: the
+ * accounts pages, the dashboard, the savings page and the import page.
+ */
+export function afterAccountsChanged(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: accountKeys.all }),
+    queryClient.invalidateQueries({ queryKey: accountKeys.investments }),
+    queryClient.invalidateQueries({ queryKey: dashboardKeys.all }),
+    queryClient.invalidateQueries({ queryKey: savingsKeys.all }),
+  ])
 }
 
 /**

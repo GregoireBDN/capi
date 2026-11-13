@@ -19,6 +19,7 @@ import {
   ArrowLeftRightIcon,
   ClipboardPasteIcon,
   ClockAlertIcon,
+  PencilIcon,
   PlusIcon,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -28,6 +29,7 @@ import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { formatCalendarDate } from '#/lib/money'
 import { ApiRequestError } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
+import { AccountEditor } from './AccountEditor'
 import { todayInParis } from './dates'
 import { isInvestmentType, valueAgeText } from './labels'
 import { PasteHistorySheet } from './PasteHistorySheet'
@@ -62,6 +64,7 @@ function BackLink() {
 }
 
 function AccountHeader({ account }: { account: AccountDto }) {
+  const [editing, setEditing] = useState(false)
   const kind = [ACCOUNT_TYPE_LABELS[account.type], account.institution]
     .filter(Boolean)
     .join(' · ')
@@ -69,7 +72,7 @@ function AccountHeader({ account }: { account: AccountDto }) {
     <header className="space-y-1">
       <BackLink />
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight break-words">
+        <h1 className="min-w-0 text-2xl font-semibold tracking-tight break-words">
           {account.name}
         </h1>
         {account.archivedAt && (
@@ -77,8 +80,22 @@ function AccountHeader({ account }: { account: AccountDto }) {
             Archivé
           </Badge>
         )}
+        <Button
+          size="sm"
+          outline
+          variant="secondary"
+          iconStart={<PencilIcon />}
+          onClick={() => setEditing(true)}
+        >
+          {account.archivedAt ? 'Réactiver…' : 'Modifier'}
+        </Button>
       </div>
       <p className="text-muted-foreground text-sm">{kind}</p>
+      <AccountEditor
+        open={editing}
+        onOpenChange={setEditing}
+        account={account}
+      />
     </header>
   )
 }
@@ -154,7 +171,19 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
   const writable = current.archivedAt === null
   const openAdd = () => setEditor({ open: true })
 
-  const actions = writable && (
+  // Crypto: holdings are added in their own panel and today's value is
+  // computed from them; only older values (before tracking) can be pasted.
+  const actions = writable && crypto && (
+    <Button
+      outline
+      variant="secondary"
+      iconStart={<ClipboardPasteIcon />}
+      onClick={() => setPasteOpen(true)}
+    >
+      Coller un historique de valeurs
+    </Button>
+  )
+  const valueActions = writable && !crypto && (
     <div className="grid grid-cols-2 gap-2 @2xl:flex">
       <Button iconStart={<PlusIcon />} onClick={openAdd}>
         Ajouter
@@ -174,7 +203,7 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
     <div className="@container space-y-6">
       <div className="flex flex-col gap-3 @2xl:flex-row @2xl:items-end @2xl:justify-between">
         <AccountHeader account={current} />
-        {actions}
+        {valueActions || actions}
       </div>
 
       {investment && data.stale && data.valueDate && (
@@ -184,8 +213,9 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
             {valueAgeText(data.valueDate, data.daysSinceLatest ?? 0)}
           </AlertTitle>
           <AlertDescription>
-            Ajoutez la valeur de votre dernier relevé pour garder votre
-            patrimoine à jour.
+            {crypto
+              ? 'Mettez à jour vos avoirs ou les cours pour garder votre patrimoine à jour.'
+              : 'Ajoutez la valeur de votre dernier relevé pour garder votre patrimoine à jour.'}
           </AlertDescription>
         </Alert>
       )}
