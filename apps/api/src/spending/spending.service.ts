@@ -5,9 +5,12 @@ import {
 } from '@nestjs/common'
 import { and, eq, gte, inArray, lt, min, type SQL, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
+import { resolvePeriod } from '#/coverage/coverage'
+import { monthPeriod } from '#/coverage/period'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import { categoriesTable, transactionsTable } from '#/database/schema'
+import { parisToday } from '#/investments/days'
 import {
   AVERAGE_MONTHS_DEFAULT,
   type CategorySpendingDto,
@@ -19,12 +22,7 @@ import {
   TREND_MONTHS_DEFAULT,
   TREND_TOP_CATEGORIES,
 } from './dto/spending.dto'
-import {
-  firstDay,
-  monthsBetween,
-  parisMonth,
-  shiftMonth,
-} from './spending-months'
+import { firstDay, monthsBetween, shiftMonth } from './spending-months'
 
 type Db = PostgresJsDatabase<typeof schema>
 
@@ -89,15 +87,21 @@ export class SpendingService {
     return this.database.db
   }
 
-  private currentMonth(): string {
-    return parisMonth(this.now())
-  }
-
+  /**
+   * Without `month`, the current month when it has data, else the month the
+   * data stops in. While the month is partial, the previous month and the
+   * averaged months only count their same first days (like for like), and a
+   * category not paid yet this month is flagged rather than shown as saved.
+   */
   async byCategory(
     query: SpendingByCategoryQueryDto,
   ): Promise<SpendingByCategoryDto> {
-    const month = query.month ?? this.currentMonth()
-    const previousMonth = shiftMonth(month, -1)
+    const period = await resolvePeriod(this.db, query.month, {
+      accountId: query.accountId,
+      now: this.now(),
+    })
+    const { month, previousMonth } = period
+    const partial = period.status === 'partial'
     const scope: Scope = {
       accountId: query.accountId,
       includeOneOffs: query.includeOneOffs ?? false,
@@ -106,7 +110,7 @@ export class SpendingService {
     const windowStart = shiftMonth(month, -wanted)
 
     const [rows, firstMonth] = await Promise.all([
-      this.monthly(windowStart, month, scope.accountId),
+      this.monthly(windowStart, month, scope.accountId, period.throughDay),
       this.firstMonth(scope.accountId),
     ])
 
@@ -138,10 +142,13 @@ export class SpendingService {
       counts.get(row.key)!.set(row.month, count)
     }
 
+    // A month without any data yet lists nothing: every category of the
+    // previous month would look like a saving.
     const shown = [...spent.keys()].filter(
       (key) =>
         (counts.get(key)?.get(month) ?? 0) > 0 ||
-        (counts.get(key)?.get(previousMonth) ?? 0) > 0,
+        (period.status !== 'empty' &&
+          (counts.get(key)?.get(previousMonth) ?? 0) > 0),
     )
     const info = await this.categories(shown)
 
@@ -162,6 +169,7 @@ export class SpendingService {
       const category = info.get(key)
       const spentCents = spent.get(key)?.get(month) ?? 0
       const previousSpentCents = spent.get(key)?.get(previousMonth) ?? 0
+      const transactionCount = counts.get(key)?.get(month) ?? 0
       return {
         categoryId: category?.id ?? null,
         slug: category?.slug ?? null,
@@ -169,13 +177,14 @@ export class SpendingService {
         color: category?.color ?? null,
         spentCents,
         share: totalCents > 0 ? spentCents / totalCents : 0,
-        transactionCount: counts.get(key)?.get(month) ?? 0,
+        transactionCount,
         previousSpentCents,
         deltaCents: spentCents - previousSpentCents,
         averageCents: average(
           sumOver(spent.get(key), averageWindow),
           averageWindow.length,
         ),
+        notYetThisMonth: partial && transactionCount === 0,
       }
     })
     categories.sort(
@@ -188,6 +197,7 @@ export class SpendingService {
     return {
       month,
       previousMonth,
+      period,
       includeOneOffs: scope.includeOneOffs,
       averageMonths: averageWindow.length,
       averageFrom: averageWindow[0] ?? null,
@@ -206,8 +216,13 @@ export class SpendingService {
         'categoryId and uncategorized cannot be combined',
       )
     }
-    const current = this.currentMonth()
-    const end = query.month ?? current
+    const now = this.now()
+    const period = await resolvePeriod(this.db, query.month, {
+      accountId: query.accountId,
+      now,
+    })
+    const today = parisToday(now)
+    const end = period.month
     const start = shiftMonth(end, -((query.months ?? TREND_MONTHS_DEFAULT) - 1))
     const months = monthsBetween(start, end)
     const includeOneOffs = query.includeOneOffs ?? false
@@ -269,13 +284,15 @@ export class SpendingService {
     const totalsCents = months.map((_, index) =>
       series.reduce((sum, item) => sum + item.valuesCents[index], 0),
     )
-    // Complete months only: the current month is still running, and months
-    // before the first transaction have no data at all.
+    // Complete months only: the data does not reach the end of the last
+    // ones yet, and months before the first transaction have no data at all.
     const complete = months
       .map((month, index) => ({ month, index }))
       .filter(
         ({ month }) =>
-          month < current && firstMonth !== null && month >= firstMonth,
+          firstMonth !== null &&
+          month >= firstMonth &&
+          monthPeriod(month, period.dataUntil, today).status === 'complete',
       )
     const averageCents = average(
       complete.reduce((sum, { index }) => sum + totalsCents[index], 0),
@@ -311,12 +328,15 @@ export class SpendingService {
 
   /**
    * Expenses per month and category from `from` to `to` (months, both
-   * included), with the one-off part apart. Money out is positive.
+   * included), with the one-off part apart. Money out is positive. With
+   * `throughDay`, only the first `throughDay` days of each month count (all
+   * of a shorter month), so a partial month is compared like for like.
    */
   private async monthly(
     from: string,
     to: string,
     accountId: string | undefined,
+    throughDay: number | null = null,
   ): Promise<MonthlyRow[]> {
     const t = transactionsTable
     const month = sql<string>`to_char(${t.bookingDate}, 'YYYY-MM')`
@@ -330,6 +350,9 @@ export class SpendingService {
       lt(t.bookingDate, firstDay(shiftMonth(to, 1))),
     ]
     if (accountId !== undefined) conditions.push(eq(t.accountId, accountId))
+    if (throughDay !== null) {
+      conditions.push(sql`extract(day from ${t.bookingDate}) <= ${throughDay}`)
+    }
 
     return this.db
       .select({

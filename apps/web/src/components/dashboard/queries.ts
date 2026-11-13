@@ -1,4 +1,4 @@
-import { queryOptions } from '@tanstack/react-query'
+import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { dashboardControllerHistory, dashboardControllerOverview } from '#/api'
 import { unwrap } from '#/lib/queries'
 
@@ -7,19 +7,31 @@ export const HISTORY_MONTHS = 12
 
 export const dashboardKeys = {
   all: ['dashboard'] as const,
-  overview: ['dashboard', 'overview'] as const,
+  overview: (month: string | undefined) =>
+    ['dashboard', 'overview', month ?? 'default'] as const,
   history: (months: number) => ['dashboard', 'history', months] as const,
 }
 
 /**
- * Net worth, accounts and the current month (Europe/Paris, decided by the
- * API). Refetched on mount: imports and corrections change it elsewhere.
+ * Net worth, accounts and `month`; without it, the month the API picks (the
+ * current one when it has data, else the month the data stops in).
+ * Refetched on mount: imports and corrections change it elsewhere.
  */
-export const dashboardOverviewQuery = queryOptions({
-  queryKey: dashboardKeys.overview,
-  queryFn: () => unwrap(dashboardControllerOverview({ throwOnError: false })),
-  staleTime: 0,
-})
+export function dashboardOverviewQuery(month?: string) {
+  return queryOptions({
+    queryKey: dashboardKeys.overview(month),
+    queryFn: () =>
+      unwrap(
+        dashboardControllerOverview({
+          ...(month ? { query: { month } } : {}),
+          throwOnError: false,
+        }),
+      ),
+    staleTime: 0,
+    // Switching month keeps the page in place until the new figures arrive.
+    placeholderData: keepPreviousData,
+  })
+}
 
 export function dashboardHistoryQuery(months = HISTORY_MONTHS) {
   return queryOptions({

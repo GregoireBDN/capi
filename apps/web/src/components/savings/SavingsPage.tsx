@@ -29,9 +29,9 @@ import { savingsOverviewQuery } from './queries'
 function OverviewSkeleton() {
   return (
     <div className="space-y-6" aria-busy="true" aria-label="Chargement">
-      <div className="grid grid-cols-2 gap-2 @2xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @2xl:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-28 rounded-xl" />
+          <Skeleton key={i} className="h-24 rounded-xl" />
         ))}
       </div>
       <Skeleton className="h-36 rounded-xl" />
@@ -65,7 +65,7 @@ export function SavingsPage() {
     <div className="@container space-y-6">
       <PageHeader
         title="Épargne"
-        description={data ? formatMonth(data.currentMonth) : undefined}
+        description={data ? formatMonth(data.period.month) : undefined}
       />
 
       {overview.isPending && <OverviewSkeleton />}

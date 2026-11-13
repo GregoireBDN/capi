@@ -77,6 +77,35 @@ function overview(
 ): SavingsOverviewDto {
   return {
     currentMonth: '2026-11',
+    period: {
+      month: '2026-11',
+      dataUntil: '2026-11-02',
+      status: 'partial',
+      throughDay: 2,
+      previousMonth: '2026-10',
+      previousUntil: '2026-10-02',
+      defaultMonth: '2026-11',
+    },
+    current: {
+      month: '2026-11',
+      until: '2026-11-30',
+      incomeCents: 300_000,
+      expenseCents: -260_000,
+      netCents: 40_000,
+      oneOffIncomeCents: 0,
+      oneOffExpenseCents: 0,
+      savingsRate: 40_000 / 300_000,
+    },
+    previous: {
+      month: '2026-10',
+      until: '2026-10-02',
+      incomeCents: 300_000,
+      expenseCents: -10_000,
+      netCents: 290_000,
+      oneOffIncomeCents: 0,
+      oneOffExpenseCents: 0,
+      savingsRate: 290_000 / 300_000,
+    },
     monthlyTargetCents: 86_000,
     months: [
       month('2026-09', -50_000, {
@@ -279,6 +308,48 @@ describe('SavingsPage', () => {
         'Atteint en mai 2027 au rythme actuel, après l’échéance',
       ),
     ).toBeInTheDocument()
+  })
+
+  it('compares the month in progress with the same days of the previous one', async () => {
+    renderPage()
+
+    const tile = (await screen.findByText('Épargne du mois')).closest(
+      '[data-slot="stat-card"]',
+    ) as HTMLElement
+    // 400 € so far vs 2 900 € over 1–2 October.
+    expect(tile).toHaveTextContent(text('-2 500,00 €'))
+    expect(tile).toHaveTextContent('vs 1–2 oct.')
+    expect(
+      screen.getByText(
+        'Mois en cours : données jusqu’au 2 nov., comparées au 1–2 oct.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('explains a savings rate without income', async () => {
+    api.savingsControllerOverview.mockImplementation(() =>
+      ok(
+        overview({
+          current: {
+            month: '2026-11',
+            until: '2026-11-30',
+            incomeCents: 0,
+            expenseCents: -10_000,
+            netCents: -10_000,
+            oneOffIncomeCents: 0,
+            oneOffExpenseCents: 0,
+            savingsRate: null,
+          },
+        }),
+      ),
+    )
+    renderPage()
+
+    const rate = (await screen.findByText('Taux d’épargne')).closest(
+      '[data-slot="stat-card"]',
+    ) as HTMLElement
+    expect(rate).toHaveTextContent('—')
+    expect(rate).toHaveTextContent('Pas encore de revenus ce mois-ci')
   })
 
   it('says when a goal cannot be reached at the current pace', async () => {

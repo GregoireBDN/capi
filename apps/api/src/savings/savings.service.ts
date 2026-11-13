@@ -6,8 +6,16 @@ import {
 import { and, asc, eq, gte, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { AccountsService } from '#/accounts/accounts.service'
+import { resolvePeriod } from '#/coverage/coverage'
+import { monthPeriod } from '#/coverage/period'
 import { savingsRate } from '#/dashboard/dashboard.service'
-import { currentMonth, monthsUntil, shiftMonth } from '#/dashboard/calendar'
+import {
+  currentMonth,
+  monthEnd,
+  monthsUntil,
+  shiftMonth,
+} from '#/dashboard/calendar'
+import type { MonthFlowDto } from '#/dashboard/dto/dashboard.dto'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import {
@@ -100,17 +108,30 @@ export class SavingsService {
     }: { now?: Date; executor?: Executor } = {},
   ): Promise<SavingsOverviewDto> {
     const current = currentMonth(now)
+    const today = parisToday(now)
+    // The month of the headline figures: the current one when it has data,
+    // else the month the data stops in, compared like for like.
+    const period = await resolvePeriod(executor, undefined, { now })
     // The averages need the full months before the current one, whatever
     // the number of months returned.
     const span = Math.max(count, LONGEST_WINDOW + 1)
-    const [figures, firstDataMonth, target, accounts, investments] =
-      await Promise.all([
-        this.monthlyFigures(monthsUntil(current, span), executor),
-        this.firstDataMonth(executor),
-        this.readTarget(executor),
-        this.accounts.list({}, executor),
-        this.investments.summary(now),
-      ])
+    const [
+      figures,
+      firstDataMonth,
+      target,
+      accounts,
+      investments,
+      shownFigures,
+      previousFigures,
+    ] = await Promise.all([
+      this.monthlyFigures(monthsUntil(current, span), executor),
+      this.firstDataMonth(executor),
+      this.readTarget(executor),
+      this.accounts.list({}, executor),
+      this.investments.summary(now),
+      this.monthlyFigures([period.month], executor),
+      this.monthlyFigures([period.previousMonth], executor, period.throughDay),
+    ])
 
     const months = monthsUntil(current, count).map((month): SavingsMonthDto => {
       const row = figures.get(month) ?? emptyFigures(month)
@@ -118,7 +139,8 @@ export class SavingsService {
       const oneOffNetCents = row.oneOffIncomeCents + row.oneOffExpenseCents
       return {
         month,
-        complete: month < current,
+        complete:
+          monthPeriod(month, period.dataUntil, today).status === 'complete',
         incomeCents: row.incomeCents,
         expenseCents: row.expenseCents,
         netCents,
@@ -156,6 +178,16 @@ export class SavingsService {
 
     return {
       currentMonth: current,
+      period,
+      current: flowOf(
+        shownFigures.get(period.month) ?? emptyFigures(period.month),
+        monthEnd(period.month),
+      ),
+      previous: flowOf(
+        previousFigures.get(period.previousMonth) ??
+          emptyFigures(period.previousMonth),
+        period.previousUntil ?? monthEnd(period.previousMonth),
+      ),
       monthlyTargetCents: target,
       months,
       averages,
@@ -188,11 +220,13 @@ export class SavingsService {
 
   /**
    * Per `YYYY-MM`: income, expenses, their one-off parts and the amounts
-   * moved to savings / investments, in one grouped query.
+   * moved to savings / investments, in one grouped query. With `throughDay`,
+   * only the first `throughDay` days of each month count (like for like).
    */
   private async monthlyFigures(
     months: string[],
     executor: Executor,
+    throughDay: number | null = null,
   ): Promise<Map<string, MonthFigures>> {
     const t = transactionsTable
     const from = monthBounds(months[0]).start
@@ -228,7 +262,15 @@ export class SavingsService {
         .from(t)
         .innerJoin(accountsTable, eq(accountsTable.id, t.accountId))
         .leftJoin(categoriesTable, eq(categoriesTable.id, t.categoryId))
-        .where(and(gte(t.bookingDate, from), lt(t.bookingDate, until)))
+        .where(
+          and(
+            gte(t.bookingDate, from),
+            lt(t.bookingDate, until),
+            throughDay === null
+              ? undefined
+              : sql`extract(day from ${t.bookingDate}) <= ${throughDay}`,
+          ),
+        )
         .groupBy(month),
       this.savingsAccountsHaveRows(executor),
     ])
@@ -529,6 +571,21 @@ function emptyFigures(month: string): MonthFigures {
     oneOffExpenseCents: 0,
     movedToSavingsCents: 0,
     movedToInvestmentsCents: 0,
+  }
+}
+
+/** Income and expenses of one month up to `until`, as the dashboard shows them. */
+function flowOf(row: MonthFigures, until: string): MonthFlowDto {
+  const netCents = row.incomeCents + row.expenseCents
+  return {
+    month: row.month,
+    until,
+    incomeCents: row.incomeCents,
+    expenseCents: row.expenseCents,
+    netCents,
+    oneOffIncomeCents: row.oneOffIncomeCents,
+    oneOffExpenseCents: row.oneOffExpenseCents,
+    savingsRate: savingsRate(row.incomeCents, netCents),
   }
 }
 

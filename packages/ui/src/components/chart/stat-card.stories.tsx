@@ -15,7 +15,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'KPI tile: label, value (integer cents by default), delta vs the previous period and an optional sparkline. `increaseIsGood={false}` turns a rise into an unfavourable delta (expenses). The delta carries an arrow, a sign and a screen-reader phrase, never colour alone.',
+          'KPI tile: label, value (integer cents by default), delta vs the previous period and an optional sparkline. A tile at least 260px wide (one per row on a phone) puts the sparkline beside the figures; a narrower one stacks it below. `increaseIsGood={false}` turns a rise into an unfavourable delta (expenses). The delta carries an arrow, a sign and a screen-reader phrase, never colour alone.',
       },
     },
   },
@@ -72,6 +72,27 @@ export const WithoutComparison: Story = {
   args: { previousValue: undefined, trend: undefined },
 }
 
+/** No comparison, with the reason in place of the delta line. */
+export const WithNote: Story = {
+  args: {
+    label: '% épargné',
+    value: 0,
+    valueFormatter: () => '—',
+    previousValue: undefined,
+    trend: undefined,
+    icon: undefined,
+    note: 'Pas encore de revenus ce mois-ci',
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText('Pas encore de revenus ce mois-ci'),
+    ).toBeInTheDocument()
+    await expect(
+      canvasElement.querySelector('[data-slot="stat-card-delta"]'),
+    ).toBeNull()
+  },
+}
+
 export const Stable: Story = {
   args: {
     label: 'Abonnements',
@@ -84,12 +105,28 @@ export const Stable: Story = {
   },
 }
 
-/** KPI row as on the dashboard: two columns on a phone. */
+/**
+ * KPI tiles as on the dashboard on a phone: one per row, each wider than
+ * tall, figures on the left and the sparkline on the right.
+ */
 export const KpiRow: Story = {
   globals: MOBILE,
   parameters: { layout: 'padded' },
+  play: async ({ canvasElement }) => {
+    for (const tile of canvasElement.querySelectorAll(
+      '[data-slot="stat-card"]',
+    )) {
+      const box = tile.getBoundingClientRect()
+      await expect(box.width).toBeGreaterThan(box.height)
+      const sparkline = tile.querySelector('[data-slot="sparkline"]')!
+      const value = tile.querySelector('[data-slot="stat-card-body"] > div')!
+      await expect(sparkline.getBoundingClientRect().left).toBeGreaterThan(
+        value.getBoundingClientRect().left,
+      )
+    }
+  },
   render: () => (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 gap-3">
       <StatCard
         label="Revenus"
         value={cashflow2026[11]!.income}

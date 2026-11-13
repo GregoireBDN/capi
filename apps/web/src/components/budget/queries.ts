@@ -16,16 +16,23 @@ export const SUGGEST_MONTHS = 3
 
 export const budgetKeys = {
   all: ['budgets'] as const,
-  month: (month: string) => ['budgets', 'month', month] as const,
+  month: (month: string | undefined) =>
+    ['budgets', 'month', month ?? 'default'] as const,
   history: (month: string, months: number) =>
     ['budgets', 'history', month, months] as const,
 }
 
-export function budgetMonthQuery(month: string) {
+/** Targets vs spending of `month`; without it, the month the API picks. */
+export function budgetMonthQuery(month?: string) {
   return queryOptions({
     queryKey: budgetKeys.month(month),
     queryFn: () =>
-      unwrap(budgetsControllerMonth({ query: { month }, throwOnError: false })),
+      unwrap(
+        budgetsControllerMonth({
+          ...(month ? { query: { month } } : {}),
+          throwOnError: false,
+        }),
+      ),
     // Transactions change elsewhere (imports, review): always refetch on mount.
     staleTime: 0,
   })

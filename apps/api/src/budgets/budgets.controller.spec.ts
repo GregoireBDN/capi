@@ -94,10 +94,10 @@ describe('BudgetsController (HTTP)', () => {
   }
 
   describe('GET /budgets', () => {
-    it('defaults to the current month in Europe/Paris', async () => {
+    it('leaves the default month to the service (it depends on the data)', async () => {
       const response = await request('GET', '/budgets')
       expect(response.statusCode).toBe(200)
-      expect(service.month).toHaveBeenCalledWith('2026-11')
+      expect(service.month).toHaveBeenCalledWith(undefined)
     })
 
     it('reads the month', async () => {

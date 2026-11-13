@@ -17,7 +17,10 @@ interface CategoryRankingProps {
   categories: readonly CategorySpendingDto[]
   /** Month shown (`YYYY-MM`), for the drill-down links. */
   month: string
-  /** Short name of the previous month, e.g. "octobre". */
+  /**
+   * What the month is compared with: the previous month ("octobre"), or its
+   * same first days while the month is partial ("1–3 oct.").
+   */
   previousLabel: string
   /** Account filter, carried over to the drill-down. */
   accountId?: string
@@ -83,18 +86,30 @@ export function CategoryRanking({
                     {formatPercent(share)} ·{' '}
                     {plural(item.transactionCount, 'opération', 'opérations')}
                   </span>
-                  <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-0.5">
-                    <Delta
-                      cents={item.deltaCents}
-                      suffix={`vs ${previousLabel}`}
-                    />
-                    {item.averageCents !== null && (
+                  {item.notYetThisMonth ? (
+                    // Not paid yet (e.g. the rent later in the month): a
+                    // drop here is not a saving, so no coloured delta.
+                    <span data-slot="not-yet" className="text-right">
+                      Pas encore ce mois-ci ·{' '}
+                      <span className="whitespace-nowrap tabular-nums">
+                        {formatEuros(item.previousSpentCents)}
+                      </span>{' '}
+                      au {previousLabel}
+                    </span>
+                  ) : (
+                    <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-0.5">
                       <Delta
-                        cents={item.spentCents - item.averageCents}
-                        suffix="vs moy."
+                        cents={item.deltaCents}
+                        suffix={`vs ${previousLabel}`}
                       />
-                    )}
-                  </span>
+                      {item.averageCents !== null && (
+                        <Delta
+                          cents={item.spentCents - item.averageCents}
+                          suffix="vs moy."
+                        />
+                      )}
+                    </span>
+                  )}
                 </div>
               </div>
               <ChevronRightIcon

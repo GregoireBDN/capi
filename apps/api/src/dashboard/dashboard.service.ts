@@ -6,6 +6,7 @@ import {
   AccountsService,
   isTransactionalAccount,
 } from '#/accounts/accounts.service'
+import { dataUntilByAccount, resolvePeriod } from '#/coverage/coverage'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import { transactionsTable } from '#/database/schema'
@@ -63,26 +64,44 @@ export class DashboardService {
 
   /**
    * Net worth now and per account, income / expenses of `month` and of the
-   * month before, and the review queue size. The net worth does not depend on
-   * `month`: it is today's, compared with the end of the previous calendar
-   * month relative to `now`.
+   * month before, and the review queue size.
+   *
+   * Without `month`, the current month when it has data, else the month the
+   * data stops in (see `coverage/period.ts`). While that month is partial,
+   * the previous month only counts its same first days, so an empty or
+   * half-imported month is never compared with a full one.
+   *
+   * The net worth does not depend on `month`: it is today's, compared with
+   * the end of the previous calendar month relative to `now`.
    */
   async overview(
-    month: string = currentMonth(),
+    month?: string,
     {
       now = new Date(),
       executor = this.db,
     }: { now?: Date; executor?: Executor } = {},
   ): Promise<DashboardOverviewDto> {
     const lastMonthEnd = monthEnd(shiftMonth(currentMonth(now), -1))
-    const [accounts, previousAccounts, current, previous, reviewCount] =
-      await Promise.all([
-        this.accounts.list({}, executor),
-        this.accounts.list({ asOf: lastMonthEnd }, executor),
-        this.monthFlow(month, executor),
-        this.monthFlow(shiftMonth(month, -1), executor),
-        this.transactions.reviewCount(executor),
-      ])
+    const period = await resolvePeriod(executor, month, { now })
+    const [
+      accounts,
+      previousAccounts,
+      current,
+      previous,
+      reviewCount,
+      coverage,
+    ] = await Promise.all([
+      this.accounts.list({}, executor),
+      this.accounts.list({ asOf: lastMonthEnd }, executor),
+      this.monthFlow(period.month, monthEnd(period.month), executor),
+      this.monthFlow(
+        period.previousMonth,
+        period.previousUntil ?? monthEnd(period.previousMonth),
+        executor,
+      ),
+      this.transactions.reviewCount(executor),
+      dataUntilByAccount(executor, now),
+    ])
 
     let cashCents = 0
     let investmentsCents = 0
@@ -100,6 +119,10 @@ export class DashboardService {
         group,
         balanceCents: account.balanceCents,
         balanceDate: account.balanceDate,
+        dataUntil:
+          group === 'cash'
+            ? (coverage.get(account.id) ?? null)
+            : account.balanceDate,
       }
     })
 
@@ -108,10 +131,12 @@ export class DashboardService {
         totalCents: cashCents + investmentsCents,
         cashCents,
         investmentsCents,
+        previousMonthEnd: lastMonthEnd,
         previousMonthEndCents: sumBalances(previousAccounts),
         unknownBalanceCount,
       },
       accounts: rows,
+      period,
       current,
       previous,
       reviewCount,
@@ -172,14 +197,22 @@ export class DashboardService {
     }
   }
 
-  /** Income and expenses of one month, as the transactions summary. */
+  /**
+   * Income and expenses of `month` from its first day to `until`, as the
+   * transactions summary.
+   */
   private async monthFlow(
     month: string,
+    until: string,
     executor: Executor,
   ): Promise<MonthFlowDto> {
-    const summary = await this.transactions.summary({ month }, executor)
+    const summary = await this.transactions.summary(
+      { from: `${month}-01`, to: until },
+      executor,
+    )
     return {
       month,
+      until,
       incomeCents: summary.incomeCents,
       expenseCents: summary.expenseCents,
       netCents: summary.netCents,

@@ -10,6 +10,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator'
+import { MonthPeriodDto } from '#/coverage/dto/period.dto'
 import { MONTH_PATTERN } from '../months'
 
 /** Highest monthly target accepted: 10 000 000 € (fits a Postgres `integer`). */
@@ -67,7 +68,7 @@ export class BudgetMonthQueryDto {
   @ApiPropertyOptional({
     ...MONTH_DOC,
     description:
-      'Calendar month (YYYY-MM). Default: the current month in Europe/Paris.',
+      'Calendar month (YYYY-MM). Default: the current month in Europe/Paris when it has data, else the month the data stops in.',
   })
   @OptionalMonth()
   month?: string
@@ -332,6 +333,12 @@ export class UnbudgetedSpendingDto {
 export class BudgetMonthDto {
   @ApiProperty(MONTH_DOC)
   month!: string
+
+  @ApiProperty({
+    type: MonthPeriodDto,
+    description: 'How far the month’s data goes.',
+  })
+  period!: MonthPeriodDto
 
   @ApiProperty({
     type: [BudgetLineDto],

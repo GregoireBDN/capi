@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Type } from 'class-transformer'
 import { IsInt, IsOptional, Matches, Max, Min } from 'class-validator'
+import { MonthPeriodDto } from '#/coverage/dto/period.dto'
 import { ACCOUNT_TYPES, type AccountType } from '#/database/schema/domain-enums'
 import { MONTH_PATTERN } from '../calendar'
 
@@ -20,7 +21,7 @@ export class DashboardOverviewQueryDto {
     pattern: MONTH_PATTERN.source,
     example: '2026-11',
     description:
-      'Calendar month (YYYY-MM) of the income / expense figures. Default: the current month in Europe/Paris.',
+      'Calendar month (YYYY-MM) of the income / expense figures. Default: the current month in Europe/Paris when it has data, else the month the data stops in.',
   })
   @IsOptional()
   @Matches(MONTH_PATTERN, { message: '$property must be YYYY-MM' })
@@ -51,6 +52,15 @@ export class DashboardHistoryQueryDto {
 export class MonthFlowDto {
   @ApiProperty({ type: String, example: '2026-11', description: 'YYYY-MM.' })
   month!: string
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    example: '2026-11-30',
+    description:
+      'Last day counted: the month end, or for the previous month of a partial month the same day as the data of the current one (like for like).',
+  })
+  until!: string
 
   @ApiProperty({
     type: 'integer',
@@ -128,6 +138,15 @@ export class DashboardAccountDto {
     description: 'Calendar date the balance is known at.',
   })
   balanceDate!: string | null
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    nullable: true,
+    description:
+      'Date the account’s data goes up to: latest booked transaction or end of the latest committed import (never after today) for cash accounts, latest value snapshot for investments; null when there is none.',
+  })
+  dataUntil!: string | null
 }
 
 export class NetWorthDto {
@@ -150,6 +169,15 @@ export class NetWorthDto {
       'Brokerage, life insurance, employee savings and crypto accounts.',
   })
   investmentsCents!: number
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    example: '2026-10-31',
+    description:
+      'Last day of the previous calendar month (Europe/Paris, relative to today): the date of `previousMonthEndCents`.',
+  })
+  previousMonthEnd!: string
 
   @ApiProperty({
     type: 'integer',
@@ -178,14 +206,22 @@ export class DashboardOverviewDto {
   accounts!: DashboardAccountDto[]
 
   @ApiProperty({
+    type: MonthPeriodDto,
+    description:
+      'The month shown, how far its data goes and what it is compared with.',
+  })
+  period!: MonthPeriodDto
+
+  @ApiProperty({
     type: MonthFlowDto,
-    description: 'Income and expenses of the requested month.',
+    description: 'Income and expenses of the month shown.',
   })
   current!: MonthFlowDto
 
   @ApiProperty({
     type: MonthFlowDto,
-    description: 'The month before, for deltas.',
+    description:
+      'The month before, for deltas: up to `period.previousUntil` (its same first days while the month shown is partial). Not comparable when `period.status` is `empty`.',
   })
   previous!: MonthFlowDto
 

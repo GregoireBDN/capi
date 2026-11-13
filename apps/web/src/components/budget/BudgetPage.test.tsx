@@ -91,6 +91,15 @@ function line(
 
 const monthData: BudgetMonthDto = {
   month: '2026-10',
+  period: {
+    month: '2026-10',
+    dataUntil: '2026-11-03',
+    status: 'complete',
+    throughDay: null,
+    previousMonth: '2026-09',
+    previousUntil: '2026-09-30',
+    defaultMonth: '2026-11',
+  },
   items: [
     {
       ...line(leisure, 10_000, 15_000, 'over'),
@@ -219,14 +228,15 @@ function ok<T>(data: T) {
   })
 }
 
-function renderPage(month = '2026-10') {
+/** `null`: no month in the URL (the API picks it). */
+function renderPage(month: string | null = '2026-10') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   const onMonthChange = vi.fn()
   render(
     <QueryClientProvider client={queryClient}>
-      <BudgetPage month={month} onMonthChange={onMonthChange} />
+      <BudgetPage month={month ?? undefined} onMonthChange={onMonthChange} />
     </QueryClientProvider>,
   )
   return { onMonthChange }
@@ -296,6 +306,39 @@ describe('BudgetPage', () => {
         name: 'Ajouter un budget Transport',
       }),
     ).toBeInTheDocument()
+  })
+
+  it('shows the month the API picks and how far its data goes', async () => {
+    api.budgetsControllerMonth.mockImplementation(() =>
+      ok({
+        ...monthData,
+        period: {
+          ...monthData.period,
+          dataUntil: '2026-10-28',
+          status: 'partial',
+          throughDay: 28,
+          previousUntil: '2026-09-28',
+          defaultMonth: '2026-10',
+        },
+      }),
+    )
+    renderPage(null)
+
+    expect(
+      await screen.findByText(
+        'Données jusqu’au 28 oct. seulement, comparées au 1–28 sept.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Octobre 2026')).toBeInTheDocument()
+    expect(api.budgetsControllerMonth).toHaveBeenCalledWith({
+      throwOnError: false,
+    })
+    // The history follows the month shown.
+    await waitFor(() =>
+      expect(api.budgetsControllerHistory).toHaveBeenCalledWith(
+        expect.objectContaining({ query: { month: '2026-10', months: 6 } }),
+      ),
+    )
   })
 
   it('moves between months, not past the current one', async () => {

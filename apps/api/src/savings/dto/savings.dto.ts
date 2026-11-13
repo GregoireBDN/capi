@@ -1,4 +1,6 @@
 import { applyDecorators } from '@nestjs/common'
+import { MonthPeriodDto } from '#/coverage/dto/period.dto'
+import { MonthFlowDto } from '#/dashboard/dto/dashboard.dto'
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger'
 import { Transform, Type } from 'class-transformer'
 import {
@@ -212,7 +214,8 @@ export class SavingsMonthDto {
 
   @ApiProperty({
     type: Boolean,
-    description: 'False for the current, still running month.',
+    description:
+      'Whether the data reaches the end of the month (false for the running month, and for a month whose statement is not fully imported yet).',
   })
   complete!: boolean
 
@@ -408,6 +411,27 @@ export class SavingsStockDto {
 export class SavingsOverviewDto {
   @ApiProperty({ type: String, description: 'Current month (Europe/Paris).' })
   currentMonth!: string
+
+  @ApiProperty({
+    type: MonthPeriodDto,
+    description:
+      'Month of the headline figures (`current`): the current month when it has data, else the month the data stops in; how far its data goes and what it is compared with.',
+  })
+  period!: MonthPeriodDto
+
+  @ApiProperty({
+    type: MonthFlowDto,
+    description:
+      'Income, expenses and net savings of `period.month` (the dashboard’s figures).',
+  })
+  current!: MonthFlowDto
+
+  @ApiProperty({
+    type: MonthFlowDto,
+    description:
+      'The month before, up to `period.previousUntil`: its same first days while `period.month` is partial. Not comparable when `period.status` is `empty`.',
+  })
+  previous!: MonthFlowDto
 
   @ApiProperty({
     type: 'integer',

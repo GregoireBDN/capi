@@ -8,7 +8,7 @@ import {
 import type { ReactNode } from 'react'
 import type { SpendingByCategoryDto } from '#/api/types.gen'
 import { Delta } from './Delta'
-import { categoryLabel, monthName } from './labels'
+import { categoryLabel, comparedName } from './labels'
 
 /** KPI tile whose headline is a comparison rather than an amount. */
 function ComparisonTile({
@@ -57,7 +57,7 @@ function percentOf(delta: number, previous: number | null): string {
 export function SpendingKpisSkeleton() {
   return (
     <div
-      className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 @2xl:grid-cols-4"
+      className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @2xl:grid-cols-4"
       aria-busy="true"
       aria-label="Chargement des indicateurs"
     >
@@ -80,7 +80,11 @@ export function SpendingKpis({
   /** Monthly totals ending with the shown month, for the sparkline. */
   trend?: readonly number[]
 }) {
-  const previous = monthName(data.previousMonth, data.month)
+  // While the month is partial, everything is compared on the same first
+  // days ("1–3 oct.") rather than on whole months.
+  const partial = data.period.status === 'partial'
+  const previous = comparedName(data)
+  const previousIn = partial ? `au ${previous}` : `en ${previous}`
   const vsPrevious = data.totalCents - data.previousTotalCents
   const vsAverage =
     data.averageTotalCents === null
@@ -98,7 +102,7 @@ export function SpendingKpis({
 
   return (
     <section aria-label="Indicateurs du mois">
-      <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 @2xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @2xl:grid-cols-4">
         <StatCard
           label="Dépensé"
           value={data.totalCents}
@@ -109,7 +113,7 @@ export function SpendingKpis({
         />
         <ComparisonTile
           label={`vs ${previous}`}
-          detail={`${formatEuros(data.previousTotalCents)} en ${previous}${percentOf(vsPrevious, data.previousTotalCents)}`}
+          detail={`${formatEuros(data.previousTotalCents)} ${previousIn}${percentOf(vsPrevious, data.previousTotalCents)}`}
         >
           <Delta cents={vsPrevious} {...TILE_DELTA} />
         </ComparisonTile>
@@ -118,7 +122,7 @@ export function SpendingKpis({
           detail={
             data.averageTotalCents === null
               ? 'Pas encore d’historique'
-              : `${formatEuros(data.averageTotalCents)} en moyenne sur ${data.averageMonths} mois${percentOf(vsAverage!, data.averageTotalCents)}`
+              : `${formatEuros(data.averageTotalCents)} en moyenne sur ${data.averageMonths} mois${partial ? ', mêmes jours' : ''}${percentOf(vsAverage!, data.averageTotalCents)}`
           }
         >
           {vsAverage === null ? (
