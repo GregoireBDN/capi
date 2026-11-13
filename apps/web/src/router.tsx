@@ -2,6 +2,7 @@ import { QueryClient } from '@tanstack/react-query'
 import { createRouter as createTanStackRouter } from '@tanstack/react-router'
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
 import './lib/api-client'
+import { RouteError } from './components/RouteError'
 import { routeTree } from './routeTree.gen'
 
 export function getRouter() {
@@ -18,6 +19,9 @@ export function getRouter() {
     scrollRestoration: true,
     defaultPreload: 'intent',
     defaultPreloadStaleTime: 0,
+    // French error page with "Réessayer" instead of the router's default
+    // (English, no retry), e.g. for in-app navigations while offline.
+    defaultErrorComponent: RouteError,
   })
 
   // Wraps the app in a QueryClientProvider and streams SSR-fetched queries.
