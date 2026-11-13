@@ -299,6 +299,21 @@ describe('SavingsPage', () => {
     expect(screen.getByRole('link', { name: /PEA test/ })).toHaveTextContent(
       text('+300,00 € (+15 %)'),
     )
+    // Investments valued by hand update their value from the list; cash
+    // accounts are fed by imports.
+    expect(
+      screen.getByRole('button', {
+        name: 'Mettre à jour la valeur de PEA test',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', {
+        name: 'Mettre à jour la valeur de Livret test',
+      }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Ajouter un placement' }),
+    ).toBeInTheDocument()
 
     // Goal: monthly effort and a late projection.
     expect(
