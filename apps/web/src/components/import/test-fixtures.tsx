@@ -62,6 +62,7 @@ export const categories: CategoryDto[] = [
     color: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    archivedAt: null,
   },
   {
     id: 'cat-fun',
@@ -71,6 +72,7 @@ export const categories: CategoryDto[] = [
     color: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    archivedAt: null,
   },
   {
     id: 'cat-pay',
@@ -80,6 +82,7 @@ export const categories: CategoryDto[] = [
     color: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    archivedAt: null,
   },
 ]
 

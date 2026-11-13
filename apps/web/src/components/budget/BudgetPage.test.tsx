@@ -60,6 +60,7 @@ function category(
     color: '#d97706',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    archivedAt: null,
   }
 }
 const groceries = category(1, 'Courses', 'expense')

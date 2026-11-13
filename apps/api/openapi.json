@@ -829,6 +829,16 @@
         "operationId": "CategoriesController_remove",
         "parameters": [
           {
+            "description": "Category of the same kind that receives the transactions, rules, budgets and recurring items. Required when the category is in use.",
+            "required": false,
+            "name": "reassignTo",
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
             "name": "id",
             "required": true,
             "in": "path",

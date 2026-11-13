@@ -74,7 +74,9 @@ export function BudgetPage({
   const available = useMemo(() => {
     const budgeted = new Set(budget.data?.items.map((item) => item.categoryId))
     return (categories.data ?? [])
-      .filter((c) => c.kind === 'expense' && !budgeted.has(c.id))
+      .filter(
+        (c) => c.kind === 'expense' && !c.archivedAt && !budgeted.has(c.id),
+      )
       .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
   }, [budget.data, categories.data])
 

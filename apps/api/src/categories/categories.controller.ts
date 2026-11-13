@@ -22,6 +22,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
@@ -112,6 +113,7 @@ export class CategoriesController {
       'A category in use needs `reassignTo`: its transactions, rules and recurring items move to that category, and its budget is added to the target’s, in one transaction.',
   })
   @ApiParam(ID_PARAM)
+  @ApiQuery({ type: DeleteCategoryQueryDto })
   @ApiNoContentResponse()
   @ApiBadRequestResponse({
     description:

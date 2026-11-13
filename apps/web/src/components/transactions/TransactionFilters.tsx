@@ -194,7 +194,9 @@ export function TransactionFilters({
               <NativeSelectOptGroup key={kind} label={KIND_GROUP_LABELS[kind]}>
                 {group.map((category) => (
                   <NativeSelectOption key={category.id} value={category.id}>
-                    {category.name}
+                    {category.archivedAt
+                      ? `${category.name} (archivée)`
+                      : category.name}
                   </NativeSelectOption>
                 ))}
               </NativeSelectOptGroup>

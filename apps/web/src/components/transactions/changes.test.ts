@@ -11,6 +11,7 @@ const groceries: CategoryDto = {
   color: '#d97706',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
+  archivedAt: null,
 }
 const categories = new Map([[groceries.id, groceries]])
 

@@ -18,6 +18,7 @@ import {
   MonitorIcon,
   MoonIcon,
   SunIcon,
+  TagsIcon,
   UserIcon,
 } from 'lucide-react'
 import type { UserDto } from '#/api/types.gen'
@@ -90,6 +91,12 @@ export function UserMenu({ user, onNavigate }: UserMenuProps) {
               <Link to={ROUTES.profile} onClick={onNavigate}>
                 <UserIcon />
                 Profil
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to={ROUTES.categories} onClick={onNavigate}>
+                <TagsIcon />
+                Catégories
               </Link>
             </DropdownMenuItem>
 

@@ -6,7 +6,7 @@ import { ROUTES } from '#/lib/routes'
 import type { ThemeMode as Theme } from '#/lib/use-theme'
 import { useThemePreference } from '#/lib/use-theme-preference'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import {
   Badge,
   Button,
@@ -23,12 +23,14 @@ import {
 } from '@finances/ui'
 import {
   BadgeCheckIcon,
+  ChevronRightIcon,
   CalendarDaysIcon,
   MailIcon,
   MonitorIcon,
   MoonIcon,
   ShieldAlertIcon,
   SunIcon,
+  TagsIcon,
   TriangleAlertIcon,
   UserIcon,
 } from 'lucide-react'
@@ -265,6 +267,32 @@ function ProfilePage() {
               )
             })}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Categories */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TagsIcon className="size-4 text-muted-foreground" />
+            Catégories
+          </CardTitle>
+          <CardDescription>
+            Ajoutez, renommez, recolorez, archivez ou supprimez vos catégories.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            variant="secondary"
+            outline
+            className="w-full sm:w-auto"
+            asChild
+          >
+            <Link to={ROUTES.categories}>
+              Gérer les catégories
+              <ChevronRightIcon />
+            </Link>
+          </Button>
         </CardContent>
       </Card>
 
