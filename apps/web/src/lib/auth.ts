@@ -7,6 +7,7 @@ import {
   serverApiUrl,
   setRequestCookieHeader,
 } from '#/lib/server-api'
+import { currentUserFromResult } from '#/lib/current-user'
 import { resolveServerSession } from '#/lib/server-session'
 import type { UserDto } from '#/api/types.gen'
 
@@ -48,10 +49,10 @@ export const getMe = createServerFn().handler(
  */
 export const fetchCurrentUser = createIsomorphicFn()
   .server((): Promise<UserDto | null> => getMe())
-  .client(async (): Promise<UserDto | null> => {
-    const res = await authControllerMe({ throwOnError: false })
-    return res.error || !res.data ? null : res.data
-  })
+  .client(async (): Promise<UserDto | null> =>
+    // Throws when the API can't be reached (offline): see currentUserFromResult.
+    currentUserFromResult(await authControllerMe({ throwOnError: false })),
+  )
 
 /**
  * Whether public sign-up is still open. Finances is single-user: once the owner

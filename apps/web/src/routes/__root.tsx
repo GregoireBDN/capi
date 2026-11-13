@@ -3,6 +3,7 @@ import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { Toaster } from '@finances/ui'
 import NotFound from '../components/NotFound'
+import { NavigationProgress } from '../components/app-shell/NavigationProgress'
 import { ServiceWorkerUpdates } from '../components/pwa/ServiceWorkerUpdates'
 import { AuthProvider } from '../lib/auth-context'
 
@@ -76,6 +77,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="flex min-h-svh flex-col font-sans antialiased [overflow-wrap:anywhere]">
         <AuthProvider>
+          <NavigationProgress />
           {children}
           <Toaster />
           <ServiceWorkerUpdates />
