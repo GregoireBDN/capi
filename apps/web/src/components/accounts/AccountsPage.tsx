@@ -27,8 +27,9 @@ import { formatCalendarDate, formatCents } from '#/lib/money'
 import { plural } from '#/lib/plural'
 import { accountsQuery } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
+import { NewAccountButton } from './AccountEditor'
 import { formatAge, isInvestmentType } from './labels'
-import { investmentsSummaryQuery } from './queries'
+import { archivedAccountsQuery, investmentsSummaryQuery } from './queries'
 
 function AccountRow({
   account,
@@ -117,6 +118,7 @@ function InvestmentTotals({ totals }: { totals: InvestmentsTotalsDto }) {
 export function AccountsPage() {
   const accounts = useQuery(accountsQuery)
   const summary = useQuery(investmentsSummaryQuery)
+  const archived = useQuery(archivedAccountsQuery)
 
   const list = accounts.data ?? []
   const cash = list.filter((account) => !isInvestmentType(account.type))
@@ -127,10 +129,13 @@ export function AccountsPage() {
 
   return (
     <div className="@container space-y-6">
-      <PageHeader
-        title="Comptes"
-        description="Vos comptes, leur valeur et la date de leur dernier relevé."
-      />
+      <div className="flex flex-col gap-3 @2xl:flex-row @2xl:items-end @2xl:justify-between">
+        <PageHeader
+          title="Comptes"
+          description="Vos comptes, leur valeur et la date de leur dernier relevé."
+        />
+        <NewAccountButton />
+      </div>
 
       {accounts.isPending && (
         <div className="space-y-3" aria-busy="true" aria-label="Chargement">
@@ -151,7 +156,10 @@ export function AccountsPage() {
       )}
 
       {accounts.isSuccess && list.length === 0 && (
-        <p className="text-muted-foreground text-sm">Aucun compte.</p>
+        <p className="text-muted-foreground text-sm">
+          Aucun compte. Ajoutez votre compte courant, vos livrets, vos
+          placements (PEA, assurance vie…) ou vos cryptos.
+        </p>
       )}
 
       <div className="grid gap-4 @3xl:grid-cols-2 @3xl:items-start">
@@ -199,6 +207,24 @@ export function AccountsPage() {
           </Card>
         )}
       </div>
+      {archived.data && archived.data.length > 0 && (
+        <Card className="min-w-0">
+          <CardHeader>
+            <CardTitle>Comptes archivés</CardTitle>
+            <CardDescription>
+              Hors des listes et des imports ; leur historique est conservé.
+              Ouvrez-en un pour le réactiver.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y">
+              {archived.data.map((account) => (
+                <AccountRow key={account.id} account={account} />
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

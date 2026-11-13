@@ -17,6 +17,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiParam,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -46,6 +47,7 @@ export class AccountsController {
     description:
       'Ordered by position. Archived accounts are left out unless `includeArchived=true`.',
   })
+  @ApiQuery({ type: ListAccountsQueryDto })
   @ApiOkResponse({ type: [AccountDto] })
   list(@Query() query: ListAccountsQueryDto): Promise<AccountDto[]> {
     return this.accountsService.list({

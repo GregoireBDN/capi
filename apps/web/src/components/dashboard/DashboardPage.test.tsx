@@ -20,6 +20,7 @@ const api = vi.hoisted(() => ({
 
 vi.mock('#/api', () => api)
 vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => vi.fn(),
   Link: ({
     to,
     params,

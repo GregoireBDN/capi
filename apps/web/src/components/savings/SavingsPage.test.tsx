@@ -27,6 +27,7 @@ const toast = vi.hoisted(() =>
 vi.mock('#/api', () => api)
 vi.mock('sonner', () => ({ toast }))
 vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => vi.fn(),
   Link: ({
     to,
     params,

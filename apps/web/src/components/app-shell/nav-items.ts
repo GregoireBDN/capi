@@ -2,6 +2,7 @@ import {
   ArrowLeftRightIcon,
   ChartPieIcon,
   InboxIcon,
+  LandmarkIcon,
   LayoutDashboardIcon,
   PiggyBankIcon,
   RepeatIcon,
@@ -21,6 +22,7 @@ export interface NavItem {
     | 'budget'
     | 'subscriptions'
     | 'savings'
+    | 'accounts'
     | 'import']
   icon: LucideIcon
   /** Counter shown next to the label: the review queue size. */
@@ -41,6 +43,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Budget', to: ROUTES.budget, icon: TargetIcon },
   { label: 'Abonnements', to: ROUTES.subscriptions, icon: RepeatIcon },
   { label: 'Épargne', to: ROUTES.savings, icon: PiggyBankIcon },
+  { label: 'Comptes', to: ROUTES.accounts, icon: LandmarkIcon },
   { label: 'Import', to: ROUTES.import, icon: UploadIcon },
 ]
 

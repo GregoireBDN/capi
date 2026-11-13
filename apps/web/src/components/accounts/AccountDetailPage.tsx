@@ -19,6 +19,7 @@ import {
   ArrowLeftRightIcon,
   ClipboardPasteIcon,
   ClockAlertIcon,
+  PencilIcon,
   PlusIcon,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -28,6 +29,7 @@ import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { formatCalendarDate } from '#/lib/money'
 import { ApiRequestError } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
+import { AccountEditor } from './AccountEditor'
 import { todayInParis } from './dates'
 import { isInvestmentType, valueAgeText } from './labels'
 import { PasteHistorySheet } from './PasteHistorySheet'
@@ -62,6 +64,7 @@ function BackLink() {
 }
 
 function AccountHeader({ account }: { account: AccountDto }) {
+  const [editing, setEditing] = useState(false)
   const kind = [ACCOUNT_TYPE_LABELS[account.type], account.institution]
     .filter(Boolean)
     .join(' · ')
@@ -69,7 +72,7 @@ function AccountHeader({ account }: { account: AccountDto }) {
     <header className="space-y-1">
       <BackLink />
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight break-words">
+        <h1 className="min-w-0 text-2xl font-semibold tracking-tight break-words">
           {account.name}
         </h1>
         {account.archivedAt && (
@@ -77,8 +80,22 @@ function AccountHeader({ account }: { account: AccountDto }) {
             Archivé
           </Badge>
         )}
+        <Button
+          size="sm"
+          outline
+          variant="secondary"
+          iconStart={<PencilIcon />}
+          onClick={() => setEditing(true)}
+        >
+          {account.archivedAt ? 'Réactiver…' : 'Modifier'}
+        </Button>
       </div>
       <p className="text-muted-foreground text-sm">{kind}</p>
+      <AccountEditor
+        open={editing}
+        onOpenChange={setEditing}
+        account={account}
+      />
     </header>
   )
 }
