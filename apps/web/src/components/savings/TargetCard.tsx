@@ -19,7 +19,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CircleCheckIcon, PencilIcon, TargetIcon } from 'lucide-react'
 import { useId, useState } from 'react'
 import { toast } from 'sonner'
-import type { SavingsOverviewDto } from '#/api/types.gen'
+import type { MonthPeriodDto, SavingsOverviewDto } from '#/api/types.gen'
 import {
   centsToInput,
   parseEurosToCents,
@@ -27,13 +27,14 @@ import {
 } from '#/components/budget/amount'
 import { formatMonth } from '#/lib/calendar'
 import { formatCents } from '#/lib/money'
+import { formatShortDay } from '#/lib/period'
 import { savingsErrorMessage } from './errors'
 import { afterSavingsChanged, saveTarget } from './queries'
 
 /**
- * The monthly savings target ("Épargne cible") against this month's net
- * savings, how many recent full months reached it, and the target itself,
- * edited in place.
+ * The monthly savings target ("Épargne cible") against the page month's net
+ * savings (the KPI tiles' month, so far while it is in progress), how many
+ * recent full months reached it, and the target itself, edited in place.
  */
 export function TargetCard({ overview }: { overview: SavingsOverviewDto }) {
   const target = overview.monthlyTargetCents
@@ -78,6 +79,14 @@ export function TargetCard({ overview }: { overview: SavingsOverviewDto }) {
   )
 }
 
+/** " (en cours)", " (jusqu’au 12 oct.)" for a month known in part, else "". */
+function monthSuffix(period: MonthPeriodDto, inProgress: boolean): string {
+  if (period.status !== 'partial' || period.dataUntil === null) return ''
+  return inProgress
+    ? ' (en cours)'
+    : ` (jusqu’au ${formatShortDay(period.dataUntil)})`
+}
+
 function TargetProgress({
   overview,
   target,
@@ -85,7 +94,10 @@ function TargetProgress({
   overview: SavingsOverviewDto
   target: number
 }) {
-  const current = overview.months.at(-1)!
+  // The page's month (the current one when it has data, else the month the
+  // data stops in) and how far its data goes.
+  const { period, current } = overview
+  const inProgress = period.month === overview.currentMonth
   const gap = current.netCents - target
   // Last 6 full months (fewer when the history is shorter).
   const recent = overview.months.filter((m) => m.complete).slice(-6)
@@ -96,7 +108,7 @@ function TargetProgress({
       <div className="space-y-1.5">
         <ProgressMeter
           goal="reach"
-          label={`${formatMonth(current.month)} (en cours)`}
+          label={`${formatMonth(period.month)}${monthSuffix(period, inProgress)}`}
           value={current.netCents}
           target={target}
           valueFormatter={formatCents}
@@ -116,7 +128,11 @@ function TargetProgress({
               </span>
             </>
           ) : (
-            <span>Reste {formatCents(-gap)} à épargner ce mois-ci</span>
+            <span>
+              {inProgress
+                ? `Reste ${formatCents(-gap)} à épargner ce mois-ci`
+                : `${formatCents(-gap)} sous la cible`}
+            </span>
           )}
         </p>
       </div>

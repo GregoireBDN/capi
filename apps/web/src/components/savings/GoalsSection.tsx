@@ -145,10 +145,15 @@ function GoalItem({
 
 /**
  * Savings goals: progress, deadline and monthly amount needed, projected
- * reach date at the average monthly savings. Added, changed, archived and
- * deleted in a sheet.
+ * reach date at the average monthly savings, one-offs excluded (stated in
+ * the description). Added, changed, archived and deleted in a sheet.
  */
-export function GoalsSection() {
+export function GoalsSection({
+  projectionAverageCents,
+}: {
+  /** Average the projections use (6 full months, one-offs excluded). */
+  projectionAverageCents: number | null
+}) {
   const id = useId()
   const [showArchived, setShowArchived] = useState(false)
   const goals = useQuery(savingsGoalsQuery(showArchived))
@@ -167,7 +172,9 @@ export function GoalsSection() {
       <CardHeader>
         <CardTitle>Objectifs</CardTitle>
         <CardDescription>
-          Projection à votre épargne moyenne des 6 derniers mois, hors ponctuel.
+          {projectionAverageCents === null
+            ? 'Pas encore de mois complet pour projeter vos objectifs.'
+            : `Projetés à ${formatCents(projectionAverageCents)} par mois : votre épargne moyenne des 6 derniers mois complets, sans les revenus et dépenses ponctuels.`}
         </CardDescription>
         <CardAction>
           <Button size="sm" onClick={() => open()}>

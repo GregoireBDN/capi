@@ -163,8 +163,9 @@ function StatCard({
       {...props}
     >
       {/* Narrow tile (several abreast): figures stacked, sparkline below.
-          Wide tile (one per row on a phone): figures on the left, sparkline
-          on the right, so the tile stays wider than tall. */}
+          Wide tile (one per row on a phone): the label across the tile, then
+          the figures on the left and the sparkline on the right, so the tile
+          stays wider than tall and the label keeps its whole width. */}
       <div
         data-slot="stat-card-body"
         className={cn(
@@ -173,19 +174,25 @@ function StatCard({
             '@min-[260px]:grid-cols-[minmax(0,1fr)_minmax(4rem,35%)] @min-[260px]:items-center @min-[260px]:gap-x-1',
         )}
       >
-        <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex items-center gap-2 px-3 text-sm text-muted-foreground">
-            {icon ? (
-              <span aria-hidden className="shrink-0 [&_svg]:size-4">
-                {icon}
-              </span>
-            ) : null}
-            <span className="min-w-0 truncate">{label}</span>
-          </div>
+        {/* Labels wrap rather than truncate: a phone shows them whole. */}
+        <div
+          className={cn(
+            'flex min-w-0 items-center gap-2 px-3 text-sm text-muted-foreground',
+            hasTrend && '@min-[260px]:col-span-2',
+          )}
+        >
+          {icon ? (
+            <span aria-hidden className="shrink-0 [&_svg]:size-4">
+              {icon}
+            </span>
+          ) : null}
+          <span className="min-w-0 break-words">{label}</span>
+        </div>
 
+        <div className="flex min-w-0 flex-col gap-2">
           {/* Amounts never break (narrow no-break spaces): the size follows the
               tile's width so "-12 345,67 €" fits two tiles abreast on a phone. */}
-          <div className="px-3 text-[clamp(0.75rem,13cqi,1.25rem)] leading-tight font-semibold tracking-tight break-words text-foreground sm:text-2xl">
+          <div className="px-3 text-[clamp(0.75rem,13cqi,1.25rem)] leading-tight font-semibold tracking-tight break-words text-foreground tabular-nums sm:text-2xl">
             {valueFormatter(value)}
           </div>
 
