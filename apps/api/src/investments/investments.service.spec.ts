@@ -7,6 +7,7 @@ import { AccountsService } from '#/accounts/accounts.service'
 import { DashboardService } from '#/dashboard/dashboard.service'
 import * as schema from '#/database/schema'
 import type { AccountType } from '#/database/schema/domain-enums'
+import { BudgetsService } from '#/budgets/budgets.service'
 import { TransactionsService } from '#/transactions/transactions.service'
 import { InvestmentsService } from './investments.service'
 
@@ -56,6 +57,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             database,
             accounts,
             new TransactionsService(database),
+            new BudgetsService(database),
           )
           const account = async (type: AccountType, name = `Test ${type}`) =>
             (await accounts.create({ name, type, institution: 'Test bank' })).id

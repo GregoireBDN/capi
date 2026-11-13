@@ -9,6 +9,7 @@ import { DashboardService } from '#/dashboard/dashboard.service'
 import * as schema from '#/database/schema'
 import type { AccountType } from '#/database/schema/domain-enums'
 import { InvestmentsService } from '#/investments/investments.service'
+import { BudgetsService } from '#/budgets/budgets.service'
 import { TransactionsService } from '#/transactions/transactions.service'
 import { CryptoPricesService } from './crypto-prices.service'
 import { CryptoService } from './crypto.service'
@@ -86,6 +87,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
           database,
           accounts,
           new TransactionsService(database),
+          new BudgetsService(database),
         )
         const account = async (type: AccountType = 'crypto', name = 'Wallet') =>
           (await accounts.create({ name, type, institution: 'Test' })).id

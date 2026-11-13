@@ -7,9 +7,12 @@ import { AccountsService } from '#/accounts/accounts.service'
 import * as schema from '#/database/schema'
 import {
   balanceSnapshotsTable,
+  categoriesTable,
+  importsTable,
   type InsertTransaction,
   transactionsTable,
 } from '#/database/schema'
+import { BudgetsService } from '#/budgets/budgets.service'
 import { TransactionsService } from '#/transactions/transactions.service'
 import { DashboardService, savingsRate } from './dashboard.service'
 import {
@@ -61,6 +64,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             database,
             accounts,
             new TransactionsService(database),
+            new BudgetsService(database),
           )
           await fn({ tx, accounts, dashboard })
           throw ROLLBACK
@@ -508,6 +512,186 @@ describe.skipIf(!process.env.DATABASE_URL)(
         expect(november.period).toMatchObject({
           status: 'empty',
           previousUntil: null,
+        })
+      })
+    })
+
+    describe('review', () => {
+      async function expenseCategories(tx: Tx) {
+        const rows = await tx
+          .insert(categoriesTable)
+          .values([
+            { slug: 'test_groceries', name: 'Test courses', kind: 'expense' },
+            { slug: 'test_leisure', name: 'Test sorties', kind: 'expense' },
+          ])
+          .returning()
+        return { groceries: rows[0].id, leisure: rows[1].id }
+      }
+
+      it('reviews a closed month against its budget, split into saved and the rest', async () => {
+        await inRollback(async ({ tx, accounts, dashboard }) => {
+          const { groceries, leisure } = await expenseCategories(tx)
+          const checking = await accounts.create({
+            name: 'Test checking',
+            type: 'checking',
+          })
+          const livret = await accounts.create({
+            name: 'Test savings',
+            type: 'savings',
+          })
+          const pea = await accounts.create({
+            name: 'Test PEA',
+            type: 'brokerage',
+          })
+          await tx.insert(transactionsTable).values([
+            transaction(checking.id, {
+              bookingDate: '2026-09-30',
+              amountCents: 300_000,
+              kind: 'income',
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-10-01',
+              amountCents: 250_000,
+              kind: 'income',
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-10-05',
+              amountCents: -30_000,
+              categoryId: groceries,
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-10-10',
+              amountCents: -5_000,
+              categoryId: leisure,
+            }),
+            // A move to the savings account: neither saved nor spent.
+            transaction(checking.id, {
+              bookingDate: '2026-10-31',
+              amountCents: -50_000,
+              kind: 'transfer',
+            }),
+            transaction(livret.id, {
+              bookingDate: '2026-10-31',
+              amountCents: 50_000,
+              kind: 'transfer',
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-11-02',
+              amountCents: -1_000,
+            }),
+          ])
+          await tx.insert(balanceSnapshotsTable).values([
+            { accountId: pea.id, date: '2026-09-30', valueCents: 100_000 },
+            { accountId: pea.id, date: '2026-10-31', valueCents: 104_000 },
+          ])
+          const budgets = new BudgetsService({ db: tx } as never)
+          await budgets.upsert(groceries, '2026-10', {
+            monthlyTargetCents: 20_000,
+          })
+          await budgets.upsert(leisure, '2026-10', {
+            monthlyTargetCents: 15_000,
+          })
+
+          const review = await dashboard.review(undefined, { now: NOW })
+
+          expect(review).toMatchObject({
+            month: '2026-10',
+            nextMonth: '2026-11',
+            closed: true,
+            missing: [],
+          })
+          expect(review.period.status).toBe('complete')
+          // 400 000 at the end of September, 619 000 at the end of October:
+          // 215 000 saved from the month's income and expenses, 4 000 from
+          // the PEA's value.
+          expect(review.netWorth).toEqual({
+            date: '2026-10-31',
+            endCents: 619_000,
+            previousDate: '2026-09-30',
+            previousEndCents: 400_000,
+            changeCents: 219_000,
+            savedCents: 215_000,
+            otherCents: 4_000,
+          })
+          expect(review.flow).toMatchObject({
+            incomeCents: 250_000,
+            expenseCents: -35_000,
+            netCents: 215_000,
+            savingsRate: 215_000 / 250_000,
+          })
+          expect(review.budget).toMatchObject({
+            budgetCount: 2,
+            targetCents: 35_000,
+            spentCents: 35_000,
+            remainingCents: 0,
+            unbudgetedCents: 0,
+          })
+          expect(review.budget.over).toEqual([
+            expect.objectContaining({
+              categoryId: groceries,
+              targetCents: 20_000,
+              spentCents: 30_000,
+              gapCents: 10_000,
+            }),
+          ])
+          expect(review.budget.under).toEqual([
+            expect.objectContaining({ categoryId: leisure, gapCents: -10_000 }),
+          ])
+        })
+      })
+
+      it('lists the accounts not updated up to the month end', async () => {
+        await inRollback(async ({ tx, accounts, dashboard }) => {
+          const checking = await accounts.create({
+            name: 'Test checking',
+            type: 'checking',
+          })
+          const livret = await accounts.create({
+            name: 'Test savings',
+            type: 'savings',
+          })
+          const pea = await accounts.create({
+            name: 'Test PEA',
+            type: 'brokerage',
+          })
+          await tx
+            .insert(transactionsTable)
+            .values([transaction(checking.id, { bookingDate: '2026-10-20' })])
+          await tx
+            .insert(balanceSnapshotsTable)
+            .values([
+              { accountId: pea.id, date: '2026-09-30', valueCents: 100_000 },
+            ])
+          const now = new Date('2026-11-02T08:00:00Z')
+
+          const review = await dashboard.review(undefined, { now })
+          expect(review.month).toBe('2026-10')
+          expect(review.closed).toBe(false)
+          expect(review.period).toMatchObject({
+            status: 'partial',
+            throughDay: 20,
+          })
+          expect(review.budget).toMatchObject({ budgetCount: 0, over: [] })
+          expect(review.missing.map((a) => [a.name, a.lastDate])).toEqual([
+            ['Test checking', '2026-10-20'],
+            ['Test savings', null],
+            ['Test PEA', '2026-09-30'],
+          ])
+
+          // A savings statement exported after the month end covers it,
+          // even without any movement.
+          await tx.insert(importsTable).values({
+            accountId: livret.id,
+            source: 'cic_csv',
+            fileName: 'test.csv',
+            fileHash: 'c'.repeat(64),
+            committedAt: new Date('2026-11-01T09:00:00Z'),
+          })
+          const again = await dashboard.review('2026-10', { now })
+          expect(again.missing.map((a) => a.name)).toEqual([
+            'Test checking',
+            'Test PEA',
+          ])
         })
       })
     })

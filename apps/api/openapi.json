@@ -2478,6 +2478,52 @@
         ]
       }
     },
+    "/api/dashboard/review": {
+      "get": {
+        "description": "Net worth at the month end and its change (saved from the month’s cash flow vs the rest), income, expenses and savings rate (transfers excluded), spending vs the budget with the categories furthest above and below their target, and the accounts not updated up to the month end. Default month: the previous calendar month in Europe/Paris.",
+        "operationId": "DashboardController_review",
+        "parameters": [
+          {
+            "description": "Calendar month (YYYY-MM) to review. Default: the previous calendar month in Europe/Paris.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthReviewDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid month."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Review of a month against its budget",
+        "tags": [
+          "Dashboard"
+        ]
+      }
+    },
     "/api/spending/by-category": {
       "get": {
         "description": "Every `expense` transaction of the month, netted per category (refunds reduce their category), with the previous month and the average of the previous full months. Transfers never count; one-offs only with `includeOneOffs=true`.",
@@ -6819,6 +6865,239 @@
         },
         "required": [
           "months"
+        ]
+      },
+      "ReviewNetWorthDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-10-31"
+          },
+          "endCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Net worth at the end of `date`, in cents (non-archived accounts, as the dashboard history); null when no account had a balance then."
+          },
+          "previousDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-09-30"
+          },
+          "previousEndCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Net worth at the end of the month before, in cents."
+          },
+          "changeCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "`endCents` − `previousEndCents`; null when either is unknown. Always `savedCents` + `otherCents`."
+          },
+          "savedCents": {
+            "type": "integer",
+            "description": "Part of the change saved from the month’s cash flow: income + expenses (transfers between own accounts never count)."
+          },
+          "otherCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "The rest of the change: market moves and value updates of investments, and anything not booked as income or expense. Null when the change is unknown."
+          }
+        },
+        "required": [
+          "date",
+          "endCents",
+          "previousDate",
+          "previousEndCents",
+          "changeCents",
+          "savedCents",
+          "otherCents"
+        ]
+      },
+      "ReviewCategoryDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetCents": {
+            "type": "integer",
+            "description": "Monthly target in cents."
+          },
+          "spentCents": {
+            "type": "integer",
+            "description": "Spent in the month, cents."
+          },
+          "gapCents": {
+            "type": "integer",
+            "description": "`spentCents` − `targetCents`: positive above the target."
+          }
+        },
+        "required": [
+          "categoryId",
+          "slug",
+          "name",
+          "color",
+          "targetCents",
+          "spentCents",
+          "gapCents"
+        ]
+      },
+      "ReviewBudgetDto": {
+        "type": "object",
+        "properties": {
+          "budgetCount": {
+            "type": "integer",
+            "description": "Budgeted categories in the month (0: no budget set)."
+          },
+          "targetCents": {
+            "type": "integer",
+            "description": "Sum of the targets, cents."
+          },
+          "spentCents": {
+            "type": "integer",
+            "description": "Spent on the budgeted categories, cents."
+          },
+          "remainingCents": {
+            "type": "integer",
+            "description": "`targetCents` − `spentCents` (negative when over)."
+          },
+          "unbudgetedCents": {
+            "type": "integer",
+            "description": "Spent outside the budgeted categories, cents."
+          },
+          "over": {
+            "description": "Up to 3 categories above their target, furthest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewCategoryDto"
+            }
+          },
+          "under": {
+            "description": "Up to 3 categories below their target, furthest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewCategoryDto"
+            }
+          }
+        },
+        "required": [
+          "budgetCount",
+          "targetCents",
+          "spentCents",
+          "remainingCents",
+          "unbudgetedCents",
+          "over",
+          "under"
+        ]
+      },
+      "ReviewMissingAccountDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountType"
+              }
+            ]
+          },
+          "group": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountGroup"
+              }
+            ]
+          },
+          "lastDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Date the account’s data goes up to (cash: latest transaction or statement end; investments: latest value), null when it has none."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "group",
+          "lastDate"
+        ]
+      },
+      "MonthReviewDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "example": "2026-10",
+            "description": "YYYY-MM."
+          },
+          "nextMonth": {
+            "type": "string",
+            "example": "2026-11",
+            "description": "The month after, whose budget the review prepares."
+          },
+          "period": {
+            "description": "How far the month’s data goes.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MonthPeriodDto"
+              }
+            ]
+          },
+          "closed": {
+            "type": "boolean",
+            "description": "Every account is up to date for the month: data reaches the month end and no account is missing."
+          },
+          "netWorth": {
+            "$ref": "#/components/schemas/ReviewNetWorthDto"
+          },
+          "flow": {
+            "description": "Income, expenses, net saved and savings rate of the month (transfers excluded).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MonthFlowDto"
+              }
+            ]
+          },
+          "budget": {
+            "$ref": "#/components/schemas/ReviewBudgetDto"
+          },
+          "missing": {
+            "description": "Non-archived accounts not updated up to the month end: cash accounts whose data stops before it (and with no import committed after it), investment accounts without a value on or after it.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewMissingAccountDto"
+            }
+          }
+        },
+        "required": [
+          "month",
+          "nextMonth",
+          "period",
+          "closed",
+          "netWorth",
+          "flow",
+          "budget",
+          "missing"
         ]
       },
       "CategorySpendingDto": {

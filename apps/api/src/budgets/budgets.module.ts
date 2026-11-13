@@ -8,5 +8,6 @@ import { BudgetsService } from './budgets.service'
   imports: [AuthModule],
   controllers: [BudgetsController],
   providers: [BudgetsService],
+  exports: [BudgetsService],
 })
 export class BudgetsModule {}

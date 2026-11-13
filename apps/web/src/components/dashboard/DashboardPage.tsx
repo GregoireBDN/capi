@@ -25,8 +25,7 @@ import {
 import type { ReactNode } from 'react'
 import { NewAccountButton } from '#/components/accounts/AccountEditor'
 import { PageHeader } from '#/components/app-shell/PageHeader'
-import { MonthSwitcher } from '#/components/MonthSwitcher'
-import { currentMonth } from '#/lib/calendar'
+import { currentMonth, shiftMonth } from '#/lib/calendar'
 import { plural } from '#/lib/plural'
 import { ROUTES } from '#/lib/routes'
 import { AccountsList } from './AccountsList'
@@ -36,8 +35,12 @@ import {
   NetWorthChart,
 } from './DashboardCharts'
 import { ForecastCard } from './ForecastCard'
-import { KpiTiles } from './KpiTiles'
-import { dashboardHistoryQuery, dashboardOverviewQuery } from './queries'
+import { MonthReview } from './MonthReview'
+import {
+  dashboardHistoryQuery,
+  dashboardOverviewQuery,
+  dashboardReviewQuery,
+} from './queries'
 
 function ImportButton() {
   return (
@@ -72,12 +75,7 @@ function ReviewCallout({ count }: { count: number }) {
 function OverviewSkeleton() {
   return (
     <div className="space-y-6" aria-busy="true" aria-label="Chargement">
-      <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @2xl:grid-cols-4">
-        <Skeleton className="h-24 rounded-xl @lg:col-span-2 @2xl:col-span-4" />
-        {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-24 rounded-xl" />
-        ))}
-      </div>
+      <Skeleton className="h-96 rounded-xl" />
       <Card>
         <CardHeader>
           <Skeleton className="h-5 w-32" />
@@ -92,32 +90,76 @@ function OverviewSkeleton() {
   )
 }
 
+/** The month review, its loading and error states. */
+function ReviewSection({
+  month,
+  onMonthChange,
+}: {
+  month?: string
+  onMonthChange?: (month: string | undefined) => void
+}) {
+  const review = useQuery(dashboardReviewQuery(month))
+  const latest = shiftMonth(currentMonth(), -1)
+  if (review.data) {
+    return (
+      <MonthReview
+        review={review.data}
+        latest={latest}
+        // The previous month is the default: kept out of the URL.
+        onMonthChange={(target) =>
+          onMonthChange?.(target === latest ? undefined : target)
+        }
+      />
+    )
+  }
+  if (review.isError) {
+    return (
+      <Alert>
+        <AlertTitle>Bilan indisponible.</AlertTitle>
+        <AlertDescription>
+          <Button
+            outline
+            variant="secondary"
+            size="sm"
+            onClick={() => void review.refetch()}
+          >
+            Réessayer
+          </Button>
+        </AlertDescription>
+      </Alert>
+    )
+  }
+  return (
+    <Skeleton
+      className="h-96 rounded-xl"
+      aria-busy="true"
+      aria-label="Chargement du bilan"
+    />
+  )
+}
+
 interface DashboardPageProps {
-  /** Month from the URL; absent = the month the API picks. */
+  /** Month reviewed, from the URL; absent = the previous calendar month. */
   month?: string
   onMonthChange?: (month: string | undefined) => void
   banner?: ReactNode
 }
 
 /**
- * The financial situation at a glance: net worth and its trend, the month
- * (the current one when it has data, else the last one with data, see
- * `MonthPeriodDto`) against the same days of the previous one, monthly cash
- * flow, the accounts with their balances, and what needs attention.
+ * The financial situation at a glance, read once a month: the review of the
+ * last month (net worth and what moved it, spending against the budget,
+ * accounts left to update), then the end-of-month forecast, the history
+ * charts and the accounts with their balances.
  */
 export function DashboardPage({
   month,
   onMonthChange,
   banner,
 }: DashboardPageProps) {
-  const overview = useQuery(dashboardOverviewQuery(month))
+  const overview = useQuery(dashboardOverviewQuery())
   const history = useQuery(dashboardHistoryQuery())
   const data = overview.data
   const isEmpty = data !== undefined && data.accounts.length === 0
-  const today = currentMonth()
-  // The default month stays out of the URL.
-  const go = (target: string) =>
-    onMonthChange?.(target === data?.period.defaultMonth ? undefined : target)
 
   return (
     <div className="@container space-y-6">
@@ -130,14 +172,6 @@ export function DashboardPage({
       </div>
 
       {banner}
-
-      {data && !isEmpty && (
-        <MonthSwitcher
-          month={data.period.month}
-          today={today}
-          onMonthChange={go}
-        />
-      )}
 
       {overview.isPending && <OverviewSkeleton />}
 
@@ -186,7 +220,10 @@ export function DashboardPage({
         <>
           {data.reviewCount > 0 && <ReviewCallout count={data.reviewCount} />}
 
-          <KpiTiles overview={data} history={history.data?.months} />
+          <div className="grid items-start gap-4 @4xl:grid-cols-2">
+            <ReviewSection month={month} onMonthChange={onMonthChange} />
+            <AccountsList accounts={data.accounts} netWorth={data.netWorth} />
+          </div>
 
           <ForecastCard />
 
@@ -210,8 +247,6 @@ export function DashboardPage({
               </>
             )}
           </div>
-
-          <AccountsList accounts={data.accounts} netWorth={data.netWorth} />
         </>
       )}
     </div>
