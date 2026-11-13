@@ -14,6 +14,7 @@ import {
 } from '@finances/ui'
 import {
   ChevronsUpDownIcon,
+  ListOrderedIcon,
   LogOutIcon,
   MonitorIcon,
   MoonIcon,
@@ -97,6 +98,12 @@ export function UserMenu({ user, onNavigate }: UserMenuProps) {
               <Link to={ROUTES.categories} onClick={onNavigate}>
                 <TagsIcon />
                 Catégories
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to={ROUTES.rules} onClick={onNavigate}>
+                <ListOrderedIcon />
+                Règles
               </Link>
             </DropdownMenuItem>
 

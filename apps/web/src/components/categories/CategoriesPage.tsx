@@ -8,6 +8,7 @@ import {
   Skeleton,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { PlusIcon } from 'lucide-react'
 import { useState } from 'react'
 import type { CategoryDto } from '#/api/types.gen'
@@ -17,6 +18,7 @@ import {
   TRANSACTION_KINDS,
 } from '#/components/transactions/labels'
 import { categoriesQuery } from '#/lib/queries'
+import { ROUTES } from '#/lib/routes'
 import { AddCategorySheet } from './AddCategorySheet'
 import { CategoryRow } from './CategoryRow'
 import { DeleteCategoryDialog } from './DeleteCategoryDialog'
@@ -64,6 +66,14 @@ export function CategoriesPage() {
         title="Catégories"
         description="Touchez un nom pour le renommer, une pastille pour changer sa couleur. Une catégorie archivée n’est plus proposée mais garde son historique."
       />
+      <p className="text-sm">
+        <Link
+          to={ROUTES.rules}
+          className="text-primary underline-offset-4 hover:underline"
+        >
+          Règles de classement
+        </Link>
+      </p>
 
       {categories.isPending && (
         <div className="space-y-3">

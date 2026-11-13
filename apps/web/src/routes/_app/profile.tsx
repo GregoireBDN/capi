@@ -278,10 +278,11 @@ function ProfilePage() {
             Catégories
           </CardTitle>
           <CardDescription>
-            Ajoutez, renommez, recolorez, archivez ou supprimez vos catégories.
+            Ajoutez, renommez, recolorez, archivez ou supprimez vos catégories,
+            et réglez les règles qui classent vos opérations.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-2 sm:flex-row">
           <Button
             variant="secondary"
             outline
@@ -290,6 +291,17 @@ function ProfilePage() {
           >
             <Link to={ROUTES.categories}>
               Gérer les catégories
+              <ChevronRightIcon />
+            </Link>
+          </Button>
+          <Button
+            variant="secondary"
+            outline
+            className="w-full sm:w-auto"
+            asChild
+          >
+            <Link to={ROUTES.rules}>
+              Gérer les règles
               <ChevronRightIcon />
             </Link>
           </Button>

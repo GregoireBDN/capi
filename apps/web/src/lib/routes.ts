@@ -14,5 +14,6 @@ export const ROUTES = {
   import: '/import',
   profile: '/profile',
   categories: '/categories',
+  rules: '/rules',
   verifyEmail: '/verify-email',
 } as const
