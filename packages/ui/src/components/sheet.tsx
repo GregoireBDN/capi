@@ -5,6 +5,11 @@ import { Dialog as SheetPrimitive } from 'radix-ui'
 import * as React from 'react'
 
 import { Button } from './button'
+import {
+  isKeyboardOpen,
+  keyboardInset,
+  revealEndScrollTop,
+} from './sheet-keyboard'
 import { cn } from '../lib/utils'
 
 /* ============================================================================
@@ -116,23 +121,48 @@ function SheetOverlay({ className, ...props }: SheetOverlayProps) {
  * visual viewport shrinks, the layout viewport does not); Android Chrome
  * resizes the page instead (`interactive-widget=resizes-content`), so the
  * inset stays 0 there.
+ *
+ * While the keyboard is open the element also gets `data-keyboard-open`: it
+ * keeps room at its end for the iOS accessory bar that floats over the page
+ * (see `KEYBOARD_ACCESSORY_ALLOWANCE_PX`), and, when the keyboard has just
+ * opened on one of its fields, it scrolls its end (the actions) into view as
+ * far as the focused field allows.
  */
 function useKeyboardInset(node: HTMLElement | null, enabled: boolean) {
   React.useEffect(() => {
     const viewport =
       typeof window === 'undefined' ? null : window.visualViewport
     if (!enabled || !node || !viewport) return
+    let wasOpen = false
+    let frame = 0
+    const revealEnd = () => {
+      const focused = document.activeElement
+      if (!(focused instanceof HTMLElement) || !node.contains(focused)) return
+      node.scrollTop = revealEndScrollTop({
+        scrollTop: node.scrollTop,
+        scrollHeight: node.scrollHeight,
+        clientHeight: node.clientHeight,
+        focusTop:
+          focused.getBoundingClientRect().top -
+          node.getBoundingClientRect().top,
+      })
+    }
     const update = () => {
-      const inset = Math.max(
-        0,
-        window.innerHeight - viewport.height - viewport.offsetTop,
-      )
-      node.style.setProperty('--keyboard-inset', `${Math.round(inset)}px`)
+      const inset = keyboardInset(window.innerHeight, viewport)
+      node.style.setProperty('--keyboard-inset', `${inset}px`)
+      const open = isKeyboardOpen(inset)
+      node.toggleAttribute('data-keyboard-open', open)
+      if (open && !wasOpen) {
+        cancelAnimationFrame(frame)
+        frame = requestAnimationFrame(revealEnd)
+      }
+      wasOpen = open
     }
     update()
     viewport.addEventListener('resize', update)
     viewport.addEventListener('scroll', update)
     return () => {
+      cancelAnimationFrame(frame)
       viewport.removeEventListener('resize', update)
       viewport.removeEventListener('scroll', update)
     }
@@ -194,6 +224,9 @@ function SheetContent({
             'data-[side=bottom]:px-[env(safe-area-inset-left)]',
             // Above the on-screen keyboard (see useKeyboardInset)
             'data-[side=bottom]:bottom-(--keyboard-inset,0px)',
+            // ...and its floating accessory bar on iOS: the home indicator is
+            // under the keyboard then. 84px = KEYBOARD_ACCESSORY_ALLOWANCE_PX.
+            'data-[side=bottom]:data-keyboard-open:pb-[84px]',
 
             // Side: Left
             'data-[side=left]:inset-y-0',
