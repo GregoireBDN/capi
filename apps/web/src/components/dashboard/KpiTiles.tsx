@@ -25,7 +25,8 @@ function trendOf(values: (number | null)[] | undefined): number[] | undefined {
  * while it has no data). Expenses are shown as positive amounts where a
  * rise is unfavourable; transfers are never part of any of them. The month
  * tiles use short labels (the month switcher names the month) and whole
- * euros so two fit side by side on a phone with the app's large root font.
+ * euros. One tile per row on a phone (figures left, sparkline right), side
+ * by side from a tablet width on.
  */
 export function KpiTiles({ overview, history }: KpiTilesProps) {
   const { netWorth, period, current, previous } = overview
@@ -40,9 +41,9 @@ export function KpiTiles({ overview, history }: KpiTilesProps) {
 
   return (
     <section aria-label="Chiffres clés" className="space-y-2">
-      <div className="grid grid-cols-2 gap-2 @2xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @2xl:grid-cols-4">
         <StatCard
-          className="col-span-2 @2xl:col-span-4"
+          className="@lg:col-span-2 @2xl:col-span-4"
           label="Patrimoine net"
           icon={<LandmarkIcon />}
           value={netWorth.totalCents}

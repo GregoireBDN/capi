@@ -72,10 +72,10 @@ function ReviewCallout({ count }: { count: number }) {
 function OverviewSkeleton() {
   return (
     <div className="space-y-6" aria-busy="true" aria-label="Chargement">
-      <div className="grid grid-cols-2 gap-2 @2xl:grid-cols-4">
-        <Skeleton className="col-span-2 h-36 rounded-xl @2xl:col-span-4" />
+      <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @2xl:grid-cols-4">
+        <Skeleton className="h-24 rounded-xl @lg:col-span-2 @2xl:col-span-4" />
         {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-28 rounded-xl" />
+          <Skeleton key={i} className="h-24 rounded-xl" />
         ))}
       </div>
       <Card>

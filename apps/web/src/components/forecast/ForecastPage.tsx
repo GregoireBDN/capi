@@ -58,9 +58,9 @@ function ForecastTiles({ forecast }: { forecast: ForecastDto }) {
     forecast.expectedDebitsCents + (forecast.estimate?.totalCents ?? 0)
   return (
     <section aria-label="Chiffres clés" className="space-y-2">
-      <div className="grid grid-cols-2 gap-2 @2xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @2xl:grid-cols-4">
         <StatCard
-          className="col-span-2 @2xl:col-span-4"
+          className="@lg:col-span-2 @2xl:col-span-4"
           label="Solde prévu fin de mois"
           icon={<TrendingUpIcon />}
           value={forecast.endBalanceCents}
@@ -149,8 +149,8 @@ function NoAccount() {
 function ForecastSkeleton() {
   return (
     <div className="space-y-4" aria-busy="true" aria-label="Chargement">
-      <div className="grid grid-cols-2 gap-2">
-        <Skeleton className="col-span-2 h-32 rounded-xl" />
+      <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2">
+        <Skeleton className="h-24 rounded-xl @lg:col-span-2" />
         {[0, 1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-24 rounded-xl" />
         ))}

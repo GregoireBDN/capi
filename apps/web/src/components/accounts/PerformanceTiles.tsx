@@ -49,9 +49,9 @@ export function PerformanceTiles({
 
   return (
     <section aria-label="Chiffres clés" className="space-y-2">
-      <div className="grid grid-cols-2 gap-2 @2xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @2xl:grid-cols-4">
         <StatCard
-          className="col-span-2 @2xl:col-span-4"
+          className="@lg:col-span-2 @2xl:col-span-4"
           label="Valeur"
           value={valueCents}
           previousValue={sincePrevious?.fromValueCents}

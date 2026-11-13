@@ -113,7 +113,8 @@ const TONE_TEXT: Record<DeltaTone, string> = {
  * StatCard
  * KPI tile: label, headline value, delta vs the previous period (arrow, sign
  * and favourable/unfavourable colour — never colour alone) and an optional
- * sparkline.
+ * sparkline: beside the figures when the tile is at least 260px wide (one
+ * tile per row on a phone), below them when it is narrower (tiles abreast).
  *
  * @example
  * <StatCard label="Dépenses du mois" value={245000} previousValue={231000} increaseIsGood={false} />
@@ -152,67 +153,83 @@ function StatCard({
         ? TrendingDownIcon
         : MinusIcon
 
+  const hasTrend = trend !== undefined && trend.length > 1
+
   return (
     <Card
       data-slot="stat-card"
       size="sm"
-      className={cn('@container min-w-0 gap-2', className)}
+      className={cn('@container min-w-0', className)}
       {...props}
     >
-      <div className="flex items-center gap-2 px-3 text-sm text-muted-foreground">
-        {icon ? (
-          <span aria-hidden className="shrink-0 [&_svg]:size-4">
-            {icon}
-          </span>
+      {/* Narrow tile (several abreast): figures stacked, sparkline below.
+          Wide tile (one per row on a phone): figures on the left, sparkline
+          on the right, so the tile stays wider than tall. */}
+      <div
+        data-slot="stat-card-body"
+        className={cn(
+          'grid gap-2',
+          hasTrend &&
+            '@min-[260px]:grid-cols-[minmax(0,1fr)_minmax(4rem,35%)] @min-[260px]:items-center @min-[260px]:gap-x-1',
+        )}
+      >
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex items-center gap-2 px-3 text-sm text-muted-foreground">
+            {icon ? (
+              <span aria-hidden className="shrink-0 [&_svg]:size-4">
+                {icon}
+              </span>
+            ) : null}
+            <span className="min-w-0 truncate">{label}</span>
+          </div>
+
+          {/* Amounts never break (narrow no-break spaces): the size follows the
+              tile's width so "-12 345,67 €" fits two tiles abreast on a phone. */}
+          <div className="px-3 text-[clamp(0.75rem,13cqi,1.25rem)] leading-tight font-semibold tracking-tight break-words text-foreground sm:text-2xl">
+            {valueFormatter(value)}
+          </div>
+
+          {delta ? (
+            // The delta never breaks either: its arrow and gap scale with the
+            // text (em) so "+123 456,78 €" fits a 320px phone's half-width tile.
+            <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 px-3 text-[clamp(0.55rem,9cqi,0.75rem)]">
+              <span
+                data-slot="stat-card-delta"
+                data-tone={delta.tone}
+                className={cn(
+                  'inline-flex items-center gap-[0.3em] font-medium whitespace-nowrap tabular-nums',
+                  TONE_CLASSES[delta.tone],
+                )}
+              >
+                <DeltaIcon aria-hidden className="size-[1.1em] shrink-0" />
+                <span className="sr-only">
+                  {DIRECTION_TEXT[delta.direction]}
+                  {TONE_TEXT[delta.tone]} :{' '}
+                </span>
+                {delta.text}
+              </span>
+              <span className="text-muted-foreground">{comparisonLabel}</span>
+            </p>
+          ) : note ? (
+            <p
+              data-slot="stat-card-note"
+              className="px-3 text-[clamp(0.55rem,9cqi,0.75rem)] text-muted-foreground"
+            >
+              {note}
+            </p>
+          ) : null}
+        </div>
+
+        {hasTrend ? (
+          <Sparkline
+            data={trend}
+            label={
+              trendLabel ?? `${label} : tendance sur ${trend.length} périodes`
+            }
+            className="mt-1 px-3 @min-[260px]:mt-0 @min-[260px]:pl-0"
+          />
         ) : null}
-        <span className="min-w-0 truncate">{label}</span>
       </div>
-
-      {/* Amounts never break (narrow no-break spaces): the size follows the
-          tile's width so "-12 345,67 €" fits two tiles abreast on a phone. */}
-      <div className="px-3 text-[clamp(0.75rem,13cqi,1.25rem)] leading-tight font-semibold tracking-tight break-words text-foreground sm:text-2xl">
-        {valueFormatter(value)}
-      </div>
-
-      {delta ? (
-        // The delta never breaks either: its arrow and gap scale with the
-        // text (em) so "+123 456,78 €" fits a 320px phone's half-width tile.
-        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 px-3 text-[clamp(0.55rem,9cqi,0.75rem)]">
-          <span
-            data-slot="stat-card-delta"
-            data-tone={delta.tone}
-            className={cn(
-              'inline-flex items-center gap-[0.3em] font-medium whitespace-nowrap tabular-nums',
-              TONE_CLASSES[delta.tone],
-            )}
-          >
-            <DeltaIcon aria-hidden className="size-[1.1em] shrink-0" />
-            <span className="sr-only">
-              {DIRECTION_TEXT[delta.direction]}
-              {TONE_TEXT[delta.tone]} :{' '}
-            </span>
-            {delta.text}
-          </span>
-          <span className="text-muted-foreground">{comparisonLabel}</span>
-        </p>
-      ) : note ? (
-        <p
-          data-slot="stat-card-note"
-          className="px-3 text-[clamp(0.55rem,9cqi,0.75rem)] text-muted-foreground"
-        >
-          {note}
-        </p>
-      ) : null}
-
-      {trend && trend.length > 1 ? (
-        <Sparkline
-          data={trend}
-          label={
-            trendLabel ?? `${label} : tendance sur ${trend.length} périodes`
-          }
-          className="mt-1 px-3"
-        />
-      ) : null}
     </Card>
   )
 }

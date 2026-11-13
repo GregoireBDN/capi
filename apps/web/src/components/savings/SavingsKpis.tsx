@@ -13,8 +13,8 @@ export const AVERAGE_TILE_MONTHS = 6
  * figures: the current month when it has data, else the last month with
  * data; vs the same first days of the month before while it is in
  * progress), the 6-month average and the savings stock (savings accounts +
- * investments) with the investments' gain. Whole euros so two tiles fit
- * side by side on a phone.
+ * investments) with the investments' gain. One tile per row on a phone,
+ * side by side from a tablet width on.
  */
 export function SavingsKpis({ overview }: { overview: SavingsOverviewDto }) {
   const {
@@ -32,7 +32,7 @@ export function SavingsKpis({ overview }: { overview: SavingsOverviewDto }) {
 
   return (
     <section aria-label="Chiffres clés" className="space-y-2">
-      <div className="grid grid-cols-2 gap-2 @2xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @2xl:grid-cols-4">
         <StatCard
           label="Épargne du mois"
           value={current.netCents}

@@ -202,9 +202,9 @@ export function HoldingsPanel({
       )}
 
       {data.holdings.length > 0 && (
-        <div className="grid grid-cols-2 gap-2 @2xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @2xl:grid-cols-3">
           <StatCard
-            className="col-span-2 @2xl:col-span-1"
+            className="@lg:col-span-2 @2xl:col-span-1"
             label="Valeur des avoirs"
             value={totals.valueCents}
           />
