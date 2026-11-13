@@ -18,7 +18,12 @@ export function AppTopBar() {
   // here rather than leave it on a control that is sliding out of view.
   const wasOpen = useRef(open)
   useEffect(() => {
-    if (!open && wasOpen.current && !isMobile) {
+    const changed = !open && wasOpen.current && !isMobile
+    wasOpen.current = open
+    if (!changed) return
+    // Next frame: the new styles (top bar shown or hidden, column visible
+    // again) must be applied before the target can take the focus.
+    const frame = requestAnimationFrame(() => {
       const active = document.activeElement
       if (
         !active ||
@@ -26,8 +31,8 @@ export function AppTopBar() {
         active.closest('[data-slot=sidebar]')
       )
         menuButton.current?.focus()
-    }
-    wasOpen.current = open
+    })
+    return () => cancelAnimationFrame(frame)
   }, [open, isMobile])
 
   return (

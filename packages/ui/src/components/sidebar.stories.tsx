@@ -244,15 +244,18 @@ export const Hidden: Story = {
     )
     await expect(sidebar).toHaveAttribute('data-state', 'collapsed')
     await expect(sidebar).toHaveAttribute('data-collapsible', 'offcanvas')
-    // Slid out and out of the tab order.
+    // Slid out of view and out of the tab order.
+    await expect(container(canvasElement)).toHaveAttribute('inert')
     await waitFor(() =>
-      expect(getComputedStyle(container(canvasElement)).visibility).toBe(
-        'hidden',
-      ),
+      expect(
+        container(canvasElement).getBoundingClientRect().right,
+      ).toBeLessThanOrEqual(0),
     )
     await expect(
-      canvas.queryByRole('button', { name: 'Budget' }),
-    ).not.toBeInTheDocument()
+      canvas
+        .getByRole('button', { name: 'Budget', hidden: true })
+        .closest('[inert]'),
+    ).not.toBeNull()
 
     const inset = canvasElement.ownerDocument.querySelector(
       '[data-slot=sidebar-inset]',
@@ -265,6 +268,7 @@ export const Hidden: Story = {
       canvas.getByRole('button', { name: 'Afficher ou masquer le menu' }),
     )
     await expect(sidebar).toHaveAttribute('data-state', 'expanded')
+    await expect(container(canvasElement)).not.toHaveAttribute('inert')
     await expect(
       await canvas.findByRole('button', { name: 'Budget' }),
     ).toBeVisible()

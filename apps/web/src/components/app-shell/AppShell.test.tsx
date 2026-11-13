@@ -6,7 +6,7 @@ import {
   createRoute,
   createRouter,
 } from '@tanstack/react-router'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarInset, SidebarProvider } from '@finances/ui'
@@ -106,14 +106,18 @@ describe('App shell sidebar (≥ md)', () => {
     expect(topBar()).not.toHaveClass('md:hidden')
     const menuButton = screen.getByRole('button', { name: 'Ouvrir le menu' })
     expect(menuButton).toHaveAttribute('aria-expanded', 'false')
-    expect(menuButton).toHaveFocus()
+    await waitFor(() => expect(menuButton).toHaveFocus())
     expect(parseSidebarOpen(document.cookie)).toBe(false)
 
     await ue.click(menuButton)
 
     expect(sidebar()).toHaveAttribute('data-state', 'expanded')
     expect(topBar()).toHaveClass('md:hidden')
-    expect(screen.getByRole('button', { name: 'Masquer le menu' })).toHaveFocus()
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Masquer le menu' }),
+      ).toHaveFocus(),
+    )
     expect(parseSidebarOpen(document.cookie)).toBe(true)
   })
 

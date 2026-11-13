@@ -37,12 +37,21 @@ export function AppSidebar({ user }: { user: UserDto }) {
   // focus on the matching control instead of losing it to the page.
   const wasOpen = useRef(open)
   useEffect(() => {
-    if (open && !wasOpen.current && !isMobile) {
-      const active = document.activeElement
-      if (!active || active === document.body || active.closest('[data-app-top-bar]'))
-        hideButton.current?.focus()
-    }
+    const changed = open && !wasOpen.current && !isMobile
     wasOpen.current = open
+    if (!changed) return
+    // Next frame: the new styles (top bar shown or hidden, column visible
+    // again) must be applied before the target can take the focus.
+    const frame = requestAnimationFrame(() => {
+      const active = document.activeElement
+      if (
+        !active ||
+        active === document.body ||
+        active.closest('[data-app-top-bar]')
+      )
+        hideButton.current?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
   }, [open, isMobile])
 
   // The mobile sheet stays open across navigations unless we close it.

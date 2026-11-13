@@ -477,6 +477,11 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         data-side={side}
+        // Offcanvas, hidden: the column is slid out of view; `inert` also
+        // takes its links out of the tab order and of the accessibility tree
+        // (not `visibility`, which children with their own transitions would
+        // keep animating, so a control could not take the focus at once).
+        inert={state === 'collapsed' && collapsible === 'offcanvas'}
         className={cn(
           [
             // Positioning: `inset-y-0` alone sets the height, so the column
@@ -491,13 +496,8 @@ function Sidebar({
             // Layout
             'w-(--sidebar-width)',
 
-            // Transitions (visibility flips at the end when hiding, at the
-            // start when showing)
-            'transition-[left,right,width,visibility] duration-200 ease-linear motion-reduce:transition-none',
-
-            // Offcanvas: once slid out, take the links out of the tab order
-            // and of the accessibility tree.
-            'group-data-[collapsible=offcanvas]:invisible',
+            // Transitions
+            'transition-[left,right,width] duration-200 ease-linear motion-reduce:transition-none',
 
             // Side: Left
             'data-[side=left]:left-0',
