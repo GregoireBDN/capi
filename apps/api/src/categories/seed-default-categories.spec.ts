@@ -4,7 +4,10 @@ import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import * as schema from '#/database/schema'
-import { categoriesTable } from './categories.schema'
+import {
+  categoriesTable,
+  deletedDefaultCategoriesTable,
+} from './categories.schema'
 import { DEFAULT_CATEGORIES } from './default-categories'
 import { seedDefaultCategories } from './seed-default-categories'
 
@@ -39,6 +42,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await db
         .transaction(async (tx) => {
           await tx.delete(categoriesTable)
+          await tx.delete(deletedDefaultCategoriesTable)
           await fn(tx)
           throw ROLLBACK
         })
@@ -54,6 +58,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         expect(result).toEqual({
           inserted: DEFAULT_CATEGORIES.length,
           skipped: 0,
+          deleted: 0,
         })
         const rows = await tx
           .select({
@@ -81,6 +86,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         expect(result).toEqual({
           inserted: 0,
           skipped: DEFAULT_CATEGORIES.length,
+          deleted: 0,
         })
         const rows = await tx.select().from(categoriesTable)
         expect(rows).toHaveLength(DEFAULT_CATEGORIES.length)
@@ -88,6 +94,58 @@ describe.skipIf(!process.env.DATABASE_URL)(
           name: 'Supermarché',
           color: '#000000',
         })
+      })
+    })
+
+    it('keeps custom and archived categories as they are', async () => {
+      await withEmptyCategories(async (tx) => {
+        await seedDefaultCategories(tx)
+        const archivedAt = new Date('2026-02-01T10:00:00Z')
+        await tx
+          .update(categoriesTable)
+          .set({ archivedAt, kind: 'transfer' })
+          .where(eq(categoriesTable.slug, 'gifts'))
+        await tx.insert(categoriesTable).values({
+          slug: 'test_custom',
+          name: 'Test custom',
+          kind: 'expense',
+          color: '#2a78d6',
+        })
+
+        const result = await seedDefaultCategories(tx)
+
+        expect(result).toEqual({
+          inserted: 0,
+          skipped: DEFAULT_CATEGORIES.length,
+          deleted: 0,
+        })
+        const rows = await tx.select().from(categoriesTable)
+        expect(rows).toHaveLength(DEFAULT_CATEGORIES.length + 1)
+        expect(rows.find((r) => r.slug === 'gifts')).toMatchObject({
+          archivedAt,
+          kind: 'transfer',
+        })
+        expect(rows.find((r) => r.slug === 'test_custom')).toMatchObject({
+          name: 'Test custom',
+        })
+      })
+    })
+
+    it('does not re-create a default category the user deleted', async () => {
+      await withEmptyCategories(async (tx) => {
+        await seedDefaultCategories(tx)
+        await tx.delete(categoriesTable).where(eq(categoriesTable.slug, 'rent'))
+        await tx.insert(deletedDefaultCategoriesTable).values({ slug: 'rent' })
+
+        const result = await seedDefaultCategories(tx)
+
+        expect(result).toEqual({
+          inserted: 0,
+          skipped: DEFAULT_CATEGORIES.length - 1,
+          deleted: 1,
+        })
+        const rows = await tx.select().from(categoriesTable)
+        expect(rows.map((r) => r.slug)).not.toContain('rent')
       })
     })
 
@@ -101,6 +159,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         expect(result).toEqual({
           inserted: 1,
           skipped: DEFAULT_CATEGORIES.length - 1,
+          deleted: 0,
         })
         const rows = await tx.select().from(categoriesTable)
         expect(rows).toHaveLength(DEFAULT_CATEGORIES.length)

@@ -743,5 +743,28 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
         expect((await service.suggest('2026-08', 3)).items).toEqual([])
       })
     })
+
+    it('leaves out archived categories unless they have a target', async () => {
+      await withFixture(async ({ tx, service, checking, groceries }) => {
+        await insert(tx, [
+          transaction(checking, {
+            categoryId: groceries,
+            bookingDate: '2026-10-05',
+            amountCents: -20_049,
+          }),
+        ])
+        await tx
+          .update(categoriesTable)
+          .set({ archivedAt: new Date('2026-11-01T00:00:00Z') })
+          .where(eq(categoriesTable.id, groceries))
+
+        expect((await service.suggest('2026-11', 3)).items).toEqual([])
+
+        await service.upsert(groceries, '2026-10', {
+          monthlyTargetCents: 15_000,
+        })
+        expect((await service.suggest('2026-11', 3)).items).toHaveLength(1)
+      })
+    })
   })
 })

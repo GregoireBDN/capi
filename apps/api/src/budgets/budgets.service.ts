@@ -43,6 +43,8 @@ interface CategoryInfo {
   name: string
   color: string | null
   kind: 'expense' | 'income' | 'transfer'
+  /** Archived categories get no suggestion unless they have a target. */
+  archivedAt: Date | null
 }
 
 /** Spending of one category (null = uncategorized) in one month. */
@@ -305,7 +307,9 @@ export class BudgetsService {
     const totals = new Map<string, number>()
     for (const row of spending) {
       if (row.categoryId === null) continue
-      if (categories.get(row.categoryId)?.kind !== 'expense') continue
+      const category = categories.get(row.categoryId)
+      if (category?.kind !== 'expense') continue
+      if (category.archivedAt && !targets.get(row.categoryId)) continue
       totals.set(
         row.categoryId,
         (totals.get(row.categoryId) ?? 0) + row.spentExcludingOneOffsCents,
@@ -489,6 +493,7 @@ export class BudgetsService {
         name: categoriesTable.name,
         color: categoriesTable.color,
         kind: categoriesTable.kind,
+        archivedAt: categoriesTable.archivedAt,
       })
       .from(categoriesTable)
     return new Map(rows.map((row) => [row.id, row]))

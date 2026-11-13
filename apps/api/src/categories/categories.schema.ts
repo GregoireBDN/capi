@@ -9,6 +9,7 @@ import {
   integer,
   pgEnum,
   pgTable,
+  timestamp,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
@@ -27,7 +28,24 @@ export const categoriesTable = pgTable('categories', {
   /** Category group: the kind given to transactions filed under this category. */
   kind: transactionKindEnum('kind').notNull(),
   color: varchar('color', { length: 16 }),
+  /**
+   * Set when the user archives the category: it leaves the pickers but keeps
+   * its transactions, rules, budgets and its place in statistics.
+   */
+  archivedAt: timestamp('archived_at'),
 })
+
+/**
+ * Slugs of default categories the user deleted, so that `pnpm db:seed` (run on
+ * every deploy) does not create them again.
+ */
+export const deletedDefaultCategoriesTable = pgTable(
+  'deleted_default_categories',
+  {
+    ...coreColumns,
+    slug: varchar('slug', { length: 64 }).notNull().unique(),
+  },
+)
 
 /**
  * Ordered categorization rules: the first enabled rule (lowest `position`)
