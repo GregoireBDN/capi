@@ -25,7 +25,8 @@ import { PanelLeftIcon } from 'lucide-react'
  * ========================================================================= */
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state'
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
+// One year: hiding the sidebar is a lasting preference, not a session one.
+const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 const SIDEBAR_WIDTH = '16rem'
 const SIDEBAR_WIDTH_MOBILE = '18rem'
 const SIDEBAR_WIDTH_ICON = '3rem'
@@ -269,7 +270,9 @@ function SidebarProvider({
       }
 
       // Persist sidebar state to cookies
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+      // (read back during SSR by the app to pass `defaultOpen`, so the first
+      // render already has the right state)
+      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}; samesite=lax`
     },
     [setOpenProp, open],
   )
@@ -413,8 +416,8 @@ function Sidebar({
           side={side}
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetTitle>Menu</SheetTitle>
+            <SheetDescription>Navigation de l’application.</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>
@@ -476,17 +479,25 @@ function Sidebar({
         data-side={side}
         className={cn(
           [
-            // Positioning
+            // Positioning: `inset-y-0` alone sets the height, so the column
+            // follows the visible area (no `h-svh`: in iOS Safari landscape
+            // the small viewport is far shorter than the screen once the
+            // toolbars collapse, and the column stopped above the bottom).
             'fixed inset-y-0 z-10',
 
             // Visibility
             'hidden md:flex',
 
             // Layout
-            'h-svh w-(--sidebar-width)',
+            'w-(--sidebar-width)',
 
-            // Transitions
-            'transition-[left,right,width] duration-200 ease-linear',
+            // Transitions (visibility flips at the end when hiding, at the
+            // start when showing)
+            'transition-[left,right,width,visibility] duration-200 ease-linear motion-reduce:transition-none',
+
+            // Offcanvas: once slid out, take the links out of the tab order
+            // and of the accessibility tree.
+            'group-data-[collapsible=offcanvas]:invisible',
 
             // Side: Left
             'data-[side=left]:left-0',
@@ -568,7 +579,7 @@ function SidebarTrigger({ className, onClick, ...props }: SidebarTriggerProps) {
       {...props}
     >
       <PanelLeftIcon />
-      <span className="sr-only">Toggle Sidebar</span>
+      <span className="sr-only">Afficher ou masquer le menu</span>
     </Button>
   )
 }
@@ -585,10 +596,10 @@ function SidebarRail({ className, ...props }: SidebarRailProps) {
     <button
       data-sidebar="rail"
       data-slot="sidebar-rail"
-      aria-label="Toggle Sidebar"
+      aria-label="Afficher ou masquer le menu"
       tabIndex={-1}
       onClick={toggleSidebar}
-      title="Toggle Sidebar"
+      title="Afficher ou masquer le menu"
       className={cn(
         [
           // Positioning
@@ -771,33 +782,108 @@ function SidebarSeparator({ className, ...props }: SidebarSeparatorProps) {
 }
 
 /**
+ * Which ends of a vertical scroller have content scrolled out of view, kept up
+ * to date on scroll and on resize (of the scroller and of its content).
+ */
+function useVerticalOverflow(scroller: HTMLDivElement | null) {
+  const [overflow, setOverflow] = React.useState({ top: false, bottom: false })
+
+  React.useEffect(() => {
+    if (!scroller) return
+    const update = () => {
+      const max = scroller.scrollHeight - scroller.clientHeight
+      const next = {
+        top: scroller.scrollTop > 1,
+        bottom: scroller.scrollTop < max - 1,
+      }
+      setOverflow((prev) =>
+        prev.top === next.top && prev.bottom === next.bottom ? prev : next,
+      )
+    }
+    update()
+    scroller.addEventListener('scroll', update, { passive: true })
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
+    observer?.observe(scroller)
+    for (const child of scroller.children) observer?.observe(child)
+    return () => {
+      scroller.removeEventListener('scroll', update)
+      observer?.disconnect()
+    }
+  }, [scroller])
+
+  return overflow
+}
+
+/**
  * Sidebar Content
- * Scrollable content area of sidebar
+ * Scrollable content area of sidebar, between the header and the footer.
+ * When the entries don't fit (e.g. a phone held sideways), a fade on the
+ * clipped edge(s) shows that the menu scrolls; the scrollbar is kept.
  * Automatically hides overflow in collapsed icon mode
  */
-function SidebarContent({ className, ...props }: SidebarContentProps) {
+function SidebarContent({ className, ref, ...props }: SidebarContentProps) {
+  const [scroller, setScroller] = React.useState<HTMLDivElement | null>(null)
+  const overflow = useVerticalOverflow(scroller)
+  const setRefs = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      setScroller(node)
+      if (typeof ref === 'function') ref(node)
+      else if (ref) ref.current = node
+    },
+    [ref],
+  )
+  const fade =
+    'pointer-events-none absolute inset-x-0 z-10 h-8 from-sidebar to-transparent transition-opacity motion-reduce:transition-none group-data-[collapsible=icon]:hidden'
+
   return (
     <div
-      data-slot="sidebar-content"
-      data-sidebar="content"
-      className={cn(
-        [
-          // Layout
-          'flex min-h-0 flex-1 flex-col',
+      data-slot="sidebar-content-frame"
+      className="relative flex min-h-0 flex-1 flex-col"
+    >
+      <div
+        ref={setRefs}
+        data-slot="sidebar-content"
+        data-sidebar="content"
+        data-overflow-top={overflow.top || undefined}
+        data-overflow-bottom={overflow.bottom || undefined}
+        className={cn(
+          [
+            // Layout
+            'flex min-h-0 flex-1 flex-col',
 
-          // Spacing
-          'gap-0',
+            // Spacing
+            'gap-0',
 
-          // Scrolling
-          'no-scrollbar overflow-auto',
+            // Scrolling
+            'overflow-auto overscroll-contain',
 
-          // Collapsed Icon Mode
-          'group-data-[collapsible=icon]:overflow-hidden',
-        ].join(' '),
-        className,
-      )}
-      {...props}
-    />
+            // Collapsed Icon Mode
+            'group-data-[collapsible=icon]:overflow-hidden',
+          ].join(' '),
+          className,
+        )}
+        {...props}
+      />
+      <div
+        aria-hidden
+        data-slot="sidebar-content-fade"
+        className={cn(
+          fade,
+          'top-0 bg-gradient-to-b',
+          overflow.top ? 'opacity-100' : 'opacity-0',
+        )}
+      />
+      <div
+        aria-hidden
+        data-slot="sidebar-content-fade"
+        className={cn(
+          fade,
+          'bottom-0 bg-gradient-to-t',
+          overflow.bottom ? 'opacity-100' : 'opacity-0',
+        )}
+      />
+    </div>
   )
 }
 
@@ -1392,6 +1478,7 @@ function SidebarMenuSubButton({
  * ========================================================================= */
 
 export {
+  SIDEBAR_COOKIE_NAME,
   Sidebar,
   SidebarContent,
   SidebarFooter,

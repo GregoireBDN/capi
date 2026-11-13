@@ -1,5 +1,8 @@
+import { useEffect, useRef } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
+import { PanelLeftCloseIcon } from 'lucide-react'
 import {
+  Button,
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -19,14 +22,28 @@ import { NAV_ITEMS, isNavItemActive } from './nav-items'
 import { UserMenu } from './UserMenu'
 
 /**
- * Sidebar of the authenticated layout. On desktop it is a fixed column; below
- * the `md` breakpoint the `@finances/ui` Sidebar renders it inside a sheet,
- * opened from the layout's top bar.
+ * Sidebar of the authenticated layout. From `md` up it is a fixed column the
+ * owner can hide ("Masquer le menu", or Cmd/Ctrl+B) and bring back from the
+ * top bar; below `md` the `@finances/ui` Sidebar renders it inside a sheet,
+ * opened from the top bar.
  */
 export function AppSidebar({ user }: { user: UserDto }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const { isMobile, setOpenMobile } = useSidebar()
+  const { isMobile, open, setOpen, setOpenMobile } = useSidebar()
   const reviewCount = useReviewCount()
+  const hideButton = useRef<HTMLButtonElement>(null)
+
+  // Shown again from the top bar, whose button then disappears: keep the
+  // focus on the matching control instead of losing it to the page.
+  const wasOpen = useRef(open)
+  useEffect(() => {
+    if (open && !wasOpen.current && !isMobile) {
+      const active = document.activeElement
+      if (!active || active === document.body || active.closest('[data-app-top-bar]'))
+        hideButton.current?.focus()
+    }
+    wasOpen.current = open
+  }, [open, isMobile])
 
   // The mobile sheet stays open across navigations unless we close it.
   const closeMobileSheet = () => {
@@ -34,18 +51,32 @@ export function AppSidebar({ user }: { user: UserDto }) {
   }
 
   return (
-    <Sidebar>
-      <SidebarHeader>
+    <Sidebar collapsible="offcanvas">
+      <SidebarHeader className="flex-row items-center justify-between">
         <Link
           to={ROUTES.dashboard}
           onClick={closeMobileSheet}
-          className="flex items-center gap-2 rounded-md p-2 no-underline"
+          className="flex min-w-0 items-center gap-2 rounded-md p-2 no-underline"
         >
           <img src="/logo.svg" alt="" className="size-7" />
-          <span className="text-base font-semibold tracking-tight">
+          <span className="truncate text-base font-semibold tracking-tight">
             Finances
           </span>
         </Link>
+        {!isMobile && (
+          <Button
+            ref={hideButton}
+            type="button"
+            variant="secondary"
+            ghost
+            iconOnly
+            aria-label="Masquer le menu"
+            title="Masquer le menu"
+            onClick={() => setOpen(false)}
+          >
+            <PanelLeftCloseIcon />
+          </Button>
+        )}
       </SidebarHeader>
 
       <SidebarContent>
