@@ -52,9 +52,9 @@ function isEmptyOverview(overview: SavingsOverviewDto) {
 
 /**
  * Savings at a glance: the month's net savings and rate (the dashboard's
- * figures, transfers excluded), recent averages, the monthly target, a
- * 12-month chart, what is put aside on savings and investment accounts, and
- * the goals with their projection.
+ * figures, transfers excluded), the average monthly savings, the monthly
+ * target, a 12-month chart, what is put aside on savings and investment
+ * accounts, and the goals with their projection.
  */
 export function SavingsPage() {
   const overview = useQuery(savingsOverviewQuery())
@@ -131,7 +131,7 @@ export function SavingsPage() {
 
       {data && (
         <div className="grid gap-4 @4xl:grid-cols-2">
-          <GoalsSection />
+          <GoalsSection projectionAverageCents={data.projectionAverageCents} />
           {!isEmpty && <SavingsStock stock={data.stock} />}
         </div>
       )}

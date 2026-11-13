@@ -276,10 +276,16 @@ describe('SavingsPage', () => {
 
     expect(await screen.findByText('Épargne du mois')).toBeInTheDocument()
     expect(screen.getByText('Novembre 2026')).toBeInTheDocument()
-    expect(screen.getByText('Moy. 6 mois')).toBeInTheDocument()
-    expect(
-      screen.getByText(text('1 100,00 €'), { exact: false }),
-    ).toBeInTheDocument()
+    // One average on the tiles, named and dated.
+    const average = screen
+      .getByText('Épargne moyenne')
+      .closest('[data-slot="stat-card"]') as HTMLElement
+    expect(average).toHaveTextContent(text('350 €'))
+    expect(average).toHaveTextContent(
+      'Par mois, de sept. à oct. (2 mois complets)',
+    )
+    const kpis = screen.getByRole('region', { name: 'Chiffres clés' })
+    expect(kpis).not.toHaveTextContent(/Moy\. 6 mois|ponctuel/)
 
     // Target vs actual: 400 € saved so far, 460 € to go.
     expect(
@@ -308,6 +314,14 @@ describe('SavingsPage', () => {
         'Atteint en mai 2027 au rythme actuel, après l’échéance',
       ),
     ).toBeInTheDocument()
+    // The projections' own average (one-offs excluded) is in their section.
+    expect(
+      screen.getByText(
+        text(
+          'Projetés à 1 100,00 € par mois : votre épargne moyenne des 6 derniers mois complets, sans les revenus et dépenses ponctuels.',
+        ),
+      ),
+    ).toBeInTheDocument()
   })
 
   it('compares the month in progress with the same days of the previous one', async () => {
@@ -317,12 +331,68 @@ describe('SavingsPage', () => {
       '[data-slot="stat-card"]',
     ) as HTMLElement
     // 400 € so far vs 2 900 € over 1–2 October.
-    expect(tile).toHaveTextContent(text('-2 500,00 €'))
+    expect(tile).toHaveTextContent(text('-2 500 €'))
     expect(tile).toHaveTextContent('vs 1–2 oct.')
     expect(
       screen.getByText(
         'Mois en cours : données jusqu’au 2 nov., comparées au 1–2 oct.',
       ),
+    ).toBeInTheDocument()
+  })
+
+  it('follows a past month whose data stops before its end', async () => {
+    api.savingsControllerOverview.mockImplementation(() =>
+      ok(
+        overview({
+          period: {
+            month: '2026-10',
+            dataUntil: '2026-10-20',
+            status: 'partial',
+            throughDay: 20,
+            previousMonth: '2026-09',
+            previousUntil: '2026-09-20',
+            defaultMonth: '2026-10',
+          },
+        }),
+      ),
+    )
+    renderPage()
+
+    const tile = (await screen.findByText('Épargne du mois')).closest(
+      '[data-slot="stat-card"]',
+    ) as HTMLElement
+    expect(tile).toHaveTextContent('vs 1–20 sept.')
+    // The target follows the page's month, known until the 20th.
+    expect(
+      screen.getByRole('meter', { name: 'Octobre 2026 (jusqu’au 20 oct.)' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(text('460,00 € sous la cible'))).toBeInTheDocument()
+  })
+
+  it('names the month a complete month is compared with', async () => {
+    api.savingsControllerOverview.mockImplementation(() =>
+      ok(
+        overview({
+          period: {
+            month: '2026-10',
+            dataUntil: '2026-10-31',
+            status: 'complete',
+            throughDay: null,
+            previousMonth: '2026-09',
+            previousUntil: '2026-09-30',
+            defaultMonth: '2026-10',
+          },
+        }),
+      ),
+    )
+    renderPage()
+
+    const tile = (await screen.findByText('Épargne du mois')).closest(
+      '[data-slot="stat-card"]',
+    ) as HTMLElement
+    expect(tile).toHaveTextContent('vs septembre')
+    expect(
+      screen.getByRole('meter', { name: 'Octobre 2026' }),
     ).toBeInTheDocument()
   })
 
@@ -350,6 +420,108 @@ describe('SavingsPage', () => {
     ) as HTMLElement
     expect(rate).toHaveTextContent('—')
     expect(rate).toHaveTextContent('Pas encore de revenus ce mois-ci')
+  })
+
+  it('shows a dash and says why when a figure is not known yet', async () => {
+    api.savingsControllerOverview.mockImplementation(() =>
+      ok(
+        overview({
+          // Savings accounts but no transaction yet.
+          period: {
+            month: '2026-11',
+            dataUntil: null,
+            status: 'empty',
+            throughDay: null,
+            previousMonth: '2026-10',
+            previousUntil: '2026-10-31',
+            defaultMonth: '2026-11',
+          },
+          current: {
+            month: '2026-11',
+            until: '2026-11-30',
+            incomeCents: 0,
+            expenseCents: 0,
+            netCents: 0,
+            oneOffIncomeCents: 0,
+            oneOffExpenseCents: 0,
+            savingsRate: null,
+          },
+          months: [
+            month('2026-11', 0, {
+              incomeCents: 0,
+              expenseCents: 0,
+              savingsRate: null,
+              complete: false,
+            }),
+          ],
+          averages: [3, 6, 12].map((months) => ({
+            months,
+            monthCount: 0,
+            from: null,
+            to: null,
+            incomeCents: null,
+            expenseCents: null,
+            netCents: null,
+            netExcludingOneOffsCents: null,
+            movedCents: null,
+            savingsRate: null,
+          })),
+          projectionAverageCents: null,
+        }),
+      ),
+    )
+    renderPage()
+
+    const tile = (label: string) =>
+      screen.getByText(label).closest('[data-slot="stat-card"]') as HTMLElement
+    await screen.findByText('Épargne du mois')
+    for (const label of ['Épargne du mois', 'Taux d’épargne']) {
+      expect(tile(label)).toHaveTextContent('—')
+      expect(tile(label)).toHaveTextContent('Pas encore de données')
+      expect(tile(label)).not.toHaveTextContent(/vs /)
+    }
+    expect(tile('Épargne moyenne')).toHaveTextContent('—')
+    expect(tile('Épargne moyenne')).toHaveTextContent(
+      'Pas encore de mois complet',
+    )
+    expect(
+      screen.getByText(
+        'Pas encore de mois complet pour projeter vos objectifs.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('says when there is no savings account or investment yet', async () => {
+    api.savingsControllerOverview.mockImplementation(() =>
+      ok(
+        overview({
+          stock: {
+            totalCents: 0,
+            gainCents: null,
+            cash: { totalCents: 0, accounts: [] },
+            investments: {
+              totals: {
+                valueCents: 0,
+                contributionsCents: null,
+                gainCents: null,
+                returnRate: null,
+                withoutContributionsCount: 0,
+                withoutValueCount: 0,
+                staleCount: 0,
+              },
+              accounts: [],
+            },
+          },
+        }),
+      ),
+    )
+    renderPage()
+
+    const stock = (await screen.findByText('Mis de côté')).closest(
+      '[data-slot="stat-card"]',
+    ) as HTMLElement
+    expect(stock).toHaveTextContent('—')
+    expect(stock).toHaveTextContent('Aucun livret ni placement')
   })
 
   it('says when a goal cannot be reached at the current pace', async () => {
