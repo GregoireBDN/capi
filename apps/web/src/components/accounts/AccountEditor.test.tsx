@@ -23,6 +23,15 @@ vi.mock('#/api', () => api)
 vi.mock('sonner', () => ({ toast }))
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }))
 
+// Radix RadioGroup measures itself; jsdom has no ResizeObserver.
+if (!('ResizeObserver' in globalThis)) {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+}
+
 /** Synthetic data only. */
 const NEW_ID = 'b0000000-0000-4000-8000-000000000001'
 
@@ -128,25 +137,71 @@ describe('AccountEditor', () => {
     expect(toast.success).toHaveBeenCalledWith('Compte « PEA » créé')
   })
 
-  it('creates a crypto account without a value, to add holdings on its page', async () => {
+  it('creates a wallet crypto account named after the chosen wallet', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderWithClient(<NewAccountButton />)
 
     await user.click(screen.getByRole('button', { name: 'Nouveau compte' }))
     await user.selectOptions(await screen.findByLabelText('Type'), 'crypto')
-    expect(screen.queryByLabelText('Valeur actuelle')).not.toBeInTheDocument()
-    // A crypto account is held on an exchange or in a wallet, not at a bank.
+    // Held on an exchange or in a wallet: no bank field, no value field.
     expect(screen.queryByLabelText('Établissement')).not.toBeInTheDocument()
-    await user.type(screen.getByLabelText('Plateforme ou wallet'), 'Ledger')
+    expect(screen.queryByLabelText('Valeur actuelle')).not.toBeInTheDocument()
+
+    // Where the cryptos are must be chosen first.
+    await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
+    expect(
+      screen.getByText('Choisissez une plateforme ou un wallet'),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: /^Wallet/ }))
+    const wallet = screen.getByLabelText('Wallet')
+    expect(
+      Array.from(wallet.querySelectorAll('option')).map((o) => o.textContent),
+    ).toEqual(['Choisir…', 'Ledger', 'Trezor', 'MetaMask', 'Autre…'])
+    await user.selectOptions(wallet, 'Ledger')
+    // The name follows the wallet until it is typed.
+    expect(screen.getByLabelText('Nom')).toHaveValue('Ledger')
     await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
 
     await waitFor(() => expect(navigate).toHaveBeenCalled())
     expect(api.accountsControllerCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        body: { name: 'Crypto', type: 'crypto', institution: 'Ledger' },
+        body: { name: 'Ledger', type: 'crypto', institution: 'Ledger' },
       }),
     )
     expect(api.accountSnapshotsControllerUpsert).not.toHaveBeenCalled()
+  })
+
+  it('creates an exchange crypto account for a platform not in the list', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithClient(<NewAccountButton defaultType="crypto" />)
+
+    await user.click(screen.getByRole('button', { name: 'Nouveau compte' }))
+    await user.click(
+      await screen.findByRole('radio', { name: /^Plateforme d’échange/ }),
+    )
+    await user.selectOptions(screen.getByLabelText('Plateforme'), 'other')
+    await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
+    expect(screen.getByText('Indiquez son nom')).toBeInTheDocument()
+
+    await user.type(
+      screen.getByLabelText('Nom de la plateforme'),
+      'Plateforme test',
+    )
+    expect(screen.getByLabelText('Nom')).toHaveValue('Plateforme test')
+    await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
+
+    await waitFor(() =>
+      expect(api.accountsControllerCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: {
+            name: 'Plateforme test',
+            type: 'crypto',
+            institution: 'Plateforme test',
+          },
+        }),
+      ),
+    )
   })
 
   it('keeps a typed name when the type changes, and validates the fields', async () => {
