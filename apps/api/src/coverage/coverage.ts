@@ -49,6 +49,27 @@ export async function dataUntilByAccount(
   return result
 }
 
+/**
+ * Day (Europe/Paris) of the latest committed import per account. A statement
+ * exported after a month end covers that month even when its last row is
+ * older (a savings account without any movement).
+ */
+export async function lastImportDayByAccount(
+  executor: Executor,
+): Promise<Map<string, string>> {
+  const i = importsTable
+  const rows = await executor
+    .select({ accountId: i.accountId, last: max(i.committedAt) })
+    .from(i)
+    .where(isNotNull(i.committedAt))
+    .groupBy(i.accountId)
+  return new Map(
+    rows.flatMap(({ accountId, last }) =>
+      last === null ? [] : [[accountId, parisToday(last)] as const],
+    ),
+  )
+}
+
 /** Latest day with data, overall or for one account (see above). */
 export async function dataUntil(
   executor: Executor,

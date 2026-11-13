@@ -35,6 +35,7 @@ These rules are non-negotiable. Code, tests and reviews must enforce them.
 
 - Statements are imported by hand, so the current month is often empty or partial. Every page that compares months (dashboard, spending, savings, budget) goes through `apps/api/src/coverage/`: `dataUntil` is the latest booked transaction or committed import end (per account, overall = the latest of them), never after today in Europe/Paris; a month is `complete`, `partial` (first `throughDay` days known) or `empty`.
 - A partial month is compared **like for like**: the same first days of the previous month and of the averaged months. An empty month is not compared at all. Without a `month` parameter, endpoints show the current month when it has data, else the month the data stops in. Responses carry a `period` (`MonthPeriodDto`) and the web states it with `PeriodNote` (`lib/period.ts`).
+- The dashboard is read once a month: it opens on the review of the previous calendar month (`GET /api/dashboard/review`, `MonthReview`): net worth at the month end and its change split into saved (income + expenses) and the rest (investments and anything else), spending against the budget with the categories furthest above and below their target, and the accounts not updated up to the month end (cash: data stops before it and no import committed after it; investments: no value on or after it).
 
 ### Accounts
 

@@ -6,7 +6,12 @@ import {
   AccountsService,
   isTransactionalAccount,
 } from '#/accounts/accounts.service'
-import { dataUntilByAccount, resolvePeriod } from '#/coverage/coverage'
+import { BudgetsService } from '#/budgets/budgets.service'
+import {
+  dataUntilByAccount,
+  lastImportDayByAccount,
+  resolvePeriod,
+} from '#/coverage/coverage'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import { transactionsTable } from '#/database/schema'
@@ -22,6 +27,12 @@ import type {
   HistoryMonthDto,
   MonthFlowDto,
 } from './dto/dashboard.dto'
+import {
+  type MonthReviewDto,
+  REVIEW_TOP_CATEGORIES,
+  type ReviewCategoryDto,
+  type ReviewMissingAccountDto,
+} from './dto/review.dto'
 
 type Db = PostgresJsDatabase<typeof schema>
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
@@ -56,6 +67,7 @@ export class DashboardService {
     private readonly database: DatabaseService,
     private readonly accounts: AccountsService,
     private readonly transactions: TransactionsService,
+    private readonly budgets: BudgetsService,
   ) {}
 
   private get db(): Db {
@@ -194,6 +206,117 @@ export class DashboardService {
           netWorthCents: netWorths[i],
         }
       }),
+    }
+  }
+
+  /**
+   * Review of a month, by default the previous calendar month (Europe/Paris):
+   * the net worth at its end and how it moved (saved from the month's cash
+   * flow vs the rest: investments and anything not booked as income or
+   * expense), its income and expenses, its spending against the budget, and
+   * the accounts not updated up to its end. Transfers between the user's own
+   * accounts are never income, expense or spending.
+   */
+  async review(
+    month?: string,
+    {
+      now = new Date(),
+      executor = this.db,
+    }: { now?: Date; executor?: Executor } = {},
+  ): Promise<MonthReviewDto> {
+    const shown = month ?? shiftMonth(currentMonth(now), -1)
+    const end = monthEnd(shown)
+    const previousEnd = monthEnd(shiftMonth(shown, -1))
+    const [
+      period,
+      endAccounts,
+      previousAccounts,
+      current,
+      budget,
+      coverage,
+      imports,
+      latest,
+    ] = await Promise.all([
+      resolvePeriod(executor, shown, { now }),
+      this.accounts.list({ asOf: end }, executor),
+      this.accounts.list({ asOf: previousEnd }, executor),
+      this.monthFlow(shown, end, executor),
+      this.budgets.month(shown, executor, now),
+      dataUntilByAccount(executor, now),
+      lastImportDayByAccount(executor),
+      this.accounts.list({}, executor),
+    ])
+
+    const endCents = sumBalances(endAccounts)
+    const previousEndCents = sumBalances(previousAccounts)
+    const changeCents =
+      endCents === null || previousEndCents === null
+        ? null
+        : endCents - previousEndCents
+
+    const missing: ReviewMissingAccountDto[] = latest.flatMap((account) => {
+      const cash = isTransactionalAccount(account)
+      const lastDate = cash
+        ? (coverage.get(account.id) ?? null)
+        : account.balanceDate
+      const importedAfter = (imports.get(account.id) ?? '') > end
+      const upToDate =
+        (lastDate !== null && lastDate >= end) || (cash && importedAfter)
+      return upToDate
+        ? []
+        : [
+            {
+              id: account.id,
+              name: account.name,
+              type: account.type,
+              group: cash ? 'cash' : 'investments',
+              lastDate,
+            },
+          ]
+    })
+
+    const lines: ReviewCategoryDto[] = budget.items.map((item) => ({
+      categoryId: item.categoryId,
+      slug: item.slug,
+      name: item.name,
+      color: item.color,
+      targetCents: item.targetCents,
+      spentCents: item.spentCents,
+      gapCents: item.spentCents - item.targetCents,
+    }))
+
+    return {
+      month: shown,
+      nextMonth: shiftMonth(shown, 1),
+      period,
+      closed: period.status === 'complete' && missing.length === 0,
+      netWorth: {
+        date: end,
+        endCents,
+        previousDate: previousEnd,
+        previousEndCents,
+        changeCents,
+        savedCents: current.netCents,
+        otherCents:
+          changeCents === null ? null : changeCents - current.netCents,
+      },
+      flow: current,
+      budget: {
+        budgetCount: budget.totals.budgetCount,
+        targetCents: budget.totals.targetCents,
+        spentCents: budget.totals.spentCents,
+        remainingCents: budget.totals.remainingCents,
+        unbudgetedCents: budget.unbudgeted.totalCents,
+        over: lines
+          .filter((line) => line.gapCents > 0)
+          .sort((a, b) => b.gapCents - a.gapCents)
+          .slice(0, REVIEW_TOP_CATEGORIES),
+        under: lines
+          .filter((line) => line.gapCents < 0)
+          .sort((a, b) => a.gapCents - b.gapCents)
+          .slice(0, REVIEW_TOP_CATEGORIES),
+      },
+      missing,
     }
   }
 

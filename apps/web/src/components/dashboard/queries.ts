@@ -1,5 +1,9 @@
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
-import { dashboardControllerHistory, dashboardControllerOverview } from '#/api'
+import {
+  dashboardControllerHistory,
+  dashboardControllerOverview,
+  dashboardControllerReview,
+} from '#/api'
 import { unwrap } from '#/lib/queries'
 
 /** Months of history shown by the charts and the net worth sparkline. */
@@ -10,6 +14,8 @@ export const dashboardKeys = {
   overview: (month: string | undefined) =>
     ['dashboard', 'overview', month ?? 'default'] as const,
   history: (months: number) => ['dashboard', 'history', months] as const,
+  review: (month: string | undefined) =>
+    ['dashboard', 'review', month ?? 'default'] as const,
 }
 
 /**
@@ -41,5 +47,24 @@ export function dashboardHistoryQuery(months = HISTORY_MONTHS) {
         dashboardControllerHistory({ query: { months }, throwOnError: false }),
       ),
     staleTime: 0,
+  })
+}
+
+/**
+ * Review of `month`; without it, the previous calendar month (decided by the
+ * API in Europe/Paris).
+ */
+export function dashboardReviewQuery(month?: string) {
+  return queryOptions({
+    queryKey: dashboardKeys.review(month),
+    queryFn: () =>
+      unwrap(
+        dashboardControllerReview({
+          ...(month ? { query: { month } } : {}),
+          throwOnError: false,
+        }),
+      ),
+    staleTime: 0,
+    placeholderData: keepPreviousData,
   })
 }

@@ -17,6 +17,7 @@ import {
   DashboardOverviewQueryDto,
   HISTORY_MONTHS_DEFAULT,
 } from './dto/dashboard.dto'
+import { MonthReviewDto, MonthReviewQueryDto } from './dto/review.dto'
 
 @ApiTags('Dashboard')
 @ApiCookieAuth('token')
@@ -54,5 +55,18 @@ export class DashboardController {
     @Query() query: DashboardHistoryQueryDto,
   ): Promise<DashboardHistoryDto> {
     return this.dashboardService.history(query.months ?? HISTORY_MONTHS_DEFAULT)
+  }
+
+  @Get('review')
+  @ApiOperation({
+    summary: 'Review of a month against its budget',
+    description:
+      'Net worth at the month end and its change (saved from the month’s cash flow vs the rest), income, expenses and savings rate (transfers excluded), spending vs the budget with the categories furthest above and below their target, and the accounts not updated up to the month end. Default month: the previous calendar month in Europe/Paris.',
+  })
+  @ApiQuery({ type: MonthReviewQueryDto })
+  @ApiOkResponse({ type: MonthReviewDto })
+  @ApiBadRequestResponse({ description: 'Invalid month.' })
+  review(@Query() query: MonthReviewQueryDto): Promise<MonthReviewDto> {
+    return this.dashboardService.review(query.month)
   }
 }

@@ -15,6 +15,7 @@ import {
   transactionsTable,
 } from '#/database/schema'
 import { InvestmentsService } from '#/investments/investments.service'
+import { BudgetsService } from '#/budgets/budgets.service'
 import { TransactionsService } from '#/transactions/transactions.service'
 import {
   CreateGoalDto,
@@ -71,6 +72,7 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
           database,
           accounts,
           new TransactionsService(database),
+          new BudgetsService(database),
         )
         await fn({ tx, savings, dashboard })
         throw ROLLBACK

@@ -2,11 +2,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 import type {
   DashboardAccountDto,
   DashboardHistoryDto,
   DashboardOverviewDto,
+  MonthReviewDto,
 } from '#/api/types.gen'
 import { forecast } from '#/components/forecast/test-fixtures'
 import { formatCents } from '#/lib/money'
@@ -15,6 +24,7 @@ import { DashboardPage } from './DashboardPage'
 const api = vi.hoisted(() => ({
   dashboardControllerOverview: vi.fn(),
   dashboardControllerHistory: vi.fn(),
+  dashboardControllerReview: vi.fn(),
   forecastControllerForecast: vi.fn(),
 }))
 
@@ -52,6 +62,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 /** Testing Library collapses the narrow no-break spaces `Intl` emits. */
 const euros = (cents: number) => formatCents(cents).replace(/\s/g, ' ')
+const text = (value: string) => value.replace(/\s/g, ' ')
 
 /** Synthetic data only. */
 const checking: DashboardAccountDto = {
@@ -163,6 +174,70 @@ const history: DashboardHistoryDto = {
   ],
 }
 
+const review: MonthReviewDto = {
+  month: '2026-10',
+  nextMonth: '2026-11',
+  period: {
+    month: '2026-10',
+    dataUntil: '2026-11-03',
+    status: 'complete',
+    throughDay: null,
+    previousMonth: '2026-09',
+    previousUntil: '2026-09-30',
+    defaultMonth: '2026-11',
+  },
+  closed: true,
+  netWorth: {
+    date: '2026-10-31',
+    endCents: 4_823_000,
+    previousDate: '2026-09-30',
+    previousEndCents: 4_711_000,
+    changeCents: 112_000,
+    savedCents: 65_500,
+    otherCents: 46_500,
+  },
+  flow: {
+    month: '2026-10',
+    until: '2026-10-31',
+    incomeCents: 250_000,
+    expenseCents: -184_500,
+    netCents: 65_500,
+    oneOffIncomeCents: 0,
+    oneOffExpenseCents: 0,
+    savingsRate: 0.262,
+  },
+  budget: {
+    budgetCount: 4,
+    targetCents: 200_000,
+    spentCents: 184_500,
+    remainingCents: 15_500,
+    unbudgetedCents: 0,
+    over: [
+      {
+        categoryId: 'c0000000-0000-4000-8000-000000000001',
+        slug: 'restaurants',
+        name: 'Restaurants',
+        color: '#dc2626',
+        targetCents: 15_000,
+        spentCents: 27_000,
+        gapCents: 12_000,
+      },
+    ],
+    under: [
+      {
+        categoryId: 'c0000000-0000-4000-8000-000000000002',
+        slug: 'groceries',
+        name: 'Courses',
+        color: '#d97706',
+        targetCents: 40_000,
+        spentCents: 34_000,
+        gapCents: -6_000,
+      },
+    ],
+  },
+  missing: [],
+}
+
 function ok<T>(data: T) {
   return Promise.resolve({ data, response: { ok: true, status: 200 } })
 }
@@ -208,153 +283,132 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-11-05T10:00:00Z'))
+  api.dashboardControllerReview.mockImplementation(() => ok(review))
   api.dashboardControllerOverview.mockImplementation(() => ok(overview))
   api.dashboardControllerHistory.mockImplementation(() => ok(history))
   api.forecastControllerForecast.mockImplementation(() => ok(forecast()))
 })
 
+afterEach(() => {
+  vi.useRealTimers()
+})
+
 describe('DashboardPage', () => {
-  it('shows the key figures of the month against the previous one', async () => {
+  it('reviews the last month: net worth, what moved it, budget drift', async () => {
     renderPage()
 
-    const tiles = await screen.findByRole('region', { name: 'Chiffres clés' })
-    expect(screen.getByText('Novembre 2026')).toBeInTheDocument()
-
-    const netWorth = within(tiles)
-      .getByText('Patrimoine net')
-      .closest('[data-slot="stat-card"]') as HTMLElement
-    expect(netWorth).toHaveTextContent(euros(1_623_456))
-    expect(netWorth).toHaveTextContent(euros(23_456).replace(/^/, '+'))
-    expect(
-      within(netWorth).getByText(/depuis la fin du mois dernier/),
-    ).toBeInTheDocument()
-
-    // Expenses are shown as a positive amount; their rise is unfavourable.
-    const expenses = within(tiles)
-      .getByText('Dépenses')
-      .closest('[data-slot="stat-card"]') as HTMLElement
-    expect(expenses).toHaveTextContent(/2\s?400 €/)
-    expect(
-      expenses.querySelector('[data-slot="stat-card-delta"]'),
-    ).toHaveAttribute('data-tone', 'bad')
-
-    const saved = within(tiles)
-      .getByText('Épargne')
-      .closest('[data-slot="stat-card"]') as HTMLElement
-    expect(saved).toHaveTextContent(/600 €/)
-    expect(
-      saved.querySelector('[data-slot="stat-card-delta"]'),
-    ).toHaveAttribute('data-tone', 'bad')
-
-    const rate = within(tiles)
-      .getByText('% épargné')
-      .closest('[data-slot="stat-card"]') as HTMLElement
-    expect(rate).toHaveTextContent('20 %'.replace(/\s/g, ' '))
-    expect(rate).toHaveTextContent('-13,3 pts')
-
-    expect(
-      within(tiles).getByText(/Dont ponctuel ce mois-ci/),
-    ).toHaveTextContent(`dépenses ${euros(40_000)}`)
-  })
-
-  it('compares a month in progress with the same days of the previous one', async () => {
-    api.dashboardControllerOverview.mockImplementation(() =>
-      ok({
-        ...overview,
-        period: {
-          ...overview.period,
-          dataUntil: '2026-11-03',
-          status: 'partial',
-          throughDay: 3,
-          previousUntil: '2026-10-03',
-        },
-        previous: { ...overview.previous, until: '2026-10-03' },
-      }),
-    )
-    renderPage()
-
-    const tiles = await screen.findByRole('region', { name: 'Chiffres clés' })
-    expect(within(tiles).getAllByText('vs 1–3 oct.')).toHaveLength(4)
-    expect(
-      within(tiles).getByText(
-        'Mois en cours : données jusqu’au 3 nov., comparées au 1–3 oct.',
-      ),
-    ).toBeInTheDocument()
-    // The API picks the month.
-    expect(api.dashboardControllerOverview).toHaveBeenCalledWith({
+    const card = await screen.findByRole('region', { name: 'Bilan d’octobre' })
+    expect(api.dashboardControllerReview).toHaveBeenCalledWith({
       throwOnError: false,
     })
+    expect(within(card).getByText('Complet')).toBeInTheDocument()
+    expect(card).toHaveTextContent('Patrimoine au 31 oct.')
+    expect(card).toHaveTextContent(text('48 230 €'))
+    expect(card).toHaveTextContent(text('+1 120 €'))
+    expect(card).toHaveTextContent(text('Épargné+655 € · 26,2 %'))
+    expect(card).toHaveTextContent(text('Placements et autres+465 €'))
+    expect(
+      within(card).getByRole('meter', { name: 'Dépensé' }),
+    ).toHaveAttribute('aria-valuenow', '184500')
+    expect(card).toHaveTextContent(text('Reste 155 €'))
+
+    const drift = within(card).getByRole('list', { name: 'Écarts au budget' })
+    const rows = within(drift).getAllByRole('link')
+    expect(rows[0]).toHaveTextContent(text('Restaurants120 € de trop'))
+    expect(rows[0]).toHaveAttribute(
+      'href',
+      '/transactions?month=2026-10&category=c0000000-0000-4000-8000-000000000001&kind=expense',
+    )
+    expect(rows[1]).toHaveTextContent(text('Courses60 € de marge'))
+    expect(
+      within(card).getByRole('link', {
+        name: 'Préparer le budget de novembre',
+      }),
+    ).toHaveAttribute('href', '/budget?month=2026-11')
   })
 
-  it('compares nothing while the month has no data yet', async () => {
-    api.dashboardControllerOverview.mockImplementation(() =>
+  it('says which accounts to update while the month is incomplete', async () => {
+    api.dashboardControllerReview.mockImplementation(() =>
       ok({
-        ...overview,
-        netWorth: { ...overview.netWorth, previousMonthEndCents: 1_623_456 },
-        period: {
-          ...overview.period,
-          dataUntil: '2026-10-31',
-          status: 'empty',
-          previousUntil: null,
-          defaultMonth: '2026-10',
-        },
-        current: {
-          ...overview.current,
-          incomeCents: 0,
-          expenseCents: 0,
-          netCents: 0,
-          oneOffExpenseCents: 0,
-          savingsRate: null,
-        },
+        ...review,
+        closed: false,
+        period: { ...review.period, status: 'partial', throughDay: 20 },
+        missing: [
+          {
+            id: checking.id,
+            name: 'Compte test',
+            type: 'checking',
+            group: 'cash',
+            lastDate: '2026-10-20',
+          },
+          {
+            id: pea.id,
+            name: 'PEA test',
+            type: 'brokerage',
+            group: 'investments',
+            lastDate: null,
+          },
+        ],
       }),
     )
-    renderPage(undefined, { month: '2026-11' })
+    renderPage()
 
-    const tiles = await screen.findByRole('region', { name: 'Chiffres clés' })
+    const card = await screen.findByRole('region', { name: 'Bilan d’octobre' })
+    expect(within(card).getByText('À compléter')).toBeInTheDocument()
+    const missing = within(card).getByRole('region', {
+      name: 'Comptes à mettre à jour',
+    })
+    expect(missing).toHaveTextContent('Compte testau 20 oct.')
+    expect(missing).toHaveTextContent('PEA testjamais')
     expect(
-      tiles.querySelectorAll('[data-slot="stat-card-delta"]'),
-    ).toHaveLength(0)
+      within(missing).getByRole('link', { name: /Importer/ }),
+    ).toHaveAttribute('href', '/import')
     expect(screen.queryByText(/-100/)).not.toBeInTheDocument()
-    expect(within(tiles).getAllByText('Pas encore de données')).toHaveLength(3)
-    expect(
-      within(tiles).getByText('Pas encore de revenus ce mois-ci'),
-    ).toBeInTheDocument()
-    expect(
-      within(tiles).getByText('Rien d’importé depuis la fin du mois dernier'),
-    ).toBeInTheDocument()
-    expect(
-      within(tiles).getByText(
-        'Pas encore de données en novembre : elles s’arrêtent au 31 oct.',
-      ),
-    ).toBeInTheDocument()
-    expect(api.dashboardControllerOverview).toHaveBeenCalledWith({
-      query: { month: '2026-11' },
-      throwOnError: false,
-    })
   })
 
-  it('moves between months, the default one kept out of the URL', async () => {
+  it('shows the spending alone when no budget is set', async () => {
+    api.dashboardControllerReview.mockImplementation(() =>
+      ok({
+        ...review,
+        budget: {
+          ...review.budget,
+          budgetCount: 0,
+          targetCents: 0,
+          spentCents: 0,
+          remainingCents: 0,
+          over: [],
+          under: [],
+        },
+      }),
+    )
+    renderPage()
+
+    const card = await screen.findByRole('region', { name: 'Bilan d’octobre' })
+    expect(within(card).queryByRole('meter')).not.toBeInTheDocument()
+    expect(card).toHaveTextContent(text('Dépensé, sans budget fixé1 845 €'))
+    expect(
+      within(card).getByRole('link', {
+        name: 'Préparer le budget de novembre',
+      }),
+    ).toHaveAttribute('href', '/budget?month=2026-11')
+  })
+
+  it('moves between months, the previous month kept out of the URL', async () => {
     const user = userEvent.setup()
     const onMonthChange = vi.fn()
-    api.dashboardControllerOverview.mockImplementation(() =>
-      ok({
-        ...overview,
-        period: {
-          ...overview.period,
-          month: '2026-10',
-          previousMonth: '2026-09',
-          previousUntil: '2026-09-30',
-        },
-      }),
-    )
     renderPage(undefined, { month: '2026-10', onMonthChange })
-    expect(await screen.findByText('Octobre 2026')).toBeInTheDocument()
+    await screen.findByRole('region', { name: 'Bilan d’octobre' })
 
+    // October is the latest month that can be reviewed in November.
+    expect(screen.getByRole('button', { name: 'Mois suivant' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Mois précédent' }))
     expect(onMonthChange).toHaveBeenLastCalledWith('2026-09')
-    // November is the month the API picks by default.
-    await user.click(screen.getByRole('button', { name: 'Mois suivant' }))
-    expect(onMonthChange).toHaveBeenLastCalledWith(undefined)
+    expect(api.dashboardControllerReview).toHaveBeenCalledWith({
+      query: { month: '2026-10' },
+      throwOnError: false,
+    })
   })
 
   it('lists the accounts by group with their balance and date', async () => {
@@ -397,7 +451,7 @@ describe('DashboardPage', () => {
     )
     renderPage()
 
-    await screen.findByRole('region', { name: 'Chiffres clés' })
+    await screen.findByRole('region', { name: 'Bilan d’octobre' })
     expect(screen.queryByText(/à revoir/)).not.toBeInTheDocument()
   })
 
@@ -491,7 +545,7 @@ describe('DashboardPage', () => {
       screen.getByRole('link', { name: /Importer un relevé/ }),
     ).toHaveAttribute('href', '/import')
     expect(
-      screen.queryByRole('region', { name: 'Chiffres clés' }),
+      screen.queryByRole('region', { name: /Bilan/ }),
     ).not.toBeInTheDocument()
   })
 
@@ -506,7 +560,7 @@ describe('DashboardPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Réessayer' }))
     expect(
-      await screen.findByRole('region', { name: 'Chiffres clés' }),
+      await screen.findByRole('region', { name: 'Bilan d’octobre' }),
     ).toBeInTheDocument()
   })
 })
