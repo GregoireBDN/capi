@@ -96,8 +96,8 @@ export function TransactionList({
           const heading = formatDay(group.date)
           return (
             <section key={group.date} aria-label={heading}>
-              {/* top-12: under the mobile top bar (AppTopBar, h-12) */}
-              <h2 className="bg-background/95 sticky top-12 z-[1] flex items-baseline justify-between gap-3 border-b px-3 py-1.5 text-xs font-medium backdrop-blur md:top-0">
+              {/* under the top bar (AppTopBar, h-12) when it shows */}
+              <h2 className="bg-background/95 sticky top-(--app-top-bar,3rem) z-[1] flex items-baseline justify-between gap-3 border-b px-3 py-1.5 text-xs font-medium backdrop-blur">
                 <time dateTime={group.date}>{heading}</time>
                 {group.hasTotal && (
                   <span

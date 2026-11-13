@@ -1,6 +1,20 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { HomeIcon, InboxIcon, SearchIcon, SettingsIcon } from 'lucide-react'
-import { expect } from 'storybook/test'
+import {
+  HomeIcon,
+  InboxIcon,
+  LandmarkIcon,
+  LayoutDashboardIcon,
+  ListIcon,
+  PieChartIcon,
+  PiggyBankIcon,
+  RepeatIcon,
+  SearchIcon,
+  SettingsIcon,
+  TargetIcon,
+  UploadIcon,
+} from 'lucide-react'
+import type * as React from 'react'
+import { expect, userEvent, waitFor } from 'storybook/test'
 
 import {
   Sidebar,
@@ -91,5 +105,172 @@ export const Basic: Story = {
     for (const name of ['Inbox', 'Search', 'Settings']) {
       await expect(button(name)).not.toHaveAttribute('data-active')
     }
+  },
+}
+
+/* ----------------------------------------------------------------------------
+ * Phone held sideways (844×390, the fixed column is shown from `md` up) with
+ * the app's 22px root and its nine entries: they can't all fit, so the menu
+ * scrolls between the header and the footer, with a fade on the clipped edge.
+ * ------------------------------------------------------------------------- */
+
+const appItems = [
+  { title: 'Tableau de bord', icon: LayoutDashboardIcon },
+  { title: 'Dépenses', icon: PieChartIcon },
+  { title: 'Opérations', icon: ListIcon },
+  { title: 'À revoir', icon: InboxIcon },
+  { title: 'Budget', icon: TargetIcon },
+  { title: 'Abonnements', icon: RepeatIcon },
+  { title: 'Épargne', icon: PiggyBankIcon },
+  { title: 'Comptes', icon: LandmarkIcon },
+  { title: 'Import', icon: UploadIcon },
+]
+
+function AppLikeSidebar({ defaultOpen = true }: { defaultOpen?: boolean }) {
+  return (
+    <SidebarProvider
+      defaultOpen={defaultOpen}
+      style={{ '--sidebar-width': 'min(16rem, 32vw)' } as React.CSSProperties}
+    >
+      <Sidebar>
+        <SidebarHeader>
+          <div className="flex h-11 items-center px-2 font-semibold">
+            Finances
+          </div>
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {appItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton isActive={item.title === 'Budget'}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarFooter>
+          <SidebarMenuButton size="lg">
+            <span>Compte</span>
+          </SidebarMenuButton>
+        </SidebarFooter>
+      </Sidebar>
+      <SidebarInset className="min-w-0">
+        <div className="flex items-center gap-2 border-b px-4 py-2">
+          <SidebarTrigger />
+          <span className="text-sm font-medium">Contenu</span>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
+  )
+}
+
+/** Gives the story the app's 22px root (`apps/web/src/globals.css`). */
+function withAppRoot() {
+  const root = document.documentElement
+  const previous = root.style.fontSize
+  root.style.fontSize = '22px'
+  return () => {
+    root.style.fontSize = previous
+  }
+}
+
+const PHONE_LANDSCAPE = {
+  viewport: { value: 'phoneLandscape', isRotated: false },
+} as const
+
+const container = (canvasElement: HTMLElement) => {
+  const element = canvasElement.ownerDocument.querySelector<HTMLElement>(
+    '[data-slot=sidebar-container]',
+  )
+  if (!element) throw new Error('No sidebar container')
+  return element
+}
+
+/** 844×390: the column fills the height and every entry can be scrolled to. */
+export const PhoneLandscape: Story = {
+  globals: PHONE_LANDSCAPE,
+  beforeEach: withAppRoot,
+  render: () => <AppLikeSidebar />,
+  play: async ({ canvas, canvasElement, step }) => {
+    const view = canvasElement.ownerDocument.defaultView ?? window
+    const content = canvasElement.ownerDocument.querySelector<HTMLElement>(
+      '[data-slot=sidebar-content]',
+    )
+    if (!content) throw new Error('No sidebar content')
+
+    await step('the column reaches the bottom of the screen', async () => {
+      const rect = container(canvasElement).getBoundingClientRect()
+      await expect(rect.top).toBe(0)
+      await expect(rect.bottom).toBe(view.innerHeight)
+    })
+
+    await step('the menu scrolls, with a cue at the bottom', async () => {
+      await waitFor(() =>
+        expect(content).toHaveAttribute('data-overflow-bottom', 'true'),
+      )
+      await expect(content).not.toHaveAttribute('data-overflow-top')
+      await expect(content.scrollHeight).toBeGreaterThan(content.clientHeight)
+    })
+
+    await step('the last entry can be scrolled into view', async () => {
+      const last = canvas.getByRole('button', { name: 'Import' })
+      content.scrollTop = content.scrollHeight
+      await waitFor(() =>
+        expect(content).toHaveAttribute('data-overflow-top', 'true'),
+      )
+      await expect(content).not.toHaveAttribute('data-overflow-bottom')
+      const entry = last.getBoundingClientRect()
+      const area = content.getBoundingClientRect()
+      await expect(entry.bottom).toBeLessThanOrEqual(area.bottom + 1)
+      await expect(entry.top).toBeGreaterThanOrEqual(area.top - 1)
+    })
+  },
+}
+
+/** Hidden (`collapsible="offcanvas"`): the content takes the full width. */
+export const Hidden: Story = {
+  globals: PHONE_LANDSCAPE,
+  beforeEach: withAppRoot,
+  render: () => <AppLikeSidebar defaultOpen={false} />,
+  play: async ({ canvas, canvasElement }) => {
+    const sidebar = canvasElement.ownerDocument.querySelector(
+      '[data-slot=sidebar]',
+    )
+    await expect(sidebar).toHaveAttribute('data-state', 'collapsed')
+    await expect(sidebar).toHaveAttribute('data-collapsible', 'offcanvas')
+    // Slid out of view and out of the tab order.
+    await expect(container(canvasElement)).toHaveAttribute('inert')
+    await waitFor(() =>
+      expect(
+        container(canvasElement).getBoundingClientRect().right,
+      ).toBeLessThanOrEqual(0),
+    )
+    await expect(
+      canvas
+        .getByRole('button', { name: 'Budget', hidden: true })
+        .closest('[inert]'),
+    ).not.toBeNull()
+
+    const inset = canvasElement.ownerDocument.querySelector(
+      '[data-slot=sidebar-inset]',
+    )
+    const view = canvasElement.ownerDocument.defaultView ?? window
+    await expect(inset?.getBoundingClientRect().left).toBe(0)
+    await expect(inset?.getBoundingClientRect().width).toBe(view.innerWidth)
+
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Afficher ou masquer le menu' }),
+    )
+    await expect(sidebar).toHaveAttribute('data-state', 'expanded')
+    await expect(container(canvasElement)).not.toHaveAttribute('inert')
+    await expect(
+      await canvas.findByRole('button', { name: 'Budget' }),
+    ).toBeVisible()
   },
 }

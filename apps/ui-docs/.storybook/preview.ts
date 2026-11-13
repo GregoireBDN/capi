@@ -26,6 +26,11 @@ const preview: Preview = {
           styles: { width: '375px', height: '667px' },
           type: 'mobile',
         },
+        phoneLandscape: {
+          name: 'Phone landscape (844×390)',
+          styles: { width: '844px', height: '390px' },
+          type: 'mobile',
+        },
         tablet: {
           name: 'Tablet (768)',
           styles: { width: '768px', height: '1024px' },
