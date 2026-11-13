@@ -39,6 +39,8 @@ export interface BudgetRow {
   /** Null = budget ended from `effectiveFrom` on. */
   monthlyTargetCents: number | null
   note: string | null
+  /** Envelope followed during the month; absent where it does not matter. */
+  tracked?: boolean
 }
 
 /**
@@ -69,4 +71,16 @@ export function targetsInEffect(
     }
   }
   return result
+}
+
+/**
+ * Share of `targetCents` matching `day` days out of `daysInMonth`, rounded to
+ * the cent (half up): where spending would be if it went at an even pace.
+ */
+export function paceCents(
+  targetCents: number,
+  day: number,
+  daysInMonth: number,
+): number {
+  return Math.round((targetCents * day) / daysInMonth)
 }

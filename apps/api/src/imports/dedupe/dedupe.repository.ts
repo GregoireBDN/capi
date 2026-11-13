@@ -26,7 +26,8 @@ export type DedupeExecutor = Db | Tx
  * Transactions of `accountId` booked between `from` and `to` (inclusive),
  * padded on both sides by the date tolerance of probable duplicates so rows
  * at the edges of the file can still be matched. Pass the same options as to
- * `classifyRows`.
+ * `classifyRows`. Expenses noted by hand are left out: they are not bank rows
+ * and are matched by `matchManualExpenses` instead.
  */
 export async function loadExistingForRange(
   db: DedupeExecutor,
@@ -52,6 +53,8 @@ export async function loadExistingForRange(
     .where(
       and(
         eq(transactionsTable.accountId, accountId),
+        // Expenses noted by hand are reconciled apart (`imports/reconcile/`).
+        eq(transactionsTable.manual, false),
         between(
           transactionsTable.bookingDate,
           addDays(from, -tolerance),

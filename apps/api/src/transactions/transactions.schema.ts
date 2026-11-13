@@ -51,6 +51,13 @@ export const transactionsTable = pgTable(
     isOneOff: boolean('is_one_off').notNull().default(false),
     note: text('note'),
     /**
+     * Expense noted by hand during the month (#137), before the bank export
+     * that will replace it. Never counts as imported data (`coverage/`), is
+     * left out of the dedupe of imports, and is reconciled with the matching
+     * bank row on import (`imports/reconcile/`).
+     */
+    manual: boolean('manual').notNull().default(false),
+    /**
      * Identity of the row in its source, computed by the importer. Re-importing
      * the same row yields the same hash; legitimate identical transactions on
      * the same day get distinct hashes through their occurrence index (see

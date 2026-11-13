@@ -79,6 +79,7 @@ const transactionColumns = {
   needsReview: transactionsTable.needsReview,
   isOneOff: transactionsTable.isOneOff,
   note: transactionsTable.note,
+  manual: transactionsTable.manual,
   createdAt: transactionsTable.createdAt,
   updatedAt: transactionsTable.updatedAt,
 }

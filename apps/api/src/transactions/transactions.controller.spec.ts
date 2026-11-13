@@ -17,6 +17,7 @@ import {
 } from 'vitest'
 import { JWT_GUARD_TEST_PROVIDERS } from '#/auth/guards/jwt-guard.testing'
 import { BULK_UPDATE_MAX_IDS } from './dto/transaction.dto'
+import { ManualExpensesService } from './manual-expenses.service'
 import { TransactionsController } from './transactions.controller'
 import { TransactionsService } from './transactions.service'
 
@@ -38,6 +39,11 @@ describe('TransactionsController (HTTP)', () => {
     update: vi.fn(),
     bulkUpdate: vi.fn(),
   }
+  const manual = {
+    create: vi.fn(),
+    update: vi.fn(),
+    remove: vi.fn(),
+  }
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -46,6 +52,7 @@ describe('TransactionsController (HTTP)', () => {
       providers: [
         ...JWT_GUARD_TEST_PROVIDERS,
         { provide: TransactionsService, useValue: service },
+        { provide: ManualExpensesService, useValue: manual },
       ],
     }).compile()
     app = moduleRef.createNestApplication<NestFastifyApplication>(
@@ -70,6 +77,10 @@ describe('TransactionsController (HTTP)', () => {
 
   beforeEach(() => {
     for (const fn of Object.values(service)) fn.mockReset()
+    for (const fn of Object.values(manual)) fn.mockReset()
+    manual.create.mockResolvedValue({ id: ID })
+    manual.update.mockResolvedValue({ id: ID })
+    manual.remove.mockResolvedValue(undefined)
     service.list.mockResolvedValue({ items: [], total: 0, page: 1, limit: 20 })
     service.summary.mockResolvedValue({ count: 0 })
     service.reviewCount.mockResolvedValue(3)
@@ -78,7 +89,7 @@ describe('TransactionsController (HTTP)', () => {
   })
 
   function request(
-    method: 'GET' | 'PATCH' | 'POST',
+    method: 'GET' | 'PATCH' | 'POST' | 'DELETE',
     url: string,
     payload?: object,
     headers: Record<string, string> = { cookie },
@@ -274,6 +285,97 @@ describe('TransactionsController (HTTP)', () => {
       const response = await request('POST', '/transactions/bulk-update', body)
       expect(response.statusCode).toBe(400)
       expect(service.bulkUpdate).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('manual expenses', () => {
+    it('notes an expense with only an amount and a category', async () => {
+      const response = await request('POST', '/transactions/manual', {
+        amountCents: 1250,
+        categoryId: ID,
+      })
+      expect(response.statusCode).toBe(201)
+      expect(manual.create).toHaveBeenCalledWith({
+        amountCents: 1250,
+        categoryId: ID,
+      })
+    })
+
+    it('trims the label; an empty one is no label', async () => {
+      await request('POST', '/transactions/manual', {
+        amountCents: 1250,
+        categoryId: ID,
+        label: '  Cinéma ',
+        bookingDate: '2026-11-02',
+        accountId: OTHER_ID,
+      })
+      expect(manual.create).toHaveBeenLastCalledWith({
+        amountCents: 1250,
+        categoryId: ID,
+        label: 'Cinéma',
+        bookingDate: '2026-11-02',
+        accountId: OTHER_ID,
+      })
+      await request('POST', '/transactions/manual', {
+        amountCents: 1250,
+        categoryId: ID,
+        label: '   ',
+      })
+      expect(manual.create).toHaveBeenLastCalledWith({
+        amountCents: 1250,
+        categoryId: ID,
+        label: null,
+      })
+    })
+
+    it.each<[string, object]>([
+      ['no amount', { categoryId: ID }],
+      ['a zero amount', { amountCents: 0, categoryId: ID }],
+      ['a negative amount', { amountCents: -100, categoryId: ID }],
+      ['a decimal amount', { amountCents: 12.5, categoryId: ID }],
+      ['no category', { amountCents: 100 }],
+      [
+        'a bad date',
+        { amountCents: 100, categoryId: ID, bookingDate: '2026-02-30' },
+      ],
+      [
+        'a timestamp',
+        {
+          amountCents: 100,
+          categoryId: ID,
+          bookingDate: '2026-02-03T10:00:00Z',
+        },
+      ],
+      [
+        'an unknown field',
+        { amountCents: 100, categoryId: ID, kind: 'income' },
+      ],
+    ])('rejects %s', async (_name, body) => {
+      const response = await request('POST', '/transactions/manual', body)
+      expect(response.statusCode).toBe(400)
+      expect(manual.create).not.toHaveBeenCalled()
+    })
+
+    it('edits and deletes by id', async () => {
+      const patched = await request('PATCH', `/transactions/manual/${ID}`, {
+        amountCents: 900,
+        label: null,
+      })
+      expect(patched.statusCode).toBe(200)
+      expect(manual.update).toHaveBeenCalledWith(ID, {
+        amountCents: 900,
+        label: null,
+      })
+      const deleted = await request('DELETE', `/transactions/manual/${ID}`)
+      expect(deleted.statusCode).toBe(204)
+      expect(manual.remove).toHaveBeenCalledWith(ID)
+    })
+
+    it('rejects a null amount on edit', async () => {
+      const response = await request('PATCH', `/transactions/manual/${ID}`, {
+        amountCents: null,
+      })
+      expect(response.statusCode).toBe(400)
     })
   })
 })

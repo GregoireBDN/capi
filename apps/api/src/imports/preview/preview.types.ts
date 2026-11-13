@@ -17,6 +17,15 @@ export interface ExistingTransactionSummary {
   rawLabel: string
 }
 
+/** An expense noted by hand that an incoming row replaces (#137). */
+export interface ManualExpenseSummary {
+  id: string
+  bookingDate: string
+  amountCents: number
+  rawLabel: string
+  categoryId: string | null
+}
+
 export interface PreviewRow {
   /** 0-based position among the parsed rows, in file order. */
   index: number
@@ -37,6 +46,11 @@ export interface PreviewRow {
   ruleId: string | null
   kind: TransactionKind
   needsReview: boolean
+  /**
+   * Manual expense this `new` row replaces on commit: the row keeps its
+   * category and note. Absent from previews made before #137.
+   */
+  manualMatch?: ManualExpenseSummary | null
 }
 
 export interface PreviewCounts {
@@ -54,6 +68,11 @@ export interface ImportPreviewData {
   continuity: ContinuityReport
   issues: ParseIssue[]
   rows: PreviewRow[]
+  /**
+   * Manual expenses of the period no row replaces: flagged for review on
+   * commit (see `unmatchedInPeriod`).
+   */
+  unmatchedManual?: ManualExpenseSummary[]
 }
 
 export const PREVIEW_VERSION = 1

@@ -2,6 +2,7 @@ import { applyDecorators } from '@nestjs/common'
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Transform, Type } from 'class-transformer'
 import {
+  IsBoolean,
   IsInt,
   IsOptional,
   IsString,
@@ -159,6 +160,15 @@ export class UpsertBudgetDto {
   @IsString()
   @MaxLength(BUDGET_NOTE_MAX)
   note?: string | null
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    description:
+      'Envelope: follow the category during the month on the dashboard ("Ce mois-ci"). Omitted: kept from the target in effect.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  tracked?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -183,6 +193,12 @@ export class BudgetDto {
 
   @ApiProperty({ type: String, nullable: true })
   note!: string | null
+
+  @ApiProperty({
+    type: Boolean,
+    description: 'Envelope followed during the month.',
+  })
+  tracked!: boolean
 }
 
 /** Category fields shared by the budget responses. */
@@ -212,6 +228,12 @@ export class BudgetLineDto extends BudgetCategoryFields {
 
   @ApiProperty({ type: String, nullable: true })
   note!: string | null
+
+  @ApiProperty({
+    type: Boolean,
+    description: 'Envelope followed during the month.',
+  })
+  tracked!: boolean
 
   @ApiProperty({
     type: 'integer',
@@ -454,4 +476,72 @@ export class BudgetSuggestionsDto {
     description: 'Expense categories with spending, biggest first.',
   })
   items!: BudgetSuggestionDto[]
+}
+
+export class EnvelopeDto extends BudgetCategoryFields {
+  @ApiProperty({ type: 'integer', description: 'Monthly target in cents.' })
+  targetCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Spent so far this month, in positive cents: imported and manual `expense` transactions of the category (refunds reduce it).',
+  })
+  spentCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Part of `spentCents` noted by hand, not imported yet.',
+  })
+  manualCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: '`targetCents` − `spentCents` (negative when over).',
+  })
+  remainingCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Share of the target matching the days elapsed: target × day / days in the month, rounded.',
+  })
+  paceCents!: number
+
+  @ApiProperty({
+    type: Boolean,
+    description: 'Spent more than `paceCents`: ahead of the month’s pace.',
+  })
+  aheadOfPace!: boolean
+
+  @ApiProperty(STATUS_DOC)
+  status!: BudgetStatus
+}
+
+export class EnvelopesDto {
+  @ApiProperty({
+    ...MONTH_DOC,
+    description: 'The current month in Europe/Paris.',
+  })
+  month!: string
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    description: 'Today in Europe/Paris.',
+  })
+  today!: string
+
+  @ApiProperty({ type: 'integer', example: 13 })
+  dayOfMonth!: number
+
+  @ApiProperty({ type: 'integer', example: 30 })
+  daysInMonth!: number
+
+  @ApiProperty({
+    type: [EnvelopeDto],
+    description:
+      'Budget lines followed during the month, in name order. Empty when none is.',
+  })
+  items!: EnvelopeDto[]
 }

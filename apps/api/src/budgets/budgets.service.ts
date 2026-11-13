@@ -16,6 +16,7 @@ import {
 import {
   type BudgetRow,
   budgetStatus,
+  paceCents,
   percentUsed,
   roundToEuro,
   targetsInEffect,
@@ -26,10 +27,14 @@ import {
   type BudgetLineDto,
   type BudgetMonthDto,
   type BudgetSuggestionsDto,
+  type EnvelopeDto,
+  type EnvelopesDto,
   type UnbudgetedCategoryDto,
   UNBUDGETED_TOP_COUNT,
   type UpsertBudgetDto,
 } from './dto/budget.dto'
+import { parisToday } from '#/investments/days'
+import { monthEnd } from '#/dashboard/calendar'
 import { firstDay, monthRange, shiftMonth } from './months'
 
 type Db = PostgresJsDatabase<typeof schema>
@@ -71,6 +76,7 @@ const budgetColumns = {
   effectiveFrom: budgetsTable.effectiveFrom,
   monthlyTargetCents: budgetsTable.monthlyTargetCents,
   note: budgetsTable.note,
+  tracked: budgetsTable.tracked,
 }
 
 /** `2026-11-01` → `2026-11`. */
@@ -134,6 +140,7 @@ export class BudgetsService {
         targetCents: target.monthlyTargetCents,
         effectiveFrom: toMonth(target.effectiveFrom),
         note: target.note,
+        tracked: target.tracked ?? false,
         spentCents,
         spentExcludingOneOffsCents: spent?.spentExcludingOneOffsCents ?? 0,
         remainingCents: target.monthlyTargetCents - spentCents,
@@ -196,6 +203,67 @@ export class BudgetsService {
           .slice(0, UNBUDGETED_TOP_COUNT),
       },
     }
+  }
+
+  /**
+   * The envelopes of the current month in Europe/Paris: the budget lines
+   * followed during the month (`tracked`), with what was spent so far,
+   * imported and noted by hand alike, and where an even pace would be today.
+   * Not tied to the data coverage: the point is to follow the month before
+   * its statement is imported.
+   */
+  async envelopes(
+    executor: Executor = this.db,
+    now: Date = new Date(),
+  ): Promise<EnvelopesDto> {
+    const today = parisToday(now)
+    const month = today.slice(0, 7)
+    const dayOfMonth = Number(today.slice(8, 10))
+    const daysInMonth = Number(monthEnd(month).slice(8, 10))
+    const t = transactionsTable
+    const [rows, spending, categories] = await Promise.all([
+      this.budgetRows(executor, month),
+      executor
+        .select({
+          categoryId: t.categoryId,
+          spentCents: spentSum(),
+          manualCents: spentSum(eq(t.manual, true)),
+        })
+        .from(t)
+        .where(
+          and(
+            eq(t.kind, 'expense'),
+            gte(t.bookingDate, firstDay(month)),
+            lt(t.bookingDate, firstDay(shiftMonth(month, 1))),
+          ),
+        )
+        .groupBy(t.categoryId),
+      this.categories(executor),
+    ])
+    const spentBy = new Map(spending.map((row) => [row.categoryId, row]))
+
+    const items: EnvelopeDto[] = []
+    for (const [categoryId, target] of targetsInEffect(rows, month)) {
+      const category = categories.get(categoryId)
+      if (!target.tracked || !category) continue
+      const spentCents = spentBy.get(categoryId)?.spentCents ?? 0
+      const pace = paceCents(target.monthlyTargetCents, dayOfMonth, daysInMonth)
+      items.push({
+        categoryId,
+        slug: category.slug,
+        name: category.name,
+        color: category.color,
+        targetCents: target.monthlyTargetCents,
+        spentCents,
+        manualCents: spentBy.get(categoryId)?.manualCents ?? 0,
+        remainingCents: target.monthlyTargetCents - spentCents,
+        paceCents: pace,
+        aheadOfPace: spentCents > pace,
+        status: budgetStatus(spentCents, target.monthlyTargetCents),
+      })
+    }
+    items.sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+    return { month, today, dayOfMonth, daysInMonth, items }
   }
 
   /**
@@ -348,20 +416,21 @@ export class BudgetsService {
    * Sets the target of a category from `effectiveFrom` on (upsert of that
    * month's row). Later rows are kept: a target already planned for a later
    * month still takes over from it. An omitted note is carried over from the
-   * target in effect.
+   * target in effect, and so is an omitted `tracked` flag.
    */
   upsert(
     categoryId: string,
     effectiveFrom: string,
-    dto: Pick<UpsertBudgetDto, 'monthlyTargetCents' | 'note'>,
+    dto: Pick<UpsertBudgetDto, 'monthlyTargetCents' | 'note' | 'tracked'>,
   ): Promise<BudgetDto> {
     return this.db.transaction(async (tx) => {
       await this.requireExpenseCategory(tx, categoryId)
       const start = firstDay(effectiveFrom)
       let note = dto.note
-      if (note === undefined) {
+      let tracked = dto.tracked
+      if (note === undefined || tracked === undefined) {
         const [inEffect] = await tx
-          .select({ note: budgetsTable.note })
+          .select({ note: budgetsTable.note, tracked: budgetsTable.tracked })
           .from(budgetsTable)
           .where(
             and(
@@ -371,7 +440,8 @@ export class BudgetsService {
           )
           .orderBy(sql`${budgetsTable.effectiveFrom} desc`)
           .limit(1)
-        note = inEffect?.note ?? null
+        if (note === undefined) note = inEffect?.note ?? null
+        tracked ??= inEffect?.tracked ?? false
       }
       const [row] = await tx
         .insert(budgetsTable)
@@ -380,10 +450,11 @@ export class BudgetsService {
           effectiveFrom: start,
           monthlyTargetCents: dto.monthlyTargetCents,
           note,
+          tracked,
         })
         .onConflictDoUpdate({
           target: [budgetsTable.categoryId, budgetsTable.effectiveFrom],
-          set: { monthlyTargetCents: dto.monthlyTargetCents, note },
+          set: { monthlyTargetCents: dto.monthlyTargetCents, note, tracked },
         })
         .returning(budgetColumns)
       return {
@@ -392,6 +463,7 @@ export class BudgetsService {
         effectiveFrom: toMonth(row.effectiveFrom),
         monthlyTargetCents: row.monthlyTargetCents!,
         note: row.note,
+        tracked: row.tracked,
       }
     })
   }
