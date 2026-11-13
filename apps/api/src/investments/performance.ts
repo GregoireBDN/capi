@@ -10,15 +10,16 @@ export interface SnapshotPoint {
 
 /**
  * Days after which the latest value is considered out of date, by account
- * type, from the usual statement rhythm: quarterly for a PEA, half-yearly for
- * employee savings, yearly for life insurance, monthly for the rest.
+ * type. The owner updates every account once a month, so a PEA, a life
+ * insurance or employee savings value older than a month (31 days) is due;
+ * cash accounts and crypto (valued from holdings) get a few days more.
  */
 export const STALE_AFTER_DAYS: Record<AccountType, number> = {
   checking: 45,
   savings: 45,
-  brokerage: 100,
-  life_insurance: 380,
-  employee_savings: 190,
+  brokerage: 31,
+  life_insurance: 31,
+  employee_savings: 31,
   crypto: 35,
 }
 

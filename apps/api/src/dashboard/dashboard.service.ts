@@ -13,6 +13,8 @@ import {
   resolvePeriod,
 } from '#/coverage/coverage'
 import { DatabaseService } from '#/database/database.service'
+import { daysBetween, parisToday } from '#/investments/days'
+import { STALE_AFTER_DAYS } from '#/investments/performance'
 import * as schema from '#/database/schema'
 import { transactionsTable } from '#/database/schema'
 import {
@@ -115,6 +117,7 @@ export class DashboardService {
       dataUntilByAccount(executor, now),
     ])
 
+    const today = parisToday(now)
     let cashCents = 0
     let investmentsCents = 0
     let unknownBalanceCount = 0
@@ -135,6 +138,11 @@ export class DashboardService {
           group === 'cash'
             ? (coverage.get(account.id) ?? null)
             : account.balanceDate,
+        stale:
+          group === 'investments' &&
+          account.balanceDate !== null &&
+          daysBetween(account.balanceDate, today) >
+            STALE_AFTER_DAYS[account.type],
       }
     })
 

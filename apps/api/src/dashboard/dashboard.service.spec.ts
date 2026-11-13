@@ -395,6 +395,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           balanceCents: 210_000,
           balanceDate: '2026-10-31',
           dataUntil: '2026-10-31',
+          stale: false,
         })
 
         // Same figures as the accounts list as of each month end.
@@ -403,6 +404,31 @@ describe.skipIf(!process.env.DATABASE_URL)(
           balanceCents: 30_000,
           balanceDate: '2026-09-15',
         })
+      })
+    })
+
+    it('flags investment values older than a month', async () => {
+      await inRollback(async ({ tx, accounts, dashboard }) => {
+        const create = (name: string, type: 'checking' | 'brokerage') =>
+          accounts.create({ name, type })
+        const due = await create('Test PEA due', 'brokerage')
+        const fresh = await create('Test PEA fresh', 'brokerage')
+        const empty = await create('Test PEA empty', 'brokerage')
+        const checking = await create('Test checking', 'checking')
+        await tx.insert(balanceSnapshotsTable).values([
+          // 32 and 31 days before 5 November.
+          { accountId: due.id, date: '2026-10-04', valueCents: 1_000 },
+          { accountId: fresh.id, date: '2026-10-05', valueCents: 1_000 },
+          { accountId: checking.id, date: '2026-01-31', valueCents: 1_000 },
+        ])
+
+        const overview = await dashboard.overview('2026-11', { now: NOW })
+        const stale = new Map(overview.accounts.map((a) => [a.id, a.stale]))
+        expect(stale.get(due.id)).toBe(true)
+        expect(stale.get(fresh.id)).toBe(false)
+        expect(stale.get(empty.id)).toBe(false)
+        // Cash accounts are fed by imports: the month review covers them.
+        expect(stale.get(checking.id)).toBe(false)
       })
     })
 

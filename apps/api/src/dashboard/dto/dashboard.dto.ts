@@ -147,6 +147,13 @@ export class DashboardAccountDto {
       'Date the account’s data goes up to: latest booked transaction or end of the latest committed import (never after today) for cash accounts, latest value snapshot for investments; null when there is none.',
   })
   dataUntil!: string | null
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'Investment account whose latest value is older than its update rhythm (a month for a PEA, a life insurance or employee savings, see `STALE_AFTER_DAYS`); always false for cash accounts and accounts without a value.',
+  })
+  stale!: boolean
 }
 
 export class NetWorthDto {

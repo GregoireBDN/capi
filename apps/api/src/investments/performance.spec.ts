@@ -50,7 +50,7 @@ describe('computePerformance', () => {
       sincePrevious: null,
       daysSinceLatest: null,
       stale: false,
-      staleAfterDays: 100,
+      staleAfterDays: 31,
     })
   })
 
@@ -72,7 +72,7 @@ describe('computePerformance', () => {
       gainCents: 200_000,
       returnRate: 0.2,
       daysSinceLatest: 36,
-      stale: false,
+      stale: true,
     })
     expect(result.sincePrevious).toEqual({
       fromDate: '2026-06-30',
@@ -150,15 +150,22 @@ describe('computePerformance', () => {
   })
 
   it('flags values older than the rhythm of the account type', () => {
-    const snapshots = [point('2026-08-05', 1_000)]
-    expect(computePerformance(snapshots, 'brokerage', '2026-11-13').stale).toBe(
+    const snapshots = [point('2026-10-13', 1_000)]
+    for (const type of [
+      'brokerage',
+      'life_insurance',
+      'employee_savings',
+    ] as const) {
+      // Updated once a month: due after 31 days.
+      expect(computePerformance(snapshots, type, '2026-11-13').stale).toBe(
+        false,
+      )
+      expect(computePerformance(snapshots, type, '2026-11-14')).toMatchObject(
+        { daysSinceLatest: 32, stale: true },
+      )
+    }
+    expect(computePerformance(snapshots, 'crypto', '2026-11-14').stale).toBe(
       false,
     )
-    expect(
-      computePerformance(snapshots, 'brokerage', '2026-11-14'),
-    ).toMatchObject({ daysSinceLatest: 101, stale: true })
-    expect(
-      computePerformance(snapshots, 'life_insurance', '2026-11-14').stale,
-    ).toBe(false)
   })
 })

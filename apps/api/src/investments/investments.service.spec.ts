@@ -264,7 +264,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           contributionsDate: '2025-12-31',
           gainCents: 3_400_00,
           daysSinceLatest: 96,
-          stale: false,
+          stale: true,
         })
         expect(performance.returnRate).toBeCloseTo(3_400_00 / 19_000_00)
         expect(performance.sincePrevious).toMatchObject({
@@ -340,8 +340,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
           returnRate: 2_500_00 / 15_000_00,
           withoutContributionsCount: 1,
           withoutValueCount: 1,
-          // The crypto value is from June.
-          staleCount: 1,
+          // PEA (September), life insurance (December) and crypto (June):
+          // older than a month.
+          staleCount: 3,
         })
         expect(summary.accounts[2]).toMatchObject({
           name: 'Test crypto',
