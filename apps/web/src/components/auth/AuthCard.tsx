@@ -38,7 +38,10 @@ const COPY = {
   },
 } satisfies Record<AuthMode, { title: string; description: string }>
 
-export function AuthCard({ registrationOpen, initialMode = 'login' }: AuthCardProps) {
+export function AuthCard({
+  registrationOpen,
+  initialMode = 'login',
+}: AuthCardProps) {
   const [mode, setMode] = useState<AuthMode>(
     initialMode === 'register' && !registrationOpen ? 'login' : initialMode,
   )

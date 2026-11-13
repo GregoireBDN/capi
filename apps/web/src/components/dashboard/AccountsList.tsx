@@ -9,6 +9,11 @@ import {
 import { Link } from '@tanstack/react-router'
 import { ChevronRightIcon } from 'lucide-react'
 import { NewAccountButton } from '#/components/accounts/AccountEditor'
+import { AddInvestmentButton } from '#/components/accounts/AddInvestmentSheet'
+import {
+  isValuedByHand,
+  UpdateValueButton,
+} from '#/components/accounts/UpdateValueButton'
 import type { DashboardAccountDto, NetWorthDto } from '#/api/types.gen'
 import { formatCalendarDate, formatCents } from '#/lib/money'
 import { ROUTES } from '#/lib/routes'
@@ -44,10 +49,18 @@ function AccountDetails({ account }: { account: DashboardAccountDto }) {
             ? '—'
             : formatCents(account.balanceCents)}
         </p>
-        <p className="text-muted-foreground text-xs">
+        <p
+          className={cn(
+            'text-xs',
+            account.stale
+              ? 'text-warning-foreground dark:text-warning font-medium'
+              : 'text-muted-foreground',
+          )}
+        >
           {account.balanceDate === null
             ? 'Solde inconnu'
             : `au ${formatCalendarDate(account.balanceDate)}`}
+          {account.stale && ' · à mettre à jour'}
         </p>
       </div>
     </div>
@@ -58,7 +71,8 @@ function AccountDetails({ account }: { account: DashboardAccountDto }) {
  * Accounts and their balances, cash (checking, savings) apart from
  * investments, each group with its subtotal. Cash accounts open their
  * transactions; investment accounts, valued by snapshots, open their detail
- * page (value history, gain).
+ * page (value history, gain). PEA, life insurance and employee savings rows
+ * also update their value in place; a value older than a month is flagged.
  */
 export function AccountsList({
   accounts,
@@ -96,7 +110,7 @@ export function AccountsList({
               <ul className="divide-y">
                 {items.map((account) => {
                   const row = cn(
-                    'flex items-center gap-3 py-2.5 text-sm',
+                    'flex min-w-0 flex-1 items-center gap-3 py-2.5 text-sm',
                     'hover:bg-muted/50 focus-visible:ring-ring -mx-2 rounded-md px-2 outline-none focus-visible:ring-2',
                   )
                   const content = (
@@ -109,7 +123,7 @@ export function AccountsList({
                     </>
                   )
                   return (
-                    <li key={account.id}>
+                    <li key={account.id} className="flex items-center gap-1">
                       {group === 'cash' ? (
                         <Link
                           to={ROUTES.transactions}
@@ -129,6 +143,9 @@ export function AccountsList({
                           {content}
                         </Link>
                       )}
+                      {isValuedByHand(account.type) && (
+                        <UpdateValueButton account={account} />
+                      )}
                     </li>
                   )
                 })}
@@ -136,7 +153,10 @@ export function AccountsList({
             </section>
           )
         })}
-        <NewAccountButton label="Ajouter un compte" size="sm" outline />
+        <div className="flex flex-wrap gap-2">
+          <AddInvestmentButton size="sm" outline />
+          <NewAccountButton label="Ajouter un compte" size="sm" outline />
+        </div>
       </CardContent>
     </Card>
   )

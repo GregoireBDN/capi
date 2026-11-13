@@ -17,6 +17,10 @@ import type {
   ReviewCategoryDto,
   ReviewMissingAccountDto,
 } from '#/api/types.gen'
+import {
+  isValuedByHand,
+  UpdateValueButton,
+} from '#/components/accounts/UpdateValueButton'
 import { formatMonth, shiftMonth } from '#/lib/calendar'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
@@ -297,12 +301,16 @@ function Drift({
   )
 }
 
-/** What is missing before the month can be read as final. */
+/**
+ * What is missing before the month can be read as final: cash accounts are
+ * imported, investment values valued by hand are updated in place.
+ */
 function MissingAccounts({
   accounts,
 }: {
   accounts: ReviewMissingAccountDto[]
 }) {
+  const needsImport = accounts.some((account) => account.group === 'cash')
   return (
     <section
       aria-label="Comptes à mettre à jour"
@@ -311,25 +319,29 @@ function MissingAccounts({
       <p className="text-sm font-medium">À mettre à jour</p>
       <ul className="space-y-1 text-sm">
         {accounts.map((account) => (
-          <li
-            key={account.id}
-            className="flex flex-wrap justify-between gap-x-3"
-          >
-            <span className="min-w-0 truncate">{account.name}</span>
-            <span className="text-muted-foreground whitespace-nowrap">
-              {account.lastDate === null
-                ? 'jamais'
-                : `au ${formatShortDay(account.lastDate)}`}
+          <li key={account.id} className="flex items-center gap-x-2">
+            <span className="flex min-w-0 flex-1 flex-wrap justify-between gap-x-3">
+              <span className="min-w-0 truncate">{account.name}</span>
+              <span className="text-muted-foreground whitespace-nowrap">
+                {account.lastDate === null
+                  ? 'jamais'
+                  : `au ${formatShortDay(account.lastDate)}`}
+              </span>
             </span>
+            {isValuedByHand(account.type) && (
+              <UpdateValueButton account={account} />
+            )}
           </li>
         ))}
       </ul>
-      <Button asChild outline variant="secondary" size="sm">
-        <Link to={ROUTES.import}>
-          <UploadIcon aria-hidden />
-          Importer
-        </Link>
-      </Button>
+      {needsImport && (
+        <Button asChild outline variant="secondary" size="sm">
+          <Link to={ROUTES.import}>
+            <UploadIcon aria-hidden />
+            Importer
+          </Link>
+        </Button>
+      )}
     </section>
   )
 }

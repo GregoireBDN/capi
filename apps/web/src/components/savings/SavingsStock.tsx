@@ -11,6 +11,11 @@ import { Link } from '@tanstack/react-router'
 import { ChevronRightIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { NewAccountButton } from '#/components/accounts/AccountEditor'
+import { AddInvestmentButton } from '#/components/accounts/AddInvestmentSheet'
+import {
+  isValuedByHand,
+  UpdateValueButton,
+} from '#/components/accounts/UpdateValueButton'
 import type { AccountType, SavingsStockDto } from '#/api/types.gen'
 import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { formatCalendarDate, formatCents } from '#/lib/money'
@@ -29,7 +34,7 @@ interface StockRow {
 }
 
 const ROW_CLASS = cn(
-  'flex items-center gap-3 py-2.5 text-sm',
+  'flex min-w-0 flex-1 items-center gap-3 py-2.5 text-sm',
   'hover:bg-muted/50 focus-visible:ring-ring -mx-2 rounded-md px-2 outline-none focus-visible:ring-2',
 )
 
@@ -48,7 +53,7 @@ function Row({ row }: { row: StockRow }) {
         ? 'Valeur inconnue'
         : `au ${formatCalendarDate(row.valueDate)}`
   return (
-    <li>
+    <li className="flex items-center gap-1">
       <Link
         to={ROUTES.account}
         params={{ accountId: row.id }}
@@ -61,7 +66,11 @@ function Row({ row }: { row: StockRow }) {
             <p className="font-medium break-words">{row.name}</p>
             <p className="text-muted-foreground truncate text-xs">
               {kind}
-              {row.stale && ' · à mettre à jour'}
+              {row.stale && (
+                <span className="text-warning-foreground dark:text-warning font-medium">
+                  {' · à mettre à jour'}
+                </span>
+              )}
             </p>
           </div>
           <div className="ml-auto text-right">
@@ -78,6 +87,7 @@ function Row({ row }: { row: StockRow }) {
           className="text-muted-foreground size-4 shrink-0"
         />
       </Link>
+      {isValuedByHand(row.type) && <UpdateValueButton account={row} />}
     </li>
   )
 }
@@ -161,7 +171,10 @@ export function SavingsStock({ stock }: { stock: SavingsStockDto }) {
             ))}
           </Group>
         )}
-        <NewAccountButton label="Ajouter un compte" size="sm" outline />
+        <div className="flex flex-wrap gap-2">
+          <AddInvestmentButton size="sm" outline />
+          <NewAccountButton label="Ajouter un compte" size="sm" outline />
+        </div>
       </CardContent>
     </Card>
   )

@@ -58,7 +58,9 @@ describe('AuthCard', () => {
     await user.click(screen.getByText('login-form'))
     expect(screen.getByText('forgot-form')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Retour à la connexion' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Retour à la connexion' }),
+    )
     expect(screen.getByText('login-form')).toBeInTheDocument()
   })
 })

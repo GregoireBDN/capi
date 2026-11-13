@@ -74,6 +74,7 @@ const checking: DashboardAccountDto = {
   balanceCents: 123_456,
   balanceDate: '2026-11-03',
   dataUntil: '2026-11-03',
+  stale: false,
 }
 const savings: DashboardAccountDto = {
   id: '10000000-0000-4000-8000-000000000002',
@@ -84,6 +85,7 @@ const savings: DashboardAccountDto = {
   balanceCents: 500_000,
   balanceDate: '2026-10-31',
   dataUntil: '2026-10-31',
+  stale: false,
 }
 const pea: DashboardAccountDto = {
   id: '10000000-0000-4000-8000-000000000003',
@@ -94,6 +96,7 @@ const pea: DashboardAccountDto = {
   balanceCents: 1_000_000,
   balanceDate: '2026-10-31',
   dataUntil: '2026-10-31',
+  stale: false,
 }
 const crypto: DashboardAccountDto = {
   id: '10000000-0000-4000-8000-000000000004',
@@ -104,6 +107,7 @@ const crypto: DashboardAccountDto = {
   balanceCents: null,
   balanceDate: null,
   dataUntil: null,
+  stale: false,
 }
 
 const overview: DashboardOverviewDto = {
