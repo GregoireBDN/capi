@@ -246,7 +246,7 @@ function DonutChart({
                   <span className="min-w-0 truncate text-muted-foreground">
                     {row.label}
                   </span>
-                  <span className="ml-auto font-medium text-foreground tabular-nums">
+                  <span className="ml-auto font-medium whitespace-nowrap text-foreground tabular-nums">
                     {valueFormatter(row.value)}
                   </span>
                   <span className="w-12 text-right text-muted-foreground tabular-nums">

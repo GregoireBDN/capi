@@ -5,7 +5,8 @@ import { isMonth } from '#/lib/calendar'
  * Filters of the spending page, kept in the URL search params so a reload,
  * the back button or a shared link restore them. An absent field is the
  * default: current month, one-offs left out, every account, 6-month average,
- * trend of the top categories. Invalid values are dropped.
+ * trend of the top categories, category rows compared with the previous
+ * month. Invalid values are dropped.
  */
 
 /** `trend` value for the expenses without a category. */
@@ -33,6 +34,8 @@ export const spendingSearchSchema = z.object({
     .union([z.literal(3), z.literal(12)])
     .optional()
     .catch(undefined),
+  /** Category rows compared with the average rather than the month before. */
+  cmp: z.literal('avg').optional().catch(undefined),
 })
 
 export type SpendingSearch = z.infer<typeof spendingSearchSchema>

@@ -178,6 +178,21 @@ export class CategorySpendingDto {
       'The month is partial and has no expense in this category yet, while the compared days had some: not paid yet rather than saved, so the drop is not a saving.',
   })
   notYetThisMonth!: boolean
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Budget target of the category for the month, positive integer cents. Null without a budget (and for the uncategorized bucket).',
+  })
+  targetCents!: number | null
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Recurring costs of the category (confirmed subscriptions and fixed costs) still expected later in the month, positive integer cents: not paid yet, so never counted as spent nor as a saving. 0 unless the month is partial.',
+  })
+  expectedCents!: number
 }
 
 export class SpendingByCategoryDto {
@@ -240,9 +255,16 @@ export class SpendingByCategoryDto {
   oneOffCents!: number
 
   @ApiProperty({
+    type: 'integer',
+    description:
+      'Sum of the categories’ `expectedCents`: recurring costs still expected later in the month, left out of `totalCents`.',
+  })
+  expectedCents!: number
+
+  @ApiProperty({
     type: [CategorySpendingDto],
     description:
-      'Categories with expenses this month or the month before (its same first days while the month is partial; this month only when it has no data yet), biggest spending first.',
+      'Categories with expenses this month or the month before (its same first days while the month is partial; this month only when it has no data yet), or with recurring costs still expected this month, biggest spending first.',
   })
   categories!: CategorySpendingDto[]
 }

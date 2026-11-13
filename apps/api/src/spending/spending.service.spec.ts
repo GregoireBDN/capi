@@ -6,11 +6,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import * as schema from '#/database/schema'
 import {
   accountsTable,
+  budgetsTable,
   categoriesTable,
   categorizationRulesTable,
+  type InsertRecurringItem,
   type InsertTransaction,
+  recurringItemsTable,
   transactionsTable,
 } from '#/database/schema'
+import { normalizeLabel } from '#/imports/normalize/label'
+import { RecurringService } from '#/recurring/recurring.service'
 import type { CategorySpendingDto } from './dto/spending.dto'
 import { SpendingService } from './spending.service'
 
@@ -28,6 +33,10 @@ const UNKNOWN_ID = '00000000-0000-4000-8000-000000000000'
 
 /** 15 November 2026, noon in Paris. */
 const NOW = new Date('2026-11-15T11:00:00Z')
+
+const RENT = 'PRLV SEPA SOCIETE IMMO EXEMPLE'
+const STREAMING = 'PRLV SEPA STREAMFLIX EXEMPLE'
+const GYM = 'PRLV SEPA SALLE DE SPORT EXEMPLE'
 
 const CATEGORY_SLUGS = [
   'groceries',
@@ -66,6 +75,8 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
   async function withFixture(fn: (f: Fixture) => Promise<void>) {
     await db
       .transaction(async (tx) => {
+        await tx.delete(recurringItemsTable)
+        await tx.delete(budgetsTable)
         await tx.delete(transactionsTable)
         await tx.delete(categorizationRulesTable)
         const [checking, savings] = await tx
@@ -89,7 +100,11 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
           ])
           .returning()
         const bySlug = new Map(rows.map((c) => [c.slug, c.id]))
-        const service = new SpendingService({ db: tx } as never)
+        const database = { db: tx } as never
+        const service = new SpendingService(
+          database,
+          new RecurringService(database),
+        )
         service.now = () => NOW
         await fn({
           tx,
@@ -130,6 +145,31 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
 
   async function insert(tx: Tx, rows: InsertTransaction[]) {
     await tx.insert(transactionsTable).values(rows)
+  }
+
+  /** A recurring series of `rawLabel` debits, confirmed unless overridden. */
+  async function recurring(
+    tx: Tx,
+    accountId: string,
+    rawLabel: string,
+    amountCents: number,
+    item: Partial<InsertRecurringItem> = {},
+  ) {
+    const { merchantKey } = normalizeLabel(rawLabel, amountCents)
+    await tx.insert(recurringItemsTable).values({
+      accountId,
+      merchantKey: merchantKey!,
+      direction: 'debit',
+      name: rawLabel,
+      status: 'confirmed',
+      isFixedCost: true,
+      cadence: 'monthly',
+      amountType: 'fixed',
+      typicalAmountCents: Math.abs(amountCents),
+      confidence: 0.9,
+      lastSeenDate: '2026-10-01',
+      ...item,
+    })
   }
 
   function find(
@@ -241,6 +281,8 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
           deltaCents: 2_000,
           averageCents: null,
           notYetThisMonth: false,
+          targetCents: null,
+          expectedCents: 0,
         })
         expect(result.totalCents).toBe(11_000)
       })
@@ -420,6 +462,49 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
       })
     })
 
+    it('carries the budget target in effect for the month', async () => {
+      await withFixture(async (f) => {
+        const { groceries, health, leisure } = f.category
+        await insert(f.tx, [
+          row(f.checking, '2026-10-03', -4_000, { categoryId: groceries }),
+          row(f.checking, '2026-10-04', -2_000, { categoryId: health }),
+          row(f.checking, '2026-10-05', -1_000, { categoryId: leisure }),
+          row(f.checking, '2026-10-06', -500),
+        ])
+        await f.tx.insert(budgetsTable).values([
+          {
+            categoryId: groceries,
+            effectiveFrom: '2026-01-01',
+            monthlyTargetCents: 30_000,
+          },
+          // Raised later: October keeps its own target.
+          {
+            categoryId: groceries,
+            effectiveFrom: '2026-11-01',
+            monthlyTargetCents: 40_000,
+          },
+          // Ended before October.
+          {
+            categoryId: health,
+            effectiveFrom: '2026-01-01',
+            monthlyTargetCents: 5_000,
+          },
+          {
+            categoryId: health,
+            effectiveFrom: '2026-10-01',
+            monthlyTargetCents: null,
+          },
+        ])
+
+        const result = await f.service.byCategory({ month: '2026-10' })
+
+        expect(find(result.categories, groceries)!.targetCents).toBe(30_000)
+        expect(find(result.categories, health)!.targetCents).toBeNull()
+        expect(find(result.categories, leisure)!.targetCents).toBeNull()
+        expect(find(result.categories, null)!.targetCents).toBeNull()
+      })
+    })
+
     it('filters by account', async () => {
       await withFixture(async (f) => {
         const { groceries } = f.category
@@ -462,6 +547,7 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
           previousTotalCents: 0,
           averageTotalCents: null,
           oneOffCents: 0,
+          expectedCents: 0,
           categories: [],
         })
       })
@@ -541,6 +627,82 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
           })
           expect(november.totalCents).toBe(0)
           expect(november.categories).toHaveLength(0)
+        })
+      })
+
+      it('returns the recurring costs still expected, apart from the spending', async () => {
+        await withFixture(async (f) => {
+          const { groceries, rent, leisure } = f.category
+          await insert(f.tx, [
+            // Rent on the 5th, a streaming subscription on the 2nd.
+            ...['2026-08-05', '2026-09-05', '2026-10-05'].map((date) =>
+              row(f.checking, date, -80_000, {
+                rawLabel: RENT,
+                categoryId: rent,
+              }),
+            ),
+            ...['2026-09-02', '2026-10-02', '2026-11-02'].map((date) =>
+              row(f.checking, date, -1_399, {
+                rawLabel: STREAMING,
+                categoryId: leisure,
+              }),
+            ),
+            // A gym series the user has not confirmed.
+            ...['2026-09-04', '2026-10-04'].map((date) =>
+              row(f.checking, date, -3_000, {
+                rawLabel: GYM,
+                categoryId: leisure,
+              }),
+            ),
+            // November imported up to the 3rd.
+            row(f.checking, '2026-11-03', -2_500, { categoryId: groceries }),
+          ])
+          await recurring(f.tx, f.checking, RENT, -80_000, {
+            categoryId: rent,
+          })
+          await recurring(f.tx, f.checking, STREAMING, -1_399, {
+            categoryId: leisure,
+          })
+          await recurring(f.tx, f.checking, GYM, -3_000, {
+            categoryId: leisure,
+            status: 'suggested',
+          })
+          f.service.now = () => new Date('2026-11-05T10:00:00Z')
+
+          const result = await f.service.byCategory({})
+
+          expect(result.period).toMatchObject({
+            month: '2026-11',
+            status: 'partial',
+            throughDay: 3,
+          })
+          // Rent expected on the 5th: listed although nothing was spent in
+          // it on 1–3 Nov or 1–3 Oct, and not counted as spent.
+          expect(find(result.categories, rent)).toMatchObject({
+            spentCents: 0,
+            previousSpentCents: 0,
+            expectedCents: 80_000,
+            notYetThisMonth: false,
+          })
+          // The subscription is already paid; the gym is not confirmed.
+          expect(find(result.categories, leisure)).toMatchObject({
+            spentCents: 1_399,
+            expectedCents: 0,
+          })
+          expect(find(result.categories, groceries)!.expectedCents).toBe(0)
+          expect(result.totalCents).toBe(3_899)
+          expect(result.expectedCents).toBe(80_000)
+
+          // A complete month expects nothing more.
+          const october = await f.service.byCategory({ month: '2026-10' })
+          expect(october.expectedCents).toBe(0)
+          expect(
+            october.categories.every((item) => item.expectedCents === 0),
+          ).toBe(true)
+
+          // Only the series of the account filtered on.
+          const savings = await f.service.byCategory({ accountId: f.savings })
+          expect(savings.expectedCents).toBe(0)
         })
       })
 

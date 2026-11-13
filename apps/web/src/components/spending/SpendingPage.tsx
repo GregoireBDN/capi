@@ -15,6 +15,8 @@ import {
   EmptyTitle,
   formatEuros,
   Skeleton,
+  ToggleGroup,
+  ToggleGroupItem,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -27,9 +29,11 @@ import { formatShortDay } from '#/lib/period'
 import { accountsQuery, categoriesQuery, isTransactional } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import { CategoryRanking } from './CategoryRanking'
-import { comparedName, monthName } from './labels'
+import { monthName } from './labels'
 import { spendingByCategoryQuery, spendingTrendQuery } from './queries'
 import type { ByCategoryFilters, TrendFilters } from './queries'
+import { comparedWithText, comparisonCaption } from './rows'
+import type { Comparison } from './rows'
 import { compactSearch, DEFAULT_AVERAGE_PERIOD, UNCATEGORIZED } from './search'
 import type { SpendingSearch } from './search'
 import { SpendingDonut } from './SpendingDonut'
@@ -37,6 +41,10 @@ import { SpendingFilters } from './SpendingFilters'
 import { SpendingKpis, SpendingKpisSkeleton } from './SpendingKpis'
 import { SpendingTrend } from './SpendingTrend'
 import type { TrendCategoryOption } from './SpendingTrend'
+
+/** Selected state of a segmented control item. */
+const SELECTED =
+  'data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary'
 
 /** Months shown by the trend, ending with the selected month. */
 export const TREND_MONTHS = 12
@@ -50,15 +58,19 @@ interface SpendingPageProps {
 
 function Section({
   title,
+  action,
   children,
 }: {
   title: string
+  /** Control beside the title (wraps under it on a narrow card). */
+  action?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
     <Card size="sm" className="min-w-0">
-      <CardHeader>
+      <CardHeader className="flex flex-wrap items-center justify-between gap-2">
         <CardTitle>{title}</CardTitle>
+        {action}
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>
@@ -130,7 +142,8 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
   const data = byCategory.data
   const month = search.month ?? data?.month ?? today
   const monthLabel = monthName(month)
-  const previousLabel = data ? comparedName(data) : ''
+  const comparison: Comparison = search.cmp === 'avg' ? 'average' : 'previous'
+  const caption = data ? comparisonCaption(data, comparison) : ''
   const stopsBefore =
     data?.period.status === 'empty' ? data.period.dataUntil : null
 
@@ -221,6 +234,8 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
                 (includeOneOffs
                   ? `Dont ${formatEuros(data.oneOffCents)} de dépenses ponctuelles.`
                   : `Dépenses ponctuelles exclues : ${formatEuros(data.oneOffCents)}.`)}
+              {data.expectedCents > 0 &&
+                ` Abonnements et charges fixes attendus d’ici la fin du mois : ${formatEuros(data.expectedCents)}, non comptés.`}
             </p>
           </div>
 
@@ -228,11 +243,44 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
             <Section title="Répartition">
               <SpendingDonut data={data} monthLabel={monthLabel} />
             </Section>
-            <Section title="Par catégorie">
+            <Section
+              title="Par catégorie"
+              action={
+                <ToggleGroup
+                  type="single"
+                  variant="outline"
+                  size="sm"
+                  aria-label="Comparer chaque catégorie avec"
+                  value={comparison}
+                  onValueChange={(next) => {
+                    if (next)
+                      set({ cmp: next === 'average' ? 'avg' : undefined })
+                  }}
+                >
+                  <ToggleGroupItem value="previous" className={SELECTED}>
+                    Mois précédent
+                  </ToggleGroupItem>
+                  <ToggleGroupItem
+                    value="average"
+                    className={SELECTED}
+                    disabled={data.averageMonths === 0}
+                  >
+                    Moyenne
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              }
+            >
+              <p
+                data-slot="comparison-caption"
+                className="text-muted-foreground mb-1 text-xs"
+              >
+                {caption}
+              </p>
               <CategoryRanking
                 categories={data.categories}
                 month={month}
-                previousLabel={previousLabel}
+                comparison={comparison}
+                comparedWith={comparedWithText(data, comparison)}
                 accountId={search.account}
               />
             </Section>

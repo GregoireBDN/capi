@@ -100,6 +100,8 @@ function spending(
     deltaCents: 0,
     averageCents: null,
     notYetThisMonth: false,
+    targetCents: null,
+    expectedCents: 0,
     ...overrides,
   }
 }
@@ -124,6 +126,7 @@ const october: SpendingByCategoryDto = {
   previousTotalCents: 90_000,
   averageTotalCents: 95_000,
   oneOffCents: 25_000,
+  expectedCents: 0,
   categories: [
     spending({
       categoryId: RENT,
@@ -237,9 +240,9 @@ describe('SpendingPage', () => {
     })
     expect(within(kpis).getByText('Dépensé')).toBeInTheDocument()
     expect(within(kpis).getByText(euros(100_000))).toBeInTheDocument()
-    expect(within(kpis).getAllByText('vs septembre')[0]).toBeInTheDocument()
+    expect(within(kpis).getByText('Écart avec septembre')).toBeInTheDocument()
     expect(within(kpis).getByText(`+${euros(10_000)}`)).toBeInTheDocument()
-    expect(within(kpis).getByText('vs moyenne')).toBeInTheDocument()
+    expect(within(kpis).getByText('Écart avec la moyenne')).toBeInTheDocument()
     expect(within(kpis).getByText(`+${euros(5_000)}`)).toBeInTheDocument()
     // Biggest increase: groceries, +130 €.
     expect(within(kpis).getByText('Courses')).toBeInTheDocument()
@@ -297,9 +300,17 @@ describe('SpendingPage', () => {
       'data-tone',
       'good',
     )
+    // Without a budget: the share of the month.
+    expect(links[1]).toHaveTextContent(/25 % du total/)
+    // One comparison, named once above the list and after each change for
+    // screen readers.
     expect(
-      within(links[1]).getByText('25 %', { exact: false }),
-    ).toBeInTheDocument()
+      document.querySelector('[data-slot="comparison-caption"]'),
+    ).toHaveTextContent('Écart avec septembre')
+    expect(links[1]).toHaveTextContent(/par rapport à septembre/)
+    expect(
+      links[1].querySelectorAll('[data-slot="spending-delta"]'),
+    ).toHaveLength(1)
   })
 
   it('moves between months and toggles one-offs through the URL', async () => {
@@ -475,7 +486,7 @@ describe('SpendingPage', () => {
       throwOnError: false,
     })
     expect(screen.getByText('Novembre 2026')).toBeInTheDocument()
-    expect(within(kpis).getByText('vs 1–3 oct.')).toBeInTheDocument()
+    expect(within(kpis).getByText('Écart avec le 1–3 oct.')).toBeInTheDocument()
     expect(kpis).toHaveTextContent(/au 1–3 oct\./)
     expect(kpis).toHaveTextContent(/mêmes jours/)
     expect(
@@ -484,13 +495,144 @@ describe('SpendingPage', () => {
       ),
     ).toBeInTheDocument()
 
+    // Nothing spent in rent yet: folded away with the empty categories.
+    const user = userEvent.setup()
     const list = screen.getByRole('list', { name: 'Dépenses par catégorie' })
+    expect(within(list).queryByRole('link', { name: /Loyer/ })).toBeNull()
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Afficher les catégories sans dépense (1)',
+      }),
+    )
     const rent = within(list).getByRole('link', { name: /Loyer/ })
     // Not paid yet: no green "saving".
     expect(rent.querySelector('[data-slot="spending-delta"]')).toBeNull()
-    expect(rent).toHaveTextContent(
-      `Pas encore ce mois-ci · ${euros(70_000)} au 1–3 oct.`,
+    expect(rent).toHaveTextContent('Pas encore ce mois-ci')
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Masquer les catégories sans dépense',
+      }),
     )
+    expect(within(list).queryByRole('link', { name: /Loyer/ })).toBeNull()
+  })
+
+  it('shows the budget target, the expected costs and one comparison at a time', async () => {
+    const user = userEvent.setup()
+    api.spendingControllerByCategory.mockReturnValue(
+      ok({
+        ...october,
+        month: '2026-11',
+        previousMonth: '2026-10',
+        period: {
+          month: '2026-11',
+          dataUntil: '2026-11-03',
+          status: 'partial',
+          throughDay: 3,
+          previousMonth: '2026-10',
+          previousUntil: '2026-10-03',
+          defaultMonth: '2026-11',
+        },
+        totalCents: 36_000,
+        previousTotalCents: 30_000,
+        averageTotalCents: 32_000,
+        oneOffCents: 0,
+        expectedCents: 81_399,
+        categories: [
+          // Over its budget, with a subscription still expected.
+          spending({
+            categoryId: LEISURE,
+            slug: 'leisure',
+            name: 'Loisirs',
+            color: '#c026d3',
+            spentCents: 24_000,
+            share: 24_000 / 36_000,
+            transactionCount: 3,
+            previousSpentCents: 20_000,
+            deltaCents: 4_000,
+            averageCents: 25_000,
+            targetCents: 20_000,
+            expectedCents: 1_399,
+          }),
+          // Within its budget.
+          spending({
+            spentCents: 12_000,
+            share: 12_000 / 36_000,
+            transactionCount: 2,
+            previousSpentCents: 10_000,
+            deltaCents: 2_000,
+            averageCents: 15_000,
+            targetCents: 40_000,
+          }),
+          // Rent expected on the 5th: nothing spent yet, not a saving.
+          spending({
+            categoryId: RENT,
+            slug: 'rent',
+            name: 'Loyer',
+            color: '#dc2626',
+            averageCents: 80_000,
+            expectedCents: 80_000,
+          }),
+        ],
+      }),
+    )
+    const { changes } = renderPage({})
+
+    const list = await screen.findByRole('list', {
+      name: 'Dépenses par catégorie',
+    })
+    const [leisure, groceries, rent] = within(list).getAllByRole('link')
+
+    expect(groceries).toHaveTextContent(`30 % du budget (${euros(40_000)})`)
+    expect(
+      groceries.querySelector('[data-slot="category-bar"]'),
+    ).toHaveAttribute('data-target', 'within')
+    expect(leisure).toHaveTextContent(`120 % du budget (${euros(20_000)})`)
+    expect(leisure.querySelector('[data-slot="category-bar"]')).toHaveAttribute(
+      'data-target',
+      'over',
+    )
+
+    // Expected costs are labelled as such, never as a saving.
+    expect(leisure).toHaveTextContent(`${euros(1_399)} attendus`)
+    expect(rent).toHaveTextContent(`${euros(0)}`)
+    expect(rent).toHaveTextContent(`${euros(80_000)} attendus`)
+    expect(rent.querySelector('[data-slot="spending-delta"]')).toBeNull()
+    expect(rent.querySelector('[data-slot="not-yet"]')).toBeNull()
+    expect(
+      screen.getByText(
+        (_, element) =>
+          element?.tagName === 'P' &&
+          element.textContent
+            .replace(/\s/g, ' ')
+            .includes(
+              `Abonnements et charges fixes attendus d’ici la fin du mois : ${euros(81_399)}, non comptés.`.replace(
+                /\s/g,
+                ' ',
+              ),
+            ),
+      ),
+    ).toBeInTheDocument()
+
+    // Previous month first (same first days while the month is partial).
+    expect(
+      document.querySelector('[data-slot="comparison-caption"]'),
+    ).toHaveTextContent('Écart avec le 1–3 oct.')
+    expect(within(groceries).getByText(`+${euros(2_000)}`)).toBeInTheDocument()
+    expect(groceries).toHaveTextContent(/par rapport au 1–3 oct\./)
+
+    // Then the average, kept in the URL.
+    await user.click(screen.getByRole('radio', { name: 'Moyenne' }))
+    expect(changes.at(-1)).toEqual({ cmp: 'avg' })
+    expect(
+      screen.getByText('Écart avec la moyenne sur 6 mois (mêmes jours)'),
+    ).toBeInTheDocument()
+    expect(within(groceries).getByText(`-${euros(3_000)}`)).toBeInTheDocument()
+    expect(within(groceries).queryByText(`+${euros(2_000)}`)).toBeNull()
+    expect(groceries).toHaveTextContent(/par rapport à la moyenne/)
+    expect(rent.querySelector('[data-slot="spending-delta"]')).toBeNull()
+
+    await user.click(screen.getByRole('radio', { name: 'Mois précédent' }))
+    expect(changes.at(-1)).toEqual({})
   })
 
   it('says where the data stops when the month has none yet', async () => {
