@@ -31,6 +31,11 @@ These rules are non-negotiable. Code, tests and reviews must enforce them.
 - Every transaction has a `kind`: `expense`, `income` or `transfer`.
 - Moves between the user's own accounts (e.g. checking → Livret A, checking → PEA) are `transfer` and must **never** count as income or expense in any statistic, budget or forecast.
 
+### Month comparisons
+
+- Statements are imported by hand, so the current month is often empty or partial. Every page that compares months (dashboard, spending, savings, budget) goes through `apps/api/src/coverage/`: `dataUntil` is the latest booked transaction or committed import end (per account, overall = the latest of them), never after today in Europe/Paris; a month is `complete`, `partial` (first `throughDay` days known) or `empty`.
+- A partial month is compared **like for like**: the same first days of the previous month and of the averaged months. An empty month is not compared at all. Without a `month` parameter, endpoints show the current month when it has data, else the month the data stops in. Responses carry a `period` (`MonthPeriodDto`) and the web states it with `PeriodNote` (`lib/period.ts`).
+
 ### Accounts
 
 - Account types: `checking`, `savings`, `brokerage` (PEA), `life_insurance`, `employee_savings`, `crypto`.

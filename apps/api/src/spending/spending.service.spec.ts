@@ -240,6 +240,7 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
           previousSpentCents: 0,
           deltaCents: 2_000,
           averageCents: null,
+          notYetThisMonth: false,
         })
         expect(result.totalCents).toBe(11_000)
       })
@@ -318,6 +319,9 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
         expect(april.totalCents).toBe(4_000)
 
         // 31 December 23:30 UTC is 1 January in Paris (UTC+1).
+        await insert(f.tx, [
+          row(f.checking, '2027-01-01', -500, { categoryId: groceries }),
+        ])
         f.service.now = () => new Date('2026-12-31T23:30:00Z')
         expect((await f.service.byCategory({})).month).toBe('2027-01')
       })
@@ -337,6 +341,8 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
           // Out of the window on both sides.
           row(f.checking, '2026-03-31', -50_000, { categoryId: groceries }),
           row(f.checking, '2026-10-02', -10_000, { categoryId: groceries }),
+          // October is imported to its end (a transfer is never spending).
+          row(f.checking, '2026-10-31', -100, { kind: 'transfer' }),
         ])
 
         const result = await f.service.byCategory({ month: '2026-10' })
@@ -439,6 +445,15 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
         expect(result).toEqual({
           month: '2026-11',
           previousMonth: '2026-10',
+          period: {
+            month: '2026-11',
+            dataUntil: null,
+            status: 'empty',
+            throughDay: null,
+            previousMonth: '2026-10',
+            previousUntil: null,
+            defaultMonth: '2026-11',
+          },
           includeOneOffs: false,
           averageMonths: 0,
           averageFrom: null,
@@ -448,6 +463,108 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
           averageTotalCents: null,
           oneOffCents: 0,
           categories: [],
+        })
+      })
+    })
+    describe('while the month is in progress', () => {
+      it('compares the same first days of the previous and averaged months', async () => {
+        await withFixture(async (f) => {
+          const { groceries, rent } = f.category
+          await insert(f.tx, [
+            // August and September, whole months.
+            row(f.checking, '2026-08-02', -1_000, { categoryId: groceries }),
+            row(f.checking, '2026-08-20', -9_000, { categoryId: groceries }),
+            row(f.checking, '2026-09-03', -3_000, { categoryId: groceries }),
+            row(f.checking, '2026-09-25', -7_000, { categoryId: groceries }),
+            // October: rent on the 2nd, groceries on the 3rd and later.
+            row(f.checking, '2026-10-02', -80_000, { categoryId: rent }),
+            row(f.checking, '2026-10-03', -2_000, { categoryId: groceries }),
+            row(f.checking, '2026-10-21', -8_000, { categoryId: groceries }),
+            // November imported up to the 3rd: groceries only so far.
+            row(f.checking, '2026-11-03', -2_500, { categoryId: groceries }),
+          ])
+          f.service.now = () => new Date('2026-11-05T10:00:00Z')
+
+          const result = await f.service.byCategory({ averageMonths: 3 })
+
+          expect(result.month).toBe('2026-11')
+          expect(result.period).toMatchObject({
+            dataUntil: '2026-11-03',
+            status: 'partial',
+            throughDay: 3,
+            previousUntil: '2026-10-03',
+          })
+          // 1–3 Oct: rent 80 000 + groceries 2 000.
+          expect(result.previousTotalCents).toBe(82_000)
+          expect(find(result.categories, groceries)).toMatchObject({
+            spentCents: 2_500,
+            previousSpentCents: 2_000,
+            // 1–3 Aug, Sep and Oct: (1 000 + 3 000 + 2 000) / 3.
+            averageCents: 2_000,
+            notYetThisMonth: false,
+          })
+          // Rent not paid yet: flagged, never a saving.
+          expect(find(result.categories, rent)).toMatchObject({
+            spentCents: 0,
+            previousSpentCents: 80_000,
+            notYetThisMonth: true,
+          })
+        })
+      })
+
+      it('defaults to the month the data stops in when the current one has none', async () => {
+        await withFixture(async (f) => {
+          const { groceries } = f.category
+          await insert(f.tx, [
+            row(f.checking, '2026-09-10', -4_000, { categoryId: groceries }),
+            row(f.checking, '2026-10-28', -6_000, { categoryId: groceries }),
+          ])
+          f.service.now = () => new Date('2026-11-02T10:00:00Z')
+
+          const shown = await f.service.byCategory({})
+          expect(shown.month).toBe('2026-10')
+          expect(shown.period).toMatchObject({
+            status: 'partial',
+            throughDay: 28,
+            defaultMonth: '2026-10',
+          })
+          expect(shown.totalCents).toBe(6_000)
+          expect(shown.previousTotalCents).toBe(4_000)
+
+          // The current month can still be asked for: nothing to compare.
+          const november = await f.service.byCategory({ month: '2026-11' })
+          expect(november.period).toMatchObject({
+            status: 'empty',
+            dataUntil: '2026-10-28',
+            previousUntil: null,
+            defaultMonth: '2026-10',
+          })
+          expect(november.totalCents).toBe(0)
+          expect(november.categories).toHaveLength(0)
+        })
+      })
+
+      it('reads how far the data goes in the account filtered on', async () => {
+        await withFixture(async (f) => {
+          const { groceries } = f.category
+          await insert(f.tx, [
+            row(f.checking, '2026-10-02', -1_000, { categoryId: groceries }),
+            row(f.checking, '2026-10-20', -2_000, { categoryId: groceries }),
+            row(f.checking, '2026-11-12', -3_000, { categoryId: groceries }),
+            // The savings account was imported up to the 2nd only.
+            row(f.savings, '2026-11-02', -500, { categoryId: groceries }),
+          ])
+
+          const all = await f.service.byCategory({})
+          expect(all.period).toMatchObject({ month: '2026-11', throughDay: 12 })
+          expect(all.previousTotalCents).toBe(1_000)
+
+          const savings = await f.service.byCategory({ accountId: f.savings })
+          expect(savings.period).toMatchObject({
+            month: '2026-11',
+            dataUntil: '2026-11-02',
+            throughDay: 2,
+          })
         })
       })
     })
@@ -524,6 +641,8 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
             isOneOff: true,
           }),
           row(f.checking, '2026-10-12', -7_000, { categoryId: rent }),
+          // October is imported to its end (a transfer is never spending).
+          row(f.checking, '2026-10-31', -100, { kind: 'transfer' }),
         ])
 
         const result = await f.service.trend({

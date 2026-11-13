@@ -62,6 +62,7 @@ const checking: DashboardAccountDto = {
   group: 'cash',
   balanceCents: 123_456,
   balanceDate: '2026-11-03',
+  dataUntil: '2026-11-03',
 }
 const savings: DashboardAccountDto = {
   id: '10000000-0000-4000-8000-000000000002',
@@ -71,6 +72,7 @@ const savings: DashboardAccountDto = {
   group: 'cash',
   balanceCents: 500_000,
   balanceDate: '2026-10-31',
+  dataUntil: '2026-10-31',
 }
 const pea: DashboardAccountDto = {
   id: '10000000-0000-4000-8000-000000000003',
@@ -80,6 +82,7 @@ const pea: DashboardAccountDto = {
   group: 'investments',
   balanceCents: 1_000_000,
   balanceDate: '2026-10-31',
+  dataUntil: '2026-10-31',
 }
 const crypto: DashboardAccountDto = {
   id: '10000000-0000-4000-8000-000000000004',
@@ -89,6 +92,7 @@ const crypto: DashboardAccountDto = {
   group: 'investments',
   balanceCents: null,
   balanceDate: null,
+  dataUntil: null,
 }
 
 const overview: DashboardOverviewDto = {
@@ -96,12 +100,23 @@ const overview: DashboardOverviewDto = {
     totalCents: 1_623_456,
     cashCents: 623_456,
     investmentsCents: 1_000_000,
+    previousMonthEnd: '2026-10-31',
     previousMonthEndCents: 1_600_000,
     unknownBalanceCount: 1,
   },
   accounts: [checking, savings, pea, crypto],
+  period: {
+    month: '2026-11',
+    dataUntil: '2026-11-30',
+    status: 'complete',
+    throughDay: null,
+    previousMonth: '2026-10',
+    previousUntil: '2026-10-31',
+    defaultMonth: '2026-11',
+  },
   current: {
     month: '2026-11',
+    until: '2026-11-30',
     incomeCents: 300_000,
     expenseCents: -240_000,
     netCents: 60_000,
@@ -111,6 +126,7 @@ const overview: DashboardOverviewDto = {
   },
   previous: {
     month: '2026-10',
+    until: '2026-10-31',
     incomeCents: 300_000,
     expenseCents: -200_000,
     netCents: 100_000,
@@ -157,13 +173,26 @@ function failure() {
   })
 }
 
-function renderPage(banner?: ReactNode) {
+function renderPage(
+  banner?: ReactNode,
+  {
+    month,
+    onMonthChange,
+  }: {
+    month?: string
+    onMonthChange?: (month: string | undefined) => void
+  } = {},
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <DashboardPage banner={banner} />
+      <DashboardPage
+        banner={banner}
+        month={month}
+        onMonthChange={onMonthChange}
+      />
     </QueryClientProvider>,
   )
 }
@@ -226,6 +255,106 @@ describe('DashboardPage', () => {
     expect(
       within(tiles).getByText(/Dont ponctuel ce mois-ci/),
     ).toHaveTextContent(`dépenses ${euros(40_000)}`)
+  })
+
+  it('compares a month in progress with the same days of the previous one', async () => {
+    api.dashboardControllerOverview.mockImplementation(() =>
+      ok({
+        ...overview,
+        period: {
+          ...overview.period,
+          dataUntil: '2026-11-03',
+          status: 'partial',
+          throughDay: 3,
+          previousUntil: '2026-10-03',
+        },
+        previous: { ...overview.previous, until: '2026-10-03' },
+      }),
+    )
+    renderPage()
+
+    const tiles = await screen.findByRole('region', { name: 'Chiffres clés' })
+    expect(within(tiles).getAllByText('vs 1–3 oct.')).toHaveLength(4)
+    expect(
+      within(tiles).getByText(
+        'Mois en cours : données jusqu’au 3 nov., comparées au 1–3 oct.',
+      ),
+    ).toBeInTheDocument()
+    // The API picks the month.
+    expect(api.dashboardControllerOverview).toHaveBeenCalledWith({
+      throwOnError: false,
+    })
+  })
+
+  it('compares nothing while the month has no data yet', async () => {
+    api.dashboardControllerOverview.mockImplementation(() =>
+      ok({
+        ...overview,
+        netWorth: { ...overview.netWorth, previousMonthEndCents: 1_623_456 },
+        period: {
+          ...overview.period,
+          dataUntil: '2026-10-31',
+          status: 'empty',
+          previousUntil: null,
+          defaultMonth: '2026-10',
+        },
+        current: {
+          ...overview.current,
+          incomeCents: 0,
+          expenseCents: 0,
+          netCents: 0,
+          oneOffExpenseCents: 0,
+          savingsRate: null,
+        },
+      }),
+    )
+    renderPage(undefined, { month: '2026-11' })
+
+    const tiles = await screen.findByRole('region', { name: 'Chiffres clés' })
+    expect(
+      tiles.querySelectorAll('[data-slot="stat-card-delta"]'),
+    ).toHaveLength(0)
+    expect(screen.queryByText(/-100/)).not.toBeInTheDocument()
+    expect(within(tiles).getAllByText('Pas encore de données')).toHaveLength(3)
+    expect(
+      within(tiles).getByText('Pas encore de revenus ce mois-ci'),
+    ).toBeInTheDocument()
+    expect(
+      within(tiles).getByText('Rien d’importé depuis la fin du mois dernier'),
+    ).toBeInTheDocument()
+    expect(
+      within(tiles).getByText(
+        'Pas encore de données en novembre : elles s’arrêtent au 31 oct.',
+      ),
+    ).toBeInTheDocument()
+    expect(api.dashboardControllerOverview).toHaveBeenCalledWith({
+      query: { month: '2026-11' },
+      throwOnError: false,
+    })
+  })
+
+  it('moves between months, the default one kept out of the URL', async () => {
+    const user = userEvent.setup()
+    const onMonthChange = vi.fn()
+    api.dashboardControllerOverview.mockImplementation(() =>
+      ok({
+        ...overview,
+        period: {
+          ...overview.period,
+          month: '2026-10',
+          previousMonth: '2026-09',
+          previousUntil: '2026-09-30',
+        },
+      }),
+    )
+    renderPage(undefined, { month: '2026-10', onMonthChange })
+    expect(await screen.findByText('Octobre 2026')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Mois précédent' }))
+    expect(onMonthChange).toHaveBeenLastCalledWith('2026-09')
+    // November is the month the API picks by default.
+    await user.click(screen.getByRole('button', { name: 'Mois suivant' }))
+    expect(onMonthChange).toHaveBeenLastCalledWith(undefined)
   })
 
   it('lists the accounts by group with their balance and date', async () => {
@@ -346,6 +475,7 @@ describe('DashboardPage', () => {
           totalCents: 0,
           cashCents: 0,
           investmentsCents: 0,
+          previousMonthEnd: '2026-10-31',
           previousMonthEndCents: null,
           unknownBalanceCount: 0,
         },

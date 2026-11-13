@@ -21,11 +21,13 @@ import { Link } from '@tanstack/react-router'
 import { ChartPieIcon } from 'lucide-react'
 import { useMemo } from 'react'
 import { PageHeader } from '#/components/app-shell/PageHeader'
+import { PeriodNote } from '#/components/PeriodNote'
 import { currentMonth, formatMonth } from '#/lib/calendar'
+import { formatShortDay } from '#/lib/period'
 import { accountsQuery, categoriesQuery, isTransactional } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import { CategoryRanking } from './CategoryRanking'
-import { monthName } from './labels'
+import { comparedName, monthName } from './labels'
 import { spendingByCategoryQuery, spendingTrendQuery } from './queries'
 import type { ByCategoryFilters, TrendFilters } from './queries'
 import { compactSearch, DEFAULT_AVERAGE_PERIOD, UNCATEGORIZED } from './search'
@@ -70,26 +72,27 @@ function Section({
  */
 export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
   const today = currentMonth()
-  const month = search.month ?? today
   const includeOneOffs = search.oneOffs === true
 
+  // Without a month in the URL, the API picks it: the current month when it
+  // has data, else the month the data stops in.
   const filters = useMemo<ByCategoryFilters>(
     () => ({
-      month,
+      ...(search.month ? { month: search.month } : {}),
       includeOneOffs,
       averageMonths: search.avg ?? DEFAULT_AVERAGE_PERIOD,
       ...(search.account ? { accountId: search.account } : {}),
     }),
-    [month, includeOneOffs, search.avg, search.account],
+    [search.month, includeOneOffs, search.avg, search.account],
   )
   const trendBase = useMemo<TrendFilters>(
     () => ({
-      month,
+      ...(search.month ? { month: search.month } : {}),
       months: TREND_MONTHS,
       includeOneOffs,
       ...(search.account ? { accountId: search.account } : {}),
     }),
-    [month, includeOneOffs, search.account],
+    [search.month, includeOneOffs, search.account],
   )
   const trendFilters = useMemo<TrendFilters>(() => {
     if (search.trend === UNCATEGORIZED) {
@@ -125,8 +128,11 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
   }
 
   const data = byCategory.data
+  const month = search.month ?? data?.month ?? today
   const monthLabel = monthName(month)
-  const previousLabel = data ? monthName(data.previousMonth, data.month) : ''
+  const previousLabel = data ? comparedName(data) : ''
+  const stopsBefore =
+    data?.period.status === 'empty' ? data.period.dataUntil : null
 
   return (
     <div className="@container space-y-6">
@@ -140,6 +146,7 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
         onSearchChange={onSearchChange}
         month={month}
         today={today}
+        defaultMonth={data?.period.defaultMonth ?? today}
         accounts={(accounts.data ?? []).filter(isTransactional)}
       />
 
@@ -180,7 +187,9 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
             <EmptyDescription>
               {data.oneOffCents > 0 && !includeOneOffs
                 ? `Seules des dépenses ponctuelles (${formatEuros(data.oneOffCents)}) ont été faites ce mois-ci.`
-                : 'Importez un relevé de compte ou changez de mois.'}
+                : stopsBefore
+                  ? `Vos données s’arrêtent au ${formatShortDay(stopsBefore, today.slice(0, 4))} : importez un relevé plus récent ou changez de mois.`
+                  : 'Importez un relevé de compte ou changez de mois.'}
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
@@ -205,6 +214,7 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
         <>
           <div className="space-y-1.5">
             <SpendingKpis data={data} trend={totals.data?.totalsCents} />
+            <PeriodNote period={data.period} />
             <p className="text-muted-foreground text-xs">
               Virements entre vos comptes exclus.{' '}
               {data.oneOffCents > 0 &&

@@ -9,7 +9,6 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
-import { currentMonth } from './calendar'
 import { DashboardService } from './dashboard.service'
 import {
   DashboardHistoryDto,
@@ -31,7 +30,7 @@ export class DashboardController {
   @ApiOperation({
     summary: 'Net worth, accounts and the month at a glance',
     description:
-      'Net worth now (per account, cash vs investments) and at the end of the previous month; income, expenses, net and savings rate of `month` and of the month before (transfers excluded, one-offs reported); review queue size.',
+      'Net worth now (per account, cash vs investments, with the date each account’s data goes up to) and at the end of the previous month; income, expenses, net and savings rate of `month` and of the month before (transfers excluded, one-offs reported); review queue size. Without `month`: the current month when it has data, else the month the data stops in. While the month is partial, the previous month only counts the same first days (`period`).',
   })
   @ApiQuery({ type: DashboardOverviewQueryDto })
   @ApiOkResponse({ type: DashboardOverviewDto })
@@ -39,7 +38,7 @@ export class DashboardController {
   overview(
     @Query() query: DashboardOverviewQueryDto,
   ): Promise<DashboardOverviewDto> {
-    return this.dashboardService.overview(query.month ?? currentMonth())
+    return this.dashboardService.overview(query.month)
   }
 
   @Get('history')

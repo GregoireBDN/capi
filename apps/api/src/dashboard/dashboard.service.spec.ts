@@ -95,12 +95,23 @@ describe.skipIf(!process.env.DATABASE_URL)(
             totalCents: 0,
             cashCents: 0,
             investmentsCents: 0,
+            previousMonthEnd: '2026-10-31',
             previousMonthEndCents: null,
             unknownBalanceCount: 0,
           },
           accounts: [],
+          period: {
+            month: '2026-11',
+            dataUntil: null,
+            status: 'empty',
+            throughDay: null,
+            previousMonth: '2026-10',
+            previousUntil: null,
+            defaultMonth: '2026-11',
+          },
           current: {
             month: '2026-11',
+            until: '2026-11-30',
             incomeCents: 0,
             expenseCents: 0,
             netCents: 0,
@@ -197,8 +208,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
         ])
 
         const overview = await dashboard.overview('2026-10', { now: NOW })
+        expect(overview.period.status).toBe('complete')
         expect(overview.current).toEqual({
           month: '2026-10',
+          until: '2026-10-31',
           incomeCents: 300_000,
           expenseCents: -13_500,
           netCents: 286_500,
@@ -208,6 +221,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         })
         expect(overview.previous).toMatchObject({
           month: '2026-09',
+          until: '2026-09-30',
           incomeCents: 0,
           expenseCents: -2_000,
           netCents: -2_000,
@@ -221,10 +235,20 @@ describe.skipIf(!process.env.DATABASE_URL)(
           investmentsCents: 0,
         })
         expect(
-          overview.accounts.map((a) => [a.name, a.group, a.balanceCents]),
+          overview.accounts.map((a) => [
+            a.name,
+            a.group,
+            a.balanceCents,
+            a.dataUntil,
+          ]),
         ).toEqual([
-          ['Test checking', 'cash', 300_000 - 2_000 - 13_500 - 7_000 - 50_000],
-          ['Test savings', 'cash', 50_000],
+          [
+            'Test checking',
+            'cash',
+            300_000 - 2_000 - 13_500 - 7_000 - 50_000,
+            '2026-11-01',
+          ],
+          ['Test savings', 'cash', 50_000, '2026-10-15'],
         ])
 
         const { months } = await dashboard.history(3, { now: NOW })
@@ -355,6 +379,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           totalCents: 303_500,
           cashCents: 93_500,
           investmentsCents: 210_000,
+          previousMonthEnd: '2026-10-31',
           previousMonthEndCents: 304_500,
           unknownBalanceCount: 0,
         })
@@ -365,6 +390,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           group: 'investments',
           balanceCents: 210_000,
           balanceDate: '2026-10-31',
+          dataUntil: '2026-10-31',
         })
 
         // Same figures as the accounts list as of each month end.
@@ -372,6 +398,116 @@ describe.skipIf(!process.env.DATABASE_URL)(
         expect(asOf.find((a) => a.id === checking.id)).toMatchObject({
           balanceCents: 30_000,
           balanceDate: '2026-09-15',
+        })
+      })
+    })
+
+    it('compares a partial month with the same days of the previous one', async () => {
+      await inRollback(async ({ tx, accounts, dashboard }) => {
+        const checking = await accounts.create({
+          name: 'Test checking',
+          type: 'checking',
+        })
+        await tx.insert(transactionsTable).values([
+          transaction(checking.id, {
+            bookingDate: '2026-10-01',
+            amountCents: 250_000,
+            kind: 'income',
+          }),
+          transaction(checking.id, {
+            bookingDate: '2026-10-02',
+            amountCents: -4_000,
+          }),
+          // After the 3rd: out of the comparison.
+          transaction(checking.id, {
+            bookingDate: '2026-10-05',
+            amountCents: -90_000,
+          }),
+          transaction(checking.id, {
+            bookingDate: '2026-10-28',
+            amountCents: 40_000,
+            kind: 'income',
+          }),
+          // November so far: the 1st to the 3rd.
+          transaction(checking.id, {
+            bookingDate: '2026-11-01',
+            amountCents: 250_000,
+            kind: 'income',
+          }),
+          transaction(checking.id, {
+            bookingDate: '2026-11-03',
+            amountCents: -6_000,
+          }),
+          // A transfer is never income or expense, on either side.
+          transaction(checking.id, {
+            bookingDate: '2026-10-03',
+            amountCents: -20_000,
+            kind: 'transfer',
+          }),
+        ])
+
+        const overview = await dashboard.overview(undefined, { now: NOW })
+        expect(overview.period).toEqual({
+          month: '2026-11',
+          dataUntil: '2026-11-03',
+          status: 'partial',
+          throughDay: 3,
+          previousMonth: '2026-10',
+          previousUntil: '2026-10-03',
+          defaultMonth: '2026-11',
+        })
+        expect(overview.current).toMatchObject({
+          incomeCents: 250_000,
+          expenseCents: -6_000,
+        })
+        expect(overview.previous).toMatchObject({
+          month: '2026-10',
+          until: '2026-10-03',
+          incomeCents: 250_000,
+          expenseCents: -4_000,
+          netCents: 246_000,
+        })
+      })
+    })
+
+    it('shows the last month with data when the current one has none yet', async () => {
+      await inRollback(async ({ tx, accounts, dashboard }) => {
+        const checking = await accounts.create({
+          name: 'Test checking',
+          type: 'checking',
+        })
+        await tx.insert(transactionsTable).values([
+          transaction(checking.id, {
+            bookingDate: '2026-09-30',
+            amountCents: -3_000,
+          }),
+          transaction(checking.id, {
+            bookingDate: '2026-10-31',
+            amountCents: -5_000,
+          }),
+        ])
+
+        // 2 November, nothing imported since October.
+        const now = new Date('2026-11-02T08:00:00Z')
+        const overview = await dashboard.overview(undefined, { now })
+        expect(overview.period).toMatchObject({
+          month: '2026-10',
+          status: 'complete',
+          dataUntil: '2026-10-31',
+          defaultMonth: '2026-10',
+        })
+        expect(overview.current).toMatchObject({ expenseCents: -5_000 })
+        expect(overview.previous).toMatchObject({
+          month: '2026-09',
+          until: '2026-09-30',
+          expenseCents: -3_000,
+        })
+
+        // November asked for explicitly: empty, nothing to compare with.
+        const november = await dashboard.overview('2026-11', { now })
+        expect(november.period).toMatchObject({
+          status: 'empty',
+          previousUntil: null,
         })
       })
     })

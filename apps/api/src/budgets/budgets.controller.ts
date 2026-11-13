@@ -60,7 +60,7 @@ export class BudgetsController {
   @ApiOperation({
     summary: 'Targets vs spending for a month',
     description:
-      'Per budgeted category: target in effect, spent (expense transactions of the category, refunds deducted, transfers never counted), remaining, share used and status; totals; and the spending outside budgeted categories.',
+      'Per budgeted category: target in effect, spent (expense transactions of the category, refunds deducted, transfers never counted), remaining, share used and status; totals; the spending outside budgeted categories; and how far the month’s data goes (`period`). Without `month`: the current month when it has data, else the month the data stops in.',
   })
   // Explicit: the spec is generated without decorator metadata (tsx), so
   // Swagger cannot infer the query DTO from the parameter type.
@@ -68,7 +68,7 @@ export class BudgetsController {
   @ApiOkResponse({ type: BudgetMonthDto })
   @ApiBadRequestResponse({ description: 'Invalid month.' })
   month(@Query() query: BudgetMonthQueryDto): Promise<BudgetMonthDto> {
-    return this.budgetsService.month(query.month ?? currentParisMonth())
+    return this.budgetsService.month(query.month)
   }
 
   @Get('history')

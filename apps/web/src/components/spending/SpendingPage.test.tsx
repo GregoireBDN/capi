@@ -99,6 +99,7 @@ function spending(
     previousSpentCents: 0,
     deltaCents: 0,
     averageCents: null,
+    notYetThisMonth: false,
     ...overrides,
   }
 }
@@ -106,6 +107,15 @@ function spending(
 const october: SpendingByCategoryDto = {
   month: '2026-10',
   previousMonth: '2026-09',
+  period: {
+    month: '2026-10',
+    dataUntil: '2026-11-03',
+    status: 'complete',
+    throughDay: null,
+    previousMonth: '2026-09',
+    previousUntil: '2026-09-30',
+    defaultMonth: '2026-11',
+  },
   includeOneOffs: false,
   averageMonths: 6,
   averageFrom: '2026-04',
@@ -294,13 +304,38 @@ describe('SpendingPage', () => {
 
   it('moves between months and toggles one-offs through the URL', async () => {
     const user = userEvent.setup()
+    // Without a month, the API answers with its default one: November.
+    api.spendingControllerByCategory.mockImplementation(
+      ({ query }: { query: { month?: string } }) =>
+        ok(
+          query.month
+            ? october
+            : {
+                ...october,
+                month: '2026-11',
+                previousMonth: '2026-10',
+                period: {
+                  ...october.period,
+                  month: '2026-11',
+                  status: 'partial',
+                  throughDay: 3,
+                  previousMonth: '2026-10',
+                  previousUntil: '2026-10-03',
+                },
+              },
+        ),
+    )
     const { changes } = renderPage({ month: '2026-10' })
     await screen.findByRole('list', { name: 'Dépenses par catégorie' })
 
     await user.click(screen.getByRole('button', { name: 'Mois suivant' }))
-    // November is the current month: the default, kept out of the URL.
+    // November is the default month (picked by the API): kept out of the URL.
     expect(changes.at(-1)).toEqual({})
-    expect(screen.getByRole('button', { name: 'Mois suivant' })).toBeDisabled()
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Mois suivant' }),
+      ).toBeDisabled(),
+    )
 
     await user.click(screen.getByRole('button', { name: 'Mois précédent' }))
     expect(changes.at(-1)).toEqual({ month: '2026-10' })
@@ -386,6 +421,109 @@ describe('SpendingPage', () => {
         throwOnError: false,
       }),
     )
+  })
+
+  it('compares a month in progress with the same days, rent not paid yet', async () => {
+    api.spendingControllerByCategory.mockReturnValue(
+      ok({
+        ...october,
+        month: '2026-11',
+        previousMonth: '2026-10',
+        period: {
+          month: '2026-11',
+          dataUntil: '2026-11-03',
+          status: 'partial',
+          throughDay: 3,
+          previousMonth: '2026-10',
+          previousUntil: '2026-10-03',
+          defaultMonth: '2026-11',
+        },
+        totalCents: 3_000,
+        previousTotalCents: 72_000,
+        averageTotalCents: 71_000,
+        oneOffCents: 0,
+        categories: [
+          spending({
+            spentCents: 3_000,
+            share: 1,
+            transactionCount: 1,
+            previousSpentCents: 2_000,
+            deltaCents: 1_000,
+            averageCents: 1_000,
+          }),
+          spending({
+            categoryId: RENT,
+            slug: 'rent',
+            name: 'Loyer',
+            color: '#dc2626',
+            previousSpentCents: 70_000,
+            deltaCents: -70_000,
+            averageCents: 70_000,
+            notYetThisMonth: true,
+          }),
+        ],
+      }),
+    )
+    renderPage({})
+
+    const kpis = await screen.findByRole('region', {
+      name: 'Indicateurs du mois',
+    })
+    // The API picks the month: none is sent.
+    expect(api.spendingControllerByCategory).toHaveBeenCalledWith({
+      query: { includeOneOffs: false, averageMonths: 6 },
+      throwOnError: false,
+    })
+    expect(screen.getByText('Novembre 2026')).toBeInTheDocument()
+    expect(within(kpis).getByText('vs 1–3 oct.')).toBeInTheDocument()
+    expect(kpis).toHaveTextContent(/au 1–3 oct\./)
+    expect(kpis).toHaveTextContent(/mêmes jours/)
+    expect(
+      screen.getByText(
+        'Mois en cours : données jusqu’au 3 nov., comparées au 1–3 oct.',
+      ),
+    ).toBeInTheDocument()
+
+    const list = screen.getByRole('list', { name: 'Dépenses par catégorie' })
+    const rent = within(list).getByRole('link', { name: /Loyer/ })
+    // Not paid yet: no green "saving".
+    expect(rent.querySelector('[data-slot="spending-delta"]')).toBeNull()
+    expect(rent).toHaveTextContent(
+      `Pas encore ce mois-ci · ${euros(70_000)} au 1–3 oct.`,
+    )
+  })
+
+  it('says where the data stops when the month has none yet', async () => {
+    api.spendingControllerByCategory.mockReturnValue(
+      ok({
+        ...october,
+        month: '2026-11',
+        previousMonth: '2026-10',
+        period: {
+          month: '2026-11',
+          dataUntil: '2026-10-28',
+          status: 'empty',
+          throughDay: null,
+          previousMonth: '2026-10',
+          previousUntil: null,
+          defaultMonth: '2026-10',
+        },
+        totalCents: 0,
+        transactionCount: 0,
+        previousTotalCents: 0,
+        averageTotalCents: null,
+        oneOffCents: 0,
+        categories: [],
+      }),
+    )
+    renderPage({ month: '2026-11' })
+
+    expect(
+      await screen.findByText(
+        'Vos données s’arrêtent au 28 oct. : importez un relevé plus récent ou changez de mois.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/vs octobre/)).not.toBeInTheDocument()
   })
 
   it('shows an empty state for a month without spending', async () => {

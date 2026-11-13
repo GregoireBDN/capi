@@ -21,8 +21,10 @@ interface SpendingFiltersProps {
   onSearchChange: (next: SpendingSearch) => void
   /** Month shown (`YYYY-MM`). */
   month: string
-  /** Current month in Europe/Paris: the default, and the latest reachable. */
+  /** Current month in Europe/Paris: the latest reachable. */
   today: string
+  /** Month shown without a month in the URL (picked by the API). */
+  defaultMonth: string
   accounts: readonly AccountDto[]
 }
 
@@ -35,6 +37,7 @@ export function SpendingFilters({
   onSearchChange,
   month,
   today,
+  defaultMonth,
   accounts,
 }: SpendingFiltersProps) {
   const switchId = useId()
@@ -46,9 +49,9 @@ export function SpendingFilters({
     onSearchChange(compactSearch({ ...search, [key]: value }))
   }
 
-  // The current month is the default: keep it out of the URL.
+  // The default month stays out of the URL.
   const goTo = (target: string) =>
-    set('month', target === today ? undefined : target)
+    set('month', target === defaultMonth ? undefined : target)
 
   return (
     <div className="space-y-3">

@@ -1,4 +1,5 @@
 import { applyDecorators } from '@nestjs/common'
+import { MonthPeriodDto } from '#/coverage/dto/period.dto'
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Transform, Type } from 'class-transformer'
 import {
@@ -49,7 +50,7 @@ class SpendingFiltersQueryDto {
     pattern: MONTH_PATTERN.source,
     example: '2026-10',
     description:
-      'Calendar month (YYYY-MM). Default: the current month in Europe/Paris.',
+      'Calendar month (YYYY-MM). Default: the current month in Europe/Paris when it has data (in the account filtered on, if any), else the month the data stops in.',
   })
   @IsOptional()
   @Matches(MONTH_PATTERN, { message: '$property must be YYYY-MM' })
@@ -150,7 +151,11 @@ export class CategorySpendingDto {
   @ApiProperty({ type: 'integer' })
   transactionCount!: number
 
-  @ApiProperty({ type: 'integer', description: 'Spent the month before.' })
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Spent the month before, over its same first days while the month is partial.',
+  })
   previousSpentCents!: number
 
   @ApiProperty({
@@ -163,9 +168,16 @@ export class CategorySpendingDto {
     type: 'integer',
     nullable: true,
     description:
-      'Average monthly spending over the average window (months without spending count as 0). Null without history.',
+      'Average monthly spending over the average window (months without spending count as 0), over the same first days of each month while the month is partial. Null without history.',
   })
   averageCents!: number | null
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'The month is partial and has no expense in this category yet, while the compared days had some: not paid yet rather than saved, so the drop is not a saving.',
+  })
+  notYetThisMonth!: boolean
 }
 
 export class SpendingByCategoryDto {
@@ -174,6 +186,13 @@ export class SpendingByCategoryDto {
 
   @ApiProperty({ type: String, example: '2026-09' })
   previousMonth!: string
+
+  @ApiProperty({
+    type: MonthPeriodDto,
+    description:
+      'How far the month’s data goes (in the account filtered on, if any) and what it is compared with.',
+  })
+  period!: MonthPeriodDto
 
   @ApiProperty({ type: Boolean })
   includeOneOffs!: boolean
@@ -198,10 +217,19 @@ export class SpendingByCategoryDto {
   @ApiProperty({ type: 'integer' })
   transactionCount!: number
 
-  @ApiProperty({ type: 'integer', description: 'Spent the month before.' })
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Spent the month before, over its same first days while the month is partial.',
+  })
   previousTotalCents!: number
 
-  @ApiProperty({ type: 'integer', nullable: true })
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Average monthly spending, over the same first days of each month while the month is partial.',
+  })
   averageTotalCents!: number | null
 
   @ApiProperty({
@@ -214,7 +242,7 @@ export class SpendingByCategoryDto {
   @ApiProperty({
     type: [CategorySpendingDto],
     description:
-      'Categories with expenses this month or the month before, biggest spending first.',
+      'Categories with expenses this month or the month before (its same first days while the month is partial; this month only when it has no data yet), biggest spending first.',
   })
   categories!: CategorySpendingDto[]
 }

@@ -41,6 +41,12 @@ type StatCardProps = Omit<React.ComponentProps<'div'>, 'children'> & {
   trendLabel?: string
   /** Optional icon shown next to the label. */
   icon?: React.ReactNode
+  /**
+   * Short muted text shown in place of the delta line when there is no
+   * comparison, e.g. why the value is a dash or why the month is not
+   * compared (`Pas encore de revenus ce mois-ci`).
+   */
+  note?: React.ReactNode
 }
 
 type DeltaTone = 'good' | 'bad' | 'neutral'
@@ -124,6 +130,7 @@ function StatCard({
   trend,
   trendLabel,
   icon,
+  note,
   className,
   ...props
 }: StatCardProps) {
@@ -187,6 +194,13 @@ function StatCard({
             {delta.text}
           </span>
           <span className="text-muted-foreground">{comparisonLabel}</span>
+        </p>
+      ) : note ? (
+        <p
+          data-slot="stat-card-note"
+          className="px-3 text-[clamp(0.55rem,9cqi,0.75rem)] text-muted-foreground"
+        >
+          {note}
         </p>
       ) : null}
 

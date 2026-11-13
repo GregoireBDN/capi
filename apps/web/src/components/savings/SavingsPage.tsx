@@ -65,7 +65,7 @@ export function SavingsPage() {
     <div className="@container space-y-6">
       <PageHeader
         title="Épargne"
-        description={data ? formatMonth(data.currentMonth) : undefined}
+        description={data ? formatMonth(data.period.month) : undefined}
       />
 
       {overview.isPending && <OverviewSkeleton />}

@@ -25,7 +25,8 @@ import {
 import type { ReactNode } from 'react'
 import { NewAccountButton } from '#/components/accounts/AccountEditor'
 import { PageHeader } from '#/components/app-shell/PageHeader'
-import { formatMonth } from '#/lib/calendar'
+import { MonthSwitcher } from '#/components/MonthSwitcher'
+import { currentMonth } from '#/lib/calendar'
 import { plural } from '#/lib/plural'
 import { ROUTES } from '#/lib/routes'
 import { AccountsList } from './AccountsList'
@@ -91,28 +92,52 @@ function OverviewSkeleton() {
   )
 }
 
+interface DashboardPageProps {
+  /** Month from the URL; absent = the month the API picks. */
+  month?: string
+  onMonthChange?: (month: string | undefined) => void
+  banner?: ReactNode
+}
+
 /**
- * The financial situation at a glance: net worth and its trend, the current
- * month (Europe/Paris) against the previous one, monthly cash flow, the
- * accounts with their balances, and what needs attention.
+ * The financial situation at a glance: net worth and its trend, the month
+ * (the current one when it has data, else the last one with data, see
+ * `MonthPeriodDto`) against the same days of the previous one, monthly cash
+ * flow, the accounts with their balances, and what needs attention.
  */
-export function DashboardPage({ banner }: { banner?: ReactNode }) {
-  const overview = useQuery(dashboardOverviewQuery)
+export function DashboardPage({
+  month,
+  onMonthChange,
+  banner,
+}: DashboardPageProps) {
+  const overview = useQuery(dashboardOverviewQuery(month))
   const history = useQuery(dashboardHistoryQuery())
   const data = overview.data
   const isEmpty = data !== undefined && data.accounts.length === 0
+  const today = currentMonth()
+  // The default month stays out of the URL.
+  const go = (target: string) =>
+    onMonthChange?.(target === data?.period.defaultMonth ? undefined : target)
 
   return (
     <div className="@container space-y-6">
       <div className="flex items-start justify-between gap-3">
         <PageHeader
           title="Tableau de bord"
-          description={data ? formatMonth(data.current.month) : undefined}
+          description="Votre patrimoine et le bilan du mois."
         />
         {data && !isEmpty && <ImportButton />}
       </div>
 
       {banner}
+
+      {data && !isEmpty && (
+        <MonthSwitcher
+          month={data.period.month}
+          today={today}
+          onMonthChange={go}
+        />
+      )}
 
       {overview.isPending && <OverviewSkeleton />}
 

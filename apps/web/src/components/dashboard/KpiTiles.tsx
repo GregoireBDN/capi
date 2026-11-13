@@ -1,8 +1,10 @@
 import { formatPercent, formatWholeEuros, StatCard } from '@finances/ui'
 import { LandmarkIcon } from 'lucide-react'
 import type { DashboardOverviewDto, HistoryMonthDto } from '#/api/types.gen'
+import { PeriodNote } from '#/components/PeriodNote'
 import { formatCents } from '#/lib/money'
-import { formatPoints } from './labels'
+import { comparisonLabel, isComparable } from '#/lib/period'
+import { formatPoints, savingsRateNote } from './labels'
 
 interface KpiTilesProps {
   overview: DashboardOverviewDto
@@ -18,14 +20,23 @@ function trendOf(values: (number | null)[] | undefined): number[] | undefined {
 
 /**
  * Headline figures: net worth (vs the end of last month), then the month's
- * income, expenses, savings and savings rate (vs the month before). Expenses
- * are shown as positive amounts where a rise is unfavourable; transfers are
- * never part of any of them. The month tiles use short labels (the page
- * header names the month) and whole euros so two fit side by side on a
- * phone with the app's large root font.
+ * income, expenses, savings and savings rate (vs the month before, over the
+ * same first days while the month is in progress; not compared at all
+ * while it has no data). Expenses are shown as positive amounts where a
+ * rise is unfavourable; transfers are never part of any of them. The month
+ * tiles use short labels (the month switcher names the month) and whole
+ * euros so two fit side by side on a phone with the app's large root font.
  */
 export function KpiTiles({ overview, history }: KpiTilesProps) {
-  const { netWorth, current, previous } = overview
+  const { netWorth, period, current, previous } = overview
+  const comparable = isComparable(period)
+  const vs = comparisonLabel(period, 'vs mois précédent')
+  const noData = comparable ? undefined : 'Pas encore de données'
+  // Nothing imported since the end of last month: an unchanged net worth
+  // says nothing, so it is not shown as a 0 € change.
+  const staleNetWorth =
+    netWorth.previousMonthEndCents === netWorth.totalCents &&
+    (period.dataUntil === null || period.dataUntil <= netWorth.previousMonthEnd)
 
   return (
     <section aria-label="Chiffres clés" className="space-y-2">
@@ -35,9 +46,18 @@ export function KpiTiles({ overview, history }: KpiTilesProps) {
           label="Patrimoine net"
           icon={<LandmarkIcon />}
           value={netWorth.totalCents}
-          previousValue={netWorth.previousMonthEndCents ?? undefined}
+          previousValue={
+            staleNetWorth
+              ? undefined
+              : (netWorth.previousMonthEndCents ?? undefined)
+          }
           deltaDisplay="value"
           comparisonLabel="depuis la fin du mois dernier"
+          note={
+            staleNetWorth
+              ? 'Rien d’importé depuis la fin du mois dernier'
+              : undefined
+          }
           trend={trendOf(history?.map((month) => month.netWorthCents))}
           trendLabel="Patrimoine net en fin de mois, sur 12 mois"
         />
@@ -45,7 +65,9 @@ export function KpiTiles({ overview, history }: KpiTilesProps) {
           label="Revenus"
           value={current.incomeCents}
           valueFormatter={formatWholeEuros}
-          previousValue={previous.incomeCents}
+          previousValue={comparable ? previous.incomeCents : undefined}
+          comparisonLabel={vs}
+          note={noData}
           trend={trendOf(history?.map((month) => month.incomeCents))}
           trendLabel="Revenus par mois, sur 12 mois"
         />
@@ -53,7 +75,9 @@ export function KpiTiles({ overview, history }: KpiTilesProps) {
           label="Dépenses"
           value={-current.expenseCents}
           valueFormatter={formatWholeEuros}
-          previousValue={-previous.expenseCents}
+          previousValue={comparable ? -previous.expenseCents : undefined}
+          comparisonLabel={vs}
+          note={noData}
           increaseIsGood={false}
           trend={trendOf(history?.map((month) => -month.expenseCents))}
           trendLabel="Dépenses par mois, sur 12 mois"
@@ -62,8 +86,10 @@ export function KpiTiles({ overview, history }: KpiTilesProps) {
           label="Épargne"
           value={current.netCents}
           valueFormatter={formatWholeEuros}
-          previousValue={previous.netCents}
+          previousValue={comparable ? previous.netCents : undefined}
           deltaDisplay="value"
+          comparisonLabel={vs}
+          note={noData}
           trend={trendOf(history?.map((month) => month.netCents))}
           trendLabel="Épargne nette par mois, sur 12 mois"
         />
@@ -74,14 +100,19 @@ export function KpiTiles({ overview, history }: KpiTilesProps) {
             current.savingsRate === null ? '—' : formatPercent(ratio)
           }
           previousValue={
-            current.savingsRate === null || previous.savingsRate === null
+            !comparable ||
+            current.savingsRate === null ||
+            previous.savingsRate === null
               ? undefined
               : previous.savingsRate
           }
           deltaDisplay="value"
           deltaFormatter={formatPoints}
+          comparisonLabel={vs}
+          note={savingsRateNote(current, period) ?? noData}
         />
       </div>
+      <PeriodNote period={period} className="px-1" />
       <OneOffNote overview={overview} />
     </section>
   )

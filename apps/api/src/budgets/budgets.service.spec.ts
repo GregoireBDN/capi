@@ -133,6 +133,32 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
   }
 
   describe('month', () => {
+    it('defaults to the month the data stops in while the current one has none', async () => {
+      await withFixture(async ({ tx, service, checking, groceries }) => {
+        await insert(tx, [
+          transaction(checking, {
+            categoryId: groceries,
+            bookingDate: '2026-10-28',
+            amountCents: -3_000,
+          }),
+        ])
+        const now = new Date('2026-11-02T08:00:00Z')
+
+        const shown = await service.month(undefined, undefined, now)
+        expect(shown.month).toBe('2026-10')
+        expect(shown.period).toMatchObject({
+          month: '2026-10',
+          dataUntil: '2026-10-28',
+          status: 'partial',
+          throughDay: 28,
+        })
+
+        const november = await service.month('2026-11', undefined, now)
+        expect(november.month).toBe('2026-11')
+        expect(november.period.status).toBe('empty')
+      })
+    })
+
     it('compares the target with the expenses of the category, refunds deducted', async () => {
       await withFixture(async ({ tx, service, checking, groceries }) => {
         await service.upsert(groceries, '2026-10', {

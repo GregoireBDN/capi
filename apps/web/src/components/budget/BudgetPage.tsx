@@ -15,6 +15,7 @@ import { useQuery } from '@tanstack/react-query'
 import { PlusIcon, SparklesIcon, TargetIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { PageHeader } from '#/components/app-shell/PageHeader'
+import { PeriodNote } from '#/components/PeriodNote'
 import { currentMonth, formatMonth } from '#/lib/calendar'
 import { categoriesQuery } from '#/lib/queries'
 import { BudgetEditor } from './BudgetEditor'
@@ -22,7 +23,7 @@ import type { EditedBudget } from './BudgetEditor'
 import { BudgetHistory } from './BudgetHistory'
 import { BudgetList } from './BudgetList'
 import { BudgetSummary } from './BudgetSummary'
-import { MonthSwitcher } from './MonthSwitcher'
+import { MonthSwitcher } from '#/components/MonthSwitcher'
 import { budgetHistoryQuery, budgetMonthQuery } from './queries'
 import { SuggestionsSheet } from './SuggestionsSheet'
 import { UnbudgetedCard } from './UnbudgetedCard'
@@ -58,9 +59,14 @@ export function BudgetPage({
   onMonthChange,
 }: BudgetPageProps) {
   const today = currentMonth()
-  const month = monthParam ?? today
-  const budget = useQuery(budgetMonthQuery(month))
-  const history = useQuery(budgetHistoryQuery(month))
+  // Without a month in the URL, the API picks it (the current month when it
+  // has data, else the month the data stops in); the history follows it.
+  const budget = useQuery(budgetMonthQuery(monthParam))
+  const month = monthParam ?? budget.data?.month ?? today
+  const history = useQuery({
+    ...budgetHistoryQuery(month),
+    enabled: monthParam !== undefined || budget.isSuccess,
+  })
   const categories = useQuery(categoriesQuery)
   const [editor, setEditor] = useState<EditorState>({ open: false })
   const [suggestOpen, setSuggestOpen] = useState(false)
@@ -73,8 +79,13 @@ export function BudgetPage({
   }, [budget.data, categories.data])
 
   const empty = budget.isSuccess && budget.data.items.length === 0
+  // The default month stays out of the URL.
   const go = (target: string) =>
-    onMonthChange(target === today ? undefined : target)
+    onMonthChange(
+      target === (budget.data?.period.defaultMonth ?? today)
+        ? undefined
+        : target,
+    )
 
   return (
     <div className="@container space-y-6">
@@ -105,6 +116,10 @@ export function BudgetPage({
           </div>
         )}
       </div>
+
+      {budget.isSuccess && (
+        <PeriodNote period={budget.data.period} className="-mt-3" />
+      )}
 
       {budget.isPending && <PageSkeleton />}
 

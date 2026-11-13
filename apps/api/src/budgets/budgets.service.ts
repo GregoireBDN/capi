@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common'
 import { and, asc, eq, gte, inArray, lt, lte, type SQL, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
+import { resolvePeriod } from '#/coverage/coverage'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import {
@@ -97,11 +98,18 @@ export class BudgetsService {
     return this.database.db
   }
 
-  /** Targets vs spending for one month, plus the unbudgeted spending. */
+  /**
+   * Targets vs spending for one month, plus the unbudgeted spending. Without
+   * `month`, the current month when it has data, else the month the data
+   * stops in; `period` says how far the month's data goes.
+   */
   async month(
-    month: string,
+    requested?: string,
     executor: Executor = this.db,
+    now: Date = new Date(),
   ): Promise<BudgetMonthDto> {
+    const period = await resolvePeriod(executor, requested, { now })
+    const { month } = period
     const [rows, spending, categories] = await Promise.all([
       this.budgetRows(executor, month),
       this.spending(executor, month, month),
@@ -163,6 +171,7 @@ export class BudgetsService {
 
     return {
       month,
+      period,
       items,
       totals: {
         targetCents,

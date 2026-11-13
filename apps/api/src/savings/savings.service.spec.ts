@@ -293,6 +293,53 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
     })
   })
 
+  it('compares the headline month like for like while it is in progress', async () => {
+    await inRollback(async ({ tx, savings }) => {
+      await seed(tx)
+      // Data up to 2 November: compared with 1–2 October.
+      const overview = await savings.overview(4, { now: NOW })
+      expect(overview.period).toMatchObject({
+        month: '2026-11',
+        dataUntil: '2026-11-02',
+        status: 'partial',
+        throughDay: 2,
+        previousUntil: '2026-10-02',
+      })
+      expect(overview.current).toMatchObject({
+        month: '2026-11',
+        incomeCents: 300_000,
+        expenseCents: -50_000,
+        netCents: 250_000,
+      })
+      expect(overview.previous).toMatchObject({
+        month: '2026-10',
+        until: '2026-10-02',
+        incomeCents: 300_000,
+        expenseCents: 0,
+        netCents: 300_000,
+        savingsRate: 1,
+      })
+      // Months the data does not reach the end of are not complete.
+      expect(overview.months.map((m) => [m.month, m.complete])).toEqual([
+        ['2026-08', true],
+        ['2026-09', true],
+        ['2026-10', true],
+        ['2026-11', false],
+      ])
+
+      // Early December, nothing imported since: November is shown.
+      const december = await savings.overview(4, {
+        now: new Date('2026-12-02T08:00:00Z'),
+      })
+      expect(december.period).toMatchObject({
+        month: '2026-11',
+        status: 'partial',
+        throughDay: 2,
+      })
+      expect(december.current.netCents).toBe(250_000)
+    })
+  })
+
   it('stores the monthly target and reports the gap', async () => {
     await inRollback(async ({ tx, savings }) => {
       await seed(tx)

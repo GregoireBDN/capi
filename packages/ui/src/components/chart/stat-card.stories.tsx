@@ -72,6 +72,27 @@ export const WithoutComparison: Story = {
   args: { previousValue: undefined, trend: undefined },
 }
 
+/** No comparison, with the reason in place of the delta line. */
+export const WithNote: Story = {
+  args: {
+    label: '% épargné',
+    value: 0,
+    valueFormatter: () => '—',
+    previousValue: undefined,
+    trend: undefined,
+    icon: undefined,
+    note: 'Pas encore de revenus ce mois-ci',
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText('Pas encore de revenus ce mois-ci'),
+    ).toBeInTheDocument()
+    await expect(
+      canvasElement.querySelector('[data-slot="stat-card-delta"]'),
+    ).toBeNull()
+  },
+}
+
 export const Stable: Story = {
   args: {
     label: 'Abonnements',
