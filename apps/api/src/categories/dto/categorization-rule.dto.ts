@@ -28,6 +28,9 @@ const LABEL_PATTERN_MAX = 255
 const MERCHANT_MAX = 255
 const RAW_LABEL_MAX = 1000
 
+/** Changed transactions listed by a rule preview. */
+export const PREVIEW_SAMPLE_SIZE = 20
+
 const trim = () =>
   Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
@@ -340,11 +343,71 @@ export class ApplyCategorizationRulesResultDto {
   manualSkipped!: number
 }
 
+/**
+ * A rule to preview: a new one (appended last) or, with `ruleId`, the edited
+ * version of an existing rule, evaluated at that rule's position.
+ */
+export class PreviewCategorizationRuleDto extends CreateCategorizationRuleDto {
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    description:
+      'Existing rule this body would replace. Omitted: a new rule appended last.',
+  })
+  @IsOptional()
+  @IsUUID()
+  ruleId?: string
+}
+
+/** A transaction whose category or kind the previewed rule would change. */
+export class CategorizationRulePreviewTransactionDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string
+
+  @ApiProperty({ type: String, format: 'date' })
+  bookingDate!: string
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  accountId!: string
+
+  @ApiProperty({ type: String })
+  rawLabel!: string
+
+  @ApiProperty({ type: String, nullable: true })
+  merchant!: string | null
+
+  @ApiProperty({ type: 'integer', description: 'Signed integer cents.' })
+  amountCents!: number
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'Current category (null: uncategorized).',
+  })
+  categoryId!: string | null
+
+  @ApiProperty({ enum: TRANSACTION_KINDS, enumName: 'TransactionKind' })
+  kind!: TransactionKind
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Category once the rules are re-applied (null: no rule matches, back to review).',
+  })
+  nextCategoryId!: string | null
+
+  @ApiProperty({ enum: TRANSACTION_KINDS, enumName: 'TransactionKind' })
+  nextKind!: TransactionKind
+}
+
 export class CategorizationRulePreviewDto {
   @ApiProperty({
     type: 'integer',
     description:
-      'Transactions the rule would categorize if it were created (last) and the rules re-applied. Manual categorizations are never counted.',
+      'Transactions the rule would categorize once saved and the rules re-applied (first match wins). Manual categorizations are never counted.',
   })
   matched!: number
 
@@ -354,4 +417,24 @@ export class CategorizationRulePreviewDto {
       'Of those, transactions that would leave the review queue (uncategorized ones waiting for review).',
   })
   leavingReview!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Transactions the rule categorizes today that it would no longer win (they go to the next matching rule, or back to review). Always 0 for a new rule.',
+  })
+  released!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Transactions whose category or kind would change because of this rule (matched or released).',
+  })
+  changed!: number
+
+  @ApiProperty({
+    type: [CategorizationRulePreviewTransactionDto],
+    description: `The changed transactions, most recent first, at most ${PREVIEW_SAMPLE_SIZE}.`,
+  })
+  transactions!: CategorizationRulePreviewTransactionDto[]
 }
