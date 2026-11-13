@@ -2262,6 +2262,141 @@
         ]
       }
     },
+    "/api/transactions/manual": {
+      "post": {
+        "description": "Amount, expense category, day (default: today in Europe/Paris), optional label (default: the category name), account (default: the first checking account). Counts in spending and budgets at once, never as imported data; the import of the bank export replaces it with the matching bank row, keeping its category and note.",
+        "operationId": "TransactionsController_createManual",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateManualExpenseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an expense category, not an open checking or savings account, no checking account, a future day, or invalid body."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Note an expense by hand",
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
+    "/api/transactions/manual/{id}": {
+      "patch": {
+        "description": "Same fields as when noting it; all optional.",
+        "operationId": "TransactionsController_updateManual",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateManualExpenseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body or nothing to update."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "No manual expense with this id."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Edit an expense noted by hand",
+        "tags": [
+          "Transactions"
+        ]
+      },
+      "delete": {
+        "operationId": "TransactionsController_removeManual",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "No manual expense with this id."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Delete an expense noted by hand",
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
     "/api/transactions/{id}": {
       "patch": {
         "description": "Category, kind, one-off flag, note or review flag. A category set here is a manual one: rules never overwrite it.",
@@ -2360,6 +2495,37 @@
           }
         ],
         "summary": "Targets vs spending for a month",
+        "tags": [
+          "Budgets"
+        ]
+      }
+    },
+    "/api/budgets/envelopes": {
+      "get": {
+        "description": "Budget lines flagged `tracked`, for the current month in Europe/Paris: spent so far (imported and manual expenses of the category), remaining, and the share of the target matching the days elapsed (`paceCents`).",
+        "operationId": "BudgetsController_envelopes",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopesDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Envelopes followed during the current month",
         "tags": [
           "Budgets"
         ]
@@ -5300,6 +5466,38 @@
           "rawLabel"
         ]
       },
+      "ManualExpenseMatchDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bookingDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Signed cents."
+          },
+          "rawLabel": {
+            "type": "string"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "bookingDate",
+          "amountCents",
+          "rawLabel",
+          "categoryId"
+        ]
+      },
       "ImportPreviewRowDto": {
         "type": "object",
         "properties": {
@@ -5359,7 +5557,7 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Proposed by the rules; null when no rule matched."
+            "description": "Proposed by the rules, or the category of the manual expense the row replaces; null when neither applies."
           },
           "ruleId": {
             "type": "string",
@@ -5376,6 +5574,16 @@
           "needsReview": {
             "type": "boolean",
             "description": "No rule matched: the transaction goes to the review queue."
+          },
+          "manualMatch": {
+            "nullable": true,
+            "description": "Expense noted by hand that this new row replaces on commit (same account and amount, booked a few days apart): the row keeps its category and note.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ManualExpenseMatchDto"
+              }
+            ]
           }
         },
         "required": [
@@ -5393,7 +5601,8 @@
           "categoryId",
           "ruleId",
           "kind",
-          "needsReview"
+          "needsReview",
+          "manualMatch"
         ]
       },
       "ImportPreviewDto": {
@@ -5418,13 +5627,21 @@
             "items": {
               "$ref": "#/components/schemas/ImportPreviewRowDto"
             }
+          },
+          "unmatchedManual": {
+            "description": "Expenses noted by hand in the file’s period that no row replaces: kept and flagged for review on commit.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ManualExpenseMatchDto"
+            }
           }
         },
         "required": [
           "previousBalanceCents",
           "continuity",
           "issues",
-          "rows"
+          "rows",
+          "unmatchedManual"
         ]
       },
       "ImportDetailDto": {
@@ -6274,6 +6491,10 @@
             "type": "string",
             "nullable": true
           },
+          "manual": {
+            "type": "boolean",
+            "description": "Expense noted by hand during the month, replaced by its bank row on import."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -6300,6 +6521,7 @@
           "needsReview",
           "isOneOff",
           "note",
+          "manual",
           "createdAt",
           "updatedAt"
         ]
@@ -6440,6 +6662,74 @@
         "required": [
           "updated"
         ]
+      },
+      "CreateManualExpenseDto": {
+        "type": "object",
+        "properties": {
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000000,
+            "example": 1250,
+            "description": "Amount spent, positive integer cents."
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "An expense category."
+          },
+          "bookingDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-13",
+            "description": "Day of the expense. Default: today in Europe/Paris."
+          },
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255,
+            "description": "Free text. Default: the category name."
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A checking or savings account. Default: the first checking account."
+          }
+        },
+        "required": [
+          "amountCents",
+          "categoryId"
+        ]
+      },
+      "UpdateManualExpenseDto": {
+        "type": "object",
+        "properties": {
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000000,
+            "description": "Amount spent, positive integer cents."
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bookingDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-13"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255,
+            "description": "Null or empty: back to the category name."
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
       },
       "UpdateTransactionDto": {
         "type": "object",
@@ -6585,6 +6875,10 @@
             "type": "string",
             "nullable": true
           },
+          "tracked": {
+            "type": "boolean",
+            "description": "Envelope followed during the month."
+          },
           "spentCents": {
             "type": "integer",
             "description": "Spent in the month, in positive cents: `expense` transactions of the category (refunds filed in it reduce it). Transfers never count."
@@ -6619,6 +6913,7 @@
           "targetCents",
           "effectiveFrom",
           "note",
+          "tracked",
           "spentCents",
           "spentExcludingOneOffsCents",
           "remainingCents",
@@ -6780,6 +7075,109 @@
           "items",
           "totals",
           "unbudgeted"
+        ]
+      },
+      "EnvelopeDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "example": "#d97706"
+          },
+          "targetCents": {
+            "type": "integer",
+            "description": "Monthly target in cents."
+          },
+          "spentCents": {
+            "type": "integer",
+            "description": "Spent so far this month, in positive cents: imported and manual `expense` transactions of the category (refunds reduce it)."
+          },
+          "manualCents": {
+            "type": "integer",
+            "description": "Part of `spentCents` noted by hand, not imported yet."
+          },
+          "remainingCents": {
+            "type": "integer",
+            "description": "`targetCents` − `spentCents` (negative when over)."
+          },
+          "paceCents": {
+            "type": "integer",
+            "description": "Share of the target matching the days elapsed: target × day / days in the month, rounded."
+          },
+          "aheadOfPace": {
+            "type": "boolean",
+            "description": "Spent more than `paceCents`: ahead of the month’s pace."
+          },
+          "status": {
+            "description": "`ok` below 80 % of the target, `warning` from 80 % to 100 % included, `over` above 100 %.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BudgetStatus"
+              }
+            ]
+          }
+        },
+        "required": [
+          "categoryId",
+          "slug",
+          "name",
+          "color",
+          "targetCents",
+          "spentCents",
+          "manualCents",
+          "remainingCents",
+          "paceCents",
+          "aheadOfPace",
+          "status"
+        ]
+      },
+      "EnvelopesDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "example": "2026-11",
+            "description": "The current month in Europe/Paris."
+          },
+          "today": {
+            "type": "string",
+            "format": "date",
+            "description": "Today in Europe/Paris."
+          },
+          "dayOfMonth": {
+            "type": "integer",
+            "example": 13
+          },
+          "daysInMonth": {
+            "type": "integer",
+            "example": 30
+          },
+          "items": {
+            "description": "Budget lines followed during the month, in name order. Empty when none is.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvelopeDto"
+            }
+          }
+        },
+        "required": [
+          "month",
+          "today",
+          "dayOfMonth",
+          "daysInMonth",
+          "items"
         ]
       },
       "BudgetHistoryCellDto": {
@@ -7011,6 +7409,10 @@
             "nullable": true,
             "maxLength": 500,
             "description": "Free note. Omitted: kept from the target in effect; null or empty: removed."
+          },
+          "tracked": {
+            "type": "boolean",
+            "description": "Envelope: follow the category during the month on the dashboard (\"Ce mois-ci\"). Omitted: kept from the target in effect."
           }
         },
         "required": [
@@ -7041,6 +7443,10 @@
           "note": {
             "type": "string",
             "nullable": true
+          },
+          "tracked": {
+            "type": "boolean",
+            "description": "Envelope followed during the month."
           }
         },
         "required": [
@@ -7048,7 +7454,8 @@
           "categoryId",
           "effectiveFrom",
           "monthlyTargetCents",
-          "note"
+          "note",
+          "tracked"
         ]
       },
       "NetWorthDto": {
