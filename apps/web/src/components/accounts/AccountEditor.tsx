@@ -82,9 +82,19 @@ export const ACCOUNT_TYPE_OPTIONS: readonly {
     type: 'crypto',
     label: 'Crypto',
     defaultName: 'Crypto',
-    hint: 'Valorisé chaque jour à partir de vos positions (wallets, plateformes).',
+    hint: 'Une plateforme (Binance, Coinbase…) ou un wallet (Ledger…) par compte, valorisé chaque jour à partir de ses avoirs.',
   },
 ]
+
+/**
+ * Where the account is held: a bank or insurer, or for crypto the exchange
+ * or wallet (one per account).
+ */
+function institutionField(type: AccountType) {
+  return type === 'crypto'
+    ? { label: 'Plateforme ou wallet', placeholder: 'Binance, Ledger…' }
+    : { label: 'Établissement', placeholder: 'Banque, assureur…' }
+}
 
 function optionOf(type: AccountType) {
   return ACCOUNT_TYPE_OPTIONS.find((option) => option.type === type)!
@@ -346,13 +356,13 @@ export function AccountEditor({
             </Field>
             <Field data-invalid={shown.institution !== undefined}>
               <FieldLabel htmlFor={`${id}-institution`}>
-                Établissement
+                {institutionField(values.type).label}
               </FieldLabel>
               <Input
                 id={`${id}-institution`}
                 autoComplete="off"
                 maxLength={NAME_MAX}
-                placeholder="Banque, assureur…"
+                placeholder={institutionField(values.type).placeholder}
                 value={values.institution}
                 aria-invalid={shown.institution !== undefined}
                 onChange={(event) => set({ institution: event.target.value })}

@@ -135,12 +135,15 @@ describe('AccountEditor', () => {
     await user.click(screen.getByRole('button', { name: 'Nouveau compte' }))
     await user.selectOptions(await screen.findByLabelText('Type'), 'crypto')
     expect(screen.queryByLabelText('Valeur actuelle')).not.toBeInTheDocument()
+    // A crypto account is held on an exchange or in a wallet, not at a bank.
+    expect(screen.queryByLabelText('Établissement')).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText('Plateforme ou wallet'), 'Ledger')
     await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
 
     await waitFor(() => expect(navigate).toHaveBeenCalled())
     expect(api.accountsControllerCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        body: { name: 'Crypto', type: 'crypto', institution: null },
+        body: { name: 'Crypto', type: 'crypto', institution: 'Ledger' },
       }),
     )
     expect(api.accountSnapshotsControllerUpsert).not.toHaveBeenCalled()
