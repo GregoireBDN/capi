@@ -7149,6 +7149,15 @@
           "notYetThisMonth": {
             "type": "boolean",
             "description": "The month is partial and has no expense in this category yet, while the compared days had some: not paid yet rather than saved, so the drop is not a saving."
+          },
+          "targetCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Budget target of the category for the month, positive integer cents. Null without a budget (and for the uncategorized bucket)."
+          },
+          "expectedCents": {
+            "type": "integer",
+            "description": "Recurring costs of the category (confirmed subscriptions and fixed costs) still expected later in the month, positive integer cents: not paid yet, so never counted as spent nor as a saving. 0 unless the month is partial."
           }
         },
         "required": [
@@ -7162,7 +7171,9 @@
           "previousSpentCents",
           "deltaCents",
           "averageCents",
-          "notYetThisMonth"
+          "notYetThisMonth",
+          "targetCents",
+          "expectedCents"
         ]
       },
       "SpendingByCategoryDto": {
@@ -7216,8 +7227,12 @@
             "type": "integer",
             "description": "One-off spending in the month: part of `totalCents` when `includeOneOffs`, left out of it otherwise."
           },
+          "expectedCents": {
+            "type": "integer",
+            "description": "Sum of the categories’ `expectedCents`: recurring costs still expected later in the month, left out of `totalCents`."
+          },
           "categories": {
-            "description": "Categories with expenses this month or the month before (its same first days while the month is partial; this month only when it has no data yet), biggest spending first.",
+            "description": "Categories with expenses this month or the month before (its same first days while the month is partial; this month only when it has no data yet), or with recurring costs still expected this month, biggest spending first.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CategorySpendingDto"
@@ -7236,6 +7251,7 @@
           "previousTotalCents",
           "averageTotalCents",
           "oneOffCents",
+          "expectedCents",
           "categories"
         ]
       },

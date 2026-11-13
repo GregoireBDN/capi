@@ -3,14 +3,20 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import { and, eq, gte, inArray, lt, min, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, lt, lte, min, type SQL, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
-import { resolvePeriod } from '#/coverage/coverage'
+import { targetsInEffect } from '#/budgets/budget-math'
+import { dataUntilByAccount, resolvePeriod } from '#/coverage/coverage'
 import { monthPeriod } from '#/coverage/period'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
-import { categoriesTable, transactionsTable } from '#/database/schema'
+import {
+  budgetsTable,
+  categoriesTable,
+  transactionsTable,
+} from '#/database/schema'
 import { parisToday } from '#/investments/days'
+import { RecurringService } from '#/recurring/recurring.service'
 import {
   AVERAGE_MONTHS_DEFAULT,
   type CategorySpendingDto,
@@ -22,6 +28,7 @@ import {
   TREND_MONTHS_DEFAULT,
   TREND_TOP_CATEGORIES,
 } from './dto/spending.dto'
+import { expectedByCategory } from './expected'
 import { firstDay, monthsBetween, shiftMonth } from './spending-months'
 
 type Db = PostgresJsDatabase<typeof schema>
@@ -81,7 +88,10 @@ export class SpendingService {
   /** Clock for "the current month"; replaced in tests. */
   now: () => Date = () => new Date()
 
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly recurring: RecurringService,
+  ) {}
 
   private get db(): Db {
     return this.database.db
@@ -91,7 +101,10 @@ export class SpendingService {
    * Without `month`, the current month when it has data, else the month the
    * data stops in. While the month is partial, the previous month and the
    * averaged months only count their same first days (like for like), and a
-   * category not paid yet this month is flagged rather than shown as saved.
+   * category not paid yet this month is flagged rather than shown as saved,
+   * and the recurring costs still expected in the rest of the month are
+   * returned apart (`expectedCents`), never counted as spent. Each category
+   * carries its budget target for the month, if any.
    */
   async byCategory(
     query: SpendingByCategoryQueryDto,
@@ -109,9 +122,11 @@ export class SpendingService {
     const wanted = query.averageMonths ?? AVERAGE_MONTHS_DEFAULT
     const windowStart = shiftMonth(month, -wanted)
 
-    const [rows, firstMonth] = await Promise.all([
+    const [rows, firstMonth, targets, expected] = await Promise.all([
       this.monthly(windowStart, month, scope.accountId, period.throughDay),
       this.firstMonth(scope.accountId),
+      this.targets(month),
+      partial ? this.expected(month, scope.accountId) : new Map<string, number>(),
     ])
 
     // Months before the first transaction are not "no spending", just no
@@ -143,10 +158,12 @@ export class SpendingService {
     }
 
     // A month without any data yet lists nothing: every category of the
-    // previous month would look like a saving.
-    const shown = [...spent.keys()].filter(
+    // previous month would look like a saving. A category only expected
+    // later in the month (the rent not paid yet) is listed too.
+    const shown = [...new Set([...spent.keys(), ...expected.keys()])].filter(
       (key) =>
         (counts.get(key)?.get(month) ?? 0) > 0 ||
+        (expected.get(key) ?? 0) > 0 ||
         (period.status !== 'empty' &&
           (counts.get(key)?.get(previousMonth) ?? 0) > 0),
     )
@@ -155,10 +172,12 @@ export class SpendingService {
     let totalCents = 0
     let previousTotalCents = 0
     let transactionCount = 0
+    let expectedCents = 0
     for (const key of shown) {
       totalCents += spent.get(key)?.get(month) ?? 0
       previousTotalCents += spent.get(key)?.get(previousMonth) ?? 0
       transactionCount += counts.get(key)?.get(month) ?? 0
+      expectedCents += expected.get(key) ?? 0
     }
     let averageTotal = 0
     for (const values of spent.values()) {
@@ -184,12 +203,19 @@ export class SpendingService {
           sumOver(spent.get(key), averageWindow),
           averageWindow.length,
         ),
-        notYetThisMonth: partial && transactionCount === 0,
+        notYetThisMonth:
+          partial &&
+          transactionCount === 0 &&
+          (counts.get(key)?.get(previousMonth) ?? 0) > 0,
+        targetCents:
+          category === undefined ? null : (targets.get(category.id) ?? null),
+        expectedCents: expected.get(key) ?? 0,
       }
     })
     categories.sort(
       (a, b) =>
         b.spentCents - a.spentCents ||
+        b.expectedCents - a.expectedCents ||
         b.previousSpentCents - a.previousSpentCents ||
         (a.name ?? '').localeCompare(b.name ?? '', 'fr'),
     )
@@ -206,6 +232,7 @@ export class SpendingService {
       previousTotalCents,
       averageTotalCents: average(averageTotal, averageWindow.length),
       oneOffCents,
+      expectedCents,
       categories,
     }
   }
@@ -374,6 +401,50 @@ export class SpendingService {
       .from(t)
       .where(and(...conditions))
       .groupBy(month, key)
+  }
+
+  /** Budget target of each category in `month`, positive cents. */
+  private async targets(month: string): Promise<Map<string, number>> {
+    const rows = await this.db
+      .select({
+        id: budgetsTable.id,
+        categoryId: budgetsTable.categoryId,
+        effectiveFrom: budgetsTable.effectiveFrom,
+        monthlyTargetCents: budgetsTable.monthlyTargetCents,
+        note: budgetsTable.note,
+      })
+      .from(budgetsTable)
+      .where(lte(budgetsTable.effectiveFrom, firstDay(month)))
+    return new Map(
+      [...targetsInEffect(rows, month)].map(([id, row]) => [
+        id,
+        row.monthlyTargetCents,
+      ]),
+    )
+  }
+
+  /**
+   * Recurring costs still expected in `month` per category key (see
+   * `expectedByCategory`), from the confirmed series of the accounts in
+   * scope, each read up to the day its own data goes.
+   */
+  private async expected(
+    month: string,
+    accountId: string | undefined,
+  ): Promise<Map<string, number>> {
+    const [items, horizons] = await Promise.all([
+      this.recurring.list('confirmed'),
+      dataUntilByAccount(this.db, this.now()),
+    ])
+    const inScope = items.filter(
+      (item) => accountId === undefined || item.accountId === accountId,
+    )
+    return new Map(
+      [...expectedByCategory(inScope, month, horizons)].map(([id, cents]) => [
+        id ?? UNCATEGORIZED,
+        cents,
+      ]),
+    )
   }
 
   /** Month of the earliest transaction (any kind) in scope, or null. */

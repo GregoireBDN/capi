@@ -9,6 +9,7 @@ import type { ReactNode } from 'react'
 import type { SpendingByCategoryDto } from '#/api/types.gen'
 import { Delta } from './Delta'
 import { categoryLabel, comparedName } from './labels'
+import { comparisonCaption } from './rows'
 
 /** KPI tile whose headline is a comparison rather than an amount. */
 function ComparisonTile({
@@ -69,8 +70,8 @@ export function SpendingKpisSkeleton() {
 }
 
 /**
- * Month at a glance: total spent (with its trend), change vs the previous
- * month and vs the average, and the category that grew the most.
+ * Month at a glance: total spent (with its trend), change from the previous
+ * month and from the average, and the category that grew the most.
  */
 export function SpendingKpis({
   data,
@@ -112,13 +113,13 @@ export function SpendingKpis({
           }
         />
         <ComparisonTile
-          label={`vs ${previous}`}
+          label={comparisonCaption(data, 'previous')}
           detail={`${formatEuros(data.previousTotalCents)} ${previousIn}${percentOf(vsPrevious, data.previousTotalCents)}`}
         >
           <Delta cents={vsPrevious} {...TILE_DELTA} />
         </ComparisonTile>
         <ComparisonTile
-          label="vs moyenne"
+          label="Écart avec la moyenne"
           detail={
             data.averageTotalCents === null
               ? 'Pas encore d’historique'
@@ -137,7 +138,7 @@ export function SpendingKpis({
             biggest ? (
               <Delta cents={biggest.deltaCents} />
             ) : (
-              `Aucune catégorie en hausse vs ${previous}`
+              'Aucune catégorie en hausse'
             )
           }
         >
