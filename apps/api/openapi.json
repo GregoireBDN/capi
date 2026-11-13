@@ -695,7 +695,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Every category, ordered by kind then name.",
+            "description": "Every category, archived ones included (`archivedAt`), ordered by kind then name.",
             "content": {
               "application/json": {
                 "schema": {
@@ -716,6 +716,205 @@
             "token": []
           }
         ],
+        "tags": [
+          "Categories"
+        ]
+      },
+      "post": {
+        "description": "Its slug is generated from the name and never changes.",
+        "operationId": "CategoriesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body."
+          },
+          "401": {
+            "description": ""
+          },
+          "409": {
+            "description": "A category has this name already."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Create a category",
+        "tags": [
+          "Categories"
+        ]
+      }
+    },
+    "/api/categories/{id}": {
+      "patch": {
+        "operationId": "CategoriesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "A category has this name already, or the kind of a category used by transactions or budgets was changed."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Rename, recolour, change the kind of, archive or restore",
+        "tags": [
+          "Categories"
+        ]
+      },
+      "delete": {
+        "description": "A category in use needs `reassignTo`: its transactions, rules and recurring items move to that category, and its budget is added to the target’s, in one transaction.",
+        "operationId": "CategoriesController_remove",
+        "parameters": [
+          {
+            "description": "Category of the same kind that receives the transactions, rules, budgets and recurring items. Required when the category is in use.",
+            "required": false,
+            "name": "reassignTo",
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Unknown target, target of another kind, or the category itself."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "The category is in use and no `reassignTo` was given."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Delete a category",
+        "tags": [
+          "Categories"
+        ]
+      }
+    },
+    "/api/categories/{id}/usage": {
+      "get": {
+        "description": "Counts of what a delete would move to another category.",
+        "operationId": "CategoriesController_usage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryUsageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "What uses a category",
         "tags": [
           "Categories"
         ]
@@ -4100,7 +4299,7 @@
           },
           "slug": {
             "type": "string",
-            "description": "Stable identifier referenced by seeds and imports."
+            "description": "Stable identifier referenced by seeds, rules and imports; generated from the name for new categories and never changed."
           },
           "name": {
             "type": "string"
@@ -4118,6 +4317,12 @@
             "nullable": true,
             "example": "#d97706"
           },
+          "archivedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Set when archived: hidden from pickers, history and statistics kept."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -4133,8 +4338,94 @@
           "name",
           "kind",
           "color",
+          "archivedAt",
           "createdAt",
           "updatedAt"
+        ]
+      },
+      "CreateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Display name, unique among all categories (ignoring case and accents)."
+          },
+          "kind": {
+            "description": "Category group: the kind given to its transactions.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-f]{6}$",
+            "example": "#2a78d6",
+            "description": "Lowercase `#rrggbb` hex colour."
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "color"
+        ]
+      },
+      "UpdateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Display name, unique among all categories (ignoring case and accents)."
+          },
+          "kind": {
+            "description": "New group. Refused (409) while transactions or budgets use the category.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-f]{6}$",
+            "example": "#2a78d6",
+            "description": "Lowercase `#rrggbb` hex colour."
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "`true` archives the category, `false` restores it."
+          }
+        }
+      },
+      "CategoryUsageDto": {
+        "type": "object",
+        "properties": {
+          "transactions": {
+            "type": "integer"
+          },
+          "rules": {
+            "type": "integer",
+            "description": "Categorization rules."
+          },
+          "budgets": {
+            "type": "integer",
+            "description": "Budget rows (targets, past and present)."
+          },
+          "recurringItems": {
+            "type": "integer",
+            "description": "Recurring items."
+          }
+        },
+        "required": [
+          "transactions",
+          "rules",
+          "budgets",
+          "recurringItems"
         ]
       },
       "RuleMatchType": {

@@ -40,6 +40,7 @@ const categories: CategoryDto[] = [
     color: '#d97706',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    archivedAt: null,
   },
   {
     id: 'c0000000-0000-4000-8000-000000000002',
@@ -49,6 +50,7 @@ const categories: CategoryDto[] = [
     color: '#16a34a',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    archivedAt: null,
   },
   {
     id: 'c0000000-0000-4000-8000-000000000003',
@@ -58,6 +60,7 @@ const categories: CategoryDto[] = [
     color: '#0284c7',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    archivedAt: null,
   },
 ]
 const [groceries, , savings] = categories

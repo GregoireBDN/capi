@@ -13,5 +13,6 @@ export const ROUTES = {
   account: '/accounts/$accountId',
   import: '/import',
   profile: '/profile',
+  categories: '/categories',
   verifyEmail: '/verify-email',
 } as const

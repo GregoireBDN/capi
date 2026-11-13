@@ -4,6 +4,7 @@ import {
   NativeSelectOption,
 } from '@finances/ui'
 import type { CategoryDto } from '#/api/types.gen'
+import { pickableCategories } from '#/lib/categories'
 import { KIND_GROUP_LABELS, TRANSACTION_KINDS } from './labels'
 
 interface CategoryPickerProps {
@@ -48,7 +49,9 @@ export function CategoryPicker({
         {placeholder}
       </NativeSelectOption>
       {TRANSACTION_KINDS.map((kind) => {
-        const group = categories.filter((category) => category.kind === kind)
+        const group = pickableCategories(categories, value).filter(
+          (category) => category.kind === kind,
+        )
         if (group.length === 0) return null
         return (
           <NativeSelectOptGroup key={kind} label={KIND_GROUP_LABELS[kind]}>

@@ -29,6 +29,7 @@ import type {
   UpdateRecurringItemDto,
 } from '#/api/types.gen'
 import { formatCalendarDate, formatCents } from '#/lib/money'
+import { pickableCategories } from '#/lib/categories'
 import { ALL_MONTHS } from '#/components/transactions/search'
 import { ROUTES } from '#/lib/routes'
 import { CADENCE_LABELS, CADENCES, formatPriceChange } from './format'
@@ -115,7 +116,7 @@ export function RecurringEditor({
     save.mutate(fields())
   }
 
-  const sorted = [...categories].sort((a, b) =>
+  const sorted = pickableCategories(categories, categoryId).sort((a, b) =>
     a.name.localeCompare(b.name, 'fr'),
   )
   const priceChange = item ? formatPriceChange(item, today) : null

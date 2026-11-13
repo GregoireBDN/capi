@@ -59,6 +59,7 @@ const subscriptions: CategoryDto = {
   color: '#7c3aed',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
+  archivedAt: null,
 }
 
 const items: RecurringItemDto[] = [

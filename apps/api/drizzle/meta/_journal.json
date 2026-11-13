@@ -99,6 +99,13 @@
       "when": 1794401049993,
       "tag": "0013_access_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794585368097,
+      "tag": "0014_category_management",
+      "breakpoints": true
     }
   ]
 }

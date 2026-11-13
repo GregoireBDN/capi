@@ -14,6 +14,7 @@ import type {
   ImportRowStatus,
 } from '#/api'
 import { formatCents } from '#/lib/money'
+import { pickableCategories } from '#/lib/categories'
 import { formatDate } from './format'
 
 const STATUS: Record<
@@ -111,7 +112,9 @@ export function CategorySelect({
         <NativeSelectOption value="">À catégoriser</NativeSelectOption>
       )}
       {KIND_GROUPS.map((group) => {
-        const options = categories.filter((c) => c.kind === group.kind)
+        const options = pickableCategories(categories, value).filter(
+          (c) => c.kind === group.kind,
+        )
         if (options.length === 0) return null
         return (
           <NativeSelectOptGroup key={group.kind} label={group.label}>
