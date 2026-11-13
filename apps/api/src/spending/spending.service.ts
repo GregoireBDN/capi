@@ -126,7 +126,9 @@ export class SpendingService {
       this.monthly(windowStart, month, scope.accountId, period.throughDay),
       this.firstMonth(scope.accountId),
       this.targets(month),
-      partial ? this.expected(month, scope.accountId) : new Map<string, number>(),
+      partial
+        ? this.expected(month, scope.accountId)
+        : new Map<string, number>(),
     ])
 
     // Months before the first transaction are not "no spending", just no

@@ -253,7 +253,8 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
                   aria-label="Comparer chaque catégorie avec"
                   value={comparison}
                   onValueChange={(next) => {
-                    if (next) set({ cmp: next === 'average' ? 'avg' : undefined })
+                    if (next)
+                      set({ cmp: next === 'average' ? 'avg' : undefined })
                   }}
                 >
                   <ToggleGroupItem value="previous" className={SELECTED}>

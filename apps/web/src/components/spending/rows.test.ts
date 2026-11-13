@@ -12,7 +12,9 @@ import {
 } from './rows'
 
 /** Synthetic data only. */
-function item(overrides: Partial<CategorySpendingDto> = {}): CategorySpendingDto {
+function item(
+  overrides: Partial<CategorySpendingDto> = {},
+): CategorySpendingDto {
   return {
     categoryId: 'c0000000-0000-4000-8000-000000000001',
     slug: 'groceries',
@@ -92,7 +94,9 @@ describe('rowComparison', () => {
     expect(rowComparison(notYet, 'previous')).toEqual({ type: 'not-yet' })
     expect(rowComparison(notYet, 'average')).toEqual({ type: 'not-yet' })
     // Expected later this month: "attendu" says it, no comparison.
-    expect(rowComparison({ ...notYet, expectedCents: 80_000 }, 'previous')).toEqual({
+    expect(
+      rowComparison({ ...notYet, expectedCents: 80_000 }, 'previous'),
+    ).toEqual({
       type: 'none',
     })
   })
@@ -108,18 +112,18 @@ describe('rowComparison', () => {
 describe('isWithoutSpending', () => {
   it('folds the categories with nothing spent nor expected this month', () => {
     expect(isWithoutSpending(item())).toBe(false)
-    expect(isWithoutSpending(item({ spentCents: 0, transactionCount: 0 }))).toBe(
-      true,
-    )
+    expect(
+      isWithoutSpending(item({ spentCents: 0, transactionCount: 0 })),
+    ).toBe(true)
     expect(
       isWithoutSpending(
         item({ spentCents: 0, transactionCount: 0, expectedCents: 80_000 }),
       ),
     ).toBe(false)
     // A refund that nets the month to zero is still activity.
-    expect(isWithoutSpending(item({ spentCents: 0, transactionCount: 2 }))).toBe(
-      false,
-    )
+    expect(
+      isWithoutSpending(item({ spentCents: 0, transactionCount: 2 })),
+    ).toBe(false)
   })
 })
 
@@ -135,9 +139,7 @@ describe('targetRatio', () => {
 
 describe('comparisonCaption / comparedWithText', () => {
   it('names the previous month, or its same first days', () => {
-    expect(comparisonCaption(complete, 'previous')).toBe(
-      'Écart avec septembre',
-    )
+    expect(comparisonCaption(complete, 'previous')).toBe('Écart avec septembre')
     expect(comparedWithText(complete, 'previous')).toBe(
       'par rapport à septembre',
     )

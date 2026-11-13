@@ -486,9 +486,7 @@ describe('SpendingPage', () => {
       throwOnError: false,
     })
     expect(screen.getByText('Novembre 2026')).toBeInTheDocument()
-    expect(
-      within(kpis).getByText('Écart avec le 1–3 oct.'),
-    ).toBeInTheDocument()
+    expect(within(kpis).getByText('Écart avec le 1–3 oct.')).toBeInTheDocument()
     expect(kpis).toHaveTextContent(/au 1–3 oct\./)
     expect(kpis).toHaveTextContent(/mêmes jours/)
     expect(
@@ -604,12 +602,14 @@ describe('SpendingPage', () => {
       screen.getByText(
         (_, element) =>
           element?.tagName === 'P' &&
-          element.textContent.replace(/\s/g, ' ').includes(
-            `Abonnements et charges fixes attendus d’ici la fin du mois : ${euros(81_399)}, non comptés.`.replace(
-              /\s/g,
-              ' ',
+          element.textContent
+            .replace(/\s/g, ' ')
+            .includes(
+              `Abonnements et charges fixes attendus d’ici la fin du mois : ${euros(81_399)}, non comptés.`.replace(
+                /\s/g,
+                ' ',
+              ),
             ),
-          ),
       ),
     ).toBeInTheDocument()
 

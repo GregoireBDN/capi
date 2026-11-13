@@ -39,13 +39,7 @@ function expectedText(cents: number): string {
  * Spent against the budget target (with the expected part lighter after
  * it), or against the month's total without a target.
  */
-function RowBar({
-  item,
-  color,
-}: {
-  item: CategorySpendingDto
-  color: string
-}) {
+function RowBar({ item, color }: { item: CategorySpendingDto; color: string }) {
   const ratio = targetRatio(item)
   const over = ratio !== null && ratio > 1
   const spent = ratio ?? Math.min(1, Math.max(0, item.share))
@@ -123,8 +117,7 @@ function Row({
             <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
               {ratio === null ? (
                 <span data-slot="category-share" className="tabular-nums">
-                  {formatPercent(Math.min(1, Math.max(0, item.share)))} du
-                  total
+                  {formatPercent(Math.min(1, Math.max(0, item.share)))} du total
                 </span>
               ) : (
                 <span
