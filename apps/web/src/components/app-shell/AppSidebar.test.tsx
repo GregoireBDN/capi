@@ -17,7 +17,7 @@ import { AppSidebar } from './AppSidebar'
 import { NAV_ITEMS, isNavItemActive } from './nav-items'
 
 vi.mock('#/api', () => ({
-  userControllerUpdate: vi.fn(),
+  profileControllerUpdate: vi.fn(),
   transactionsControllerReviewCount: vi.fn(),
 }))
 
@@ -65,6 +65,8 @@ async function renderAt(path: string) {
     '/budget',
     '/subscriptions',
     '/savings',
+    '/accounts',
+    '/accounts/$accountId',
     '/import',
     '/profile',
   ].map((p) =>
@@ -99,6 +101,7 @@ describe('AppSidebar', () => {
       ['Budget', '/budget'],
       ['Abonnements', '/subscriptions'],
       ['Épargne', '/savings'],
+      ['Comptes', '/accounts'],
       ['Import', '/import'],
     ])
   })
@@ -128,6 +131,14 @@ describe('AppSidebar', () => {
     expect(
       nav.getByRole('link', { name: 'Tableau de bord' }),
     ).not.toHaveAttribute('aria-current')
+  })
+
+  it('highlights "Comptes" on an account page', async () => {
+    const nav = await renderAt('/accounts/00000000-0000-0000-0000-000000000002')
+    expect(nav.getByRole('link', { name: 'Comptes' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
   })
 
   it('keeps the section highlighted on nested pages', async () => {

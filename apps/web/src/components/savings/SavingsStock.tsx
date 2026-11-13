@@ -10,6 +10,7 @@ import {
 import { Link } from '@tanstack/react-router'
 import { ChevronRightIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { NewAccountButton } from '#/components/accounts/AccountEditor'
 import type { AccountType, SavingsStockDto } from '#/api/types.gen'
 import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { formatCalendarDate, formatCents } from '#/lib/money'
@@ -160,6 +161,7 @@ export function SavingsStock({ stock }: { stock: SavingsStockDto }) {
             ))}
           </Group>
         )}
+        <NewAccountButton label="Ajouter un compte" size="sm" outline />
       </CardContent>
     </Card>
   )

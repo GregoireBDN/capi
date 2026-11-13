@@ -16,7 +16,7 @@ import {
 } from '#/auth/auth.schema'
 import { EmailService } from '#/email/email.service'
 import { env } from '#/config/env'
-import { usersTable } from '#/user/user.schema'
+import { publicUserColumns, usersTable } from '#/user/user.schema'
 import {
   ACCESS_TOKEN_TTL_SECONDS,
   AUTH_ERRORS,
@@ -260,8 +260,9 @@ export class AuthService {
   }
 
   async getUser(userId: string) {
+    // Never the password hash: this row is returned by `GET /api/auth/me`.
     const [user] = await this.db.db
-      .select()
+      .select(publicUserColumns)
       .from(usersTable)
       .where(eq(usersTable.id, userId))
     return user ? this.verifiedWithoutSmtp(user) : user

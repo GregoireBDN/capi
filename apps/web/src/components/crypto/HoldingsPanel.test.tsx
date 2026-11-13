@@ -237,7 +237,7 @@ describe('HoldingsPanel', () => {
     expect(api.cryptoControllerSearch).toHaveBeenCalledWith(
       expect.objectContaining({ query: { q: 'ether' } }),
     )
-    await user.type(screen.getByLabelText('Emplacement'), ' Plateforme B ')
+    await user.type(screen.getByLabelText('Sous-compte'), ' Spot ')
     await user.type(screen.getByLabelText('Quantité'), '1 234,500')
     await user.type(screen.getByLabelText('Montant investi'), '2 000,50')
     await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
@@ -251,7 +251,7 @@ describe('HoldingsPanel', () => {
             symbol: 'ETH',
             name: 'Ethereum',
             quantity: '1234.5',
-            location: 'Plateforme B',
+            location: 'Spot',
             investedCents: 200_050,
             note: null,
           },

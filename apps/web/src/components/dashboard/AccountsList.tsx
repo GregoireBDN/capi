@@ -8,6 +8,7 @@ import {
 } from '@finances/ui'
 import { Link } from '@tanstack/react-router'
 import { ChevronRightIcon } from 'lucide-react'
+import { NewAccountButton } from '#/components/accounts/AccountEditor'
 import type { DashboardAccountDto, NetWorthDto } from '#/api/types.gen'
 import { formatCalendarDate, formatCents } from '#/lib/money'
 import { ROUTES } from '#/lib/routes'
@@ -135,6 +136,7 @@ export function AccountsList({
             </section>
           )
         })}
+        <NewAccountButton label="Ajouter un compte" size="sm" outline />
       </CardContent>
     </Card>
   )

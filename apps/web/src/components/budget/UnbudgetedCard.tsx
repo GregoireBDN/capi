@@ -45,7 +45,8 @@ export function UnbudgetedCard({
                     category: row.categoryId ?? 'none',
                     kind: 'expense',
                   }}
-                  className="flex min-w-0 flex-1 items-center gap-2 text-sm hover:underline"
+                  // 44px hit area on touch screens, inside the row padding.
+                  className="relative flex min-w-0 flex-1 items-center gap-2 text-sm hover:underline pointer-coarse:touch-hitbox"
                 >
                   <CategoryDot color={row.color} />
                   <span className={row.name ? 'truncate' : 'truncate italic'}>

@@ -25,6 +25,7 @@ const toast = vi.hoisted(() =>
 vi.mock('#/api', () => api)
 vi.mock('sonner', () => ({ toast }))
 vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => vi.fn(),
   Link: ({
     to,
     params,
@@ -482,5 +483,16 @@ describe('AccountDetailPage', () => {
     expect(
       screen.queryByText('Aucune valeur pour ce compte'),
     ).not.toBeInTheDocument()
+    // Its value comes from its holdings: no "Ajouter" next to "Ajouter un
+    // avoir", only past values can be pasted.
+    expect(
+      screen.queryByRole('button', { name: 'Ajouter' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Coller un historique de valeurs' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getAllByRole('button', { name: 'Ajouter un avoir' }),
+    ).not.toHaveLength(0)
   })
 })

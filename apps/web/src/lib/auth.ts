@@ -7,6 +7,7 @@ import {
   serverApiUrl,
   setRequestCookieHeader,
 } from '#/lib/server-api'
+import { loadCurrentUser } from '#/lib/current-user'
 import { resolveServerSession } from '#/lib/server-session'
 import type { UserDto } from '#/api/types.gen'
 
@@ -29,7 +30,8 @@ export const getMe = createServerFn().handler(
     })
     if (session.setCookies.length > 0) {
       const headers = getResponseHeaders()
-      for (const value of session.setCookies) headers.append('set-cookie', value)
+      for (const value of session.setCookies)
+        headers.append('set-cookie', value)
       setRequestCookieHeader(session.cookieHeader)
     }
     return session.user
@@ -48,10 +50,14 @@ export const getMe = createServerFn().handler(
  */
 export const fetchCurrentUser = createIsomorphicFn()
   .server((): Promise<UserDto | null> => getMe())
-  .client(async (): Promise<UserDto | null> => {
-    const res = await authControllerMe({ throwOnError: false })
-    return res.error || !res.data ? null : res.data
-  })
+  .client(
+    (): Promise<UserDto | null> =>
+      // Throws when the API can't be reached (offline, timeout): see
+      // loadCurrentUser and currentUserFromResult.
+      loadCurrentUser((signal) =>
+        authControllerMe({ throwOnError: false, signal }),
+      ),
+  )
 
 /**
  * Whether public sign-up is still open. Finances is single-user: once the owner

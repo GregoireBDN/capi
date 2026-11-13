@@ -1,39 +1,45 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { eq } from 'drizzle-orm'
 import { DatabaseService } from '#/database/database.service'
-import { type InsertUser, type SelectUser, usersTable } from '#/user/user.schema'
+import {
+  type PublicUser,
+  publicUserColumns,
+  usersTable,
+} from '#/user/user.schema'
 
+/** Profile fields the signed-in owner may change on their own account. */
+export type ProfileChanges = Partial<Pick<PublicUser, 'name' | 'theme'>>
+
+/**
+ * The owner's own account. Accounts are created only through
+ * `POST /api/auth/register` (single-owner lock), and the email and password
+ * only change through the auth flows, so this service never touches them.
+ */
 @Injectable()
 export class UserService {
   constructor(private readonly db: DatabaseService) {}
 
-  async findAll(): Promise<SelectUser[]> {
-    return this.db.db.select().from(usersTable)
-  }
-
-  async findOne(id: string): Promise<SelectUser> {
+  async findOne(id: string): Promise<PublicUser> {
     const [user] = await this.db.db
-      .select()
+      .select(publicUserColumns)
       .from(usersTable)
       .where(eq(usersTable.id, id))
 
-    if (!user) throw new NotFoundException(`User ${id} not found`)
+    if (!user) throw new NotFoundException('User not found')
     return user
   }
 
-  async create(data: InsertUser): Promise<SelectUser> {
-    const [user] = await this.db.db.insert(usersTable).values(data).returning()
-    return user
-  }
+  async update(id: string, changes: ProfileChanges): Promise<PublicUser> {
+    const { name, theme } = changes
+    if (name === undefined && theme === undefined) return this.findOne(id)
 
-  async update(id: string, data: Partial<InsertUser>): Promise<SelectUser> {
     const [user] = await this.db.db
       .update(usersTable)
-      .set(data)
+      .set({ name, theme })
       .where(eq(usersTable.id, id))
-      .returning()
+      .returning(publicUserColumns)
 
-    if (!user) throw new NotFoundException(`User ${id} not found`)
+    if (!user) throw new NotFoundException('User not found')
     return user
   }
 
@@ -41,8 +47,8 @@ export class UserService {
     const [user] = await this.db.db
       .delete(usersTable)
       .where(eq(usersTable.id, id))
-      .returning()
+      .returning({ id: usersTable.id })
 
-    if (!user) throw new NotFoundException(`User ${id} not found`)
+    if (!user) throw new NotFoundException('User not found')
   }
 }
