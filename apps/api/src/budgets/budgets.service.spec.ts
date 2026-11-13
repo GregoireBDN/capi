@@ -767,4 +767,151 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
       })
     })
   })
+
+  describe('envelopes', () => {
+    /** Noon in Paris on Oct 13, 2026 (31 days). */
+    const NOW = new Date('2026-10-13T10:00:00Z')
+
+    it('carries the tracked flag over like the note', async () => {
+      await withFixture(async ({ service, groceries }) => {
+        const first = await service.upsert(groceries, '2026-09', {
+          monthlyTargetCents: 30_000,
+          tracked: true,
+        })
+        expect(first.tracked).toBe(true)
+        const raised = await service.upsert(groceries, '2026-10', {
+          monthlyTargetCents: 31_000,
+        })
+        expect(raised.tracked).toBe(true)
+        const untracked = await service.upsert(groceries, '2026-11', {
+          monthlyTargetCents: 31_000,
+          tracked: false,
+        })
+        expect(untracked.tracked).toBe(false)
+        const month = await service.month('2026-10')
+        expect(month.items[0]).toMatchObject({ tracked: true })
+      })
+    })
+
+    it('follows the tracked lines of the current Paris month', async () => {
+      await withFixture(
+        async ({ tx, service, checking, groceries, leisure, rent, livret }) => {
+          await service.upsert(groceries, '2026-10', {
+            monthlyTargetCents: 31_000,
+            tracked: true,
+          })
+          await service.upsert(leisure, '2026-09', {
+            monthlyTargetCents: 6_200,
+            tracked: true,
+          })
+          await service.upsert(rent, '2026-10', {
+            monthlyTargetCents: 80_000,
+          })
+          await insert(tx, [
+            // Imported groceries, a refund, one noted by hand.
+            transaction(checking, {
+              categoryId: groceries,
+              amountCents: -12_000,
+              bookingDate: '2026-10-02',
+            }),
+            transaction(checking, {
+              categoryId: groceries,
+              amountCents: 1_000,
+              bookingDate: '2026-10-05',
+            }),
+            transaction(checking, {
+              categoryId: groceries,
+              amountCents: -2_500,
+              bookingDate: '2026-10-12',
+              manual: true,
+            }),
+            // Last month, and a transfer filed in the category: never counted.
+            transaction(checking, {
+              categoryId: groceries,
+              amountCents: -9_999,
+              bookingDate: '2026-09-30',
+            }),
+            transaction(checking, {
+              categoryId: groceries,
+              amountCents: -7_777,
+              kind: 'transfer',
+            }),
+            transaction(checking, {
+              categoryId: livret,
+              amountCents: -50_000,
+              kind: 'transfer',
+            }),
+            transaction(checking, {
+              categoryId: leisure,
+              amountCents: -1_000,
+              bookingDate: '2026-10-10',
+              manual: true,
+            }),
+          ])
+
+          const result = await service.envelopes(tx, NOW)
+          expect(result).toMatchObject({
+            month: '2026-10',
+            today: '2026-10-13',
+            dayOfMonth: 13,
+            daysInMonth: 31,
+          })
+          // Name order; the untracked rent line is left out.
+          expect(result.items).toEqual([
+            expect.objectContaining({
+              categoryId: groceries,
+              targetCents: 31_000,
+              spentCents: 13_500,
+              manualCents: 2_500,
+              remainingCents: 17_500,
+              // 310 € × 13 / 31
+              paceCents: 13_000,
+              aheadOfPace: true,
+              status: 'ok',
+            }),
+            expect.objectContaining({
+              categoryId: leisure,
+              targetCents: 6_200,
+              spentCents: 1_000,
+              manualCents: 1_000,
+              remainingCents: 5_200,
+              paceCents: 2_600,
+              aheadOfPace: false,
+            }),
+          ])
+        },
+      )
+    })
+
+    it('uses Paris for the day: just after midnight is already the next month', async () => {
+      await withFixture(async ({ tx, service, groceries }) => {
+        await service.upsert(groceries, '2026-11', {
+          monthlyTargetCents: 30_000,
+          tracked: true,
+        })
+        const result = await service.envelopes(
+          tx,
+          new Date('2026-10-31T23:30:00Z'),
+        )
+        expect(result).toMatchObject({
+          month: '2026-11',
+          today: '2026-11-01',
+          dayOfMonth: 1,
+          daysInMonth: 30,
+        })
+        expect(result.items[0]).toMatchObject({
+          spentCents: 0,
+          paceCents: 1_000,
+          aheadOfPace: false,
+        })
+      })
+    })
+
+    it('is empty when no line is tracked', async () => {
+      await withFixture(async ({ tx, service, groceries }) => {
+        await service.upsert(groceries, '2026-10', { monthlyTargetCents: 100 })
+        expect((await service.envelopes(tx, NOW)).items).toEqual([])
+      })
+    })
+  })
 })

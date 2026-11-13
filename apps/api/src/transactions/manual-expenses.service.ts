@@ -115,7 +115,7 @@ export class ManualExpensesService {
       }
       if (dto.label !== undefined) {
         set.rawLabel = dto.label ?? categoryName ?? current.rawLabel
-      } else if (labelIsDefault && categoryName !== null) {
+      } else if (dto.categoryId !== undefined && labelIsDefault) {
         set.rawLabel = categoryName
       }
       if (Object.keys(set).length === 0) {
