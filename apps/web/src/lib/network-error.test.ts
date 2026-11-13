@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { isNetworkError, isOffline } from './network-error'
+import {
+  NetworkUnavailableError,
+  isNetworkError,
+  isOffline,
+} from './network-error'
 
 function setOnline(online: boolean) {
   vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(online)
@@ -30,5 +34,16 @@ describe('isNetworkError', () => {
     setOnline(false)
     expect(isOffline()).toBe(true)
     expect(isNetworkError(new Error('anything'))).toBe(true)
+  })
+
+  it('counts a request skipped or timed out for want of network', () => {
+    setOnline(true)
+    expect(isNetworkError(new NetworkUnavailableError())).toBe(true)
+    expect(
+      isNetworkError(new DOMException('signal timed out', 'TimeoutError')),
+    ).toBe(true)
+    expect(isNetworkError(new DOMException('aborted', 'AbortError'))).toBe(
+      false,
+    )
   })
 })
