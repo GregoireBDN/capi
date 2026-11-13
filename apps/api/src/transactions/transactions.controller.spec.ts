@@ -15,7 +15,7 @@ import {
   it,
   vi,
 } from 'vitest'
-import { JwtGuard } from '#/auth/guards/jwt.guard'
+import { JWT_GUARD_TEST_PROVIDERS } from '#/auth/guards/jwt-guard.testing'
 import { BULK_UPDATE_MAX_IDS } from './dto/transaction.dto'
 import { TransactionsController } from './transactions.controller'
 import { TransactionsService } from './transactions.service'
@@ -44,7 +44,7 @@ describe('TransactionsController (HTTP)', () => {
       imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [TransactionsController],
       providers: [
-        JwtGuard,
+        ...JWT_GUARD_TEST_PROVIDERS,
         { provide: TransactionsService, useValue: service },
       ],
     }).compile()

@@ -22,6 +22,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
+import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import {
   ConfirmRecurringItemsDto,
@@ -43,6 +44,7 @@ export class RecurringController {
   constructor(private readonly recurringService: RecurringService) {}
 
   @Post('detect')
+  @TokenAccess('write')
   @HttpCode(200)
   @ApiOperation({
     summary: 'Detect recurring transactions',
@@ -81,6 +83,7 @@ export class RecurringController {
   }
 
   @Post('confirm')
+  @TokenAccess('write')
   @HttpCode(200)
   @ApiOperation({
     summary: 'Confirm several items',
@@ -96,6 +99,7 @@ export class RecurringController {
   }
 
   @Patch(':id')
+  @TokenAccess('write')
   @ApiOperation({
     summary: 'Edit a recurring item',
     description:

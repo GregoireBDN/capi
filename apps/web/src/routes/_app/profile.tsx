@@ -1,4 +1,5 @@
 import { profileControllerRemove, profileControllerUpdate } from '#/api'
+import { AccessTokensCard } from '#/components/access-tokens/AccessTokensCard'
 import { getInitials } from '#/components/app-shell/user-initials'
 import { useAuth } from '#/lib/auth-context'
 import { ROUTES } from '#/lib/routes'
@@ -266,6 +267,8 @@ function ProfilePage() {
           </div>
         </CardContent>
       </Card>
+
+      <AccessTokensCard />
 
       {/* Danger zone */}
       <Card className="ring-destructive/30">

@@ -20,6 +20,11 @@ import type { RouteOptions } from 'fastify'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { AppModule } from './app.module'
+import { AccessTokensService } from './auth/access-tokens/access-tokens.service'
+import {
+  TOKEN_ACCESS_KEY,
+  type TokenAccessLevel,
+} from './auth/access-tokens/token-access.decorator'
 import { JwtGuard } from './auth/guards/jwt.guard'
 import { createFastifyAdapter } from './config/fastify-adapter'
 import { DatabaseService } from './database/database.service'
@@ -59,6 +64,33 @@ const PUBLIC_ROUTES = [
   'POST /api/auth/verify-email',
 ].sort()
 
+/**
+ * The only routes a personal access token may call with a method other than
+ * GET/HEAD (#73), with the level they declare through `@TokenAccess()`. Every
+ * other mutating route stays session-only. `write` routes are the MCP write
+ * tools (#77); `read` ones save nothing (previews, suggestions). Never add a
+ * DELETE, an import, an account, auth, profile or token-management route here.
+ */
+const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
+  'PATCH /api/categorization-rules/:id': 'write',
+  'PATCH /api/recurring/:id': 'write',
+  'PATCH /api/savings/goals/:id': 'write',
+  'PATCH /api/transactions/:id': 'write',
+  'POST /api/accounts/:id/snapshots/bulk': 'write',
+  'POST /api/budgets/suggest': 'read',
+  'POST /api/categorization-rules': 'write',
+  'POST /api/categorization-rules/apply': 'write',
+  'POST /api/categorization-rules/preview': 'read',
+  'POST /api/categorization-rules/suggest': 'read',
+  'POST /api/recurring/confirm': 'write',
+  'POST /api/recurring/detect': 'write',
+  'POST /api/savings/goals': 'write',
+  'POST /api/transactions/bulk-update': 'write',
+  'PUT /api/accounts/:id/snapshots/:date': 'write',
+  'PUT /api/budgets/:categoryId': 'write',
+  'PUT /api/savings/target': 'write',
+}
+
 const SOME_UUID = '7f0c5a7e-2d1b-4c3a-9e8f-123456789abc'
 
 type Db = PostgresJsDatabase<typeof schema>
@@ -68,6 +100,8 @@ interface DiscoveredRoute {
   method: string
   path: string
   guarded: boolean
+  /** What a personal access token needs to call it (see `JwtGuard`). */
+  tokenAccess: TokenAccessLevel
 }
 
 function joinPath(...parts: string[]): string {
@@ -81,6 +115,12 @@ function joinPath(...parts: string[]): string {
 function asArray(value: string | string[] | undefined): string[] {
   if (value === undefined) return ['']
   return Array.isArray(value) ? value : [value]
+}
+
+function declaredTokenAccess(target: object): TokenAccessLevel | undefined {
+  return Reflect.getMetadata(TOKEN_ACCESS_KEY, target) as
+    | TokenAccessLevel
+    | undefined
 }
 
 function hasAuthGuard(target: object): boolean {
@@ -100,6 +140,7 @@ function discoverRoutes(app: NestFastifyApplication): DiscoveredRoute[] {
       const controller = wrapper.metatype as Type | null
       if (!controller) continue
       const classGuarded = hasAuthGuard(controller)
+      const classTokenAccess = declaredTokenAccess(controller)
       const prefixes = asArray(
         Reflect.getMetadata(PATH_METADATA, controller) as string | string[],
       )
@@ -112,6 +153,11 @@ function discoverRoutes(app: NestFastifyApplication): DiscoveredRoute[] {
           | undefined
         if (requestMethod === undefined) continue
         const method = RequestMethod[requestMethod]
+        // Same resolution as `JwtGuard`: handler, then class, then the method default.
+        const tokenAccess =
+          declaredTokenAccess(handler) ??
+          classTokenAccess ??
+          (method === 'GET' || method === 'HEAD' ? 'read' : 'none')
         const paths = asArray(
           Reflect.getMetadata(PATH_METADATA, handler) as string | string[],
         )
@@ -123,6 +169,7 @@ function discoverRoutes(app: NestFastifyApplication): DiscoveredRoute[] {
               method,
               path: full,
               guarded: classGuarded || hasAuthGuard(handler),
+              tokenAccess,
             })
           }
         }
@@ -222,6 +269,54 @@ describe('API route audit', () => {
     expect(statuses).toEqual(
       Object.fromEntries(guarded.map((route) => [route.key, 401])),
     )
+  })
+
+  describe('personal access tokens', () => {
+    const mutating = () =>
+      routes.filter(
+        (route) =>
+          route.guarded && route.method !== 'GET' && route.method !== 'HEAD',
+      )
+
+    it('reach only the allow-listed mutating routes', () => {
+      const reachable = Object.fromEntries(
+        mutating()
+          .filter((route) => route.tokenAccess !== 'none')
+          .map((route) => [route.key, route.tokenAccess]),
+      )
+      expect(reachable).toEqual(TOKEN_MUTATING_ROUTES)
+    })
+
+    it('never reach a DELETE route', () => {
+      const deletes = routes.filter((route) => route.method === 'DELETE')
+      expect(deletes.length).toBeGreaterThan(0)
+      for (const route of deletes) {
+        expect(route.tokenAccess, route.key).toBe('none')
+      }
+    })
+
+    it.each([
+      '/api/access-tokens',
+      '/api/profile',
+      '/api/auth',
+      '/api/imports',
+    ])('never reach a mutating route under %s', (prefix) => {
+      const scoped = mutating().filter((route) => route.path.startsWith(prefix))
+      expect(scoped.length).toBeGreaterThan(0)
+      for (const route of scoped) {
+        expect(route.tokenAccess, route.key).toBe('none')
+      }
+    })
+
+    it('never reach token management, even with GET', () => {
+      const management = routes.filter((route) =>
+        route.path.startsWith('/api/access-tokens'),
+      )
+      expect(management.length).toBeGreaterThan(0)
+      for (const route of management) {
+        expect(route.tokenAccess, route.key).toBe('none')
+      }
+    })
   })
 
   it('no longer routes the old /api/users CRUD', async () => {
@@ -330,6 +425,33 @@ describe('API route audit', () => {
           payload,
         })
         expect(res.statusCode).toBe(400)
+      })
+    })
+
+    it('refuses profile and token management to a write token', async () => {
+      await asOwner(async ({ id }) => {
+        const { token } = await app
+          .get(AccessTokensService, { strict: false })
+          .create(id, { name: 'Audit token', scope: 'write' })
+        const bearer = { authorization: `Bearer ${token}` }
+        const calls = [
+          ['GET', '/api/auth/me', 200],
+          ['PATCH', '/api/profile', 403],
+          ['DELETE', '/api/profile', 403],
+          ['GET', '/api/access-tokens', 403],
+          ['POST', '/api/access-tokens', 403],
+          ['DELETE', `/api/access-tokens/${SOME_UUID}`, 403],
+        ] as const
+        for (const [method, url, status] of calls) {
+          const res = await app.inject({
+            method,
+            url,
+            remoteAddress: nextIp(),
+            headers: bearer,
+            payload: method === 'GET' || method === 'DELETE' ? undefined : {},
+          })
+          expect(res.statusCode, `${method} ${url}`).toBe(status)
+        }
       })
     })
 

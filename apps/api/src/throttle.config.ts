@@ -18,3 +18,14 @@ export const THROTTLE_LIMITS = {
   /** Token renewal — generous enough for legitimate access-token expiry. */
   refresh: 30,
 } as const
+
+/**
+ * Extra bucket for requests carrying `Authorization: Bearer`, keyed by the
+ * token's hash rather than the IP (the IP bucket above still applies). Lets a
+ * script or the MCP server be throttled on its own, whoever relays it.
+ */
+export const ACCESS_TOKEN_THROTTLER = {
+  name: 'access-token',
+  ttl: THROTTLE_TTL,
+  limit: 60,
+} as const

@@ -92,6 +92,13 @@
       "when": 1793981148301,
       "tag": "0012_savings_goals",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794401049993,
+      "tag": "0013_access_tokens",
+      "breakpoints": true
     }
   ]
 }

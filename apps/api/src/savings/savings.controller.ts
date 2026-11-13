@@ -26,6 +26,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
+import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import {
   CreateGoalDto,
@@ -66,6 +67,7 @@ export class SavingsController {
   }
 
   @Put('target')
+  @TokenAccess('write')
   @ApiOperation({
     summary: 'Set or clear the monthly savings target',
     description: 'Null clears the target.',
@@ -90,6 +92,7 @@ export class SavingsController {
   }
 
   @Post('goals')
+  @TokenAccess('write')
   @ApiOperation({ summary: 'Create a savings goal' })
   @ApiBody({ type: CreateGoalDto })
   @ApiCreatedResponse({ type: SavingsGoalDto })
@@ -102,6 +105,7 @@ export class SavingsController {
   }
 
   @Patch('goals/:id')
+  @TokenAccess('write')
   @ApiOperation({
     summary: 'Change, archive or restore a savings goal',
     description:

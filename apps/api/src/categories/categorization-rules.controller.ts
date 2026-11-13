@@ -23,6 +23,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
+import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import { CategorizationRulesService } from './categorization-rules.service'
 import {
@@ -54,6 +55,7 @@ export class CategorizationRulesController {
   }
 
   @Post()
+  @TokenAccess('write')
   @ApiOperation({
     summary: 'Create a rule',
     description:
@@ -90,6 +92,7 @@ export class CategorizationRulesController {
   }
 
   @Post('suggest')
+  @TokenAccess('read')
   @HttpCode(200)
   @ApiOperation({
     summary: 'Suggest a rule from a categorized transaction',
@@ -106,6 +109,7 @@ export class CategorizationRulesController {
   }
 
   @Post('preview')
+  @TokenAccess('read')
   @HttpCode(200)
   @ApiOperation({
     summary: 'Preview the effect of a new rule',
@@ -125,6 +129,7 @@ export class CategorizationRulesController {
   }
 
   @Post('apply')
+  @TokenAccess('write')
   @HttpCode(200)
   @ApiOperation({
     summary: 'Re-run the rules on existing transactions',
@@ -137,6 +142,7 @@ export class CategorizationRulesController {
   }
 
   @Patch(':id')
+  @TokenAccess('write')
   @ApiOperation({ summary: 'Update a rule' })
   @ApiParam(ID_PARAM)
   @ApiBody({ type: UpdateCategorizationRuleDto })

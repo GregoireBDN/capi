@@ -22,6 +22,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
+import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import {
   BULK_UPDATE_MAX_IDS,
@@ -85,6 +86,7 @@ export class TransactionsController {
   }
 
   @Post('bulk-update')
+  @TokenAccess('write')
   @HttpCode(200)
   @ApiOperation({
     summary: 'Apply the same changes to several transactions',
@@ -103,6 +105,7 @@ export class TransactionsController {
   }
 
   @Patch(':id')
+  @TokenAccess('write')
   @ApiOperation({
     summary: 'Correct a transaction',
     description:
