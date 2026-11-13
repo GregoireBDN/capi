@@ -263,9 +263,7 @@ export function HoldingEditor({
                 ? `${holding.symbol} · ${holding.name}`
                 : 'Ajouter un avoir'}
             </SheetTitle>
-            <SheetDescription>
-              Quantité détenue sur un portefeuille ou une plateforme.
-            </SheetDescription>
+            <SheetDescription>Quantité détenue sur ce compte.</SheetDescription>
           </SheetHeader>
           <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
             <Field data-invalid={shown.asset !== undefined}>
@@ -299,18 +297,18 @@ export function HoldingEditor({
               {shown.asset && <FieldError>{shown.asset}</FieldError>}
             </Field>
             <Field>
-              <FieldLabel htmlFor={`${id}-location`}>Emplacement</FieldLabel>
+              <FieldLabel htmlFor={`${id}-location`}>Sous-compte</FieldLabel>
               <Input
                 id={`${id}-location`}
                 maxLength={100}
                 autoComplete="off"
-                placeholder="Portefeuille matériel, plateforme…"
+                placeholder="Spot, Bitcoin 1…"
                 value={location}
                 onChange={(event) => setLocation(event.target.value)}
               />
               <FieldDescription>
-                Facultatif : distingue un même actif détenu à plusieurs
-                endroits.
+                Facultatif : distingue un même actif détenu dans plusieurs
+                sous-comptes de cette plateforme ou de ce wallet.
               </FieldDescription>
             </Field>
             <Field data-invalid={shown.quantity !== undefined}>

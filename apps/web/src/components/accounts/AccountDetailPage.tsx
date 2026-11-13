@@ -171,7 +171,19 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
   const writable = current.archivedAt === null
   const openAdd = () => setEditor({ open: true })
 
-  const actions = writable && (
+  // Crypto: holdings are added in their own panel and today's value is
+  // computed from them; only older values (before tracking) can be pasted.
+  const actions = writable && crypto && (
+    <Button
+      outline
+      variant="secondary"
+      iconStart={<ClipboardPasteIcon />}
+      onClick={() => setPasteOpen(true)}
+    >
+      Coller un historique de valeurs
+    </Button>
+  )
+  const valueActions = writable && !crypto && (
     <div className="grid grid-cols-2 gap-2 @2xl:flex">
       <Button iconStart={<PlusIcon />} onClick={openAdd}>
         Ajouter
@@ -191,7 +203,7 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
     <div className="@container space-y-6">
       <div className="flex flex-col gap-3 @2xl:flex-row @2xl:items-end @2xl:justify-between">
         <AccountHeader account={current} />
-        {actions}
+        {valueActions || actions}
       </div>
 
       {investment && data.stale && data.valueDate && (
@@ -201,8 +213,9 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
             {valueAgeText(data.valueDate, data.daysSinceLatest ?? 0)}
           </AlertTitle>
           <AlertDescription>
-            Ajoutez la valeur de votre dernier relevé pour garder votre
-            patrimoine à jour.
+            {crypto
+              ? 'Mettez à jour vos avoirs ou les cours pour garder votre patrimoine à jour.'
+              : 'Ajoutez la valeur de votre dernier relevé pour garder votre patrimoine à jour.'}
           </AlertDescription>
         </Alert>
       )}

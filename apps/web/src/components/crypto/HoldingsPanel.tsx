@@ -259,8 +259,8 @@ export function HoldingsPanel({
               <EmptyHeader>
                 <EmptyTitle>Aucun avoir</EmptyTitle>
                 <EmptyDescription>
-                  Ajoutez les quantités détenues sur chaque portefeuille ou
-                  plateforme : leur valeur est calculée avec le cours du jour.
+                  Ajoutez les quantités détenues sur ce compte : leur valeur est
+                  calculée avec le cours du jour.
                 </EmptyDescription>
               </EmptyHeader>
               {writable && (

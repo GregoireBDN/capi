@@ -27,6 +27,7 @@ import { Building2Icon, PlusIcon, WalletIcon } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import type { AccountDto, AccountType } from '#/api/types.gen'
+import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { ROUTES } from '#/lib/routes'
 import { parseAmountToCents } from './amount'
 import { todayInParis } from './dates'
@@ -52,51 +53,41 @@ export const ACCOUNT_TYPE_OPTIONS: readonly {
 }[] = [
   {
     type: 'checking',
-    label: 'Compte courant',
+    label: ACCOUNT_TYPE_LABELS.checking,
     defaultName: 'Compte courant',
     hint: 'Alimenté par l’import de vos relevés.',
   },
   {
     type: 'savings',
-    label: 'Livret d’épargne',
+    label: ACCOUNT_TYPE_LABELS.savings,
     defaultName: 'Livret A',
     hint: 'Livret A, LDDS, livret jeune… alimenté par l’import de vos relevés.',
   },
   {
     type: 'brokerage',
-    label: 'PEA / compte-titres',
+    label: ACCOUNT_TYPE_LABELS.brokerage,
     defaultName: 'PEA',
     hint: 'Suivi par sa valeur à une date, d’après vos relevés.',
   },
   {
     type: 'life_insurance',
-    label: 'Assurance vie',
+    label: ACCOUNT_TYPE_LABELS.life_insurance,
     defaultName: 'Assurance vie',
     hint: 'Suivi par sa valeur à une date, d’après vos relevés.',
   },
   {
     type: 'employee_savings',
-    label: 'Épargne salariale',
+    label: ACCOUNT_TYPE_LABELS.employee_savings,
     defaultName: 'Épargne salariale',
     hint: 'PEE, PERCO… suivi par sa valeur à une date.',
   },
   {
     type: 'crypto',
-    label: 'Crypto',
+    label: ACCOUNT_TYPE_LABELS.crypto,
     defaultName: 'Crypto',
     hint: 'Un compte par plateforme ou par wallet.',
   },
 ]
-
-/**
- * Where the account is held: a bank or insurer, or for crypto the exchange
- * or wallet (one per account).
- */
-function institutionField(type: AccountType) {
-  return type === 'crypto'
-    ? { label: 'Plateforme ou wallet', placeholder: 'Binance, Ledger…' }
-    : { label: 'Établissement', placeholder: 'Banque, assureur…' }
-}
 
 /** Where a crypto account's assets are held. */
 export type CryptoKind = 'exchange' | 'wallet'
@@ -342,10 +333,16 @@ export function AccountEditor({
 
   const rename = useMutation({
     mutationFn: () =>
-      updateAccount(account!.id, {
-        name: values.name.trim(),
-        institution: values.institution.trim() || null,
-      }),
+      updateAccount(
+        account!.id,
+        // A crypto account's exchange or wallet is set when it is created.
+        account!.type === 'crypto'
+          ? { name: values.name.trim() }
+          : {
+              name: values.name.trim(),
+              institution: values.institution.trim() || null,
+            },
+      ),
     onSuccess: async (saved) => {
       toast.success(`Compte « ${saved.name} » enregistré`)
       onOpenChange(false)
@@ -398,7 +395,9 @@ export function AccountEditor({
             <SheetDescription>
               {creating
                 ? 'Compte bancaire, livret, placement ou crypto.'
-                : 'Nom et établissement affichés dans l’application.'}
+                : account.type === 'crypto'
+                  ? 'Nom affiché dans l’application.'
+                  : 'Nom et établissement affichés dans l’application.'}
             </SheetDescription>
           </SheetHeader>
           <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
@@ -561,16 +560,29 @@ export function AccountEditor({
                 )
               )}
             </Field>
-            {!picksCryptoProvider(values, creating) && (
+            {values.type === 'crypto' ? (
+              // Set when the account is created (exchange or wallet); another
+              // one is another account.
+              !creating && (
+                <div className="space-y-1 text-sm">
+                  <p className="font-medium">Plateforme ou wallet</p>
+                  <p>{account.institution ?? '—'}</p>
+                  <p className="text-muted-foreground">
+                    Fixé à la création. Pour une autre plateforme ou un autre
+                    wallet, créez un nouveau compte.
+                  </p>
+                </div>
+              )
+            ) : (
               <Field data-invalid={shown.institution !== undefined}>
                 <FieldLabel htmlFor={`${id}-institution`}>
-                  {institutionField(values.type).label}
+                  Établissement
                 </FieldLabel>
                 <Input
                   id={`${id}-institution`}
                   autoComplete="off"
                   maxLength={NAME_MAX}
-                  placeholder={institutionField(values.type).placeholder}
+                  placeholder="Banque, assureur…"
                   value={values.institution}
                   aria-invalid={shown.institution !== undefined}
                   onChange={(event) => set({ institution: event.target.value })}

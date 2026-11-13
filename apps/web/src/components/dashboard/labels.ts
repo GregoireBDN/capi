@@ -3,7 +3,7 @@ import type { AccountType } from '#/api/types.gen'
 /** French names of the account types. */
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   checking: 'Compte courant',
-  savings: 'Épargne',
+  savings: 'Livret d’épargne',
   brokerage: 'PEA / compte-titres',
   life_insurance: 'Assurance vie',
   employee_savings: 'Épargne salariale',

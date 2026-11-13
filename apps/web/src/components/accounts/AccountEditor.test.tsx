@@ -288,4 +288,41 @@ describe('AccountEditor', () => {
       'Compte « Compte test » archivé',
     )
   })
+
+  it('renames a crypto account but keeps its exchange or wallet', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    api.accountsControllerUpdate.mockImplementation(
+      ({ body }: { body: { name?: string } }) =>
+        ok(account({ type: 'crypto', name: body.name, institution: 'Ledger' })),
+    )
+    renderWithClient(
+      <AccountEditor
+        open
+        onOpenChange={vi.fn()}
+        account={account({
+          type: 'crypto',
+          name: 'Ledger',
+          institution: 'Ledger',
+        })}
+      />,
+    )
+
+    // Shown, not editable: another wallet is another account.
+    expect(
+      screen.getByText('Fixé à la création.', { exact: false }),
+    ).toBeInTheDocument()
+    expect(screen.queryByLabelText('Établissement')).not.toBeInTheDocument()
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+
+    const name = screen.getByLabelText('Nom')
+    await user.clear(name)
+    await user.type(name, 'Ledger perso')
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+
+    await waitFor(() =>
+      expect(api.accountsControllerUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ body: { name: 'Ledger perso' } }),
+      ),
+    )
+  })
 })
