@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import type { IncomingHttpHeaders, IncomingMessage } from 'node:http'
 import type { Params } from 'nestjs-pino'
+import {
+  safeErrorSerializer,
+  safeLogMethod,
+} from '../common/logging/safe-error'
 import { env } from './env'
 import { clientIp, compileTrustedProxies } from './trusted-proxies'
 
@@ -22,6 +26,27 @@ export const genReqId = (req: { headers: IncomingHttpHeaders }): string => {
   const existing = req.headers[REQUEST_ID_HEADER]
   return (Array.isArray(existing) ? existing[0] : existing) ?? randomUUID()
 }
+
+/**
+ * pino serializers, applied to every log line (pino-http wraps them around
+ * pino's standard ones).
+ */
+export const logSerializers = {
+  // Log the client IP Fastify uses (`request.ip`, i.e. `X-Forwarded-For`
+  // when it comes from a trusted proxy) rather than the web server's socket
+  // address, which is the same for every request behind the `/api` proxy.
+  req: (req: { raw?: IncomingMessage; remoteAddress?: string }) => {
+    if (req.raw) req.remoteAddress = clientIp(req.raw, trustProxy)
+    return req
+  },
+  // Failed database queries carry their bound values (labels, amounts,
+  // balances...) in the message, `params` and the Postgres `detail`: log only
+  // safe fields for them (see `common/logging/safe-error.ts`).
+  err: safeErrorSerializer,
+}
+
+/** pino hooks (see `safeLogMethod`). */
+export const logHooks = { logMethod: safeLogMethod }
 
 /**
  * `nestjs-pino` configuration: structured JSON logs with a stable `reqId` on
@@ -46,15 +71,11 @@ export const loggerParams: Params = {
           },
         },
 
-    // Log the client IP Fastify uses (`request.ip`, i.e. `X-Forwarded-For`
-    // when it comes from a trusted proxy) rather than the web server's socket
-    // address, which is the same for every request behind the `/api` proxy.
-    serializers: {
-      req: (req: { raw?: IncomingMessage; remoteAddress?: string }) => {
-        if (req.raw) req.remoteAddress = clientIp(req.raw, trustProxy)
-        return req
-      },
-    },
+    serializers: logSerializers,
+
+    // A line logged with an error but no message takes the error's message,
+    // which the `err` serializer can't reach: never let it be a failed query's.
+    hooks: logHooks,
 
     // Never log credentials or session cookies.
     redact: {

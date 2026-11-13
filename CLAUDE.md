@@ -82,7 +82,7 @@ The owner's pre-app history (a Google Sheet, ~3,250 categorized rows since 07/20
 
 - **No real financial data** in the repo, tests, fixtures, issues, PRs or logs. Use only anonymized or synthetic fixtures (fake labels, amounts and account numbers).
 - Real bank exports live in the git-ignored `data/` folder at the repo root. Never commit it and never paste its contents anywhere.
-- Do not log transaction labels, amounts or balances.
+- Do not log transaction labels, amounts or balances. Failed database queries carry their bound values (Drizzle's `Failed query: ... params: ...` message, `params`, the Postgres `detail`): the logger's `err` serializer and `logMethod` hook (`apps/api/src/common/logging/safe-error.ts`, wired in `config/logger.ts`) reduce them to the error class, SQL text, Postgres code and object names, and stack frames. Keep them when changing the logger.
 - **No third-party analytics or tracking**, on the API or on the web app.
 
 ## Workflow conventions
