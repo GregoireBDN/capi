@@ -103,6 +103,7 @@ The owner's pre-app history (a Google Sheet, ~3,250 categorized rows since 07/20
   - **M7** Access & security
   - **M8** Claude (MCP)
   - **M9** Month-end review
+  - **M10** Everyday use
 - **Tests are required** for import, parsing, deduplication and categorization logic, using anonymized fixtures only.
 
 ## Monorepo structure
