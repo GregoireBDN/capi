@@ -62,8 +62,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       path: request.url,
     }
 
-    // 5xx are unexpected faults: log the full exception (stack included). 4xx
-    // are expected client errors: log a terse line at warn for traceability.
+    // 5xx are unexpected faults: log the full exception (stack included) —
+    // except database errors, which the `err` serializer reduces to fields
+    // that hold no bound value (`common/logging/safe-error.ts`). 4xx are
+    // expected client errors: log a terse line at warn for traceability.
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(
         { err: exception, requestId, path: request.url },
