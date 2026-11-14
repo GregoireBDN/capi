@@ -185,7 +185,7 @@ Pre-commit hook runs `lint-staged`: ESLint + Prettier on `.ts`/`.tsx`, Prettier 
 
 The web app talks to the API through a **generated, type-safe client** — do not hand-write fetch calls or edit the generated output.
 
-1. `apps/api` generates `apps/api/openapi.json` via `pnpm --filter @finances/api generate` (`src/generate-spec.ts` boots the Nest app in-memory and dumps the Swagger document).
+1. `apps/api` generates `apps/api/openapi.json` via `pnpm --filter @finances/api generate` (`src/generate-spec.ts` boots the Nest app in-memory and dumps the Swagger document), built by `createOpenApiDocument` in `src/config/swagger.ts`). The live Swagger UI (`/api/docs`) and document (`/api/docs-json`) are served **outside production only** (`setupSwagger`, #180): production answers 404, and nothing needs them at runtime.
 2. `apps/web` consumes that spec via `@hey-api/openapi-ts` (`apps/web/openapi-ts.config.ts`), emitting a typed fetch client into `apps/web/src/api/` (`client.gen.ts`, `sdk.gen.ts`, `types.gen.ts`).
 3. Turborepo's `generate` task chains these, so `pnpm generate` from the root runs API spec generation before web client generation. `build` and `check-types` depend on `generate`.
 
