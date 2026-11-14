@@ -95,8 +95,8 @@ export function ManualExpenseSheet({
       categories.data ?? [],
       expense?.categoryId,
     ).filter((category) => category.kind === 'expense')
-    const rank = (categoryId: string) => {
-      const index = suggestedCategoryIds.indexOf(categoryId)
+    const rank = (categoryKey: string) => {
+      const index = suggestedCategoryIds.indexOf(categoryKey)
       return index === -1 ? suggestedCategoryIds.length : index
     }
     return [...all].sort(

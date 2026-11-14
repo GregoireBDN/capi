@@ -244,6 +244,15 @@ function renderPage(month: string | null = '2026-10') {
   return { onMonthChange }
 }
 
+// Radix Switch measures itself; jsdom has no ResizeObserver.
+if (!('ResizeObserver' in globalThis)) {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+}
+
 describe('BudgetPage', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] })
@@ -373,6 +382,12 @@ describe('BudgetPage', () => {
 
     await user.clear(amount)
     await user.type(amount, '350,50')
+    // Followed during the month on the dashboard.
+    const tracked = within(dialog).getByRole('switch', {
+      name: 'Suivre pendant le mois',
+    })
+    expect(tracked).not.toBeChecked()
+    await user.click(tracked)
     await user.click(
       within(dialog).getByRole('button', { name: 'Enregistrer' }),
     )
@@ -385,6 +400,7 @@ describe('BudgetPage', () => {
             monthlyTargetCents: 35_050,
             effectiveFrom: '2026-10',
             note: null,
+            tracked: true,
           },
         }),
       ),

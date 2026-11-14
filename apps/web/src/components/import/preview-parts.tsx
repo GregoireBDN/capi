@@ -68,7 +68,24 @@ export function RowLabel({ row }: { row: ImportPreviewRowDto }) {
       {row.merchant && (
         <p className="text-muted-foreground truncate text-xs">{row.merchant}</p>
       )}
+      <ManualMatchNote row={row} />
     </div>
+  )
+}
+
+/** "Remplace la dépense notée le 3 nov." under a row matching one. */
+export function ManualMatchNote({ row }: { row: ImportPreviewRowDto }) {
+  const match = row.manualMatch
+  if (!match) return null
+  return (
+    <p
+      data-slot="manual-match"
+      className="truncate text-xs text-violet-800 dark:text-violet-300"
+      title={match.rawLabel}
+    >
+      Remplace la dépense notée le {formatDate(match.bookingDate)} (
+      {match.rawLabel})
+    </p>
   )
 }
 

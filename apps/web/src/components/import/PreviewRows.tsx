@@ -25,6 +25,7 @@ import {
   CategorySelect,
   ConflictCompare,
   ConflictToggle,
+  ManualMatchNote,
   RowLabel,
   RowStatusBadge,
   SELECTED,
@@ -254,6 +255,7 @@ function RowCards(props: PreviewRowsProps) {
                   </span>
                   {row.merchant && ` · ${row.merchant}`}
                 </p>
+                <ManualMatchNote row={row} />
               </div>
               {row.status === 'conflict' && (
                 <ConflictDetails {...props} row={row} />
