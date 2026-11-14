@@ -131,22 +131,19 @@ export function ManualExpenseSheet({
   }, [open, expense, initialCategoryId])
 
   // Defaults once the lists are there: first category offered, first
-  // checking account.
+  // checking account. Functional updates: the reset above may have set a
+  // value in the same commit, which must win.
   useEffect(() => {
-    if (open && categoryId === '' && expenseCategories.length > 0) {
-      setCategoryId(expenseCategories[0].id)
-    }
-  }, [open, categoryId, expenseCategories])
+    if (!open || expenseCategories.length === 0) return
+    setCategoryId((current) => current || expenseCategories[0].id)
+  }, [open, expenseCategories])
   useEffect(() => {
-    if (open && accountId === '' && cashAccounts.length > 0) {
-      setAccountId(
-        (
-          cashAccounts.find((account) => account.type === 'checking') ??
-          cashAccounts[0]
-        ).id,
-      )
-    }
-  }, [open, accountId, cashAccounts])
+    if (!open || cashAccounts.length === 0) return
+    const preferred =
+      cashAccounts.find((account) => account.type === 'checking') ??
+      cashAccounts[0]
+    setAccountId((current) => current || preferred.id)
+  }, [open, cashAccounts])
 
   const amountError = expenseAmountError(amount)
   const dateError =

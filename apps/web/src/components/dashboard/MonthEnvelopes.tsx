@@ -177,7 +177,9 @@ function EnvelopeRow({
           </span>
           {item.manualCents !== 0 && (
             <span className="text-muted-foreground whitespace-nowrap">
-              dont {formatBudgetAmount(item.manualCents)} notés à la main
+              {item.manualCents === item.spentCents
+                ? 'tout noté à la main'
+                : `dont ${formatBudgetAmount(item.manualCents)} noté à la main`}
             </span>
           )}
         </span>

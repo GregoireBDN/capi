@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { AccountsService } from '#/accounts/accounts.service'
 import * as schema from '#/database/schema'
 import {
   accountsTable,
@@ -254,6 +255,26 @@ describe.skipIf(!process.env.DATABASE_URL)(
         await expect(
           service.update(created.id, { bookingDate: '2026-12-01' }, NOW),
         ).rejects.toBeInstanceOf(BadRequestException)
+      })
+    })
+
+    it('leaves the bank balance and its date alone', async () => {
+      await withFixture(async ({ tx, service, outings, checking }) => {
+        await tx.insert(transactionsTable).values({
+          accountId: checking,
+          bookingDate: '2026-10-10',
+          amountCents: -500,
+          balanceAfterCents: 99_500,
+          rawLabel: 'PAIEMENT CB FICTIF',
+          kind: 'expense',
+          dedupeHash: 'b'.repeat(64),
+        })
+        await service.create({ amountCents: 1_250, categoryId: outings }, NOW)
+        const accounts = new AccountsService({ db: tx } as never)
+        expect(await accounts.findOne(checking)).toMatchObject({
+          balanceCents: 99_500,
+          balanceDate: '2026-10-10',
+        })
       })
     })
 

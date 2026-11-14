@@ -163,6 +163,9 @@ export class AccountsService {
    *   Without either, the sum of all amounts;
    * - investment accounts: the latest value snapshot.
    *
+   * Expenses noted by hand (`manual`) are left out: until the import replaces
+   * them, the balance is the bank's, dated by the bank's data.
+   *
    * With `asOf`, every query only sees the transactions and snapshots dated
    * on or before that day, so the result is the balance at the end of it
    * (e.g. a month-end net worth): the same anchors as of that day.
@@ -268,7 +271,15 @@ export class AccountsService {
           .from(t)
           .leftJoin(latest, eq(latest.accountId, t.accountId))
           .leftJoin(snap, eq(snap.accountId, t.accountId))
-          .where(and(inArray(t.accountId, transactionalIds), bookedUntil))
+          .where(
+            and(
+              inArray(t.accountId, transactionalIds),
+              // Expenses noted by hand are not bank data yet: the balance
+              // and its date are the bank's.
+              eq(t.manual, false),
+              bookedUntil,
+            ),
+          )
           .groupBy(t.accountId),
       ])
 

@@ -115,7 +115,9 @@ function compareManual(a: ManualExpense, b: ManualExpense): number {
  * row is due in the file (more than the tolerance before its end). They stay
  * and are flagged for review.
  */
-export function unmatchedInPeriod<T extends { id: string; bookingDate: string }>(
+export function unmatchedInPeriod<
+  T extends { id: string; bookingDate: string },
+>(
   manual: readonly T[],
   matchedIds: ReadonlySet<string>,
   periodStart: string,

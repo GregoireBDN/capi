@@ -121,18 +121,20 @@ export class ImportsService {
     const fileHash = createHash('sha256').update(input.buffer).digest('hex')
     const { periodStart, periodEnd } = periodOf(parsed.rows)
 
-    const [existing, manual, previousBalanceCents, ruleSet] = await Promise.all([
-      periodStart && periodEnd
-        ? loadExistingForRange(this.db, account.id, periodStart, periodEnd)
-        : [],
-      periodStart && periodEnd
-        ? loadManualExpenses(this.db, account.id, periodStart, periodEnd)
-        : [],
-      periodStart
-        ? loadPreviousBalance(this.db, account.id, periodStart)
-        : null,
-      this.rulesService.loadRuleSet(),
-    ])
+    const [existing, manual, previousBalanceCents, ruleSet] = await Promise.all(
+      [
+        periodStart && periodEnd
+          ? loadExistingForRange(this.db, account.id, periodStart, periodEnd)
+          : [],
+        periodStart && periodEnd
+          ? loadManualExpenses(this.db, account.id, periodStart, periodEnd)
+          : [],
+        periodStart
+          ? loadPreviousBalance(this.db, account.id, periodStart)
+          : null,
+        this.rulesService.loadRuleSet(),
+      ],
+    )
     const { preview, counts } = buildPreview({
       accountId: account.id,
       rows: parsed.rows,

@@ -73,18 +73,17 @@ export function RowLabel({ row }: { row: ImportPreviewRowDto }) {
   )
 }
 
-/** "Remplace la dépense notée le 3 nov." under a row matching one. */
+/** "Remplace « Ciné » du 08/11/2026" under a row matching a manual expense. */
 export function ManualMatchNote({ row }: { row: ImportPreviewRowDto }) {
   const match = row.manualMatch
   if (!match) return null
   return (
     <p
       data-slot="manual-match"
-      className="truncate text-xs text-violet-800 dark:text-violet-300"
-      title={match.rawLabel}
+      className="line-clamp-2 text-xs break-words whitespace-normal text-violet-800 dark:text-violet-300"
+      title={`Dépense notée à la main le ${formatDate(match.bookingDate)} : ${match.rawLabel}`}
     >
-      Remplace la dépense notée le {formatDate(match.bookingDate)} (
-      {match.rawLabel})
+      Remplace « {match.rawLabel} » du {formatDate(match.bookingDate)}
     </p>
   )
 }

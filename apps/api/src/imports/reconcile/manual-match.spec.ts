@@ -46,13 +46,19 @@ describe('matchManualExpenses', () => {
     expect(
       matchManualExpenses(
         [row('2026-11-15', -500), row('2026-11-05', -700)],
-        [manual('late', '2026-11-10', -500), manual('early', '2026-11-10', -700)],
+        [
+          manual('late', '2026-11-10', -500),
+          manual('early', '2026-11-10', -700),
+        ],
       ),
     ).toEqual(['late', 'early'])
     expect(
       matchManualExpenses(
         [row('2026-11-16', -500), row('2026-11-04', -700)],
-        [manual('late', '2026-11-10', -500), manual('early', '2026-11-10', -700)],
+        [
+          manual('late', '2026-11-10', -500),
+          manual('early', '2026-11-10', -700),
+        ],
       ),
     ).toEqual([null, null])
   })

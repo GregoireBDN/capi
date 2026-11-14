@@ -59,7 +59,10 @@ export class ManualExpensesService {
       const accountId = dto.accountId
         ? await this.requireAccount(tx, dto.accountId)
         : await this.defaultAccount(tx)
-      const bookingDate = this.checkDate(dto.bookingDate ?? parisToday(now), now)
+      const bookingDate = this.checkDate(
+        dto.bookingDate ?? parisToday(now),
+        now,
+      )
       const [row] = await tx
         .insert(transactionsTable)
         .values({
