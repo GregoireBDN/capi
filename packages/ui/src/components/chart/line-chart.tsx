@@ -6,6 +6,7 @@ import {
   Line,
   AreaChart as RechartsAreaChart,
   LineChart as RechartsLineChart,
+  ReferenceDot,
   ReferenceLine,
   XAxis,
   YAxis,
@@ -44,6 +45,17 @@ type LineChartProps<TDatum extends ChartDatum> = CartesianChartProps<TDatum> &
      * data, which shows the trend of slow-moving series such as net worth.
      */
     zeroBaseline?: boolean
+    /**
+     * Index value of the selected row (e.g. `2026-03`): marked with a
+     * vertical line and a dot on each series, so its value stays shown
+     * after the pointer leaves. The page states the selected value in text.
+     */
+    selectedIndex?: string
+    /**
+     * Called with the index value of the row nearest to a click or tap on
+     * the plot. Makes the chart selectable (pointer cursor).
+     */
+    onSelectIndex?: (value: string) => void
   }
 
 type AreaChartProps<TDatum extends ChartDatum> = CartesianChartProps<TDatum> &
@@ -66,6 +78,12 @@ const ACTIVE_DOT = {
 /** Area fills are a wash, never a saturated block. */
 const AREA_FILL_OPACITY = 0.12
 const CURSOR = { stroke: 'var(--border)', strokeWidth: 1 } as const
+/** Selected row: a firmer hairline than the hover crosshair. */
+const SELECTED_LINE = {
+  stroke: 'var(--muted-foreground)',
+  strokeOpacity: 0.6,
+  strokeWidth: 1,
+} as const
 const MARGIN = { top: 8, right: 8, bottom: 0, left: 0 } as const
 /** Extra top room for the labels of vertical reference lines. */
 const MARGIN_WITH_INDEX_LABELS = { ...MARGIN, top: 24 } as const
@@ -150,6 +168,38 @@ function chartMargin(
   return lines?.some((line) => line.label) ? MARGIN_WITH_INDEX_LABELS : MARGIN
 }
 
+/** Marker of the selected row: a vertical hairline and a dot per series. */
+function selectionElements(
+  selectedIndex: string | undefined,
+  rows: ReadonlyArray<ChartDatum>,
+  index: string,
+  keys: string[],
+  position: (value: string) => string | number | undefined,
+) {
+  if (selectedIndex === undefined) return null
+  const x = position(selectedIndex)
+  const row = rows.find((item) => String(item[index]) === selectedIndex)
+  if (x === undefined || !row) return null
+  return [
+    <ReferenceLine key="selected-line" x={x} {...SELECTED_LINE} />,
+    ...keys.flatMap((key) => {
+      const value = row[key]
+      if (typeof value !== 'number') return []
+      return [
+        <ReferenceDot
+          key={`selected-${key}`}
+          x={x}
+          y={value}
+          {...ACTIVE_DOT}
+          r={5}
+          fill={chartSeriesColor(key)}
+          data-slot="chart-selected-dot"
+        />,
+      ]
+    }),
+  ]
+}
+
 /* ============================================================================
  * LINE CHART
  * ========================================================================= */
@@ -157,7 +207,9 @@ function chartMargin(
 /**
  * LineChart
  * Time series (e.g. net worth by month): 2px lines, crosshair tooltip listing
- * every series, optional reference lines. Values are integer **cents**.
+ * every series, optional reference lines, and an optional selected row
+ * (`selectedIndex` / `onSelectIndex`, chosen by a click or tap). Values are
+ * integer **cents**.
  *
  * @example
  * <LineChart
@@ -180,6 +232,8 @@ function LineChart<TDatum extends ChartDatum>(props: LineChartProps<TDatum>) {
     emptyMessage,
     indexLabel,
     className,
+    selectedIndex,
+    onSelectIndex,
   } = props
   const defaults = useCartesianDefaults(props, 'Courbe')
   const { keys } = defaults
@@ -224,6 +278,18 @@ function LineChart<TDatum extends ChartDatum>(props: LineChartProps<TDatum>) {
       <RechartsLineChart
         data={indexAxis.rows}
         margin={chartMargin(indexReferenceLines)}
+        style={onSelectIndex ? { cursor: 'pointer' } : undefined}
+        onClick={
+          onSelectIndex
+            ? (state) => {
+                const row =
+                  state.activeIndex == null
+                    ? undefined
+                    : indexAxis.rows[Number(state.activeIndex)]
+                if (row) onSelectIndex(String(row[index]))
+              }
+            : undefined
+        }
       >
         {defaults.showGrid ? <CartesianGrid vertical={false} /> : null}
         <XAxis {...indexAxis.axisProps} />
@@ -263,6 +329,13 @@ function LineChart<TDatum extends ChartDatum>(props: LineChartProps<TDatum>) {
             connectNulls
           />
         ))}
+        {selectionElements(
+          selectedIndex,
+          indexAxis.rows,
+          index,
+          keys,
+          indexAxis.position,
+        )}
       </RechartsLineChart>
     </ChartContainer>
   )

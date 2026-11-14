@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, waitFor } from 'storybook/test'
+import { useState } from 'react'
+import { expect, fireEvent, waitFor } from 'storybook/test'
 
 import {
   cashflowConfig,
@@ -182,4 +183,70 @@ export const TodayMarkerMobile: Story = {
       <LineChart {...args} height={200} />
     </ChartFrame>
   ),
+}
+
+/**
+ * A selectable chart: a click or tap picks the nearest month, marked by a
+ * hairline and a dot, and the page states its value in text above the plot
+ * (here a plain line; the net worth page adds deltas and a breakdown).
+ */
+export const Selectable: Story = {
+  render: function Render(args) {
+    const [selected, setSelected] = useState(
+      netWorth2026[netWorth2026.length - 1]!.month,
+    )
+    const row = netWorth2026.find((item) => item.month === selected)
+    return (
+      <ChartFrame title="Patrimoine net" description="Touchez un mois">
+        <p data-testid="selected" className="text-sm tabular-nums">
+          {formatMonthLong(selected)} : {row ? formatEuros(row.netWorth) : '—'}
+        </p>
+        <LineChart
+          {...args}
+          selectedIndex={selected}
+          onSelectIndex={setSelected}
+        />
+      </ChartFrame>
+    )
+  },
+  beforeEach: captureReactWarnings,
+  play: async ({ canvasElement, canvas }) => {
+    const graphic = await findChartGraphic(canvasElement, /Patrimoine net/)
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelectorAll('.recharts-reference-dot'),
+      ).toHaveLength(1),
+    )
+    await expect(canvas.getByTestId('selected')).toHaveTextContent(
+      'décembre 2026',
+    )
+    // A click at the left edge of the plot picks the first month.
+    await expect(graphic).toBeVisible()
+    const plot = canvasElement
+      .querySelector('.recharts-cartesian-grid')!
+      .getBoundingClientRect()
+    const point = {
+      clientX: plot.left + 2,
+      clientY: plot.top + plot.height / 2,
+    }
+    const wrapper = canvasElement.querySelector('.recharts-wrapper')!
+    // The click picks the row the pointer is over (the tooltip's row).
+    await fireEvent.mouseMove(wrapper, point)
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelector('[data-slot="chart-tooltip"]')?.textContent,
+      ).toContain('janvier 2026'),
+    )
+    await fireEvent.click(wrapper, point)
+    await waitFor(() =>
+      expect(canvas.getByTestId('selected')).toHaveTextContent('janvier 2026'),
+    )
+    await expectNoDuplicateKeys()
+  },
+}
+
+export const SelectableMobile: Story = {
+  ...Selectable,
+  globals: MOBILE,
+  parameters: { layout: 'padded' },
 }
