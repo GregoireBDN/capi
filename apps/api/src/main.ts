@@ -5,13 +5,13 @@ import { NestFactory } from '@nestjs/core'
 import type { NestFastifyApplication } from '@nestjs/platform-fastify'
 import fastifyCookie from '@fastify/cookie'
 import fastifyHelmet from '@fastify/helmet'
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { Logger } from 'nestjs-pino'
 import { AppModule } from './app.module'
 import { registerNoStoreHeaders } from './common/http/no-store'
 import { env } from './config/env'
 import { createFastifyAdapter } from './config/fastify-adapter'
 import { REQUEST_ID_HEADER } from './config/logger'
+import { SWAGGER_UI_PATH, setupSwagger } from './config/swagger'
 import { registerMultipart } from './imports/upload/multipart'
 
 async function bootstrap() {
@@ -61,28 +61,6 @@ async function bootstrap() {
     },
   })
 
-  // The Swagger UI (/api/docs) is the only HTML page and relies on inline
-  // scripts/styles, so it gets a relaxed CSP — scoped to that route only,
-  // instead of weakening the policy for the whole API.
-  const SWAGGER_CSP = [
-    `default-src 'self'`,
-    `base-uri 'self'`,
-    `object-src 'none'`,
-    `script-src 'self' 'unsafe-inline'`,
-    `style-src 'self' 'unsafe-inline'`,
-    `img-src 'self' data: validator.swagger.io`,
-  ].join('; ')
-
-  app
-    .getHttpAdapter()
-    .getInstance()
-    .addHook('onSend', (request, reply, payload, done) => {
-      if (request.url.startsWith('/api/docs')) {
-        reply.header('Content-Security-Policy', SWAGGER_CSP)
-      }
-      done(null, payload)
-    })
-
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -113,15 +91,8 @@ async function bootstrap() {
   // so the process shuts down cleanly instead of dropping in-flight connections.
   app.enableShutdownHooks()
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Finances API')
-    .setVersion('1.0')
-    .addCookieAuth('token')
-    .build()
-  const document = SwaggerModule.createDocument(app, swaggerConfig)
-  SwaggerModule.setup('api/docs', app, document, {
-    jsonDocumentUrl: 'api/docs-json',
-  })
+  // Swagger UI and live OpenAPI document: development only (#180).
+  const swagger = setupSwagger(app)
 
   const port = env.PORT
   // Fastify listens on localhost unless told otherwise: the Docker image sets
@@ -130,7 +101,9 @@ async function bootstrap() {
 
   const logger = app.get(Logger)
   logger.log(`API running on http://localhost:${port}/api`)
-  logger.log(`Swagger UI: http://localhost:${port}/api/docs`)
+  if (swagger) {
+    logger.log(`Swagger UI: http://localhost:${port}/${SWAGGER_UI_PATH}`)
+  }
 }
 
 bootstrap()
