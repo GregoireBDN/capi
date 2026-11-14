@@ -28,6 +28,8 @@ ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 COPY --from=builder /prod/api .
 EXPOSE 4000
+# Unprivileged user of the base image; the app files stay owned by root (read-only for it).
+USER node
 # Probe the real Terminus health endpoint (checks the DB, and SMTP when it is
 # configured). A 5xx makes `fetch` resolve with `ok: false`, so the container
 # is reported unhealthy.

@@ -22,4 +22,6 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/apps/web/.output .
 EXPOSE 3000
+# Unprivileged user of the base image; the app files stay owned by root (read-only for it).
+USER node
 CMD ["node", "server/index.mjs"]

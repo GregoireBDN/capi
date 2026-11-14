@@ -63,11 +63,17 @@ jobs:
           persist-credentials: false
 
       # Community rules only, no Semgrep account or token; --metrics=off sends
-      # no usage data. Any finding fails the job (--error).
+      # no usage data. Any finding fails the job (--error). p/default (the
+      # registry's baseline: JS/TS, Dockerfile, workflow and package manager
+      # rules) is added because the three language packs alone do not flag
+      # e.g. eval() of request input. The pnpm rules need a newer pnpm (#156).
       - name: semgrep scan
         run: >-
           semgrep scan --error --metrics=off --disable-version-check
-          --config p/typescript --config p/nodejs --config p/react
+          --config p/default --config p/typescript --config p/nodejs --config p/react
+          --exclude-rule package_managers.pnpm.pnpm-block-exotic-sub-dependencies.pnpm-block-exotic-sub-dependencies
+          --exclude-rule package_managers.pnpm.pnpm-missing-minimum-release-age.pnpm-minimum-release-age
+          --exclude-rule package_managers.pnpm.pnpm-trust-policy.pnpm-trust-policy
 
   gitleaks:
     name: secrets (gitleaks)

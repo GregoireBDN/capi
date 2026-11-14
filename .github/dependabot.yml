@@ -7,12 +7,16 @@
 # - Docker: base images are pinned by digest; Dependabot bumps the digest when
 #   the tag moves (security patches of the base image). Majors (Node 22 -> 24)
 #   are chosen by hand.
+# Version updates wait 7 days after a release (cooldown), so a hijacked
+# release is usually yanked first; security updates are not delayed.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 0
     labels: [fix, area:security]
     commit-message:
@@ -22,6 +26,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
     groups:
       github-actions:
         patterns: ['*']
@@ -33,6 +39,8 @@ updates:
     directories: ['/apps/*']
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     ignore:
       - dependency-name: '*'
         update-types: [version-update:semver-major]
