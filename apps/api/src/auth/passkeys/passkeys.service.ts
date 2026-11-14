@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -16,7 +15,8 @@ import {
   verifyRegistrationResponse,
 } from '@simplewebauthn/server'
 import { and, asc, count, eq, lt } from 'drizzle-orm'
-import { AUTH_ERRORS, FRESH_AUTH_MAX_AGE_SECONDS } from '#/auth/auth.constants'
+import { AUTH_ERRORS } from '#/auth/auth.constants'
+import { assertFreshSession } from '#/auth/guards/fresh-auth.guard'
 import type { RequestUser } from '#/auth/request-user'
 import { env } from '#/config/env'
 import { DatabaseService } from '#/database/database.service'
@@ -106,17 +106,6 @@ export class PasskeysService {
     return env.webauthn
   }
 
-  /** 403 unless the user signed in (password or passkey) a few minutes ago. */
-  assertFreshSession(user: RequestUser, now = new Date()): void {
-    const nowSeconds = Math.floor(now.getTime() / 1000)
-    const fresh =
-      user.authTime !== undefined &&
-      user.authTime <= nowSeconds + 60 &&
-      nowSeconds - user.authTime <= FRESH_AUTH_MAX_AGE_SECONDS
-    if (!fresh)
-      throw new ForbiddenException(AUTH_ERRORS.REAUTHENTICATION_REQUIRED)
-  }
-
   private async storeChallenge(
     purpose: WebauthnChallengePurpose,
     challenge: string,
@@ -173,7 +162,7 @@ export class PasskeysService {
     user: RequestUser,
     now = new Date(),
   ): Promise<PublicKeyCredentialCreationOptionsJSON> {
-    this.assertFreshSession(user, now)
+    assertFreshSession(user, now)
     const [owner] = await this.db.db
       .select({ email: usersTable.email, name: usersTable.name })
       .from(usersTable)
@@ -221,7 +210,7 @@ export class PasskeysService {
     name: string | undefined,
     now = new Date(),
   ): Promise<PasskeyView> {
-    this.assertFreshSession(user, now)
+    assertFreshSession(user, now)
     const expectedChallenge = await this.consumeChallenge(
       response,
       'registration',

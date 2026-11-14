@@ -10,6 +10,8 @@ const api = vi.hoisted(() => ({
   accessTokensControllerAudit: vi.fn(),
   accessTokensControllerCreate: vi.fn(),
   accessTokensControllerRevoke: vi.fn(),
+  authControllerLogin: vi.fn(),
+  passkeysControllerList: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
@@ -40,7 +42,7 @@ function renderCard() {
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <AccessTokensCard />
+      <AccessTokensCard email="owner@example.test" />
     </QueryClientProvider>,
   )
 }
@@ -135,6 +137,55 @@ describe('AccessTokensCard', () => {
     await waitFor(() =>
       expect(screen.queryByDisplayValue(PLAIN_TOKEN)).toBeNull(),
     )
+  })
+
+  it('asks to sign in again when the session is not fresh, then creates the token', async () => {
+    const user = userEvent.setup()
+    api.accessTokensControllerCreate
+      .mockImplementationOnce(() =>
+        Promise.resolve({
+          error: { message: ['Recent authentication required'] },
+          response: new Response(null, { status: 403 }),
+        }),
+      )
+      .mockImplementationOnce(() =>
+        ok({ ...READ_TOKEN, name: 'Script', token: PLAIN_TOKEN }, 201),
+      )
+    api.authControllerLogin.mockImplementation(() => ok({ success: true }))
+    renderCard()
+
+    await user.click(
+      await screen.findByRole('button', { name: /Créer un jeton/ }),
+    )
+    const sheet = await screen.findByRole('dialog')
+    await user.type(within(sheet).getByLabelText('Nom'), 'Script')
+    await user.click(
+      within(sheet).getByRole('button', { name: 'Créer le jeton' }),
+    )
+
+    const reauth = await screen.findByRole('dialog', {
+      name: 'Confirmez votre identité',
+    })
+    expect(reauth).toHaveTextContent('Pour créer un jeton d’accès')
+    expect(toast.error).not.toHaveBeenCalled()
+    await user.type(within(reauth).getByLabelText('Mot de passe'), 'secret-pw')
+    await user.click(within(reauth).getByRole('button', { name: 'Confirmer' }))
+    expect(api.authControllerLogin).toHaveBeenCalledWith({
+      body: { email: 'owner@example.test', password: 'secret-pw' },
+      throwOnError: false,
+    })
+
+    const confirmed = await screen.findByRole('dialog', {
+      name: 'Identité confirmée',
+    })
+    expect(api.accessTokensControllerCreate).toHaveBeenCalledTimes(1)
+    await user.click(
+      within(confirmed).getByRole('button', { name: 'Créer le jeton' }),
+    )
+    await waitFor(() =>
+      expect(api.accessTokensControllerCreate).toHaveBeenCalledTimes(2),
+    )
+    expect(await screen.findByDisplayValue(PLAIN_TOKEN)).toBeTruthy()
   })
 
   it('revokes a token after confirmation', async () => {

@@ -36,6 +36,7 @@ import {
 } from '#/auth/access-tokens/dto/access-token.dto'
 import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { CurrentUser } from '#/auth/decorators/current-user.decorator'
+import { FreshAuthGuard } from '#/auth/guards/fresh-auth.guard'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 
 const AUDIT_DEFAULT_LIMIT = 50
@@ -62,15 +63,20 @@ export class AccessTokensController {
   }
 
   @Post()
+  @UseGuards(FreshAuthGuard)
   @ApiOperation({
     summary: 'Create a personal access token',
     description:
-      'The token is returned once in `token` and only its hash is stored.',
+      'The token is returned once in `token` and only its hash is stored. Needs a fresh session: a password or passkey sign-in within the last 5 minutes.',
   })
   @ApiBody({ type: CreateAccessTokenDto })
   @ApiCreatedResponse({ type: CreatedAccessTokenDto })
   @ApiBadRequestResponse({
     description: 'Invalid input or too many active tokens.',
+  })
+  @ApiForbiddenResponse({
+    description:
+      'Recent authentication required, or called with an access token.',
   })
   create(
     @CurrentUser() user: { sub: string },

@@ -91,7 +91,7 @@ function TokenRow({
 }
 
 /** Profile section: personal access tokens for Claude (MCP) and scripts. */
-export function AccessTokensCard() {
+export function AccessTokensCard({ email }: { email: string }) {
   const queryClient = useQueryClient()
   const tokens = useQuery(accessTokensQuery)
   const audit = useQuery(accessTokenAuditQuery)
@@ -189,7 +189,11 @@ export function AccessTokensCard() {
         )}
       </CardContent>
 
-      <CreateAccessTokenSheet open={createOpen} onOpenChange={setCreateOpen} />
+      <CreateAccessTokenSheet
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        email={email}
+      />
       <ConfirmDialog
         open={toRevoke !== null}
         onOpenChange={(open) => {

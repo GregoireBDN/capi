@@ -34,6 +34,7 @@ import type { FastifyReply } from 'fastify'
 import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { AuthService } from '#/auth/auth.service'
 import { CurrentUser } from '#/auth/decorators/current-user.decorator'
+import { FreshAuthGuard } from '#/auth/guards/fresh-auth.guard'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import type { RequestUser } from '#/auth/request-user'
 import { setSessionCookies } from '#/auth/session-cookies'
@@ -181,16 +182,21 @@ export class PasskeysController {
 
   @Delete(':id')
   @HttpCode(204)
-  @UseGuards(JwtGuard)
+  @UseGuards(JwtGuard, FreshAuthGuard)
   @ApiCookieAuth('token')
   @ApiOperation({
     summary: 'Revoke a passkey',
     description:
-      'It can no longer sign in. The password always stays available.',
+      'It can no longer sign in. The password always stays available. Needs a fresh session: a password or passkey sign-in within the last 5 minutes.',
   })
   @ApiParam({ name: 'id', type: String, format: 'uuid' })
   @ApiNoContentResponse()
   @ApiNotFoundResponse()
+  @ApiUnauthorizedResponse()
+  @ApiForbiddenResponse({
+    description:
+      'Recent authentication required, or called with an access token.',
+  })
   async remove(
     @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) id: string,
