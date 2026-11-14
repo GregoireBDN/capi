@@ -49,6 +49,7 @@ These rules are non-negotiable. Code, tests and reviews must enforce them.
 - Prices come from a key-less public API (CoinGecko `simple/price`, behind the `PriceProvider` interface), **server-side only**, all assets batched in one request, cached in `crypto_prices` for `PRICE_CACHE_TTL_SECONDS` (default 600) and kept as last known price when the API fails (flagged stale, never a 500). `PRICE_API_ENABLED=false` disables it: only manual prices (`PUT /api/crypto/prices/:assetId`) are used.
 - **Privacy**: the price API only receives asset ids (and the asset search text), never quantities or values. Never log quantities, prices × quantities or values.
 - Valuing an account upserts **today's** `balance_snapshot` (Europe/Paris), so balances and net worth use the normal snapshot path; there is no separate crypto net-worth path.
+- The **Crypto** page (`/crypto`, `components/crypto/CryptoPage.tsx`) shows every open crypto account (one per exchange or wallet) from `GET /api/crypto/summary`; `POST /api/crypto/valuate` refreshes them all with one batched price request. `HoldingEditor` without an `accountId` lets the owner pick the account or set up a new exchange / wallet (`CryptoSourceFields`, shared with `AccountEditor`), created on save, so a first holding takes one step.
 
 ### CIC CSV import format
 
