@@ -12,6 +12,7 @@ import { AccountsService } from '#/accounts/accounts.service'
 import { CryptoPricesService } from '#/crypto/crypto-prices.service'
 import { CryptoService } from '#/crypto/crypto.service'
 import type { PriceProvider } from '#/crypto/price-provider'
+import { WalletSyncService } from '#/crypto/wallet-sync/wallet-sync.service'
 import * as schema from '#/database/schema'
 import type { CryptoExchangeProvider } from '#/database/schema/domain-enums'
 import { CryptoImportsService } from './crypto-imports.service'
@@ -114,7 +115,18 @@ describe.skipIf(!process.env.DATABASE_URL)(
             provider: provider as PriceProvider,
             ttlMs: 600_000,
           })
-          const crypto = new CryptoService(database, accounts, prices)
+          const walletSync = new WalletSyncService(database, {
+            bitcoin: null,
+            evm: null,
+            tokens: null,
+            intervalMs: 600_000,
+          })
+          const crypto = new CryptoService(
+            database,
+            accounts,
+            prices,
+            walletSync,
+          )
           const imports = new CryptoImportsService(
             database,
             accounts,
