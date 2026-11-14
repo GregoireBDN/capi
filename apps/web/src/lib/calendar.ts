@@ -27,6 +27,20 @@ export function currentMonth(now: Date = new Date()): string {
   return `${year}-${month}`
 }
 
+const parisDay = new Intl.DateTimeFormat('en-CA', {
+  timeZone: APP_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+/** Today in Europe/Paris, e.g. `2026-11-13`. */
+export function currentDay(now: Date = new Date()): string {
+  const parts = parisDay.formatToParts(now)
+  const part = (type: string) => parts.find((p) => p.type === type)!.value
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
+
 /** `month` moved by `delta` months (`2026-01`, -1 → `2025-12`). */
 export function shiftMonth(month: string, delta: number): string {
   const [year, monthNumber] = month.split('-').map(Number)

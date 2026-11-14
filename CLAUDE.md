@@ -68,6 +68,12 @@ The running balance is used to **check continuity** (previous balance + amount =
 - Legitimate identical transactions on the same day (same date, amount and label, e.g. two identical card payments) must be **kept**. The dedupe hash includes an occurrence index among identical (date, amount, normalized label) rows in file order, so they stay distinct and a re-imported file still matches. Rows from different sources (e.g. the spreadsheet history vs a CSV export) are compared by a fuzzy probable-duplicate check and shown as conflicts in the preview, never dropped automatically. See `apps/api/src/imports/dedupe/dedupe.ts`.
 - Every import goes through a **preview** (new / duplicate / conflicting rows, continuity check) before it is committed. Nothing is written until the user confirms.
 
+### Envelopes and manual expenses
+
+- A budget line can be **tracked** (`budgets.tracked`, "suivre pendant le mois", carried over like the note): the dashboard's "Ce mois-ci" card (`GET /api/budgets/envelopes`, current Europe/Paris month) shows spent / target, what's left and the even-pace mark (target × day / days in the month).
+- **Manual expenses** (`POST|PATCH|DELETE /api/transactions/manual`, `ManualExpensesService`) are `expense` transactions with `manual = true`, no import and a random `manual:<uuid>` dedupe hash. They count in spending and budgets at once, but never as imported data: `coverage/` (`dataUntil`) and account balances ignore them, and the import dedupe (`loadExistingForRange`) leaves them out.
+- **Reconciliation** (`apps/api/src/imports/reconcile/`): a `new` import row with the same account and amount, booked at most 5 days from a manual expense, replaces it on commit (one to one, closest first), keeping its category, note (or typed label) and one-off flag; the preview shows the match. Unmatched manual expenses of the file's period (up to 5 days before its end) stay and are flagged for review. The commit re-matches against the manual expenses as they are then.
+
 ### Spreadsheet history import (one-shot)
 
 The owner's pre-app history (a Google Sheet, ~3,250 categorized rows since 07/2023) is imported once from its CSV exports with `pnpm --filter @finances/api import:history` (code in `apps/api/src/imports/history/`, entry `apps/api/src/database/import-history.ts`; `node dist/database/import-history.js` where `tsx` is missing).

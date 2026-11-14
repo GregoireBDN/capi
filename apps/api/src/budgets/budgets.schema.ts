@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
+  boolean,
   check,
   date,
   index,
@@ -35,6 +36,11 @@ export const budgetsTable = pgTable(
     /** Positive integer cents per month; null = no budget from this month on. */
     monthlyTargetCents: integer('monthly_target_cents'),
     note: text('note'),
+    /**
+     * Envelope: followed during the month on the dashboard ("Ce mois-ci"),
+     * with expenses noted by hand (#137). Carried over like the note.
+     */
+    tracked: boolean('tracked').notNull().default(false),
   },
   (t) => [
     unique('budgets_category_effective_from_unique').on(

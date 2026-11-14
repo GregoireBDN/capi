@@ -19,7 +19,9 @@ export type Executor = Db | Tx
  * booked ahead). Overall: the latest of the accounts, so one account
  * imported less often (a savings account with a few transfers a year) does
  * not hold back the figures of the others. Investment accounts, valued by
- * snapshots, have no transactions and do not count.
+ * snapshots, have no transactions and do not count. Expenses noted by hand
+ * (`manual`) do not count either: an expense noted today must not make the
+ * month look imported.
  */
 export async function dataUntilByAccount(
   executor: Executor,
@@ -31,6 +33,7 @@ export async function dataUntilByAccount(
     executor
       .select({ accountId: t.accountId, last: max(t.bookingDate) })
       .from(t)
+      .where(eq(t.manual, false))
       .groupBy(t.accountId),
     executor
       .select({ accountId: i.accountId, last: max(i.periodEnd) })
@@ -81,7 +84,12 @@ export async function dataUntil(
     executor
       .select({ last: max(t.bookingDate) })
       .from(t)
-      .where(accountId === undefined ? undefined : eq(t.accountId, accountId)),
+      .where(
+        and(
+          eq(t.manual, false),
+          accountId === undefined ? undefined : eq(t.accountId, accountId),
+        ),
+      ),
     executor
       .select({ last: sql<string | null>`max(${i.periodEnd})` })
       .from(i)

@@ -103,6 +103,7 @@ function row(overrides: Partial<ImportPreviewRowDto>): ImportPreviewRowDto {
     ruleId: 'rule-1',
     kind: 'expense',
     needsReview: false,
+    manualMatch: null,
     ...overrides,
   }
 }
@@ -179,6 +180,7 @@ export const pendingDetail: ImportDetailDto = {
   committedAt: null,
   alreadyImported: null,
   preview: {
+    unmatchedManual: [],
     previousBalanceCents: null,
     continuity: {
       checked: true,

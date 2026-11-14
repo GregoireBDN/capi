@@ -147,6 +147,13 @@ export class TransactionDto {
   @ApiProperty({ type: String, nullable: true })
   note!: string | null
 
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'Expense noted by hand during the month, replaced by its bank row on import.',
+  })
+  manual!: boolean
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date
 

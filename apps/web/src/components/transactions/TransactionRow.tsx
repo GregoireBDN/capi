@@ -14,6 +14,7 @@ import {
 import { StickyNoteIcon } from 'lucide-react'
 import { useState } from 'react'
 import type { CategoryDto, TransactionDto } from '#/api/types.gen'
+import { ManualExpenseSheet } from '#/components/expenses/ManualExpenseSheet'
 import { formatCalendarDate } from '#/lib/money'
 import { Amount } from './Amount'
 import { CategoryBadge } from './CategoryBadge'
@@ -41,6 +42,11 @@ function Flags({ item }: { item: TransactionDto }) {
       {item.needsReview && (
         <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[0.7rem] font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
           À revoir
+        </span>
+      )}
+      {item.manual && (
+        <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[0.7rem] font-medium text-violet-900 dark:bg-violet-900/40 dark:text-violet-200">
+          À la main
         </span>
       )}
       {item.isOneOff && (
@@ -78,6 +84,7 @@ export function TransactionRow({
 }: TransactionRowProps) {
   const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
+  const [manualOpen, setManualOpen] = useState(false)
   const name = displayLabel(item)
 
   function change(changes: TransactionChanges) {
@@ -139,7 +146,15 @@ export function TransactionRow({
   )
 
   const editor = (
-    <TransactionEditor item={item} categories={categories} onChange={change} />
+    <TransactionEditor
+      item={item}
+      categories={categories}
+      onChange={change}
+      onEditManual={() => {
+        setOpen(false)
+        setManualOpen(true)
+      }}
+    />
   )
 
   return (
@@ -183,6 +198,13 @@ export function TransactionRow({
             {editor}
           </PopoverContent>
         </Popover>
+      )}
+      {item.manual && (
+        <ManualExpenseSheet
+          open={manualOpen}
+          onOpenChange={setManualOpen}
+          expense={item}
+        />
       )}
     </li>
   )

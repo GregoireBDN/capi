@@ -294,6 +294,23 @@ export class ExistingTransactionDto {
   rawLabel!: string
 }
 
+export class ManualExpenseMatchDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string
+
+  @ApiProperty({ type: String, format: 'date' })
+  bookingDate!: string
+
+  @ApiProperty({ type: 'integer', description: 'Signed cents.' })
+  amountCents!: number
+
+  @ApiProperty({ type: String })
+  rawLabel!: string
+
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  categoryId!: string | null
+}
+
 export class ImportPreviewRowDto {
   @ApiProperty({
     type: 'integer',
@@ -340,7 +357,8 @@ export class ImportPreviewRowDto {
     type: String,
     format: 'uuid',
     nullable: true,
-    description: 'Proposed by the rules; null when no rule matched.',
+    description:
+      'Proposed by the rules, or the category of the manual expense the row replaces; null when neither applies.',
   })
   categoryId!: string | null
 
@@ -355,6 +373,14 @@ export class ImportPreviewRowDto {
     description: 'No rule matched: the transaction goes to the review queue.',
   })
   needsReview!: boolean
+
+  @ApiProperty({
+    type: ManualExpenseMatchDto,
+    nullable: true,
+    description:
+      'Expense noted by hand that this new row replaces on commit (same account and amount, booked a few days apart): the row keeps its category and note.',
+  })
+  manualMatch!: ManualExpenseMatchDto | null
 }
 
 export class ImportPreviewDto {
@@ -373,6 +399,13 @@ export class ImportPreviewDto {
 
   @ApiProperty({ type: [ImportPreviewRowDto] })
   rows!: ImportPreviewRowDto[]
+
+  @ApiProperty({
+    type: [ManualExpenseMatchDto],
+    description:
+      'Expenses noted by hand in the file’s period that no row replaces: kept and flagged for review on commit.',
+  })
+  unmatchedManual!: ManualExpenseMatchDto[]
 }
 
 export class AlreadyImportedDto {

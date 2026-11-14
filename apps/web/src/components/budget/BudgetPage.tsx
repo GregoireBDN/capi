@@ -184,6 +184,7 @@ export function BudgetPage({
                   name: item.name,
                   targetCents: item.targetCents,
                   note: item.note,
+                  tracked: item.tracked,
                 },
               })
             }

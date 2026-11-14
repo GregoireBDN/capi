@@ -13,10 +13,12 @@ import {
 } from './commit-payload'
 import type { PreviewChoices } from './commit-payload'
 import { commitErrorMessage, genericErrorMessage } from './errors'
+import { envelopeKeys } from '#/components/expenses/queries'
 import { plural } from './format'
 import {
   AlreadyImportedBanner,
   ContinuityPanel,
+  ManualExpensesPanel,
   ParseIssuesPanel,
   PreviewSummary,
 } from './PreviewReport'
@@ -50,6 +52,7 @@ export function ImportPreview({
     Promise.all([
       queryClient.invalidateQueries({ queryKey: importKeys.imports }),
       queryClient.invalidateQueries({ queryKey: importKeys.accounts }),
+      queryClient.invalidateQueries({ queryKey: envelopeKeys.all }),
     ])
 
   const commit = useMutation({
@@ -114,6 +117,7 @@ export function ImportPreview({
         <>
           <ContinuityPanel report={detail.preview.continuity} />
           <ParseIssuesPanel issues={detail.preview.issues} />
+          <ManualExpensesPanel preview={detail.preview} />
           <PreviewRows
             rows={rows}
             categories={categories.data ?? []}

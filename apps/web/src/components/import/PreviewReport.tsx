@@ -11,12 +11,14 @@ import {
   CopyIcon,
   FileWarningIcon,
   InfoIcon,
+  NotebookPenIcon,
   TriangleAlertIcon,
 } from 'lucide-react'
 import type {
   ContinuityGapDto,
   ContinuityReportDto,
   ImportDetailDto,
+  ImportPreviewDto,
   ParseIssueDto,
 } from '#/api'
 import { formatCents } from '#/lib/money'
@@ -182,6 +184,54 @@ export function ParseIssuesPanel({ issues }: { issues: ParseIssueDto[] }) {
             </li>
           ))}
         </ul>
+      </AlertDescription>
+    </Alert>
+  )
+}
+
+/**
+ * Expenses noted by hand during the month: how many the file replaces, and
+ * the ones it should have replaced but did not (flagged for review).
+ */
+export function ManualExpensesPanel({
+  preview,
+}: {
+  preview: ImportPreviewDto
+}) {
+  const matched = preview.rows.filter((row) => row.manualMatch).length
+  const unmatched = preview.unmatchedManual
+  if (matched === 0 && unmatched.length === 0) return null
+  return (
+    <Alert variant={unmatched.length > 0 ? 'warning' : 'default'}>
+      <NotebookPenIcon />
+      <AlertTitle>Dépenses notées à la main</AlertTitle>
+      <AlertDescription>
+        {matched > 0 && (
+          <p>
+            {plural(matched, 'dépense retrouvée', 'dépenses retrouvées')} dans
+            le relevé : remplacée{matched > 1 ? 's' : ''} par l’opération de la
+            banque, en gardant catégorie et note.
+          </p>
+        )}
+        {unmatched.length > 0 && (
+          <>
+            <p>
+              Sans opération correspondante, gardée
+              {unmatched.length > 1 ? 's' : ''} et marquée
+              {unmatched.length > 1 ? 's' : ''} à revoir :
+            </p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-4">
+              {unmatched.map((expense) => (
+                <li key={expense.id}>
+                  {formatDate(expense.bookingDate)} · {expense.rawLabel} ·{' '}
+                  <span className="whitespace-nowrap tabular-nums">
+                    {formatCents(-expense.amountCents)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </AlertDescription>
     </Alert>
   )

@@ -52,11 +52,15 @@ export function BudgetList({ month, items, onEdit }: BudgetListProps) {
                   valueFormatter={formatBudgetAmount}
                   warningThreshold={WARNING_THRESHOLD}
                 />
-                {(oneOffs !== 0 || item.note) && (
+                {(oneOffs !== 0 || item.note || item.tracked) && (
                   <span className="text-muted-foreground block truncate text-xs">
-                    {oneOffs !== 0 && `dont ponctuel ${formatCents(oneOffs)}`}
-                    {oneOffs !== 0 && item.note && ' · '}
-                    {item.note}
+                    {[
+                      item.tracked && 'Suivi pendant le mois',
+                      oneOffs !== 0 && `dont ponctuel ${formatCents(oneOffs)}`,
+                      item.note,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </span>
                 )}
               </span>

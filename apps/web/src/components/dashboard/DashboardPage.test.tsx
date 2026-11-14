@@ -27,6 +27,7 @@ const api = vi.hoisted(() => ({
   dashboardControllerReview: vi.fn(),
   forecastControllerForecast: vi.fn(),
   accountSnapshotsControllerUpsert: vi.fn(),
+  budgetsControllerEnvelopes: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), {
@@ -302,6 +303,15 @@ beforeEach(() => {
   api.dashboardControllerOverview.mockImplementation(() => ok(overview))
   api.dashboardControllerHistory.mockImplementation(() => ok(history))
   api.forecastControllerForecast.mockImplementation(() => ok(forecast()))
+  api.budgetsControllerEnvelopes.mockImplementation(() =>
+    ok({
+      month: '2026-11',
+      today: '2026-11-05',
+      dayOfMonth: 5,
+      daysInMonth: 30,
+      items: [],
+    }),
+  )
 })
 
 afterEach(() => {
@@ -340,6 +350,26 @@ describe('DashboardPage', () => {
         name: 'Préparer le budget de novembre',
       }),
     ).toHaveAttribute('href', '/budget?month=2026-11')
+  })
+
+  it('follows the current month under the review', async () => {
+    renderPage()
+
+    const card = await screen.findByRole('region', { name: 'Ce mois-ci' })
+    expect(
+      await within(card).findByRole('link', {
+        name: 'Choisir les enveloppes',
+      }),
+    ).toHaveAttribute('href', '/budget')
+    expect(
+      within(card).getByRole('button', { name: 'Ajouter une dépense' }),
+    ).toBeInTheDocument()
+    // Right after the review, before the accounts.
+    const reviewCard = screen.getByRole('region', { name: 'Bilan d’octobre' })
+    expect(
+      reviewCard.compareDocumentPosition(card) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   })
 
   it('says which accounts to update while the month is incomplete', async () => {

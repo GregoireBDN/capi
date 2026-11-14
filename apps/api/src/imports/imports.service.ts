@@ -41,6 +41,15 @@ import {
   parseCicCsv,
 } from '#/imports/parsers/cic-csv.parser'
 import type { ParseResult } from '#/imports/parsers/parsed-row'
+import {
+  matchManualExpenses,
+  unmatchedInPeriod,
+} from '#/imports/reconcile/manual-match'
+import {
+  loadManualExpenses,
+  noteFromManual,
+  type StoredManualExpense,
+} from '#/imports/reconcile/manual-match.repository'
 import { RecurringService } from '#/recurring/recurring.service'
 import { buildPreview, periodOf } from '#/imports/preview/build-preview'
 import {
@@ -112,15 +121,20 @@ export class ImportsService {
     const fileHash = createHash('sha256').update(input.buffer).digest('hex')
     const { periodStart, periodEnd } = periodOf(parsed.rows)
 
-    const [existing, previousBalanceCents, ruleSet] = await Promise.all([
-      periodStart && periodEnd
-        ? loadExistingForRange(this.db, account.id, periodStart, periodEnd)
-        : [],
-      periodStart
-        ? loadPreviousBalance(this.db, account.id, periodStart)
-        : null,
-      this.rulesService.loadRuleSet(),
-    ])
+    const [existing, manual, previousBalanceCents, ruleSet] = await Promise.all(
+      [
+        periodStart && periodEnd
+          ? loadExistingForRange(this.db, account.id, periodStart, periodEnd)
+          : [],
+        periodStart && periodEnd
+          ? loadManualExpenses(this.db, account.id, periodStart, periodEnd)
+          : [],
+        periodStart
+          ? loadPreviousBalance(this.db, account.id, periodStart)
+          : null,
+        this.rulesService.loadRuleSet(),
+      ],
+    )
     const { preview, counts } = buildPreview({
       accountId: account.id,
       rows: parsed.rows,
@@ -128,6 +142,7 @@ export class ImportsService {
       existing,
       previousBalanceCents,
       ruleSet,
+      manual,
     })
 
     const created = await this.db.transaction(async (tx) => {
@@ -159,6 +174,11 @@ export class ImportsService {
    * `new` rows, and `conflict` rows resolved as `import` (the others are
    * skipped). Rows stored by another import since the preview are counted as
    * duplicates (`ON CONFLICT DO NOTHING` on the dedupe hash).
+   *
+   * Expenses noted by hand are reconciled again against their current state
+   * (one may have been noted, edited or deleted since the preview): a `new`
+   * row matching one replaces it, keeping its category and note, and the
+   * unmatched ones of the period are flagged for review.
    */
   async commit(id: string, dto: CommitImportDto): Promise<ImportDetailDto> {
     const detail = await this.db.transaction(async (tx) => {
@@ -210,11 +230,33 @@ export class ImportsService {
           resolutions.get(row.index)?.action !== 'import',
       ).length
 
+      const manual =
+        record.periodStart && record.periodEnd
+          ? await loadManualExpenses(
+              tx,
+              record.accountId,
+              record.periodStart,
+              record.periodEnd,
+              { lock: true },
+            )
+          : []
+      const manualById = new Map(manual.map((m) => [m.id, m]))
+      const matches = matchManualExpenses(
+        toInsert.map((row) => (row.status === 'new' ? row : null)),
+        manual,
+      )
+      const replaced = new Map<number, StoredManualExpense>()
+      toInsert.forEach((row, k) => {
+        const id = matches[k]
+        if (id !== null) replaced.set(row.index, manualById.get(id)!)
+      })
+
       const values = await this.transactionValues(
         tx,
         record,
         toInsert,
         new Map([...overrides].map(([i, o]) => [i, o.categoryId])),
+        replaced,
       )
       let inserted = 0
       for (let start = 0; start < values.length; start += INSERT_CHUNK_SIZE) {
@@ -227,6 +269,8 @@ export class ImportsService {
           .returning({ id: transactionsTable.id })
         inserted += written.length
       }
+
+      await this.settleManualExpenses(tx, record, manual, replaced)
 
       const previewDuplicates = rows.filter(
         (row) => row.status === 'duplicate',
@@ -361,8 +405,50 @@ export class ImportsService {
   }
 
   /**
-   * Transactions to insert. A category chosen in the preview replaces the
-   * proposed one and clears the review flag. A category or rule deleted since
+   * Deletes the manual expenses replaced by bank rows and flags for review
+   * the ones of the period left unmatched (`unmatchedInPeriod`).
+   */
+  private async settleManualExpenses(
+    tx: Tx,
+    record: SelectImport,
+    manual: StoredManualExpense[],
+    replaced: Map<number, StoredManualExpense>,
+  ): Promise<void> {
+    const replacedIds = new Set([...replaced.values()].map((m) => m.id))
+    if (replacedIds.size > 0) {
+      await tx
+        .delete(transactionsTable)
+        .where(
+          and(
+            inArray(transactionsTable.id, [...replacedIds]),
+            eq(transactionsTable.manual, true),
+          ),
+        )
+    }
+    if (!record.periodStart || !record.periodEnd) return
+    const unmatched = unmatchedInPeriod(
+      manual,
+      replacedIds,
+      record.periodStart,
+      record.periodEnd,
+    )
+    if (unmatched.length > 0) {
+      await tx
+        .update(transactionsTable)
+        .set({ needsReview: true })
+        .where(
+          inArray(
+            transactionsTable.id,
+            unmatched.map((m) => m.id),
+          ),
+        )
+    }
+  }
+
+  /**
+   * Transactions to insert. A row replacing a manual expense takes its
+   * category, kind, note and one-off flag. A category chosen in the preview
+   * replaces the proposed one and clears the review flag. A category or rule deleted since
    * the preview is dropped (the row goes back to the review queue) rather
    * than failing the commit on its foreign key.
    */
@@ -371,6 +457,7 @@ export class ImportsService {
     record: SelectImport,
     rows: PreviewRow[],
     overrides: Map<number, string>,
+    replaced: Map<number, StoredManualExpense> = new Map(),
   ): Promise<InsertTransaction[]> {
     const categoryIds = new Set<string>(overrides.values())
     const ruleIds = new Set<string>()
@@ -403,6 +490,7 @@ export class ImportsService {
     }
 
     return rows.map((row) => {
+      const manual = replaced.get(row.index)
       const base = {
         accountId: record.accountId,
         importId: record.id,
@@ -413,6 +501,9 @@ export class ImportsService {
         rawLabel: row.rawLabel,
         merchant: row.merchant,
         dedupeHash: row.dedupeHash,
+        ...(manual
+          ? { note: noteFromManual(manual), isOneOff: manual.isOneOff }
+          : {}),
       }
       const override = overrides.get(row.index)
       if (override) {
@@ -422,6 +513,17 @@ export class ImportsService {
           ruleId: null,
           kind: kinds.get(override)!,
           needsReview: false,
+        }
+      }
+      if (manual) {
+        // The category is the manual expense's current one (it is a foreign
+        // key: it exists, or was deleted and is null).
+        return {
+          ...base,
+          categoryId: manual.categoryId,
+          ruleId: null,
+          kind: manual.kind,
+          needsReview: manual.categoryId === null,
         }
       }
       if (row.categoryId && !kinds.has(row.categoryId)) {
@@ -481,7 +583,11 @@ export class ImportsService {
             previousBalanceCents: preview.previousBalanceCents,
             continuity: preview.continuity,
             issues: preview.issues,
-            rows: preview.rows.map(({ dedupeHash: _hash, ...row }) => row),
+            rows: preview.rows.map(({ dedupeHash: _hash, ...row }) => ({
+              ...row,
+              manualMatch: row.manualMatch ?? null,
+            })),
+            unmatchedManual: preview.unmatchedManual ?? [],
           }
         : null,
     }

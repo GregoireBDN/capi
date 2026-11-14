@@ -7,6 +7,7 @@ import {
   budgetsControllerSuggest,
   budgetsControllerUpsert,
 } from '#/api'
+import { envelopeKeys } from '#/components/expenses/queries'
 import { unwrap } from '#/lib/queries'
 
 /** Months of the "Réel vs cible" table. */
@@ -65,11 +66,12 @@ export function saveBudget(
   month: string,
   monthlyTargetCents: number,
   note?: string | null,
+  tracked?: boolean,
 ) {
   return unwrap(
     budgetsControllerUpsert({
       path: { categoryId },
-      body: { monthlyTargetCents, effectiveFrom: month, note },
+      body: { monthlyTargetCents, effectiveFrom: month, note, tracked },
       throwOnError: false,
     }),
   )
@@ -88,5 +90,9 @@ export function removeBudget(categoryId: string, month: string) {
 
 /** Every budget view depends on the targets: refetch them all. */
 export function afterBudgetsChanged(queryClient: QueryClient) {
-  return queryClient.invalidateQueries({ queryKey: budgetKeys.all })
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: budgetKeys.all }),
+    // The dashboard's "Ce mois-ci" card follows the tracked lines.
+    queryClient.invalidateQueries({ queryKey: envelopeKeys.all }),
+  ])
 }

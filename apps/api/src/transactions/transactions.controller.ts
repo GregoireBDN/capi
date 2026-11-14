@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -14,6 +15,8 @@ import {
   ApiBadRequestResponse,
   ApiBody,
   ApiCookieAuth,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -36,6 +39,11 @@ import {
   TransactionSummaryDto,
   UpdateTransactionDto,
 } from './dto/transaction.dto'
+import {
+  CreateManualExpenseDto,
+  UpdateManualExpenseDto,
+} from './dto/manual-expense.dto'
+import { ManualExpensesService } from './manual-expenses.service'
 import { TransactionsService } from './transactions.service'
 
 const ID_PARAM = { name: 'id', type: String, format: 'uuid' } as const
@@ -46,7 +54,10 @@ const ID_PARAM = { name: 'id', type: String, format: 'uuid' } as const
 @UseGuards(JwtGuard)
 @Controller('transactions')
 export class TransactionsController {
-  constructor(private readonly transactionsService: TransactionsService) {}
+  constructor(
+    private readonly transactionsService: TransactionsService,
+    private readonly manualExpenses: ManualExpensesService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -102,6 +113,51 @@ export class TransactionsController {
     @Body() dto: BulkUpdateTransactionsDto,
   ): Promise<BulkUpdateResultDto> {
     return this.transactionsService.bulkUpdate(dto)
+  }
+
+  @Post('manual')
+  @TokenAccess('write')
+  @ApiOperation({
+    summary: 'Note an expense by hand',
+    description:
+      'Amount, expense category, day (default: today in Europe/Paris), optional label (default: the category name), account (default: the first checking account). Counts in spending and budgets at once, never as imported data; the import of the bank export replaces it with the matching bank row, keeping its category and note.',
+  })
+  @ApiBody({ type: CreateManualExpenseDto })
+  @ApiCreatedResponse({ type: TransactionDto })
+  @ApiBadRequestResponse({
+    description:
+      'Not an expense category, not an open checking or savings account, no checking account, a future day, or invalid body.',
+  })
+  createManual(@Body() dto: CreateManualExpenseDto): Promise<TransactionDto> {
+    return this.manualExpenses.create(dto)
+  }
+
+  @Patch('manual/:id')
+  @TokenAccess('write')
+  @ApiOperation({
+    summary: 'Edit an expense noted by hand',
+    description: 'Same fields as when noting it; all optional.',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiBody({ type: UpdateManualExpenseDto })
+  @ApiOkResponse({ type: TransactionDto })
+  @ApiBadRequestResponse({ description: 'Invalid body or nothing to update.' })
+  @ApiNotFoundResponse({ description: 'No manual expense with this id.' })
+  updateManual(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateManualExpenseDto,
+  ): Promise<TransactionDto> {
+    return this.manualExpenses.update(id, dto)
+  }
+
+  @Delete('manual/:id')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Delete an expense noted by hand' })
+  @ApiParam(ID_PARAM)
+  @ApiNoContentResponse()
+  @ApiNotFoundResponse({ description: 'No manual expense with this id.' })
+  async removeManual(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    await this.manualExpenses.remove(id)
   }
 
   @Patch(':id')

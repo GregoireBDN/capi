@@ -14,6 +14,8 @@ interface TransactionEditorProps {
   item: TransactionDto
   categories: readonly CategoryDto[]
   onChange: (changes: TransactionChanges) => void
+  /** Opens the editor of an expense noted by hand (amount, date, account). */
+  onEditManual?: () => void
 }
 
 /**
@@ -25,6 +27,7 @@ export function TransactionEditor({
   item,
   categories,
   onChange,
+  onEditManual,
 }: TransactionEditorProps) {
   const oneOffId = useId()
   const reviewId = useId()
@@ -57,6 +60,26 @@ export function TransactionEditor({
           {item.accountName}
         </p>
       </div>
+
+      {item.manual && (
+        <div className="bg-muted/50 space-y-2 rounded-lg p-3 text-sm">
+          <p className="text-muted-foreground text-xs">
+            Notée à la main : l’import du relevé la remplacera par l’opération
+            de la banque, en gardant sa catégorie et sa note.
+          </p>
+          {onEditManual && (
+            <Button
+              type="button"
+              size="sm"
+              outline
+              variant="secondary"
+              onClick={onEditManual}
+            >
+              Modifier ou supprimer la dépense
+            </Button>
+          )}
+        </div>
+      )}
 
       <div className="grid gap-3">
         <Field>
