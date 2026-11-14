@@ -16,10 +16,7 @@ import {
   verifyRegistrationResponse,
 } from '@simplewebauthn/server'
 import { and, asc, count, eq, lt } from 'drizzle-orm'
-import {
-  AUTH_ERRORS,
-  FRESH_AUTH_MAX_AGE_SECONDS,
-} from '#/auth/auth.constants'
+import { AUTH_ERRORS, FRESH_AUTH_MAX_AGE_SECONDS } from '#/auth/auth.constants'
 import type { RequestUser } from '#/auth/request-user'
 import { env } from '#/config/env'
 import { DatabaseService } from '#/database/database.service'
@@ -116,7 +113,8 @@ export class PasskeysService {
       user.authTime !== undefined &&
       user.authTime <= nowSeconds + 60 &&
       nowSeconds - user.authTime <= FRESH_AUTH_MAX_AGE_SECONDS
-    if (!fresh) throw new ForbiddenException(AUTH_ERRORS.REAUTHENTICATION_REQUIRED)
+    if (!fresh)
+      throw new ForbiddenException(AUTH_ERRORS.REAUTHENTICATION_REQUIRED)
   }
 
   private async storeChallenge(
@@ -149,7 +147,8 @@ export class PasskeysService {
     now: Date,
   ): Promise<string> {
     const challenge = readChallenge(response)
-    if (!challenge) throw new UnauthorizedException(PASSKEY_ERRORS.INVALID_CHALLENGE)
+    if (!challenge)
+      throw new UnauthorizedException(PASSKEY_ERRORS.INVALID_CHALLENGE)
     const [row] = await this.db.db
       .delete(webauthnChallengesTable)
       .where(
@@ -245,7 +244,8 @@ export class PasskeysService {
       .select({ total: count() })
       .from(webauthnCredentialsTable)
       .where(eq(webauthnCredentialsTable.userId, user.sub))
-    if (total >= MAX_PASSKEYS) throw new BadRequestException(PASSKEY_ERRORS.TOO_MANY)
+    if (total >= MAX_PASSKEYS)
+      throw new BadRequestException(PASSKEY_ERRORS.TOO_MANY)
 
     const { credential, credentialDeviceType, credentialBackedUp } =
       verification.registrationInfo
@@ -294,8 +294,10 @@ export class PasskeysService {
       null,
       now,
     )
-    const fail = () => new UnauthorizedException(PASSKEY_ERRORS.AUTHENTICATION_FAILED)
-    if (typeof response.id !== 'string' || response.id.length > 1024) throw fail()
+    const fail = () =>
+      new UnauthorizedException(PASSKEY_ERRORS.AUTHENTICATION_FAILED)
+    if (typeof response.id !== 'string' || response.id.length > 1024)
+      throw fail()
 
     const [stored] = await this.db.db
       .select()
@@ -305,7 +307,8 @@ export class PasskeysService {
     const userHandle = response.response?.userHandle
     if (
       userHandle &&
-      userHandle !== Buffer.from(userHandleBytes(stored.userId)).toString('base64url')
+      userHandle !==
+        Buffer.from(userHandleBytes(stored.userId)).toString('base64url')
     ) {
       throw fail()
     }
@@ -377,6 +380,7 @@ export class PasskeysService {
         ),
       )
       .returning({ id: webauthnCredentialsTable.id })
-    if (deleted.length === 0) throw new NotFoundException(PASSKEY_ERRORS.NOT_FOUND)
+    if (deleted.length === 0)
+      throw new NotFoundException(PASSKEY_ERRORS.NOT_FOUND)
   }
 }

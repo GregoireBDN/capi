@@ -71,7 +71,9 @@ export class PasskeysController {
   @Post('authentication/options')
   @HttpCode(200)
   @Throttle(OPTIONS_THROTTLE)
-  @ApiOperation({ summary: 'Start a passkey sign-in (discoverable credential)' })
+  @ApiOperation({
+    summary: 'Start a passkey sign-in (discoverable credential)',
+  })
   @ApiOkResponse({ schema: WEBAUTHN_OPTIONS_SCHEMA })
   @ApiTooManyRequestsResponse()
   authenticationOptions(): Promise<PublicKeyCredentialRequestOptionsJSON> {

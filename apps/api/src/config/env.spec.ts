@@ -148,4 +148,57 @@ describe('env', () => {
     expect(env.SMTP_PORT).toBe(587)
     expect(env.SMTP_SECURE).toBe(true)
   })
+
+  describe('passkeys (WebAuthn)', () => {
+    it('defaults the RP id and origin to APP_URL', async () => {
+      const { env } = await importEnv({
+        APP_URL: 'https://finances.example.ts.net/some/path',
+        WEBAUTHN_RP_ID: undefined,
+        WEBAUTHN_ORIGIN: undefined,
+      })
+      expect(env.webauthn).toEqual({
+        rpId: 'finances.example.ts.net',
+        origin: 'https://finances.example.ts.net',
+      })
+    })
+
+    it('accepts an explicit origin and a parent domain as RP id', async () => {
+      const { env } = await importEnv({
+        APP_URL: 'http://localhost:3000',
+        WEBAUTHN_ORIGIN: 'https://app.example.test:8443',
+        WEBAUTHN_RP_ID: 'example.test',
+      })
+      expect(env.webauthn).toEqual({
+        rpId: 'example.test',
+        origin: 'https://app.example.test:8443',
+      })
+    })
+
+    it('treats empty values as unset', async () => {
+      const { env } = await importEnv({
+        APP_URL: 'http://localhost:3100',
+        WEBAUTHN_ORIGIN: '',
+        WEBAUTHN_RP_ID: '',
+      })
+      expect(env.webauthn).toEqual({
+        rpId: 'localhost',
+        origin: 'http://localhost:3100',
+      })
+    })
+
+    it('refuses an RP id that does not cover the origin', async () => {
+      await expect(
+        importEnv({
+          APP_URL: 'https://finances.example.test',
+          WEBAUTHN_RP_ID: 'other.test',
+        }),
+      ).rejects.toThrow(/WEBAUTHN_RP_ID/)
+      await expect(
+        importEnv({
+          APP_URL: 'https://finances.example.test',
+          WEBAUTHN_RP_ID: 'ances.example.test',
+        }),
+      ).rejects.toThrow(/WEBAUTHN_RP_ID/)
+    })
+  })
 })

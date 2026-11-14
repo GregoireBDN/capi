@@ -62,6 +62,9 @@ const PUBLIC_ROUTES = [
   'POST /api/auth/forgot-password',
   'POST /api/auth/reset-password',
   'POST /api/auth/verify-email',
+  // Passkey sign-in (#100): it is how a session starts.
+  'POST /api/auth/passkeys/authentication/options',
+  'POST /api/auth/passkeys/authentication/verify',
 ].sort()
 
 /**

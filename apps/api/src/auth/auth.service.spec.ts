@@ -107,7 +107,7 @@ describe('AuthService', () => {
       expect(tokens.accessToken).toBe('mock-token')
       expect(tokens.refreshToken).toMatch(/^[a-f0-9]{64}$/) // 32 random bytes, hex
       expect(mockJwt.sign).toHaveBeenCalledWith(
-        { sub: 'new-id' },
+        { sub: 'new-id', auth_time: expect.any(Number) },
         expect.any(Object),
       )
     })
