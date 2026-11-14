@@ -40,12 +40,12 @@ import { TransactionEditor } from './TransactionEditor'
 const NOTE_MAX = 2000
 
 /**
- * Table-like columns once the page is ≥ 42rem wide (rems of the 22px root,
+ * Table-like columns once the page is ≥ 36rem wide (rems of the 22px root,
  * container query on the page), header included: selection, label,
  * category, account, flags, amount.
  */
 export const ROW_GRID =
-  '@2xl:grid @2xl:grid-cols-[2.25rem_minmax(0,1fr)_9rem_6rem_5.5rem_6rem] @2xl:items-center @2xl:gap-2'
+  '@xl:grid @xl:grid-cols-[2.25rem_minmax(0,1fr)_8rem_5rem_4.5rem_5.5rem] @xl:items-center @xl:gap-2'
 
 /** A field being edited in the row itself (desktop keyboard, or a tap). */
 export type InlineField = 'note' | 'amount'
@@ -145,7 +145,7 @@ function InlineNote({
   const name = displayLabel(item)
   return (
     <form
-      className="basis-full px-2 pb-2 @2xl:col-span-full @2xl:col-start-2"
+      className="basis-full px-2 pb-2 @xl:col-span-full @xl:col-start-2"
       onSubmit={(event) => {
         event.preventDefault()
         if (value.trim() !== (item.note ?? '')) onSave(value.trim())
@@ -281,9 +281,9 @@ export function TransactionRow({
       className="hover:bg-muted/50 focus-visible:ring-ring/50 min-w-0 flex-1 rounded-lg px-2 py-2 text-left outline-none focus-visible:ring-[3px]"
       onClick={() => setOpen(true)}
     >
-      <span className="flex min-w-0 items-start justify-between gap-3 @2xl:block">
+      <span className="flex min-w-0 items-start justify-between gap-3 @xl:block">
         <span className="min-w-0">
-          <span className="line-clamp-2 text-sm font-medium break-words @2xl:line-clamp-1 @2xl:break-all">
+          <span className="line-clamp-2 text-sm font-medium break-words @xl:line-clamp-1 @xl:break-all">
             {name}
           </span>
           {(item.merchant || showDate) && (
@@ -298,9 +298,9 @@ export function TransactionRow({
             </span>
           )}
         </span>
-        <Amount cents={item.amountCents} className="text-sm @2xl:hidden" />
+        <Amount cents={item.amountCents} className="text-sm @xl:hidden" />
       </span>
-      <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 @2xl:hidden">
+      <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 @xl:hidden">
         <CategoryLabel item={item} />
         <span className="text-muted-foreground truncate text-xs">
           {item.accountName}
@@ -383,7 +383,7 @@ export function TransactionRow({
       )}
 
       {/* Wide pages: cells edited in place. */}
-      <span className="hidden min-w-0 @2xl:block" data-inline-category="">
+      <span className="hidden min-w-0 @xl:block" data-inline-category="">
         {item.splits.length > 0 ? (
           <CategoryLabel item={item} />
         ) : (
@@ -398,13 +398,13 @@ export function TransactionRow({
           />
         )}
       </span>
-      <span className="text-muted-foreground hidden truncate text-xs @2xl:block">
+      <span className="text-muted-foreground hidden truncate text-xs @xl:block">
         {item.accountName}
       </span>
-      <span className="hidden @2xl:block">
+      <span className="hidden @xl:block">
         <Flags item={item} />
       </span>
-      <span className="hidden text-right text-sm @2xl:block">
+      <span className="hidden text-right text-sm @xl:block">
         {inline === 'amount' && item.manual ? (
           <InlineAmount
             item={item}

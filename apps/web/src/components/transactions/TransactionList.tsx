@@ -29,7 +29,7 @@ function ColumnHeaders() {
     <div
       aria-hidden="true"
       className={cn(
-        'text-muted-foreground hidden px-1 text-xs @2xl:grid',
+        'text-muted-foreground hidden px-1 text-xs @xl:grid',
         ROW_GRID,
       )}
     >
@@ -56,7 +56,7 @@ function ShortcutHint() {
     [['⌘/Ctrl', 'Z'], 'annuler'],
   ]
   return (
-    <p className="text-muted-foreground hidden flex-wrap gap-x-3 gap-y-1 px-3 text-xs @2xl:flex">
+    <p className="text-muted-foreground hidden flex-wrap gap-x-3 gap-y-1 px-3 text-xs @xl:flex">
       {shortcuts.map(([keys, label]) => (
         <span key={label} className="inline-flex items-center gap-1">
           {keys.map((key) => (
