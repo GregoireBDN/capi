@@ -35,5 +35,6 @@ import { WalletKeysService } from './wallet-keys/wallet-keys.service'
     CryptoService,
     WalletKeysService,
   ],
+  exports: [CryptoService, CryptoPricesService],
 })
 export class CryptoModule {}

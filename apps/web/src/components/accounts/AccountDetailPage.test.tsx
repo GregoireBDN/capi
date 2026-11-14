@@ -561,11 +561,11 @@ describe('AccountDetailPage', () => {
     expect(
       within(source).getByText('Dernier import : jamais'),
     ).toBeInTheDocument()
-    // The import itself comes later (#128): shown, not available yet.
+    // Exports are imported from here (#128).
     expect(
       within(source).getByRole('button', { name: 'Importer un export' }),
-    ).toBeDisabled()
-    expect(within(source).getByText(/Bientôt disponible/)).toBeInTheDocument()
+    ).toBeEnabled()
+    expect(within(source).queryByText(/Bientôt disponible/)).toBeNull()
 
     const list = await screen.findByRole('list', { name: 'Avoirs' })
     // The imported line is read-only, the line typed by hand opens its editor.

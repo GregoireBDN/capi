@@ -57,7 +57,7 @@ const SEARCH_DELAY_MS = 300
 /** "Nouveau wallet ou plateforme" in the account picker. */
 const NEW_ACCOUNT = 'new'
 
-type Asset = Pick<CryptoAssetDto, 'id' | 'symbol' | 'name'>
+export type Asset = Pick<CryptoAssetDto, 'id' | 'symbol' | 'name'>
 
 interface HoldingEditorProps {
   open: boolean
@@ -93,7 +93,7 @@ function useDebounced(value: string, delay: number) {
 }
 
 /** Search field and result list; the provider (or a built-in list) answers. */
-function AssetPicker({
+export function AssetPicker({
   id,
   invalid,
   onPick,

@@ -4430,6 +4430,215 @@
         ]
       }
     },
+    "/api/accounts/{id}/crypto-imports": {
+      "post": {
+        "description": "Parses a Binance or Coinbase \"Transactions\" CSV export (detected from its headers), marks every line new or already imported, lists unknown operation types and tickers without a price id, and computes the holdings the account will have. Stores a pending import; nothing else is written until `POST /crypto-imports/{id}/commit`.",
+        "operationId": "AccountCryptoImportsController_preview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/CryptoImportUploadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CryptoImportDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing file, not a Binance or Coinbase export, export of another exchange, not an exchange crypto account, archived account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "413": {
+            "description": "The file exceeds 5 MB."
+          },
+          "415": {
+            "description": "Not a multipart body."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Upload an exchange export and preview it",
+        "tags": [
+          "Crypto imports"
+        ]
+      }
+    },
+    "/api/crypto-imports/{id}": {
+      "get": {
+        "description": "Includes the parsed lines while the import is pending.",
+        "operationId": "CryptoImportsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CryptoImportDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Get an exchange import",
+        "tags": [
+          "Crypto imports"
+        ]
+      },
+      "delete": {
+        "description": "A pending import is discarded. A committed one is undone: its movements are deleted and the imported holdings recomputed.",
+        "operationId": "CryptoImportsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteCryptoImportResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Discard or undo an exchange import",
+        "tags": [
+          "Crypto imports"
+        ]
+      }
+    },
+    "/api/crypto-imports/{id}/commit": {
+      "post": {
+        "description": "Writes the new lines atomically (lines stored meanwhile count as duplicates), saves the price ids chosen for unknown tickers, replaces the account's imported holdings with the sum of its movements (manual lines are never touched) and values the account.",
+        "operationId": "CryptoImportsController_commit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitCryptoImportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CryptoImportDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, ticker that needs no price id, account no longer an open exchange account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "Already committed, or the preview is outdated."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Commit a previewed exchange import",
+        "tags": [
+          "Crypto imports"
+        ]
+      }
+    },
     "/api/forecast": {
       "get": {
         "description": "Current balance of the selected accounts, the remaining occurrences of their confirmed, active recurring items until the end of the month (Europe/Paris), and optionally an estimate of the day-to-day spending; projected day by day with the lowest point and the first day under the threshold. Transfers and one-offs never count in the estimate.",
@@ -10401,6 +10610,377 @@
           "chains",
           "label",
           "createdAt"
+        ]
+      },
+      "CryptoImportUploadDto": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "Binance or Coinbase \"Transactions\" CSV export (UTF-8), at most 5 MB."
+          }
+        },
+        "required": [
+          "file"
+        ]
+      },
+      "CryptoImportFormat": {
+        "type": "string",
+        "enum": [
+          "binance_csv",
+          "coinbase_csv"
+        ]
+      },
+      "CryptoImportCountsDto": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "integer",
+            "description": "Parsed lines."
+          },
+          "new": {
+            "type": "integer"
+          },
+          "duplicates": {
+            "type": "integer",
+            "description": "Lines already imported (on commit: also those stored meanwhile)."
+          },
+          "issues": {
+            "type": "integer",
+            "description": "Unreadable lines."
+          },
+          "inserted": {
+            "type": "integer",
+            "description": "Lines written on commit."
+          }
+        },
+        "required": [
+          "rows",
+          "new",
+          "duplicates",
+          "issues",
+          "inserted"
+        ]
+      },
+      "CryptoImportIssueDto": {
+        "type": "object",
+        "properties": {
+          "lineNumber": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string",
+            "description": "Why the line was skipped (no data)."
+          }
+        },
+        "required": [
+          "lineNumber",
+          "message"
+        ]
+      },
+      "CryptoUnknownOperationDto": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "operation",
+          "count"
+        ]
+      },
+      "CryptoImportHoldingDto": {
+        "type": "object",
+        "properties": {
+          "tickers": {
+            "description": "Tickers of the export.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "assetId": {
+            "type": "string",
+            "nullable": true,
+            "example": "bitcoin"
+          },
+          "symbol": {
+            "type": "string",
+            "example": "BTC"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Signed exact decimal string with a dot (up to 18 decimals).",
+            "example": "-0.0012"
+          },
+          "investedCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "negative",
+              "unmapped"
+            ],
+            "description": "`negative`: earlier movements are missing; `unmapped`: no price id. Neither becomes a holding."
+          }
+        },
+        "required": [
+          "tickers",
+          "assetId",
+          "symbol",
+          "name",
+          "quantity",
+          "investedCents",
+          "status"
+        ]
+      },
+      "CryptoMovementKind": {
+        "type": "string",
+        "enum": [
+          "buy",
+          "sell",
+          "convert",
+          "fee",
+          "deposit",
+          "withdrawal",
+          "transfer_internal",
+          "income",
+          "other"
+        ]
+      },
+      "CryptoImportRowDto": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "lineNumber": {
+            "type": "integer"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "wallet": {
+            "type": "string",
+            "nullable": true,
+            "example": "Spot"
+          },
+          "operation": {
+            "type": "string",
+            "example": "Transaction Buy"
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoMovementKind"
+              }
+            ]
+          },
+          "known": {
+            "type": "boolean",
+            "description": "False for an operation type the parser does not know."
+          },
+          "asset": {
+            "type": "string",
+            "example": "BTC"
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Signed exact decimal string with a dot (up to 18 decimals).",
+            "example": "-0.0012"
+          },
+          "eurCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "duplicate"
+            ]
+          }
+        },
+        "required": [
+          "index",
+          "lineNumber",
+          "occurredAt",
+          "wallet",
+          "operation",
+          "kind",
+          "known",
+          "asset",
+          "quantity",
+          "eurCents",
+          "status"
+        ]
+      },
+      "CryptoImportDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "format": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoImportFormat"
+              }
+            ]
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "committed"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "committedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "counts": {
+            "$ref": "#/components/schemas/CryptoImportCountsDto"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CryptoImportIssueDto"
+            }
+          },
+          "unknownOperations": {
+            "description": "Operation types the parser does not know: imported as `other`, their quantities counted.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CryptoUnknownOperationDto"
+            }
+          },
+          "unmappedTickers": {
+            "description": "Tickers without a price id (no holding until mapped).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "holdings": {
+            "description": "Holdings of the account once the import is committed.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CryptoImportHoldingDto"
+            }
+          },
+          "rows": {
+            "description": "Parsed lines while pending; empty once committed.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CryptoImportRowDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "accountId",
+          "format",
+          "fileName",
+          "status",
+          "createdAt",
+          "committedAt",
+          "periodStart",
+          "periodEnd",
+          "counts",
+          "issues",
+          "unknownOperations",
+          "unmappedTickers",
+          "holdings",
+          "rows"
+        ]
+      },
+      "CryptoAssetChoiceDto": {
+        "type": "object",
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "maxLength": 20,
+            "example": "XYZ"
+          },
+          "assetId": {
+            "type": "string",
+            "example": "bitcoin"
+          },
+          "symbol": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "ticker",
+          "assetId",
+          "symbol",
+          "name"
+        ]
+      },
+      "CommitCryptoImportDto": {
+        "type": "object",
+        "properties": {
+          "assets": {
+            "description": "Price ids chosen for tickers the preview could not map.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CryptoAssetChoiceDto"
+            }
+          }
+        }
+      },
+      "DeleteCryptoImportResultDto": {
+        "type": "object",
+        "properties": {
+          "deletedMovements": {
+            "type": "integer",
+            "description": "Movements deleted (0 for a pending import)."
+          }
+        },
+        "required": [
+          "deletedMovements"
         ]
       },
       "ForecastAccountDto": {

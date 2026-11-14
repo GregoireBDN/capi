@@ -120,3 +120,26 @@ export const CRYPTO_CHAINS_BY_FAMILY = {
  */
 export const CRYPTO_HOLDING_ORIGINS = ['import', 'sync', 'manual'] as const
 export type CryptoHoldingOrigin = (typeof CRYPTO_HOLDING_ORIGINS)[number]
+
+/**
+ * What a crypto movement of an exchange export does (#128). Moves between the
+ * owner's own places (`deposit`, `withdrawal`, `transfer_internal`) only move
+ * quantities: none of them is income or expense. `other` is an operation type
+ * the parser does not know; its quantity still counts in the holdings.
+ */
+export const CRYPTO_MOVEMENT_KINDS = [
+  'buy',
+  'sell',
+  'convert',
+  'fee',
+  'deposit',
+  'withdrawal',
+  'transfer_internal',
+  'income',
+  'other',
+] as const
+export type CryptoMovementKind = (typeof CRYPTO_MOVEMENT_KINDS)[number]
+
+/** Exchange export formats that can be imported. */
+export const CRYPTO_IMPORT_FORMATS = ['binance_csv', 'coinbase_csv'] as const
+export type CryptoImportFormat = (typeof CRYPTO_IMPORT_FORMATS)[number]

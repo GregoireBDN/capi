@@ -6,6 +6,8 @@ interface FileDropzoneProps {
   onFile: (file: File) => void
   disabled?: boolean
   busy?: boolean
+  /** Line under the label (format and size limit). */
+  hint?: string
 }
 
 /**
@@ -13,7 +15,12 @@ interface FileDropzoneProps {
  * desktop. The input is reset after each pick so the same file can be sent
  * again.
  */
-export function FileDropzone({ onFile, disabled, busy }: FileDropzoneProps) {
+export function FileDropzone({
+  onFile,
+  disabled,
+  busy,
+  hint = 'Export CSV CIC, 5 Mo maximum',
+}: FileDropzoneProps) {
   const inputId = useId()
   const [dragging, setDragging] = useState(false)
   const inactive = disabled || busy
@@ -61,9 +68,7 @@ export function FileDropzone({ onFile, disabled, busy }: FileDropzoneProps) {
               ou le déposer ici
             </span>
           </span>
-          <span className="text-muted-foreground text-xs">
-            Export CSV CIC, 5 Mo maximum
-          </span>
+          <span className="text-muted-foreground text-xs">{hint}</span>
         </>
       )}
       <input
