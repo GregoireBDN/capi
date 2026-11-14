@@ -3663,6 +3663,37 @@
         ]
       }
     },
+    "/api/crypto/valuate": {
+      "post": {
+        "description": "One batched price API request for every held asset (each at most every 15 s), then each non-archived crypto account whose holdings all have a price gets today's balance snapshot. A failing price API never fails the request: the last known prices are used and flagged stale.",
+        "operationId": "CryptoController_valuate",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CryptoSummaryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Refresh prices of every crypto account and write today's snapshots",
+        "tags": [
+          "Crypto"
+        ]
+      }
+    },
     "/api/crypto/assets": {
       "get": {
         "description": "Proxied to the price API search (only the search text is sent), or a built-in list of common assets when it is disabled or unreachable.",
