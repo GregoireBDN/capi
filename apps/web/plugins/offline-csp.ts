@@ -30,12 +30,21 @@ export function offlinePageHeaders(
 
 /** `'sha256-…'` of every inline `<tag>` element (none: `'none'`). */
 export function inlineHashes(html: string, tag: 'script' | 'style'): string[] {
-  const elements = html.matchAll(
-    new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'g'),
-  )
-  const hashes = [...elements].map(
-    ([, content]) =>
+  const open = `<${tag}>`
+  const close = `</${tag}>`
+  const hashes: string[] = []
+  let from = 0
+  for (;;) {
+    const start = html.indexOf(open, from)
+    if (start === -1) break
+    const contentStart = start + open.length
+    const end = html.indexOf(close, contentStart)
+    if (end === -1) break
+    const content = html.slice(contentStart, end)
+    hashes.push(
       `'sha256-${createHash('sha256').update(content, 'utf8').digest('base64')}'`,
-  )
+    )
+    from = end + close.length
+  }
   return hashes.length > 0 ? hashes : ["'none'"]
 }

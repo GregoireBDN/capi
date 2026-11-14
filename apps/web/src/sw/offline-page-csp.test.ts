@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -35,5 +36,11 @@ describe('offline page headers', () => {
     expect(inlineHashes(html, 'script')).toHaveLength(2)
     expect(inlineHashes(html, 'style')).toHaveLength(1)
     expect(inlineHashes('<p></p>', 'script')).toEqual(["'none'"])
+    // Unclosed element: nothing to hash.
+    expect(inlineHashes('<script>1', 'script')).toEqual(["'none'"])
+    // Same hash as Node for the exact element text.
+    expect(inlineHashes('<style>a{}</style>', 'style')).toEqual([
+      `'sha256-${createHash('sha256').update('a{}', 'utf8').digest('base64')}'`,
+    ])
   })
 })
