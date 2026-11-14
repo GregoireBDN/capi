@@ -1,4 +1,4 @@
-import { THEME_INIT_SCRIPT } from './theme-init-script'
+import { INLINE_SCRIPTS } from './inline-scripts'
 
 /**
  * Content-Security-Policy and frame protection for every response of the web
@@ -9,9 +9,9 @@ import { THEME_INIT_SCRIPT } from './theme-init-script'
  * Scripts: same-origin bundles, plus the inline scripts TanStack renders
  * (dehydrated state, scroll restoration, ...) with a per-response nonce
  * (`router.options.ssr.nonce`, `lib/csp-nonce.ts`; the client reads it back
- * from `<meta property="csp-nonce">`), plus the theme init script of
- * `__root.tsx` by its hash. Never `'unsafe-inline'` or `'unsafe-eval'` in
- * production.
+ * from `<meta property="csp-nonce">`), plus the app's own inline scripts of
+ * `__root.tsx` by their hashes (`lib/inline-scripts.ts`). Never
+ * `'unsafe-inline'` or `'unsafe-eval'`, even in dev (Zod runs jitless).
  *
  * Styles keep `'unsafe-inline'`: server-rendered `style` attributes (Radix,
  * charts) and the `<style>` elements libraries inject at runtime (toasts,
@@ -31,7 +31,7 @@ export interface PageCspOptions {
   nonce: string
   /** `'sha256-…'` sources of the app's own inline scripts. */
   scriptHashes: readonly string[]
-  /** `vite dev`: HMR websocket and React's dev-only `eval`. */
+  /** `vite dev`: Vite's HMR websocket. */
   dev?: boolean
 }
 
@@ -42,17 +42,11 @@ export function pageCspDirectives({
 }: PageCspOptions): CspDirectives {
   return {
     'default-src': ["'self'"],
-    'script-src': [
-      "'self'",
-      `'nonce-${nonce}'`,
-      ...scriptHashes,
-      // React's development build rebuilds component stacks with `eval`.
-      ...(dev ? ["'unsafe-eval'"] : []),
-    ],
+    'script-src': ["'self'", `'nonce-${nonce}'`, ...scriptHashes],
     'style-src': ["'self'", "'unsafe-inline'", GOOGLE_FONTS_STYLESHEETS],
     'font-src': ["'self'", GOOGLE_FONTS_FILES],
     'img-src': ["'self'", 'data:'],
-    // Vite's HMR and the TanStack devtools talk over websockets in dev.
+    // Vite's HMR (and the TanStack devtools) talk over websockets in dev.
     'connect-src': ["'self'", ...(dev ? ['ws:', 'wss:'] : [])],
     'worker-src': ["'self'"],
     'manifest-src': ["'self'"],
@@ -89,7 +83,7 @@ let inlineScriptHashes: Promise<string[]> | undefined
 
 /** Hashes of the app's own inline scripts, computed once per process. */
 export function pageInlineScriptHashes(): Promise<string[]> {
-  inlineScriptHashes ??= Promise.all([sha256Source(THEME_INIT_SCRIPT)])
+  inlineScriptHashes ??= Promise.all(INLINE_SCRIPTS.map(sha256Source))
   return inlineScriptHashes
 }
 

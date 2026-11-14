@@ -6,7 +6,7 @@ import NotFound from '../components/NotFound'
 import { NavigationProgress } from '../components/app-shell/NavigationProgress'
 import { ServiceWorkerUpdates } from '../components/pwa/ServiceWorkerUpdates'
 import { AuthProvider } from '../lib/auth-context'
-import { THEME_INIT_SCRIPT } from '../lib/theme-init-script'
+import { THEME_INIT_SCRIPT, ZOD_JITLESS_SCRIPT } from '../lib/inline-scripts'
 
 import appCss from '../globals.css?url'
 
@@ -60,8 +60,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" suppressHydrationWarning>
       <head>
-        {/* Allowed by its hash in the CSP (`lib/security-headers.ts`). */}
+        {/* Allowed by their hashes in the CSP (`lib/security-headers.ts`). */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: ZOD_JITLESS_SCRIPT }} />
         <HeadContent />
         {/* Rendered here: `head()` keeps a single meta per name. */}
         <meta

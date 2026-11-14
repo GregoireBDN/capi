@@ -9,7 +9,7 @@ import {
   serializeCsp,
   sha256Source,
 } from './security-headers'
-import { THEME_INIT_SCRIPT } from './theme-init-script'
+import { INLINE_SCRIPTS, THEME_INIT_SCRIPT } from './inline-scripts'
 
 function directivesOf(policy: string): Map<string, string[]> {
   return new Map(
@@ -32,13 +32,17 @@ describe('createCspNonce', () => {
 })
 
 describe('sha256Source', () => {
-  it('matches the hash a browser computes for the inline script', async () => {
-    const expected = createHash('sha256')
-      .update(THEME_INIT_SCRIPT, 'utf8')
-      .digest('base64')
+  const nodeHash = (source: string) =>
+    `'sha256-${createHash('sha256').update(source, 'utf8').digest('base64')}'`
 
-    expect(await sha256Source(THEME_INIT_SCRIPT)).toBe(`'sha256-${expected}'`)
-    expect(await pageInlineScriptHashes()).toEqual([`'sha256-${expected}'`])
+  it('matches the hash a browser computes for an inline script', async () => {
+    expect(await sha256Source(THEME_INIT_SCRIPT)).toBe(
+      nodeHash(THEME_INIT_SCRIPT),
+    )
+  })
+
+  it('covers each of the app inline scripts', async () => {
+    expect(await pageInlineScriptHashes()).toEqual(INLINE_SCRIPTS.map(nodeHash))
   })
 })
 
