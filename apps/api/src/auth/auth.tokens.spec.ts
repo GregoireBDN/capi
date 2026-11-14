@@ -172,8 +172,9 @@ describe('AuthService password reset tokens', () => {
     mockDb.update.mockReturnValue(buildChain([{}]))
 
     await expect(service.resetPassword('raw-token', 'newpassword123')).resolves.toBeUndefined()
-    // One update to set the new passwordHash, one to mark the token used.
-    expect(mockDb.update).toHaveBeenCalledTimes(2)
+    // Spend the link, set the new passwordHash, end every session, spend the
+    // other pending links (sessions: see auth.password.http.spec.ts).
+    expect(mockDb.update).toHaveBeenCalledTimes(4)
   })
 
   it('rejects an expired reset token', async () => {

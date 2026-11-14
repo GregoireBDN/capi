@@ -25,8 +25,8 @@ function fill(
   const values = {
     name: 'New User',
     email: 'new@test.com',
-    password: 'password123',
-    confirm: 'password123',
+    password: 'password-1234',
+    confirm: 'password-1234',
     ...overrides,
   }
   return Promise.resolve()
@@ -63,6 +63,19 @@ describe('RegisterForm', () => {
     expect(authControllerRegister).not.toHaveBeenCalled()
   })
 
+  it('requires a password of at least 12 characters', async () => {
+    const user = userEvent.setup()
+    render(<RegisterForm />)
+
+    await fill(user, { password: 'eleven-char', confirm: 'eleven-char' })
+    await user.click(screen.getByRole('button', { name: 'Créer un compte' }))
+
+    expect(
+      await screen.findByText('Au moins 12 caractères'),
+    ).toBeInTheDocument()
+    expect(authControllerRegister).not.toHaveBeenCalled()
+  })
+
   it('registers and redirects to verify-email on success', async () => {
     authControllerRegister.mockResolvedValue({ error: null })
     const user = userEvent.setup()
@@ -76,7 +89,7 @@ describe('RegisterForm', () => {
         body: {
           email: 'new@test.com',
           name: 'New User',
-          password: 'password123',
+          password: 'password-1234',
         },
         throwOnError: false,
       }),

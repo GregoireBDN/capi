@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { authControllerResetPassword } from '#/api'
+import { newPasswordField } from '#/components/auth/auth.schemas'
 import { ROUTES } from '#/lib/routes'
 import {
   Button,
@@ -14,9 +15,12 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
+  Checkbox,
   Field,
+  FieldDescription,
   FieldError,
   FieldLabel,
+  Label,
   PasswordInput,
 } from '@finances/ui'
 
@@ -27,8 +31,9 @@ export const Route = createFileRoute('/reset-password')({
 
 const resetSchema = z
   .object({
-    password: z.string().min(8, 'Au moins 8 caractères'),
-    confirm: z.string().min(8, 'Au moins 8 caractères'),
+    password: newPasswordField,
+    confirm: z.string().min(1, 'Confirmez le mot de passe'),
+    revokeAccessTokens: z.boolean(),
   })
   .refine((d) => d.password === d.confirm, {
     message: 'Les mots de passe ne correspondent pas',
@@ -44,7 +49,7 @@ function ResetPasswordPage() {
 
   const form = useForm<ResetValues>({
     resolver: zodResolver(resetSchema),
-    defaultValues: { password: '', confirm: '' },
+    defaultValues: { password: '', confirm: '', revokeAccessTokens: false },
   })
 
   async function onSubmit(values: ResetValues) {
@@ -54,7 +59,11 @@ function ResetPasswordPage() {
     }
 
     const res = await authControllerResetPassword({
-      body: { token, password: values.password },
+      body: {
+        token,
+        password: values.password,
+        revokeAccessTokens: values.revokeAccessTokens,
+      },
       throwOnError: false,
     })
 
@@ -102,7 +111,8 @@ function ResetPasswordPage() {
         <CardContent>
           {done ? (
             <p className="text-muted-foreground text-center text-sm py-4">
-              Mot de passe mis à jour. Redirection en cours…
+              Mot de passe mis à jour. Toutes vos sessions ont été fermées :
+              reconnectez-vous. Redirection en cours…
             </p>
           ) : (
             <form
@@ -144,6 +154,26 @@ function ResetPasswordPage() {
                 )}
               </Field>
 
+              <Field>
+                <div className="flex min-h-11 items-start gap-2 py-1">
+                  <Checkbox
+                    id="revoke-access-tokens"
+                    className="mt-0.5"
+                    checked={form.watch('revokeAccessTokens')}
+                    onCheckedChange={(value) =>
+                      form.setValue('revokeAccessTokens', value === true)
+                    }
+                  />
+                  <Label htmlFor="revoke-access-tokens" className="font-normal">
+                    Révoquer aussi les jetons d’accès
+                  </Label>
+                </div>
+                <FieldDescription>
+                  Toutes vos sessions seront fermées. Cochez si un jeton
+                  (Claude, script) a pu être exposé.
+                </FieldDescription>
+              </Field>
+
               <Button
                 type="submit"
                 fullWidth
@@ -159,14 +189,15 @@ function ResetPasswordPage() {
   )
 }
 
+/** French message for a refused reset (API messages stay untranslated). */
 function getErrorMessage(error: unknown): string {
-  if (
-    error &&
-    typeof error === 'object' &&
-    'message' in error &&
-    typeof error.message === 'string'
-  ) {
-    return (error as { message: string }).message
+  const message =
+    error && typeof error === 'object' && 'message' in error
+      ? error.message
+      : undefined
+  const messages = Array.isArray(message) ? message : [message]
+  if (messages.includes('Invalid or expired token')) {
+    return 'Lien invalide, expiré ou déjà utilisé. Demandez-en un nouveau.'
   }
   return 'Une erreur est survenue'
 }

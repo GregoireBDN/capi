@@ -10,18 +10,24 @@ import {
   UseGuards,
 } from '@nestjs/common'
 import {
+  ApiBadRequestResponse,
   ApiBody,
   ApiCookieAuth,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiOkResponse,
+  ApiOperation,
   ApiTags,
+  ApiTooManyRequestsResponse,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
 import { Throttle } from '@nestjs/throttler'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { THROTTLE_LIMITS, THROTTLE_TTL } from '#/throttle.config'
+import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { AuthService } from '#/auth/auth.service'
 import {
+  ChangePasswordDto,
   ForgotPasswordDto,
   LoginDto,
   RegisterDto,
@@ -29,6 +35,7 @@ import {
   ResetPasswordDto,
   VerifyEmailDto,
 } from '#/auth/dto/auth.dto'
+import { FreshAuthGuard } from '#/auth/guards/fresh-auth.guard'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import {
   ACCESS_COOKIE,
@@ -136,10 +143,56 @@ export class AuthController {
 
   @Post('reset-password')
   @HttpCode(200)
+  @ApiOperation({
+    summary: 'Set a new password from an emailed link',
+    description:
+      'Ends every session; also revokes the personal access tokens with `revokeAccessTokens`.',
+  })
   @ApiBody({ type: ResetPasswordDto })
   @ApiOkResponse({ schema: { example: { success: true } } })
+  @ApiBadRequestResponse({
+    description: 'Invalid, expired or used link; invalid new password.',
+  })
   async resetPassword(@Body() dto: ResetPasswordDto) {
-    await this.authService.resetPassword(dto.token, dto.password)
+    await this.authService.resetPassword(dto.token, dto.password, {
+      revokeAccessTokens: dto.revokeAccessTokens,
+    })
+    return { success: true }
+  }
+
+  @Post('change-password')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: THROTTLE_TTL, limit: THROTTLE_LIMITS.login } })
+  @UseGuards(JwtGuard, FreshAuthGuard)
+  @TokenAccess('none')
+  @ApiCookieAuth('token')
+  @ApiOperation({
+    summary: 'Change the password of the signed-in user',
+    description:
+      'Needs the current password and a fresh session (a password or passkey sign-in within the last 5 minutes). Ends every other session; this one stays signed in. Also revokes the personal access tokens with `revokeAccessTokens`.',
+  })
+  @ApiBody({ type: ChangePasswordDto })
+  @ApiOkResponse({ schema: { example: { success: true } } })
+  @ApiBadRequestResponse({
+    description:
+      'Wrong current password, invalid new password, or the same password.',
+  })
+  @ApiUnauthorizedResponse()
+  @ApiForbiddenResponse({
+    description:
+      'Recent authentication required, or called with an access token.',
+  })
+  @ApiTooManyRequestsResponse()
+  async changePassword(
+    @Req() req: FastifyRequest,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    const { sub } = (req as FastifyRequest & { user: { sub: string } }).user
+    await this.authService.changePassword(
+      sub,
+      dto,
+      req.cookies?.[REFRESH_COOKIE],
+    )
     return { success: true }
   }
 

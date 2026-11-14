@@ -1,4 +1,8 @@
 export const BCRYPT_SALT_ROUNDS = 10
+/** New passwords (sign-up, reset, change): ASVS 2.1.1. Older ones keep working. */
+export const PASSWORD_MIN_LENGTH = 12
+/** bcrypt reads only the first 72 bytes: longer passwords are refused. */
+export const PASSWORD_MAX_BYTES = 72
 /** Short-lived access token (JWT) — 15 minutes. */
 export const ACCESS_TOKEN_TTL_SECONDS = 60 * 15
 /** Long-lived rotating refresh token — 30 days. */
@@ -28,4 +32,6 @@ export const AUTH_ERRORS = {
   INVALID_RESET_TOKEN: 'Invalid or expired token',
   INVALID_REFRESH_TOKEN: 'Invalid or expired session',
   REAUTHENTICATION_REQUIRED: 'Recent authentication required',
+  WRONG_CURRENT_PASSWORD: 'Current password is incorrect',
+  SAME_PASSWORD: 'New password must differ from the current one',
 } as const
