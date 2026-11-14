@@ -11,6 +11,7 @@ import { AuthModule } from '#/auth/auth.module'
 import { BudgetsModule } from '#/budgets/budgets.module'
 import { CategoriesModule } from '#/categories/categories.module'
 import { CryptoModule } from '#/crypto/crypto.module'
+import { CryptoImportsModule } from '#/imports/crypto/crypto-imports.module'
 import { DashboardModule } from '#/dashboard/dashboard.module'
 import { DatabaseModule } from '#/database/database.module'
 import { EmailModule } from '#/email/email.module'
@@ -53,6 +54,7 @@ import { UserModule } from '#/user/user.module'
     InvestmentsModule,
     RecurringModule,
     CryptoModule,
+    CryptoImportsModule,
     ForecastModule,
     SavingsModule,
     MonthCloseModule,
