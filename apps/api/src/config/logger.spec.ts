@@ -84,7 +84,7 @@ describe('API request log', () => {
       method: 'GET',
       url: `/api/transactions?q=${SEARCH}&accountId=${ACCOUNT}&minAmount=4242`,
       headers: {
-        'x-request-id': 'req-181',
+        'x-request-id': '18181818-1818-4181-8181-181818181818',
         referer: `https://finances.example.test/transactions?q=${SEARCH}`,
       },
     })
@@ -98,7 +98,7 @@ describe('API request log', () => {
     }
     expect(entries[0]).toMatchObject({
       req: {
-        id: 'req-181',
+        id: '18181818-1818-4181-8181-181818181818',
         method: 'GET',
         url: '/api/transactions',
         headers: {

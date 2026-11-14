@@ -21,6 +21,7 @@ phone / laptop ──tailnet──▶ Caddy (infra, 443 on the Tailscale IP, net
 - **Images**: `ghcr.io/gregoirebdn/finances-api` and `finances-web`, tag pinned by `FINANCES_VERSION` in `.env` (`vX.Y.Z` or `sha-<shortsha>`).
 - **Files on the server**: `/srv/finances/docker-compose.prod.yml` (copied from the release tag by each deploy) and `/srv/finances/.env`. Both are owned by `deploy`, and `.env` has mode `600`. Nothing else from the repo is needed there.
 - **Restart policy**: every service is `restart: unless-stopped`. After a reboot, Docker starts the stack again on its own (Docker is enabled at boot and ordered after `tailscaled`, see the `infra` bootstrap). Containers stopped by hand stay stopped.
+- **Container hardening** (#183): `api` and `web` run as the image's `node` user on a read-only root filesystem (only a 16 MB `/tmp` tmpfs is writable), with every Linux capability dropped, `no-new-privileges`, a memory limit (`APP_MEM_LIMIT`, default `512m`, no swap) and at most 256 processes. `db` keeps only the capabilities its entrypoint needs to fix the data directory's ownership and drop to `postgres`, with `no-new-privileges`. `dc run` (migrations, seed) gets the same settings as the service.
 - **Health**: `GET /api/health` checks the database, and SMTP only when SMTP is configured (see [Email](#email-smtp)). The `api` and `web` containers have healthchecks. `web` checks the whole chain (web → API → database).
 
 Every command below runs as `deploy` in `/srv/finances` (`sudo -iu deploy`, then `cd /srv/finances`). To keep commands short:
@@ -170,7 +171,14 @@ Wallet crypto accounts can be read on chain from their public keys (#129). It is
 
 ## Client IPs and trusted proxies
 
-Caddy sets `X-Forwarded-For`. `web` believes it only from peers in `TRUSTED_PROXIES` and forwards a clean header to `api`, which applies the same rule to `web` (#49). The default (`loopback,uniquelocal`) is right for this stack. If you narrow it, include both the `proxy` network and the project network: `docker network inspect proxy finances_default --format '{{.Name}} {{range .IPAM.Config}}{{.Subnet}}{{end}}'`.
+Caddy sets `X-Forwarded-For`. `web` believes it only from Caddy and forwards a clean header to `api`, which believes it only from `web` (#49):
+
+- **`web`** (`WEB_TRUSTED_PROXIES`, default `caddy`): Caddy's service name on the shared `proxy` network (`caddy` in the infra repo's `caddy/compose.yml`). `web` resolves it through Docker's DNS at start-up and every 30 s, so a restarted Caddy with a new IP is followed within 30 s. Any other container on `proxy` (the portal, another app) that calls `finances-web:3000` gets its own address as client IP, whatever header it sends (#183). While the name doesn't resolve (Caddy renamed or off `proxy`), `web` trusts nobody: the site still works, but every request counts against the address it comes from (Caddy's) for rate limits, and the `web` logs say `Trusted proxy "caddy" does not resolve` once.
+- **`api`** (`TRUSTED_PROXIES`, default `loopback,uniquelocal`): `web` on the project network, which only `web` and `db` join.
+
+Check what `web` resolves: `dc exec -T web node -e "require('dns').promises.lookup('caddy',{all:true}).then(r=>console.log(r))"` (it should be Caddy's address in `docker network inspect proxy`).
+
+If Caddy's service is renamed, set `WEB_TRUSTED_PROXIES=<new name>` in `.env`, then `dc up -d web`. To fall back to the behaviour before #183 (trust every private address, so neighbours on `proxy` can choose their client IP), set `WEB_TRUSTED_PROXIES=uniquelocal`. Residual risk: a container given the network alias `caddy` on `proxy` would be trusted too, which takes access to the Docker daemon or a change to an app's compose file.
 
 ## Running the production stack locally
 
@@ -198,13 +206,15 @@ $c down -v                                         # removes the throwaway volum
 
 ## Troubleshooting
 
-| Symptom                                             | Check                                                                                                                      |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `required variable … is missing a value`            | `.env` is incomplete, or the command didn't run from `/srv/finances`.                                                      |
-| `network proxy declared as external, but not found` | The `infra` bootstrap hasn't created it: `docker network create proxy`.                                                    |
-| `pull access denied` / `unauthorized`               | GHCR login of `deploy` missing or expired ([deploy runbook](deploy.md)).                                                   |
-| `api` unhealthy                                     | `dc logs api`. Most often the database isn't ready or migrated, or SMTP is configured but unreachable.                     |
-| Caddy answers 502                                   | `web` isn't running or healthy (`dc ps`), or isn't on `proxy` (`docker network inspect proxy` should list `finances-web`). |
-| Signed out on every request                         | `APP_URL` isn't the HTTPS origin, or the site is opened over plain HTTP (the cookies are `Secure`).                        |
-| Passkey sign-in or creation fails at once           | The page origin isn't `APP_URL` (or `WEBAUTHN_ORIGIN`), or `WEBAUTHN_RP_ID` doesn't match it. The password always works.   |
-| `password authentication failed`                    | `POSTGRES_PASSWORD` changed after the volume was created. Put the old one back, or `ALTER USER` inside `db`.               |
+| Symptom                                             | Check                                                                                                                           |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `required variable … is missing a value`            | `.env` is incomplete, or the command didn't run from `/srv/finances`.                                                           |
+| `network proxy declared as external, but not found` | The `infra` bootstrap hasn't created it: `docker network create proxy`.                                                         |
+| `pull access denied` / `unauthorized`               | GHCR login of `deploy` missing or expired ([deploy runbook](deploy.md)).                                                        |
+| `api` unhealthy                                     | `dc logs api`. Most often the database isn't ready or migrated, or SMTP is configured but unreachable.                          |
+| Caddy answers 502                                   | `web` isn't running or healthy (`dc ps`), or isn't on `proxy` (`docker network inspect proxy` should list `finances-web`).      |
+| Signed out on every request                         | `APP_URL` isn't the HTTPS origin, or the site is opened over plain HTTP (the cookies are `Secure`).                             |
+| Passkey sign-in or creation fails at once           | The page origin isn't `APP_URL` (or `WEBAUTHN_ORIGIN`), or `WEBAUTHN_RP_ID` doesn't match it. The password always works.        |
+| `api` or `web` restarts with exit code 137          | Out of memory (`docker inspect <container> --format '{{.State.OOMKilled}}'`): raise `APP_MEM_LIMIT` in `.env`, then `dc up -d`. |
+| `EROFS: read-only file system`                      | Something tries to write outside `/tmp` (the root filesystem is read-only, #183): fix the code, never drop `read_only`.         |
+| `password authentication failed`                    | `POSTGRES_PASSWORD` changed after the volume was created. Put the old one back, or `ALTER USER` inside `db`.                    |
