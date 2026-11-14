@@ -55,6 +55,7 @@ const SCENARIOS: Array<Scenario> = [
     step: clickFirst(/oubli/i),
   },
   { name: 'dashboard', path: '/dashboard' },
+  { name: 'net-worth', path: '/net-worth' },
   { name: 'shell-nav', path: '/dashboard', step: openNav },
   {
     name: 'shell-user-menu',

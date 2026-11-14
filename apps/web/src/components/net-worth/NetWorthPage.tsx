@@ -52,15 +52,16 @@ import {
   NET_WORTH_HISTORY_MONTHS,
   NET_WORTH_PERIOD_LABELS,
   NET_WORTH_PERIODS,
-  
-  
-  
   netWorthDeltas,
   netWorthSeries,
-  
-  typeShare
+  typeShare,
 } from './net-worth'
-import type {NetWorthDelta, NetWorthPeriod, NetWorthPoint, TypeBreakdown} from './net-worth';
+import type {
+  NetWorthDelta,
+  NetWorthPeriod,
+  NetWorthPoint,
+  TypeBreakdown,
+} from './net-worth'
 
 const CHART_HEIGHT = 240
 
