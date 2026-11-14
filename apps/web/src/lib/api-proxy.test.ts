@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { proxyToApi } from './api-proxy'
+import { PROXY_BODY_MAX_BYTES, proxyToApi } from './api-proxy'
 import { DEFAULT_TRUSTED_PROXIES, compileTrustedProxies } from './client-ip'
 import { forgetRefreshes, resolveServerSession } from './server-session'
 
@@ -295,5 +295,117 @@ describe('proxyToApi client IP (X-Forwarded-For)', () => {
     expect(headers.get('forwarded')).toBeNull()
     expect(headers.get('x-real-ip')).toBeNull()
     expect(headers.get('x-forwarded-host')).toBe('web.test')
+  })
+})
+
+describe('proxyToApi request body cap (#173)', () => {
+  const MiB = 1024 * 1024
+
+  /** A streamed body of `total` bytes in 1 MiB chunks, counting what was read. */
+  function streamedBody(total: number) {
+    let sent = 0
+    let cancelled = false
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (sent >= total) return controller.close()
+        const size = Math.min(MiB, total - sent)
+        sent += size
+        controller.enqueue(new Uint8Array(size))
+      },
+      cancel() {
+        cancelled = true
+      },
+    })
+    return {
+      stream,
+      read: () => sent,
+      cancelled: () => cancelled,
+    }
+  }
+
+  it('refuses a declared Content-Length over the cap without reading or forwarding it', async () => {
+    const api = upstream(() => Response.json({ ok: true }))
+    const body = streamedBody(300 * MiB)
+
+    const response = await proxyToApi(
+      new Request('http://web.test/api/imports/preview', {
+        method: 'POST',
+        headers: {
+          'content-type': 'text/plain',
+          'content-length': String(300 * MiB),
+        },
+        body: body.stream,
+        duplex: 'half',
+      } as RequestInit),
+      { apiUrl: API_URL, fetch: api.fetch },
+    )
+
+    expect(response.status).toBe(413)
+    expect((await response.json()).statusCode).toBe(413)
+    expect(api.calls).toHaveLength(0)
+    expect(body.read()).toBeLessThanOrEqual(MiB)
+  })
+
+  it('stops reading a chunked body once it goes over the cap', async () => {
+    const api = upstream(() => Response.json({ ok: true }))
+    const body = streamedBody(300 * MiB)
+
+    const response = await proxyToApi(
+      new Request('http://web.test/api/imports/preview', {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain' },
+        body: body.stream,
+        duplex: 'half',
+      } as RequestInit),
+      { apiUrl: API_URL, fetch: api.fetch },
+    )
+
+    expect(response.status).toBe(413)
+    expect(api.calls).toHaveLength(0)
+    // Read stops at the first chunk past the cap (plus the stream's lookahead).
+    expect(body.read()).toBeLessThan(PROXY_BODY_MAX_BYTES + 3 * MiB)
+    expect(body.cancelled()).toBe(true)
+  })
+
+  it('forwards a body up to the cap unchanged', async () => {
+    const api = upstream(() => Response.json({ ok: true }, { status: 201 }))
+    const payload = new Uint8Array(PROXY_BODY_MAX_BYTES).fill(7)
+
+    const response = await proxyToApi(
+      new Request('http://web.test/api/imports/preview', {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: payload,
+      }),
+      { apiUrl: API_URL, fetch: api.fetch },
+    )
+
+    expect(response.status).toBe(201)
+    const sent = new Uint8Array(api.calls[0].init.body as ArrayBuffer)
+    expect(sent.byteLength).toBe(PROXY_BODY_MAX_BYTES)
+    expect(sent[PROXY_BODY_MAX_BYTES - 1]).toBe(7)
+  })
+
+  it('passes the API 413 for a file just over the import limit through', async () => {
+    const api = upstream(() =>
+      Response.json(
+        { statusCode: 413, message: 'The file exceeds the 5 MB limit' },
+        { status: 413 },
+      ),
+    )
+
+    const response = await proxyToApi(
+      new Request('http://web.test/api/imports/preview', {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: new Uint8Array(5 * MiB + 1),
+      }),
+      { apiUrl: API_URL, fetch: api.fetch },
+    )
+
+    expect(response.status).toBe(413)
+    expect((await response.json()).message).toBe(
+      'The file exceeds the 5 MB limit',
+    )
   })
 })
