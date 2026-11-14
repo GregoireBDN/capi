@@ -45,6 +45,9 @@ function account(overrides: Partial<AccountDto> = {}): AccountDto {
     archivedAt: null,
     balanceCents: null,
     balanceDate: null,
+    cryptoSource: null,
+    cryptoProvider: null,
+    cryptoSyncedAt: null,
     createdAt: '2026-11-06T10:00:00.000Z',
     updatedAt: '2026-11-06T10:00:00.000Z',
     ...overrides,
@@ -55,12 +58,19 @@ function ok<T>(data: T, status = 200) {
   return Promise.resolve({ data, response: new Response(null, { status }) })
 }
 
-function failure(status: number) {
+function failure(status: number, message = 'Bad Request') {
   return Promise.resolve({
-    error: { message: 'Bad Request' },
+    error: { message },
     response: new Response(null, { status }),
   })
 }
+
+/** Public test vectors only (BIP32 test vector 1, EIP-55 example). */
+const XPUB =
+  'xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8'
+const XPRV =
+  'xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi'
+const ADDRESS = '0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed'
 
 function renderWithClient(ui: React.ReactNode) {
   const queryClient = new QueryClient({
@@ -137,7 +147,7 @@ describe('AccountEditor', () => {
     expect(toast.success).toHaveBeenCalledWith('Compte « PEA » créé')
   })
 
-  it('creates a wallet crypto account named after the chosen wallet', async () => {
+  it('creates a wallet crypto account from its public key', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderWithClient(<NewAccountButton />)
 
@@ -147,13 +157,25 @@ describe('AccountEditor', () => {
     expect(screen.queryByLabelText('Établissement')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Valeur actuelle')).not.toBeInTheDocument()
 
-    // Where the cryptos are must be chosen first.
+    // Where the holdings come from must be chosen first.
+    const sources = screen.getByRole('radiogroup', {
+      name: 'D’où viennent les avoirs ?',
+    })
+    expect(
+      within(sources)
+        .getAllByRole('radio')
+        .map((radio) => radio.textContent),
+    ).toEqual([
+      expect.stringMatching(/^Plateforme d’échange/),
+      expect.stringMatching(/^Wallet/),
+      expect.stringMatching(/^Saisie manuelle/),
+    ])
     await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
     expect(
-      screen.getByText('Choisissez une plateforme ou un wallet'),
+      screen.getByText('Choisissez d’où viennent les avoirs'),
     ).toBeInTheDocument()
 
-    await user.click(screen.getByRole('radio', { name: /^Wallet/ }))
+    await user.click(within(sources).getByRole('radio', { name: /^Wallet/ }))
     const wallets = screen.getByRole('radiogroup', { name: 'Wallet' })
     expect(
       within(wallets)
@@ -163,29 +185,93 @@ describe('AccountEditor', () => {
     await user.click(within(wallets).getByRole('radio', { name: 'Ledger' }))
     // The name follows the wallet until it is typed.
     expect(screen.getByLabelText('Nom')).toHaveValue('Ledger')
+
+    // The public key is required…
+    await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
+    expect(
+      screen.getByText('Collez la clé publique du wallet'),
+    ).toBeInTheDocument()
+    // …and a private key is flagged as soon as it is pasted.
+    const key = screen.getByLabelText('Clé publique')
+    await user.click(key)
+    await user.paste(XPRV)
+    expect(screen.getByText(/C’est une clé privée/)).toBeInTheDocument()
+
+    // An EVM address asks for its chains (Ethereum by default).
+    await user.clear(key)
+    await user.paste(ADDRESS)
+    expect(screen.queryByText(/C’est une clé privée/)).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Ethereum' })).toBeChecked()
+    await user.click(screen.getByRole('checkbox', { name: 'Arbitrum' }))
     await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
 
     await waitFor(() => expect(navigate).toHaveBeenCalled())
     expect(api.accountsControllerCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        body: { name: 'Ledger', type: 'crypto', institution: 'Ledger' },
+        body: {
+          name: 'Ledger',
+          type: 'crypto',
+          institution: 'Ledger',
+          cryptoSource: 'wallet',
+          walletKeys: [
+            {
+              publicKey: ADDRESS,
+              chains: ['ethereum', 'arbitrum'],
+              label: null,
+            },
+          ],
+        },
       }),
     )
     expect(api.accountSnapshotsControllerUpsert).not.toHaveBeenCalled()
   })
 
-  it('creates an exchange crypto account for a platform not in the list', async () => {
+  it('shows a key refused by the API on the key field', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    api.accountsControllerCreate.mockImplementation(() =>
+      failure(400, 'The key checksum is wrong: check it for a typo.'),
+    )
+    renderWithClient(<NewAccountButton defaultType="crypto" />)
+
+    await user.click(screen.getByRole('button', { name: 'Nouveau compte' }))
+    await user.click(await screen.findByRole('radio', { name: /^Wallet/ }))
+    await user.click(screen.getByRole('radio', { name: 'Trezor' }))
+    await user.click(screen.getByLabelText('Clé publique'))
+    await user.paste(XPUB)
+    // A Bitcoin key is read on Bitcoin only: no chain to choose.
+    expect(screen.getByText('Réseau : Bitcoin.')).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
+
+    // Under the key field (toasts are mocked here).
+    expect(await screen.findByText(/faute de frappe/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Clé publique')).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    )
+    expect(api.accountsControllerCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          walletKeys: [{ publicKey: XPUB, chains: ['bitcoin'], label: null }],
+        }) as CreateAccountDto,
+      }),
+    )
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.stringMatching(/faute de frappe/),
+    )
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('creates an exchange crypto account with its provider', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderWithClient(<NewAccountButton defaultType="crypto" />)
 
     await user.click(screen.getByRole('button', { name: 'Nouveau compte' }))
-    await user.click(await screen.findByRole('radio', { name: /^Plateforme/ }))
     await user.click(
-      within(screen.getByRole('radiogroup', { name: 'Plateforme' })).getByRole(
-        'radio',
-        { name: 'Autre…' },
-      ),
+      await screen.findByRole('radio', { name: /^Plateforme d’échange/ }),
     )
+    const platforms = screen.getByRole('radiogroup', { name: 'Plateforme' })
+    await user.click(within(platforms).getByRole('radio', { name: 'Autre…' }))
     await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
     expect(screen.getByText('Indiquez son nom')).toBeInTheDocument()
 
@@ -194,6 +280,8 @@ describe('AccountEditor', () => {
       'Plateforme test',
     )
     expect(screen.getByLabelText('Nom')).toHaveValue('Plateforme test')
+    // No key for an exchange: its holdings come from its exports.
+    expect(screen.queryByLabelText('Clé publique')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
 
     await waitFor(() =>
@@ -203,6 +291,53 @@ describe('AccountEditor', () => {
             name: 'Plateforme test',
             type: 'crypto',
             institution: 'Plateforme test',
+            cryptoSource: 'exchange',
+            cryptoProvider: 'other',
+          },
+        }),
+      ),
+    )
+
+    api.accountsControllerCreate.mockClear()
+    await user.click(screen.getByRole('button', { name: 'Nouveau compte' }))
+    await user.click(
+      await screen.findByRole('radio', { name: /^Plateforme d’échange/ }),
+    )
+    await user.click(screen.getByRole('radio', { name: 'Binance' }))
+    await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
+    await waitFor(() =>
+      expect(api.accountsControllerCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            institution: 'Binance',
+            cryptoSource: 'exchange',
+            cryptoProvider: 'binance',
+          }) as CreateAccountDto,
+        }),
+      ),
+    )
+  })
+
+  it('creates a manual crypto account, its place optional', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithClient(<NewAccountButton defaultType="crypto" />)
+
+    await user.click(screen.getByRole('button', { name: 'Nouveau compte' }))
+    await user.click(
+      await screen.findByRole('radio', { name: /^Saisie manuelle/ }),
+    )
+    expect(screen.queryByRole('radiogroup', { name: 'Plateforme' })).toBeNull()
+    expect(screen.getByLabelText('Nom')).toHaveValue('Crypto')
+    await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
+
+    await waitFor(() =>
+      expect(api.accountsControllerCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: {
+            name: 'Crypto',
+            type: 'crypto',
+            institution: null,
+            cryptoSource: 'manual',
           },
         }),
       ),
@@ -303,13 +438,15 @@ describe('AccountEditor', () => {
           type: 'crypto',
           name: 'Ledger',
           institution: 'Ledger',
+          cryptoSource: 'wallet',
         })}
       />,
     )
 
     // Shown, not editable: another wallet is another account.
+    expect(screen.getByText('Wallet · Ledger')).toBeInTheDocument()
     expect(
-      screen.getByText('Fixé à la création.', { exact: false }),
+      screen.getByText('Fixée à la création.', { exact: false }),
     ).toBeInTheDocument()
     expect(screen.queryByLabelText('Établissement')).not.toBeInTheDocument()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()

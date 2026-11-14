@@ -10,8 +10,11 @@ import {
   cryptoControllerSetPrice,
   cryptoControllerSummary,
   cryptoControllerValuate,
+  walletKeysControllerAdd,
+  walletKeysControllerList,
+  walletKeysControllerRemove,
 } from '#/api'
-import type { SaveHoldingDto } from '#/api/types.gen'
+import type { SaveHoldingDto, WalletKeyInputDto } from '#/api/types.gen'
 import { afterSnapshotsChanged } from '#/components/accounts/queries'
 import { unwrap } from '#/lib/queries'
 
@@ -20,6 +23,8 @@ export const cryptoKeys = {
   holdings: (accountId: string) => ['crypto', 'holdings', accountId] as const,
   assets: (query: string) => ['crypto', 'assets', query] as const,
   summary: ['crypto', 'summary'] as const,
+  walletKeys: (accountId: string) =>
+    ['crypto', 'wallet-keys', accountId] as const,
 }
 
 /** Every open crypto account with its valued holdings (the Crypto page). */
@@ -119,4 +124,37 @@ export function afterHoldingsChanged(queryClient: QueryClient) {
     queryClient.invalidateQueries({ queryKey: cryptoKeys.all }),
     afterSnapshotsChanged(queryClient),
   ])
+}
+
+/** Public keys of a wallet account (session only, never cached for long). */
+export function walletKeysQuery(accountId: string) {
+  return queryOptions({
+    queryKey: cryptoKeys.walletKeys(accountId),
+    queryFn: () =>
+      unwrap(
+        walletKeysControllerList({
+          path: { id: accountId },
+          throwOnError: false,
+        }),
+      ),
+  })
+}
+
+export function addWalletKey(accountId: string, body: WalletKeyInputDto) {
+  return unwrap(
+    walletKeysControllerAdd({
+      path: { id: accountId },
+      body,
+      throwOnError: false,
+    }),
+  )
+}
+
+export function removeWalletKey(accountId: string, keyId: string) {
+  return unwrap(
+    walletKeysControllerRemove({
+      path: { id: accountId, keyId },
+      throwOnError: false,
+    }),
+  )
 }

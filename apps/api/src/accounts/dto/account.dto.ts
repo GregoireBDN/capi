@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Transform } from 'class-transformer'
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -11,11 +13,23 @@ import {
   Min,
   MinLength,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator'
-import { ACCOUNT_TYPES, type AccountType } from '#/database/schema/domain-enums'
+import { Type } from 'class-transformer'
+import { WalletKeyInputDto } from '#/crypto/wallet-keys/wallet-keys.dto'
+import {
+  ACCOUNT_TYPES,
+  type AccountType,
+  CRYPTO_ACCOUNT_SOURCES,
+  CRYPTO_EXCHANGE_PROVIDERS,
+  type CryptoAccountSource,
+  type CryptoExchangeProvider,
+} from '#/database/schema/domain-enums'
 
 const NAME_MAX = 100
 const INSTITUTION_MAX = 100
+/** Keys given when a wallet account is created (more can be added later). */
+const WALLET_KEYS_MAX = 20
 /** `accounts.position` is a Postgres `integer`. */
 const POSITION_MAX = 2_147_483_647
 
@@ -41,6 +55,21 @@ const TYPE_DOC = {
   enumName: 'AccountType',
   description:
     '`checking` and `savings` are transactional (fed by imports, balance from transactions); the others are investment accounts (balance from dated value snapshots).',
+} as const
+
+// `null` listed in the enums so the generated client types them as nullable.
+const CRYPTO_SOURCE_DOC = {
+  enum: [...CRYPTO_ACCOUNT_SOURCES, null],
+  enumName: 'CryptoAccountSource',
+  nullable: true,
+  description:
+    'Crypto accounts only (null otherwise): where the holdings come from. `exchange` = computed from imported exports, `wallet` = read from public keys, `manual` = typed by hand. Set at creation.',
+} as const
+const CRYPTO_PROVIDER_DOC = {
+  enum: [...CRYPTO_EXCHANGE_PROVIDERS, null],
+  enumName: 'CryptoExchangeProvider',
+  nullable: true,
+  description: 'Exchange crypto accounts only (null otherwise).',
 } as const
 
 export class AccountDto {
@@ -88,6 +117,21 @@ export class AccountDto {
   })
   balanceDate!: string | null
 
+  @ApiProperty(CRYPTO_SOURCE_DOC)
+  cryptoSource!: CryptoAccountSource | null
+
+  @ApiProperty(CRYPTO_PROVIDER_DOC)
+  cryptoProvider!: CryptoExchangeProvider | null
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'Last import (exchange) or sync (wallet) of the holdings; null until the first one.',
+  })
+  cryptoSyncedAt!: Date | null
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date
 
@@ -132,6 +176,39 @@ export class CreateAccountDto {
   @IsString()
   @MaxLength(INSTITUTION_MAX)
   institution?: string | null
+
+  @ApiPropertyOptional({
+    enum: CRYPTO_ACCOUNT_SOURCES,
+    enumName: 'CryptoAccountSource',
+    description:
+      'Crypto accounts only: where the holdings come from (default `manual`). Cannot change later.',
+  })
+  @IsOptional()
+  @IsIn(CRYPTO_ACCOUNT_SOURCES)
+  cryptoSource?: CryptoAccountSource
+
+  @ApiPropertyOptional({
+    enum: CRYPTO_EXCHANGE_PROVIDERS,
+    enumName: 'CryptoExchangeProvider',
+    description:
+      'Required for an `exchange` crypto account, refused otherwise.',
+  })
+  @IsOptional()
+  @IsIn(CRYPTO_EXCHANGE_PROVIDERS)
+  cryptoProvider?: CryptoExchangeProvider
+
+  @ApiPropertyOptional({
+    type: [WalletKeyInputDto],
+    maxItems: WALLET_KEYS_MAX,
+    description:
+      'At least one for a `wallet` crypto account, refused otherwise. Each key is validated (format and checksum) before anything is saved.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(WALLET_KEYS_MAX)
+  @ValidateNested({ each: true })
+  @Type(() => WalletKeyInputDto)
+  walletKeys?: WalletKeyInputDto[]
 }
 
 /**

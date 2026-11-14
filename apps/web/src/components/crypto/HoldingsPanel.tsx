@@ -23,13 +23,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { PencilIcon, PlusIcon, RefreshCwIcon, WifiOffIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import type { HoldingsTotalsDto, ValuedHoldingDto } from '#/api/types.gen'
+import type {
+  CryptoAccountSource,
+  HoldingsTotalsDto,
+  ValuedHoldingDto,
+} from '#/api/types.gen'
 import { afterSnapshotsChanged } from '#/components/accounts/queries'
 import { formatCents } from '#/lib/money'
 import { holdingErrorMessage } from './errors'
 import { formatPrice, formatPriceAge, formatQuantity } from './format'
 import { HoldingEditor } from './HoldingEditor'
 import { cryptoKeys, holdingsQuery, refreshPrices } from './queries'
+import { DERIVED_ORIGIN_LABELS } from './sources'
 
 const dash = () => '—'
 const signedWholeEuros = new Intl.NumberFormat('fr-FR', {
@@ -69,12 +74,37 @@ function PriceLine({ holding, now }: { holding: ValuedHoldingDto; now: Date }) {
   )
 }
 
+/** Imported or synced lines are read-only; manual ones are labeled next to them. */
+function OriginBadge({
+  holding,
+  mixed,
+}: {
+  holding: ValuedHoldingDto
+  mixed: boolean
+}) {
+  if (holding.origin !== 'manual') {
+    return (
+      <Badge variant="secondary" outline>
+        {DERIVED_ORIGIN_LABELS[holding.origin]}
+      </Badge>
+    )
+  }
+  return mixed ? (
+    <Badge variant="secondary" outline>
+      Saisi à la main
+    </Badge>
+  ) : null
+}
+
 function HoldingRow({
   holding,
   now,
+  mixed,
 }: {
   holding: ValuedHoldingDto
   now: Date
+  /** The list holds both derived and manual lines. */
+  mixed: boolean
 }) {
   return (
     // The amounts go under the asset when both don't fit side by side.
@@ -90,6 +120,7 @@ function HoldingRow({
           {formatQuantity(holding.quantity)} {holding.symbol}
         </p>
         <PriceLine holding={holding} now={now} />
+        <OriginBadge holding={holding} mixed={mixed} />
       </div>
       <div className="ml-auto space-y-0.5 text-right whitespace-nowrap">
         <p className="font-medium tabular-nums">
@@ -156,8 +187,8 @@ export function PriceAlerts({
 }
 
 /**
- * Holdings with their price and value; each opens its editor when `onEdit`
- * is given.
+ * Holdings with their price and value; each line typed by hand opens its
+ * editor when `onEdit` is given. Imported or synced lines are read-only.
  */
 export function HoldingList({
   holdings,
@@ -170,6 +201,9 @@ export function HoldingList({
   onEdit?: (holding: ValuedHoldingDto) => void
   label?: string
 }) {
+  const mixed =
+    holdings.some((holding) => holding.origin !== 'manual') &&
+    holdings.some((holding) => holding.origin === 'manual')
   return (
     <ul className="divide-y" aria-label={label}>
       {holdings.map((holding) => {
@@ -179,7 +213,7 @@ export function HoldingList({
           .join(' · ')
         return (
           <li key={holding.id}>
-            {onEdit ? (
+            {onEdit && holding.origin === 'manual' ? (
               <button
                 type="button"
                 aria-label={`Modifier ${name}`}
@@ -189,7 +223,7 @@ export function HoldingList({
                   'hover:bg-muted/50 focus-visible:ring-ring -mx-2 w-[calc(100%+1rem)] rounded-md px-2 outline-none focus-visible:ring-2',
                 )}
               >
-                <HoldingRow holding={holding} now={now} />
+                <HoldingRow holding={holding} now={now} mixed={mixed} />
                 <PencilIcon
                   aria-hidden
                   className="text-muted-foreground mt-0.5 size-4 shrink-0"
@@ -197,7 +231,7 @@ export function HoldingList({
               </button>
             ) : (
               <div className={row}>
-                <HoldingRow holding={holding} now={now} />
+                <HoldingRow holding={holding} now={now} mixed={mixed} />
               </div>
             )}
           </li>
@@ -216,9 +250,12 @@ export function HoldingList({
 export function HoldingsPanel({
   accountId,
   writable,
+  source = 'manual',
 }: {
   accountId: string
   writable: boolean
+  /** Where the account's holdings come from (`manual`: typed by hand). */
+  source?: CryptoAccountSource
 }) {
   const queryClient = useQueryClient()
   const holdings = useQuery(holdingsQuery(accountId))
@@ -326,8 +363,9 @@ export function HoldingsPanel({
               <EmptyHeader>
                 <EmptyTitle>Aucun avoir</EmptyTitle>
                 <EmptyDescription>
-                  Ajoutez les quantités détenues sur ce compte : leur valeur est
-                  calculée avec le cours du jour.
+                  {source === 'manual'
+                    ? 'Ajoutez les quantités détenues sur ce compte : leur valeur est calculée avec le cours du jour.'
+                    : `Les avoirs ${source === 'exchange' ? 'importés' : 'synchronisés'} apparaîtront ici. En attendant, ajoutez les quantités détenues à la main : leur valeur est calculée avec le cours du jour.`}
                 </EmptyDescription>
               </EmptyHeader>
               {writable && (

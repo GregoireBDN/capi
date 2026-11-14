@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common'
 import {
   and,
   asc,
@@ -27,6 +31,11 @@ import {
   bankAmountCents,
   bankBookingDate,
 } from '#/database/schema'
+import {
+  insertWalletKeys,
+  type PreparedWalletKey,
+  prepareWalletKeys,
+} from '#/crypto/wallet-keys/wallet-keys.repository'
 import { endOfDayBalance } from '#/imports/dedupe/continuity'
 import type { CreateAccountDto, UpdateAccountDto } from './dto/account.dto'
 
@@ -48,6 +57,48 @@ export function isTransactionalAccount(account: Pick<SelectAccount, 'type'>) {
   return (TRANSACTIONAL_ACCOUNT_TYPES as readonly string[]).includes(
     account.type,
   )
+}
+
+/**
+ * Source fields of a new account: none for other types, the source with its
+ * provider (exchange) or validated keys (wallet) for a crypto account.
+ */
+function cryptoSetup(dto: CreateAccountDto): {
+  source: NonNullable<SelectAccount['cryptoSource']>
+  provider: SelectAccount['cryptoProvider']
+  keys: PreparedWalletKey[]
+} | null {
+  const keys = dto.walletKeys ?? []
+  if (dto.type !== 'crypto') {
+    if (
+      dto.cryptoSource !== undefined ||
+      dto.cryptoProvider !== undefined ||
+      dto.walletKeys !== undefined
+    ) {
+      throw new BadRequestException(
+        'Only crypto accounts have a source, a provider or wallet keys',
+      )
+    }
+    return null
+  }
+  const source = dto.cryptoSource ?? 'manual'
+  if (source === 'exchange' && dto.cryptoProvider === undefined) {
+    throw new BadRequestException('An exchange account needs a provider')
+  }
+  if (source !== 'exchange' && dto.cryptoProvider !== undefined) {
+    throw new BadRequestException('Only exchange accounts have a provider')
+  }
+  if (source === 'wallet' && keys.length === 0) {
+    throw new BadRequestException('A wallet account needs a public key')
+  }
+  if (source !== 'wallet' && keys.length > 0) {
+    throw new BadRequestException('Only wallet accounts have public keys')
+  }
+  return {
+    source,
+    provider: dto.cryptoProvider ?? null,
+    keys: prepareWalletKeys(keys),
+  }
 }
 
 /** Sums come back from Postgres as `numeric` strings. */
@@ -108,8 +159,13 @@ export class AccountsService {
     return { ...account, ...(balances.get(account.id) ?? NO_BALANCE) }
   }
 
-  /** Appends the account at the end of the display order. */
-  create(dto: CreateAccountDto): Promise<AccountWithBalance> {
+  /**
+   * Appends the account at the end of the display order. A crypto account
+   * gets its source (`manual` by default), an exchange its provider and a
+   * wallet its public keys, all validated before anything is written.
+   */
+  async create(dto: CreateAccountDto): Promise<AccountWithBalance> {
+    const crypto = cryptoSetup(dto)
     return this.db.transaction(async (tx) => {
       const [{ last }] = await tx
         .select({ last: max(accountsTable.position) })
@@ -121,8 +177,11 @@ export class AccountsService {
           type: dto.type,
           institution: dto.institution ?? null,
           position: (last ?? -1) + 1,
+          cryptoSource: crypto?.source ?? null,
+          cryptoProvider: crypto?.provider ?? null,
         })
         .returning()
+      if (crypto) await insertWalletKeys(tx, account.id, crypto.keys)
       return { ...account, ...NO_BALANCE }
     })
   }

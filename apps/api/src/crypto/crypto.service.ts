@@ -50,6 +50,7 @@ function toHoldingDto(row: SelectCryptoHolding): HoldingDto {
     location: row.location,
     investedCents: row.investedCents,
     note: row.note,
+    origin: row.origin,
   }
 }
 
@@ -118,7 +119,7 @@ export class CryptoService {
     const row = await this.unique(async () => {
       const [created] = await this.db
         .insert(h)
-        .values({ accountId, ...this.values(dto) })
+        .values({ accountId, ...this.values(dto), origin: 'manual' })
         .returning()
       return created
     })
@@ -133,11 +134,18 @@ export class CryptoService {
     now: Date = new Date(),
   ): Promise<HoldingDto> {
     const account = await this.writableCryptoAccount(accountId)
+    await this.manualHolding(accountId, holdingId)
     const row = await this.unique(async () => {
       const [updated] = await this.db
         .update(h)
         .set({ ...this.values(dto), updatedAt: now })
-        .where(and(eq(h.id, holdingId), eq(h.accountId, accountId)))
+        .where(
+          and(
+            eq(h.id, holdingId),
+            eq(h.accountId, accountId),
+            eq(h.origin, 'manual'),
+          ),
+        )
         .returning()
       return updated
     })
@@ -152,9 +160,16 @@ export class CryptoService {
     now: Date = new Date(),
   ): Promise<void> {
     const account = await this.writableCryptoAccount(accountId)
+    await this.manualHolding(accountId, holdingId)
     const deleted = await this.db
       .delete(h)
-      .where(and(eq(h.id, holdingId), eq(h.accountId, accountId)))
+      .where(
+        and(
+          eq(h.id, holdingId),
+          eq(h.accountId, accountId),
+          eq(h.origin, 'manual'),
+        ),
+      )
       .returning({ id: h.id })
     if (deleted.length === 0) throw new NotFoundException('Holding not found')
     await this.valuate([account], 'none', true, now)
@@ -375,6 +390,22 @@ export class CryptoService {
       location: dto.location ?? '',
       investedCents: dto.investedCents ?? null,
       note: dto.note ?? null,
+    }
+  }
+
+  /**
+   * Only lines typed by hand can be changed by hand: imported or synced lines
+   * are replaced by the next import or sync.
+   */
+  private async manualHolding(accountId: string, holdingId: string) {
+    const [row] = await this.db
+      .select({ origin: h.origin })
+      .from(h)
+      .where(and(eq(h.id, holdingId), eq(h.accountId, accountId)))
+      .limit(1)
+    if (!row) throw new NotFoundException('Holding not found')
+    if (row.origin !== 'manual') {
+      throw new BadRequestException('Imported or synced holdings are read-only')
     }
   }
 
