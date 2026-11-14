@@ -35,6 +35,8 @@ export async function waitForEmailLink(
   recipient: string,
   path: string,
 ): Promise<string> {
+  // `path` is a constant passed by the tests.
+  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   const pattern = new RegExp(`https?://[^\\s"'<>]*${path}[^\\s"'<>]*`)
 
   for (let attempt = 0; attempt < 20; attempt++) {

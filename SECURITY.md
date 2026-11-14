@@ -1,0 +1,36 @@
+# Security
+
+Finances is a single-user, self-hosted app holding personal financial data. Production is only reachable through Tailscale.
+
+## Reporting a vulnerability
+
+Do not open a public issue or PR describing it. Report it privately to the owner (GitHub: Security → Report a vulnerability, or directly). Never include real financial data (CSV rows, labels, amounts, balances, account numbers) or a live secret in a report: describe it, or use synthetic values.
+
+## Automated checks
+
+| Check                                                                  | Where                                                                           | Fails on                                                                                 |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Dependency audit: `pnpm audit --prod` through `scripts/audit-prod.mjs` | `security.yml`: every PR, push to main, weekly, every release                   | a high or critical advisory not in `.github/security/audit-allowlist.json`               |
+| SAST: Semgrep, `p/default` + `p/typescript`, `p/nodejs`, `p/react`     | `security.yml`                                                                  | any finding                                                                              |
+| Secrets: gitleaks                                                      | `security.yml`: the PR's commits; full history otherwise                        | any finding (output redacted)                                                            |
+| Container scan: Trivy on the API and web images                        | `container-scan.yml` (Dockerfile changes, weekly), `release.yml` before pushing | a fixable high or critical vulnerability, or a secret, in the image                      |
+| Dependabot                                                             | `.github/dependabot.yml`                                                        | opens PRs: npm security updates, monthly GitHub Actions bumps, weekly base image digests |
+
+- Semgrep runs the community rules locally in the job (no account, `--metrics=off`). `p/default` is added to the three language packs, which alone miss e.g. `eval()` of request input; three pnpm supply-chain rules are excluded until pnpm is upgraded (#156). CodeQL was not used: on a private repository of a free plan, code scanning results cannot be uploaded or shown, and its action fails on upload.
+- Trivy skips the app's own `node_modules` (they come from the lockfile, gated by the audit). It covers what the base image brings: Alpine packages, Node itself, and secrets. The runtime images run as the unprivileged `node` user and contain no package manager (npm, corepack and yarn are removed).
+- Workflows: every job declares least-privilege `permissions:`, every action is pinned by full commit SHA with its version in a comment (Dependabot keeps both up to date), and scanner images are pinned by digest.
+- Dependabot security updates need "Dependabot alerts" and "Dependabot security updates" enabled in the repository settings (Settings → Advanced Security).
+
+## How findings are tracked
+
+A red check is fixed in the PR that introduced it. A finding that cannot be fixed at once (an advisory published against an existing dependency, a fix that needs a major update) is tracked, never silenced without a trace:
+
+1. Open a `fix` issue (labels `fix`, `area:security` and the `area:*` of the code, milestone **M7 Access & security**) with the advisory ids, why it does or does not affect this app, and the update needed. No real data in it.
+2. Accept the finding with a reason and the issue number:
+   - **Dependency audit**: an entry in `.github/security/audit-allowlist.json` (`id` = GHSA, `package`, `severity`, `via`, `issue`, `reason`). The audit warns when an entry is no longer reported: remove it.
+   - **Trivy**: a line in `.trivyignore` (CVE id) with a `#` comment giving the issue and reason.
+   - **Semgrep**: a `// nosemgrep: <rule-id>` comment on the line, with the reason, only for false positives.
+   - **gitleaks**: a real secret is **revoked and rotated first**; rewriting history does not un-leak it. A false positive (a fake fixture value) goes in `.gitleaksignore` by fingerprint.
+3. Close the issue by updating the dependency and removing the allow-list entry in the same PR.
+
+Accepted advisories are reviewed when Dependabot or the weekly runs report something new, and before each release.

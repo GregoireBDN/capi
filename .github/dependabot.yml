@@ -1,0 +1,52 @@
+# Dependabot (#101, SECURITY.md).
+# - npm: security updates only (open-pull-requests-limit: 0 turns version
+#   updates off; security updates are not limited by it). They need "Dependabot
+#   alerts" and "Dependabot security updates" enabled in the repository settings.
+# - GitHub Actions: actions are pinned by commit SHA with the version in a
+#   comment; Dependabot bumps both, grouped in one PR a month.
+# - Docker: base images are pinned by digest; Dependabot bumps the digest when
+#   the tag moves (security patches of the base image). Majors (Node 22 -> 24)
+#   are chosen by hand.
+# Version updates wait 7 days after a release (cooldown), so a hijacked
+# release is usually yanked first; security updates are not delayed.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 0
+    labels: [fix, area:security]
+    commit-message:
+      prefix: fix(deps)
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns: ['*']
+    labels: [chore, area:infra]
+    commit-message:
+      prefix: chore(ci)
+
+  - package-ecosystem: docker
+    directories: ['/apps/*']
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]
+    groups:
+      docker-base-images:
+        patterns: ['*']
+    labels: [chore, area:infra]
+    commit-message:
+      prefix: chore(docker)

@@ -122,6 +122,8 @@ export function serializeDatabaseError(
   if (isPostgresError(err)) {
     for (const field of SAFE_POSTGRES_FIELDS) {
       const value = (err as unknown as Record<string, unknown>)[field]
+      // `field` comes from the constant SAFE_POSTGRES_FIELDS, not from input.
+      // nosemgrep: javascript.express.security.audit.remote-property-injection.remote-property-injection
       if (typeof value === 'string' && value !== '') log[field] = value
     }
   } else {
