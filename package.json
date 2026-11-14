@@ -21,11 +21,28 @@
     "typescript": "^6.0.2"
   },
   "lint-staged": {
-    "*.{ts,tsx}": ["eslint --fix", "prettier --write"],
-    "*.{json,md,yaml,yml}": ["prettier --write"]
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yaml,yml}": [
+      "prettier --write"
+    ]
   },
   "packageManager": "pnpm@10.11.0",
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "lightningcss", "@nestjs/core"]
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "lightningcss",
+      "@nestjs/core"
+    ],
+    "overrides": {
+      "@hono/node-server": "2.1.5",
+      "encodeurl": "2.0.1",
+      "express-rate-limit": "8.7.2",
+      "hono": "4.13.14",
+      "ip-address": "10.7.5",
+      "jose": "6.2.14"
+    }
   }
 }

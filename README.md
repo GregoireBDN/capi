@@ -102,6 +102,10 @@ Re-running is safe (nothing is inserted twice). `--help` lists the options, incl
 
 The production build is an installable PWA: open the app over HTTPS (or `localhost`), then **Share → Sur l'écran d'accueil** in Safari (iOS) or **Installer l'application** in Chrome (Android). A service worker caches only the static app shell (code, icons, offline page) — never API responses or rendered pages — and shows an offline page when the server can't be reached. Icons are regenerated from `apps/web/public/logo.svg` with `pnpm --filter @finances/web icons`. Details in [`CLAUDE.md`](./CLAUDE.md#pwa).
 
+## Asking Claude about your finances (MCP)
+
+`apps/mcp` is a local MCP server for Claude Desktop and Claude Code: read-only tools (accounts and net worth, transactions, spending, budget, subscriptions, forecast, savings, month-end review) that call the API with a read personal access token. Setup in [`apps/mcp/README.md`](./apps/mcp/README.md).
+
 ## Project structure
 
 ```
@@ -109,6 +113,7 @@ apps/
   api/       NestJS (Fastify), port 4000, routes prefixed with /api
   web/       React 19 + TanStack Start (SSR), port 3000
   ui-docs/   Storybook v9 for @finances/ui, port 6006
+  mcp/       local MCP server (stdio) for Claude, read-only, over the API
 packages/
   shared/              @finances/shared — shared Zod schemas
   ui/                  @finances/ui — Radix + Tailwind components
