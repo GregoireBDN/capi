@@ -5,6 +5,7 @@ import {
   safeErrorSerializer,
   safeLogMethod,
 } from '../common/logging/safe-error'
+import { pathWithoutQuery } from '../common/logging/safe-url'
 import { env } from './env'
 import { clientIp, compileTrustedProxies } from './trusted-proxies'
 
@@ -35,8 +36,27 @@ export const logSerializers = {
   // Log the client IP Fastify uses (`request.ip`, i.e. `X-Forwarded-For`
   // when it comes from a trusted proxy) rather than the web server's socket
   // address, which is the same for every request behind the `/api` proxy.
-  req: (req: { raw?: IncomingMessage; remoteAddress?: string }) => {
+  //
+  // Query strings stay out of the logs (#181): the URL keeps its path only,
+  // the decoded `query` is dropped, and so is the query of the `Referer`
+  // (a page URL such as `/transactions?q=...`).
+  req: (req: {
+    raw?: IncomingMessage
+    remoteAddress?: string
+    url?: string
+    query?: unknown
+    headers?: IncomingHttpHeaders
+  }) => {
     if (req.raw) req.remoteAddress = clientIp(req.raw, trustProxy)
+    req.url = pathWithoutQuery(req.url)
+    delete req.query
+    // `headers` is the request's own object: copy it rather than edit it.
+    if (req.headers?.referer !== undefined) {
+      req.headers = {
+        ...req.headers,
+        referer: pathWithoutQuery(req.headers.referer),
+      }
+    }
     return req
   },
   // Failed database queries carry their bound values (labels, amounts,
