@@ -378,6 +378,52 @@ describe.skipIf(!process.env.DATABASE_URL)(
           ['2026-11', 303_500],
         ])
 
+        // Each month end lists the balances behind it, archived account and
+        // accounts without a balance yet left out; they add up to the total.
+        const names = new Map([
+          [checking.id, 'checking'],
+          [exported.id, 'exported'],
+          [savings.id, 'savings'],
+          [pea.id, 'pea'],
+        ])
+        expect(
+          months.map((m) =>
+            m.accounts.map((a) => [
+              names.get(a.accountId),
+              a.type,
+              a.balanceCents,
+            ]),
+          ),
+        ).toEqual([
+          [],
+          [
+            ['checking', 'checking', 100_000],
+            ['pea', 'brokerage', 200_000],
+          ],
+          [
+            ['checking', 'checking', 30_000],
+            ['exported', 'checking', 10_000],
+            ['savings', 'savings', 50_000],
+            ['pea', 'brokerage', 200_000],
+          ],
+          [
+            ['checking', 'checking', 35_000],
+            ['exported', 'checking', 9_500],
+            ['savings', 'savings', 50_000],
+            ['pea', 'brokerage', 210_000],
+          ],
+          [
+            ['checking', 'checking', 34_000],
+            ['exported', 'checking', 9_500],
+            ['savings', 'savings', 50_000],
+            ['pea', 'brokerage', 210_000],
+          ],
+        ])
+        for (const month of months) {
+          const sum = month.accounts.reduce((s, a) => s + a.balanceCents, 0)
+          expect(month.netWorthCents ?? 0).toBe(sum)
+        }
+
         const overview = await dashboard.overview('2026-11', { now: NOW })
         expect(overview.netWorth).toEqual({
           totalCents: 303_500,
