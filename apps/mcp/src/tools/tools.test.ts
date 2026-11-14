@@ -1,0 +1,615 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type {
+  BudgetMonthDto,
+  DashboardOverviewDto,
+  EnvelopesDto,
+  ForecastDto,
+  MonthReviewDto,
+  RecurringItemDto,
+  RecurringSummaryDto,
+  SpendingByCategoryDto,
+  SpendingTrendDto,
+  TransactionListDto,
+  TransactionSummaryDto,
+} from '../api/types.js'
+import {
+  checking,
+  flow,
+  groceries,
+  livret,
+  pea,
+  period,
+  restaurants,
+  salary,
+  transaction,
+} from '../test/fixtures.js'
+import { connect, jsonError } from '../test/mock-api.js'
+
+const accounts = [checking, livret, pea]
+const categories = [groceries, restaurants, salary]
+
+const list: TransactionListDto = {
+  items: [transaction],
+  total: 31,
+  page: 1,
+  limit: 30,
+}
+const summary: TransactionSummaryDto = {
+  count: 31,
+  incomeCents: 0,
+  expenseCents: -98765,
+  netCents: -98765,
+  oneOffIncomeCents: 0,
+  oneOffExpenseCents: 0,
+  transferCount: 2,
+}
+
+afterEach(() => vi.restoreAllMocks())
+
+describe('tool list', () => {
+  it('exposes small, read-only tools', async () => {
+    const { client } = await connect({})
+    const { tools } = await client.listTools()
+    expect(tools.map((t) => t.name).sort()).toEqual([
+      'accounts_overview',
+      'budget_history',
+      'budget_status',
+      'list_categories',
+      'month_end_forecast',
+      'month_review',
+      'savings_and_goals',
+      'search_transactions',
+      'spending_by_category',
+      'spending_history',
+      'subscriptions',
+    ])
+    for (const tool of tools) {
+      expect(tool.annotations?.readOnlyHint).toBe(true)
+      expect(tool.description?.length).toBeGreaterThan(40)
+      expect(
+        Object.keys(tool.inputSchema.properties ?? {}).length,
+      ).toBeLessThanOrEqual(10)
+    }
+  })
+})
+
+describe('accounts_overview', () => {
+  it('shows net worth and balances in euros with French dates', async () => {
+    const overview: DashboardOverviewDto = {
+      netWorth: {
+        totalCents: 1234567,
+        cashCents: 234567,
+        investmentsCents: 1000000,
+        previousMonthEnd: '2026-10-31',
+        previousMonthEndCents: 1200000,
+        unknownBalanceCount: 0,
+      },
+      accounts: [
+        { ...checking, group: 'cash', dataUntil: '2026-11-10', stale: false },
+        {
+          ...pea,
+          group: 'investments',
+          balanceCents: 1000000,
+          balanceDate: '2026-09-30',
+          dataUntil: null,
+          stale: true,
+        },
+      ],
+      period: period(),
+      current: flow({ month: '2026-11' }),
+      previous: flow(),
+      reviewCount: 0,
+    }
+    const { call } = await connect({ '/api/dashboard/overview': overview })
+    const { text, isError } = await call('accounts_overview')
+    expect(isError).toBe(false)
+    expect(text).toContain('Patrimoine net : 12 345,67 €')
+    expect(text).toContain('soit +345,67 € depuis')
+    expect(text).toContain(
+      '- Compte courant (compte courant, Banque Test) : 1 234,56 € au 10/11/2026',
+    )
+    expect(text).toContain(
+      'PEA (PEA / compte-titres, Banque Test) : 10 000,00 € au 30/09/2026 — pas à jour',
+    )
+  })
+})
+
+describe('search_transactions', () => {
+  it('maps names to ids and filters to query parameters', async () => {
+    const { call, calls } = await connect({
+      '/api/accounts': accounts,
+      '/api/categories': categories,
+      '/api/transactions': list,
+      '/api/transactions/summary': summary,
+    })
+    const { text, isError } = await call('search_transactions', {
+      month: '2026-11',
+      account: 'compte COURANT',
+      category: 'courses',
+      text: 'epicerie',
+      kind: 'expense',
+    })
+    expect(isError).toBe(false)
+    const listCall = calls.find((c) => c.url.pathname === '/api/transactions')
+    expect(Object.fromEntries(listCall!.url.searchParams)).toEqual({
+      month: '2026-11',
+      q: 'epicerie',
+      kind: 'expense',
+      accountId: checking.id,
+      categoryId: groceries.id,
+      limit: '30',
+      page: '1',
+    })
+    const summaryCall = calls.find(
+      (c) => c.url.pathname === '/api/transactions/summary',
+    )
+    expect(summaryCall!.url.searchParams.has('limit')).toBe(false)
+    expect(text).toContain('31 trouvée(s), 1 à 1 affichées (page 1/2)')
+    expect(text).toContain('dépenses -987,65 €')
+    expect(text).toContain('2 virement(s) interne(s), exclus des totaux')
+    expect(text).toContain(
+      '- 03/11/2026 · -45,20 € · CB EPICERIE TEST (EPICERIE TEST) · Courses · Compte courant',
+    )
+    expect(text).toContain('page = 2')
+  })
+
+  it('accepts "uncategorized" and a category slug', async () => {
+    const { call, calls } = await connect({
+      '/api/transactions': list,
+      '/api/transactions/summary': summary,
+    })
+    await call('search_transactions', { category: 'uncategorized' })
+    expect(
+      calls
+        .find((c) => c.url.pathname === '/api/transactions')!
+        .url.searchParams.get('uncategorized'),
+    ).toBe('true')
+  })
+
+  it('refuses month combined with from/to without calling the API', async () => {
+    const { call, calls } = await connect({})
+    const result = await call('search_transactions', {
+      month: '2026-11',
+      from: '2026-11-01',
+    })
+    expect(result.isError).toBe(true)
+    expect(result.text).toContain('soit month, soit from/to')
+    expect(calls).toHaveLength(0)
+  })
+
+  it('lists the choices for an unknown or ambiguous account', async () => {
+    const { call } = await connect({ '/api/accounts': accounts })
+    const unknown = await call('search_transactions', {
+      account: 'Livret Jeune',
+    })
+    expect(unknown.isError).toBe(true)
+    expect(unknown.text).toContain('introuvable')
+    expect(unknown.text).toContain('Compte courant, Livret A, PEA')
+    const ambiguous = await call('search_transactions', { account: 'e' })
+    expect(ambiguous.isError).toBe(true)
+    expect(ambiguous.text).toContain('ambigu')
+  })
+
+  it('rejects invalid arguments through the schema', async () => {
+    const { call, calls } = await connect({})
+    const result = await call('search_transactions', { month: '11/2026' })
+    expect(result.isError).toBe(true)
+    expect(calls).toHaveLength(0)
+  })
+})
+
+describe('API errors', () => {
+  it.each([
+    [401, /Token refusé/],
+    [403, /Accès refusé/],
+    [429, /Réessayez dans 30 s/],
+  ])(
+    'returns a readable error result for HTTP %i and logs only the status',
+    async (status, message) => {
+      const stderr = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const { call } = await connect({
+        '/api/dashboard/review': jsonError(
+          status,
+          { message: 'secret 1234,56' },
+          { 'retry-after': '30' },
+        ),
+      })
+      const result = await call('month_review')
+      expect(result.isError).toBe(true)
+      expect(result.text).toMatch(message)
+      expect(stderr).toHaveBeenCalledWith(
+        `[finances-mcp] month_review: API error ${status}`,
+      )
+      expect(stderr.mock.calls.flat().join(' ')).not.toContain('1234')
+    },
+  )
+})
+
+describe('spending', () => {
+  it('passes the month, average window and account', async () => {
+    const data: SpendingByCategoryDto = {
+      month: '2026-11',
+      previousMonth: '2026-10',
+      period: period(),
+      includeOneOffs: false,
+      averageMonths: 3,
+      averageFrom: '2026-08',
+      totalCents: 50000,
+      transactionCount: 12,
+      previousTotalCents: 45000,
+      averageTotalCents: 47000,
+      oneOffCents: 0,
+      expectedCents: 1500,
+      categories: [
+        {
+          categoryId: groceries.id,
+          slug: groceries.slug,
+          name: groceries.name,
+          color: null,
+          spentCents: 30000,
+          share: 0.6,
+          transactionCount: 8,
+          previousSpentCents: 25000,
+          deltaCents: 5000,
+          averageCents: 28000,
+          notYetThisMonth: false,
+          targetCents: 40000,
+          expectedCents: 0,
+        },
+      ],
+    }
+    const { call, calls } = await connect({
+      '/api/accounts': accounts,
+      '/api/spending/by-category': data,
+    })
+    const { text } = await call('spending_by_category', {
+      month: '2026-11',
+      average_months: 3,
+      account: 'Compte courant',
+    })
+    const query = calls.find(
+      (c) => c.url.pathname === '/api/spending/by-category',
+    )!.url.searchParams
+    expect(Object.fromEntries(query)).toEqual({
+      month: '2026-11',
+      averageMonths: '3',
+      accountId: checking.id,
+    })
+    expect(text).toContain('Mois partiel')
+    expect(text).toContain(
+      '- Courses : 300,00 € (60 %, 8 op.) · mois précédent 250,00 € (+50,00 €) · moyenne 3 mois 280,00 € · budget 400,00 €',
+    )
+    expect(text).toContain(
+      "encore attendues d'ici la fin du mois (non comptées) : 15,00 €",
+    )
+  })
+
+  it('renders the history as a table', async () => {
+    const data: SpendingTrendDto = {
+      months: ['2026-09', '2026-10'],
+      includeOneOffs: false,
+      series: [
+        {
+          key: groceries.id,
+          type: 'category',
+          categoryId: groceries.id,
+          slug: groceries.slug,
+          name: groceries.name,
+          color: null,
+          valuesCents: [10000, 12000],
+          totalCents: 22000,
+        },
+        {
+          key: 'other',
+          type: 'other',
+          categoryId: null,
+          slug: null,
+          name: null,
+          color: null,
+          valuesCents: [500, 0],
+          totalCents: 500,
+        },
+      ],
+      totalsCents: [10500, 12000],
+      averageCents: 10500,
+      averageMonths: 1,
+    }
+    const { call } = await connect({ '/api/spending/trend': data })
+    const { text } = await call('spending_history', { months: 2 })
+    expect(text).toContain('| Catégorie | sept. 2026 | oct. 2026 | Total |')
+    expect(text).toContain('| Courses | 100,00 € | 120,00 € | 220,00 € |')
+    expect(text).toContain('| Autres | 5,00 € | 0,00 € | 5,00 € |')
+    expect(text).toContain('| Total | 105,00 € | 120,00 € | 225,00 € |')
+  })
+})
+
+describe('budget_status', () => {
+  const budget: BudgetMonthDto = {
+    month: '2026-11',
+    period: period(),
+    items: [
+      {
+        categoryId: restaurants.id,
+        slug: restaurants.slug,
+        name: restaurants.name,
+        color: null,
+        targetCents: 20000,
+        effectiveFrom: '2026-01',
+        note: null,
+        tracked: true,
+        spentCents: 25000,
+        spentExcludingOneOffsCents: 25000,
+        remainingCents: -5000,
+        percentUsed: 125,
+        status: 'over',
+      },
+    ],
+    totals: {
+      targetCents: 20000,
+      spentCents: 25000,
+      spentExcludingOneOffsCents: 25000,
+      remainingCents: -5000,
+      percentUsed: 125,
+      status: 'over',
+      budgetCount: 1,
+      overCount: 1,
+      warningCount: 0,
+    },
+    unbudgeted: { totalCents: 0, categoryCount: 0, top: [] },
+  }
+  const envelopes: EnvelopesDto = {
+    month: '2026-11',
+    today: '2026-11-14',
+    dayOfMonth: 14,
+    daysInMonth: 30,
+    items: [
+      {
+        categoryId: restaurants.id,
+        slug: restaurants.slug,
+        name: restaurants.name,
+        color: null,
+        targetCents: 20000,
+        spentCents: 25000,
+        manualCents: 1000,
+        remainingCents: -5000,
+        paceCents: 9333,
+        aheadOfPace: true,
+        status: 'over',
+      },
+    ],
+  }
+
+  it('adds the tracked envelopes for the current month', async () => {
+    const { call } = await connect({
+      '/api/budgets': budget,
+      '/api/budgets/envelopes': envelopes,
+    })
+    const { text } = await call('budget_status')
+    expect(text).toContain(
+      '- Restaurants : 250,00 € sur 200,00 € (125 %), reste -50,00 € — dépassé · suivi pendant le mois',
+    )
+    expect(text).toContain('Enveloppes suivies au 14/11/2026 (jour 14/30)')
+    expect(text).toContain(
+      'rythme régulier à ce jour 93,33 € (en avance sur le rythme)',
+    )
+  })
+
+  it('leaves the envelopes out for another month', async () => {
+    const { call, calls } = await connect({
+      '/api/budgets': {
+        ...budget,
+        month: '2026-09',
+        period: period({ month: '2026-09', status: 'complete' }),
+      },
+      '/api/budgets/envelopes': envelopes,
+    })
+    const { text } = await call('budget_status', { month: '2026-09' })
+    expect(
+      calls
+        .find((c) => c.url.pathname === '/api/budgets')!
+        .url.searchParams.get('month'),
+    ).toBe('2026-09')
+    expect(text).not.toContain('Enveloppes')
+  })
+})
+
+describe('subscriptions', () => {
+  const item: RecurringItemDto = {
+    id: 'r1',
+    accountId: checking.id,
+    accountName: checking.name,
+    merchantKey: 'streamflix',
+    searchText: 'STREAMFLIX',
+    name: 'Streamflix',
+    direction: 'debit',
+    status: 'confirmed',
+    categoryId: null,
+    categorySlug: null,
+    categoryName: 'Loisirs',
+    categoryColor: null,
+    isFixedCost: false,
+    isSubscription: true,
+    cadence: 'monthly',
+    detectedCadence: 'monthly',
+    cadenceOverridden: false,
+    amountType: 'fixed',
+    typicalAmountCents: 1399,
+    latestAmountCents: 1399,
+    minAmountCents: 1199,
+    maxAmountCents: 1399,
+    yearlyCostCents: 16788,
+    monthlyEquivalentCents: 1399,
+    previousAmountCents: 1199,
+    priceChangeCents: 200,
+    priceChangedOn: '2026-10-05',
+    confidence: 0.9,
+    active: true,
+    firstSeenDate: '2025-01-05',
+    lastSeenDate: '2026-11-05',
+    nextExpectedDate: '2026-12-05',
+    occurrenceCount: 23,
+    occurrences: [],
+    notes: null,
+  }
+  const total = { monthlyCents: 1399, yearlyCents: 16788, count: 1 }
+  const summaryDto: RecurringSummaryDto = {
+    debits: {
+      ...total,
+      fixed: total,
+      variable: { monthlyCents: 0, yearlyCents: 0, count: 0 },
+      subscriptions: total,
+    },
+    credits: { monthlyCents: 0, yearlyCents: 0, count: 0 },
+    suggestedCount: 1,
+    inactiveCount: 0,
+  }
+
+  it('lists upcoming debits within the window from today in Paris', async () => {
+    const { call } = await connect({
+      '/api/recurring/summary': summaryDto,
+      '/api/recurring': [
+        item,
+        {
+          ...item,
+          id: 'r2',
+          name: 'Salle de sport',
+          nextExpectedDate: '2027-01-20',
+          status: 'suggested',
+        },
+        { ...item, id: 'r3', name: 'Ancien abonnement', status: 'dismissed' },
+      ],
+    })
+    const { text } = await call('subscriptions', { upcoming_days: 30 })
+    expect(text).toContain('Prélèvements attendus du 14/11/2026 au 14/12/2026')
+    expect(text).toContain(
+      '- 05/12/2026 · Streamflix · 13,99 € · Compte courant',
+    )
+    expect(text).not.toMatch(/- 20\/01\/2027/)
+    expect(text).toContain('Salle de sport')
+    expect(text).toContain('[détecté, non confirmé]')
+    expect(text).not.toContain('Ancien abonnement')
+    expect(text).toContain('[prix +2,00 € le 05/10/2026]')
+  })
+})
+
+describe('month_end_forecast', () => {
+  it('converts the threshold to cents and accounts to ids', async () => {
+    const forecast: ForecastDto = {
+      today: '2026-11-14',
+      monthEnd: '2026-11-30',
+      accounts: [
+        {
+          id: checking.id,
+          name: checking.name,
+          type: 'checking',
+          balanceCents: 123456,
+          balanceDate: '2026-11-10',
+        },
+      ],
+      startingBalanceCents: 123456,
+      startingBalanceDate: '2026-11-10',
+      thresholdCents: 50000,
+      recurringItemCount: 3,
+      items: [],
+      expectedDebitsCents: -60000,
+      expectedCreditsCents: 0,
+      estimate: null,
+      points: [],
+      endBalanceCents: 63456,
+      lowest: { date: '2026-11-30', balanceCents: 63456 },
+      belowThreshold: null,
+    }
+    const { call, calls } = await connect({
+      '/api/accounts': accounts,
+      '/api/forecast': forecast,
+    })
+    const { text } = await call('month_end_forecast', {
+      accounts: ['Compte courant'],
+      low_balance_threshold_euros: 500,
+      include_variable: false,
+    })
+    const query = calls.find((c) => c.url.pathname === '/api/forecast')!.url
+      .searchParams
+    expect(Object.fromEntries(query)).toEqual({
+      accountIds: checking.id,
+      threshold: '50000',
+      includeVariable: 'false',
+    })
+    expect(text).toContain('Solde projeté en fin de mois : 634,56 €.')
+    expect(text).toContain('Ne passe pas sous 500,00 €.')
+  })
+
+  it('refuses an investment account', async () => {
+    const { call, calls } = await connect({ '/api/accounts': accounts })
+    const result = await call('month_end_forecast', { accounts: ['PEA'] })
+    expect(result.isError).toBe(true)
+    expect(calls.some((c) => c.url.pathname === '/api/forecast')).toBe(false)
+  })
+})
+
+describe('month_review', () => {
+  it('summarizes the review of the previous month', async () => {
+    const review: MonthReviewDto = {
+      month: '2026-10',
+      nextMonth: '2026-11',
+      period: period({
+        month: '2026-10',
+        status: 'complete',
+        throughDay: null,
+        dataUntil: '2026-11-10',
+      }),
+      closed: false,
+      netWorth: {
+        date: '2026-10-31',
+        endCents: 1200000,
+        previousDate: '2026-09-30',
+        previousEndCents: 1100000,
+        changeCents: 100000,
+        savedCents: 70000,
+        otherCents: 30000,
+      },
+      flow: flow(),
+      budget: {
+        budgetCount: 2,
+        targetCents: 60000,
+        spentCents: 65000,
+        remainingCents: -5000,
+        unbudgetedCents: 1000,
+        over: [
+          {
+            categoryId: restaurants.id,
+            slug: restaurants.slug,
+            name: restaurants.name,
+            color: null,
+            targetCents: 20000,
+            spentCents: 30000,
+            gapCents: 10000,
+          },
+        ],
+        under: [],
+      },
+      missing: [
+        {
+          id: pea.id,
+          name: pea.name,
+          type: 'brokerage',
+          group: 'investments',
+          lastDate: '2026-09-30',
+        },
+      ],
+    }
+    const { call } = await connect({ '/api/dashboard/review': review })
+    const { text } = await call('month_review')
+    expect(text).toContain(
+      'Bilan de octobre 2026 : des données manquent encore.',
+    )
+    expect(text).toContain(
+      "- PEA (PEA / compte-titres) : données jusqu'au 30/09/2026",
+    )
+    expect(text).toContain(
+      'Variation : +1 000,00 €, dont épargné +700,00 € et reste (marchés, mises à jour de valeur) +300,00 €.',
+    )
+    expect(text).toContain("taux d'épargne 28 %")
+    expect(text).toContain('- Restaurants : 300,00 € pour 200,00 € (+100,00 €)')
+  })
+})
