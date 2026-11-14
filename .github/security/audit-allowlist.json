@@ -1,0 +1,333 @@
+{
+  "$comment": "High/critical advisories accepted by scripts/audit-prod.mjs. Each entry needs a reason and the fix issue tracking it; remove it once the dependency is updated. See SECURITY.md.",
+  "advisories": [
+    {
+      "id": "GHSA-qx66-fv34-fjm8",
+      "package": "@tanstack/react-start",
+      "severity": "critical",
+      "via": "web > @tanstack/react-start",
+      "issue": 152,
+      "reason": "Critical reflected XSS in TanStack Start; fix first. Owner-only app reachable through Tailscale only."
+    },
+    {
+      "id": "GHSA-73wf-gq98-2v4g",
+      "package": "browserslist",
+      "severity": "high",
+      "via": "web > @tanstack/react-start",
+      "issue": 152,
+      "reason": "Critical reflected XSS in TanStack Start; fix first. Owner-only app reachable through Tailscale only."
+    },
+    {
+      "id": "GHSA-c83g-rgw3-j3cx",
+      "package": "browserslist",
+      "severity": "high",
+      "via": "web > @tanstack/react-start",
+      "issue": 152,
+      "reason": "Critical reflected XSS in TanStack Start; fix first. Owner-only app reachable through Tailscale only."
+    },
+    {
+      "id": "GHSA-7rv5-mrxv-xcr9",
+      "package": "seroval",
+      "severity": "high",
+      "via": "web > @tanstack/react-devtools",
+      "issue": 152,
+      "reason": "seroval deserialization issues via TanStack devtools / SSR serialization; updated with TanStack Start."
+    },
+    {
+      "id": "GHSA-97r2-qh9m-474h",
+      "package": "seroval",
+      "severity": "high",
+      "via": "web > @tanstack/react-devtools",
+      "issue": 152,
+      "reason": "seroval deserialization issues via TanStack devtools / SSR serialization; updated with TanStack Start."
+    },
+    {
+      "id": "GHSA-jp82-f5mq-hwhp",
+      "package": "seroval",
+      "severity": "high",
+      "via": "web > @tanstack/react-devtools",
+      "issue": 152,
+      "reason": "seroval deserialization issues via TanStack devtools / SSR serialization; updated with TanStack Start."
+    },
+    {
+      "id": "GHSA-p6vx-979v-rg4c",
+      "package": "seroval",
+      "severity": "critical",
+      "via": "web > @tanstack/react-devtools",
+      "issue": 152,
+      "reason": "seroval deserialization issues via TanStack devtools / SSR serialization; updated with TanStack Start."
+    },
+    {
+      "id": "GHSA-wp97-x4hv-qvhp",
+      "package": "seroval",
+      "severity": "high",
+      "via": "web > @tanstack/react-devtools",
+      "issue": 152,
+      "reason": "seroval deserialization issues via TanStack devtools / SSR serialization; updated with TanStack Start."
+    },
+    {
+      "id": "GHSA-83w8-p2f5-377r",
+      "package": "@fastify/static",
+      "severity": "high",
+      "via": "api > @fastify/static",
+      "issue": 153,
+      "reason": "@fastify/static and its glob/minimatch/brace-expansion; needs a major update."
+    },
+    {
+      "id": "GHSA-6v32-fjc9-9qf6",
+      "package": "@nestjs/platform-fastify",
+      "severity": "high",
+      "via": "api > @nestjs/platform-fastify",
+      "issue": 153,
+      "reason": "Fastify/Nest HTTP stack; API port never published, only reached through the web proxy."
+    },
+    {
+      "id": "GHSA-9c5c-9qcx-q35q",
+      "package": "@nestjs/platform-fastify",
+      "severity": "high",
+      "via": "api > @nestjs/platform-fastify",
+      "issue": 153,
+      "reason": "Fastify/Nest HTTP stack; API port never published, only reached through the web proxy."
+    },
+    {
+      "id": "GHSA-3jxr-9vmj-r5cp",
+      "package": "brace-expansion",
+      "severity": "high",
+      "via": "api > @fastify/static",
+      "issue": 153,
+      "reason": "@fastify/static and its glob/minimatch/brace-expansion; needs a major update."
+    },
+    {
+      "id": "GHSA-6j4f-fj2g-mc7p",
+      "package": "brace-expansion",
+      "severity": "high",
+      "via": "api > @fastify/static",
+      "issue": 153,
+      "reason": "@fastify/static and its glob/minimatch/brace-expansion; needs a major update."
+    },
+    {
+      "id": "GHSA-mh99-v99m-4gvg",
+      "package": "brace-expansion",
+      "severity": "high",
+      "via": "api > @fastify/static",
+      "issue": 153,
+      "reason": "@fastify/static and its glob/minimatch/brace-expansion; needs a major update."
+    },
+    {
+      "id": "GHSA-qhr7-859c-m2p7",
+      "package": "brace-expansion",
+      "severity": "high",
+      "via": "api > @fastify/static",
+      "issue": 153,
+      "reason": "@fastify/static and its glob/minimatch/brace-expansion; needs a major update."
+    },
+    {
+      "id": "GHSA-rgw5-rvv9-x895",
+      "package": "brace-expansion",
+      "severity": "high",
+      "via": "api > @fastify/static",
+      "issue": 153,
+      "reason": "@fastify/static and its glob/minimatch/brace-expansion; needs a major update."
+    },
+    {
+      "id": "GHSA-4c8g-83qw-93j6",
+      "package": "fast-uri",
+      "severity": "high",
+      "via": "api > @nestjs/platform-fastify",
+      "issue": 153,
+      "reason": "Fastify/Nest HTTP stack; API port never published, only reached through the web proxy."
+    },
+    {
+      "id": "GHSA-7p8r-x3mc-p8w7",
+      "package": "fast-uri",
+      "severity": "high",
+      "via": "api > @nestjs/platform-fastify",
+      "issue": 153,
+      "reason": "Fastify/Nest HTTP stack; API port never published, only reached through the web proxy."
+    },
+    {
+      "id": "GHSA-f65p-4m7j-42xc",
+      "package": "fast-uri",
+      "severity": "high",
+      "via": "api > @nestjs/platform-fastify",
+      "issue": 153,
+      "reason": "Fastify/Nest HTTP stack; API port never published, only reached through the web proxy."
+    },
+    {
+      "id": "GHSA-fph4-wmhf-6fwf",
+      "package": "fast-uri",
+      "severity": "high",
+      "via": "api > @nestjs/platform-fastify",
+      "issue": 153,
+      "reason": "Fastify/Nest HTTP stack; API port never published, only reached through the web proxy."
+    },
+    {
+      "id": "GHSA-jqff-g426-hqxp",
+      "package": "fast-uri",
+      "severity": "high",
+      "via": "api > @nestjs/platform-fastify",
+      "issue": 153,
+      "reason": "Fastify/Nest HTTP stack; API port never published, only reached through the web proxy."
+    },
+    {
+      "id": "GHSA-qw65-cvwx-89v3",
+      "package": "fast-uri",
+      "severity": "high",
+      "via": "api > @nestjs/platform-fastify",
+      "issue": 153,
+      "reason": "Fastify/Nest HTTP stack; API port never published, only reached through the web proxy."
+    },
+    {
+      "id": "GHSA-v2hh-gcrm-f6hx",
+      "package": "fast-uri",
+      "severity": "high",
+      "via": "api > @nestjs/platform-fastify",
+      "issue": 153,
+      "reason": "Fastify/Nest HTTP stack; API port never published, only reached through the web proxy."
+    },
+    {
+      "id": "GHSA-667r-xxjv-c9mm",
+      "package": "fastify",
+      "severity": "high",
+      "via": "api > @nestjs/platform-fastify",
+      "issue": 153,
+      "reason": "Fastify/Nest HTTP stack; API port never published, only reached through the web proxy."
+    },
+    {
+      "id": "GHSA-9q9j-q6p8-xq58",
+      "package": "fastify",
+      "severity": "high",
+      "via": "api > @nestjs/platform-fastify",
+      "issue": 153,
+      "reason": "Fastify/Nest HTTP stack; API port never published, only reached through the web proxy."
+    },
+    {
+      "id": "GHSA-hwr6-493r-vm6h",
+      "package": "fastify",
+      "severity": "high",
+      "via": "api > @nestjs/platform-fastify",
+      "issue": 153,
+      "reason": "Fastify/Nest HTTP stack; API port never published, only reached through the web proxy."
+    },
+    {
+      "id": "GHSA-p68q-wchp-6fh7",
+      "package": "fastify",
+      "severity": "high",
+      "via": "api > @nestjs/platform-fastify",
+      "issue": 153,
+      "reason": "Fastify/Nest HTTP stack; API port never published, only reached through the web proxy."
+    },
+    {
+      "id": "GHSA-c96f-x56v-gq3h",
+      "package": "find-my-way",
+      "severity": "high",
+      "via": "api > @nestjs/platform-fastify",
+      "issue": 153,
+      "reason": "Fastify/Nest HTTP stack; API port never published, only reached through the web proxy."
+    },
+    {
+      "id": "GHSA-2883-xcg3-v3hh",
+      "package": "js-yaml",
+      "severity": "high",
+      "via": "api > @nestjs/swagger",
+      "issue": 154,
+      "reason": "js-yaml CPU DoS on crafted YAML; the API never parses untrusted YAML."
+    },
+    {
+      "id": "GHSA-52cp-r559-cp3m",
+      "package": "js-yaml",
+      "severity": "high",
+      "via": "api > @nestjs/swagger",
+      "issue": 154,
+      "reason": "js-yaml CPU DoS on crafted YAML; the API never parses untrusted YAML."
+    },
+    {
+      "id": "GHSA-5p4m-2wfm-xmqj",
+      "package": "js-yaml",
+      "severity": "high",
+      "via": "api > @nestjs/swagger",
+      "issue": 154,
+      "reason": "js-yaml CPU DoS on crafted YAML; the API never parses untrusted YAML."
+    },
+    {
+      "id": "GHSA-2x7j-588g-ccc2",
+      "package": "nodemailer",
+      "severity": "high",
+      "via": "api > nodemailer",
+      "issue": 154,
+      "reason": "Address-parser DoS; only sends reset emails to the owner, SMTP optional in production; needs a major update."
+    },
+    {
+      "id": "GHSA-v53p-9fqp-m79j",
+      "package": "nodemailer",
+      "severity": "high",
+      "via": "api > nodemailer",
+      "issue": 154,
+      "reason": "Address-parser DoS; only sends reset emails to the owner, SMTP optional in production; needs a major update."
+    },
+    {
+      "id": "GHSA-mrhx-c7xc-m3w5",
+      "package": "zod",
+      "severity": "high",
+      "via": "api > zod",
+      "issue": 154,
+      "reason": "Memory exhaustion on oversized constrained collections; request bodies are size-limited by Fastify."
+    },
+    {
+      "id": "GHSA-2gc4-cqfq-p2gv",
+      "package": "engine.io",
+      "severity": "high",
+      "via": "api > react-email",
+      "issue": 155,
+      "reason": "Not reachable: socket.io/engine.io belong to the react-email preview server (never started), source-map-js only parses source maps."
+    },
+    {
+      "id": "GHSA-28wg-ghj8-5hjv",
+      "package": "nanoid",
+      "severity": "high",
+      "via": "web > @tailwindcss/vite",
+      "issue": 155,
+      "reason": "Build tooling (Vite dev server, PostCSS source maps, nanoid custom sizes); traced into the web image's server/node_modules but not reached by request handling."
+    },
+    {
+      "id": "GHSA-2v37-7h3g-55p8",
+      "package": "nanoid",
+      "severity": "high",
+      "via": "web > @tailwindcss/vite",
+      "issue": 155,
+      "reason": "Build tooling (Vite dev server, PostCSS source maps, nanoid custom sizes); traced into the web image's server/node_modules but not reached by request handling."
+    },
+    {
+      "id": "GHSA-r28c-9q8g-f849",
+      "package": "postcss",
+      "severity": "high",
+      "via": "web > @tailwindcss/vite",
+      "issue": 155,
+      "reason": "Build tooling (Vite dev server, PostCSS source maps, nanoid custom sizes); traced into the web image's server/node_modules but not reached by request handling."
+    },
+    {
+      "id": "GHSA-2m8v-j782-fhvr",
+      "package": "socket.io-parser",
+      "severity": "high",
+      "via": "api > react-email",
+      "issue": 155,
+      "reason": "Not reachable: socket.io/engine.io belong to the react-email preview server (never started), source-map-js only parses source maps."
+    },
+    {
+      "id": "GHSA-68fv-2mgg-jv7q",
+      "package": "source-map-js",
+      "severity": "high",
+      "via": "api > react-email",
+      "issue": 155,
+      "reason": "Not reachable: socket.io/engine.io belong to the react-email preview server (never started), source-map-js only parses source maps."
+    },
+    {
+      "id": "GHSA-587h-7wmj-h5pm",
+      "package": "vite",
+      "severity": "high",
+      "via": "web > @tailwindcss/vite",
+      "issue": 155,
+      "reason": "Build tooling (Vite dev server, PostCSS source maps, nanoid custom sizes); traced into the web image's server/node_modules but not reached by request handling."
+    }
+  ]
+}
