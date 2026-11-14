@@ -38,11 +38,14 @@
     ],
     "overrides": {
       "@hono/node-server": "2.1.5",
+      "browserslist": "4.28.7",
       "encodeurl": "2.0.1",
       "express-rate-limit": "8.7.2",
       "hono": "4.13.14",
       "ip-address": "10.7.5",
-      "jose": "6.2.14"
+      "jose": "6.2.14",
+      "seroval": "1.6.8",
+      "seroval-plugins": "1.6.8"
     }
   }
 }
