@@ -18,6 +18,9 @@ import {
 
 const isProduction = process.env['NODE_ENV'] === 'production'
 
+/** Minimum `JWT_SECRET` length in production (`openssl rand -hex 32` gives 64). */
+export const JWT_SECRET_MIN_LENGTH = 32
+
 /** Dev/test fallback matching the docker-compose Postgres service. */
 const DEV_DATABASE_URL = 'postgres://user:password@localhost:5432/finances'
 
@@ -78,15 +81,21 @@ const envSchema = z.object({
   DATABASE_URL: requiredInProduction('DATABASE_URL', DEV_DATABASE_URL),
 
   /**
-   * Secret used to sign auth JWTs. Required in production: booting without it
-   * would otherwise sign tokens with a known value, making them forgeable.
-   * Outside production we generate an ephemeral per-boot secret (below) so local
-   * dev works without a configured secret while never exposing a fixed default.
+   * Secret used to sign auth JWTs (HS256). Required in production, and at
+   * least {@link JWT_SECRET_MIN_LENGTH} characters long (#182): a missing or
+   * short secret makes every session forgeable. Outside production we
+   * generate an ephemeral per-boot secret (below) so local dev works without a
+   * configured secret while never exposing a fixed default.
    */
   JWT_SECRET: isProduction
     ? z
         .string({ error: 'JWT_SECRET is required when NODE_ENV=production' })
         .min(1, 'JWT_SECRET is required when NODE_ENV=production')
+        .refine(
+          (value) =>
+            value.length === 0 || value.length >= JWT_SECRET_MIN_LENGTH,
+          `JWT_SECRET must be at least ${JWT_SECRET_MIN_LENGTH} characters when NODE_ENV=production (generate one with \`openssl rand -hex 32\`)`,
+        )
     : z.string().min(1).optional(),
 
   // SMTP — dev defaults target the Mailpit container. In production SMTP is

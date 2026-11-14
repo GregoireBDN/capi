@@ -208,6 +208,8 @@ Standard NestJS module structure: each domain has a `*.module.ts`, `*.controller
 
 **Email**: `EmailModule` renders React Email templates (`apps/api/src/email/templates/*.tsx`) to HTML with `@react-email/render` (not the `react-email` CLI, whose preview server is never used) and sends them with `nodemailer` over SMTP (used for password reset). In dev, SMTP points at **Mailpit** (`localhost:1025`, web UI at `localhost:8025`) started by `docker compose`.
 
+**Request bodies**: the global `ValidationPipe` (`whitelist`, `forbidNonWhitelisted`, `transform`) validates every DTO; JSON bodies nested deeper than 32 levels are refused with 400 before it runs (`common/http/json-depth.ts`, a Fastify `preValidation` hook, #182), since the pipe walks bodies recursively.
+
 **Health**: `HealthModule` exposes `GET /api/health` (Terminus), checking the database and, when SMTP is configured, SMTP. The production healthchecks and the deploy script rely on it.
 
 **Path alias**: `#/*` resolves to `./src/*` in both the API and web apps.
@@ -301,7 +303,7 @@ Target deployment (M6): a VPS running the production compose stack, reachable on
 Copy `apps/api/.env.example` to `apps/api/.env` and fill in:
 
 - `DATABASE_URL` — PostgreSQL connection string (default targets the dev Docker container)
-- `JWT_SECRET` — JWT signing secret
+- `JWT_SECRET` — JWT signing secret; required in production and at least 32 characters (`openssl rand -hex 32`), or the API refuses to boot (#182); outside production an ephemeral one is generated when unset
 - `APP_URL` — web app origin (default: `http://localhost:3000`), used in email links and as the CORS origin
 - `TRUSTED_PROXIES` — peers allowed to set the client IP through `X-Forwarded-For` (default `loopback,uniquelocal`, see Client IP)
 - `WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGIN` — passkeys relying party; empty = `APP_URL`'s host name and origin (see Passkeys)

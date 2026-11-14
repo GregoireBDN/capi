@@ -7,6 +7,7 @@ import fastifyCookie from '@fastify/cookie'
 import fastifyHelmet from '@fastify/helmet'
 import { Logger } from 'nestjs-pino'
 import { AppModule } from './app.module'
+import { registerJsonDepthLimit } from './common/http/json-depth'
 import { registerNoStoreHeaders } from './common/http/no-store'
 import { env } from './config/env'
 import { createFastifyAdapter } from './config/fastify-adapter'
@@ -39,6 +40,9 @@ async function bootstrap() {
   // `Cache-Control: no-store` on every response (see `common/http/no-store.ts`).
   // Helmet sets no caching headers, so nothing conflicts with it.
   registerNoStoreHeaders(app.getHttpAdapter().getInstance())
+
+  // Deeply nested JSON bodies get a 400 before validation (#182).
+  registerJsonDepthLimit(app.getHttpAdapter().getInstance())
 
   await app.register(fastifyCookie)
 

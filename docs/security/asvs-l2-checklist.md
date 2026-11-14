@@ -79,7 +79,7 @@ N/A: 2.1.? for system-generated passwords, 2.3.1 / 2.3.3, 2.5.7, 2.6 (look-up se
 | 3.4.5 | Path / no shared domain                                    | Pass     | Host-only cookies (no `Domain`), `Path=/`                                                                                                                                               |
 | 3.5.1 | Users can revoke tokens granted to clients                 | Pass     | `DELETE /api/access-tokens/:id` `access-tokens.controller.ts:105`                                                                                                                       |
 | 3.5.2 | Session tokens rather than static secrets for the browser  | Pass     | Cookies for the browser; static tokens only for the MCP / scripts, scoped                                                                                                               |
-| 3.5.3 | Stateless tokens protected by signatures                   | Pass     | `alg: none` and an HS256 token with a wrong key both 401 (pentest/02-session.sh); secret length → #182                                                                                  |
+| 3.5.3 | Stateless tokens protected by signatures                   | Pass     | `alg: none` and an HS256 token with a wrong key both 401 (pentest/02-session.sh); secret ≥ 32 characters in production `apps/api/src/config/env.ts` (#182)                              |
 | 3.7.1 | Full session or re-authentication before sensitive actions | **Fail** | Token creation `access-tokens.controller.ts:64`, account deletion `apps/api/src/user/profile.controller.ts:49`, passkey revocation `passkeys.controller.ts:182` need any session → #176 |
 | —     | Refresh rotation with reuse detection                      | Pass     | `auth.service.ts:233`–`:258`; replaying a rotated token revokes the family (pentest/02-session.sh); rotation not atomic → #178                                                          |
 
@@ -124,15 +124,15 @@ N/A: 5.2.1 (no rich text), 5.2.3 (no SMTP / IMAP injection surface: addresses ar
 
 ## V6 Stored cryptography
 
-| #     | Requirement (short)         | Status   | Evidence                                                                                          |
-| ----- | --------------------------- | -------- | ------------------------------------------------------------------------------------------------- |
-| 6.2.1 | Modules fail securely       | Pass     | JWT verification errors → 401 `jwt.guard.ts:66`                                                   |
-| 6.2.2 | Proven algorithms           | Pass     | bcrypt, SHA-256, HMAC-SHA-256, WebAuthn via `@simplewebauthn/server`                              |
-| 6.3.1 | CSPRNG                      | Pass     | `crypto.randomBytes`, `randomUUID`                                                                |
-| 6.3.2 | Random GUIDs (v4)           | Pass     | `randomUUID`, Postgres `gen_random_uuid()`                                                        |
-| 6.4.1 | Secrets management solution | Accepted | `.env` mode 600 on one VPS (runbook); a vault is out of proportion. Owner: check the mode.        |
-| 6.4.2 | Key material not exposed    | Pass     | Secrets absent from the web image and client bundle (pentest/05-web.sh, image grep in the report) |
-| —     | Secret strength enforced    | **Fail** | `JWT_SECRET` only non-empty `apps/api/src/config/env.ts:86` → #182                                |
+| #     | Requirement (short)         | Status   | Evidence                                                                                                                       |
+| ----- | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 6.2.1 | Modules fail securely       | Pass     | JWT verification errors → 401 `jwt.guard.ts:66`                                                                                |
+| 6.2.2 | Proven algorithms           | Pass     | bcrypt, SHA-256, HMAC-SHA-256, WebAuthn via `@simplewebauthn/server`                                                           |
+| 6.3.1 | CSPRNG                      | Pass     | `crypto.randomBytes`, `randomUUID`                                                                                             |
+| 6.3.2 | Random GUIDs (v4)           | Pass     | `randomUUID`, Postgres `gen_random_uuid()`                                                                                     |
+| 6.4.1 | Secrets management solution | Accepted | `.env` mode 600 on one VPS (runbook); a vault is out of proportion. Owner: check the mode.                                     |
+| 6.4.2 | Key material not exposed    | Pass     | Secrets absent from the web image and client bundle (pentest/05-web.sh, image grep in the report)                              |
+| —     | Secret strength enforced    | Pass     | `JWT_SECRET` ≥ 32 characters in production, else the API refuses to boot `apps/api/src/config/env.ts` (fixed by #182, was F10) |
 
 N/A: 6.1.x data classification encryption at rest (Owner: disk / backup encryption), 6.2.3–6.2.8 (no custom encryption).
 
@@ -147,7 +147,7 @@ N/A: 6.1.x data classification encryption at rest (Owner: disk / backup encrypti
 | 7.2.2 | Access-control failures logged           | Pass    | 401 / 403 at `warn`                                                                                                                                                                                         |
 | 7.3.1 | Log injection prevented                  | Pass    | JSON lines (pino); client `X-Request-Id` accepted as is (no format check) → #183                                                                                                                            |
 | 7.4.1 | Generic error message with a support id  | Pass    | 500 body `Internal server error` + `requestId` `apps/api/src/common/filters/all-exceptions.filter.ts:111`                                                                                                   |
-| 7.4.2 | Exception handling throughout            | Partial | Global filter; a 5 000-level JSON body ends in a stack overflow → 500 (pentest/04-input.sh) → #182                                                                                                          |
+| 7.4.2 | Exception handling throughout            | Pass    | Global filter; JSON bodies nested deeper than 32 levels get 400 before validation `apps/api/src/common/http/json-depth.ts` (fixed by #182, was F10)                                                         |
 | 7.4.3 | Last-resort handler                      | Pass    | `@Catch()` filter, `APP_FILTER`                                                                                                                                                                             |
 
 N/A: 7.3.3 / 7.3.4 (log integrity and time sync: Owner, Docker json-file on the VPS).

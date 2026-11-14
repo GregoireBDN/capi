@@ -36,7 +36,7 @@ describe('env', () => {
   /** Minimal set of variables required for a production boot to succeed. */
   const PROD_BASE = {
     NODE_ENV: 'production',
-    JWT_SECRET: 'a-real-production-secret',
+    JWT_SECRET: 'a-real-production-secret-of-40-chars-xyz',
     DATABASE_URL: 'postgres://user:password@db:5432/finances',
   }
 
@@ -44,6 +44,36 @@ describe('env', () => {
     await expect(
       importEnv({ ...PROD_BASE, JWT_SECRET: undefined }),
     ).rejects.toThrow(/JWT_SECRET is required when NODE_ENV=production/)
+  })
+
+  it('refuses a JWT_SECRET shorter than 32 characters in production', async () => {
+    await expect(
+      importEnv({ ...PROD_BASE, JWT_SECRET: 'x'.repeat(31) }),
+    ).rejects.toThrow(/JWT_SECRET must be at least 32 characters/)
+  })
+
+  it('accepts a JWT_SECRET of exactly 32 characters in production', async () => {
+    const { env } = await importEnv({
+      ...PROD_BASE,
+      JWT_SECRET: 'x'.repeat(32),
+    })
+    expect(env.JWT_SECRET).toBe('x'.repeat(32))
+  })
+
+  it('reports an empty JWT_SECRET as missing in production', async () => {
+    const attempt = importEnv({ ...PROD_BASE, JWT_SECRET: '' })
+    await expect(attempt).rejects.toThrow(
+      /JWT_SECRET is required when NODE_ENV=production/,
+    )
+    await expect(attempt).rejects.not.toThrow(/at least 32/)
+  })
+
+  it('keeps short secrets usable outside production (tests, dev)', async () => {
+    const { env } = await importEnv({
+      NODE_ENV: 'test',
+      JWT_SECRET: 'test-secret',
+    })
+    expect(env.JWT_SECRET).toBe('test-secret')
   })
 
   it('throws when DATABASE_URL is missing in production', async () => {
@@ -60,7 +90,7 @@ describe('env', () => {
 
   it('uses the provided JWT_SECRET in production', async () => {
     const { env } = await importEnv(PROD_BASE)
-    expect(env.JWT_SECRET).toBe('a-real-production-secret')
+    expect(env.JWT_SECRET).toBe('a-real-production-secret-of-40-chars-xyz')
   })
 
   it('falls back to an ephemeral secret outside production', async () => {
