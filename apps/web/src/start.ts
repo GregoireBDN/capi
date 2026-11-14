@@ -3,7 +3,9 @@ import {
   createMiddleware,
   createStart,
 } from '@tanstack/react-start'
-import { withCacheHeaders } from '#/lib/cache-policy'
+import { isApiPath, withCacheHeaders, withHeaders } from '#/lib/cache-policy'
+import type { CspNonceContext } from '#/lib/csp-nonce'
+import { createCspNonce, pageSecurityHeaders } from '#/lib/security-headers'
 
 /**
  * `Cache-Control` for every response of the Start handler (SSR pages, server
@@ -12,10 +14,29 @@ import { withCacheHeaders } from '#/lib/cache-policy'
  * routes are covered by default. Listed first so it also wraps responses that
  * later middleware (CSRF rejections) return early.
  */
-const cacheHeadersMiddleware = createMiddleware().server(
+export const cacheHeadersMiddleware = createMiddleware().server(
   async ({ next, pathname }) => {
     const result = await next()
     return { ...result, response: withCacheHeaders(result.response, pathname) }
+  },
+)
+
+/**
+ * Content-Security-Policy and frame protection for everything but the `/api`
+ * proxy (which keeps the API's helmet headers); policy in
+ * `lib/security-headers.ts`. The nonce is passed down in the request context,
+ * where `getRouter` picks it up for TanStack's inline scripts
+ * (`lib/csp-nonce.ts`). Listed before CSRF so its rejections get the headers.
+ */
+export const securityHeadersMiddleware = createMiddleware().server(
+  async ({ next, pathname }) => {
+    if (isApiPath(pathname)) return next<CspNonceContext>({ context: {} })
+    const cspNonce = createCspNonce()
+    const result = await next<CspNonceContext>({ context: { cspNonce } })
+    const headers = await pageSecurityHeaders(cspNonce, {
+      dev: import.meta.env.DEV,
+    })
+    return { ...result, response: withHeaders(result.response, headers) }
   },
 )
 
@@ -28,5 +49,9 @@ const csrfMiddleware = createCsrfMiddleware({
 })
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [cacheHeadersMiddleware, csrfMiddleware],
+  requestMiddleware: [
+    cacheHeadersMiddleware,
+    securityHeadersMiddleware,
+    csrfMiddleware,
+  ],
 }))
