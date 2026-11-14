@@ -693,10 +693,10 @@
             }
           },
           "400": {
-            "description": "Verification failed, already registered or too many."
+            "description": "Unknown, expired or used challenge; verification failed; already registered or too many."
           },
           "401": {
-            "description": "No session, or unknown, expired or used challenge."
+            "description": ""
           },
           "403": {
             "description": "Recent authentication required, or called with an access token."
