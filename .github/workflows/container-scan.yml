@@ -7,6 +7,7 @@
 # The app's own node_modules are skipped: they come from the lockfile, which
 # the Security workflow's `pnpm audit` gate covers (allow-list + fix issues).
 # Trivy covers the rest of the image: Alpine packages, Node itself, secrets.
+# No usage data is sent (--disable-telemetry, --skip-version-check).
 name: Container scan
 
 on:
@@ -72,4 +73,5 @@ jobs:
         run: |
           docker run --rm -v "$IMAGE_DIR:/scan:ro" -v "$PWD:/repo:ro" -w /repo "$TRIVY_IMAGE" \
             image --input /scan/image.tar --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed \
-            --skip-dirs app/node_modules --skip-dirs app/server/node_modules --no-progress
+            --skip-dirs app/node_modules --skip-dirs app/server/node_modules \
+            --no-progress --skip-version-check --disable-telemetry

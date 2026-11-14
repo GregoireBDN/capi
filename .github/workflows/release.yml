@@ -160,7 +160,8 @@ jobs:
         run: |
           docker run --rm -v "$IMAGE_DIR:/scan:ro" -v "$PWD:/repo:ro" -w /repo "$TRIVY_IMAGE" \
             image --input /scan/image.tar --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed \
-            --skip-dirs app/node_modules --skip-dirs app/server/node_modules --no-progress
+            --skip-dirs app/node_modules --skip-dirs app/server/node_modules \
+            --no-progress --skip-version-check --disable-telemetry
 
       # Same build, replayed from the builder's cache, then pushed.
       - name: Push
