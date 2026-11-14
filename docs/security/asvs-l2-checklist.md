@@ -17,7 +17,7 @@ Requirements of level 2 that cannot apply to this app (SMS / OTP authenticators,
 | 1.4.4  | Single, vetted access control mechanism            | Pass     | One guard; route audit `apps/api/src/app.routes.spec.ts:56` (public allow-list), `:73` (token-writable allow-list)                                  |
 | 1.5.1  | Input / output requirements defined                | Pass     | DTOs with class-validator, global `ValidationPipe` `apps/api/src/main.ts:86`                                                                        |
 | 1.9.1  | Encrypted communication between components         | Accepted | Browser→Caddy TLS; Caddy→web→api→db plain HTTP / Postgres on one host's Docker networks, none published. Revisit if a component moves off the host. |
-| 1.14.1 | Segregation of components of differing trust       | Partial  | `api`/`db` only on the project network; `web` shares the `proxy` network with other apps → #183                                                     |
+| 1.14.1 | Segregation of components of differing trust       | Pass     | `api`/`db` only on the project network; `web` shares `proxy` with other apps but believes `X-Forwarded-For` from Caddy only (#183)                  |
 
 ## V2 Authentication
 
@@ -145,7 +145,7 @@ N/A: 6.1.x data classification encryption at rest (Owner: disk / backup encrypti
 | 7.1.3 | Security-relevant events logged          | Partial  | Every 4xx at `warn` with path, status, request id (`all-exceptions.filter.ts`); token calls audited (`access_token_audit`); no dedicated sign-in success / failure event |
 | 7.1.4 | Log entries carry the needed metadata    | Pass     | Time, request id, client IP, method, URL, status                                                                                                                         |
 | 7.2.2 | Access-control failures logged           | Pass     | 401 / 403 at `warn`                                                                                                                                                      |
-| 7.3.1 | Log injection prevented                  | Pass     | JSON lines (pino); client `X-Request-Id` accepted as is (no format check) → #183                                                                                         |
+| 7.3.1 | Log injection prevented                  | Pass     | JSON lines (pino); an incoming `X-Request-Id` is reused only when it is a UUID (#183)                                                                                    |
 | 7.4.1 | Generic error message with a support id  | Pass     | 500 body `Internal server error` + `requestId` `apps/api/src/common/filters/all-exceptions.filter.ts:111`                                                                |
 | 7.4.2 | Exception handling throughout            | Partial  | Global filter; a 5 000-level JSON body ends in a stack overflow → 500 (pentest/04-input.sh) → #182                                                                       |
 | 7.4.3 | Last-resort handler                      | Pass     | `@Catch()` filter, `APP_FILTER`                                                                                                                                          |
@@ -222,12 +222,12 @@ N/A: 12.3.2–12.3.6, 12.4.x (no file storage), 12.5.2 (uploads never served).
 | #      | Requirement (short)                   | Status   | Evidence                                                                                                                                                                    |
 | ------ | ------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 14.1.1 | Secure, repeatable build              | Pass     | Multi-stage Dockerfiles, CI, `release.yml`                                                                                                                                  |
-| 14.1.3 | Server configuration hardened         | Partial  | Non-root `node`, no package manager, no published ports, no privileged mode; no read-only FS, capabilities kept, no memory limit → #183                                     |
+| 14.1.3 | Server configuration hardened         | Pass     | Non-root `node`, no package manager, no published ports; read-only root FS, no capabilities, `no-new-privileges`, memory and pids limits (#183)                             |
 | 14.1.4 | Automated deployment                  | Pass     | `deploy/deploy.sh` with health check and rollback                                                                                                                           |
 | 14.2.1 | Components up to date                 | Pass     | Audit allow-list empty after #164 / #166 / #167                                                                                                                             |
 | 14.2.2 | Unneeded features removed             | **Fail** | Swagger UI and spec in production `apps/api/src/main.ts:122` → #180                                                                                                         |
 | 14.2.3 | SRI for third-party assets            | Accepted | Only Google Fonts CSS (dynamic, no SRI possible); self-host if CSP work (#174) makes it easier                                                                              |
-| 14.2.6 | Sandboxing / attack-surface reduction | Partial  | → #183                                                                                                                                                                      |
+| 14.2.6 | Sandboxing / attack-surface reduction | Pass     | Read-only root FS, `cap_drop: [ALL]`, `no-new-privileges`, memory and pids limits on `api`/`web` (#183)                                                                     |
 | 14.3.2 | Debug modes off in production         | Pass     | `NODE_ENV=production` in the image; no source maps served (pentest/05-web.sh)                                                                                               |
 | 14.3.3 | No version-revealing headers          | Pass     | No `X-Powered-By` from the apps; Caddy strips `Server`, `Via`, `X-Powered-By`                                                                                               |
 | 14.4.1 | `Content-Type` with charset           | Pass     | JSON and HTML responses                                                                                                                                                     |
@@ -238,7 +238,7 @@ N/A: 12.3.2–12.3.6, 12.4.x (no file storage), 12.5.2 (uploads never served).
 | 14.4.7 | Framing restricted                    | **Fail** | Pages framable by any origin → #174                                                                                                                                         |
 | 14.5.2 | `Origin` not used for authentication  | Pass     | Not used                                                                                                                                                                    |
 | 14.5.3 | CORS allow-list                       | Pass     | `origin: env.APP_URL` `apps/api/src/main.ts:98`; a foreign preflight gets the app origin back                                                                               |
-| 14.5.4 | Proxy-added headers authenticated     | Partial  | `X-Forwarded-For` believed only from `TRUSTED_PROXIES` (spoofing through an untrusting proxy has no effect); default trusts every private peer of the shared network → #183 |
+| 14.5.4 | Proxy-added headers authenticated     | Pass     | `X-Forwarded-For` believed by `web` only from Caddy (`caddy` service name, resolved every 30 s) and by `api` only from `web`; neighbours on `proxy` get their own IP (#183) |
 
 ## Summary
 

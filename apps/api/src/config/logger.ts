@@ -17,14 +17,20 @@ const trustProxy = compileTrustedProxies(env.TRUSTED_PROXIES)
  */
 export const REQUEST_ID_HEADER = 'x-request-id'
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 /**
- * Fastify request-id generator: reuse an incoming correlation id when present,
- * otherwise mint a UUID. The value becomes Fastify's `req.id`, which `nestjs-pino`
- * surfaces as `reqId` on every log line for that request.
+ * Fastify request-id generator: reuse an incoming correlation id when it is a
+ * UUID, otherwise mint one (#183: a client can't give log lines a chosen id or
+ * inject text through it). The value becomes Fastify's `req.id`, which
+ * `nestjs-pino` surfaces as `reqId` on every log line for that request.
  */
 export const genReqId = (req: { headers: IncomingHttpHeaders }): string => {
-  const existing = req.headers[REQUEST_ID_HEADER]
-  return (Array.isArray(existing) ? existing[0] : existing) ?? randomUUID()
+  const header = req.headers[REQUEST_ID_HEADER]
+  const existing = Array.isArray(header) ? header[0] : header
+  return existing !== undefined && UUID.test(existing)
+    ? existing.toLowerCase()
+    : randomUUID()
 }
 
 /**
