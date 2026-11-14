@@ -46,7 +46,7 @@ export class DashboardController {
   @ApiOperation({
     summary: 'Monthly cash flow and month-end net worth',
     description:
-      'The last `months` calendar months (Europe/Paris), current month included, oldest first: income, expenses and net (transfers excluded) and the net worth at each month end.',
+      'The last `months` calendar months (Europe/Paris), current month included, oldest first: income, expenses and net (transfers excluded) and the net worth at each month end, with the balance of each account (and its type) behind it.',
   })
   @ApiQuery({ type: DashboardHistoryQueryDto })
   @ApiOkResponse({ type: DashboardHistoryDto })

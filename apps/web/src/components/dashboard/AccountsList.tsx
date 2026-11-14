@@ -90,6 +90,24 @@ export function AccountsList({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
+        <Link
+          to={ROUTES.netWorth}
+          className="bg-muted/50 hover:bg-muted focus-visible:ring-ring flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 rounded-md px-3 py-2.5 outline-none focus-visible:ring-2"
+        >
+          <span className="min-w-[7rem] flex-1">
+            <span className="block text-sm font-medium">Patrimoine net</span>
+            <span className="text-muted-foreground block text-xs">
+              Évolution et répartition
+            </span>
+          </span>
+          <span className="ml-auto flex items-center gap-1 font-semibold whitespace-nowrap tabular-nums">
+            {formatCents(netWorth.totalCents)}
+            <ChevronRightIcon
+              aria-hidden
+              className="text-muted-foreground size-4 shrink-0"
+            />
+          </span>
+        </Link>
         {GROUPS.map(({ group, title, total }) => {
           const items = accounts.filter((account) => account.group === group)
           if (items.length === 0) return null

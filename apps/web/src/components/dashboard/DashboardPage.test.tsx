@@ -170,6 +170,7 @@ const history: DashboardHistoryDto = {
       expenseCents: 0,
       netCents: 0,
       netWorthCents: null,
+      accounts: [],
     },
     {
       month: '2026-10',
@@ -177,6 +178,7 @@ const history: DashboardHistoryDto = {
       expenseCents: -200_000,
       netCents: 100_000,
       netWorthCents: 1_600_000,
+      accounts: [],
     },
     {
       month: '2026-11',
@@ -184,6 +186,7 @@ const history: DashboardHistoryDto = {
       expenseCents: -240_000,
       netCents: 60_000,
       netWorthCents: 1_623_456,
+      accounts: [],
     },
   ],
 }
@@ -534,6 +537,18 @@ describe('DashboardPage', () => {
     ).toHaveAttribute('href', `/accounts/${pea.id}`)
     expect(investments).toHaveTextContent('PEA / compte-titres')
     expect(investments).toHaveTextContent('Solde inconnu')
+  })
+
+  it('opens the net worth page from the accounts card and the chart', async () => {
+    renderPage()
+
+    const total = await screen.findByRole('link', { name: /Patrimoine net/ })
+    expect(total).toHaveAttribute('href', '/net-worth')
+    expect(total).toHaveTextContent(euros(1_623_456))
+    expect(await screen.findByRole('link', { name: 'Détail' })).toHaveAttribute(
+      'href',
+      '/net-worth',
+    )
   })
 
   it('updates an investment value in three taps from the accounts list', async () => {

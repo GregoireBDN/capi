@@ -2,6 +2,7 @@ export const ROUTES = {
   home: '/',
   auth: '/auth',
   dashboard: '/dashboard',
+  netWorth: '/net-worth',
   spending: '/spending',
   transactions: '/transactions',
   review: '/review',

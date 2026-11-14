@@ -239,6 +239,20 @@ export class DashboardOverviewDto {
   reviewCount!: number
 }
 
+export class HistoryAccountBalanceDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  accountId!: string
+
+  @ApiProperty({ enum: ACCOUNT_TYPES, enumName: 'AccountType' })
+  type!: AccountType
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Balance of the account at the end of the month, in cents.',
+  })
+  balanceCents!: number
+}
+
 export class HistoryMonthDto {
   @ApiProperty({ type: String, example: '2026-11', description: 'YYYY-MM.' })
   month!: string
@@ -269,6 +283,13 @@ export class HistoryMonthDto {
       'Sum of the non-archived accounts balances at the end of the month, in cents; null when no account had a balance yet.',
   })
   netWorthCents!: number | null
+
+  @ApiProperty({
+    type: [HistoryAccountBalanceDto],
+    description:
+      'Balance of each non-archived account known at the end of the month, in display order; they add up to `netWorthCents`. Accounts without a balance yet are left out.',
+  })
+  accounts!: HistoryAccountBalanceDto[]
 }
 
 export class DashboardHistoryDto {

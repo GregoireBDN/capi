@@ -182,7 +182,9 @@ export class DashboardService {
    *   end.
    *
    * Accounts with no balance yet at a month end count for nothing; a month
-   * where no account has one gets `netWorthCents = null`.
+   * where no account has one gets `netWorthCents = null`. Each month also
+   * lists the balance of every account that had one, with its type, so the
+   * net worth can be broken down (they add up to `netWorthCents`).
    */
   async history(
     count: number,
@@ -192,13 +194,11 @@ export class DashboardService {
     }: { now?: Date; executor?: Executor } = {},
   ): Promise<DashboardHistoryDto> {
     const months = monthsUntil(currentMonth(now), count)
-    const [flows, netWorths] = await Promise.all([
+    const [flows, monthEnds] = await Promise.all([
       this.monthlyFlows(months, executor),
       Promise.all(
-        months.map(async (month) =>
-          sumBalances(
-            await this.accounts.list({ asOf: monthEnd(month) }, executor),
-          ),
+        months.map((month) =>
+          this.accounts.list({ asOf: monthEnd(month) }, executor),
         ),
       ),
     ])
@@ -211,7 +211,18 @@ export class DashboardService {
           incomeCents: flow.incomeCents,
           expenseCents: flow.expenseCents,
           netCents: flow.incomeCents + flow.expenseCents,
-          netWorthCents: netWorths[i],
+          netWorthCents: sumBalances(monthEnds[i]),
+          accounts: monthEnds[i].flatMap((account) =>
+            account.balanceCents === null
+              ? []
+              : [
+                  {
+                    accountId: account.id,
+                    type: account.type,
+                    balanceCents: account.balanceCents,
+                  },
+                ],
+          ),
         }
       }),
     }
