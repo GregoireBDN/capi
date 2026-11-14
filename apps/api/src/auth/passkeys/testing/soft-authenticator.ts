@@ -14,6 +14,8 @@ import * as crypto from 'node:crypto'
  * The responses are verified for real by `@simplewebauthn/server`.
  */
 
+type CborValue = Parameters<typeof isoCBOR.encode>[0]
+
 const FLAG_UP = 0x01
 const FLAG_UV = 0x04
 const FLAG_BE = 0x08
@@ -55,7 +57,7 @@ export class SoftAuthenticator {
 
   private cosePublicKey(): Uint8Array {
     const jwk = this.keys.publicKey.export({ format: 'jwk' })
-    const key = new Map<number, number | Uint8Array>([
+    const key = new Map<number, CborValue>([
       [1, 2], // kty: EC2
       [3, -7], // alg: ES256
       [-1, 1], // crv: P-256
@@ -97,13 +99,11 @@ export class SoftAuthenticator {
       credentialIdBytes,
       Buffer.from(this.cosePublicKey()),
     ])
-    const attestationObject = isoCBOR.encode(
-      new Map<string, string | Map<string, never> | Uint8Array>([
-        ['fmt', 'none'],
-        ['attStmt', new Map()],
-        ['authData', new Uint8Array(authData)],
-      ]),
-    )
+    const attestation = new Map<string, CborValue>()
+    attestation.set('fmt', 'none')
+    attestation.set('attStmt', new Map<string, CborValue>())
+    attestation.set('authData', new Uint8Array(authData))
+    const attestationObject = isoCBOR.encode(attestation)
     return {
       id: this.credentialId,
       rawId: this.credentialId,
