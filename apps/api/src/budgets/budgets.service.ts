@@ -11,6 +11,7 @@ import * as schema from '#/database/schema'
 import {
   budgetsTable,
   categoriesTable,
+  transactionLinesView,
   transactionsTable,
 } from '#/database/schema'
 import {
@@ -63,7 +64,7 @@ interface SpendingRow {
 
 /** `-coalesce(sum(amount) [filter (where ...)], 0)` as a JS number of cents. */
 function spentSum(condition?: SQL) {
-  const amount = transactionsTable.amountCents
+  const amount = transactionLinesView.amountCents
   const sum = condition
     ? sql`sum(${amount}) filter (where ${condition})`
     : sql`sum(${amount})`
@@ -220,7 +221,8 @@ export class BudgetsService {
     const month = today.slice(0, 7)
     const dayOfMonth = Number(today.slice(8, 10))
     const daysInMonth = Number(monthEnd(month).slice(8, 10))
-    const t = transactionsTable
+    // Lines: a split transaction counts in each of its categories.
+    const t = transactionLinesView
     const [rows, spending, categories] = await Promise.all([
       this.budgetRows(executor, month),
       executor
@@ -535,7 +537,8 @@ export class BudgetsService {
     first: string,
     last: string,
   ): Promise<SpendingRow[]> {
-    const t = transactionsTable
+    // Lines: a split transaction counts in each of its categories.
+    const t = transactionLinesView
     const month = sql<string>`to_char(${t.bookingDate}, 'YYYY-MM')`
     return executor
       .select({

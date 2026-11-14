@@ -71,3 +71,52 @@ export type CryptoPriceSource = (typeof CRYPTO_PRICE_SOURCES)[number]
  */
 export const SAVINGS_GOAL_SOURCES = ['accounts', 'manual'] as const
 export type SavingsGoalSource = (typeof SAVINGS_GOAL_SOURCES)[number]
+
+/**
+ * Where a crypto account's holdings come from: an exchange's exports
+ * (`exchange`), a self-custody wallet read from its public keys (`wallet`), or
+ * typed by hand (`manual`, the only source before #127).
+ */
+export const CRYPTO_ACCOUNT_SOURCES = ['exchange', 'wallet', 'manual'] as const
+export type CryptoAccountSource = (typeof CRYPTO_ACCOUNT_SOURCES)[number]
+
+/** Exchanges whose exports can be imported (`other` = any other one). */
+export const CRYPTO_EXCHANGE_PROVIDERS = [
+  'binance',
+  'coinbase',
+  'other',
+] as const
+export type CryptoExchangeProvider = (typeof CRYPTO_EXCHANGE_PROVIDERS)[number]
+
+/**
+ * Kind of public key of a wallet: a Bitcoin extended public key (xpub, ypub,
+ * zpub) or an EVM address (`0x…`, the same on every EVM chain).
+ */
+export const CRYPTO_KEY_FAMILIES = ['bitcoin', 'evm'] as const
+export type CryptoKeyFamily = (typeof CRYPTO_KEY_FAMILIES)[number]
+
+/** Chains a wallet key can be read on. */
+export const CRYPTO_CHAINS = [
+  'bitcoin',
+  'ethereum',
+  'arbitrum',
+  'base',
+  'optimism',
+  'polygon',
+  'bsc',
+] as const
+export type CryptoChain = (typeof CRYPTO_CHAINS)[number]
+
+/** Chains of each key family (an EVM address is the same on all of them). */
+export const CRYPTO_CHAINS_BY_FAMILY = {
+  bitcoin: ['bitcoin'],
+  evm: ['ethereum', 'arbitrum', 'base', 'optimism', 'polygon', 'bsc'],
+} as const satisfies Record<CryptoKeyFamily, readonly CryptoChain[]>
+
+/**
+ * Where a holding line comes from: an exchange export (`import`), a wallet
+ * sync (`sync`) or typed by hand (`manual`). Imports and syncs only ever
+ * replace their own lines, never manual ones.
+ */
+export const CRYPTO_HOLDING_ORIGINS = ['import', 'sync', 'manual'] as const
+export type CryptoHoldingOrigin = (typeof CRYPTO_HOLDING_ORIGINS)[number]

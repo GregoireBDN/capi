@@ -17,13 +17,25 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
+  Switch,
+  Textarea,
+  ToggleGroup,
+  ToggleGroupItem,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import type { TransactionDto } from '#/api/types.gen'
+import type {
+  MoneyDirection,
+  TransactionDto,
+  TransactionKind,
+} from '#/api/types.gen'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
+import {
+  KIND_LABELS,
+  TRANSACTION_KINDS,
+} from '#/components/transactions/labels'
 import { currentDay } from '#/lib/calendar'
 import { pickableCategories } from '#/lib/categories'
 import { formatCalendarDate, formatCents } from '#/lib/money'
@@ -32,13 +44,18 @@ import {
   afterManualExpenseChanged,
   createManualExpense,
   deleteManualExpense,
+  manualBody,
   manualExpenseErrorMessage,
   updateManualExpense,
 } from './queries'
+import { splitTransaction } from '#/components/transactions/edits'
 
 const LABEL_MAX = 255
+const NOTE_MAX = 2000
 /** Highest amount the API accepts (1 000 000 €). */
 const MAX_CENTS = 100_000_000
+/** How long a toast offering "Annuler" stays up. */
+const UNDO_TOAST_MS = 8000
 
 /** Error for the amount typed, or null when valid. */
 export function expenseAmountError(text: string): string | null {
@@ -50,51 +67,72 @@ export function expenseAmountError(text: string): string | null {
   return null
 }
 
-interface ManualExpenseSheetProps {
+/** Sign of the amount when the user did not choose one. */
+function defaultDirection(kind: TransactionKind): MoneyDirection {
+  return kind === 'income' ? 'in' : 'out'
+}
+
+const TITLES: Record<TransactionKind, [add: string, edit: string]> = {
+  expense: ['Ajouter une dépense', 'Modifier la dépense'],
+  income: ['Ajouter un revenu', 'Modifier le revenu'],
+  transfer: ['Ajouter un virement interne', 'Modifier le virement interne'],
+}
+
+interface ManualTransactionSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Category preselected when adding (e.g. the envelope tapped). */
   initialCategoryId?: string
+  /** Kind preselected when adding (default: expense). */
+  initialKind?: TransactionKind
   /** Categories listed first (the envelopes followed this month). */
   suggestedCategoryIds?: readonly string[]
-  /** The manual expense to edit; absent when adding one. */
+  /** The transaction entered by hand to edit; absent when adding one. */
   expense?: TransactionDto
 }
 
 /**
- * Notes an expense by hand during the month, or edits / deletes one: amount,
- * category, day (today by default), optional label and account (the first
- * checking account by default). The import of the bank export replaces it
- * with the matching bank row. A bottom sheet on phones, a side sheet
- * otherwise.
+ * Enters a transaction by hand, or edits / deletes one: kind (expense,
+ * income, internal transfer), amount and direction, category, day (today by
+ * default), label, account (the first checking account by default), one-off
+ * flag and note. The import of the bank export replaces it with the matching
+ * bank row. Every save offers "Annuler". A bottom sheet on phones, a side
+ * sheet otherwise.
  */
-export function ManualExpenseSheet({
+export function ManualTransactionSheet({
   open,
   onOpenChange,
   initialCategoryId,
+  initialKind = 'expense',
   suggestedCategoryIds = [],
   expense,
-}: ManualExpenseSheetProps) {
+}: ManualTransactionSheetProps) {
   const isMobile = useIsMobile()
   const queryClient = useQueryClient()
   const id = useId()
   const categories = useQuery({ ...categoriesQuery, enabled: open })
   const accounts = useQuery({ ...accountsQuery, enabled: open })
 
+  const [kind, setKind] = useState<TransactionKind>(initialKind)
+  const [direction, setDirection] = useState<MoneyDirection>(
+    defaultDirection(initialKind),
+  )
   const [amount, setAmount] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [date, setDate] = useState('')
   const [label, setLabel] = useState('')
   const [accountId, setAccountId] = useState('')
+  const [isOneOff, setIsOneOff] = useState(false)
+  const [note, setNote] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const today = currentDay()
 
-  const expenseCategories = useMemo(() => {
+  const kindCategories = useMemo(() => {
     const all = pickableCategories(
       categories.data ?? [],
       expense?.categoryId,
-    ).filter((category) => category.kind === 'expense')
+    ).filter((category) => category.kind === kind)
     const rank = (categoryKey: string) => {
       const index = suggestedCategoryIds.indexOf(categoryKey)
       return index === -1 ? suggestedCategoryIds.length : index
@@ -102,7 +140,7 @@ export function ManualExpenseSheet({
     return [...all].sort(
       (a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name, 'fr'),
     )
-  }, [categories.data, expense?.categoryId, suggestedCategoryIds])
+  }, [categories.data, expense?.categoryId, suggestedCategoryIds, kind])
 
   const cashAccounts = useMemo(
     () =>
@@ -117,8 +155,19 @@ export function ManualExpenseSheet({
   // Fresh form on every opening.
   useEffect(() => {
     if (!open) return
-    setAmount(expense ? centsToInput(-expense.amountCents) : '')
-    setCategoryId(expense?.categoryId ?? initialCategoryId ?? '')
+    const startKind = expense?.kind ?? initialKind
+    setKind(startKind)
+    setDirection(
+      expense
+        ? expense.amountCents > 0
+          ? 'in'
+          : 'out'
+        : defaultDirection(startKind),
+    )
+    setAmount(expense ? centsToInput(Math.abs(expense.amountCents)) : '')
+    setCategoryId(
+      expense ? (expense.categoryId ?? '') : (initialCategoryId ?? ''),
+    )
     setDate(expense?.bookingDate ?? currentDay())
     // A label left to its default (the category name) shows as empty.
     setLabel(
@@ -127,16 +176,19 @@ export function ManualExpenseSheet({
         : '',
     )
     setAccountId(expense?.accountId ?? '')
+    setIsOneOff(expense?.isOneOff ?? false)
+    setNote(expense?.note ?? '')
     setSubmitted(false)
-  }, [open, expense, initialCategoryId])
+  }, [open, expense, initialCategoryId, initialKind])
 
-  // Defaults once the lists are there: first category offered, first
-  // checking account. Functional updates: the reset above may have set a
-  // value in the same commit, which must win.
+  // An expense needs a category: the first one offered by default. Other
+  // kinds may stay without one (the review queue). Functional updates: the
+  // reset above may have set a value in the same commit, which must win.
   useEffect(() => {
-    if (!open || expenseCategories.length === 0) return
-    setCategoryId((current) => current || expenseCategories[0].id)
-  }, [open, expenseCategories])
+    if (!open || kind !== 'expense' || kindCategories.length === 0) return
+    if (expense && expense.kind === 'expense' && !expense.categoryId) return
+    setCategoryId((current) => current || kindCategories[0].id)
+  }, [open, kind, kindCategories, expense])
   useEffect(() => {
     if (!open || cashAccounts.length === 0) return
     const preferred =
@@ -145,6 +197,18 @@ export function ManualExpenseSheet({
     setAccountId((current) => current || preferred.id)
   }, [open, cashAccounts])
 
+  function changeKind(next: TransactionKind) {
+    setKind(next)
+    setDirection(defaultDirection(next))
+    // A category of another kind no longer fits.
+    setCategoryId((current) =>
+      categories.data?.find((category) => category.id === current)?.kind ===
+      next
+        ? current
+        : '',
+    )
+  }
+
   const amountError = expenseAmountError(amount)
   const dateError =
     date === ''
@@ -152,28 +216,55 @@ export function ManualExpenseSheet({
       : date > today
         ? 'La date ne peut pas être dans le futur'
         : null
+  const labelError =
+    !categoryId && label.trim() === ''
+      ? 'Sans catégorie, indiquez un libellé'
+      : null
+
+  function undoToast(message: string, undo: () => Promise<unknown>) {
+    toast.success(message, {
+      duration: UNDO_TOAST_MS,
+      action: {
+        label: 'Annuler',
+        onClick: () =>
+          void undo()
+            .then(() => afterManualExpenseChanged(queryClient))
+            .catch(() => toast.error('Impossible d’annuler la modification.')),
+      },
+    })
+  }
 
   const save = useMutation({
     mutationFn: () => {
       const body = {
         amountCents: parseEurosToCents(amount)!,
-        categoryId,
+        kind,
+        direction,
+        categoryId: categoryId || null,
         bookingDate: date,
         label: label.trim() || null,
         accountId,
+        isOneOff,
+        note: note.trim() || null,
       }
       return expense
         ? updateManualExpense(expense.id, body)
         : createManualExpense(body)
     },
     onSuccess: async (saved) => {
-      toast.success(
-        expense
-          ? 'Dépense modifiée'
-          : `Dépense notée : ${formatCents(-saved.amountCents)}${
-              saved.category ? ` en ${saved.category.name}` : ''
-            }`,
-      )
+      if (expense) {
+        const previous = expense
+        undoToast('Opération modifiée', () =>
+          updateManualExpense(previous.id, manualBody(previous)),
+        )
+      } else {
+        undoToast(
+          `Opération ajoutée : ${formatCents(saved.amountCents)}${
+            saved.category ? ` en ${saved.category.name}` : ''
+          }`,
+          () => deleteManualExpense(saved.id),
+        )
+      }
       onOpenChange(false)
       await afterManualExpenseChanged(queryClient)
     },
@@ -183,7 +274,14 @@ export function ManualExpenseSheet({
   const remove = useMutation({
     mutationFn: () => deleteManualExpense(expense!.id),
     onSuccess: async () => {
-      toast.success('Dépense supprimée')
+      const previous = expense!
+      undoToast('Opération supprimée', async () => {
+        // Back with a new id, and its split if it had one.
+        const created = await createManualExpense(manualBody(previous))
+        if (previous.splits.length > 0) {
+          await splitTransaction(created.id, previous.splits)
+        }
+      })
       setConfirmOpen(false)
       onOpenChange(false)
       await afterManualExpenseChanged(queryClient)
@@ -194,13 +292,16 @@ export function ManualExpenseSheet({
   function submit(event: React.FormEvent) {
     event.preventDefault()
     setSubmitted(true)
-    if (amountError || dateError || !categoryId || !accountId) return
+    if (amountError || dateError || labelError || !accountId) return
+    if (kind === 'expense' && !categoryId) return
     save.mutate()
   }
 
   const showAmountError = submitted && amountError !== null
   const showDateError = submitted && dateError !== null
+  const showLabelError = submitted && labelError !== null
   const noAccount = accounts.isSuccess && cashAccounts.length === 0
+  const [addTitle, editTitle] = TITLES[kind]
 
   return (
     <>
@@ -210,35 +311,69 @@ export function ManualExpenseSheet({
           className={
             isMobile
               ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-              : undefined
+              : 'overflow-y-auto'
           }
         >
           <SheetHeader className="pb-0">
-            <SheetTitle>
-              {expense ? 'Modifier la dépense' : 'Ajouter une dépense'}
-            </SheetTitle>
+            <SheetTitle>{expense ? editTitle : addTitle}</SheetTitle>
             <SheetDescription>
-              Notée à la main en attendant le relevé : l’import la remplacera
+              Saisie à la main en attendant le relevé : l’import la remplacera
               par l’opération de la banque, en gardant sa catégorie.
             </SheetDescription>
           </SheetHeader>
           <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
+            <Field>
+              <FieldLabel id={`${id}-kind`}>Type</FieldLabel>
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                aria-labelledby={`${id}-kind`}
+                className="w-full"
+                value={kind}
+                onValueChange={(value) => {
+                  if (value) changeKind(value as TransactionKind)
+                }}
+              >
+                {TRANSACTION_KINDS.map((option) => (
+                  <ToggleGroupItem
+                    key={option}
+                    value={option}
+                    className="flex-1"
+                  >
+                    {option === 'transfer' ? 'Virement' : KIND_LABELS[option]}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </Field>
+
             <Field data-invalid={showAmountError}>
               <FieldLabel htmlFor={`${id}-amount`}>Montant</FieldLabel>
-              <InputGroup>
-                <InputGroupInput
-                  id={`${id}-amount`}
-                  inputMode="decimal"
-                  autoComplete="off"
-                  placeholder="12,50"
-                  value={amount}
-                  aria-invalid={showAmountError}
-                  onChange={(event) => setAmount(event.target.value)}
-                />
-                <InputGroupAddon align="inline-end">
-                  <InputGroupText>€</InputGroupText>
-                </InputGroupAddon>
-              </InputGroup>
+              <div className="flex flex-wrap gap-2">
+                <InputGroup className="min-w-[7rem] flex-1">
+                  <InputGroupInput
+                    id={`${id}-amount`}
+                    inputMode="decimal"
+                    autoComplete="off"
+                    placeholder="12,50"
+                    value={amount}
+                    aria-invalid={showAmountError}
+                    onChange={(event) => setAmount(event.target.value)}
+                  />
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupText>€</InputGroupText>
+                  </InputGroupAddon>
+                </InputGroup>
+                <NativeSelect
+                  aria-label="Sens"
+                  value={direction}
+                  onChange={(event) =>
+                    setDirection(event.target.value as MoneyDirection)
+                  }
+                >
+                  <NativeSelectOption value="out">Sortie</NativeSelectOption>
+                  <NativeSelectOption value="in">Entrée</NativeSelectOption>
+                </NativeSelect>
+              </div>
               {showAmountError && <FieldError>{amountError}</FieldError>}
             </Field>
 
@@ -251,7 +386,13 @@ export function ManualExpenseSheet({
                 disabled={!categories.isSuccess}
                 onChange={(event) => setCategoryId(event.target.value)}
               >
-                {expenseCategories.map((category) => (
+                {(kind !== 'expense' ||
+                  (expense?.kind === 'expense' && !expense.categoryId)) && (
+                  <NativeSelectOption value="">
+                    Sans catégorie
+                  </NativeSelectOption>
+                )}
+                {kindCategories.map((category) => (
                   <NativeSelectOption key={category.id} value={category.id}>
                     {category.name}
                   </NativeSelectOption>
@@ -272,16 +413,22 @@ export function ManualExpenseSheet({
               {showDateError && <FieldError>{dateError}</FieldError>}
             </Field>
 
-            <Field>
+            <Field data-invalid={showLabelError}>
               <FieldLabel htmlFor={`${id}-label`}>Libellé</FieldLabel>
               <Input
                 id={`${id}-label`}
                 autoComplete="off"
                 maxLength={LABEL_MAX}
-                placeholder="Facultatif, par ex. « ciné »"
+                placeholder={
+                  categoryId
+                    ? 'Facultatif, par ex. « ciné »'
+                    : 'Par ex. « ciné »'
+                }
                 value={label}
+                aria-invalid={showLabelError}
                 onChange={(event) => setLabel(event.target.value)}
               />
+              {showLabelError && <FieldError>{labelError}</FieldError>}
             </Field>
 
             {cashAccounts.length > 1 && (
@@ -303,9 +450,35 @@ export function ManualExpenseSheet({
             )}
             {noAccount && (
               <FieldDescription>
-                Ajoutez d’abord un compte courant pour noter une dépense.
+                Ajoutez d’abord un compte courant pour saisir une opération.
               </FieldDescription>
             )}
+
+            <div className="flex min-h-11 items-center justify-between gap-3">
+              <label htmlFor={`${id}-one-off`} className="text-sm">
+                Ponctuelle
+                <span className="text-muted-foreground block text-xs">
+                  Exclue des moyennes et des abonnements
+                </span>
+              </label>
+              <Switch
+                id={`${id}-one-off`}
+                checked={isOneOff}
+                onCheckedChange={setIsOneOff}
+              />
+            </div>
+
+            <Field>
+              <FieldLabel htmlFor={`${id}-note`}>Note</FieldLabel>
+              <Textarea
+                id={`${id}-note`}
+                rows={2}
+                maxLength={NOTE_MAX}
+                placeholder="Facultatif"
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+              />
+            </Field>
 
             <div className="flex flex-col-reverse gap-2 sm:flex-row">
               {expense && (
@@ -322,7 +495,7 @@ export function ManualExpenseSheet({
                 type="submit"
                 className="sm:ml-auto"
                 loading={save.isPending}
-                disabled={!categoryId || !accountId}
+                disabled={(kind === 'expense' && !categoryId) || !accountId}
               >
                 {expense ? 'Enregistrer' : 'Ajouter'}
               </Button>
@@ -334,8 +507,8 @@ export function ManualExpenseSheet({
         <ConfirmDialog
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
-          title="Supprimer cette dépense ?"
-          description={`${formatCents(-expense.amountCents)} notés à la main le ${formatCalendarDate(expense.bookingDate)}. Elle ne comptera plus dans le budget.`}
+          title="Supprimer cette opération ?"
+          description={`${formatCents(expense.amountCents)} saisis à la main le ${formatCalendarDate(expense.bookingDate)}. Vous pourrez annuler juste après.`}
           confirmLabel="Supprimer"
           variant="danger"
           loading={remove.isPending}

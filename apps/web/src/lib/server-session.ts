@@ -56,7 +56,9 @@ export interface ServerSession {
 }
 
 /** Parses a `Cookie` request header; the first occurrence of a name wins. */
-export function parseCookieHeader(header: string | undefined): Map<string, string> {
+export function parseCookieHeader(
+  header: string | undefined,
+): Map<string, string> {
   const cookies = new Map<string, string>()
   if (!header) return cookies
   for (const part of header.split(';')) {
@@ -69,7 +71,9 @@ export function parseCookieHeader(header: string | undefined): Map<string, strin
   return cookies
 }
 
-function serializeCookieHeader(cookies: Map<string, string>): string | undefined {
+function serializeCookieHeader(
+  cookies: Map<string, string>,
+): string | undefined {
   if (cookies.size === 0) return undefined
   return [...cookies].map(([name, value]) => `${name}=${value}`).join('; ')
 }
@@ -103,8 +107,13 @@ export function applySetCookies(
 }
 
 async function sha256(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(value),
+  )
+  return Array.from(new Uint8Array(digest), (b) =>
+    b.toString(16).padStart(2, '0'),
+  ).join('')
 }
 
 interface RefreshEntry {
@@ -148,7 +157,8 @@ export async function refreshSession(
 ): Promise<RefreshOutcome> {
   const key = await sha256(refreshToken)
   const now = Date.now()
-  for (const [k, entry] of refreshes) if (!isLive(entry, now)) refreshes.delete(k)
+  for (const [k, entry] of refreshes)
+    if (!isLive(entry, now)) refreshes.delete(k)
 
   const existing = refreshes.get(key)
   if (existing) return latestRotation(await existing.outcome)
@@ -179,7 +189,10 @@ function rotatedRefreshToken(setCookies: string[]): string | undefined {
  * Follows a replayed rotation to the newest pair: replaying a token whose
  * successor was already rotated would hand out a revoked refresh token.
  */
-async function latestRotation(outcome: RefreshOutcome, depth = 5): Promise<RefreshOutcome> {
+async function latestRotation(
+  outcome: RefreshOutcome,
+  depth = 5,
+): Promise<RefreshOutcome> {
   if (!outcome.ok || depth === 0) return outcome
   const next = rotatedRefreshToken(outcome.setCookies)
   const entry = next ? refreshes.get(await sha256(next)) : undefined
@@ -188,13 +201,19 @@ async function latestRotation(outcome: RefreshOutcome, depth = 5): Promise<Refre
   return nextOutcome.ok ? latestRotation(nextOutcome, depth - 1) : outcome
 }
 
-async function requestRefresh(refreshToken: string, target: ApiTarget): Promise<RefreshOutcome> {
+async function requestRefresh(
+  refreshToken: string,
+  target: ApiTarget,
+): Promise<RefreshOutcome> {
   try {
-    const res = await (target.fetch ?? fetch)(new URL(REFRESH_PATH, target.apiUrl), {
-      method: 'POST',
-      headers: { cookie: `${REFRESH_COOKIE}=${refreshToken}` },
-      redirect: 'manual',
-    })
+    const res = await (target.fetch ?? fetch)(
+      new URL(REFRESH_PATH, target.apiUrl),
+      {
+        method: 'POST',
+        headers: { cookie: `${REFRESH_COOKIE}=${refreshToken}` },
+        redirect: 'manual',
+      },
+    )
     return {
       ok: res.ok,
       status: res.status,
@@ -203,7 +222,13 @@ async function requestRefresh(refreshToken: string, target: ApiTarget): Promise<
       body: await res.text(),
     }
   } catch {
-    return { ok: false, status: 502, setCookies: [], contentType: null, body: '' }
+    return {
+      ok: false,
+      status: 502,
+      setCookies: [],
+      contentType: null,
+      body: '',
+    }
   }
 }
 

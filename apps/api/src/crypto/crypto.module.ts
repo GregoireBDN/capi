@@ -10,11 +10,17 @@ import {
 } from './crypto.controller'
 import { CryptoService } from './crypto.service'
 import { CRYPTO_PRICE_OPTIONS, type CryptoPriceOptions } from './price-provider'
+import { WalletKeysController } from './wallet-keys/wallet-keys.controller'
+import { WalletKeysService } from './wallet-keys/wallet-keys.service'
 
 @Module({
   // AuthModule provides JwtGuard and the JwtService it depends on.
   imports: [AuthModule, AccountsModule],
-  controllers: [AccountHoldingsController, CryptoController],
+  controllers: [
+    AccountHoldingsController,
+    CryptoController,
+    WalletKeysController,
+  ],
   providers: [
     {
       provide: CRYPTO_PRICE_OPTIONS,
@@ -27,6 +33,7 @@ import { CRYPTO_PRICE_OPTIONS, type CryptoPriceOptions } from './price-provider'
     },
     CryptoPricesService,
     CryptoService,
+    WalletKeysService,
   ],
 })
 export class CryptoModule {}

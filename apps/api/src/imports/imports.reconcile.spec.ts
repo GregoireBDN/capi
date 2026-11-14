@@ -19,7 +19,7 @@ import {
   cicCsv,
   withBalances,
 } from '#/imports/testing/cic-csv-fixture'
-import { ManualExpensesService } from '#/transactions/manual-expenses.service'
+import { ManualTransactionsService } from '#/transactions/manual-transactions.service'
 import { TransactionsService } from '#/transactions/transactions.service'
 import { ImportsService } from './imports.service'
 
@@ -45,7 +45,7 @@ const NOW = new Date('2026-10-31T11:00:00Z')
 interface Fixture {
   tx: Tx
   imports: ImportsService
-  manual: ManualExpensesService
+  manual: ManualTransactionsService
   budgets: BudgetsService
   accountId: string
   outings: string
@@ -105,7 +105,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             database,
             new CategorizationRulesService(database),
           )
-          const manual = new ManualExpensesService(
+          const manual = new ManualTransactionsService(
             database,
             new TransactionsService(database),
           )

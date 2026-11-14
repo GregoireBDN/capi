@@ -15,7 +15,7 @@ import { PlusIcon } from 'lucide-react'
 import { useState } from 'react'
 import type { EnvelopeDto, EnvelopesDto } from '#/api/types.gen'
 import { formatBudgetAmount } from '#/components/budget/amount'
-import { ManualExpenseSheet } from '#/components/expenses/ManualExpenseSheet'
+import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
 import { envelopesQuery } from '#/components/expenses/queries'
 import { ROUTES } from '#/lib/routes'
 
@@ -78,7 +78,7 @@ export function MonthEnvelopes() {
           </Button>
         </CardContent>
       </Card>
-      <ManualExpenseSheet
+      <ManualTransactionSheet
         open={sheet.open}
         onOpenChange={(open) => setSheet((current) => ({ ...current, open }))}
         initialCategoryId={sheet.categoryId}

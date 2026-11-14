@@ -79,6 +79,7 @@ function holding(overrides: Partial<ValuedHoldingDto> = {}): ValuedHoldingDto {
     location: 'Coffre test',
     investedCents: 1_000_000,
     note: null,
+    origin: 'manual',
     priceEur: '40000',
     priceSource: 'provider',
     priceFetchedAt: '2026-11-06T09:55:00Z',
@@ -144,6 +145,9 @@ function accountDto(id: string, name: string): AccountDto {
     archivedAt: null,
     balanceCents: 2_000_000,
     balanceDate: '2026-11-05',
+    cryptoSource: null,
+    cryptoProvider: null,
+    cryptoSyncedAt: null,
     createdAt: NOW.toISOString(),
     updatedAt: NOW.toISOString(),
   }

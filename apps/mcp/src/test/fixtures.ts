@@ -18,6 +18,9 @@ export const checking: AccountDto = {
   archivedAt: null,
   balanceCents: 123456,
   balanceDate: '2026-11-10',
+  cryptoSource: null,
+  cryptoProvider: null,
+  cryptoSyncedAt: null,
   createdAt: stamp,
   updatedAt: stamp,
 }
@@ -88,6 +91,9 @@ export const transaction: TransactionDto = {
   isOneOff: false,
   note: null,
   manual: false,
+  originalAmountCents: null,
+  originalBookingDate: null,
+  splits: [],
   createdAt: stamp,
   updatedAt: stamp,
 }

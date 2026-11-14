@@ -124,8 +124,22 @@
     {
       "idx": 17,
       "version": "7",
-      "when": 1794650934580,
-      "tag": "0017_passkeys",
+      "when": 1794651024671,
+      "tag": "0017_manual_transactions_splits",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794653664206,
+      "tag": "0018_crypto_account_sources",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794654435706,
+      "tag": "0019_passkeys",
       "breakpoints": true
     }
   ]

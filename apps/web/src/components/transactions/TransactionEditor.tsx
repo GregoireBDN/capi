@@ -1,12 +1,19 @@
 import { Button, Field, FieldLabel, Switch, Textarea } from '@finances/ui'
 import { useEffect, useId, useState } from 'react'
-import type { CategoryDto, TransactionDto } from '#/api/types.gen'
+import type {
+  CategoryDto,
+  CorrectTransactionDto,
+  TransactionDto,
+} from '#/api/types.gen'
 import { formatCalendarDate } from '#/lib/money'
 import { Amount } from './Amount'
+import { CategoryBadge } from './CategoryBadge'
 import { CategoryPicker } from './CategoryPicker'
 import type { TransactionChanges } from './changes'
+import { ImportedCorrection } from './ImportedCorrection'
 import { KindSelect } from './KindSelect'
 import { displayLabel } from './labels'
+import { SplitEditor } from './SplitEditor'
 
 const NOTE_MAX = 2000
 
@@ -14,8 +21,14 @@ interface TransactionEditorProps {
   item: TransactionDto
   categories: readonly CategoryDto[]
   onChange: (changes: TransactionChanges) => void
-  /** Opens the editor of an expense noted by hand (amount, date, account). */
+  /** Opens the editor of a transaction entered by hand (amount, date, ...). */
   onEditManual?: () => void
+  /** "Modifier une opération importée" (amount, date; bank values kept). */
+  onCorrect?: (body: CorrectTransactionDto) => void
+  onRestoreBank?: () => void
+  /** Splits between categories (parts summing to the amount), or ends it. */
+  onSplit?: (parts: { categoryId: string; amountCents: number }[]) => void
+  onUnsplit?: () => void
 }
 
 /**
@@ -28,7 +41,12 @@ export function TransactionEditor({
   categories,
   onChange,
   onEditManual,
+  onCorrect,
+  onRestoreBank,
+  onSplit,
+  onUnsplit,
 }: TransactionEditorProps) {
+  const [splitting, setSplitting] = useState(false)
   const oneOffId = useId()
   const reviewId = useId()
   const noteId = useId()
@@ -64,8 +82,8 @@ export function TransactionEditor({
       {item.manual && (
         <div className="bg-muted/50 space-y-2 rounded-lg p-3 text-sm">
           <p className="text-muted-foreground text-xs">
-            Notée à la main : l’import du relevé la remplacera par l’opération
-            de la banque, en gardant sa catégorie et sa note.
+            Saisie à la main : l’import du relevé la remplacera par l’opération
+            de la banque, en gardant sa catégorie, sa note et sa répartition.
           </p>
           {onEditManual && (
             <Button
@@ -75,23 +93,94 @@ export function TransactionEditor({
               variant="secondary"
               onClick={onEditManual}
             >
-              Modifier ou supprimer la dépense
+              Modifier ou supprimer l’opération
             </Button>
           )}
         </div>
       )}
+      {!item.manual && onCorrect && onRestoreBank && (
+        <ImportedCorrection
+          item={item}
+          onCorrect={onCorrect}
+          onRestore={onRestoreBank}
+        />
+      )}
 
       <div className="grid gap-3">
         <Field>
-          <FieldLabel htmlFor={`${noteId}-category`}>Catégorie</FieldLabel>
-          <CategoryPicker
-            id={`${noteId}-category`}
-            categories={categories}
-            value={item.categoryId}
-            onChange={(categoryId) => onChange({ categoryId })}
-            label={`Catégorie de ${name}`}
-            className="w-full"
-          />
+          <FieldLabel htmlFor={`${noteId}-category`}>
+            {item.splits.length > 0 ? 'Répartition' : 'Catégorie'}
+          </FieldLabel>
+          {splitting && onSplit ? (
+            <SplitEditor
+              item={item}
+              categories={categories}
+              onCancel={() => setSplitting(false)}
+              onSave={(parts) => {
+                setSplitting(false)
+                onSplit(parts)
+              }}
+            />
+          ) : item.splits.length > 0 ? (
+            <div className="space-y-2">
+              <ul className="space-y-1" aria-label="Parts">
+                {item.splits.map((part) => (
+                  <li
+                    key={part.id}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <CategoryBadge category={part.category} />
+                    <Amount cents={part.amountCents} className="text-sm" />
+                  </li>
+                ))}
+              </ul>
+              {onSplit && onUnsplit && (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    outline
+                    variant="secondary"
+                    onClick={() => setSplitting(true)}
+                  >
+                    Modifier la répartition
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    ghost
+                    variant="secondary"
+                    onClick={onUnsplit}
+                  >
+                    Ne plus répartir
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <CategoryPicker
+                id={`${noteId}-category`}
+                categories={categories}
+                value={item.categoryId}
+                onChange={(categoryId) => onChange({ categoryId })}
+                label={`Catégorie de ${name}`}
+                className="w-full"
+              />
+              {onSplit && (
+                <Button
+                  type="button"
+                  size="sm"
+                  ghost
+                  variant="secondary"
+                  className="justify-self-start"
+                  onClick={() => setSplitting(true)}
+                >
+                  Répartir entre plusieurs catégories
+                </Button>
+              )}
+            </>
+          )}
         </Field>
         <Field>
           <FieldLabel htmlFor={`${noteId}-kind`}>Type</FieldLabel>

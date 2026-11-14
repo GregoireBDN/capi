@@ -28,9 +28,15 @@ import type { AccountDto, AccountType } from '#/api/types.gen'
 import {
   CryptoSourceFields,
   cryptoProviderName,
+  cryptoSourceBody,
+  EMPTY_CRYPTO_SOURCE,
   validateCryptoSource,
 } from '#/components/crypto/CryptoSourceFields'
 import type { CryptoSourceValues } from '#/components/crypto/CryptoSourceFields'
+import {
+  CRYPTO_SOURCE_LABELS,
+  walletKeyErrorMessage,
+} from '#/components/crypto/sources'
 import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { ROUTES } from '#/lib/routes'
 import { parseAmountToCents } from './amount'
@@ -108,6 +114,8 @@ interface FormErrors {
   cryptoKind?: string
   provider?: string
   otherProvider?: string
+  publicKey?: string
+  chains?: string
   value?: string
   date?: string
   contributions?: string
@@ -142,7 +150,7 @@ function validate(values: FormValues, today: string, creating: boolean) {
   if (values.institution.trim().length > NAME_MAX)
     errors.institution = '100 caractères maximum'
   if (picksCryptoProvider(values, creating))
-    Object.assign(errors, validateCryptoSource(values))
+    Object.assign(errors, validateCryptoSource(values, { withSource: true }))
   if (!creating || !startsWithValue(values.type)) return errors
   if (values.value.trim() !== '') {
     const cents = parseAmountToCents(values.value)
@@ -193,15 +201,15 @@ export function AccountEditor({
     type: defaultType,
     name: '',
     institution: '',
-    cryptoKind: '',
-    provider: '',
-    otherProvider: '',
+    ...EMPTY_CRYPTO_SOURCE,
     value: '',
     date: today,
     contributions: '',
   })
   const [nameTouched, setNameTouched] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  /** The API refused the public key (checksum, already tracked…). */
+  const [keyError, setKeyError] = useState<string>()
   const [confirmArchive, setConfirmArchive] = useState(false)
 
   // Fresh form on every opening.
@@ -211,40 +219,50 @@ export function AccountEditor({
       type: account?.type ?? defaultType,
       name: account?.name ?? optionOf(defaultType).defaultName,
       institution: account?.institution ?? '',
-      cryptoKind: '',
-      provider: '',
-      otherProvider: '',
+      ...EMPTY_CRYPTO_SOURCE,
       value: '',
       date: todayInParis(),
       contributions: '',
     })
     setNameTouched(false)
     setSubmitted(false)
+    setKeyError(undefined)
   }, [open, account, defaultType])
 
   const set = (patch: Partial<FormValues>) =>
     setValues((current) => ({ ...current, ...patch }))
 
   /** Changes what the name is proposed from, and the name if not typed. */
-  const choose = (patch: Partial<FormValues>) =>
+  const choose = (patch: Partial<FormValues>) => {
+    if ('walletKey' in patch || 'cryptoKind' in patch) setKeyError(undefined)
     setValues((current) => {
       const next = { ...current, ...patch }
       return nameTouched ? next : { ...next, name: suggestedName(next) }
     })
+  }
 
   const errors = validate(values, today, creating)
   const valid = Object.keys(errors).length === 0
-  const shown = submitted ? errors : {}
+  const shown: FormErrors = submitted
+    ? { ...errors, ...(keyError && { publicKey: keyError }) }
+    : {}
 
   const create = useMutation({
     mutationFn: async () => {
-      const created = await createAccount({
-        name: values.name.trim(),
-        type: values.type,
-        institution: picksCryptoProvider(values, true)
-          ? cryptoProviderName(values)
-          : values.institution.trim() || null,
-      })
+      const created = await createAccount(
+        picksCryptoProvider(values, true)
+          ? {
+              name: values.name.trim(),
+              type: 'crypto',
+              institution: cryptoProviderName(values) || null,
+              ...cryptoSourceBody(values),
+            }
+          : {
+              name: values.name.trim(),
+              type: values.type,
+              institution: values.institution.trim() || null,
+            },
+      )
       let valueSaved = true
       if (startsWithValue(values.type) && values.value.trim() !== '') {
         try {
@@ -278,7 +296,11 @@ export function AccountEditor({
         params: { accountId: created.id },
       })
     },
-    onError: (error) => toast.error(accountErrorMessage(error)),
+    onError: (error) => {
+      const message = walletKeyErrorMessage(error)
+      if (message) setKeyError(message)
+      toast.error(message ?? accountErrorMessage(error))
+    },
   })
 
   const rename = useMutation({
@@ -377,6 +399,7 @@ export function AccountEditor({
                 values={values}
                 errors={shown}
                 onChange={choose}
+                withSource
               />
             )}
             <Field data-invalid={shown.name !== undefined}>
@@ -401,14 +424,22 @@ export function AccountEditor({
               )}
             </Field>
             {values.type === 'crypto' ? (
-              // Set when the account is created (exchange or wallet); another
-              // one is another account.
+              // Set when the account is created (source, exchange or wallet);
+              // another one is another account.
               !creating && (
                 <div className="space-y-1 text-sm">
-                  <p className="font-medium">Plateforme ou wallet</p>
-                  <p>{account.institution ?? '—'}</p>
+                  <p className="font-medium">Source</p>
+                  <p>
+                    {[
+                      account.cryptoSource &&
+                        CRYPTO_SOURCE_LABELS[account.cryptoSource],
+                      account.institution,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || '—'}
+                  </p>
                   <p className="text-muted-foreground">
-                    Fixé à la création. Pour une autre plateforme ou un autre
+                    Fixée à la création. Pour une autre plateforme ou un autre
                     wallet, créez un nouveau compte.
                   </p>
                 </div>

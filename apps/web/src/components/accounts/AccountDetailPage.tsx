@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import type { AccountDto, SnapshotDto } from '#/api/types.gen'
+import { CryptoSourceCard } from '#/components/crypto/CryptoSourceCard'
 import { HoldingsPanel } from '#/components/crypto/HoldingsPanel'
 import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { formatCalendarDate } from '#/lib/money'
@@ -220,7 +221,15 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
         </Alert>
       )}
 
-      {crypto && <HoldingsPanel accountId={current.id} writable={writable} />}
+      {crypto && <CryptoSourceCard account={current} writable={writable} />}
+
+      {crypto && (
+        <HoldingsPanel
+          accountId={current.id}
+          writable={writable}
+          source={current.cryptoSource ?? 'manual'}
+        />
+      )}
 
       {investment ? (
         data.valueCents === null ? (
