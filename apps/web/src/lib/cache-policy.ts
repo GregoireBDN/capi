@@ -24,28 +24,38 @@ export const PAGE_CACHE_HEADERS: CacheHeaders = {
   'cache-control': 'private, no-store',
 }
 
-export function cacheHeadersFor(pathname: string): CacheHeaders {
+/** True for the `/api` proxy, whose responses keep the API's own headers. */
+export function isApiPath(pathname: string): boolean {
   return pathname === '/api' || pathname.startsWith('/api/')
-    ? API_CACHE_HEADERS
-    : PAGE_CACHE_HEADERS
 }
 
-/**
- * Applies the policy in place, so the response keeps its identity (TanStack
- * reads extra properties off redirect responses). Responses with immutable
- * headers (`Response.redirect`, raw `fetch` results) are copied instead.
- */
+export function cacheHeadersFor(pathname: string): CacheHeaders {
+  return isApiPath(pathname) ? API_CACHE_HEADERS : PAGE_CACHE_HEADERS
+}
+
 export function withCacheHeaders(
   response: Response,
   pathname: string,
 ): Response {
-  const policy = Object.entries(cacheHeadersFor(pathname))
+  return withHeaders(response, cacheHeadersFor(pathname))
+}
+
+/**
+ * Sets `headers` on the response in place, so it keeps its identity (TanStack
+ * reads extra properties off redirect responses). Responses with immutable
+ * headers (`Response.redirect`, raw `fetch` results) are copied instead.
+ */
+export function withHeaders(
+  response: Response,
+  headers: Readonly<Record<string, string>>,
+): Response {
+  const entries = Object.entries(headers)
   try {
-    for (const [name, value] of policy) response.headers.set(name, value)
+    for (const [name, value] of entries) response.headers.set(name, value)
     return response
   } catch {
     const copy = new Response(response.body, response)
-    for (const [name, value] of policy) copy.headers.set(name, value)
+    for (const [name, value] of entries) copy.headers.set(name, value)
     return copy
   }
 }

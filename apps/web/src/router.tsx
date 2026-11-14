@@ -4,6 +4,7 @@ import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query
 import './lib/api-client'
 import { PagePending } from './components/PagePending'
 import { RouteError } from './components/RouteError'
+import { getCspNonce } from './lib/csp-nonce'
 import { routeTree } from './routeTree.gen'
 
 export function getRouter() {
@@ -27,6 +28,9 @@ export function getRouter() {
     // longer than a second (the `_app` guard on a slow network).
     defaultPendingComponent: PagePending,
     defaultPendingMs: 1000,
+    // Nonce of the response's Content-Security-Policy, for TanStack's inline
+    // scripts (`src/start.ts`); the client reads it back from the page.
+    ssr: { nonce: getCspNonce() },
   })
 
   // Wraps the app in a QueryClientProvider and streams SSR-fetched queries.
