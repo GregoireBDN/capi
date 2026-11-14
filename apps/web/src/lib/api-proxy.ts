@@ -63,6 +63,63 @@ const DROPPED_RESPONSE_HEADERS = new Set([
 const LOGOUT_PATH = '/api/auth/logout'
 
 /**
+ * Largest request body the proxy forwards: the API's biggest accepted body is
+ * an import file (`IMPORT_FILE_MAX_BYTES`, 5 MB in
+ * `apps/api/src/imports/upload/multipart.ts`) plus a little multipart framing;
+ * JSON bodies are capped lower by the API itself. Anything bigger is refused
+ * with 413 before it is buffered, so an anonymous request can't make the web
+ * process hold hundreds of MB (#173).
+ */
+export const PROXY_BODY_MAX_BYTES = 5 * 1024 * 1024 + 16 * 1024
+
+export const TOO_LARGE = Symbol('too-large')
+
+function payloadTooLarge(): Response {
+  return Response.json(
+    {
+      statusCode: 413,
+      message: `Request body exceeds the ${Math.floor(PROXY_BODY_MAX_BYTES / 1024 / 1024)} MB limit`,
+    },
+    { status: 413 },
+  )
+}
+
+/**
+ * Reads the request body, at most `max` bytes. A declared `Content-Length`
+ * over the cap is refused without reading anything; a chunked body is read
+ * until it goes over the cap, then the stream is cancelled.
+ */
+export async function readCappedBody(
+  request: Request,
+  max = PROXY_BODY_MAX_BYTES,
+): Promise<ArrayBuffer | typeof TOO_LARGE> {
+  const declared = request.headers.get('content-length')
+  if (declared !== null && Number(declared) > max) return TOO_LARGE
+  if (!request.body) return new ArrayBuffer(0)
+
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > max) {
+      await reader.cancel().catch(() => undefined)
+      return TOO_LARGE
+    }
+    chunks.push(value)
+  }
+  const body = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    body.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return body.buffer
+}
+
+/**
  * Headers for the API. `X-Forwarded-For` is rebuilt from scratch with only the
  * client IP (`resolveClientIp`): taken from the incoming header when the peer
  * is a trusted proxy (Caddy), the socket address otherwise. The API trusts it
@@ -143,13 +200,15 @@ export async function proxyToApi(
   if (url.pathname === LOGOUT_PATH) forgetRefreshes()
 
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD'
+  const body = hasBody ? await readCappedBody(request) : undefined
+  if (body === TOO_LARGE) return payloadTooLarge()
   try {
     const upstream = await (target.fetch ?? fetch)(
       new URL(url.pathname + url.search, target.apiUrl),
       {
         method: request.method,
         headers: upstreamHeaders(request, url, clientIp),
-        body: hasBody ? await request.arrayBuffer() : undefined,
+        body,
         redirect: 'manual',
       },
     )
