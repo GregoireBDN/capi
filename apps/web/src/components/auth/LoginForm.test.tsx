@@ -11,14 +11,29 @@ const { authControllerLogin, navigate, refresh } = vi.hoisted(() => ({
   refresh: vi.fn(),
 }))
 
+const passkeys = vi.hoisted(() => ({
+  passkeysSupported: vi.fn(() => true),
+  passkeyAutofillSupported: vi.fn(() => Promise.resolve(false)),
+  signInWithPasskey: vi.fn(),
+  shouldOfferPasskey: vi.fn(() => Promise.resolve(false)),
+  cancelPasskeyCeremony: vi.fn(),
+}))
+
 vi.mock('#/api', () => ({ authControllerLogin }))
+vi.mock('#/lib/passkeys', () => passkeys)
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }))
 vi.mock('#/lib/auth-context', () => ({ useAuth: () => ({ refresh }) }))
 
 function setup() {
   const onSwitchToForgot = vi.fn()
-  render(<LoginForm onSwitchToForgot={onSwitchToForgot} />)
-  return { user: userEvent.setup(), onSwitchToForgot }
+  const onPasskeyOffer = vi.fn()
+  const view = render(
+    <LoginForm
+      onSwitchToForgot={onSwitchToForgot}
+      onPasskeyOffer={onPasskeyOffer}
+    />,
+  )
+  return { user: userEvent.setup(), onSwitchToForgot, onPasskeyOffer, view }
 }
 
 describe('LoginForm', () => {
@@ -26,6 +41,9 @@ describe('LoginForm', () => {
     vi.clearAllMocks()
     refresh.mockResolvedValue(undefined)
     navigate.mockResolvedValue(undefined)
+    passkeys.passkeysSupported.mockReturnValue(true)
+    passkeys.passkeyAutofillSupported.mockResolvedValue(false)
+    passkeys.shouldOfferPasskey.mockResolvedValue(false)
   })
 
   it('shows validation errors and does not call the API for invalid input', async () => {
@@ -84,5 +102,114 @@ describe('LoginForm', () => {
     )
 
     expect(onSwitchToForgot).toHaveBeenCalled()
+  })
+
+  describe('passkeys', () => {
+    it('lets the browser suggest a passkey from the email field', () => {
+      setup()
+      expect(screen.getByLabelText('Email')).toHaveAttribute(
+        'autocomplete',
+        'username webauthn',
+      )
+    })
+
+    it('signs in with the passkey button, the password form staying', async () => {
+      passkeys.signInWithPasskey.mockResolvedValue({
+        status: 'ok',
+        data: undefined,
+      })
+      const { user } = setup()
+
+      expect(screen.getByLabelText('Mot de passe')).toBeInTheDocument()
+      await user.click(
+        screen.getByRole('button', { name: 'Se connecter avec une passkey' }),
+      )
+
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith({ to: '/dashboard' }),
+      )
+      expect(passkeys.signInWithPasskey).toHaveBeenCalledWith()
+      expect(refresh).toHaveBeenCalled()
+    })
+
+    it('shows the error of a refused passkey and stays', async () => {
+      passkeys.signInWithPasskey.mockResolvedValue({
+        status: 'error',
+        message: 'Cette passkey n’est pas reconnue.',
+      })
+      const { user } = setup()
+
+      await user.click(
+        screen.getByRole('button', { name: 'Se connecter avec une passkey' }),
+      )
+
+      expect(
+        await screen.findByText('Cette passkey n’est pas reconnue.'),
+      ).toBeInTheDocument()
+      expect(navigate).not.toHaveBeenCalled()
+    })
+
+    it('says nothing when the passkey sheet is closed', async () => {
+      passkeys.signInWithPasskey.mockResolvedValue({ status: 'cancelled' })
+      const { user } = setup()
+
+      await user.click(
+        screen.getByRole('button', { name: 'Se connecter avec une passkey' }),
+      )
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: 'Se connecter avec une passkey' }),
+        ).toBeEnabled(),
+      )
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(navigate).not.toHaveBeenCalled()
+    })
+
+    it('hides the passkey button where WebAuthn is missing', () => {
+      passkeys.passkeysSupported.mockReturnValue(false)
+      setup()
+      expect(
+        screen.queryByRole('button', { name: 'Se connecter avec une passkey' }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Se connecter' }),
+      ).toBeInTheDocument()
+    })
+
+    it('waits for a passkey picked from the autofill and signs in', async () => {
+      passkeys.passkeyAutofillSupported.mockResolvedValue(true)
+      passkeys.signInWithPasskey.mockResolvedValue({
+        status: 'ok',
+        data: undefined,
+      })
+      setup()
+
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith({ to: '/dashboard' }),
+      )
+      expect(passkeys.signInWithPasskey).toHaveBeenCalledWith({
+        autofill: true,
+      })
+    })
+
+    it('cancels the autofill ceremony when leaving the page', () => {
+      const { view } = setup()
+      view.unmount()
+      expect(passkeys.cancelPasskeyCeremony).toHaveBeenCalled()
+    })
+
+    it('offers to add a passkey after a password sign-in when none exists', async () => {
+      authControllerLogin.mockResolvedValue({ error: null })
+      passkeys.shouldOfferPasskey.mockResolvedValue(true)
+      const { user, onPasskeyOffer } = setup()
+
+      await user.type(screen.getByLabelText('Email'), 'user@test.com')
+      await user.type(screen.getByLabelText('Mot de passe'), 'password123')
+      await user.click(screen.getByRole('button', { name: 'Se connecter' }))
+
+      await waitFor(() => expect(onPasskeyOffer).toHaveBeenCalled())
+      expect(navigate).not.toHaveBeenCalled()
+    })
   })
 })

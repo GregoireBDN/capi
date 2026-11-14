@@ -334,7 +334,10 @@ describe.skipIf(!process.env.DATABASE_URL)('Passkeys (HTTP)', () => {
         const response = authenticator.register(await options())
         expect((await verify(response)).statusCode).toBe(201)
         const replay = await verify(response)
-        expect(replay.statusCode).toBe(401)
+        expect(replay.statusCode).toBe(400)
+        expect(replay.json<{ message: string[] }>().message).toEqual([
+          'Invalid or expired passkey challenge',
+        ])
         expect(
           await owner.tx.select().from(webauthnCredentialsTable),
         ).toHaveLength(1)

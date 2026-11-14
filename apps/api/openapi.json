@@ -521,6 +521,283 @@
         ]
       }
     },
+    "/api/auth/passkeys/authentication/options": {
+      "post": {
+        "operationId": "PasskeysController_authenticationOptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "description": "WebAuthn options for `startRegistration()` / `startAuthentication()`."
+                }
+              }
+            }
+          },
+          "429": {
+            "description": ""
+          }
+        },
+        "summary": "Start a passkey sign-in (discoverable credential)",
+        "tags": [
+          "Passkeys"
+        ]
+      }
+    },
+    "/api/auth/passkeys/authentication/verify": {
+      "post": {
+        "description": "Sets the same `token` and `refresh_token` cookies as a password login.",
+        "operationId": "PasskeysController_authenticate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthenticatePasskeyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": true
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unknown, expired or used challenge; unknown or revoked passkey; failed verification."
+          },
+          "429": {
+            "description": ""
+          }
+        },
+        "summary": "Sign in with a passkey",
+        "tags": [
+          "Passkeys"
+        ]
+      }
+    },
+    "/api/auth/passkeys": {
+      "get": {
+        "operationId": "PasskeysController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PasskeyDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "403": {
+            "description": "Called with an access token."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "List the passkeys of the signed-in user",
+        "tags": [
+          "Passkeys"
+        ]
+      }
+    },
+    "/api/auth/passkeys/registration/options": {
+      "post": {
+        "description": "Needs a fresh session: a password or passkey sign-in within the last 5 minutes.",
+        "operationId": "PasskeysController_registrationOptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "description": "WebAuthn options for `startRegistration()` / `startAuthentication()`."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Too many passkeys."
+          },
+          "401": {
+            "description": ""
+          },
+          "403": {
+            "description": "Recent authentication required, or called with an access token."
+          },
+          "429": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Start adding a passkey",
+        "tags": [
+          "Passkeys"
+        ]
+      }
+    },
+    "/api/auth/passkeys/registration/verify": {
+      "post": {
+        "operationId": "PasskeysController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterPasskeyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Verification failed, already registered or too many."
+          },
+          "401": {
+            "description": "No session, or unknown, expired or used challenge."
+          },
+          "403": {
+            "description": "Recent authentication required, or called with an access token."
+          },
+          "429": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Save a new passkey (fresh session only)",
+        "tags": [
+          "Passkeys"
+        ]
+      }
+    },
+    "/api/auth/passkeys/{id}": {
+      "patch": {
+        "operationId": "PasskeysController_rename",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenamePasskeyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Rename a passkey",
+        "tags": [
+          "Passkeys"
+        ]
+      },
+      "delete": {
+        "description": "It can no longer sign in. The password always stays available.",
+        "operationId": "PasskeysController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Revoke a passkey",
+        "tags": [
+          "Passkeys"
+        ]
+      }
+    },
     "/api/health": {
       "get": {
         "operationId": "HealthController_check",
@@ -4685,6 +4962,88 @@
           "route",
           "statusCode",
           "createdAt"
+        ]
+      },
+      "AuthenticatePasskeyDto": {
+        "type": "object",
+        "properties": {
+          "response": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Result of `startAuthentication()` (AuthenticationResponseJSON)."
+          }
+        },
+        "required": [
+          "response"
+        ]
+      },
+      "PasskeyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "example": "iPhone"
+          },
+          "deviceType": {
+            "type": "string",
+            "description": "`multiDevice` when synced (e.g. iCloud Keychain).",
+            "example": "multiDevice"
+          },
+          "backedUp": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "deviceType",
+          "backedUp",
+          "createdAt",
+          "lastUsedAt"
+        ]
+      },
+      "RegisterPasskeyDto": {
+        "type": "object",
+        "properties": {
+          "response": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Result of `startRegistration()` (RegistrationResponseJSON)."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "iPhone"
+          }
+        },
+        "required": [
+          "response"
+        ]
+      },
+      "RenamePasskeyDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "name"
         ]
       },
       "TransactionKind": {

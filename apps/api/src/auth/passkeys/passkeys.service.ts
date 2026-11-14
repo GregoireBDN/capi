@@ -138,7 +138,9 @@ export class PasskeysService {
   /**
    * Deletes the challenge the response answers and returns it when it was
    * issued for this purpose (and user) and has not expired. Deleting first
-   * makes it single use, even when the verification then fails.
+   * makes it single use, even when the verification then fails. Refused:
+   * 401 for a sign-in, 400 for a registration (the session itself is fine,
+   * so the web client must not try to refresh it).
    */
   private async consumeChallenge(
     response: unknown,
@@ -146,9 +148,12 @@ export class PasskeysService {
     userId: string | null,
     now: Date,
   ): Promise<string> {
+    const refuse = () =>
+      purpose === 'registration'
+        ? new BadRequestException(PASSKEY_ERRORS.INVALID_CHALLENGE)
+        : new UnauthorizedException(PASSKEY_ERRORS.INVALID_CHALLENGE)
     const challenge = readChallenge(response)
-    if (!challenge)
-      throw new UnauthorizedException(PASSKEY_ERRORS.INVALID_CHALLENGE)
+    if (!challenge) throw refuse()
     const [row] = await this.db.db
       .delete(webauthnChallengesTable)
       .where(
@@ -159,7 +164,7 @@ export class PasskeysService {
       )
       .returning()
     if (!row || row.expiresAt <= now || (userId && row.userId !== userId)) {
-      throw new UnauthorizedException(PASSKEY_ERRORS.INVALID_CHALLENGE)
+      throw refuse()
     }
     return row.challenge
   }

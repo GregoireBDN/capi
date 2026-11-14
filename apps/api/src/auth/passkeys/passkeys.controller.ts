@@ -147,11 +147,10 @@ export class PasskeysController {
   @ApiBody({ type: RegisterPasskeyDto })
   @ApiOkResponse({ type: PasskeyDto })
   @ApiBadRequestResponse({
-    description: 'Verification failed, already registered or too many.',
+    description:
+      'Unknown, expired or used challenge; verification failed; already registered or too many.',
   })
-  @ApiUnauthorizedResponse({
-    description: 'No session, or unknown, expired or used challenge.',
-  })
+  @ApiUnauthorizedResponse()
   @ApiForbiddenResponse({
     description:
       'Recent authentication required, or called with an access token.',
