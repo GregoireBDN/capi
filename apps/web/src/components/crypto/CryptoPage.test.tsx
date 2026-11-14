@@ -362,10 +362,7 @@ describe('CryptoPage', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByRole('region', { name: 'Ledger test' })
-    // The header's button (the wallet card has its own).
-    await user.click(
-      screen.getAllByRole('button', { name: 'Ajouter un avoir' })[0],
-    )
+    await user.click(screen.getByRole('button', { name: 'Ajouter un avoir' }))
     const sheet = within(screen.getByRole('dialog'))
     expect(sheet.getByRole('radio', { name: 'Ledger test' })).toBeChecked()
     await user.type(sheet.getByLabelText('Actif'), 'ether')
@@ -378,6 +375,27 @@ describe('CryptoPage', () => {
       ),
     )
     expect(api.accountsControllerCreate).not.toHaveBeenCalled()
+  })
+
+  it('adds a holding to a wallet from its card, without the picker', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Ajouter un avoir à Ledger test',
+      }),
+    )
+    const sheet = within(screen.getByRole('dialog'))
+    expect(sheet.queryByRole('radio', { name: 'Ledger test' })).toBeNull()
+    await user.type(sheet.getByLabelText('Actif'), 'ether')
+    await user.click(await sheet.findByRole('button', { name: /^ETH/ }))
+    await user.type(sheet.getByLabelText('Quantité'), '1')
+    await user.click(sheet.getByRole('button', { name: 'Enregistrer' }))
+    await waitFor(() =>
+      expect(api.accountHoldingsControllerCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ path: { id: LEDGER_ID } }),
+      ),
+    )
   })
 
   it('edits a holding and sets its price by hand without the price API', async () => {

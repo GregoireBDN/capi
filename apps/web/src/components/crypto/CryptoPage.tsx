@@ -129,6 +129,7 @@ function AccountCard({
           outline
           variant="secondary"
           iconStart={<PlusIcon />}
+          aria-label={`Ajouter un avoir à ${account.name}`}
           onClick={onAdd}
         >
           Ajouter un avoir

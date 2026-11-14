@@ -108,6 +108,15 @@ const SCENARIOS: Array<Scenario> = [
       await page.getByRole('dialog').waitFor()
     },
   },
+  { name: 'crypto', path: '/crypto' },
+  {
+    name: 'crypto-holding-editor',
+    path: '/crypto',
+    step: async (page) => {
+      await clickFirst(/^Ajouter un (avoir|wallet)$/)(page)
+      await page.getByRole('dialog').waitFor()
+    },
+  },
   { name: 'forecast', path: '/forecast' },
   { name: 'import', path: '/import' },
   {
