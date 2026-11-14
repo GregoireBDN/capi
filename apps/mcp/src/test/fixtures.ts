@@ -88,6 +88,9 @@ export const transaction: TransactionDto = {
   isOneOff: false,
   note: null,
   manual: false,
+  originalAmountCents: null,
+  originalBookingDate: null,
+  splits: [],
   createdAt: stamp,
   updatedAt: stamp,
 }

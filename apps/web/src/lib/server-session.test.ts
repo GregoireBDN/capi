@@ -30,45 +30,59 @@ function createFakeApi() {
   let counter = 0
   const calls = { me: 0, refresh: 0 }
 
-  const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-    const url = new URL(input instanceof Request ? input.url : input)
-    const cookies = parseCookieHeader(new Headers(init?.headers).get('cookie') ?? undefined)
+  const fetchImpl = vi.fn(
+    async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(input instanceof Request ? input.url : input)
+      const cookies = parseCookieHeader(
+        new Headers(init?.headers).get('cookie') ?? undefined,
+      )
 
-    if (url.pathname === '/api/auth/me') {
-      calls.me++
-      const token = cookies.get('token')
-      if (token && validAccess.has(token) && !familyRevoked) return Response.json(user)
-      return Response.json({ statusCode: 401 }, { status: 401 })
-    }
-
-    if (url.pathname === '/api/auth/refresh' && init?.method === 'POST') {
-      calls.refresh++
-      // Let concurrent callers pile up before the rotation completes.
-      await new Promise((resolve) => setTimeout(resolve, 5))
-      const presented = cookies.get('refresh_token')
-      const state = presented ? refresh.get(presented) : undefined
-      if (state === 'revoked') familyRevoked = true
-      if (!presented || state !== 'valid' || familyRevoked) {
+      if (url.pathname === '/api/auth/me') {
+        calls.me++
+        const token = cookies.get('token')
+        if (token && validAccess.has(token) && !familyRevoked)
+          return Response.json(user)
         return Response.json({ statusCode: 401 }, { status: 401 })
       }
-      refresh.set(presented, 'revoked')
-      counter++
-      const access = `access-${counter}`
-      const next = `refresh-${counter}`
-      validAccess.add(access)
-      refresh.set(next, 'valid')
-      const headers = new Headers({ 'content-type': 'application/json' })
-      headers.append('set-cookie', 'refresh_token=; Max-Age=0; Path=/api/auth; HttpOnly')
-      headers.append('set-cookie', `token=${access}; Max-Age=900; Path=/; HttpOnly; SameSite=Lax`)
-      headers.append(
-        'set-cookie',
-        `refresh_token=${next}; Max-Age=2592000; Path=/; HttpOnly; SameSite=Lax`,
-      )
-      return new Response(JSON.stringify({ success: true }), { status: 200, headers })
-    }
 
-    return new Response(null, { status: 404 })
-  })
+      if (url.pathname === '/api/auth/refresh' && init?.method === 'POST') {
+        calls.refresh++
+        // Let concurrent callers pile up before the rotation completes.
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        const presented = cookies.get('refresh_token')
+        const state = presented ? refresh.get(presented) : undefined
+        if (state === 'revoked') familyRevoked = true
+        if (!presented || state !== 'valid' || familyRevoked) {
+          return Response.json({ statusCode: 401 }, { status: 401 })
+        }
+        refresh.set(presented, 'revoked')
+        counter++
+        const access = `access-${counter}`
+        const next = `refresh-${counter}`
+        validAccess.add(access)
+        refresh.set(next, 'valid')
+        const headers = new Headers({ 'content-type': 'application/json' })
+        headers.append(
+          'set-cookie',
+          'refresh_token=; Max-Age=0; Path=/api/auth; HttpOnly',
+        )
+        headers.append(
+          'set-cookie',
+          `token=${access}; Max-Age=900; Path=/; HttpOnly; SameSite=Lax`,
+        )
+        headers.append(
+          'set-cookie',
+          `refresh_token=${next}; Max-Age=2592000; Path=/; HttpOnly; SameSite=Lax`,
+        )
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers,
+        })
+      }
+
+      return new Response(null, { status: 404 })
+    },
+  )
 
   return {
     fetch: fetchImpl as unknown as typeof fetch,
@@ -127,11 +141,16 @@ describe('resolveServerSession (SSR guard)', () => {
       'refresh_token=refresh-1; Max-Age=2592000; Path=/; HttpOnly; SameSite=Lax',
     ])
     // Later API calls in the same request use the rotated pair.
-    expect(session.cookieHeader).toBe('token=access-1; theme=dark; refresh_token=refresh-1')
+    expect(session.cookieHeader).toBe(
+      'token=access-1; theme=dark; refresh_token=refresh-1',
+    )
   })
 
   it('refreshes straight away when the access cookie is gone (cookie expired with the JWT)', async () => {
-    const session = await resolveServerSession('refresh_token=refresh-0', target())
+    const session = await resolveServerSession(
+      'refresh_token=refresh-0',
+      target(),
+    )
 
     expect(session.user).toEqual(user)
     expect(api.calls.me).toBe(1) // only the retry after the rotation
@@ -139,7 +158,10 @@ describe('resolveServerSession (SSR guard)', () => {
   })
 
   it('lets a second reload work with the rotated cookies', async () => {
-    const first = await resolveServerSession('refresh_token=refresh-0', target())
+    const first = await resolveServerSession(
+      'refresh_token=refresh-0',
+      target(),
+    )
     api.expire('access-1')
 
     const second = await resolveServerSession(first.cookieHeader, target())
@@ -166,10 +188,13 @@ describe('resolveServerSession (SSR guard)', () => {
   it('does not refresh when the API is unreachable rather than unauthorized', async () => {
     const failing = vi.fn(() => Promise.reject(new Error('ECONNREFUSED')))
 
-    const session = await resolveServerSession('token=access-0; refresh_token=refresh-0', {
-      apiUrl: API_URL,
-      fetch: failing,
-    })
+    const session = await resolveServerSession(
+      'token=access-0; refresh_token=refresh-0',
+      {
+        apiUrl: API_URL,
+        fetch: failing,
+      },
+    )
 
     expect(session.user).toBeNull()
     expect(failing).toHaveBeenCalledTimes(1)
@@ -177,21 +202,31 @@ describe('resolveServerSession (SSR guard)', () => {
 
   it('shares one rotation between concurrent requests presenting the same refresh token', async () => {
     const sessions = await Promise.all(
-      Array.from({ length: 5 }, () => resolveServerSession('refresh_token=refresh-0', target())),
+      Array.from({ length: 5 }, () =>
+        resolveServerSession('refresh_token=refresh-0', target()),
+      ),
     )
 
     expect(api.calls.refresh).toBe(1)
     expect(api.familyRevoked).toBe(false)
     for (const session of sessions) {
       expect(session.user).toEqual(user)
-      expect(session.cookieHeader).toBe('token=access-1; refresh_token=refresh-1')
+      expect(session.cookieHeader).toBe(
+        'token=access-1; refresh_token=refresh-1',
+      )
     }
   })
 
   it('replays a completed rotation to a straggler within the grace window', async () => {
-    const first = await resolveServerSession('refresh_token=refresh-0', target())
+    const first = await resolveServerSession(
+      'refresh_token=refresh-0',
+      target(),
+    )
     // A request sent before the browser stored the rotated cookies.
-    const straggler = await resolveServerSession('refresh_token=refresh-0', target())
+    const straggler = await resolveServerSession(
+      'refresh_token=refresh-0',
+      target(),
+    )
 
     expect(api.calls.refresh).toBe(1)
     expect(api.familyRevoked).toBe(false)
@@ -200,16 +235,24 @@ describe('resolveServerSession (SSR guard)', () => {
   })
 
   it('replays the newest pair when the replayed rotation was itself rotated', async () => {
-    const first = await resolveServerSession('refresh_token=refresh-0', target())
+    const first = await resolveServerSession(
+      'refresh_token=refresh-0',
+      target(),
+    )
     api.expire('access-1')
     await resolveServerSession(first.cookieHeader, target()) // refresh-1 → refresh-2
 
-    const straggler = await resolveServerSession('refresh_token=refresh-0', target())
+    const straggler = await resolveServerSession(
+      'refresh_token=refresh-0',
+      target(),
+    )
 
     expect(api.calls.refresh).toBe(2)
     expect(api.familyRevoked).toBe(false)
     expect(straggler.user).toEqual(user)
-    expect(straggler.cookieHeader).toBe('token=access-2; refresh_token=refresh-2')
+    expect(straggler.cookieHeader).toBe(
+      'token=access-2; refresh_token=refresh-2',
+    )
   })
 
   it('lets the API detect reuse once the grace window is over', async () => {
@@ -217,7 +260,10 @@ describe('resolveServerSession (SSR guard)', () => {
     await resolveServerSession('refresh_token=refresh-0', target())
 
     vi.setSystemTime(Date.now() + REFRESH_GRACE_MS + 1)
-    const replay = await resolveServerSession('refresh_token=refresh-0', target())
+    const replay = await resolveServerSession(
+      'refresh_token=refresh-0',
+      target(),
+    )
 
     expect(replay.user).toBeNull()
     expect(api.calls.refresh).toBe(2)
@@ -234,7 +280,9 @@ describe('resolveServerSession (SSR guard)', () => {
 
 describe('cookie helpers', () => {
   it('parses a Cookie header, keeping the first occurrence of a name', () => {
-    const cookies = parseCookieHeader('a=1; refresh_token=new; refresh_token=old; b=x=y')
+    const cookies = parseCookieHeader(
+      'a=1; refresh_token=new; refresh_token=old; b=x=y',
+    )
     expect(cookies.get('refresh_token')).toBe('new')
     expect(cookies.get('b')).toBe('x=y')
   })

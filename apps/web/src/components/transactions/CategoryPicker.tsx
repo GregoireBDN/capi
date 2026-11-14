@@ -18,6 +18,7 @@ interface CategoryPickerProps {
   disabled?: boolean
   className?: string
   id?: string
+  size?: 'sm' | 'default'
 }
 
 /**
@@ -33,10 +34,12 @@ export function CategoryPicker({
   disabled,
   className,
   id,
+  size,
 }: CategoryPickerProps) {
   return (
     <NativeSelect
       id={id}
+      size={size}
       aria-label={label}
       value={value ?? ''}
       disabled={disabled}

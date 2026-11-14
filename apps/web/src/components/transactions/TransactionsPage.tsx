@@ -14,13 +14,15 @@ import {
 } from '@finances/ui'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowLeftRightIcon, SearchXIcon } from 'lucide-react'
+import { ArrowLeftRightIcon, PlusIcon, SearchXIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { PageHeader } from '#/components/app-shell/PageHeader'
+import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
 import { currentMonth, formatMonth } from '#/lib/calendar'
 import { accountsQuery, categoriesQuery, isTransactional } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import { BulkActionsBar } from './BulkActionsBar'
+import { isTextEntry, isUndoKey } from './keyboard'
 import type { BulkChanges } from './changes'
 import { transactionListQuery, transactionSummaryQuery } from './queries'
 import { RuleFromCorrectionDialog } from './RuleFromCorrectionDialog'
@@ -75,6 +77,19 @@ export function TransactionsPage({
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
+
+  // Ctrl/⌘+Z undoes the latest edit still offering "Annuler", unless the
+  // focus is in a text field (its own undo).
+  const undoLast = actions.undoLast
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (!isUndoKey(event) || isTextEntry(document.activeElement)) return
+      if (undoLast()) event.preventDefault()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [undoLast])
 
   const items = useMemo(
     () => list.data?.pages.flatMap((page) => page.items) ?? [],
@@ -113,10 +128,17 @@ export function TransactionsPage({
 
   return (
     <div className="@container space-y-6">
-      <PageHeader
-        title="Opérations"
-        description="Filtrez, recherchez et corrigez vos opérations."
-      />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageHeader
+          title="Opérations"
+          description="Filtrez, recherchez et corrigez vos opérations."
+        />
+        <Button onClick={() => setAddOpen(true)}>
+          <PlusIcon />
+          Ajouter une opération
+        </Button>
+      </div>
+      <ManualTransactionSheet open={addOpen} onOpenChange={setAddOpen} />
 
       {actions.offer && (
         <RuleOfferBanner
@@ -219,7 +241,14 @@ export function TransactionsPage({
             groupByDate={sort === 'date_desc' || sort === 'date_asc'}
             selected={selected}
             onSelectedChange={toggle}
-            onChange={(item, changes) => void actions.update(item, changes)}
+            actionsFor={(item) => ({
+              onChange: (changes) => void actions.update(item, changes),
+              onUpdateManual: (changes) => actions.updateManual(item, changes),
+              onCorrect: (body) => void actions.correct(item, body),
+              onRestoreBank: () => void actions.restoreBank(item),
+              onSplit: (parts) => void actions.split(item, parts),
+              onUnsplit: () => void actions.unsplit(item),
+            })}
             remaining={total - items.length}
             hasMore={list.hasNextPage}
             loadingMore={list.isFetchingNextPage}
