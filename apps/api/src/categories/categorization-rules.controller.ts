@@ -31,6 +31,7 @@ import {
   CategorizationRuleDto,
   CategorizationRulePreviewDto,
   CreateCategorizationRuleDto,
+  PreviewCategorizationRuleDto,
   ReorderCategorizationRulesDto,
   SuggestCategorizationRuleDto,
   SuggestedCategorizationRuleDto,
@@ -112,18 +113,19 @@ export class CategorizationRulesController {
   @TokenAccess('read')
   @HttpCode(200)
   @ApiOperation({
-    summary: 'Preview the effect of a new rule',
+    summary: 'Preview the effect of a new or edited rule',
     description:
-      'Counts the transactions a rule with this body would categorize once created and applied. Nothing is saved.',
+      'What saving this rule (appended last, or replacing `ruleId` at its position) and re-applying the rules would change: counts and the most recent changed transactions. Nothing is saved.',
   })
-  @ApiBody({ type: CreateCategorizationRuleDto })
+  @ApiBody({ type: PreviewCategorizationRuleDto })
   @ApiOkResponse({ type: CategorizationRulePreviewDto })
   @ApiBadRequestResponse({
     description:
       'Invalid regex, min > max, unknown category or account, or invalid body.',
   })
+  @ApiNotFoundResponse({ description: 'Unknown `ruleId`.' })
   preview(
-    @Body() dto: CreateCategorizationRuleDto,
+    @Body() dto: PreviewCategorizationRuleDto,
   ): Promise<CategorizationRulePreviewDto> {
     return this.rulesService.preview(dto)
   }

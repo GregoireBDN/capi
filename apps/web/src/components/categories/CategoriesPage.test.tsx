@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CategoryDto } from '#/api/types.gen'
 import { CategoriesPage } from './CategoriesPage'
@@ -20,6 +21,13 @@ const toast = vi.hoisted(() =>
 
 vi.mock('#/api', () => api)
 vi.mock('sonner', () => ({ toast }))
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ to, children, ...props }: { to: string; children: ReactNode }) => (
+    <a href={to} {...props}>
+      {children}
+    </a>
+  ),
+}))
 
 /** Synthetic categories only. */
 function category(

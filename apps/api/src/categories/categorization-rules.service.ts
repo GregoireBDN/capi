@@ -29,12 +29,15 @@ import {
   type TransactionKind,
   transactionsTable,
 } from '#/database/schema'
-import type {
-  ApplyCategorizationRulesResultDto,
-  CategorizationRulePreviewDto,
-  CreateCategorizationRuleDto,
-  SuggestCategorizationRuleDto,
-  UpdateCategorizationRuleDto,
+import {
+  type ApplyCategorizationRulesResultDto,
+  type CategorizationRulePreviewDto,
+  type CategorizationRulePreviewTransactionDto,
+  type CreateCategorizationRuleDto,
+  PREVIEW_SAMPLE_SIZE,
+  type PreviewCategorizationRuleDto,
+  type SuggestCategorizationRuleDto,
+  type UpdateCategorizationRuleDto,
 } from './dto/categorization-rule.dto'
 import {
   categorize,
@@ -165,44 +168,98 @@ export class CategorizationRulesService {
   }
 
   /**
-   * What creating `dto` (appended last) and then re-applying the rules would
-   * do, without saving anything: how many transactions the new rule would
-   * categorize, and how many of them would leave the review queue (those
-   * still uncategorized; see `recategorize`). Manual categorizations are
-   * never counted, as `apply` never touches them.
+   * What saving `dto` and then re-applying the rules would do, without saving
+   * anything. A new rule is appended last; with `ruleId`, `dto` replaces that
+   * rule at its position (an edit). Only this rule's effect is reported:
+   * transactions it would win (first match wins) and those it categorizes
+   * today but would no longer win. Manual categorizations are never counted,
+   * as `apply` never touches them.
    */
   async preview(
-    dto: CreateCategorizationRuleDto,
+    dto: PreviewCategorizationRuleDto,
   ): Promise<CategorizationRulePreviewDto> {
     return this.db.transaction(async (tx) => {
-      const values = newRuleValues(dto)
+      const { ruleId, ...body } = dto
+      const values = newRuleValues(body)
       await this.assertValidRule(tx, values)
       const ruleSet = await this.loadRuleSet(tx)
-      const now = new Date()
-      const candidate: SelectCategorizationRule = {
-        ...values,
-        id: PREVIEW_RULE_ID,
-        position: await this.nextPosition(tx),
-        createdAt: now,
-        updatedAt: now,
+      const existing = ruleId
+        ? ruleSet.rules.find((rule) => rule.id === ruleId)
+        : undefined
+      if (ruleId && !existing) {
+        throw new NotFoundException('Categorization rule not found')
       }
-      const rules = [...ruleSet.rules, candidate]
+      const now = new Date()
+      const candidate: SelectCategorizationRule = existing
+        ? { ...existing, ...values, updatedAt: now }
+        : {
+            ...values,
+            id: PREVIEW_RULE_ID,
+            position: await this.nextPosition(tx),
+            createdAt: now,
+            updatedAt: now,
+          }
+      const rules = [
+        ...ruleSet.rules.filter((rule) => rule.id !== candidate.id),
+        candidate,
+      ]
 
-      const result: CategorizationRulePreviewDto = {
+      const result = {
         matched: 0,
         leavingReview: 0,
+        released: 0,
+        changed: 0,
       }
+      const changed: CategorizationRulePreviewTransactionDto[] = []
       for await (const rows of this.chunks(tx, APPLY_SCOPE())) {
         for (const row of rows) {
-          // Cheap pre-check: most rows do not match the new rule at all.
-          if (!ruleMatches(candidate, row)) continue
+          const ownedToday = row.ruleId === candidate.id
+          // Cheap pre-check: most rows have nothing to do with this rule.
+          if (!ownedToday && !ruleMatches(candidate, row)) continue
           const outcome = categorize(row, rules, ruleSet.categoriesById)
-          if (outcome?.ruleId !== PREVIEW_RULE_ID) continue
-          result.matched++
-          if (row.needsReview && row.categoryId === null) result.leavingReview++
+          const wins = outcome?.ruleId === candidate.id
+          if (!wins && !ownedToday) continue
+          if (wins) {
+            result.matched++
+            if (row.needsReview && row.categoryId === null) {
+              result.leavingReview++
+            }
+          } else {
+            result.released++
+          }
+          const nextCategoryId = outcome?.categoryId ?? null
+          const nextKind = outcome
+            ? outcome.kind
+            : row.categoryId === null
+              ? row.kind
+              : defaultKind(row.amountCents)
+          if (nextCategoryId === row.categoryId && nextKind === row.kind) {
+            continue
+          }
+          result.changed++
+          changed.push({
+            id: row.id,
+            bookingDate: row.bookingDate,
+            accountId: row.accountId,
+            rawLabel: row.rawLabel,
+            merchant: row.merchant,
+            amountCents: row.amountCents,
+            categoryId: row.categoryId,
+            kind: row.kind,
+            nextCategoryId,
+            nextKind,
+          })
         }
       }
-      return result
+      changed.sort(
+        (a, b) =>
+          b.bookingDate.localeCompare(a.bookingDate) ||
+          a.id.localeCompare(b.id),
+      )
+      return {
+        ...result,
+        transactions: changed.slice(0, PREVIEW_SAMPLE_SIZE),
+      }
     })
   }
 
@@ -425,6 +482,7 @@ export class CategorizationRulesService {
       const rows = await executor
         .select({
           id: transactionsTable.id,
+          bookingDate: transactionsTable.bookingDate,
           accountId: transactionsTable.accountId,
           rawLabel: transactionsTable.rawLabel,
           merchant: transactionsTable.merchant,

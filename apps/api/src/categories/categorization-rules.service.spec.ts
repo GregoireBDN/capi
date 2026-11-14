@@ -262,6 +262,32 @@ describe.skipIf(!process.env.DATABASE_URL)(
         })
       })
 
+      it('keeps a strict order: new rules go after the reordered ones', async () => {
+        await withFixture(async ({ service, groceries }) => {
+          const a = await service.create({
+            labelPattern: 'AAA',
+            categoryId: groceries,
+          })
+          const b = await service.create({
+            labelPattern: 'BBB',
+            categoryId: groceries,
+          })
+          await service.reorder([b.id, a.id])
+          await service.reorder([a.id, b.id])
+          const c = await service.create({
+            labelPattern: 'CCC',
+            categoryId: groceries,
+          })
+
+          const rules = await service.list()
+          expect(rules.map((r) => [r.id, r.position])).toEqual([
+            [a.id, 0],
+            [b.id, 1],
+            [c.id, 2],
+          ])
+        })
+      })
+
       it('rejects a list that is not exactly the current rules', async () => {
         await withFixture(async ({ service, groceries }) => {
           const a = await service.create({
@@ -375,6 +401,46 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
             // Idempotent: a second run changes nothing.
             expect((await service.apply()).updated).toBe(0)
+          },
+        )
+      })
+
+      it('follows the order: the first matching rule wins, also after a reorder', async () => {
+        await withFixture(
+          async ({ tx, service, accountId, groceries, salary }) => {
+            const broad = await service.create({
+              labelPattern: 'FAKEMART',
+              categoryId: groceries,
+            })
+            const narrow = await service.create({
+              labelPattern: 'FAKEMART CARTE',
+              categoryId: salary,
+              kind: 'expense',
+            })
+            const disabled = await service.create({
+              labelPattern: 'FAKEMART',
+              categoryId: salary,
+            })
+            await service.reorder([disabled.id, broad.id, narrow.id])
+            await service.update(disabled.id, { enabled: false })
+            const [row] = await tx
+              .insert(transactionsTable)
+              .values(transaction(accountId, { needsReview: true }))
+              .returning()
+
+            await service.apply()
+            expect(await reload(tx, row.id)).toMatchObject({
+              categoryId: groceries,
+              ruleId: broad.id,
+            })
+
+            await service.reorder([disabled.id, narrow.id, broad.id])
+            await service.apply()
+            expect(await reload(tx, row.id)).toMatchObject({
+              categoryId: salary,
+              ruleId: narrow.id,
+              kind: 'expense',
+            })
           },
         )
       })
@@ -556,7 +622,21 @@ describe.skipIf(!process.env.DATABASE_URL)(
               categoryId: groceries,
             })
 
-            expect(preview).toEqual({ matched: 3, leavingReview: 2 })
+            expect(preview).toMatchObject({
+              matched: 3,
+              leavingReview: 2,
+              released: 0,
+              changed: 3,
+            })
+            expect(preview.transactions).toHaveLength(3)
+            expect(
+              preview.transactions.every(
+                (t) =>
+                  t.categoryId === null &&
+                  t.nextCategoryId === groceries &&
+                  t.nextKind === 'expense',
+              ),
+            ).toBe(true)
             expect(await service.list()).toHaveLength(1)
 
             // Creating and applying the rule does what the preview said.
@@ -572,6 +652,149 @@ describe.skipIf(!process.env.DATABASE_URL)(
             expect(inReview).toHaveLength(2)
           },
         )
+      })
+
+      it('previews an edited rule at its own position, with released rows', async () => {
+        await withFixture(
+          async ({ tx, service, accountId, groceries, salary, savings }) => {
+            const first = await service.create({
+              labelPattern: 'FAKEMART EXPRESS',
+              categoryId: salary,
+            })
+            const edited = await service.create({
+              labelPattern: 'FAKEMART',
+              categoryId: groceries,
+            })
+            const fallback = await service.create({
+              labelPattern: 'CB',
+              categoryId: savings,
+            })
+            const [kept, released, newlyMatched, earlierWins] = await tx
+              .insert(transactionsTable)
+              .values([
+                // Owned today, still matched: moves to the new category.
+                transaction(accountId, {
+                  bookingDate: '2026-01-10',
+                  rawLabel: 'CB FAKEMART DRIVE 0101',
+                  categoryId: groceries,
+                  ruleId: edited.id,
+                }),
+                // Owned today, no longer matched: the next rule takes it.
+                transaction(accountId, {
+                  bookingDate: '2026-02-10',
+                  rawLabel: 'CB FAKEMART CITY 0202',
+                  categoryId: groceries,
+                  ruleId: edited.id,
+                }),
+                // Uncategorized, in review: matched once edited.
+                transaction(accountId, {
+                  bookingDate: '2026-03-10',
+                  rawLabel: 'FAKEMART DRIVE 0303',
+                  needsReview: true,
+                }),
+                // The earlier rule still wins.
+                transaction(accountId, {
+                  bookingDate: '2026-04-10',
+                  rawLabel: 'FAKEMART EXPRESS DRIVE 0404',
+                  categoryId: salary,
+                  ruleId: first.id,
+                  kind: 'income',
+                }),
+              ])
+              .returning()
+
+            const preview = await service.preview({
+              ruleId: edited.id,
+              labelPattern: 'fakemart drive',
+              categoryId: salary,
+            })
+
+            expect(preview).toMatchObject({
+              matched: 2,
+              leavingReview: 1,
+              released: 1,
+              changed: 3,
+            })
+            // Most recent first; the row the earlier rule wins is not listed.
+            expect(
+              preview.transactions.map((t) => [
+                t.id,
+                t.categoryId,
+                t.nextCategoryId,
+                t.nextKind,
+              ]),
+            ).toEqual([
+              [newlyMatched.id, null, salary, 'income'],
+              [released.id, groceries, savings, 'transfer'],
+              [kept.id, groceries, salary, 'income'],
+            ])
+            expect(preview.transactions.map((t) => t.id)).not.toContain(
+              earlierWins.id,
+            )
+
+            // Nothing was saved.
+            expect(await service.findOne(edited.id)).toMatchObject({
+              labelPattern: 'FAKEMART',
+              categoryId: groceries,
+            })
+
+            // Saving and applying does what the preview said.
+            await service.update(edited.id, {
+              labelPattern: 'fakemart drive',
+              categoryId: salary,
+            })
+            await service.apply()
+            expect(await reload(tx, released.id)).toMatchObject({
+              categoryId: savings,
+              ruleId: fallback.id,
+            })
+            expect(await reload(tx, newlyMatched.id)).toMatchObject({
+              categoryId: salary,
+              ruleId: edited.id,
+              needsReview: false,
+            })
+          },
+        )
+      })
+
+      it('counts a disabled rule as releasing what it categorized', async () => {
+        await withFixture(async ({ tx, service, accountId, groceries }) => {
+          const rule = await service.create({
+            labelPattern: 'FAKEMART',
+            categoryId: groceries,
+          })
+          await tx.insert(transactionsTable).values(
+            transaction(accountId, {
+              categoryId: groceries,
+              ruleId: rule.id,
+            }),
+          )
+
+          const preview = await service.preview({
+            ruleId: rule.id,
+            labelPattern: 'FAKEMART',
+            categoryId: groceries,
+            enabled: false,
+          })
+
+          expect(preview).toMatchObject({ matched: 0, released: 1, changed: 1 })
+          expect(preview.transactions[0]).toMatchObject({
+            nextCategoryId: null,
+            nextKind: 'expense',
+          })
+        })
+      })
+
+      it('404s on an unknown rule id', async () => {
+        await withFixture(async ({ service, groceries }) => {
+          await expect(
+            service.preview({
+              ruleId: '00000000-0000-4000-8000-000000000000',
+              labelPattern: 'FAKEMART',
+              categoryId: groceries,
+            }),
+          ).rejects.toBeInstanceOf(NotFoundException)
+        })
       })
 
       it('validates the rule like create does', async () => {

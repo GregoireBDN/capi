@@ -1088,7 +1088,7 @@
     },
     "/api/categorization-rules/preview": {
       "post": {
-        "description": "Counts the transactions a rule with this body would categorize once created and applied. Nothing is saved.",
+        "description": "What saving this rule (appended last, or replacing `ruleId` at its position) and re-applying the rules would change: counts and the most recent changed transactions. Nothing is saved.",
         "operationId": "CategorizationRulesController_preview",
         "parameters": [],
         "requestBody": {
@@ -1096,7 +1096,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateCategorizationRuleDto"
+                "$ref": "#/components/schemas/PreviewCategorizationRuleDto"
               }
             }
           }
@@ -1117,6 +1117,9 @@
           },
           "401": {
             "description": ""
+          },
+          "404": {
+            "description": "Unknown `ruleId`."
           }
         },
         "security": [
@@ -1124,7 +1127,7 @@
             "token": []
           }
         ],
-        "summary": "Preview the effect of a new rule",
+        "summary": "Preview the effect of a new or edited rule",
         "tags": [
           "Categorization rules"
         ]
@@ -4688,21 +4691,168 @@
           "merchant"
         ]
       },
+      "PreviewCategorizationRuleDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "matchType": {
+            "description": "`contains`: case-, accent- and punctuation-insensitive substring of the raw label or merchant. `regex`: case-insensitive regular expression tested against the raw label and merchant.",
+            "default": "contains",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RuleMatchType"
+              }
+            ]
+          },
+          "labelPattern": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "minAmountCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "maxAmountCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "nullable": true,
+            "description": "Overrides the category's kind when set (e.g. `transfer` for a move to one of the user's own accounts).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
+          },
+          "merchant": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          },
+          "ruleId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Existing rule this body would replace. Omitted: a new rule appended last."
+          }
+        },
+        "required": [
+          "labelPattern",
+          "categoryId"
+        ]
+      },
+      "CategorizationRulePreviewTransactionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bookingDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rawLabel": {
+            "type": "string"
+          },
+          "merchant": {
+            "type": "string",
+            "nullable": true
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Signed integer cents."
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Current category (null: uncategorized)."
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
+          },
+          "nextCategoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Category once the rules are re-applied (null: no rule matches, back to review)."
+          },
+          "nextKind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "bookingDate",
+          "accountId",
+          "rawLabel",
+          "merchant",
+          "amountCents",
+          "categoryId",
+          "kind",
+          "nextCategoryId",
+          "nextKind"
+        ]
+      },
       "CategorizationRulePreviewDto": {
         "type": "object",
         "properties": {
           "matched": {
             "type": "integer",
-            "description": "Transactions the rule would categorize if it were created (last) and the rules re-applied. Manual categorizations are never counted."
+            "description": "Transactions the rule would categorize once saved and the rules re-applied (first match wins). Manual categorizations are never counted."
           },
           "leavingReview": {
             "type": "integer",
             "description": "Of those, transactions that would leave the review queue (uncategorized ones waiting for review)."
+          },
+          "released": {
+            "type": "integer",
+            "description": "Transactions the rule categorizes today that it would no longer win (they go to the next matching rule, or back to review). Always 0 for a new rule."
+          },
+          "changed": {
+            "type": "integer",
+            "description": "Transactions whose category or kind would change because of this rule (matched or released)."
+          },
+          "transactions": {
+            "description": "The changed transactions, most recent first, at most 20.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategorizationRulePreviewTransactionDto"
+            }
           }
         },
         "required": [
           "matched",
-          "leavingReview"
+          "leavingReview",
+          "released",
+          "changed",
+          "transactions"
         ]
       },
       "ApplyCategorizationRulesResultDto": {
