@@ -121,11 +121,12 @@ The owner's pre-app history (a Google Sheet, ~3,250 categorized rows since 07/20
 
 ## Monorepo structure
 
-pnpm + Turborepo monorepo with three apps and three shared packages:
+pnpm + Turborepo monorepo with four apps and three shared packages:
 
 - `apps/api` — NestJS backend (Fastify adapter), port 4000, all routes prefixed with `/api`
 - `apps/web` — React 19 + TanStack Start (SSR), port 3000
 - `apps/ui-docs` — Storybook v9 for the `@finances/ui` component library, port 6006
+- `apps/mcp` — `@finances/mcp`, local MCP server (stdio) for Claude Desktop / Claude Code, see MCP server below
 - `packages/shared` — `@finances/shared`, shared Zod schemas used by both apps
 - `packages/ui` — `@finances/ui`, the Radix + Tailwind component library consumed by `apps/web` and documented by `apps/ui-docs`
 - `packages/config-typescript` — shared TypeScript configs (`base.json`, `nestjs.json`, `react.json`)
@@ -232,6 +233,16 @@ File-based routing via TanStack Router — routes live in `apps/web/src/routes/`
   - **Updates**: a new worker waits; the app shows a "Nouvelle version disponible" toast and, on "Recharger", the worker skips waiting and open pages reload. Waiting (rather than `skipWaiting` on install) keeps an open old page from lazy-loading chunks that the new deploy no longer serves. Installed apps re-check for updates when brought back to the foreground (at most hourly).
 - **HTTP cache policy**: the API sends `Cache-Control: no-store` (+ `Pragma: no-cache`, `Expires: 0`) on every `/api` response (`onSend` hook, `apps/api/src/common/http/no-store.ts`). On the web server, a global request middleware in `apps/web/src/start.ts` applies `lib/cache-policy.ts` to everything the Start handler answers: `/api/*` (proxy) gets the same headers, every page and server function (signed-in pages, `/auth`, `/`, redirects, errors) gets `private, no-store`, so nothing private lands in the HTTP or back/forward cache. Static files are served by Nitro before that handler: `/assets/*` keeps `public, max-age=31536000, immutable`, `sw.js` and `manifest.json` get `no-cache` (Nitro `routeRules` in `vite.config.ts`) so deploys are picked up. Logout answers `Clear-Site-Data: "cache"` only: `"storage"` would unregister the service worker and wipe its non-sensitive shell cache and the theme preference, and the session cookies are already cleared explicitly. `src/start.ts` replaces Start's default request middleware, so it restates the CSRF middleware for server functions: keep it.
 - **Testing**: unit tests cover the routing/precache logic. To check the worker itself, `pnpm --filter @finances/web build` and run `node .output/server/index.mjs` against a throwaway database, open `http://localhost:3000` (secure context), then in DevTools > Application inspect the manifest, the service worker and Cache Storage (only `finances-shell-*` with `/assets/*` and shell files), and tick "Offline" to see the offline page.
+
+## MCP server (`apps/mcp`)
+
+Local MCP server for Claude Desktop / Claude Code (official TypeScript SDK, stdio transport, setup in [`apps/mcp/README.md`](apps/mcp/README.md)). Configured with `FINANCES_API_URL` and `FINANCES_API_TOKEN` (a `read` personal access token). Rules:
+
+- **API only**: tools call `GET /api/*` with `Authorization: Bearer`, never the database or `apps/web` code. Read-only tools only (writes are out of scope, #76); a tool must keep working with a `read` token.
+- **Types** come from `apps/api/openapi.json` via `@hey-api/openapi-ts` (types only) into the git-ignored `src/api/generated/` (`@finances/mcp#generate` depends on `@finances/api#generate`); the fetch client is `src/api/client.ts`, which maps 401/403/429/5xx/unreachable to French messages returned as tool errors.
+- **Output**: French text, euros formatted from cents at the edge (`src/format.ts`), calendar dates as `dd/mm/yyyy` without time zone conversion, "today" in Europe/Paris; partial months are stated with `periodNote`. Small input schemas (≤ 10 fields), names rather than ids for accounts and categories (`tools/lookup.ts`).
+- **Privacy**: stdout is the MCP channel (ESLint forbids `console.log`); stderr gets only a tool name and an HTTP status, never arguments, outputs, amounts, labels or the token.
+- **Tests**: Vitest with synthetic fixtures through a real MCP client over `InMemoryTransport` and a mocked `fetch` (`src/test/mock-api.ts`); no database.
 
 ## Component library (`@finances/ui` + `apps/ui-docs`)
 
