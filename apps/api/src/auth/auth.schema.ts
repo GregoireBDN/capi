@@ -40,6 +40,12 @@ export const refreshTokensTable = pgTable('refresh_tokens', {
   tokenHash: varchar('token_hash', { length: 255 }).notNull().unique(),
   expiresAt: timestamp('expires_at').notNull(),
   revokedAt: timestamp('revoked_at'),
+  /**
+   * When the user last proved who they are (password or passkey) in this
+   * family; copied on every rotation and put in the access JWT as `auth_time`
+   * for routes that need a fresh session. Null for sessions older than #100.
+   */
+  authenticatedAt: timestamp('authenticated_at'),
 })
 
 export type PasswordResetToken = typeof passwordResetTokensTable.$inferSelect

@@ -55,7 +55,13 @@ export class JwtGuard implements CanActivate {
     const token = request.cookies?.['token']
     if (!token) throw new UnauthorizedException()
     try {
-      request.user = { sub: this.jwt.verify<{ sub: string }>(token).sub }
+      const payload = this.jwt.verify<{ sub: string; auth_time?: unknown }>(
+        token,
+      )
+      request.user =
+        typeof payload.auth_time === 'number'
+          ? { sub: payload.sub, authTime: payload.auth_time }
+          : { sub: payload.sub }
       return true
     } catch {
       throw new UnauthorizedException()
