@@ -98,7 +98,10 @@ export const cryptoWalletKeysTable = pgTable(
   },
   (t) => [
     index().on(t.accountId),
-    check('crypto_wallet_keys_chains_not_empty', sql`cardinality(${t.chains}) > 0`),
+    check(
+      'crypto_wallet_keys_chains_not_empty',
+      sql`cardinality(${t.chains}) > 0`,
+    ),
   ],
 )
 

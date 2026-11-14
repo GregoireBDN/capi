@@ -79,7 +79,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
       for (const statement of statements) await sql.unsafe(statement)
     }
 
-    async function inRollback(fn: (sql: postgres.TransactionSql) => Promise<void>) {
+    async function inRollback(
+      fn: (sql: postgres.TransactionSql) => Promise<void>,
+    ) {
       await client
         .begin(async (sql) => {
           await fn(sql)

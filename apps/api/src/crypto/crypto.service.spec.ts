@@ -481,7 +481,12 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
       await expect(crypto.remove(id, synced.id, NOW)).rejects.toBeInstanceOf(
         BadRequestException,
       )
-      await crypto.update(id, manual.id, { ...BTC, quantity: '0.02', location: 'Ledger' }, NOW)
+      await crypto.update(
+        id,
+        manual.id,
+        { ...BTC, quantity: '0.02', location: 'Ledger' },
+        NOW,
+      )
 
       const listed = await crypto.holdings(id, NOW)
       expect(

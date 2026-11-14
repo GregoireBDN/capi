@@ -39,6 +39,7 @@ function holding(overrides: Partial<ValuedHoldingDto> = {}): ValuedHoldingDto {
     location: 'Portefeuille test',
     investedCents: 100_000,
     note: null,
+    origin: 'manual',
     priceEur: '10.5',
     priceSource: 'provider',
     priceFetchedAt: '2026-11-06T09:57:00Z',

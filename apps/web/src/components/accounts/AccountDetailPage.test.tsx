@@ -7,6 +7,8 @@ import type {
   AccountDto,
   AccountPerformanceDto,
   SnapshotDto,
+  ValuedHoldingDto,
+  WalletKeyDto,
 } from '#/api/types.gen'
 import { AccountDetailPage } from './AccountDetailPage'
 
@@ -17,6 +19,9 @@ const api = vi.hoisted(() => ({
   accountSnapshotsControllerRemove: vi.fn(),
   accountSnapshotsControllerBulk: vi.fn(),
   accountHoldingsControllerList: vi.fn(),
+  walletKeysControllerList: vi.fn(),
+  walletKeysControllerAdd: vi.fn(),
+  walletKeysControllerRemove: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
@@ -67,6 +72,9 @@ function account(overrides: Partial<AccountDto> = {}): AccountDto {
     archivedAt: null,
     balanceCents: 1_250_000,
     balanceDate: '2026-09-30',
+    cryptoSource: null,
+    cryptoProvider: null,
+    cryptoSyncedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
@@ -160,6 +168,7 @@ describe('AccountDetailPage', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.unstubAllGlobals()
   })
 
   it('shows the value, contributions, gain and changes', async () => {
@@ -434,9 +443,264 @@ describe('AccountDetailPage', () => {
     renderPage()
     expect(await screen.findByText('Compte introuvable')).toBeInTheDocument()
   })
+  function mockCrypto(
+    overrides: Partial<AccountDto>,
+    holdings: ValuedHoldingDto[] = [],
+  ) {
+    api.accountsControllerFindOne.mockImplementation(() =>
+      ok(
+        account({
+          type: 'crypto',
+          name: 'Crypto test',
+          balanceCents: null,
+          cryptoSource: 'manual',
+          ...overrides,
+        }),
+      ),
+    )
+    api.accountSnapshotsControllerPerformance.mockImplementation(() =>
+      ok(
+        performance({
+          type: 'crypto',
+          valueCents: null,
+          valueDate: null,
+          contributionsCents: null,
+          contributionsDate: null,
+          gainCents: null,
+          returnRate: null,
+          sincePrevious: null,
+          sinceOneYear: null,
+          daysSinceLatest: null,
+          stale: false,
+          snapshots: [],
+        }),
+      ),
+    )
+    api.accountHoldingsControllerList.mockImplementation(() =>
+      ok({
+        accountId: ACCOUNT_ID,
+        holdings,
+        totals: {
+          valueCents: holdings.reduce((sum, h) => sum + (h.valueCents ?? 0), 0),
+          investedCents: null,
+          gainCents: null,
+          missingPriceCount: 0,
+          staleCount: 0,
+          withoutInvestedCount: 0,
+        },
+        complete: true,
+        snapshot: null,
+        priceApiEnabled: true,
+        refreshFailed: false,
+      }),
+    )
+  }
+
+  function holding(overrides: Partial<ValuedHoldingDto>): ValuedHoldingDto {
+    return {
+      id: 'h0000000-0000-4000-8000-000000000001',
+      accountId: ACCOUNT_ID,
+      assetId: 'bitcoin',
+      symbol: 'BTC',
+      name: 'Bitcoin',
+      quantity: '0.5',
+      location: '',
+      investedCents: null,
+      note: null,
+      origin: 'manual',
+      priceEur: '60000',
+      priceSource: 'provider',
+      priceFetchedAt: new Date().toISOString(),
+      priceStale: false,
+      valueCents: 3_000_000,
+      gainCents: null,
+      ...overrides,
+    }
+  }
+
+  /** Public test vectors only (BIP32 test vector 1, EIP-55 example). */
+  function walletKey(overrides: Partial<WalletKeyDto>): WalletKeyDto {
+    return {
+      id: 'k0000000-0000-4000-8000-000000000001',
+      accountId: ACCOUNT_ID,
+      family: 'bitcoin',
+      publicKey:
+        'xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8',
+      chains: ['bitcoin'],
+      label: null,
+      createdAt: '2026-11-01T10:00:00.000Z',
+      ...overrides,
+    }
+  }
+
+  it('shows the source of an exchange account and keeps imported holdings read-only', async () => {
+    mockCrypto(
+      {
+        cryptoSource: 'exchange',
+        cryptoProvider: 'binance',
+        institution: 'Binance',
+      },
+      [
+        holding({ id: 'h-import', origin: 'import', location: '' }),
+        holding({
+          id: 'h-manual',
+          symbol: 'ETH',
+          name: 'Ethereum',
+          location: 'Carte test',
+        }),
+      ],
+    )
+    renderPage()
+
+    const source = await screen.findByRole('region', {
+      name: 'Source des avoirs',
+    })
+    expect(
+      within(source).getByText('Plateforme d’échange · Binance'),
+    ).toBeInTheDocument()
+    expect(
+      within(source).getByText('Dernier import : jamais'),
+    ).toBeInTheDocument()
+    // The import itself comes later (#128): shown, not available yet.
+    expect(
+      within(source).getByRole('button', { name: 'Importer un export' }),
+    ).toBeDisabled()
+    expect(within(source).getByText(/Bientôt disponible/)).toBeInTheDocument()
+
+    const list = await screen.findByRole('list', { name: 'Avoirs' })
+    // The imported line is read-only, the line typed by hand opens its editor.
+    expect(within(list).getByText('Importé')).toBeInTheDocument()
+    expect(within(list).getByText('Saisi à la main')).toBeInTheDocument()
+    expect(
+      within(list).queryByRole('button', { name: /^Modifier BTC/ }),
+    ).not.toBeInTheDocument()
+    expect(
+      within(list).getByRole('button', { name: 'Modifier ETH · Carte test' }),
+    ).toBeInTheDocument()
+  })
+
+  it('lists the public keys of a wallet account and adds one', async () => {
+    // Radix Checkbox measures itself; jsdom has no ResizeObserver (left
+    // undefined elsewhere: the charts fall back without it).
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    )
+    const user = userEvent.setup()
+    mockCrypto(
+      {
+        cryptoSource: 'wallet',
+        institution: 'Ledger',
+        cryptoSyncedAt: '2026-11-05T09:30:00.000Z',
+      },
+      [holding({ origin: 'sync' })],
+    )
+    api.walletKeysControllerList.mockImplementation(() =>
+      ok([
+        walletKey({ label: 'Épargne' }),
+        walletKey({
+          id: 'k-evm',
+          family: 'evm',
+          publicKey: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
+          chains: ['ethereum', 'base'],
+        }),
+      ]),
+    )
+    api.walletKeysControllerAdd.mockImplementation(
+      ({ body }: { body: { publicKey: string } }) =>
+        ok(walletKey({ id: 'k-new', publicKey: body.publicKey }), 201),
+    )
+    api.walletKeysControllerRemove.mockImplementation(() =>
+      Promise.resolve({
+        data: undefined,
+        response: new Response(null, { status: 204 }),
+      }),
+    )
+    renderPage()
+
+    const source = await screen.findByRole('region', {
+      name: 'Source des avoirs',
+    })
+    expect(within(source).getByText('Wallet · Ledger')).toBeInTheDocument()
+    expect(
+      text(within(source).getByText(/^Dernière synchronisation/).textContent),
+    ).toBe('Dernière synchronisation : 5 novembre 2026 à 10:30')
+    expect(
+      within(source).getByRole('button', { name: 'Synchroniser' }),
+    ).toBeDisabled()
+
+    // Keys are shown masked, with their label and chains.
+    const keys = await within(source).findByRole('list', {
+      name: 'Clés publiques',
+    })
+    expect(within(keys).getByText('xpub661M…GMcet8')).toBeInTheDocument()
+    expect(within(keys).getByText('Épargne · Bitcoin')).toBeInTheDocument()
+    expect(within(keys).getByText('0x5aAeb6…1BeAed')).toBeInTheDocument()
+    expect(within(keys).getByText('Ethereum, Base')).toBeInTheDocument()
+    // The synced line is read-only.
+    expect(screen.getByText('Synchronisé')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /^Modifier BTC/ }),
+    ).not.toBeInTheDocument()
+
+    await user.click(
+      within(source).getByRole('button', { name: 'Ajouter une clé' }),
+    )
+    const sheet = await screen.findByRole('dialog', {
+      name: 'Ajouter une clé publique',
+    })
+    await user.click(within(sheet).getByLabelText('Clé publique'))
+    await user.paste('0xfb6916095ca1df60bb79ce92ce3ea74c37c5d359')
+    await user.click(within(sheet).getByRole('checkbox', { name: 'Polygon' }))
+    await user.type(
+      within(sheet).getByLabelText('Libellé (facultatif)'),
+      'Compte 2',
+    )
+    await user.click(
+      within(sheet).getByRole('button', { name: 'Ajouter la clé' }),
+    )
+    await waitFor(() =>
+      expect(api.walletKeysControllerAdd).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { id: ACCOUNT_ID },
+          body: {
+            publicKey: '0xfb6916095ca1df60bb79ce92ce3ea74c37c5d359',
+            chains: ['ethereum', 'polygon'],
+            label: 'Compte 2',
+          },
+        }),
+      ),
+    )
+
+    // Removing a key asks first.
+    await user.click(
+      within(keys).getByRole('button', {
+        name: 'Retirer la clé 0x5aAeb6…1BeAed',
+      }),
+    )
+    await user.click(await screen.findByRole('button', { name: 'Retirer' }))
+    await waitFor(() =>
+      expect(api.walletKeysControllerRemove).toHaveBeenCalledWith(
+        expect.objectContaining({ path: { id: ACCOUNT_ID, keyId: 'k-evm' } }),
+      ),
+    )
+  })
+
   it('lists the holdings of a crypto account instead of the empty state', async () => {
     api.accountsControllerFindOne.mockImplementation(() =>
-      ok(account({ type: 'crypto', name: 'Crypto test', balanceCents: null })),
+      ok(
+        account({
+          type: 'crypto',
+          name: 'Crypto test',
+          balanceCents: null,
+          cryptoSource: 'manual',
+          institution: 'Ledger',
+        }),
+      ),
     )
     api.accountSnapshotsControllerPerformance.mockImplementation(() =>
       ok(
@@ -480,6 +744,12 @@ describe('AccountDetailPage', () => {
     expect(
       screen.getByRole('region', { name: 'Avoirs crypto' }),
     ).toBeInTheDocument()
+    // Typed by hand: no import or sync action.
+    const source = screen.getByRole('region', { name: 'Source des avoirs' })
+    expect(
+      within(source).getByText('Saisie manuelle · Ledger'),
+    ).toBeInTheDocument()
+    expect(within(source).queryByRole('button')).not.toBeInTheDocument()
     expect(
       screen.queryByText('Aucune valeur pour ce compte'),
     ).not.toBeInTheDocument()

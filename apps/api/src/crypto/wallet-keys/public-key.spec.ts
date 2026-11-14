@@ -21,10 +21,7 @@ function sha256(data: Buffer): Buffer {
 
 /** Independent base58check encoder, to build fake extended keys. */
 function base58check(payload: Buffer): string {
-  const data = Buffer.concat([
-    payload,
-    sha256(sha256(payload)).subarray(0, 4),
-  ])
+  const data = Buffer.concat([payload, sha256(sha256(payload)).subarray(0, 4)])
   let value = BigInt(`0x${data.toString('hex')}`)
   let out = ''
   while (value > 0n) {
@@ -194,9 +191,10 @@ describe('checkPublicKey: EVM addresses', () => {
       ok: false,
       error: 'format',
     })
-    expect(
-      checkPublicKey('5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed'),
-    ).toEqual({ ok: false, error: 'format' })
+    expect(checkPublicKey('5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed')).toEqual({
+      ok: false,
+      error: 'format',
+    })
   })
 
   it('refuses raw private keys', () => {

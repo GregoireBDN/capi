@@ -405,9 +405,7 @@ export class CryptoService {
       .limit(1)
     if (!row) throw new NotFoundException('Holding not found')
     if (row.origin !== 'manual') {
-      throw new BadRequestException(
-        'Imported or synced holdings are read-only',
-      )
+      throw new BadRequestException('Imported or synced holdings are read-only')
     }
   }
 

@@ -37,7 +37,8 @@ export function prepareWalletKeys(
     if (!check.ok) {
       throw new BadRequestException(PUBLIC_KEY_ERROR_MESSAGES[check.error])
     }
-    const allowed: readonly CryptoChain[] = CRYPTO_CHAINS_BY_FAMILY[check.family]
+    const allowed: readonly CryptoChain[] =
+      CRYPTO_CHAINS_BY_FAMILY[check.family]
     const chains = input.chains ?? [allowed[0]]
     if (chains.some((chain) => !allowed.includes(chain))) {
       throw new BadRequestException(

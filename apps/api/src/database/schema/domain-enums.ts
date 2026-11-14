@@ -81,7 +81,11 @@ export const CRYPTO_ACCOUNT_SOURCES = ['exchange', 'wallet', 'manual'] as const
 export type CryptoAccountSource = (typeof CRYPTO_ACCOUNT_SOURCES)[number]
 
 /** Exchanges whose exports can be imported (`other` = any other one). */
-export const CRYPTO_EXCHANGE_PROVIDERS = ['binance', 'coinbase', 'other'] as const
+export const CRYPTO_EXCHANGE_PROVIDERS = [
+  'binance',
+  'coinbase',
+  'other',
+] as const
 export type CryptoExchangeProvider = (typeof CRYPTO_EXCHANGE_PROVIDERS)[number]
 
 /**

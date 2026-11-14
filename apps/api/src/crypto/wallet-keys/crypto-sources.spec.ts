@@ -163,10 +163,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         const cases: [string, string][] = [
           [XPRV, 'This is a private key'],
           [`${XPUB.slice(0, 30)}a${XPUB.slice(31)}`, 'checksum is wrong'],
-          [
-            '0xFB6916095ca1df60bB79Ce92cE3Ea74c37c5d359',
-            'checksum is wrong',
-          ],
+          ['0xFB6916095ca1df60bB79Ce92cE3Ea74c37c5d359', 'checksum is wrong'],
           [Array(12).fill('abandon').join(' '), 'recovery phrase'],
           ['not a key', 'Not a Bitcoin xpub'],
         ]
@@ -274,9 +271,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
         await expect(keys.remove(wallet.id, left[0].id)).rejects.toThrow(
           'at least one public key',
         )
-        await expect(
-          keys.remove(wallet.id, first.id),
-        ).rejects.toBeInstanceOf(NotFoundException)
+        await expect(keys.remove(wallet.id, first.id)).rejects.toBeInstanceOf(
+          NotFoundException,
+        )
       })
     })
 

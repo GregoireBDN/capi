@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common'
 import { and, asc, eq } from 'drizzle-orm'
 import { AccountsService } from '#/accounts/accounts.service'
 import { DatabaseService } from '#/database/database.service'

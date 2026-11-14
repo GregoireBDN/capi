@@ -190,7 +190,8 @@ export class CreateAccountDto {
   @ApiPropertyOptional({
     enum: CRYPTO_EXCHANGE_PROVIDERS,
     enumName: 'CryptoExchangeProvider',
-    description: 'Required for an `exchange` crypto account, refused otherwise.',
+    description:
+      'Required for an `exchange` crypto account, refused otherwise.',
   })
   @IsOptional()
   @IsIn(CRYPTO_EXCHANGE_PROVIDERS)
