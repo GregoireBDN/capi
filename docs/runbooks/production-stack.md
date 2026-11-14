@@ -153,6 +153,21 @@ SMTP is optional in production:
 
 `EMAIL_FROM` must be an address the SMTP provider accepts. Links in emails use `APP_URL`.
 
+## Wallet sync (crypto)
+
+Wallet crypto accounts can be read on chain from their public keys (#129). It is **off by default** (`WALLET_SYNC_ENABLED=false`): nothing is sent, wallet accounts are filled by hand. Read [ADR 0002](../adr/0002-wallet-sync-privacy.md) before turning it on: the chain endpoints then receive the wallet's addresses and can link them to the server's IP.
+
+| What is sent                                                                 | To                                                   | Setting                                 |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------- | --------------------------------------- |
+| Bitcoin addresses derived on the server (never the xpub), one per request    | Esplora, `mempool.space/api` by default              | `ESPLORA_URL`                           |
+| EVM address + token contracts (`eth_chainId`, `eth_getBalance`, `balanceOf`) | publicnode.com JSON-RPC per chain by default         | `EVM_RPC_URLS` (JSON keyed by chain id) |
+| Token asset ids (contracts and decimals lookup, cached 24 h)                 | CoinGecko (only when `PRICE_API_ENABLED` is also on) | `PRICE_API_URL`                         |
+
+- **Turn on**: set `WALLET_SYNC_ENABLED=true` in `.env`, then `dc up -d api`. Each wallet is synced before a valuation at most every `WALLET_SYNC_INTERVAL_SECONDS` (600) and with "Synchroniser" on its account page (at most every 30 s).
+- **Self-hosted endpoints**: `ESPLORA_URL=https://my-esplora/api`, `EVM_RPC_URLS={"1":"https://my-node/rpc","56":""}` (`""` turns a chain off; ids: 1 Ethereum, 42161 Arbitrum, 8453 Base, 10 Optimism, 137 Polygon, 56 BNB Chain). The API refuses to boot on an unknown chain id or a non-http(s) URL.
+- **Failures**: a timeout (`WALLET_SYNC_TIMEOUT_MS`, default 10 s), a rate limit or a wrong chain id keeps the last synced holdings, shown as stale on the account page. Logs say `Wallet sync failed (<reason>)` (`timeout`, `network`, `rate_limited`, `http`, `malformed`, `rpc`, `wrong_chain`, `tokens`) and never contain addresses or URLs.
+- **Turn off**: `WALLET_SYNC_ENABLED=false` and `dc up -d api`. Synced lines stay as they are (shown as last synced); add manual lines to keep the accounts up to date.
+
 ## Client IPs and trusted proxies
 
 Caddy sets `X-Forwarded-For`. `web` believes it only from peers in `TRUSTED_PROXIES` and forwards a clean header to `api`, which applies the same rule to `web` (#49). The default (`loopback,uniquelocal`) is right for this stack. If you narrow it, include both the `proxy` network and the project network: `docker network inspect proxy finances_default --format '{{.Name}} {{range .IPAM.Config}}{{.Subnet}}{{end}}'`.
