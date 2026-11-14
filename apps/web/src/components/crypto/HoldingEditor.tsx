@@ -10,6 +10,8 @@ import {
   InputGroupAddon,
   InputGroupInput,
   InputGroupText,
+  RadioCard,
+  RadioCardGroup,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -21,10 +23,25 @@ import {
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { SearchIcon } from 'lucide-react'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import type { CryptoAssetDto, ValuedHoldingDto } from '#/api/types.gen'
+import type {
+  AccountDto,
+  CryptoAssetDto,
+  ValuedHoldingDto,
+} from '#/api/types.gen'
 import { centsToInput, parseAmountToCents } from '#/components/accounts/amount'
+import { createAccount } from '#/components/accounts/queries'
+import {
+  CryptoSourceFields,
+  cryptoProviderName,
+  EMPTY_CRYPTO_SOURCE,
+  validateCryptoSource,
+} from './CryptoSourceFields'
+import type {
+  CryptoSourceErrors,
+  CryptoSourceValues,
+} from './CryptoSourceFields'
 import { holdingErrorMessage } from './errors'
 import { decimalToInput, parsePriceInput, parseQuantityInput } from './format'
 import {
@@ -37,20 +54,29 @@ import {
 
 const NOTE_MAX = 500
 const SEARCH_DELAY_MS = 300
+/** "Nouveau wallet ou plateforme" in the account picker. */
+const NEW_ACCOUNT = 'new'
 
 type Asset = Pick<CryptoAssetDto, 'id' | 'symbol' | 'name'>
 
 interface HoldingEditorProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  accountId: string
+  /**
+   * Account of the new holding. When undefined (and no `holding`), the owner
+   * picks one of `accounts` or sets up a new exchange or wallet, created on
+   * save.
+   */
+  accountId?: string
+  /** Open crypto accounts to pick from when `accountId` is undefined. */
+  accounts?: readonly Pick<AccountDto, 'id' | 'name'>[]
   /** Edit this holding, or add one when undefined. */
   holding?: ValuedHoldingDto
   /** Without the price API, prices are entered by hand. */
   priceApiEnabled: boolean
 }
 
-interface FormErrors {
+interface FormErrors extends CryptoSourceErrors {
   asset?: string
   quantity?: string
   invested?: string
@@ -145,12 +171,15 @@ function AssetPicker({
 /**
  * Adds, corrects or deletes a holding: an asset, where it is held, the
  * quantity (French decimal comma accepted) and optionally the amount
- * invested. A manual price can be set when prices are not fetched.
+ * invested. A manual price can be set when prices are not fetched. Without
+ * an account, it first asks which one, or which new exchange or wallet: the
+ * crypto account is then created on save, so a first holding takes one step.
  */
 export function HoldingEditor({
   open,
   onOpenChange,
   accountId,
+  accounts = [],
   holding,
   priceApiEnabled,
 }: HoldingEditorProps) {
@@ -165,6 +194,12 @@ export function HoldingEditor({
   const [note, setNote] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  /** Picked account id, or `NEW_ACCOUNT`. */
+  const [target, setTarget] = useState('')
+  const [source, setSource] = useState<CryptoSourceValues>(EMPTY_CRYPTO_SOURCE)
+  /** Account created by a save whose holding then failed: reused on retry. */
+  const created = useRef<AccountDto | null>(null)
+  const picksAccount = holding === undefined && accountId === undefined
 
   // Fresh form on every opening.
   useEffect(() => {
@@ -185,11 +220,16 @@ export function HoldingEditor({
         : '',
     )
     setNote(holding?.note ?? '')
+    setTarget(accounts.at(0)?.id ?? NEW_ACCOUNT)
+    setSource(EMPTY_CRYPTO_SOURCE)
+    created.current = null
     setSubmitted(false)
+    // `accounts` only seeds the picker when the sheet opens.
   }, [open, holding])
 
   const showPrice = !priceApiEnabled || (holding && holding.priceEur === null)
-  const errors: FormErrors = {}
+  const errors: FormErrors =
+    picksAccount && target === NEW_ACCOUNT ? validateCryptoSource(source) : {}
   if (!asset) errors.asset = 'Choisissez un actif'
   if (quantity.trim() === '') errors.quantity = 'Indiquez la quantité'
   else if (parseQuantityInput(quantity) === null)
@@ -204,7 +244,19 @@ export function HoldingEditor({
 
   const save = useMutation({
     mutationFn: async () => {
-      const saved = await saveHolding(accountId, holding?.id, {
+      let targetId = holding?.accountId ?? accountId ?? target
+      if (picksAccount && target === NEW_ACCOUNT) {
+        if (!created.current) {
+          const name = cryptoProviderName(source)
+          created.current = await createAccount({
+            name,
+            type: 'crypto',
+            institution: name,
+          })
+        }
+        targetId = created.current.id
+      }
+      const saved = await saveHolding(targetId, holding?.id, {
         assetId: asset!.id,
         symbol: asset!.symbol,
         name: asset!.name,
@@ -224,11 +276,15 @@ export function HoldingEditor({
       onOpenChange(false)
       await afterHoldingsChanged(queryClient)
     },
-    onError: (error) => toast.error(holdingErrorMessage(error)),
+    onError: (error) => {
+      toast.error(holdingErrorMessage(error))
+      // The new account exists even though its holding failed.
+      if (created.current) void afterHoldingsChanged(queryClient)
+    },
   })
 
   const remove = useMutation({
-    mutationFn: () => removeHolding(accountId, holding!.id),
+    mutationFn: () => removeHolding(holding!.accountId, holding!.id),
     onSuccess: async () => {
       toast.success(`${holding!.symbol} supprimé`)
       setConfirmOpen(false)
@@ -263,9 +319,52 @@ export function HoldingEditor({
                 ? `${holding.symbol} · ${holding.name}`
                 : 'Ajouter un avoir'}
             </SheetTitle>
-            <SheetDescription>Quantité détenue sur ce compte.</SheetDescription>
+            <SheetDescription>
+              {picksAccount
+                ? 'Où il est détenu, puis la quantité.'
+                : 'Quantité détenue sur ce compte.'}
+            </SheetDescription>
           </SheetHeader>
           <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
+            {picksAccount && accounts.length > 0 && (
+              <fieldset className="space-y-2">
+                <legend
+                  id={`${id}-account-legend`}
+                  className="mb-2 text-sm font-medium"
+                >
+                  Compte
+                </legend>
+                <RadioCardGroup
+                  aria-labelledby={`${id}-account-legend`}
+                  className="grid-cols-1 sm:grid-cols-2"
+                  value={target}
+                  onValueChange={setTarget}
+                >
+                  {accounts.map((account) => (
+                    <RadioCard
+                      key={account.id}
+                      value={account.id}
+                      className="font-medium break-words"
+                    >
+                      {account.name}
+                    </RadioCard>
+                  ))}
+                  <RadioCard value={NEW_ACCOUNT} className="font-medium">
+                    Nouveau wallet ou plateforme
+                  </RadioCard>
+                </RadioCardGroup>
+              </fieldset>
+            )}
+            {picksAccount && target === NEW_ACCOUNT && (
+              <CryptoSourceFields
+                id={id}
+                values={source}
+                errors={shown}
+                onChange={(patch) =>
+                  setSource((current) => ({ ...current, ...patch }))
+                }
+              />
+            )}
             <Field data-invalid={shown.asset !== undefined}>
               <FieldLabel htmlFor={`${id}-asset`}>Actif</FieldLabel>
               {asset ? (

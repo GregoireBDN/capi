@@ -65,6 +65,7 @@ async function renderAt(path: string) {
     '/budget',
     '/subscriptions',
     '/savings',
+    '/crypto',
     '/accounts',
     '/accounts/$accountId',
     '/import',
@@ -101,6 +102,7 @@ describe('AppSidebar', () => {
       ['Budget', '/budget'],
       ['Abonnements', '/subscriptions'],
       ['Épargne', '/savings'],
+      ['Crypto', '/crypto'],
       ['Comptes', '/accounts'],
       ['Import', '/import'],
     ])

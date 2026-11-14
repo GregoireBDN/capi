@@ -22,10 +22,12 @@ import { Route as AppSavingsRouteImport } from './routes/_app/savings'
 import { Route as AppRulesRouteImport } from './routes/_app/rules'
 import { Route as AppReviewRouteImport } from './routes/_app/review'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
+import { Route as AppNetWorthRouteImport } from './routes/_app/net-worth'
 import { Route as AppMonthReviewRouteImport } from './routes/_app/month-review'
 import { Route as AppImportRouteImport } from './routes/_app/import'
 import { Route as AppForecastRouteImport } from './routes/_app/forecast'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
+import { Route as AppCryptoRouteImport } from './routes/_app/crypto'
 import { Route as AppCategoriesRouteImport } from './routes/_app/categories'
 import { Route as AppBudgetRouteImport } from './routes/_app/budget'
 import { Route as AppAccountsIndexRouteImport } from './routes/_app/accounts.index'
@@ -95,6 +97,11 @@ const AppProfileRoute = AppProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AppRoute,
 } as any)
+const AppNetWorthRoute = AppNetWorthRouteImport.update({
+  id: '/net-worth',
+  path: '/net-worth',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppMonthReviewRoute = AppMonthReviewRouteImport.update({
   id: '/month-review',
   path: '/month-review',
@@ -113,6 +120,11 @@ const AppForecastRoute = AppForecastRouteImport.update({
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCryptoRoute = AppCryptoRouteImport.update({
+  id: '/crypto',
+  path: '/crypto',
   getParentRoute: () => AppRoute,
 } as any)
 const AppCategoriesRoute = AppCategoriesRouteImport.update({
@@ -143,10 +155,12 @@ export interface FileRoutesByFullPath {
   '/verify-email': typeof VerifyEmailRoute
   '/budget': typeof AppBudgetRoute
   '/categories': typeof AppCategoriesRoute
+  '/crypto': typeof AppCryptoRoute
   '/dashboard': typeof AppDashboardRoute
   '/forecast': typeof AppForecastRoute
   '/import': typeof AppImportRoute
   '/month-review': typeof AppMonthReviewRoute
+  '/net-worth': typeof AppNetWorthRoute
   '/profile': typeof AppProfileRoute
   '/review': typeof AppReviewRoute
   '/rules': typeof AppRulesRoute
@@ -165,10 +179,12 @@ export interface FileRoutesByTo {
   '/verify-email': typeof VerifyEmailRoute
   '/budget': typeof AppBudgetRoute
   '/categories': typeof AppCategoriesRoute
+  '/crypto': typeof AppCryptoRoute
   '/dashboard': typeof AppDashboardRoute
   '/forecast': typeof AppForecastRoute
   '/import': typeof AppImportRoute
   '/month-review': typeof AppMonthReviewRoute
+  '/net-worth': typeof AppNetWorthRoute
   '/profile': typeof AppProfileRoute
   '/review': typeof AppReviewRoute
   '/rules': typeof AppRulesRoute
@@ -189,10 +205,12 @@ export interface FileRoutesById {
   '/verify-email': typeof VerifyEmailRoute
   '/_app/budget': typeof AppBudgetRoute
   '/_app/categories': typeof AppCategoriesRoute
+  '/_app/crypto': typeof AppCryptoRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/forecast': typeof AppForecastRoute
   '/_app/import': typeof AppImportRoute
   '/_app/month-review': typeof AppMonthReviewRoute
+  '/_app/net-worth': typeof AppNetWorthRoute
   '/_app/profile': typeof AppProfileRoute
   '/_app/review': typeof AppReviewRoute
   '/_app/rules': typeof AppRulesRoute
@@ -213,10 +231,12 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/budget'
     | '/categories'
+    | '/crypto'
     | '/dashboard'
     | '/forecast'
     | '/import'
     | '/month-review'
+    | '/net-worth'
     | '/profile'
     | '/review'
     | '/rules'
@@ -235,10 +255,12 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/budget'
     | '/categories'
+    | '/crypto'
     | '/dashboard'
     | '/forecast'
     | '/import'
     | '/month-review'
+    | '/net-worth'
     | '/profile'
     | '/review'
     | '/rules'
@@ -258,10 +280,12 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/_app/budget'
     | '/_app/categories'
+    | '/_app/crypto'
     | '/_app/dashboard'
     | '/_app/forecast'
     | '/_app/import'
     | '/_app/month-review'
+    | '/_app/net-worth'
     | '/_app/profile'
     | '/_app/review'
     | '/_app/rules'
@@ -376,6 +400,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProfileRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/net-worth': {
+      id: '/_app/net-worth'
+      path: '/net-worth'
+      fullPath: '/net-worth'
+      preLoaderRoute: typeof AppNetWorthRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/month-review': {
       id: '/_app/month-review'
       path: '/month-review'
@@ -402,6 +433,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AppDashboardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/crypto': {
+      id: '/_app/crypto'
+      path: '/crypto'
+      fullPath: '/crypto'
+      preLoaderRoute: typeof AppCryptoRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/categories': {
@@ -438,10 +476,12 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppBudgetRoute: typeof AppBudgetRoute
   AppCategoriesRoute: typeof AppCategoriesRoute
+  AppCryptoRoute: typeof AppCryptoRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppForecastRoute: typeof AppForecastRoute
   AppImportRoute: typeof AppImportRoute
   AppMonthReviewRoute: typeof AppMonthReviewRoute
+  AppNetWorthRoute: typeof AppNetWorthRoute
   AppProfileRoute: typeof AppProfileRoute
   AppReviewRoute: typeof AppReviewRoute
   AppRulesRoute: typeof AppRulesRoute
@@ -456,10 +496,12 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppBudgetRoute: AppBudgetRoute,
   AppCategoriesRoute: AppCategoriesRoute,
+  AppCryptoRoute: AppCryptoRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppForecastRoute: AppForecastRoute,
   AppImportRoute: AppImportRoute,
   AppMonthReviewRoute: AppMonthReviewRoute,
+  AppNetWorthRoute: AppNetWorthRoute,
   AppProfileRoute: AppProfileRoute,
   AppReviewRoute: AppReviewRoute,
   AppRulesRoute: AppRulesRoute,

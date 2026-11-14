@@ -23,7 +23,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { PencilIcon, PlusIcon, RefreshCwIcon, WifiOffIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import type { ValuedHoldingDto } from '#/api/types.gen'
+import type { HoldingsTotalsDto, ValuedHoldingDto } from '#/api/types.gen'
 import { afterSnapshotsChanged } from '#/components/accounts/queries'
 import { formatCents } from '#/lib/money'
 import { holdingErrorMessage } from './errors'
@@ -117,6 +117,96 @@ function HoldingRow({
   )
 }
 
+/** Prices not refreshed, or holdings without a price. */
+export function PriceAlerts({
+  refreshFailed,
+  totals,
+}: {
+  refreshFailed: boolean
+  totals: HoldingsTotalsDto
+}) {
+  const stale = refreshFailed || totals.staleCount > 0
+  return (
+    <>
+      {stale && (
+        <Alert variant="warning">
+          <WifiOffIcon aria-hidden />
+          <AlertTitle>Cours non actualisés</AlertTitle>
+          <AlertDescription>
+            Le service de cours ne répond pas : les derniers cours connus sont
+            utilisés.
+          </AlertDescription>
+        </Alert>
+      )}
+      {totals.missingPriceCount > 0 && (
+        <Alert variant="warning">
+          <AlertTitle>
+            {totals.missingPriceCount === 1
+              ? 'Un avoir sans cours'
+              : `${totals.missingPriceCount} avoirs sans cours`}
+          </AlertTitle>
+          <AlertDescription>
+            La valeur du compte n’est pas mise à jour tant qu’un cours manque :
+            saisissez-le sur l’avoir.
+          </AlertDescription>
+        </Alert>
+      )}
+    </>
+  )
+}
+
+/**
+ * Holdings with their price and value; each opens its editor when `onEdit`
+ * is given.
+ */
+export function HoldingList({
+  holdings,
+  now,
+  onEdit,
+  label = 'Avoirs',
+}: {
+  holdings: readonly ValuedHoldingDto[]
+  now: Date
+  onEdit?: (holding: ValuedHoldingDto) => void
+  label?: string
+}) {
+  return (
+    <ul className="divide-y" aria-label={label}>
+      {holdings.map((holding) => {
+        const row = 'flex items-start gap-3 py-2.5 text-left text-sm'
+        const name = [holding.symbol, holding.location]
+          .filter(Boolean)
+          .join(' · ')
+        return (
+          <li key={holding.id}>
+            {onEdit ? (
+              <button
+                type="button"
+                aria-label={`Modifier ${name}`}
+                onClick={() => onEdit(holding)}
+                className={cn(
+                  row,
+                  'hover:bg-muted/50 focus-visible:ring-ring -mx-2 w-[calc(100%+1rem)] rounded-md px-2 outline-none focus-visible:ring-2',
+                )}
+              >
+                <HoldingRow holding={holding} now={now} />
+                <PencilIcon
+                  aria-hidden
+                  className="text-muted-foreground mt-0.5 size-4 shrink-0"
+                />
+              </button>
+            ) : (
+              <div className={row}>
+                <HoldingRow holding={holding} now={now} />
+              </div>
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 /**
  * Holdings of a crypto account valued at the last known EUR prices: what is
  * held where, price and its age, value, invested and gain. Opening the page
@@ -173,33 +263,10 @@ export function HoldingsPanel({
   const data = holdings.data
   const { totals } = data
   const openAdd = () => setEditor({ open: true })
-  const stale = data.refreshFailed || totals.staleCount > 0
 
   return (
     <section aria-label="Avoirs crypto" className="space-y-3">
-      {stale && (
-        <Alert variant="warning">
-          <WifiOffIcon aria-hidden />
-          <AlertTitle>Cours non actualisés</AlertTitle>
-          <AlertDescription>
-            Le service de cours ne répond pas : les derniers cours connus sont
-            utilisés.
-          </AlertDescription>
-        </Alert>
-      )}
-      {totals.missingPriceCount > 0 && (
-        <Alert variant="warning">
-          <AlertTitle>
-            {totals.missingPriceCount === 1
-              ? 'Un avoir sans cours'
-              : `${totals.missingPriceCount} avoirs sans cours`}
-          </AlertTitle>
-          <AlertDescription>
-            La valeur du compte n’est pas mise à jour tant qu’un cours manque :
-            saisissez-le sur l’avoir.
-          </AlertDescription>
-        </Alert>
-      )}
+      <PriceAlerts refreshFailed={data.refreshFailed} totals={totals} />
 
       {data.holdings.length > 0 && (
         <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @2xl:grid-cols-3">
@@ -272,39 +339,15 @@ export function HoldingsPanel({
               )}
             </Empty>
           ) : (
-            <ul className="divide-y" aria-label="Avoirs">
-              {data.holdings.map((holding) => {
-                const row = 'flex items-start gap-3 py-2.5 text-left text-sm'
-                const label = [holding.symbol, holding.location]
-                  .filter(Boolean)
-                  .join(' · ')
-                return (
-                  <li key={holding.id}>
-                    {writable ? (
-                      <button
-                        type="button"
-                        aria-label={`Modifier ${label}`}
-                        onClick={() => setEditor({ open: true, holding })}
-                        className={cn(
-                          row,
-                          'hover:bg-muted/50 focus-visible:ring-ring -mx-2 w-[calc(100%+1rem)] rounded-md px-2 outline-none focus-visible:ring-2',
-                        )}
-                      >
-                        <HoldingRow holding={holding} now={now} />
-                        <PencilIcon
-                          aria-hidden
-                          className="text-muted-foreground mt-0.5 size-4 shrink-0"
-                        />
-                      </button>
-                    ) : (
-                      <div className={row}>
-                        <HoldingRow holding={holding} now={now} />
-                      </div>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
+            <HoldingList
+              holdings={data.holdings}
+              now={now}
+              onEdit={
+                writable
+                  ? (holding) => setEditor({ open: true, holding })
+                  : undefined
+              }
+            />
           )}
         </CardContent>
       </Card>

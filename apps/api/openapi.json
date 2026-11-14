@@ -2801,7 +2801,7 @@
     },
     "/api/dashboard/history": {
       "get": {
-        "description": "The last `months` calendar months (Europe/Paris), current month included, oldest first: income, expenses and net (transfers excluded) and the net worth at each month end.",
+        "description": "The last `months` calendar months (Europe/Paris), current month included, oldest first: income, expenses and net (transfers excluded) and the net worth at each month end, with the balance of each account (and its type) behind it.",
         "operationId": "DashboardController_history",
         "parameters": [
           {
@@ -3658,6 +3658,37 @@
           }
         ],
         "summary": "Holdings, prices, values and gains of every crypto account",
+        "tags": [
+          "Crypto"
+        ]
+      }
+    },
+    "/api/crypto/valuate": {
+      "post": {
+        "description": "One batched price API request for every held asset (each at most every 15 s), then each non-archived crypto account whose holdings all have a price gets today's balance snapshot. A failing price API never fails the request: the last known prices are used and flagged stale.",
+        "operationId": "CryptoController_valuate",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CryptoSummaryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Refresh prices of every crypto account and write today's snapshots",
         "tags": [
           "Crypto"
         ]
@@ -7877,6 +7908,31 @@
           "reviewCount"
         ]
       },
+      "HistoryAccountBalanceDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountType"
+              }
+            ]
+          },
+          "balanceCents": {
+            "type": "integer",
+            "description": "Balance of the account at the end of the month, in cents."
+          }
+        },
+        "required": [
+          "accountId",
+          "type",
+          "balanceCents"
+        ]
+      },
       "HistoryMonthDto": {
         "type": "object",
         "properties": {
@@ -7901,6 +7957,13 @@
             "type": "integer",
             "nullable": true,
             "description": "Sum of the non-archived accounts balances at the end of the month, in cents; null when no account had a balance yet."
+          },
+          "accounts": {
+            "description": "Balance of each non-archived account known at the end of the month, in display order; they add up to `netWorthCents`. Accounts without a balance yet are left out.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HistoryAccountBalanceDto"
+            }
           }
         },
         "required": [
@@ -7908,7 +7971,8 @@
           "incomeCents",
           "expenseCents",
           "netCents",
-          "netWorthCents"
+          "netWorthCents",
+          "accounts"
         ]
       },
       "DashboardHistoryDto": {

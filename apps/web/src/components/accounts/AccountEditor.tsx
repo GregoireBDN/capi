@@ -12,8 +12,6 @@ import {
   InputGroupText,
   NativeSelect,
   NativeSelectOption,
-  RadioCard,
-  RadioCardGroup,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -23,10 +21,16 @@ import {
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Building2Icon, PlusIcon, WalletIcon } from 'lucide-react'
+import { PlusIcon } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import type { AccountDto, AccountType } from '#/api/types.gen'
+import {
+  CryptoSourceFields,
+  cryptoProviderName,
+  validateCryptoSource,
+} from '#/components/crypto/CryptoSourceFields'
+import type { CryptoSourceValues } from '#/components/crypto/CryptoSourceFields'
 import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { ROUTES } from '#/lib/routes'
 import { parseAmountToCents } from './amount'
@@ -89,36 +93,6 @@ export const ACCOUNT_TYPE_OPTIONS: readonly {
   },
 ]
 
-/** Where a crypto account's assets are held. */
-export type CryptoKind = 'exchange' | 'wallet'
-
-/** "Autre…" in the provider list: the owner types the name. */
-const OTHER_PROVIDER = 'other'
-
-/** Common providers, in the order of the list ("Autre…" comes last). */
-export const CRYPTO_PROVIDERS: Record<CryptoKind, readonly string[]> = {
-  exchange: ['Binance', 'Coinbase', 'Kraken', 'Bitpanda'],
-  wallet: ['Ledger', 'Trezor', 'MetaMask'],
-}
-
-const CRYPTO_KIND_TEXT: Record<
-  CryptoKind,
-  { label: string; description: string; field: string; other: string }
-> = {
-  exchange: {
-    label: 'Plateforme',
-    description: 'Binance, Coinbase…',
-    field: 'Plateforme',
-    other: 'Nom de la plateforme',
-  },
-  wallet: {
-    label: 'Wallet',
-    description: 'Ledger, MetaMask…',
-    field: 'Wallet',
-    other: 'Nom du wallet',
-  },
-}
-
 function optionOf(type: AccountType) {
   return ACCOUNT_TYPE_OPTIONS.find((option) => option.type === type)!
 }
@@ -139,14 +113,10 @@ interface FormErrors {
   contributions?: string
 }
 
-interface FormValues {
+interface FormValues extends CryptoSourceValues {
   type: AccountType
   name: string
   institution: string
-  cryptoKind: CryptoKind | ''
-  /** A name from `CRYPTO_PROVIDERS`, `OTHER_PROVIDER` or '' (none yet). */
-  provider: string
-  otherProvider: string
   value: string
   date: string
   contributions: string
@@ -155,13 +125,6 @@ interface FormValues {
 /** A new crypto account is set up from where it is held, not a bank. */
 function picksCryptoProvider(values: FormValues, creating: boolean): boolean {
   return creating && values.type === 'crypto'
-}
-
-/** The exchange or wallet chosen for a new crypto account, or ''. */
-function cryptoProviderName(values: FormValues): string {
-  return values.provider === OTHER_PROVIDER
-    ? values.otherProvider.trim()
-    : values.provider
 }
 
 /** Name proposed until the owner types one: the provider, or the type. */
@@ -178,21 +141,8 @@ function validate(values: FormValues, today: string, creating: boolean) {
   else if (name.length > NAME_MAX) errors.name = '100 caractères maximum'
   if (values.institution.trim().length > NAME_MAX)
     errors.institution = '100 caractères maximum'
-  if (picksCryptoProvider(values, creating)) {
-    if (values.cryptoKind === '')
-      errors.cryptoKind = 'Choisissez une plateforme ou un wallet'
-    else if (values.provider === '')
-      errors.provider =
-        values.cryptoKind === 'exchange'
-          ? 'Choisissez la plateforme'
-          : 'Choisissez le wallet'
-    else if (values.provider === OTHER_PROVIDER) {
-      const other = values.otherProvider.trim()
-      if (other === '') errors.otherProvider = 'Indiquez son nom'
-      else if (other.length > NAME_MAX)
-        errors.otherProvider = '100 caractères maximum'
-    }
-  }
+  if (picksCryptoProvider(values, creating))
+    Object.assign(errors, validateCryptoSource(values))
   if (!creating || !startsWithValue(values.type)) return errors
   if (values.value.trim() !== '') {
     const cents = parseAmountToCents(values.value)
@@ -422,122 +372,12 @@ export function AccountEditor({
               </Field>
             )}
             {picksCryptoProvider(values, creating) && (
-              <>
-                <fieldset className="space-y-2">
-                  <legend
-                    id={`${id}-kind-legend`}
-                    className="mb-2 text-sm font-medium"
-                  >
-                    Où sont ces cryptos ?
-                  </legend>
-                  <RadioCardGroup
-                    aria-labelledby={`${id}-kind-legend`}
-                    aria-describedby={
-                      shown.cryptoKind ? `${id}-kind-error` : undefined
-                    }
-                    className="grid-cols-1 sm:grid-cols-2"
-                    value={values.cryptoKind}
-                    onValueChange={(value) =>
-                      choose({
-                        cryptoKind: value as CryptoKind,
-                        provider: '',
-                        otherProvider: '',
-                      })
-                    }
-                  >
-                    {(['exchange', 'wallet'] as const).map((kind) => {
-                      const Icon =
-                        kind === 'exchange' ? Building2Icon : WalletIcon
-                      return (
-                        <RadioCard
-                          key={kind}
-                          value={kind}
-                          aria-invalid={shown.cryptoKind !== undefined}
-                          className="flex-row items-center gap-3"
-                        >
-                          <Icon
-                            aria-hidden
-                            className="text-muted-foreground shrink-0 group-data-[state=checked]/radio-card:text-primary"
-                          />
-                          <span className="flex min-w-0 flex-col gap-0.5">
-                            <span className="font-medium">
-                              {CRYPTO_KIND_TEXT[kind].label}
-                            </span>
-                            <span className="text-muted-foreground text-xs">
-                              {CRYPTO_KIND_TEXT[kind].description}
-                            </span>
-                          </span>
-                        </RadioCard>
-                      )
-                    })}
-                  </RadioCardGroup>
-                  {shown.cryptoKind && (
-                    <FieldError id={`${id}-kind-error`}>
-                      {shown.cryptoKind}
-                    </FieldError>
-                  )}
-                </fieldset>
-                {values.cryptoKind !== '' && (
-                  <fieldset className="space-y-2">
-                    <legend
-                      id={`${id}-provider-legend`}
-                      className="mb-2 text-sm font-medium"
-                    >
-                      {CRYPTO_KIND_TEXT[values.cryptoKind].field}
-                    </legend>
-                    <RadioCardGroup
-                      aria-labelledby={`${id}-provider-legend`}
-                      aria-describedby={
-                        shown.provider ? `${id}-provider-error` : undefined
-                      }
-                      className="grid-cols-2"
-                      value={values.provider}
-                      onValueChange={(provider) => choose({ provider })}
-                    >
-                      {[
-                        ...CRYPTO_PROVIDERS[values.cryptoKind],
-                        OTHER_PROVIDER,
-                      ].map((provider) => (
-                        <RadioCard
-                          key={provider}
-                          value={provider}
-                          aria-invalid={shown.provider !== undefined}
-                          indicator={false}
-                          className="items-center justify-center px-3 font-medium"
-                        >
-                          {provider === OTHER_PROVIDER ? 'Autre…' : provider}
-                        </RadioCard>
-                      ))}
-                    </RadioCardGroup>
-                    {shown.provider && (
-                      <FieldError id={`${id}-provider-error`}>
-                        {shown.provider}
-                      </FieldError>
-                    )}
-                  </fieldset>
-                )}
-                {values.cryptoKind !== '' &&
-                  values.provider === OTHER_PROVIDER && (
-                    <Field data-invalid={shown.otherProvider !== undefined}>
-                      <FieldLabel htmlFor={`${id}-other-provider`}>
-                        {CRYPTO_KIND_TEXT[values.cryptoKind].other}
-                      </FieldLabel>
-                      <Input
-                        id={`${id}-other-provider`}
-                        autoComplete="off"
-                        maxLength={NAME_MAX}
-                        value={values.otherProvider}
-                        aria-invalid={shown.otherProvider !== undefined}
-                        onChange={(event) =>
-                          choose({ otherProvider: event.target.value })
-                        }
-                      />
-                      {shown.otherProvider && (
-                        <FieldError>{shown.otherProvider}</FieldError>
-                      )}
-                    </Field>
-                  )}
-              </>
+              <CryptoSourceFields
+                id={id}
+                values={values}
+                errors={shown}
+                onChange={choose}
+              />
             )}
             <Field data-invalid={shown.name !== undefined}>
               <FieldLabel htmlFor={`${id}-name`}>Nom</FieldLabel>

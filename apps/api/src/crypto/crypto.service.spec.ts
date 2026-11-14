@@ -371,6 +371,61 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
     })
   })
 
+  it('refreshes every crypto account at once and writes their snapshots', async () => {
+    await inRollback(async ({ crypto, investments, account, provider }) => {
+      const a = await account('crypto', 'Wallet A')
+      const b = await account('crypto', 'Wallet B')
+      await crypto.create(a, { ...BTC, quantity: '0.1' }, NOW)
+      await crypto.create(b, { ...ETH, quantity: '1' }, NOW)
+      provider.fetchEurPrices.mockClear()
+
+      // Within the TTL a summary does not refresh, a forced refresh does.
+      await crypto.summary(later(1))
+      expect(provider.fetchEurPrices).not.toHaveBeenCalled()
+      PRICES.bitcoin = '61000'
+      try {
+        const next = await crypto.refreshAll(later(60 * 24))
+        expect(provider.fetchEurPrices).toHaveBeenCalledTimes(1)
+        expect(provider.fetchEurPrices.mock.calls[0][0]).toEqual([
+          'bitcoin',
+          'ethereum',
+        ])
+        const ours = next.accounts.filter(
+          (x) => x.accountId === a || x.accountId === b,
+        )
+        expect(ours.map((x) => x.snapshot)).toMatchObject([
+          { date: '2026-11-06', valueCents: 610_000 },
+          { date: '2026-11-06', valueCents: 250_012 },
+        ])
+        expect(next.refreshFailed).toBe(false)
+        expect((await investments.list(a)).map((x) => x.date)).toEqual([
+          '2026-11-05',
+          '2026-11-06',
+        ])
+      } finally {
+        PRICES.bitcoin = '60000.5'
+      }
+    })
+  })
+
+  it('flags a failed refresh of every account without failing', async () => {
+    await inRollback(async ({ crypto, account, provider }) => {
+      const id = await account()
+      await crypto.create(id, { ...BTC, quantity: '2' }, NOW)
+      provider.fetchEurPrices.mockRejectedValueOnce(
+        new PriceProviderError('timeout'),
+      )
+      const failed = await crypto.refreshAll(later(30))
+      expect(failed.refreshFailed).toBe(true)
+      const ours = failed.accounts.find((x) => x.accountId === id)!
+      expect(ours.holdings[0]).toMatchObject({
+        priceEur: '60000.5',
+        priceStale: true,
+      })
+      expect(ours.snapshot?.valueCents).toBe(12_000_100)
+    })
+  })
+
   it('feeds the dashboard net worth', async () => {
     await inRollback(async ({ crypto, dashboard, account }) => {
       const id = await account()

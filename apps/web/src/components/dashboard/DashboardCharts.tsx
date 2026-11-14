@@ -1,7 +1,9 @@
 import {
   AreaChart,
   BarChart,
+  Button,
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -11,8 +13,10 @@ import {
   Skeleton,
 } from '@finances/ui'
 import type { ChartConfig } from '@finances/ui'
+import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import type { HistoryMonthDto } from '#/api/types.gen'
+import { ROUTES } from '#/lib/routes'
 
 const CHART_HEIGHT = 240
 
@@ -35,10 +39,12 @@ function range(months: HistoryMonthDto[]): string {
 function ChartCard({
   title,
   description,
+  action,
   children,
 }: {
   title: string
   description: string
+  action?: ReactNode
   children: ReactNode
 }) {
   return (
@@ -46,6 +52,7 @@ function ChartCard({
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
+        {action && <CardAction>{action}</CardAction>}
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>
@@ -95,6 +102,11 @@ export function NetWorthChart({ months }: { months: HistoryMonthDto[] }) {
     <ChartCard
       title="Patrimoine net"
       description="Somme des soldes de vos comptes en fin de mois."
+      action={
+        <Button asChild outline variant="secondary" size="sm">
+          <Link to={ROUTES.netWorth}>Détail</Link>
+        </Button>
+      }
     >
       <AreaChart
         data={data}

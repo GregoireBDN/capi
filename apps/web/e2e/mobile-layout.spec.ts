@@ -55,6 +55,7 @@ const SCENARIOS: Array<Scenario> = [
     step: clickFirst(/oubli/i),
   },
   { name: 'dashboard', path: '/dashboard' },
+  { name: 'net-worth', path: '/net-worth' },
   { name: 'shell-nav', path: '/dashboard', step: openNav },
   {
     name: 'shell-user-menu',
@@ -105,6 +106,15 @@ const SCENARIOS: Array<Scenario> = [
     path: '/savings',
     step: async (page) => {
       await clickFirst(/^Modifier l’objectif/)(page)
+      await page.getByRole('dialog').waitFor()
+    },
+  },
+  { name: 'crypto', path: '/crypto' },
+  {
+    name: 'crypto-holding-editor',
+    path: '/crypto',
+    step: async (page) => {
+      await clickFirst(/^Ajouter un (avoir|wallet)$/)(page)
       await page.getByRole('dialog').waitFor()
     },
   },

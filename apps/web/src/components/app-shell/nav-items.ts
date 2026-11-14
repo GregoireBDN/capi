@@ -1,5 +1,6 @@
 import {
   ArrowLeftRightIcon,
+  BitcoinIcon,
   ChartPieIcon,
   InboxIcon,
   LandmarkIcon,
@@ -22,6 +23,7 @@ export interface NavItem {
     | 'budget'
     | 'subscriptions'
     | 'savings'
+    | 'crypto'
     | 'accounts'
     | 'import']
   icon: LucideIcon
@@ -43,6 +45,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Budget', to: ROUTES.budget, icon: TargetIcon },
   { label: 'Abonnements', to: ROUTES.subscriptions, icon: RepeatIcon },
   { label: 'Épargne', to: ROUTES.savings, icon: PiggyBankIcon },
+  { label: 'Crypto', to: ROUTES.crypto, icon: BitcoinIcon },
   { label: 'Comptes', to: ROUTES.accounts, icon: LandmarkIcon },
   { label: 'Import', to: ROUTES.import, icon: UploadIcon },
 ]
