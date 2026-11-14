@@ -30,8 +30,7 @@ vi.mock('@tanstack/react-start', () => ({
 }))
 vi.mock('@tanstack/react-start/server', () => ({
   getRequest: () => ctx().request,
-  getRequestHeader: (name: string) =>
-    ctx().request.headers.get(name) ?? undefined,
+  getRequestHeader: (name: string) => ctx().request.headers.get(name) ?? undefined,
   getResponseHeaders: () => ctx().responseHeaders,
 }))
 // Generated client (not needed by the SSR session path).
@@ -45,35 +44,27 @@ const api = {
   rejectRefresh: false,
 }
 
-const fetchMock = vi.fn(
-  async (input: string | URL | Request, init?: RequestInit) => {
-    const url = new URL(input instanceof Request ? input.url : input)
-    const cookie = new Headers(init?.headers).get('cookie') ?? ''
-    if (url.pathname === '/api/auth/me') {
-      return /(^|; )token=(valid|rotated)(;|$)/.test(cookie)
-        ? Response.json(user)
-        : Response.json({ statusCode: 401 }, { status: 401 })
+const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+  const url = new URL(input instanceof Request ? input.url : input)
+  const cookie = new Headers(init?.headers).get('cookie') ?? ''
+  if (url.pathname === '/api/auth/me') {
+    return /(^|; )token=(valid|rotated)(;|$)/.test(cookie)
+      ? Response.json(user)
+      : Response.json({ statusCode: 401 }, { status: 401 })
+  }
+  if (url.pathname === '/api/auth/refresh') {
+    api.refreshCalls++
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    if (api.rejectRefresh || !cookie.includes('refresh_token=r0')) {
+      return Response.json({ statusCode: 401 }, { status: 401 })
     }
-    if (url.pathname === '/api/auth/refresh') {
-      api.refreshCalls++
-      await new Promise((resolve) => setTimeout(resolve, 5))
-      if (api.rejectRefresh || !cookie.includes('refresh_token=r0')) {
-        return Response.json({ statusCode: 401 }, { status: 401 })
-      }
-      const headers = new Headers()
-      headers.append(
-        'set-cookie',
-        'token=rotated; Max-Age=900; Path=/; HttpOnly; SameSite=Lax',
-      )
-      headers.append(
-        'set-cookie',
-        'refresh_token=r1; Max-Age=2592000; Path=/; HttpOnly; SameSite=Lax',
-      )
-      return new Response('{"success":true}', { status: 200, headers })
-    }
-    return new Response(null, { status: 404 })
-  },
-)
+    const headers = new Headers()
+    headers.append('set-cookie', 'token=rotated; Max-Age=900; Path=/; HttpOnly; SameSite=Lax')
+    headers.append('set-cookie', 'refresh_token=r1; Max-Age=2592000; Path=/; HttpOnly; SameSite=Lax')
+    return new Response('{"success":true}', { status: 200, headers })
+  }
+  return new Response(null, { status: 404 })
+})
 
 /** Runs `fn` while handling a page request carrying `cookie`. */
 function onPageRequest<T>(cookie: string | undefined, fn: () => Promise<T>) {
@@ -115,10 +106,7 @@ describe('requireUser during SSR', () => {
   })
 
   it('renders with a valid access token and sets no cookie', async () => {
-    const { result, setCookies } = await onPageRequest(
-      'token=valid; refresh_token=r0',
-      requireUser,
-    )
+    const { result, setCookies } = await onPageRequest('token=valid; refresh_token=r0', requireUser)
 
     expect(result).toEqual(user)
     expect(api.refreshCalls).toBe(0)
@@ -128,10 +116,7 @@ describe('requireUser during SSR', () => {
   it('refreshes an expired access token and forwards the rotated cookies to the browser', async () => {
     const { result, setCookies } = await onPageRequest(
       'token=expired; refresh_token=r0',
-      async () => ({
-        user: await requireUser(),
-        loaderCookies: withServerCookies(),
-      }),
+      async () => ({ user: await requireUser(), loaderCookies: withServerCookies() }),
     )
 
     expect(result.user).toEqual(user)
@@ -158,9 +143,7 @@ describe('requireUser during SSR', () => {
   })
 
   it('redirects to /auth without calling the API refresh when there are no cookies', async () => {
-    const { result } = await onPageRequest(undefined, () =>
-      redirectTarget(requireUser),
-    )
+    const { result } = await onPageRequest(undefined, () => redirectTarget(requireUser))
 
     expect(result).toBe('/auth')
     expect(api.refreshCalls).toBe(0)
@@ -168,9 +151,7 @@ describe('requireUser during SSR', () => {
 
   it('rotates once for concurrent reloads presenting the same refresh token', async () => {
     const reloads = await Promise.all(
-      Array.from({ length: 3 }, () =>
-        onPageRequest('refresh_token=r0', requireUser),
-      ),
+      Array.from({ length: 3 }, () => onPageRequest('refresh_token=r0', requireUser)),
     )
 
     expect(api.refreshCalls).toBe(1)

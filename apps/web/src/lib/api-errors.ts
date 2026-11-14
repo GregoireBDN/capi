@@ -12,10 +12,7 @@ export function isRateLimited(response?: Response): boolean {
   return response?.status === 429
 }
 
-function readHeaderInt(
-  response: Response | undefined,
-  name: string,
-): number | null {
+function readHeaderInt(response: Response | undefined, name: string): number | null {
   const raw = response?.headers.get(name)
   if (raw == null) return null
   const value = Number(raw)
