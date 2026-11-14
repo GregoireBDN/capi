@@ -109,7 +109,7 @@ The owner's pre-app history (a Google Sheet, ~3,250 categorized rows since 07/20
 
 - **No real financial data** in the repo, tests, fixtures, issues, PRs or logs. Use only anonymized or synthetic fixtures (fake labels, amounts and account numbers).
 - Real bank exports live in the git-ignored `data/` folder at the repo root. Never commit it and never paste its contents anywhere.
-- Do not log transaction labels, amounts or balances. Failed database queries carry their bound values (Drizzle's `Failed query: ... params: ...` message, `params`, the Postgres `detail`): the logger's `err` serializer and `logMethod` hook (`apps/api/src/common/logging/safe-error.ts`, wired in `config/logger.ts`) reduce them to the error class, SQL text, Postgres code and object names, and stack frames. Keep them when changing the logger.
+- Do not log transaction labels, amounts or balances. Query strings carry the transactions search text (`?q=`) and filters: the API request log keeps the path only (`req.url` without its query, no `query`, `Referer` without its query; `req` serializer in `config/logger.ts`, `common/logging/safe-url.ts`, #181), and so does the `path` of `AllExceptionsFilter` log lines (its error body keeps the URL). Failed database queries carry their bound values (Drizzle's `Failed query: ... params: ...` message, `params`, the Postgres `detail`): the logger's `err` serializer and `logMethod` hook (`apps/api/src/common/logging/safe-error.ts`, wired in `config/logger.ts`) reduce them to the error class, SQL text, Postgres code and object names, and stack frames. Keep them when changing the logger.
 - **No third-party analytics or tracking**, on the API or on the web app.
 
 ## Workflow conventions

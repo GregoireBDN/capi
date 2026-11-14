@@ -124,6 +124,29 @@ describe('AllExceptionsFilter', () => {
     expect(logger.error).not.toHaveBeenCalled()
   })
 
+  it('logs the path without its query string, the body keeps the URL', () => {
+    const url = '/api/transactions?q=SYNTHETIC-SEARCH&accountId=acc-1'
+    const { host, reply } = createHost('req-q', url)
+
+    filter.catch(new BadRequestException('bad filter'), host)
+    filter.catch(new Error('boom'), createHost('req-q', url).host)
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      { requestId: 'req-q', path: '/api/transactions', statusCode: 400 },
+      'bad filter',
+    )
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/api/transactions' }),
+      'Unhandled exception',
+    )
+    const logged = JSON.stringify([
+      logger.warn.mock.calls,
+      logger.error.mock.calls,
+    ])
+    expect(logged).not.toContain('SYNTHETIC-SEARCH')
+    expect(captureBody(reply).path).toBe(url)
+  })
+
   it('echoes the correlation id from the request', () => {
     const { host, reply } = createHost('abc-789')
 
