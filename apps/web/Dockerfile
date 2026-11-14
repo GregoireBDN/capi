@@ -12,7 +12,7 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm generate
 RUN pnpm --filter @finances/web build
 
-FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS runner
+FROM node:18.12.0-alpine3.16 AS runner
 # The runtime only runs `node`: drop the package managers bundled with the base
 # image (npm, npx, corepack, yarn), whose own dependencies show up in the
 # Trivy scan (#101) and are never used here.
