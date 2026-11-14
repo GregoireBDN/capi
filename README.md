@@ -30,7 +30,7 @@ See the [roadmap](./docs/roadmap.md) for the milestones.
 
 ## Quick start
 
-Prerequisites: Node.js ≥ 20, pnpm 10.11.0 (via `corepack enable`), Docker.
+Prerequisites: Node.js ≥ 20, pnpm 10.34.9 (via `corepack enable`, version from `packageManager`), Docker.
 
 ```bash
 # 1. Install dependencies
