@@ -35,6 +35,7 @@ import {
   NetWorthChart,
 } from './DashboardCharts'
 import { ForecastCard } from './ForecastCard'
+import { MonthEnvelopes } from './MonthEnvelopes'
 import { MonthReview } from './MonthReview'
 import {
   dashboardHistoryQuery,
@@ -148,7 +149,8 @@ interface DashboardPageProps {
 /**
  * The financial situation at a glance, read once a month: the review of the
  * last month (net worth and what moved it, spending against the budget,
- * accounts left to update), then the end-of-month forecast, the history
+ * accounts left to update) and, under it, the envelopes followed during the
+ * current month ("Ce mois-ci"); then the end-of-month forecast, the history
  * charts and the accounts with their balances.
  */
 export function DashboardPage({
@@ -221,7 +223,10 @@ export function DashboardPage({
           {data.reviewCount > 0 && <ReviewCallout count={data.reviewCount} />}
 
           <div className="grid items-start gap-4 @4xl:grid-cols-2">
-            <ReviewSection month={month} onMonthChange={onMonthChange} />
+            <div className="min-w-0 space-y-4">
+              <ReviewSection month={month} onMonthChange={onMonthChange} />
+              <MonthEnvelopes />
+            </div>
             <AccountsList accounts={data.accounts} netWorth={data.netWorth} />
           </div>
 

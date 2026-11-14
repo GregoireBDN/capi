@@ -9,6 +9,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
   InputGroupText,
+  Label,
   NativeSelect,
   NativeSelectOption,
   Sheet,
@@ -16,6 +17,7 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
+  Switch,
   Textarea,
   useIsMobile,
 } from '@finances/ui'
@@ -37,6 +39,7 @@ export interface EditedBudget {
   name: string
   targetCents: number
   note: string | null
+  tracked: boolean
 }
 
 interface BudgetEditorProps {
@@ -71,6 +74,7 @@ export function BudgetEditor({
   const [categoryId, setCategoryId] = useState('')
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
+  const [tracked, setTracked] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
@@ -82,6 +86,7 @@ export function BudgetEditor({
     )
     setAmount(budget ? centsToInput(budget.targetCents) : '')
     setNote(budget?.note ?? '')
+    setTracked(budget?.tracked ?? false)
     setSubmitted(false)
   }, [open, budget, initialCategoryId, available])
 
@@ -97,6 +102,7 @@ export function BudgetEditor({
         month,
         parseEurosToCents(amount)!,
         note.trim() || null,
+        tracked,
       ),
     onSuccess: async (saved) => {
       toast.success(
@@ -198,6 +204,22 @@ export function BudgetEditor({
                 Facultative, par ex. « dépense fixe ».
               </FieldDescription>
             </Field>
+            <div className="flex items-start gap-3">
+              <Switch
+                id={`${id}-tracked`}
+                checked={tracked}
+                onCheckedChange={setTracked}
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor={`${id}-tracked`} className="font-normal">
+                  Suivre pendant le mois
+                </Label>
+                <p className="text-muted-foreground text-xs">
+                  Affiché sur le tableau de bord, avec les dépenses notées à la
+                  main avant l’import du relevé.
+                </p>
+              </div>
+            </div>
             <div className="flex flex-col-reverse gap-2 sm:flex-row">
               {budget && (
                 <Button

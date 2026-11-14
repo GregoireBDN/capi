@@ -33,6 +33,7 @@ function tx(overrides: Partial<TransactionDto> = {}): TransactionDto {
     needsReview: true,
     isOneOff: false,
     note: null,
+    manual: false,
     createdAt: '2026-10-01T00:00:00.000Z',
     updatedAt: '2026-10-01T00:00:00.000Z',
     ...overrides,

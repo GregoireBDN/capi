@@ -44,6 +44,13 @@ type ProgressMeterProps = Omit<React.ComponentProps<'div'>, 'children'> & {
   hideStatus?: boolean
   /** Control at the end of the header (e.g. an edit button). */
   action?: React.ReactNode
+  /**
+   * A reference point drawn across the bar, e.g. where spending would be at
+   * an even pace through the month. `value` is in integer **cents** on the
+   * same scale as `target`; `label` is read by screen readers after the
+   * amounts (e.g. `rythme du mois : 130 €`).
+   */
+  marker?: { value: number; label: string }
 }
 
 /* ============================================================================
@@ -123,6 +130,7 @@ function ProgressMeter({
   warningThreshold = 0.9,
   hideStatus = false,
   action,
+  marker,
   className,
   ...props
 }: ProgressMeterProps) {
@@ -142,7 +150,12 @@ function ProgressMeter({
   const statusText = getStatusText(state, shown, budget, valueFormatter)
   const valueText = `${valueFormatter(shown)} sur ${valueFormatter(budget)}${
     share ? ` (${share})` : ''
-  }, ${statusText.charAt(0).toLowerCase()}${statusText.slice(1)}`
+  }, ${statusText.charAt(0).toLowerCase()}${statusText.slice(1)}${
+    marker ? `, ${marker.label}` : ''
+  }`
+  const markerAt = marker
+    ? (Math.min(Math.max(0, marker.value), scale) / scale) * 100
+    : null
   const StatusIcon = STATUS_ICON[state]
 
   return (
@@ -173,38 +186,48 @@ function ProgressMeter({
         {action}
       </div>
 
-      <div
-        role="meter"
-        aria-label={label}
-        aria-valuemin={0}
-        aria-valuemax={scale}
-        aria-valuenow={filled}
-        aria-valuetext={valueText}
-        className="relative h-2 w-full overflow-hidden rounded-full"
-        style={{
-          backgroundColor: `color-mix(in oklab, ${fill} 18%, transparent)`,
-        }}
-      >
-        {within > 0 ? (
+      <div className="relative">
+        <div
+          role="meter"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={scale}
+          aria-valuenow={filled}
+          aria-valuetext={valueText}
+          className="relative h-2 w-full overflow-hidden rounded-full"
+          style={{
+            backgroundColor: `color-mix(in oklab, ${fill} 18%, transparent)`,
+          }}
+        >
+          {within > 0 ? (
+            <div
+              data-slot="progress-meter-fill"
+              className={cn(
+                'absolute inset-y-0 left-0 rounded-full transition-[width]',
+                overflow > 0 && 'rounded-r-none',
+              )}
+              style={{ width: `${within}%`, backgroundColor: fill }}
+            />
+          ) : null}
+          {overflow > 0 ? (
+            <div
+              data-slot="progress-meter-overflow"
+              className="absolute inset-y-0 right-0 rounded-r-full"
+              style={{
+                width: `calc(${overflow}% - 2px)`,
+                backgroundColor: fill,
+              }}
+            />
+          ) : null}
+        </div>
+        {markerAt === null ? null : (
           <div
-            data-slot="progress-meter-fill"
-            className={cn(
-              'absolute inset-y-0 left-0 rounded-full transition-[width]',
-              overflow > 0 && 'rounded-r-none',
-            )}
-            style={{ width: `${within}%`, backgroundColor: fill }}
+            aria-hidden
+            data-slot="progress-meter-marker"
+            className="pointer-events-none absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded-full bg-foreground"
+            style={{ left: `${markerAt}%` }}
           />
-        ) : null}
-        {overflow > 0 ? (
-          <div
-            data-slot="progress-meter-overflow"
-            className="absolute inset-y-0 right-0 rounded-r-full"
-            style={{
-              width: `calc(${overflow}% - 2px)`,
-              backgroundColor: fill,
-            }}
-          />
-        ) : null}
+        )}
       </div>
 
       {hideStatus ? null : (

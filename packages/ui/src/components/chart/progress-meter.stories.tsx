@@ -53,6 +53,25 @@ export const OverTarget: Story = {
   },
 }
 
+/**
+ * Envelope followed during the month: the marker shows where spending would
+ * be at an even pace (day 13 of 30 here), so spending ahead of it stands out.
+ */
+export const PaceMarker: Story = {
+  args: {
+    label: 'Sorties',
+    value: 9000,
+    target: 15000,
+    marker: { value: 6500, label: 'rythme du mois : 65,00 €' },
+  },
+  play: async ({ canvas }) => {
+    const meter = canvas.getByRole('meter', { name: 'Sorties' })
+    await expect(meter.getAttribute('aria-valuetext')).toContain(
+      'rythme du mois',
+    )
+  },
+}
+
 export const NoBudget: Story = {
   args: { label: 'Cadeaux', value: 2100, target: 0 },
 }

@@ -82,6 +82,7 @@ function line(
     targetCents,
     effectiveFrom: '2026-09',
     note: null,
+    tracked: false,
     spentCents,
     spentExcludingOneOffsCents: spentCents,
     remainingCents: targetCents - spentCents,
