@@ -68,6 +68,7 @@ function holdings(
     snapshot: null,
     priceApiEnabled: true,
     refreshFailed: false,
+    sync: null,
     ...overrides,
   }
 }

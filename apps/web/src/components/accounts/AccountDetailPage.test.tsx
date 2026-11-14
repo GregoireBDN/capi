@@ -7,8 +7,10 @@ import type {
   AccountDto,
   AccountPerformanceDto,
   SnapshotDto,
+  AccountHoldingsDto,
   ValuedHoldingDto,
   WalletKeyDto,
+  WalletSyncStatusDto,
 } from '#/api/types.gen'
 import { AccountDetailPage } from './AccountDetailPage'
 
@@ -22,6 +24,11 @@ const api = vi.hoisted(() => ({
   walletKeysControllerList: vi.fn(),
   walletKeysControllerAdd: vi.fn(),
   walletKeysControllerRemove: vi.fn(),
+  walletTokensControllerList: vi.fn(),
+  walletTokensControllerAdd: vi.fn(),
+  walletTokensControllerRemove: vi.fn(),
+  accountHoldingsControllerSync: vi.fn(),
+  cryptoControllerSearch: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
@@ -446,6 +453,7 @@ describe('AccountDetailPage', () => {
   function mockCrypto(
     overrides: Partial<AccountDto>,
     holdings: ValuedHoldingDto[] = [],
+    sync: WalletSyncStatusDto | null = null,
   ) {
     api.accountsControllerFindOne.mockImplementation(() =>
       ok(
@@ -492,6 +500,7 @@ describe('AccountDetailPage', () => {
         snapshot: null,
         priceApiEnabled: true,
         refreshFailed: false,
+        sync,
       }),
     )
   }
@@ -598,7 +607,13 @@ describe('AccountDetailPage', () => {
         cryptoSyncedAt: '2026-11-05T09:30:00.000Z',
       },
       [holding({ origin: 'sync' })],
+      {
+        enabled: false,
+        syncedAt: '2026-11-05T09:30:00.000Z',
+        failedAt: null,
+      },
     )
+    api.walletTokensControllerList.mockImplementation(() => ok([]))
     api.walletKeysControllerList.mockImplementation(() =>
       ok([
         walletKey({ label: 'Épargne' }),
@@ -629,9 +644,13 @@ describe('AccountDetailPage', () => {
     expect(
       text(within(source).getByText(/^Dernière synchronisation/).textContent),
     ).toBe('Dernière synchronisation : 5 novembre 2026 à 10:30')
+    // The server does not read chains: synced by hand only.
     expect(
-      within(source).getByRole('button', { name: 'Synchroniser' }),
+      await within(source).findByRole('button', { name: 'Synchroniser' }),
     ).toBeDisabled()
+    expect(
+      within(source).getByText(/Synchronisation désactivée sur ce serveur/),
+    ).toBeInTheDocument()
 
     // Keys are shown masked, with their label and chains.
     const keys = await within(source).findByRole('list', {
@@ -690,6 +709,174 @@ describe('AccountDetailPage', () => {
     )
   })
 
+  function walletHoldings(
+    sync: WalletSyncStatusDto,
+    holdings: ValuedHoldingDto[] = [],
+  ): AccountHoldingsDto {
+    return {
+      accountId: ACCOUNT_ID,
+      holdings,
+      totals: {
+        valueCents: 0,
+        investedCents: null,
+        gainCents: null,
+        missingPriceCount: 0,
+        staleCount: 0,
+        withoutInvestedCount: 0,
+      },
+      complete: true,
+      snapshot: null,
+      priceApiEnabled: true,
+      refreshFailed: false,
+      sync,
+    }
+  }
+
+  function mockWallet(sync: WalletSyncStatusDto) {
+    mockCrypto(
+      {
+        cryptoSource: 'wallet',
+        institution: 'Ledger',
+        cryptoSyncedAt: sync.syncedAt,
+      },
+      [],
+      sync,
+    )
+    api.walletKeysControllerList.mockImplementation(() => ok([walletKey({})]))
+    api.walletTokensControllerList.mockImplementation(() => ok([]))
+  }
+
+  it('syncs a wallet account and shows the synced holdings', async () => {
+    const user = userEvent.setup()
+    mockWallet({ enabled: true, syncedAt: null, failedAt: null })
+    const synced = walletHoldings(
+      {
+        enabled: true,
+        syncedAt: '2026-11-06T09:59:00.000Z',
+        failedAt: null,
+      },
+      [holding({ origin: 'sync', location: 'Bitcoin' })],
+    )
+    api.accountHoldingsControllerSync.mockImplementation(() => {
+      // The API now lists the synced holdings too.
+      api.accountHoldingsControllerList.mockImplementation(() => ok(synced))
+      return ok(synced)
+    })
+    renderPage()
+
+    const source = await screen.findByRole('region', {
+      name: 'Source des avoirs',
+    })
+    expect(
+      within(source).getByText('Dernière synchronisation : jamais'),
+    ).toBeInTheDocument()
+    await user.click(
+      await within(source).findByRole('button', { name: 'Synchroniser' }),
+    )
+    await waitFor(() =>
+      expect(api.accountHoldingsControllerSync).toHaveBeenCalledWith(
+        expect.objectContaining({ path: { id: ACCOUNT_ID } }),
+      ),
+    )
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith('Wallet synchronisé'),
+    )
+    expect(
+      text(within(source).getByText(/^Dernière synchronisation/).textContent),
+    ).toBe('Dernière synchronisation : 6 novembre 2026 à 10:59')
+  })
+
+  it('flags stale holdings when the last sync failed', async () => {
+    const user = userEvent.setup()
+    const stale = {
+      enabled: true,
+      syncedAt: '2026-11-05T09:30:00.000Z',
+      failedAt: '2026-11-06T09:00:00.000Z',
+    }
+    mockWallet(stale)
+    api.accountHoldingsControllerSync.mockImplementation(() =>
+      ok(walletHoldings({ ...stale, failedAt: '2026-11-06T09:59:00.000Z' })),
+    )
+    renderPage()
+
+    const source = await screen.findByRole('region', {
+      name: 'Source des avoirs',
+    })
+    const alert = await within(source).findByText(
+      'La dernière synchronisation a échoué',
+    )
+    expect(text(alert.parentElement!.textContent)).toContain(
+      'Tentative du 6 novembre 2026 à 10:00',
+    )
+    await user.click(
+      within(source).getByRole('button', { name: 'Synchroniser' }),
+    )
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Synchronisation impossible pour le moment : les derniers avoirs connus sont conservés.',
+      ),
+    )
+  })
+
+  it('adds a token to read and syncs the wallet again', async () => {
+    const user = userEvent.setup()
+    const sync = { enabled: true, syncedAt: null, failedAt: null }
+    mockWallet(sync)
+    api.cryptoControllerSearch.mockImplementation(() =>
+      ok([{ id: 'usd-coin', symbol: 'USDC', name: 'USDC', rank: 7 }]),
+    )
+    api.walletTokensControllerAdd.mockImplementation(() =>
+      ok(
+        {
+          id: 't-1',
+          accountId: ACCOUNT_ID,
+          assetId: 'usd-coin',
+          symbol: 'USDC',
+          name: 'USDC',
+        },
+        201,
+      ),
+    )
+    api.accountHoldingsControllerSync.mockImplementation(() =>
+      ok(walletHoldings(sync)),
+    )
+    renderPage()
+
+    const source = await screen.findByRole('region', {
+      name: 'Source des avoirs',
+    })
+    expect(
+      await within(source).findByText(
+        'Monnaies natives et actifs déjà détenus uniquement.',
+      ),
+    ).toBeInTheDocument()
+    await user.click(
+      within(source).getByRole('button', { name: 'Ajouter un jeton' }),
+    )
+    const sheet = await screen.findByRole('dialog', {
+      name: 'Ajouter un jeton',
+    })
+    await user.type(within(sheet).getByLabelText('Jeton'), 'usdc')
+    await user.click(
+      await within(sheet).findByRole(
+        'button',
+        { name: /USDC/ },
+        { timeout: 2000 },
+      ),
+    )
+    await waitFor(() =>
+      expect(api.walletTokensControllerAdd).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { id: ACCOUNT_ID },
+          body: { assetId: 'usd-coin', symbol: 'USDC', name: 'USDC' },
+        }),
+      ),
+    )
+    await waitFor(() =>
+      expect(api.accountHoldingsControllerSync).toHaveBeenCalled(),
+    )
+  })
+
   it('lists the holdings of a crypto account instead of the empty state', async () => {
     api.accountsControllerFindOne.mockImplementation(() =>
       ok(
@@ -736,6 +923,7 @@ describe('AccountDetailPage', () => {
         snapshot: null,
         priceApiEnabled: true,
         refreshFailed: false,
+        sync: null,
       }),
     )
     renderPage()
