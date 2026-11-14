@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import * as nodemailer from 'nodemailer'
-import { render } from 'react-email'
+import { render } from '@react-email/render'
 import { env } from '#/config/env'
 import { ResetPasswordEmail } from './templates/reset-password'
 import { VerifyEmail } from './templates/verify-email'
