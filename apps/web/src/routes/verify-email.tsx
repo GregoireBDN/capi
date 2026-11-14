@@ -1,9 +1,20 @@
-import { authControllerResendVerification, authControllerVerifyEmail } from '#/api'
+import {
+  authControllerResendVerification,
+  authControllerVerifyEmail,
+} from '#/api'
 import { isRateLimited, rateLimitMessage } from '#/lib/api-errors'
 import { useAuth } from '#/lib/auth-context'
 import { ROUTES } from '#/lib/routes'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { Button, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@finances/ui'
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@finances/ui'
 import { CheckCircle2Icon, RefreshCwIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -68,12 +79,15 @@ function VerifyEmailPage() {
           <CardHeader>
             <CardTitle className="text-lg">Email vérifié</CardTitle>
             <CardDescription className="leading-relaxed">
-              Votre adresse email a bien été vérifiée. Vous avez maintenant accès à
-              l&apos;ensemble des fonctionnalités de votre compte.
+              Votre adresse email a bien été vérifiée. Vous avez maintenant
+              accès à l&apos;ensemble des fonctionnalités de votre compte.
             </CardDescription>
           </CardHeader>
           <CardContent className="mb-0">
-            <Button onClick={() => navigate({ to: ROUTES.home })} className="w-full">
+            <Button
+              onClick={() => navigate({ to: ROUTES.home })}
+              className="w-full"
+            >
               Retour à l&apos;accueil
             </Button>
           </CardContent>
@@ -87,26 +101,33 @@ function VerifyEmailPage() {
       <div className="flex min-h-full flex-1 items-center justify-center px-4 py-6">
         <Card className="border-l-destructive w-full max-w-sm border-l-4">
           <CardHeader>
-            <CardTitle className="text-destructive text-lg">Lien invalide</CardTitle>
+            <CardTitle className="text-destructive text-lg">
+              Lien invalide
+            </CardTitle>
             <CardDescription className="leading-relaxed">
               Ce lien de vérification est invalide ou a expiré.
-              {user && !resendSent && ' Demandez-en un nouveau pour activer votre compte.'}
+              {user &&
+                !resendSent &&
+                ' Demandez-en un nouveau pour activer votre compte.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="mb-0 flex flex-col gap-2">
-            {user && (
-              resendSent ? (
+            {user &&
+              (resendSent ? (
                 <div className="text-success bg-success/10 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium">
                   <CheckCircle2Icon className="size-4" />
                   Un nouvel email a été envoyé.
                 </div>
               ) : (
-                <Button onClick={onResend} loading={resending} className="w-full">
+                <Button
+                  onClick={onResend}
+                  loading={resending}
+                  className="w-full"
+                >
                   <RefreshCwIcon className="size-4" />
                   Renvoyer un lien
                 </Button>
-              )
-            )}
+              ))}
             <Button asChild variant="secondary" ghost className="w-full">
               <Link to={ROUTES.home}>Retour à l&apos;accueil</Link>
             </Button>
@@ -122,27 +143,30 @@ function VerifyEmailPage() {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Vérifiez votre email</CardTitle>
           <CardDescription>
-            Un email de vérification vous a été envoyé. Cliquez sur le lien dans l&apos;email pour
-            activer votre compte.
+            Un email de vérification vous a été envoyé. Cliquez sur le lien dans
+            l&apos;email pour activer votre compte.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-muted-foreground text-center text-sm">
             Pensez à vérifier vos spams si vous ne voyez pas l&apos;email.
           </p>
-          {user && (
-            resendSent ? (
+          {user &&
+            (resendSent ? (
               <p className="text-center text-sm text-green-600">
                 Un nouvel email a été envoyé.
               </p>
             ) : (
               <div className="flex justify-center">
-                <Button variant="secondary" onClick={onResend} loading={resending}>
+                <Button
+                  variant="secondary"
+                  onClick={onResend}
+                  loading={resending}
+                >
                   Renvoyer l&apos;email
                 </Button>
               </div>
-            )
-          )}
+            ))}
         </CardContent>
         <CardFooter className="justify-center">
           <Button asChild variant="secondary">

@@ -24,8 +24,9 @@ import {
   categoriesTable,
   savingsGoalAccountsTable,
   savingsGoalsTable,
-  type SelectSavingsGoal,
+  transactionLinesView,
   transactionsTable,
+  type SelectSavingsGoal,
 } from '#/database/schema'
 import { parisToday } from '#/investments/days'
 import { InvestmentsService } from '#/investments/investments.service'
@@ -228,7 +229,8 @@ export class SavingsService {
     executor: Executor,
     throughDay: number | null = null,
   ): Promise<Map<string, MonthFigures>> {
-    const t = transactionsTable
+    // Lines: a split part counts with its own category (moves to savings).
+    const t = transactionLinesView
     const from = monthBounds(months[0]).start
     const until = monthBounds(months[months.length - 1]).next
     const month = sql<string>`to_char(${t.bookingDate}, 'YYYY-MM')`

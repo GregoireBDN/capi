@@ -120,6 +120,13 @@
       "when": 1794642217410,
       "tag": "0016_month_closes",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794651024671,
+      "tag": "0017_manual_transactions_splits",
+      "breakpoints": true
     }
   ]
 }

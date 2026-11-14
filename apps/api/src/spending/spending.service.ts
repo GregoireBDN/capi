@@ -13,6 +13,7 @@ import * as schema from '#/database/schema'
 import {
   budgetsTable,
   categoriesTable,
+  transactionLinesView,
   transactionsTable,
 } from '#/database/schema'
 import { parisToday } from '#/investments/days'
@@ -367,7 +368,8 @@ export class SpendingService {
     accountId: string | undefined,
     throughDay: number | null = null,
   ): Promise<MonthlyRow[]> {
-    const t = transactionsTable
+    // Lines: a split transaction counts in each of its categories.
+    const t = transactionLinesView
     const month = sql<string>`to_char(${t.bookingDate}, 'YYYY-MM')`
     // Inlined constant: a bound parameter would differ between the SELECT
     // and the GROUP BY, which Postgres then refuses.

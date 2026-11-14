@@ -1,11 +1,23 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import {
   transactionsControllerBulkUpdate,
   transactionsControllerUpdate,
 } from '#/api'
-import type { CategoryDto, TransactionDto } from '#/api/types.gen'
+import type {
+  CategoryDto,
+  CorrectTransactionDto,
+  SplitPartDto,
+  TransactionDto,
+  UpdateManualTransactionDto,
+} from '#/api/types.gen'
+import {
+  afterTransactionEdited,
+  manualBody,
+  manualExpenseErrorMessage,
+  updateManualExpense,
+} from '#/components/expenses/queries'
 import { plural } from '#/lib/plural'
 import {
   refreshReviewCount,
@@ -19,6 +31,13 @@ import {
   patchCachedTransactions,
   transactionKeys,
 } from './queries'
+import {
+  correctTransaction,
+  restoreBankValues,
+  splitParts,
+  splitTransaction,
+  unsplitTransaction,
+} from './edits'
 import { restoreTransactions } from './restore'
 import type { RuleOffer } from './RuleOfferBanner'
 
@@ -70,6 +89,10 @@ function describeBulkChange(
 export function useTransactionActions(categories: readonly CategoryDto[]) {
   const queryClient = useQueryClient()
   const [offer, setOffer] = useState<RuleOffer | null>(null)
+  /** Undo of the latest edit, for Ctrl/⌘+Z (`undoLast`). */
+  const lastUndo = useRef<{ toastId: string | number; run: () => void } | null>(
+    null,
+  )
   const categoriesById = useMemo(
     () => new Map(categories.map((category) => [category.id, category])),
     [categories],
@@ -96,8 +119,19 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
             throwOnError: false,
           })
         ).data !== undefined
-      : await restoreTransactions(previous)
+      : (await restoreTransactions(previous)) &&
+        // A category for the whole ended their split: split them again.
+        (
+          await Promise.allSettled(
+            previous
+              .filter((item) => item.splits.length > 0)
+              .map((item) => splitTransaction(item.id, splitParts(item))),
+          )
+        ).every((result) => result.status === 'fulfilled')
     settled()
+    if (previous.some((item) => item.splits.length > 0)) {
+      void queryClient.invalidateQueries({ queryKey: transactionKeys.lists })
+    }
     if (!restored) {
       toast.error('Impossible d’annuler la modification.')
       void queryClient.invalidateQueries({ queryKey: transactionKeys.all })
@@ -110,14 +144,149 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     )
   }
 
-  function undoable(previous: readonly TransactionDto[], noteOnly = false) {
+  /** "Annuler" button of a toast, also reachable with Ctrl/⌘+Z. */
+  function undoAction(run: () => void) {
+    const once = () => {
+      lastUndo.current = null
+      run()
+    }
     return {
       duration: UNDO_TOAST_MS,
-      action: {
-        label: 'Annuler',
-        onClick: () => void undo(previous, noteOnly),
-      },
+      action: { label: 'Annuler', onClick: once },
+      run: once,
     }
+  }
+
+  /** Shows a success toast whose "Annuler" runs `run`. */
+  function toastUndoable(
+    message: string,
+    description: string | undefined,
+    run: () => void,
+  ) {
+    const { run: once, ...options } = undoAction(run)
+    const toastId = toast.success(message, { description, ...options })
+    lastUndo.current = { toastId, run: once }
+  }
+
+  /** Undoes the latest edit still offering "Annuler" (Ctrl/⌘+Z). */
+  function undoLast(): boolean {
+    const last = lastUndo.current
+    if (!last) return false
+    toast.dismiss(last.toastId)
+    last.run()
+    return true
+  }
+
+  /**
+   * An edit that changes amounts, dates or categories at the API (manual
+   * fields, correction, split): the server answer replaces the row, every
+   * figure depending on it is refetched, and "Annuler" runs `revert`.
+   */
+  async function edit(
+    item: TransactionDto,
+    request: () => Promise<TransactionDto>,
+    message: string,
+    revert: () => Promise<unknown>,
+  ): Promise<boolean> {
+    let data: TransactionDto
+    try {
+      data = await request()
+    } catch (error) {
+      toast.error(manualExpenseErrorMessage(error))
+      return false
+    }
+    patchCachedTransactions(queryClient, [data])
+    void afterTransactionEdited(queryClient)
+    scheduleReviewCountRefresh()
+    toastUndoable(message, displayLabel(item), () => {
+      void revert()
+        .then(() =>
+          queryClient.invalidateQueries({ queryKey: transactionKeys.all }),
+        )
+        .then(() => afterTransactionEdited(queryClient))
+        .catch(() => {
+          toast.error('Impossible d’annuler la modification.')
+          void queryClient.invalidateQueries({ queryKey: transactionKeys.all })
+        })
+    })
+    return true
+  }
+
+  /** Changes fields of a transaction entered by hand (amount, date, ...). */
+  function updateManual(
+    item: TransactionDto,
+    changes: UpdateManualTransactionDto,
+  ) {
+    return edit(
+      item,
+      () => updateManualExpense(item.id, changes),
+      changes.amountCents !== undefined
+        ? 'Montant modifié'
+        : 'Opération modifiée',
+      () => updateManualExpense(item.id, manualBody(item)),
+    )
+  }
+
+  /** "Modifier une opération importée": amount or date, bank values kept. */
+  function correct(item: TransactionDto, body: CorrectTransactionDto) {
+    const wasCorrected =
+      item.originalAmountCents !== null || item.originalBookingDate !== null
+    return edit(
+      item,
+      () => correctTransaction(item.id, body),
+      'Opération importée corrigée',
+      () =>
+        wasCorrected
+          ? correctTransaction(item.id, {
+              amountCents: item.amountCents,
+              bookingDate: item.bookingDate,
+            })
+          : restoreBankValues(item.id),
+    )
+  }
+
+  /** Puts the bank amount and date back. */
+  function restoreBank(item: TransactionDto) {
+    return edit(
+      item,
+      () => restoreBankValues(item.id),
+      'Valeurs de la banque rétablies',
+      () =>
+        correctTransaction(item.id, {
+          amountCents: item.amountCents,
+          bookingDate: item.bookingDate,
+        }),
+    )
+  }
+
+  /** Splits a transaction between categories (or changes its split). */
+  function split(
+    item: TransactionDto,
+    parts: readonly Pick<SplitPartDto, 'categoryId' | 'amountCents'>[],
+  ) {
+    return edit(
+      item,
+      () => splitTransaction(item.id, parts),
+      `Répartie entre ${plural(parts.length, 'catégorie', 'catégories')}`,
+      async () => {
+        if (item.splits.length > 0) {
+          await splitTransaction(item.id, splitParts(item))
+          return
+        }
+        await unsplitTransaction(item.id)
+        await restoreTransactions([item])
+      },
+    )
+  }
+
+  /** Puts a split transaction back in one category. */
+  function unsplit(item: TransactionDto) {
+    return edit(
+      item,
+      () => unsplitTransaction(item.id),
+      'Répartition annulée',
+      () => splitTransaction(item.id, splitParts(item)),
+    )
   }
 
   /** Applies `changes` to one transaction. */
@@ -140,10 +309,11 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     patchCachedTransactions(queryClient, [data])
     settled()
     const noteOnly = Object.keys(changes).every((key) => key === 'note')
-    toast.success(describeChange(changes, category), {
-      description: displayLabel(item),
-      ...undoable([item], noteOnly),
-    })
+    toastUndoable(
+      describeChange(changes, category),
+      displayLabel(item),
+      () => void undo([item], noteOnly),
+    )
     if (category) setOffer({ transaction: item, category })
   }
 
@@ -170,9 +340,10 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
       return false
     }
     settled()
-    toast.success(
+    toastUndoable(
       describeBulkChange(items.length, changes, category),
-      undoable(items),
+      undefined,
+      () => void undo(items),
     )
     return true
   }
@@ -187,5 +358,17 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     void refreshReviewCount()
   }
 
-  return { update, updateMany, offer, setOffer, onRuleCreated }
+  return {
+    update,
+    updateMany,
+    updateManual,
+    correct,
+    restoreBank,
+    split,
+    unsplit,
+    undoLast,
+    offer,
+    setOffer,
+    onRuleCreated,
+  }
 }

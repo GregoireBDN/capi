@@ -22,16 +22,35 @@ const api = vi.hoisted(() => ({
   transactionsControllerUpdate: vi.fn(),
   transactionsControllerBulkUpdate: vi.fn(),
   transactionsControllerReviewCount: vi.fn(),
+  transactionsControllerCreateManual: vi.fn(),
+  transactionsControllerUpdateManual: vi.fn(),
+  transactionsControllerRemoveManual: vi.fn(),
+  transactionsControllerSplit: vi.fn(),
+  transactionsControllerUnsplit: vi.fn(),
+  transactionsControllerCorrect: vi.fn(),
+  transactionsControllerRestoreBankValues: vi.fn(),
   categorizationRulesControllerSuggest: vi.fn(),
   categorizationRulesControllerPreview: vi.fn(),
   categorizationRulesControllerCreate: vi.fn(),
   categorizationRulesControllerApply: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
-  Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
+  Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+    dismiss: vi.fn(),
+  }),
 )
 
 vi.mock('#/api', () => api)
+
+// The sheet's kind picker (Radix toggle group) measures itself.
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- absent in jsdom despite the DOM typings
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
 vi.mock('sonner', () => ({ toast }))
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ to, children }: { to: string; children: ReactNode }) => (
@@ -99,6 +118,9 @@ function transaction(
     isOneOff: false,
     note: null,
     manual: false,
+    originalAmountCents: null,
+    originalBookingDate: null,
+    splits: [],
     createdAt: '2026-11-01T00:00:00.000Z',
     updatedAt: '2026-11-01T00:00:00.000Z',
     ...overrides,
@@ -665,5 +687,419 @@ describe('TransactionsPage', () => {
       screen.getByRole('button', { name: 'Réinitialiser les filtres' }),
     )
     expect(onChange).toHaveBeenLastCalledWith({ month: '2026-09' }, undefined)
+  })
+
+  describe('editing in place (#74)', () => {
+    const manualRow = transaction(4, {
+      bookingDate: '2026-11-03',
+      rawLabel: 'Marché',
+      amountCents: -1_250,
+      categoryId: groceries.id,
+      category: { ...groceries },
+      needsReview: false,
+      manual: true,
+    })
+
+    it('moves between rows and edits them with the keyboard', async () => {
+      const { user } = setup()
+      await waitForRows()
+      api.transactionsControllerUpdate.mockImplementation(
+        ({ body }: { body: object }) => ok({ ...transferRow, ...body }),
+      )
+
+      screen.getByRole('button', { name: 'Modifier Fakemart' }).focus()
+      await user.keyboard('{ArrowDown}')
+      expect(
+        screen.getByRole('button', {
+          name: `Modifier ${transferRow.rawLabel}`,
+        }),
+      ).toHaveFocus()
+      await user.keyboard('k')
+      expect(
+        screen.getByRole('button', { name: 'Modifier Fakemart' }),
+      ).toHaveFocus()
+
+      // C: the category of the row, chosen in place.
+      await user.keyboard('c')
+      const select = screen.getByLabelText('Catégorie de Fakemart')
+      expect(select).toHaveFocus()
+      api.transactionsControllerUpdate.mockReturnValueOnce(
+        ok({
+          ...shopRow,
+          categoryId: groceries.id,
+          category: { ...groceries },
+        }),
+      )
+      await user.selectOptions(select, groceries.id)
+      expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith({
+        path: { id: shopRow.id },
+        body: { categoryId: groceries.id },
+        throwOnError: false,
+      })
+      // Escape hands the focus back to the row.
+      await user.keyboard('{Escape}')
+      expect(
+        screen.getByRole('button', { name: 'Modifier Fakemart' }),
+      ).toHaveFocus()
+
+      // O toggles one-off, X the selection.
+      await user.keyboard('j')
+      await user.keyboard('o')
+      expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith({
+        path: { id: transferRow.id },
+        body: { isOneOff: false },
+        throwOnError: false,
+      })
+      await user.keyboard('x')
+      expect(
+        screen.getByRole('checkbox', {
+          name: `Sélectionner ${transferRow.rawLabel}`,
+        }),
+      ).toBeChecked()
+    })
+
+    it('edits a note in the row: N, Enter saves, Escape cancels', async () => {
+      const { user } = setup()
+      await waitForRows()
+      api.transactionsControllerUpdate.mockImplementation(
+        ({ body }: { body: object }) => ok({ ...shopRow, ...body }),
+      )
+
+      screen.getByRole('button', { name: 'Modifier Fakemart' }).focus()
+      await user.keyboard('n')
+      const note = screen.getByLabelText('Note de Fakemart')
+      expect(note).toHaveFocus()
+      await user.type(note, 'Cadeau{Enter}')
+      expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith({
+        path: { id: shopRow.id },
+        body: { note: 'Cadeau' },
+        throwOnError: false,
+      })
+      expect(
+        screen.queryByLabelText('Note de Fakemart'),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Modifier Fakemart' }),
+      ).toHaveFocus()
+
+      await user.keyboard('n')
+      await user.type(screen.getByLabelText('Note de Fakemart'), 'X{Escape}')
+      expect(api.transactionsControllerUpdate).toHaveBeenCalledTimes(1)
+    })
+
+    it('edits the amount of a manual row in place and undoes it with Ctrl+Z', async () => {
+      api.transactionsControllerList.mockReturnValue(
+        listOf([...rows, manualRow]),
+      )
+      api.transactionsControllerUpdateManual.mockImplementation(
+        ({ body }: { body: { amountCents?: number } }) =>
+          ok({ ...manualRow, amountCents: -(body.amountCents ?? 1_250) }),
+      )
+      const { user } = setup()
+      await waitForRows()
+
+      screen.getByRole('button', { name: 'Modifier Marché' }).focus()
+      await user.keyboard('m')
+      const amount = screen.getByLabelText('Montant de Marché')
+      expect(amount).toHaveValue('12,50')
+      await user.clear(amount)
+      await user.type(amount, '30{Enter}')
+      await waitFor(() =>
+        expect(api.transactionsControllerUpdateManual).toHaveBeenCalledWith({
+          path: { id: manualRow.id },
+          body: { amountCents: 3_000 },
+          throwOnError: false,
+        }),
+      )
+      await waitFor(() =>
+        expect(toast.success).toHaveBeenCalledWith(
+          'Montant modifié',
+          expect.objectContaining({ description: 'Marché' }),
+        ),
+      )
+      expect(
+        screen.getByRole('listitem', { name: 'Marché' }),
+      ).toHaveTextContent(euros(-3_000))
+
+      // An imported row has no amount edit in place.
+      screen.getByRole('button', { name: 'Modifier Fakemart' }).focus()
+      await user.keyboard('m')
+      expect(
+        screen.queryByLabelText('Montant de Fakemart'),
+      ).not.toBeInTheDocument()
+
+      await user.keyboard('{Control>}z{/Control}')
+      await waitFor(() =>
+        expect(api.transactionsControllerUpdateManual).toHaveBeenLastCalledWith(
+          {
+            path: { id: manualRow.id },
+            body: {
+              amountCents: 1_250,
+              direction: 'out',
+              kind: 'expense',
+              categoryId: groceries.id,
+              bookingDate: '2026-11-03',
+              label: 'Marché',
+              accountId: ACCOUNT_ID,
+              isOneOff: false,
+              note: null,
+            },
+            throwOnError: false,
+          },
+        ),
+      )
+      expect(toast.dismiss).toHaveBeenCalled()
+    })
+
+    it('splits a transaction between categories and undoes it', async () => {
+      const { user } = setup()
+      await waitForRows()
+      api.transactionsControllerSplit.mockImplementation(
+        ({
+          body,
+        }: {
+          body: { parts: { categoryId: string; amountCents: number }[] }
+        }) =>
+          ok({
+            ...shopRow,
+            categoryId: groceries.id,
+            category: { ...groceries },
+            needsReview: false,
+            splits: body.parts.map((part, index) => ({
+              id: `s000000${index}-0000-4000-8000-000000000000`,
+              ...part,
+              category: {
+                ...(part.categoryId === groceries.id ? groceries : savings),
+              },
+            })),
+          }),
+      )
+
+      await user.click(
+        screen.getByRole('button', { name: 'Modifier Fakemart' }),
+      )
+      const editor = await screen.findByRole('dialog')
+      await user.click(
+        within(editor).getByRole('button', {
+          name: 'Répartir entre plusieurs catégories',
+        }),
+      )
+      const form = within(editor).getByRole('form', {
+        name: 'Répartir entre catégories',
+      })
+      // The whole amount starts in the first part.
+      expect(within(form).getByLabelText('Montant de la part 1')).toHaveValue(
+        '45,50',
+      )
+      await user.selectOptions(
+        within(form).getByLabelText('Catégorie de la part 1'),
+        groceries.id,
+      )
+      const first = within(form).getByLabelText('Montant de la part 1')
+      await user.clear(first)
+      await user.type(first, '30')
+      expect(form).toHaveTextContent(`Reste à répartir : ${euros(1_550)}`)
+      await user.selectOptions(
+        within(form).getByLabelText('Catégorie de la part 2'),
+        savings.id,
+      )
+      await user.type(
+        within(form).getByLabelText('Montant de la part 2'),
+        '15,5',
+      )
+      expect(form).toHaveTextContent('Tout est réparti')
+      await user.click(
+        within(form).getByRole('button', {
+          name: 'Enregistrer la répartition',
+        }),
+      )
+
+      await waitFor(() =>
+        expect(api.transactionsControllerSplit).toHaveBeenCalledWith({
+          path: { id: shopRow.id },
+          body: {
+            parts: [
+              { categoryId: groceries.id, amountCents: -3_000 },
+              { categoryId: savings.id, amountCents: -1_550 },
+            ],
+          },
+          throwOnError: false,
+        }),
+      )
+      await waitFor(() =>
+        expect(
+          screen.getByRole('listitem', { name: 'Fakemart' }),
+        ).toHaveTextContent('Répartie (2)'),
+      )
+
+      // Undo: no split any more, and the row back as it was.
+      api.transactionsControllerUnsplit.mockReturnValue(ok(shopRow))
+      api.transactionsControllerUpdate.mockReturnValue(ok(shopRow))
+      lastToastAction().onClick()
+      await waitFor(() =>
+        expect(api.transactionsControllerUnsplit).toHaveBeenCalledWith({
+          path: { id: shopRow.id },
+          throwOnError: false,
+        }),
+      )
+      await waitFor(() =>
+        expect(api.transactionsControllerUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            body: expect.objectContaining({
+              categoryId: null,
+              needsReview: true,
+            }),
+          }),
+        ),
+      )
+    })
+
+    it('refuses a split that does not add up', async () => {
+      const { user } = setup()
+      await waitForRows()
+      await user.click(
+        screen.getByRole('button', { name: 'Modifier Fakemart' }),
+      )
+      const editor = await screen.findByRole('dialog')
+      await user.click(
+        within(editor).getByRole('button', {
+          name: 'Répartir entre plusieurs catégories',
+        }),
+      )
+      const form = within(editor).getByRole('form', {
+        name: 'Répartir entre catégories',
+      })
+      await user.selectOptions(
+        within(form).getByLabelText('Catégorie de la part 1'),
+        groceries.id,
+      )
+      await user.selectOptions(
+        within(form).getByLabelText('Catégorie de la part 2'),
+        savings.id,
+      )
+      await user.type(within(form).getByLabelText('Montant de la part 2'), '1')
+      await user.click(
+        within(form).getByRole('button', {
+          name: 'Enregistrer la répartition',
+        }),
+      )
+      expect(form).toHaveTextContent(
+        'Les parts doivent faire exactement le montant de l’opération',
+      )
+      expect(api.transactionsControllerSplit).not.toHaveBeenCalled()
+    })
+
+    it('corrects an imported amount behind an explicit action, and undoes it', async () => {
+      const { user } = setup()
+      await waitForRows()
+      api.transactionsControllerCorrect.mockReturnValue(
+        ok({ ...shopRow, amountCents: -4_000, originalAmountCents: -4_550 }),
+      )
+
+      await user.click(
+        screen.getByRole('button', { name: 'Modifier Fakemart' }),
+      )
+      const editor = await screen.findByRole('dialog')
+      await user.click(
+        within(editor).getByRole('button', {
+          name: 'Modifier une opération importée',
+        }),
+      )
+      const amount = within(editor).getByLabelText('Montant corrigé')
+      expect(amount).toHaveValue('-45,50')
+      await user.clear(amount)
+      await user.type(amount, '-40')
+      await user.click(
+        within(editor).getByRole('button', {
+          name: 'Enregistrer la correction',
+        }),
+      )
+      await waitFor(() =>
+        expect(api.transactionsControllerCorrect).toHaveBeenCalledWith({
+          path: { id: shopRow.id },
+          body: { amountCents: -4_000 },
+          throwOnError: false,
+        }),
+      )
+      await waitFor(() =>
+        expect(
+          screen.getByRole('listitem', { name: 'Fakemart' }),
+        ).toHaveTextContent('Corrigée'),
+      )
+
+      api.transactionsControllerRestoreBankValues.mockReturnValue(ok(shopRow))
+      lastToastAction().onClick()
+      await waitFor(() =>
+        expect(
+          api.transactionsControllerRestoreBankValues,
+        ).toHaveBeenCalledWith({
+          path: { id: shopRow.id },
+          throwOnError: false,
+        }),
+      )
+    })
+
+    it('adds an income by hand from the page, with undo', async () => {
+      const { user } = setup()
+      await waitForRows()
+      const created = transaction(5, {
+        rawLabel: 'Prime',
+        amountCents: 30_000,
+        kind: 'income',
+        categoryId: salary.id,
+        category: { ...salary },
+        manual: true,
+      })
+      api.transactionsControllerCreateManual.mockReturnValue(ok(created))
+
+      await user.click(
+        screen.getByRole('button', { name: 'Ajouter une opération' }),
+      )
+      const sheet = await screen.findByRole('dialog', {
+        name: 'Ajouter une dépense',
+      })
+      await user.click(within(sheet).getByRole('radio', { name: 'Revenu' }))
+      expect(
+        screen.getByRole('dialog', { name: 'Ajouter un revenu' }),
+      ).toBeInTheDocument()
+      expect(within(sheet).getByLabelText('Sens')).toHaveValue('in')
+      await user.selectOptions(
+        within(sheet).getByLabelText('Catégorie'),
+        salary.id,
+      )
+      await user.type(within(sheet).getByLabelText('Montant'), '300')
+      await user.type(within(sheet).getByLabelText('Libellé'), 'Prime')
+      await user.click(
+        within(sheet).getByRole('switch', { name: /Ponctuelle/ }),
+      )
+      await user.click(within(sheet).getByRole('button', { name: 'Ajouter' }))
+
+      await waitFor(() =>
+        expect(api.transactionsControllerCreateManual).toHaveBeenCalledWith({
+          body: {
+            amountCents: 30_000,
+            kind: 'income',
+            direction: 'in',
+            categoryId: salary.id,
+            bookingDate: '2026-11-05',
+            label: 'Prime',
+            accountId: ACCOUNT_ID,
+            isOneOff: true,
+            note: null,
+          },
+          throwOnError: false,
+        }),
+      )
+      api.transactionsControllerRemoveManual.mockReturnValue(
+        Promise.resolve({ response: { ok: true, status: 204 } }),
+      )
+      lastToastAction().onClick()
+      await waitFor(() =>
+        expect(api.transactionsControllerRemoveManual).toHaveBeenCalledWith({
+          path: { id: created.id },
+          throwOnError: false,
+        }),
+      )
+    })
   })
 })

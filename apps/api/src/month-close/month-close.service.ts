@@ -27,8 +27,11 @@ import { DashboardService } from '#/dashboard/dashboard.service'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import {
+  bankAmountCents,
+  bankBookingDate,
   categoriesTable,
   recurringItemsTable,
+  transactionLinesView,
   transactionsTable,
 } from '#/database/schema'
 import { daysBetween } from '#/investments/days'
@@ -456,7 +459,8 @@ export class MonthCloseService {
 
   /** Income and expense sums per category of `month` and the month before. */
   private async categoryTotals(month: string, executor: Executor) {
-    const t = transactionsTable
+    // Lines: a split transaction counts in each of its categories.
+    const t = transactionLinesView
     const c = categoriesTable
     const bucket = sql<string>`to_char(${t.bookingDate}, 'YYYY-MM')`
     return executor
@@ -547,8 +551,9 @@ export class MonthCloseService {
     const rows = await executor
       .select({
         accountId: t.accountId,
-        bookingDate: t.bookingDate,
-        amountCents: t.amountCents,
+        // Bank values: a row corrected by hand (#74) keeps the bank's chain.
+        bookingDate: bankBookingDate,
+        amountCents: bankAmountCents,
         balanceAfterCents: t.balanceAfterCents,
       })
       .from(t)
@@ -559,11 +564,11 @@ export class MonthCloseService {
             accounts.map((account) => account.id),
           ),
           eq(t.manual, false),
-          gte(t.bookingDate, `${shiftMonth(month, -1)}-01`),
-          lte(t.bookingDate, monthEnd(month)),
+          gte(bankBookingDate, `${shiftMonth(month, -1)}-01`),
+          lte(bankBookingDate, monthEnd(month)),
         ),
       )
-      .orderBy(asc(t.bookingDate), asc(t.id))
+      .orderBy(asc(bankBookingDate), asc(t.id))
     const byAccount = new Map<string, StoredRow[]>()
     for (const row of rows) {
       const list = byAccount.get(row.accountId) ?? []

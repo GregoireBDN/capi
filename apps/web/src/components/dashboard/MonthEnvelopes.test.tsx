@@ -9,7 +9,7 @@ import type {
   EnvelopesDto,
   TransactionDto,
 } from '#/api/types.gen'
-import { ManualExpenseSheet } from '#/components/expenses/ManualExpenseSheet'
+import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
 import { referenceKeys } from '#/lib/queries'
 import { MonthEnvelopes } from './MonthEnvelopes'
 
@@ -23,6 +23,14 @@ const api = vi.hoisted(() => ({
 }))
 
 vi.mock('#/api', () => api)
+
+// The sheet's kind picker (Radix toggle group) measures itself.
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- absent in jsdom despite the DOM typings
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -221,10 +229,14 @@ describe('MonthEnvelopes', () => {
       expect(api.transactionsControllerCreateManual).toHaveBeenCalledWith({
         body: {
           amountCents: 1_250,
+          kind: 'expense',
+          direction: 'out',
           categoryId: OUTINGS,
           bookingDate: '2026-11-13',
           label: 'Ciné',
           accountId: CHECKING,
+          isOneOff: false,
+          note: null,
         },
         throwOnError: false,
       }),
@@ -268,7 +280,7 @@ describe('MonthEnvelopes', () => {
   })
 })
 
-describe('ManualExpenseSheet (editing)', () => {
+describe('ManualTransactionSheet (editing)', () => {
   const expense = {
     id: 'e0000000-0000-4000-8000-000000000001',
     accountId: CHECKING,
@@ -287,6 +299,9 @@ describe('ManualExpenseSheet (editing)', () => {
     isOneOff: false,
     note: null,
     manual: true,
+    originalAmountCents: null,
+    originalBookingDate: null,
+    splits: [],
     createdAt: STAMP,
     updatedAt: STAMP,
   } as TransactionDto
@@ -301,7 +316,7 @@ describe('ManualExpenseSheet (editing)', () => {
     queryClient.setQueryData(referenceKeys.accounts, accounts)
     render(
       <QueryClientProvider client={queryClient}>
-        <ManualExpenseSheet
+        <ManualTransactionSheet
           open
           onOpenChange={onOpenChange}
           expense={expense}
@@ -339,10 +354,14 @@ describe('ManualExpenseSheet (editing)', () => {
         path: { id: expense.id },
         body: {
           amountCents: 2_700,
+          kind: 'expense',
+          direction: 'out',
           categoryId: OUTINGS,
           bookingDate: '2026-11-08',
           label: 'Ciné',
           accountId: CHECKING,
+          isOneOff: false,
+          note: null,
         },
         throwOnError: false,
       }),
@@ -359,7 +378,7 @@ describe('ManualExpenseSheet (editing)', () => {
     const dialog = await screen.findByRole('dialog')
     await user.click(within(dialog).getByRole('button', { name: 'Supprimer' }))
     const confirm = await screen.findByRole('dialog', {
-      name: 'Supprimer cette dépense ?',
+      name: 'Supprimer cette opération ?',
     })
     await user.click(within(confirm).getByRole('button', { name: 'Supprimer' }))
     await waitFor(() =>

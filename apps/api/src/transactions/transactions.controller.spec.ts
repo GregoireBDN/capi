@@ -17,7 +17,7 @@ import {
 } from 'vitest'
 import { JWT_GUARD_TEST_PROVIDERS } from '#/auth/guards/jwt-guard.testing'
 import { BULK_UPDATE_MAX_IDS } from './dto/transaction.dto'
-import { ManualExpensesService } from './manual-expenses.service'
+import { ManualTransactionsService } from './manual-transactions.service'
 import { TransactionsController } from './transactions.controller'
 import { TransactionsService } from './transactions.service'
 
@@ -38,6 +38,10 @@ describe('TransactionsController (HTTP)', () => {
     reviewCount: vi.fn(),
     update: vi.fn(),
     bulkUpdate: vi.fn(),
+    split: vi.fn(),
+    unsplit: vi.fn(),
+    correct: vi.fn(),
+    restoreBankValues: vi.fn(),
   }
   const manual = {
     create: vi.fn(),
@@ -52,7 +56,7 @@ describe('TransactionsController (HTTP)', () => {
       providers: [
         ...JWT_GUARD_TEST_PROVIDERS,
         { provide: TransactionsService, useValue: service },
-        { provide: ManualExpensesService, useValue: manual },
+        { provide: ManualTransactionsService, useValue: manual },
       ],
     }).compile()
     app = moduleRef.createNestApplication<NestFastifyApplication>(
@@ -89,7 +93,7 @@ describe('TransactionsController (HTTP)', () => {
   })
 
   function request(
-    method: 'GET' | 'PATCH' | 'POST' | 'DELETE',
+    method: 'GET' | 'PATCH' | 'POST' | 'PUT' | 'DELETE',
     url: string,
     payload?: object,
     headers: Record<string, string> = { cookie },
@@ -288,7 +292,7 @@ describe('TransactionsController (HTTP)', () => {
     })
   })
 
-  describe('manual expenses', () => {
+  describe('manual transactions', () => {
     it('notes an expense with only an amount and a category', async () => {
       const response = await request('POST', '/transactions/manual', {
         amountCents: 1250,
@@ -333,7 +337,9 @@ describe('TransactionsController (HTTP)', () => {
       ['a zero amount', { amountCents: 0, categoryId: ID }],
       ['a negative amount', { amountCents: -100, categoryId: ID }],
       ['a decimal amount', { amountCents: 12.5, categoryId: ID }],
-      ['no category', { amountCents: 100 }],
+      ['an unknown kind', { amountCents: 100, kind: 'refund' }],
+      ['an unknown direction', { amountCents: 100, direction: 'up' }],
+      ['a non-boolean one-off flag', { amountCents: 100, isOneOff: 'yes' }],
       [
         'a bad date',
         { amountCents: 100, categoryId: ID, bookingDate: '2026-02-30' },
@@ -346,10 +352,7 @@ describe('TransactionsController (HTTP)', () => {
           bookingDate: '2026-02-03T10:00:00Z',
         },
       ],
-      [
-        'an unknown field',
-        { amountCents: 100, categoryId: ID, kind: 'income' },
-      ],
+      ['an unknown field', { amountCents: 100, categoryId: ID, ruleId: ID }],
     ])('rejects %s', async (_name, body) => {
       const response = await request('POST', '/transactions/manual', body)
       expect(response.statusCode).toBe(400)
@@ -371,11 +374,114 @@ describe('TransactionsController (HTTP)', () => {
       expect(manual.remove).toHaveBeenCalledWith(ID)
     })
 
+    it('takes the kind, direction, one-off flag and note of any transaction', async () => {
+      const body = {
+        amountCents: 250_000,
+        kind: 'income',
+        direction: 'in',
+        label: 'Prime',
+        isOneOff: true,
+        note: '  exceptionnelle ',
+      }
+      const response = await request('POST', '/transactions/manual', body)
+      expect(response.statusCode).toBe(201)
+      expect(manual.create).toHaveBeenCalledWith({
+        ...body,
+        note: 'exceptionnelle',
+      })
+    })
+
     it('rejects a null amount on edit', async () => {
       const response = await request('PATCH', `/transactions/manual/${ID}`, {
         amountCents: null,
       })
       expect(response.statusCode).toBe(400)
+    })
+  })
+
+  describe('splits', () => {
+    it('replaces the parts', async () => {
+      const parts = [
+        { categoryId: ID, amountCents: -3000 },
+        { categoryId: OTHER_ID, amountCents: -1500 },
+      ]
+      const response = await request('PUT', `/transactions/${ID}/splits`, {
+        parts,
+      })
+      expect(response.statusCode).toBe(200)
+      expect(service.split).toHaveBeenCalledWith(ID, parts)
+    })
+
+    it.each<[string, object]>([
+      ['one part', { parts: [{ categoryId: ID, amountCents: -100 }] }],
+      [
+        'a zero part',
+        {
+          parts: [
+            { categoryId: ID, amountCents: 0 },
+            { categoryId: OTHER_ID, amountCents: -100 },
+          ],
+        },
+      ],
+      [
+        'a decimal part',
+        {
+          parts: [
+            { categoryId: ID, amountCents: -1.5 },
+            { categoryId: OTHER_ID, amountCents: -100 },
+          ],
+        },
+      ],
+      [
+        'a part without category',
+        {
+          parts: [{ amountCents: -100 }, { categoryId: ID, amountCents: -1 }],
+        },
+      ],
+    ])('rejects %s', async (_name, body) => {
+      const response = await request('PUT', `/transactions/${ID}/splits`, body)
+      expect(response.statusCode).toBe(400)
+      expect(service.split).not.toHaveBeenCalled()
+    })
+
+    it('ends a split', async () => {
+      const response = await request('DELETE', `/transactions/${ID}/splits`)
+      expect(response.statusCode).toBe(200)
+      expect(service.unsplit).toHaveBeenCalledWith(ID)
+    })
+  })
+
+  describe('corrections of imported rows', () => {
+    it('corrects the amount and the date', async () => {
+      const body = { amountCents: -4200, bookingDate: '2026-10-03' }
+      const response = await request(
+        'PUT',
+        `/transactions/${ID}/correction`,
+        body,
+      )
+      expect(response.statusCode).toBe(200)
+      expect(service.correct).toHaveBeenCalledWith(ID, body)
+    })
+
+    it.each<[string, object]>([
+      ['a zero amount', { amountCents: 0 }],
+      ['a decimal amount', { amountCents: -1.5 }],
+      ['a bad date', { bookingDate: '2026-02-30' }],
+      ['a null date', { bookingDate: null }],
+    ])('rejects %s', async (_name, body) => {
+      const response = await request(
+        'PUT',
+        `/transactions/${ID}/correction`,
+        body,
+      )
+      expect(response.statusCode).toBe(400)
+      expect(service.correct).not.toHaveBeenCalled()
+    })
+
+    it('restores the bank values', async () => {
+      const response = await request('DELETE', `/transactions/${ID}/correction`)
+      expect(response.statusCode).toBe(200)
+      expect(service.restoreBankValues).toHaveBeenCalledWith(ID)
     })
   })
 })
