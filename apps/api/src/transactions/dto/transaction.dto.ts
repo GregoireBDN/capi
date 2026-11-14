@@ -230,8 +230,32 @@ export const TRANSACTION_SORTS = [
 ] as const
 export type TransactionSort = (typeof TRANSACTION_SORTS)[number]
 
+/** Most ids one `ids` filter may list (one page of the list). */
+export const TRANSACTION_IDS_FILTER_MAX = TRANSACTIONS_PAGE_LIMIT_MAX
+
 /** Filters shared by the list and the summary. */
 export class TransactionFiltersQueryDto {
+  @ApiPropertyOptional({
+    type: String,
+    example:
+      '7f0c5a7e-2d1b-4c3a-9e8f-123456789abc,3b9d2f1e-8c7a-4b6d-9e0f-abcdef012345',
+    description: `Only these transactions: comma-separated ids, at most ${TRANSACTION_IDS_FILTER_MAX} (unknown ids are ignored). Used to show the current state of a selection before changing it.`,
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string'
+      ? value
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean)
+      : value,
+  )
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(TRANSACTION_IDS_FILTER_MAX)
+  @IsUUID('all', { each: true })
+  ids?: string[]
+
   @ApiPropertyOptional({
     type: Boolean,
     description: 'Only transactions in (true) or out of (false) review.',

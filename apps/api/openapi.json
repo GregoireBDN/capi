@@ -2054,6 +2054,16 @@
         "operationId": "TransactionsController_list",
         "parameters": [
           {
+            "description": "Only these transactions: comma-separated ids, at most 100 (unknown ids are ignored). Used to show the current state of a selection before changing it.",
+            "required": false,
+            "name": "ids",
+            "in": "query",
+            "schema": {
+              "example": "7f0c5a7e-2d1b-4c3a-9e8f-123456789abc,3b9d2f1e-8c7a-4b6d-9e0f-abcdef012345",
+              "type": "string"
+            }
+          },
+          {
             "description": "Only transactions in (true) or out of (false) review.",
             "required": false,
             "name": "needsReview",
@@ -2220,6 +2230,16 @@
         "description": "Same filters as the list. Income and expense exclude transfers between own accounts, which are only counted (`transferCount`); one-off amounts are reported apart as well as included.",
         "operationId": "TransactionsController_summary",
         "parameters": [
+          {
+            "description": "Only these transactions: comma-separated ids, at most 100 (unknown ids are ignored). Used to show the current state of a selection before changing it.",
+            "required": false,
+            "name": "ids",
+            "in": "query",
+            "schema": {
+              "example": "7f0c5a7e-2d1b-4c3a-9e8f-123456789abc,3b9d2f1e-8c7a-4b6d-9e0f-abcdef012345",
+              "type": "string"
+            }
+          },
           {
             "description": "Only transactions in (true) or out of (false) review.",
             "required": false,

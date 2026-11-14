@@ -590,6 +590,9 @@ export class TransactionsService {
       throw new BadRequestException('month cannot be combined with from or to')
     }
     const conditions: (SQL | undefined)[] = []
+    if (query.ids !== undefined) {
+      conditions.push(inArray(transactionsTable.id, query.ids))
+    }
     if (query.needsReview !== undefined) {
       conditions.push(eq(transactionsTable.needsReview, query.needsReview))
     }

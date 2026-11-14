@@ -70,9 +70,17 @@ const PUBLIC_ROUTES = [
 /**
  * The only routes a personal access token may call with a method other than
  * GET/HEAD (#73), with the level they declare through `@TokenAccess()`. Every
- * other mutating route stays session-only. `write` routes are the MCP write
- * tools (#77); `read` ones save nothing (previews, suggestions). Never add a
- * DELETE, an import, an account, auth, profile or token-management route here.
+ * other mutating route stays session-only. `read` ones save nothing (previews,
+ * suggestions). Never add a DELETE, an import, an account, auth, profile or
+ * token-management route here.
+ *
+ * The MCP write tools (#77, `apps/mcp/src/tools/*-writes.ts`) use:
+ * `POST /api/transactions/manual` (add_transaction), `PATCH /api/transactions/:id`
+ * and `POST /api/transactions/bulk-update` (categorize_transactions,
+ * mark_one_off, set_transaction_note), `POST /api/categorization-rules`,
+ * `/preview` and `/apply` (create_rule), `PUT /api/budgets/:categoryId`
+ * (set_budget_targets) and `POST /api/budgets/suggest` (budget_suggestions).
+ * The others were opened with the tokens for scripts and later tools.
  */
 const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
   'PATCH /api/categorization-rules/:id': 'write',
