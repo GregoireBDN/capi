@@ -270,9 +270,7 @@ function WalletTokenList({
                   variant="secondary"
                   ghost
                   aria-label={`Ne plus lire ${token.symbol}`}
-                  loading={
-                    remove.isPending && remove.variables?.id === token.id
-                  }
+                  loading={remove.isPending && remove.variables.id === token.id}
                   onClick={() => remove.mutate(token)}
                 >
                   <Trash2Icon />
