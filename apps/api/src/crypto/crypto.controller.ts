@@ -174,7 +174,8 @@ export class CryptoController {
   @Post('valuate')
   @HttpCode(200)
   @ApiOperation({
-    summary: "Refresh prices of every crypto account and write today's snapshots",
+    summary:
+      "Refresh prices of every crypto account and write today's snapshots",
     description:
       "One batched price API request for every held asset (each at most every 15 s), then each non-archived crypto account whose holdings all have a price gets today's balance snapshot. A failing price API never fails the request: the last known prices are used and flagged stale.",
   })

@@ -25,6 +25,7 @@ import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppImportRouteImport } from './routes/_app/import'
 import { Route as AppForecastRouteImport } from './routes/_app/forecast'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
+import { Route as AppCryptoRouteImport } from './routes/_app/crypto'
 import { Route as AppCategoriesRouteImport } from './routes/_app/categories'
 import { Route as AppBudgetRouteImport } from './routes/_app/budget'
 import { Route as AppAccountsIndexRouteImport } from './routes/_app/accounts.index'
@@ -109,6 +110,11 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AppRoute,
 } as any)
+const AppCryptoRoute = AppCryptoRouteImport.update({
+  id: '/crypto',
+  path: '/crypto',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppCategoriesRoute = AppCategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
@@ -137,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/verify-email': typeof VerifyEmailRoute
   '/budget': typeof AppBudgetRoute
   '/categories': typeof AppCategoriesRoute
+  '/crypto': typeof AppCryptoRoute
   '/dashboard': typeof AppDashboardRoute
   '/forecast': typeof AppForecastRoute
   '/import': typeof AppImportRoute
@@ -158,6 +165,7 @@ export interface FileRoutesByTo {
   '/verify-email': typeof VerifyEmailRoute
   '/budget': typeof AppBudgetRoute
   '/categories': typeof AppCategoriesRoute
+  '/crypto': typeof AppCryptoRoute
   '/dashboard': typeof AppDashboardRoute
   '/forecast': typeof AppForecastRoute
   '/import': typeof AppImportRoute
@@ -181,6 +189,7 @@ export interface FileRoutesById {
   '/verify-email': typeof VerifyEmailRoute
   '/_app/budget': typeof AppBudgetRoute
   '/_app/categories': typeof AppCategoriesRoute
+  '/_app/crypto': typeof AppCryptoRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/forecast': typeof AppForecastRoute
   '/_app/import': typeof AppImportRoute
@@ -204,6 +213,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/budget'
     | '/categories'
+    | '/crypto'
     | '/dashboard'
     | '/forecast'
     | '/import'
@@ -225,6 +235,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/budget'
     | '/categories'
+    | '/crypto'
     | '/dashboard'
     | '/forecast'
     | '/import'
@@ -247,6 +258,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/_app/budget'
     | '/_app/categories'
+    | '/_app/crypto'
     | '/_app/dashboard'
     | '/_app/forecast'
     | '/_app/import'
@@ -385,6 +397,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/crypto': {
+      id: '/_app/crypto'
+      path: '/crypto'
+      fullPath: '/crypto'
+      preLoaderRoute: typeof AppCryptoRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/categories': {
       id: '/_app/categories'
       path: '/categories'
@@ -419,6 +438,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppBudgetRoute: typeof AppBudgetRoute
   AppCategoriesRoute: typeof AppCategoriesRoute
+  AppCryptoRoute: typeof AppCryptoRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppForecastRoute: typeof AppForecastRoute
   AppImportRoute: typeof AppImportRoute
@@ -436,6 +456,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppBudgetRoute: AppBudgetRoute,
   AppCategoriesRoute: AppCategoriesRoute,
+  AppCryptoRoute: AppCryptoRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppForecastRoute: AppForecastRoute,
   AppImportRoute: AppImportRoute,

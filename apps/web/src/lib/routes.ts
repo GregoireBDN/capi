@@ -9,6 +9,7 @@ export const ROUTES = {
   subscriptions: '/subscriptions',
   forecast: '/forecast',
   savings: '/savings',
+  crypto: '/crypto',
   accounts: '/accounts',
   account: '/accounts/$accountId',
   import: '/import',
