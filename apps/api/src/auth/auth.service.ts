@@ -24,6 +24,7 @@ import {
   EMAIL_VERIFICATION_TTL_MS,
   PASSWORD_RESET_TTL_MS,
   REFRESH_TOKEN_TTL_MS,
+  SESSION_MAX_LIFETIME_MS,
 } from './auth.constants'
 import type { ForgotPasswordDto, LoginDto, RegisterDto } from './dto/auth.dto'
 
@@ -195,19 +196,24 @@ export class AuthService {
   /**
    * Persists a new refresh token in the given family and returns the token pair.
    * The token itself is random and returned to the caller; only its hash is
-   * stored, so a database leak cannot be replayed.
+   * stored, so a database leak cannot be replayed. It expires after
+   * `REFRESH_TOKEN_TTL_MS`, or at the family's absolute end when sooner.
    */
   private async issueRefreshToken(
     userId: string,
     familyId: string,
     authenticatedAt: Date | null,
+    sessionEndsAt: Date | null = null,
   ): Promise<SessionTokens> {
     const refreshToken = crypto.randomBytes(32).toString('hex')
+    const ttlEnd = Date.now() + REFRESH_TOKEN_TTL_MS
     await this.db.db.insert(refreshTokensTable).values({
       userId,
       familyId,
       tokenHash: this.hashToken(refreshToken),
-      expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+      expiresAt: new Date(
+        sessionEndsAt ? Math.min(ttlEnd, sessionEndsAt.getTime()) : ttlEnd,
+      ),
       authenticatedAt,
     })
     return {
@@ -226,38 +232,86 @@ export class AuthService {
 
   /**
    * Rotates a refresh token: validates it, revokes it, and issues a new token in
-   * the same family. Presenting an already-revoked (or unknown/expired) token is
-   * treated as reuse — the entire family is revoked so a stolen token cannot be
-   * traded for a fresh session.
+   * the same family. Presenting an already-revoked token is treated as reuse —
+   * the entire family is revoked so a stolen token cannot be traded for a
+   * fresh session. The revocation is conditional (`revoked_at IS NULL`), so of
+   * two rotations racing with the same token only one can win; the other is
+   * reuse. A family past `SESSION_MAX_LIFETIME_MS` since its sign-in is ended.
    */
-  async rotateRefreshToken(token: string): Promise<SessionTokens> {
+  async rotateRefreshToken(
+    token: string,
+    now = new Date(),
+  ): Promise<SessionTokens> {
+    const invalid = () =>
+      new UnauthorizedException(AUTH_ERRORS.INVALID_REFRESH_TOKEN)
     const tokenHash = this.hashToken(token)
     const [record] = await this.db.db
       .select()
       .from(refreshTokensTable)
       .where(eq(refreshTokensTable.tokenHash, tokenHash))
 
-    if (!record || record.expiresAt < new Date()) {
-      throw new UnauthorizedException(AUTH_ERRORS.INVALID_REFRESH_TOKEN)
-    }
+    if (!record || record.expiresAt < now) throw invalid()
 
     // Reuse of an already-rotated/revoked token ⇒ likely theft: burn the family.
     if (record.revokedAt) {
       await this.revokeFamily(record.familyId)
-      throw new UnauthorizedException(AUTH_ERRORS.INVALID_REFRESH_TOKEN)
+      throw invalid()
     }
 
-    await this.db.db
+    const sessionEndsAt = await this.sessionEnd(record)
+    if (sessionEndsAt && sessionEndsAt <= now) {
+      await this.revokeFamily(record.familyId)
+      throw invalid()
+    }
+
+    // Atomic check-and-revoke: a concurrent rotation that got here first has
+    // already revoked the row, and this one is then reuse.
+    const revoked = await this.db.db
       .update(refreshTokensTable)
-      .set({ revokedAt: new Date() })
-      .where(eq(refreshTokensTable.id, record.id))
+      .set({ revokedAt: now })
+      .where(
+        and(
+          eq(refreshTokensTable.id, record.id),
+          isNull(refreshTokensTable.revokedAt),
+        ),
+      )
+      .returning({ id: refreshTokensTable.id })
+    if (revoked.length === 0) {
+      await this.revokeFamily(record.familyId)
+      throw invalid()
+    }
 
     // Renewing the access token is not a new sign-in: keep the family's time.
     return this.issueRefreshToken(
       record.userId,
       record.familyId,
       record.authenticatedAt,
+      sessionEndsAt,
     )
+  }
+
+  /**
+   * When the family can no longer be renewed: its sign-in time plus the
+   * absolute lifetime. Families from before `authenticated_at` count from
+   * their first token. Null when neither is known.
+   */
+  private async sessionEnd(record: {
+    familyId: string
+    authenticatedAt: Date | null
+  }): Promise<Date | null> {
+    let start = record.authenticatedAt
+    if (!start) {
+      const [family] = await this.db.db
+        .select({
+          startedAt: sql<Date>`min(${refreshTokensTable.createdAt})`.mapWith(
+            refreshTokensTable.createdAt,
+          ),
+        })
+        .from(refreshTokensTable)
+        .where(eq(refreshTokensTable.familyId, record.familyId))
+      start = family?.startedAt instanceof Date ? family.startedAt : null
+    }
+    return start ? new Date(start.getTime() + SESSION_MAX_LIFETIME_MS) : null
   }
 
   private async revokeFamily(familyId: string): Promise<void> {

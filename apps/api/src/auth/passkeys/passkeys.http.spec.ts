@@ -504,7 +504,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Passkeys (HTTP)', () => {
         const revoked = await call(
           'DELETE',
           `/api/auth/passkeys/${passkey.id}`,
-          { cookie: owner.stale },
+          { cookie: owner.fresh },
         )
         expect(revoked.statusCode).toBe(204)
         expect((await signIn(pending)).statusCode).toBe(401)
@@ -513,7 +513,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Passkeys (HTTP)', () => {
             .statusCode,
         ).toBe(401)
         const again = await call('DELETE', `/api/auth/passkeys/${passkey.id}`, {
-          cookie: owner.stale,
+          cookie: owner.fresh,
         })
         expect(again.statusCode).toBe(404)
       })

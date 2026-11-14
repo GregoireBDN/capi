@@ -213,6 +213,48 @@ describe('PasskeysCard', () => {
     expect(toast.success).toHaveBeenCalledWith('Passkey iPhone révoquée')
   })
 
+  it('asks for the password before revoking when the session is not fresh', async () => {
+    api.passkeysControllerRemove
+      .mockImplementationOnce(() =>
+        Promise.resolve({
+          error: { message: ['Recent authentication required'] },
+          response: new Response(null, { status: 403 }),
+        }),
+      )
+      .mockImplementationOnce(() => ok(undefined, 204))
+    api.authControllerLogin.mockImplementation(() => ok({ success: true }))
+    const user = userEvent.setup()
+    renderCard()
+    await screen.findByText('iPhone')
+
+    await user.click(screen.getByRole('button', { name: 'Révoquer' }))
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', {
+        name: 'Révoquer',
+      }),
+    )
+
+    const sheet = await screen.findByRole('dialog', {
+      name: 'Confirmez votre identité',
+    })
+    expect(sheet).toHaveTextContent('Pour révoquer une passkey')
+    expect(toast.error).not.toHaveBeenCalled()
+    await user.type(within(sheet).getByLabelText('Mot de passe'), 'secret-pw')
+    await user.click(within(sheet).getByRole('button', { name: 'Confirmer' }))
+
+    const confirmed = await screen.findByRole('dialog', {
+      name: 'Identité confirmée',
+    })
+    expect(api.passkeysControllerRemove).toHaveBeenCalledTimes(1)
+    await user.click(
+      within(confirmed).getByRole('button', { name: 'Révoquer la passkey' }),
+    )
+    await waitFor(() =>
+      expect(api.passkeysControllerRemove).toHaveBeenCalledTimes(2),
+    )
+    expect(toast.success).toHaveBeenCalledWith('Passkey iPhone révoquée')
+  })
+
   it('says when the browser cannot add a passkey', async () => {
     passkeys.passkeysSupported.mockReturnValue(false)
     renderCard()

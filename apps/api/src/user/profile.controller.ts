@@ -10,6 +10,7 @@ import {
   ApiBadRequestResponse,
   ApiBody,
   ApiCookieAuth,
+  ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
@@ -17,6 +18,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
 import { CurrentUser } from '#/auth/decorators/current-user.decorator'
+import { FreshAuthGuard } from '#/auth/guards/fresh-auth.guard'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import { UpdateProfileDto, UserDto } from '#/user/user.dto'
 import { type PublicUser } from '#/user/user.schema'
@@ -48,8 +50,17 @@ export class ProfileController {
 
   @Delete()
   @HttpCode(204)
-  @ApiOperation({ summary: 'Delete the signed-in user account' })
+  @UseGuards(FreshAuthGuard)
+  @ApiOperation({
+    summary: 'Delete the signed-in user account',
+    description:
+      'Needs a fresh session: a password or passkey sign-in within the last 5 minutes.',
+  })
   @ApiNoContentResponse()
+  @ApiForbiddenResponse({
+    description:
+      'Recent authentication required, or called with an access token.',
+  })
   remove(@CurrentUser() { sub }: { sub: string }): Promise<void> {
     return this.userService.remove(sub)
   }

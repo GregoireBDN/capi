@@ -222,6 +222,78 @@ describe('AuthService sessions', () => {
     })
   })
 
+  describe('rotateRefreshToken: lifetime and races', () => {
+    const DAY = 24 * 60 * 60 * 1000
+    const now = new Date('2026-11-14T12:00:00Z')
+    const row = (authenticatedAt: Date | null) => ({
+      id: 'rt-1',
+      userId: 'user-1',
+      familyId: 'fam-1',
+      expiresAt: new Date(now.getTime() + DAY),
+      revokedAt: null,
+      authenticatedAt,
+    })
+
+    it('ends a family signed in more than 90 days ago', async () => {
+      mockDb.select.mockReturnValue(
+        buildChain([row(new Date(now.getTime() - 90 * DAY))]),
+      )
+      const revoke: { set?: unknown } = {}
+      mockDb.update.mockReturnValue(buildChain([{}], revoke))
+
+      await expect(
+        service.rotateRefreshToken('old-family', now),
+      ).rejects.toThrow(UnauthorizedException)
+      // The whole family is revoked, nothing new is issued.
+      expect(mockDb.update).toHaveBeenCalledTimes(1)
+      expect(revoke.set).toEqual({ revokedAt: expect.any(Date) })
+      expect(mockDb.insert).not.toHaveBeenCalled()
+    })
+
+    it('never lets a renewed token outlive the family', async () => {
+      const authenticatedAt = new Date(now.getTime() - 80 * DAY)
+      mockDb.select.mockReturnValue(buildChain([row(authenticatedAt)]))
+      mockDb.update.mockReturnValue(buildChain([{ id: 'rt-1' }]))
+      const inserted: { values?: unknown } = {}
+      mockDb.insert.mockReturnValue(buildChain([{}], inserted))
+
+      await service.rotateRefreshToken('late-token', now)
+
+      expect(
+        (inserted.values as { expiresAt: Date }).expiresAt.toISOString(),
+      ).toBe(new Date(authenticatedAt.getTime() + 90 * DAY).toISOString())
+    })
+
+    it('counts a family without a sign-in time from its first token', async () => {
+      mockDb.select
+        .mockReturnValueOnce(buildChain([row(null)]))
+        .mockReturnValueOnce(
+          buildChain([{ startedAt: new Date(now.getTime() - 91 * DAY) }]),
+        )
+      mockDb.update.mockReturnValue(buildChain([{}]))
+
+      await expect(
+        service.rotateRefreshToken('legacy-family', now),
+      ).rejects.toThrow(UnauthorizedException)
+      expect(mockDb.insert).not.toHaveBeenCalled()
+    })
+
+    it('treats a token revoked by a concurrent rotation as reuse', async () => {
+      mockDb.select.mockReturnValue(buildChain([row(now)]))
+      // The conditional revocation matches no row: another rotation won.
+      mockDb.update
+        .mockReturnValueOnce(buildChain([]))
+        .mockReturnValueOnce(buildChain([{}]))
+
+      await expect(service.rotateRefreshToken('raced', now)).rejects.toThrow(
+        UnauthorizedException,
+      )
+      // Conditional revocation, then the family.
+      expect(mockDb.update).toHaveBeenCalledTimes(2)
+      expect(mockDb.insert).not.toHaveBeenCalled()
+    })
+  })
+
   describe('revokeSession', () => {
     it('revokes the family behind the presented token', async () => {
       mockDb.select.mockReturnValue(buildChain([{ familyId: 'fam-1' }]))

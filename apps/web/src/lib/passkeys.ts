@@ -19,6 +19,7 @@ import {
 } from '#/api'
 import type { PasskeyDto } from '#/api/types.gen'
 import { rateLimitMessage } from '#/lib/api-errors'
+import { REAUTH_API_MESSAGE } from '#/lib/reauth'
 
 /**
  * Passkeys (WebAuthn) on the web side: the browser ceremony with
@@ -37,7 +38,6 @@ export type PasskeyResult<T = void> =
 const ERROR_MESSAGE = 'La passkey n’a pas pu être utilisée. Réessayez.'
 const NETWORK_MESSAGE =
   'Connexion impossible. Vérifiez votre réseau et réessayez.'
-const REAUTH_API_MESSAGE = 'Recent authentication required'
 
 /** WebAuthn API present (always false during SSR). */
 export function passkeysSupported(): boolean {

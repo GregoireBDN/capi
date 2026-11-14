@@ -71,7 +71,7 @@ ls -l .env                              # -rw------- deploy deploy
 
 Copy `POSTGRES_PASSWORD` and `JWT_SECRET` into the password manager. The backups of the `.env` and the database are covered by #30.
 
-Required values: `FINANCES_VERSION`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `JWT_SECRET` and `APP_URL` (`https://finances.gbodin.cloud`). `docker compose` refuses to run while any of them is empty. Validate the file without printing the secrets:
+Required values: `FINANCES_VERSION`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `JWT_SECRET` and `APP_URL` (`https://finances.gbodin.cloud`). `docker compose` refuses to run while any of them is empty. The API also refuses to start with a `JWT_SECRET` shorter than 32 characters (`openssl rand -hex 32` gives 64); if an older `.env` has a shorter one, replace it before deploying (everyone is signed out). Validate the file without printing the secrets:
 
 ```bash
 dc config -q && echo OK
