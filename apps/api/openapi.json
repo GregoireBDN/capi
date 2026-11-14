@@ -39,9 +39,7 @@
           }
         ],
         "summary": "Update the name or theme of the signed-in user",
-        "tags": [
-          "Profile"
-        ]
+        "tags": ["Profile"]
       },
       "delete": {
         "description": "Needs a fresh session: a password or passkey sign-in within the last 5 minutes.",
@@ -64,9 +62,7 @@
           }
         ],
         "summary": "Delete the signed-in user account",
-        "tags": [
-          "Profile"
-        ]
+        "tags": ["Profile"]
       }
     },
     "/api/auth/me": {
@@ -90,9 +86,7 @@
             "token": []
           }
         ],
-        "tags": [
-          "Auth"
-        ]
+        "tags": ["Auth"]
       }
     },
     "/api/auth/registration-status": {
@@ -111,9 +105,7 @@
             }
           }
         },
-        "tags": [
-          "Auth"
-        ]
+        "tags": ["Auth"]
       }
     },
     "/api/auth/register": {
@@ -147,9 +139,7 @@
             "description": "Registration is closed: an account already exists."
           }
         },
-        "tags": [
-          "Auth"
-        ]
+        "tags": ["Auth"]
       }
     },
     "/api/auth/login": {
@@ -180,9 +170,7 @@
             }
           }
         },
-        "tags": [
-          "Auth"
-        ]
+        "tags": ["Auth"]
       }
     },
     "/api/auth/refresh": {
@@ -203,9 +191,7 @@
             }
           }
         },
-        "tags": [
-          "Auth"
-        ]
+        "tags": ["Auth"]
       }
     },
     "/api/auth/logout": {
@@ -226,9 +212,7 @@
             }
           }
         },
-        "tags": [
-          "Auth"
-        ]
+        "tags": ["Auth"]
       }
     },
     "/api/auth/forgot-password": {
@@ -259,9 +243,7 @@
             }
           }
         },
-        "tags": [
-          "Auth"
-        ]
+        "tags": ["Auth"]
       }
     },
     "/api/auth/reset-password": {
@@ -292,9 +274,7 @@
             }
           }
         },
-        "tags": [
-          "Auth"
-        ]
+        "tags": ["Auth"]
       }
     },
     "/api/auth/verify-email": {
@@ -325,9 +305,7 @@
             }
           }
         },
-        "tags": [
-          "Auth"
-        ]
+        "tags": ["Auth"]
       }
     },
     "/api/auth/resend-verification": {
@@ -353,9 +331,7 @@
             "token": []
           }
         ],
-        "tags": [
-          "Auth"
-        ]
+        "tags": ["Auth"]
       }
     },
     "/api/access-tokens": {
@@ -389,9 +365,7 @@
           }
         ],
         "summary": "List personal access tokens (revoked ones excluded)",
-        "tags": [
-          "Access tokens"
-        ]
+        "tags": ["Access tokens"]
       },
       "post": {
         "description": "The token is returned once in `token` and only its hash is stored. Needs a fresh session: a password or passkey sign-in within the last 5 minutes.",
@@ -434,9 +408,7 @@
           }
         ],
         "summary": "Create a personal access token",
-        "tags": [
-          "Access tokens"
-        ]
+        "tags": ["Access tokens"]
       }
     },
     "/api/access-tokens/audit": {
@@ -481,9 +453,7 @@
           }
         ],
         "summary": "Latest API calls made with access tokens",
-        "tags": [
-          "Access tokens"
-        ]
+        "tags": ["Access tokens"]
       }
     },
     "/api/access-tokens/{id}": {
@@ -520,9 +490,7 @@
           }
         ],
         "summary": "Revoke a personal access token",
-        "tags": [
-          "Access tokens"
-        ]
+        "tags": ["Access tokens"]
       }
     },
     "/api/auth/passkeys/authentication/options": {
@@ -547,9 +515,7 @@
           }
         },
         "summary": "Start a passkey sign-in (discoverable credential)",
-        "tags": [
-          "Passkeys"
-        ]
+        "tags": ["Passkeys"]
       }
     },
     "/api/auth/passkeys/authentication/verify": {
@@ -588,9 +554,7 @@
           }
         },
         "summary": "Sign in with a passkey",
-        "tags": [
-          "Passkeys"
-        ]
+        "tags": ["Passkeys"]
       }
     },
     "/api/auth/passkeys": {
@@ -624,9 +588,7 @@
           }
         ],
         "summary": "List the passkeys of the signed-in user",
-        "tags": [
-          "Passkeys"
-        ]
+        "tags": ["Passkeys"]
       }
     },
     "/api/auth/passkeys/registration/options": {
@@ -666,9 +628,7 @@
           }
         ],
         "summary": "Start adding a passkey",
-        "tags": [
-          "Passkeys"
-        ]
+        "tags": ["Passkeys"]
       }
     },
     "/api/auth/passkeys/registration/verify": {
@@ -715,9 +675,7 @@
           }
         ],
         "summary": "Save a new passkey (fresh session only)",
-        "tags": [
-          "Passkeys"
-        ]
+        "tags": ["Passkeys"]
       }
     },
     "/api/auth/passkeys/{id}": {
@@ -765,9 +723,7 @@
           }
         ],
         "summary": "Rename a passkey",
-        "tags": [
-          "Passkeys"
-        ]
+        "tags": ["Passkeys"]
       },
       "delete": {
         "description": "It can no longer sign in. The password always stays available. Needs a fresh session: a password or passkey sign-in within the last 5 minutes.",
@@ -803,9 +759,7 @@
           }
         ],
         "summary": "Revoke a passkey",
-        "tags": [
-          "Passkeys"
-        ]
+        "tags": ["Passkeys"]
       }
     },
     "/api/health": {
@@ -833,9 +787,7 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "required": [
-                          "status"
-                        ],
+                        "required": ["status"],
                         "properties": {
                           "status": {
                             "type": "string"
@@ -850,9 +802,7 @@
                       "example": {},
                       "additionalProperties": {
                         "type": "object",
-                        "required": [
-                          "status"
-                        ],
+                        "required": ["status"],
                         "properties": {
                           "status": {
                             "type": "string"
@@ -871,9 +821,7 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "required": [
-                          "status"
-                        ],
+                        "required": ["status"],
                         "properties": {
                           "status": {
                             "type": "string"
@@ -907,9 +855,7 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "required": [
-                          "status"
-                        ],
+                        "required": ["status"],
                         "properties": {
                           "status": {
                             "type": "string"
@@ -929,9 +875,7 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "required": [
-                          "status"
-                        ],
+                        "required": ["status"],
                         "properties": {
                           "status": {
                             "type": "string"
@@ -954,9 +898,7 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "required": [
-                          "status"
-                        ],
+                        "required": ["status"],
                         "properties": {
                           "status": {
                             "type": "string"
@@ -971,9 +913,7 @@
             }
           }
         },
-        "tags": [
-          "Health"
-        ]
+        "tags": ["Health"]
       }
     },
     "/api/categories": {
@@ -1003,9 +943,7 @@
             "token": []
           }
         ],
-        "tags": [
-          "Categories"
-        ]
+        "tags": ["Categories"]
       },
       "post": {
         "description": "Its slug is generated from the name and never changes.",
@@ -1048,9 +986,7 @@
           }
         ],
         "summary": "Create a category",
-        "tags": [
-          "Categories"
-        ]
+        "tags": ["Categories"]
       }
     },
     "/api/categories/{id}": {
@@ -1107,9 +1043,7 @@
           }
         ],
         "summary": "Rename, recolour, change the kind of, archive or restore",
-        "tags": [
-          "Categories"
-        ]
+        "tags": ["Categories"]
       },
       "delete": {
         "description": "A category in use needs `reassignTo`: its transactions, rules and recurring items move to that category, and its budget is added to the target’s, in one transaction.",
@@ -1158,9 +1092,7 @@
           }
         ],
         "summary": "Delete a category",
-        "tags": [
-          "Categories"
-        ]
+        "tags": ["Categories"]
       }
     },
     "/api/categories/{id}/usage": {
@@ -1202,9 +1134,7 @@
           }
         ],
         "summary": "What uses a category",
-        "tags": [
-          "Categories"
-        ]
+        "tags": ["Categories"]
       }
     },
     "/api/categorization-rules": {
@@ -1235,9 +1165,7 @@
           }
         ],
         "summary": "List rules in evaluation order",
-        "tags": [
-          "Categorization rules"
-        ]
+        "tags": ["Categorization rules"]
       },
       "post": {
         "description": "The rule is appended last (lowest priority). Existing transactions are only affected by `POST /categorization-rules/apply`.",
@@ -1277,9 +1205,7 @@
           }
         ],
         "summary": "Create a rule",
-        "tags": [
-          "Categorization rules"
-        ]
+        "tags": ["Categorization rules"]
       }
     },
     "/api/categorization-rules/reorder": {
@@ -1324,9 +1250,7 @@
           }
         ],
         "summary": "Set the evaluation order",
-        "tags": [
-          "Categorization rules"
-        ]
+        "tags": ["Categorization rules"]
       }
     },
     "/api/categorization-rules/suggest": {
@@ -1368,9 +1292,7 @@
           }
         ],
         "summary": "Suggest a rule from a categorized transaction",
-        "tags": [
-          "Categorization rules"
-        ]
+        "tags": ["Categorization rules"]
       }
     },
     "/api/categorization-rules/preview": {
@@ -1415,9 +1337,7 @@
           }
         ],
         "summary": "Preview the effect of a new or edited rule",
-        "tags": [
-          "Categorization rules"
-        ]
+        "tags": ["Categorization rules"]
       }
     },
     "/api/categorization-rules/apply": {
@@ -1446,9 +1366,7 @@
           }
         ],
         "summary": "Re-run the rules on existing transactions",
-        "tags": [
-          "Categorization rules"
-        ]
+        "tags": ["Categorization rules"]
       }
     },
     "/api/categorization-rules/{id}": {
@@ -1502,9 +1420,7 @@
           }
         ],
         "summary": "Update a rule",
-        "tags": [
-          "Categorization rules"
-        ]
+        "tags": ["Categorization rules"]
       },
       "delete": {
         "description": "Transactions it categorized are re-run through the remaining rules; those left unmatched go back to review.",
@@ -1537,9 +1453,7 @@
           }
         ],
         "summary": "Delete a rule",
-        "tags": [
-          "Categorization rules"
-        ]
+        "tags": ["Categorization rules"]
       }
     },
     "/api/accounts": {
@@ -1582,9 +1496,7 @@
           }
         ],
         "summary": "List accounts with their current balance",
-        "tags": [
-          "Accounts"
-        ]
+        "tags": ["Accounts"]
       },
       "post": {
         "description": "The account is appended last in the display order.",
@@ -1624,9 +1536,7 @@
           }
         ],
         "summary": "Create an account",
-        "tags": [
-          "Accounts"
-        ]
+        "tags": ["Accounts"]
       }
     },
     "/api/accounts/{id}": {
@@ -1668,9 +1578,7 @@
           }
         ],
         "summary": "Get an account with its current balance",
-        "tags": [
-          "Accounts"
-        ]
+        "tags": ["Accounts"]
       },
       "patch": {
         "description": "Rename, reorder, archive or restore. Accounts are never deleted: archive them instead.",
@@ -1723,9 +1631,7 @@
           }
         ],
         "summary": "Update an account",
-        "tags": [
-          "Accounts"
-        ]
+        "tags": ["Accounts"]
       }
     },
     "/api/imports/preview": {
@@ -1773,9 +1679,7 @@
           }
         ],
         "summary": "Upload a bank export and preview it",
-        "tags": [
-          "Imports"
-        ]
+        "tags": ["Imports"]
       }
     },
     "/api/imports/{id}/commit": {
@@ -1833,9 +1737,7 @@
           }
         ],
         "summary": "Commit a previewed import",
-        "tags": [
-          "Imports"
-        ]
+        "tags": ["Imports"]
       }
     },
     "/api/imports": {
@@ -1867,9 +1769,7 @@
           }
         ],
         "summary": "Import history",
-        "tags": [
-          "Imports"
-        ]
+        "tags": ["Imports"]
       }
     },
     "/api/imports/{id}": {
@@ -1911,9 +1811,7 @@
           }
         ],
         "summary": "Get an import",
-        "tags": [
-          "Imports"
-        ]
+        "tags": ["Imports"]
       },
       "delete": {
         "description": "A pending import is discarded. A committed import is undone: it is deleted with every transaction it wrote.",
@@ -1953,9 +1851,7 @@
           }
         ],
         "summary": "Discard or undo an import",
-        "tags": [
-          "Imports"
-        ]
+        "tags": ["Imports"]
       }
     },
     "/api/recurring/detect": {
@@ -1984,9 +1880,7 @@
           }
         ],
         "summary": "Detect recurring transactions",
-        "tags": [
-          "Recurring"
-        ]
+        "tags": ["Recurring"]
       }
     },
     "/api/recurring": {
@@ -2035,9 +1929,7 @@
           }
         ],
         "summary": "Recurring items with their stats",
-        "tags": [
-          "Recurring"
-        ]
+        "tags": ["Recurring"]
       }
     },
     "/api/recurring/summary": {
@@ -2066,9 +1958,7 @@
           }
         ],
         "summary": "Monthly and yearly recurring costs",
-        "tags": [
-          "Recurring"
-        ]
+        "tags": ["Recurring"]
       }
     },
     "/api/recurring/confirm": {
@@ -2110,9 +2000,7 @@
           }
         ],
         "summary": "Confirm several items",
-        "tags": [
-          "Recurring"
-        ]
+        "tags": ["Recurring"]
       }
     },
     "/api/recurring/{id}": {
@@ -2167,9 +2055,7 @@
           }
         ],
         "summary": "Edit a recurring item",
-        "tags": [
-          "Recurring"
-        ]
+        "tags": ["Recurring"]
       }
     },
     "/api/transactions": {
@@ -2346,9 +2232,7 @@
           }
         ],
         "summary": "List transactions",
-        "tags": [
-          "Transactions"
-        ]
+        "tags": ["Transactions"]
       }
     },
     "/api/transactions/summary": {
@@ -2490,9 +2374,7 @@
           }
         ],
         "summary": "Totals of the transactions matching the filters",
-        "tags": [
-          "Transactions"
-        ]
+        "tags": ["Transactions"]
       }
     },
     "/api/transactions/review-count": {
@@ -2520,9 +2402,7 @@
           }
         ],
         "summary": "Number of transactions waiting for review",
-        "tags": [
-          "Transactions"
-        ]
+        "tags": ["Transactions"]
       }
     },
     "/api/transactions/bulk-update": {
@@ -2564,9 +2444,7 @@
           }
         ],
         "summary": "Apply the same changes to several transactions",
-        "tags": [
-          "Transactions"
-        ]
+        "tags": ["Transactions"]
       }
     },
     "/api/transactions/manual": {
@@ -2608,9 +2486,7 @@
           }
         ],
         "summary": "Enter a transaction by hand",
-        "tags": [
-          "Transactions"
-        ]
+        "tags": ["Transactions"]
       }
     },
     "/api/transactions/manual/{id}": {
@@ -2665,9 +2541,7 @@
           }
         ],
         "summary": "Edit a transaction entered by hand",
-        "tags": [
-          "Transactions"
-        ]
+        "tags": ["Transactions"]
       },
       "delete": {
         "operationId": "TransactionsController_removeManual",
@@ -2699,9 +2573,7 @@
           }
         ],
         "summary": "Delete a transaction entered by hand",
-        "tags": [
-          "Transactions"
-        ]
+        "tags": ["Transactions"]
       }
     },
     "/api/transactions/{id}/splits": {
@@ -2756,9 +2628,7 @@
           }
         ],
         "summary": "Split a transaction between categories",
-        "tags": [
-          "Transactions"
-        ]
+        "tags": ["Transactions"]
       },
       "delete": {
         "description": "It stays in its current category (the largest part’s).",
@@ -2798,9 +2668,7 @@
           }
         ],
         "summary": "Undo the split of a transaction",
-        "tags": [
-          "Transactions"
-        ]
+        "tags": ["Transactions"]
       }
     },
     "/api/transactions/{id}/correction": {
@@ -2855,9 +2723,7 @@
           }
         ],
         "summary": "Correct the amount or date of an imported transaction",
-        "tags": [
-          "Transactions"
-        ]
+        "tags": ["Transactions"]
       },
       "delete": {
         "operationId": "TransactionsController_restoreBankValues",
@@ -2899,9 +2765,7 @@
           }
         ],
         "summary": "Restore the bank amount and date of a corrected transaction",
-        "tags": [
-          "Transactions"
-        ]
+        "tags": ["Transactions"]
       }
     },
     "/api/transactions/{id}": {
@@ -2956,9 +2820,7 @@
           }
         ],
         "summary": "Correct a transaction",
-        "tags": [
-          "Transactions"
-        ]
+        "tags": ["Transactions"]
       }
     },
     "/api/budgets": {
@@ -3002,9 +2864,7 @@
           }
         ],
         "summary": "Targets vs spending for a month",
-        "tags": [
-          "Budgets"
-        ]
+        "tags": ["Budgets"]
       }
     },
     "/api/budgets/envelopes": {
@@ -3033,9 +2893,7 @@
           }
         ],
         "summary": "Envelopes followed during the current month",
-        "tags": [
-          "Budgets"
-        ]
+        "tags": ["Budgets"]
       }
     },
     "/api/budgets/history": {
@@ -3091,9 +2949,7 @@
           }
         ],
         "summary": "Target and spending per month",
-        "tags": [
-          "Budgets"
-        ]
+        "tags": ["Budgets"]
       }
     },
     "/api/budgets/suggest": {
@@ -3149,9 +3005,7 @@
           }
         ],
         "summary": "Suggest targets from past spending",
-        "tags": [
-          "Budgets"
-        ]
+        "tags": ["Budgets"]
       }
     },
     "/api/budgets/{categoryId}": {
@@ -3206,9 +3060,7 @@
           }
         ],
         "summary": "Set the monthly target of a category",
-        "tags": [
-          "Budgets"
-        ]
+        "tags": ["Budgets"]
       },
       "delete": {
         "description": "From `from` (default: the current month) on. Targets planned for later months are deleted; earlier months keep their target.",
@@ -3255,9 +3107,7 @@
           }
         ],
         "summary": "Stop budgeting a category",
-        "tags": [
-          "Budgets"
-        ]
+        "tags": ["Budgets"]
       }
     },
     "/api/dashboard/overview": {
@@ -3301,9 +3151,7 @@
           }
         ],
         "summary": "Net worth, accounts and the month at a glance",
-        "tags": [
-          "Dashboard"
-        ]
+        "tags": ["Dashboard"]
       }
     },
     "/api/dashboard/history": {
@@ -3348,9 +3196,7 @@
           }
         ],
         "summary": "Monthly cash flow and month-end net worth",
-        "tags": [
-          "Dashboard"
-        ]
+        "tags": ["Dashboard"]
       }
     },
     "/api/dashboard/review": {
@@ -3394,9 +3240,7 @@
           }
         ],
         "summary": "Review of a month against its budget",
-        "tags": [
-          "Dashboard"
-        ]
+        "tags": ["Dashboard"]
       }
     },
     "/api/spending/by-category": {
@@ -3472,9 +3316,7 @@
           }
         ],
         "summary": "Spending of a month by category",
-        "tags": [
-          "Spending"
-        ]
+        "tags": ["Spending"]
       }
     },
     "/api/spending/trend": {
@@ -3572,9 +3414,7 @@
           }
         ],
         "summary": "Monthly spending over the last months",
-        "tags": [
-          "Spending"
-        ]
+        "tags": ["Spending"]
       }
     },
     "/api/accounts/{id}/snapshots": {
@@ -3619,9 +3459,7 @@
           }
         ],
         "summary": "List the value snapshots of an account",
-        "tags": [
-          "Accounts"
-        ]
+        "tags": ["Accounts"]
       }
     },
     "/api/accounts/{id}/snapshots/{date}": {
@@ -3687,9 +3525,7 @@
           }
         ],
         "summary": "Create or replace the snapshot of a day",
-        "tags": [
-          "Accounts"
-        ]
+        "tags": ["Accounts"]
       },
       "delete": {
         "operationId": "AccountSnapshotsController_remove",
@@ -3735,9 +3571,7 @@
           }
         ],
         "summary": "Delete the snapshot of a day",
-        "tags": [
-          "Accounts"
-        ]
+        "tags": ["Accounts"]
       }
     },
     "/api/accounts/{id}/snapshots/bulk": {
@@ -3792,9 +3626,7 @@
           }
         ],
         "summary": "Upsert a statement history",
-        "tags": [
-          "Accounts"
-        ]
+        "tags": ["Accounts"]
       }
     },
     "/api/accounts/{id}/performance": {
@@ -3836,9 +3668,7 @@
           }
         ],
         "summary": "Value, contributions, gain and history of an account",
-        "tags": [
-          "Accounts"
-        ]
+        "tags": ["Accounts"]
       }
     },
     "/api/investments/summary": {
@@ -3867,9 +3697,7 @@
           }
         ],
         "summary": "Value, contributions and gain of the investment accounts",
-        "tags": [
-          "Investments"
-        ]
+        "tags": ["Investments"]
       }
     },
     "/api/accounts/{id}/holdings": {
@@ -3914,9 +3742,7 @@
           }
         ],
         "summary": "Holdings of a crypto account, valued at the last known prices",
-        "tags": [
-          "Crypto"
-        ]
+        "tags": ["Crypto"]
       },
       "post": {
         "description": "One asset at one location (wallet, exchange) per account. The account is valued again.",
@@ -3972,9 +3798,7 @@
           }
         ],
         "summary": "Add a holding",
-        "tags": [
-          "Crypto"
-        ]
+        "tags": ["Crypto"]
       }
     },
     "/api/accounts/{id}/holdings/valuate": {
@@ -4019,9 +3843,7 @@
           }
         ],
         "summary": "Refresh prices and write today's snapshot",
-        "tags": [
-          "Crypto"
-        ]
+        "tags": ["Crypto"]
       }
     },
     "/api/accounts/{id}/holdings/sync": {
@@ -4066,9 +3888,7 @@
           }
         ],
         "summary": "Sync a wallet account from its public keys (\"Synchroniser\")",
-        "tags": [
-          "Crypto"
-        ]
+        "tags": ["Crypto"]
       }
     },
     "/api/accounts/{id}/holdings/{holdingId}": {
@@ -4135,9 +3955,7 @@
           }
         ],
         "summary": "Replace a holding",
-        "tags": [
-          "Crypto"
-        ]
+        "tags": ["Crypto"]
       },
       "delete": {
         "operationId": "AccountHoldingsController_remove",
@@ -4181,9 +3999,7 @@
           }
         ],
         "summary": "Delete a holding",
-        "tags": [
-          "Crypto"
-        ]
+        "tags": ["Crypto"]
       }
     },
     "/api/crypto/summary": {
@@ -4212,9 +4028,7 @@
           }
         ],
         "summary": "Holdings, prices, values and gains of every crypto account",
-        "tags": [
-          "Crypto"
-        ]
+        "tags": ["Crypto"]
       }
     },
     "/api/crypto/valuate": {
@@ -4243,9 +4057,7 @@
           }
         ],
         "summary": "Refresh prices of every crypto account and write today's snapshots",
-        "tags": [
-          "Crypto"
-        ]
+        "tags": ["Crypto"]
       }
     },
     "/api/crypto/assets": {
@@ -4291,9 +4103,7 @@
           }
         ],
         "summary": "Search assets to hold",
-        "tags": [
-          "Crypto"
-        ]
+        "tags": ["Crypto"]
       }
     },
     "/api/crypto/prices/{assetId}": {
@@ -4345,9 +4155,7 @@
           }
         ],
         "summary": "Set the EUR price of an asset by hand",
-        "tags": [
-          "Crypto"
-        ]
+        "tags": ["Crypto"]
       }
     },
     "/api/accounts/{id}/wallet-keys": {
@@ -4395,9 +4203,7 @@
           }
         ],
         "summary": "Public keys of a wallet crypto account",
-        "tags": [
-          "Crypto"
-        ]
+        "tags": ["Crypto"]
       },
       "post": {
         "description": "The key is validated (format and checksum) before it is saved; private keys and recovery phrases are refused.",
@@ -4453,9 +4259,7 @@
           }
         ],
         "summary": "Add a public key to a wallet crypto account",
-        "tags": [
-          "Crypto"
-        ]
+        "tags": ["Crypto"]
       }
     },
     "/api/accounts/{id}/wallet-keys/{keyId}": {
@@ -4502,9 +4306,7 @@
           }
         ],
         "summary": "Remove a public key",
-        "tags": [
-          "Crypto"
-        ]
+        "tags": ["Crypto"]
       }
     },
     "/api/accounts/{id}/wallet-tokens": {
@@ -4552,9 +4354,7 @@
           }
         ],
         "summary": "Tokens read on the EVM chains of a wallet account",
-        "tags": [
-          "Crypto"
-        ]
+        "tags": ["Crypto"]
       },
       "post": {
         "description": "Its contract and decimals per chain come from the price provider (only the asset id is sent). The next sync reads the chains again at once.",
@@ -4610,9 +4410,7 @@
           }
         ],
         "summary": "Read a token on the wallet's EVM chains (\"Ajouter un jeton\")",
-        "tags": [
-          "Crypto"
-        ]
+        "tags": ["Crypto"]
       }
     },
     "/api/accounts/{id}/wallet-tokens/{tokenId}": {
@@ -4658,9 +4456,7 @@
           }
         ],
         "summary": "Stop reading a token",
-        "tags": [
-          "Crypto"
-        ]
+        "tags": ["Crypto"]
       }
     },
     "/api/accounts/{id}/crypto-imports": {
@@ -4721,9 +4517,7 @@
           }
         ],
         "summary": "Upload an exchange export and preview it",
-        "tags": [
-          "Crypto imports"
-        ]
+        "tags": ["Crypto imports"]
       }
     },
     "/api/crypto-imports/{id}": {
@@ -4765,9 +4559,7 @@
           }
         ],
         "summary": "Get an exchange import",
-        "tags": [
-          "Crypto imports"
-        ]
+        "tags": ["Crypto imports"]
       },
       "delete": {
         "description": "A pending import is discarded. A committed one is undone: its movements are deleted and the imported holdings recomputed.",
@@ -4807,9 +4599,7 @@
           }
         ],
         "summary": "Discard or undo an exchange import",
-        "tags": [
-          "Crypto imports"
-        ]
+        "tags": ["Crypto imports"]
       }
     },
     "/api/crypto-imports/{id}/commit": {
@@ -4867,9 +4657,7 @@
           }
         ],
         "summary": "Commit a previewed exchange import",
-        "tags": [
-          "Crypto imports"
-        ]
+        "tags": ["Crypto imports"]
       }
     },
     "/api/forecast": {
@@ -4934,9 +4722,7 @@
           }
         ],
         "summary": "End-of-month cash-flow forecast",
-        "tags": [
-          "Forecast"
-        ]
+        "tags": ["Forecast"]
       }
     },
     "/api/savings/overview": {
@@ -4981,9 +4767,7 @@
           }
         ],
         "summary": "Monthly savings, averages, target and savings stock",
-        "tags": [
-          "Savings"
-        ]
+        "tags": ["Savings"]
       }
     },
     "/api/savings/target": {
@@ -5025,9 +4809,7 @@
           }
         ],
         "summary": "Set or clear the monthly savings target",
-        "tags": [
-          "Savings"
-        ]
+        "tags": ["Savings"]
       }
     },
     "/api/savings/goals": {
@@ -5070,9 +4852,7 @@
           }
         ],
         "summary": "Savings goals with progress and projection",
-        "tags": [
-          "Savings"
-        ]
+        "tags": ["Savings"]
       },
       "post": {
         "operationId": "SavingsController_createGoal",
@@ -5111,9 +4891,7 @@
           }
         ],
         "summary": "Create a savings goal",
-        "tags": [
-          "Savings"
-        ]
+        "tags": ["Savings"]
       }
     },
     "/api/savings/goals/{id}": {
@@ -5168,9 +4946,7 @@
           }
         ],
         "summary": "Change, archive or restore a savings goal",
-        "tags": [
-          "Savings"
-        ]
+        "tags": ["Savings"]
       },
       "delete": {
         "operationId": "SavingsController_removeGoal",
@@ -5202,9 +4978,7 @@
           }
         ],
         "summary": "Delete a savings goal",
-        "tags": [
-          "Savings"
-        ]
+        "tags": ["Savings"]
       }
     },
     "/api/month-close/{month}": {
@@ -5247,9 +5021,7 @@
           }
         ],
         "summary": "Steps, progress and report of a month’s review",
-        "tags": [
-          "Month close"
-        ]
+        "tags": ["Month close"]
       },
       "patch": {
         "operationId": "MonthCloseController_update",
@@ -5302,9 +5074,7 @@
           }
         ],
         "summary": "Save the notes and the steps marked as seen",
-        "tags": [
-          "Month close"
-        ]
+        "tags": ["Month close"]
       }
     },
     "/api/month-close/{month}/close": {
@@ -5360,9 +5130,7 @@
           }
         ],
         "summary": "Close the month",
-        "tags": [
-          "Month close"
-        ]
+        "tags": ["Month close"]
       }
     },
     "/api/month-close/{month}/reopen": {
@@ -5408,9 +5176,7 @@
           }
         ],
         "summary": "Reopen a closed month",
-        "tags": [
-          "Month close"
-        ]
+        "tags": ["Month close"]
       }
     }
   },
@@ -5441,11 +5207,7 @@
           },
           "theme": {
             "type": "string",
-            "enum": [
-              "light",
-              "dark",
-              "auto"
-            ]
+            "enum": ["light", "dark", "auto"]
           }
         }
       },
@@ -5464,11 +5226,7 @@
           },
           "theme": {
             "type": "string",
-            "enum": [
-              "light",
-              "dark",
-              "auto"
-            ]
+            "enum": ["light", "dark", "auto"]
           },
           "emailVerifiedAt": {
             "type": "string",
@@ -5484,14 +5242,7 @@
             "format": "date-time"
           }
         },
-        "required": [
-          "id",
-          "email",
-          "name",
-          "theme",
-          "createdAt",
-          "updatedAt"
-        ]
+        "required": ["id", "email", "name", "theme", "createdAt", "updatedAt"]
       },
       "RegistrationStatusDto": {
         "type": "object",
@@ -5501,9 +5252,7 @@
             "description": "True until the single owner account has been created."
           }
         },
-        "required": [
-          "open"
-        ]
+        "required": ["open"]
       },
       "RegisterDto": {
         "type": "object",
@@ -5518,11 +5267,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "email",
-          "name",
-          "password"
-        ]
+        "required": ["email", "name", "password"]
       },
       "LoginDto": {
         "type": "object",
@@ -5534,10 +5279,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "email",
-          "password"
-        ]
+        "required": ["email", "password"]
       },
       "ForgotPasswordDto": {
         "type": "object",
@@ -5546,9 +5288,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "email"
-        ]
+        "required": ["email"]
       },
       "ResetPasswordDto": {
         "type": "object",
@@ -5560,10 +5300,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "token",
-          "password"
-        ]
+        "required": ["token", "password"]
       },
       "VerifyEmailDto": {
         "type": "object",
@@ -5572,16 +5309,11 @@
             "type": "string"
           }
         },
-        "required": [
-          "token"
-        ]
+        "required": ["token"]
       },
       "AccessTokenScope": {
         "type": "string",
-        "enum": [
-          "read",
-          "write"
-        ]
+        "enum": ["read", "write"]
       },
       "AccessTokenDto": {
         "type": "object",
@@ -5659,10 +5391,7 @@
             "description": "Days until the token expires. Omitted or null: never expires."
           }
         },
-        "required": [
-          "name",
-          "scope"
-        ]
+        "required": ["name", "scope"]
       },
       "CreatedAccessTokenDto": {
         "type": "object",
@@ -5772,9 +5501,7 @@
             "description": "Result of `startAuthentication()` (AuthenticationResponseJSON)."
           }
         },
-        "required": [
-          "response"
-        ]
+        "required": ["response"]
       },
       "PasskeyDto": {
         "type": "object",
@@ -5828,9 +5555,7 @@
             "example": "iPhone"
           }
         },
-        "required": [
-          "response"
-        ]
+        "required": ["response"]
       },
       "RenamePasskeyDto": {
         "type": "object",
@@ -5841,17 +5566,11 @@
             "maxLength": 100
           }
         },
-        "required": [
-          "name"
-        ]
+        "required": ["name"]
       },
       "TransactionKind": {
         "type": "string",
-        "enum": [
-          "expense",
-          "income",
-          "transfer"
-        ],
+        "enum": ["expense", "income", "transfer"],
         "description": "Category group: the kind given to its transactions."
       },
       "CategoryDto": {
@@ -5931,11 +5650,7 @@
             "description": "Lowercase `#rrggbb` hex colour."
           }
         },
-        "required": [
-          "name",
-          "kind",
-          "color"
-        ]
+        "required": ["name", "kind", "color"]
       },
       "UpdateCategoryDto": {
         "type": "object",
@@ -5985,19 +5700,11 @@
             "description": "Recurring items."
           }
         },
-        "required": [
-          "transactions",
-          "rules",
-          "budgets",
-          "recurringItems"
-        ]
+        "required": ["transactions", "rules", "budgets", "recurringItems"]
       },
       "RuleMatchType": {
         "type": "string",
-        "enum": [
-          "contains",
-          "regex"
-        ],
+        "enum": ["contains", "regex"],
         "description": "`contains`: case-, accent- and punctuation-insensitive substring of the raw label or merchant. `regex`: case-insensitive regular expression tested against the raw label and merchant."
       },
       "CategorizationRuleDto": {
@@ -6136,10 +5843,7 @@
             "maxLength": 255
           }
         },
-        "required": [
-          "labelPattern",
-          "categoryId"
-        ]
+        "required": ["labelPattern", "categoryId"]
       },
       "ReorderCategorizationRulesDto": {
         "type": "object",
@@ -6153,9 +5857,7 @@
             }
           }
         },
-        "required": [
-          "ids"
-        ]
+        "required": ["ids"]
       },
       "SuggestCategorizationRuleDto": {
         "type": "object",
@@ -6310,10 +6012,7 @@
             "description": "Existing rule this body would replace. Omitted: a new rule appended last."
           }
         },
-        "required": [
-          "labelPattern",
-          "categoryId"
-        ]
+        "required": ["labelPattern", "categoryId"]
       },
       "CategorizationRulePreviewTransactionDto": {
         "type": "object",
@@ -6514,22 +6213,12 @@
       },
       "CryptoAccountSource": {
         "type": "string",
-        "enum": [
-          "exchange",
-          "wallet",
-          "manual",
-          null
-        ],
+        "enum": ["exchange", "wallet", "manual", null],
         "description": "Crypto accounts only (null otherwise): where the holdings come from. `exchange` = computed from imported exports, `wallet` = read from public keys, `manual` = typed by hand. Set at creation."
       },
       "CryptoExchangeProvider": {
         "type": "string",
-        "enum": [
-          "binance",
-          "coinbase",
-          "other",
-          null
-        ],
+        "enum": ["binance", "coinbase", "other", null],
         "description": "Exchange crypto accounts only (null otherwise)."
       },
       "AccountDto": {
@@ -6659,9 +6348,7 @@
             "example": "Compte principal"
           }
         },
-        "required": [
-          "publicKey"
-        ]
+        "required": ["publicKey"]
       },
       "CreateAccountDto": {
         "type": "object",
@@ -6710,10 +6397,7 @@
             }
           }
         },
-        "required": [
-          "name",
-          "type"
-        ]
+        "required": ["name", "type"]
       },
       "UpdateAccountDto": {
         "type": "object",
@@ -6740,9 +6424,7 @@
       },
       "ImportUploadSource": {
         "type": "string",
-        "enum": [
-          "cic_csv"
-        ]
+        "enum": ["cic_csv"]
       },
       "PreviewImportBodyDto": {
         "type": "object",
@@ -6766,24 +6448,15 @@
             ]
           }
         },
-        "required": [
-          "file",
-          "accountId"
-        ]
+        "required": ["file", "accountId"]
       },
       "ImportSource": {
         "type": "string",
-        "enum": [
-          "cic_csv",
-          "spreadsheet"
-        ]
+        "enum": ["cic_csv", "spreadsheet"]
       },
       "ImportStatus": {
         "type": "string",
-        "enum": [
-          "pending",
-          "committed"
-        ],
+        "enum": ["pending", "committed"],
         "description": "`pending`: previewed, nothing written yet."
       },
       "ImportCountsDto": {
@@ -6840,10 +6513,7 @@
             "format": "date-time"
           }
         },
-        "required": [
-          "importId",
-          "committedAt"
-        ]
+        "required": ["importId", "committedAt"]
       },
       "ContinuityGapDto": {
         "type": "object",
@@ -6891,11 +6561,7 @@
           },
           "order": {
             "type": "string",
-            "enum": [
-              "ascending",
-              "descending",
-              "unknown"
-            ]
+            "enum": ["ascending", "descending", "unknown"]
           },
           "gaps": {
             "type": "array",
@@ -6914,13 +6580,7 @@
             ]
           }
         },
-        "required": [
-          "checked",
-          "ok",
-          "order",
-          "gaps",
-          "openingMismatch"
-        ]
+        "required": ["checked", "ok", "order", "gaps", "openingMismatch"]
       },
       "ParseIssueDto": {
         "type": "object",
@@ -6933,18 +6593,11 @@
             "type": "string"
           }
         },
-        "required": [
-          "lineNumber",
-          "message"
-        ]
+        "required": ["lineNumber", "message"]
       },
       "ImportRowStatus": {
         "type": "string",
-        "enum": [
-          "new",
-          "duplicate",
-          "conflict"
-        ]
+        "enum": ["new", "duplicate", "conflict"]
       },
       "ExistingTransactionDto": {
         "type": "object",
@@ -6964,12 +6617,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "id",
-          "bookingDate",
-          "amountCents",
-          "rawLabel"
-        ]
+        "required": ["id", "bookingDate", "amountCents", "rawLabel"]
       },
       "ManualExpenseMatchDto": {
         "type": "object",
@@ -7242,10 +6890,7 @@
       },
       "ConflictAction": {
         "type": "string",
-        "enum": [
-          "import",
-          "skip"
-        ],
+        "enum": ["import", "skip"],
         "description": "`import` keeps the row as a separate transaction, `skip` leaves it out."
       },
       "ConflictResolutionDto": {
@@ -7264,10 +6909,7 @@
             ]
           }
         },
-        "required": [
-          "rowIndex",
-          "action"
-        ]
+        "required": ["rowIndex", "action"]
       },
       "CategoryOverrideDto": {
         "type": "object",
@@ -7281,10 +6923,7 @@
             "format": "uuid"
           }
         },
-        "required": [
-          "rowIndex",
-          "categoryId"
-        ]
+        "required": ["rowIndex", "categoryId"]
       },
       "CommitImportDto": {
         "type": "object",
@@ -7383,21 +7022,14 @@
           },
           "result": {
             "type": "string",
-            "enum": [
-              "discarded",
-              "undone"
-            ],
+            "enum": ["discarded", "undone"],
             "description": "`discarded`: a pending preview was dropped. `undone`: a committed import and its transactions were deleted."
           },
           "removedTransactions": {
             "type": "integer"
           }
         },
-        "required": [
-          "id",
-          "result",
-          "removedTransactions"
-        ]
+        "required": ["id", "result", "removedTransactions"]
       },
       "RecurringDetectResultDto": {
         "type": "object",
@@ -7433,37 +7065,22 @@
       },
       "RecurringStatus": {
         "type": "string",
-        "enum": [
-          "suggested",
-          "confirmed",
-          "dismissed"
-        ],
+        "enum": ["suggested", "confirmed", "dismissed"],
         "description": "Only items with this status. Default: every item."
       },
       "RecurringDirection": {
         "type": "string",
-        "enum": [
-          "debit",
-          "credit"
-        ],
+        "enum": ["debit", "credit"],
         "description": "`debit` = money out, `credit` = money in."
       },
       "RecurringCadence": {
         "type": "string",
-        "enum": [
-          "weekly",
-          "monthly",
-          "quarterly",
-          "yearly"
-        ],
+        "enum": ["weekly", "monthly", "quarterly", "yearly"],
         "description": "Cadence in use: the override, else the detected one."
       },
       "RecurringAmountType": {
         "type": "string",
-        "enum": [
-          "fixed",
-          "variable"
-        ],
+        "enum": ["fixed", "variable"],
         "description": "`fixed`: same price every time (±1 % or ±1 €), possibly after a price change; `variable` otherwise."
       },
       "RecurringOccurrenceDto": {
@@ -7483,11 +7100,7 @@
             "description": "Positive cents."
           }
         },
-        "required": [
-          "transactionId",
-          "date",
-          "amountCents"
-        ]
+        "required": ["transactionId", "date", "amountCents"]
       },
       "RecurringItemDto": {
         "type": "object",
@@ -7713,11 +7326,7 @@
             "type": "integer"
           }
         },
-        "required": [
-          "monthlyCents",
-          "yearlyCents",
-          "count"
-        ]
+        "required": ["monthlyCents", "yearlyCents", "count"]
       },
       "RecurringDebitsSummaryDto": {
         "type": "object",
@@ -7795,12 +7404,7 @@
             "description": "Confirmed items that are inactive (left out of the totals)."
           }
         },
-        "required": [
-          "debits",
-          "credits",
-          "suggestedCount",
-          "inactiveCount"
-        ]
+        "required": ["debits", "credits", "suggestedCount", "inactiveCount"]
       },
       "ConfirmRecurringItemsDto": {
         "type": "object",
@@ -7815,9 +7419,7 @@
             }
           }
         },
-        "required": [
-          "ids"
-        ]
+        "required": ["ids"]
       },
       "RecurringConfirmResultDto": {
         "type": "object",
@@ -7826,9 +7428,7 @@
             "type": "integer"
           }
         },
-        "required": [
-          "confirmedCount"
-        ]
+        "required": ["confirmedCount"]
       },
       "UpdateRecurringItemDto": {
         "type": "object",
@@ -7874,12 +7474,7 @@
       },
       "TransactionSort": {
         "type": "string",
-        "enum": [
-          "date_desc",
-          "date_asc",
-          "amount_asc",
-          "amount_desc"
-        ],
+        "enum": ["date_desc", "date_asc", "amount_asc", "amount_desc"],
         "description": "By booking date or by signed amount (`amount_asc` = biggest expenses first). Ties: booking date, newest first, then id."
       },
       "TransactionCategoryDto": {
@@ -7909,13 +7504,7 @@
             ]
           }
         },
-        "required": [
-          "id",
-          "slug",
-          "name",
-          "color",
-          "kind"
-        ]
+        "required": ["id", "slug", "name", "color", "kind"]
       },
       "TransactionSplitDto": {
         "type": "object",
@@ -7936,12 +7525,7 @@
             "description": "Signed integer cents, same sign as the transaction."
           }
         },
-        "required": [
-          "id",
-          "categoryId",
-          "category",
-          "amountCents"
-        ]
+        "required": ["id", "categoryId", "category", "amountCents"]
       },
       "TransactionDto": {
         "type": "object",
@@ -8098,12 +7682,7 @@
             "type": "integer"
           }
         },
-        "required": [
-          "items",
-          "total",
-          "page",
-          "limit"
-        ]
+        "required": ["items", "total", "page", "limit"]
       },
       "TransactionSummaryDto": {
         "type": "object",
@@ -8155,9 +7734,7 @@
             "description": "Transactions waiting in the review queue."
           }
         },
-        "required": [
-          "count"
-        ]
+        "required": ["count"]
       },
       "BulkUpdateTransactionsDto": {
         "type": "object",
@@ -8199,9 +7776,7 @@
             }
           }
         },
-        "required": [
-          "ids"
-        ]
+        "required": ["ids"]
       },
       "BulkUpdateResultDto": {
         "type": "object",
@@ -8211,16 +7786,11 @@
             "description": "Transactions updated."
           }
         },
-        "required": [
-          "updated"
-        ]
+        "required": ["updated"]
       },
       "MoneyDirection": {
         "type": "string",
-        "enum": [
-          "out",
-          "in"
-        ],
+        "enum": ["out", "in"],
         "description": "Money out of the account or in. Default: `in` for income, `out` otherwise."
       },
       "CreateManualTransactionDto": {
@@ -8282,9 +7852,7 @@
             "maxLength": 2000
           }
         },
-        "required": [
-          "amountCents"
-        ]
+        "required": ["amountCents"]
       },
       "UpdateManualTransactionDto": {
         "type": "object",
@@ -8354,10 +7922,7 @@
             "description": "Signed integer cents, same sign as the transaction, never 0."
           }
         },
-        "required": [
-          "categoryId",
-          "amountCents"
-        ]
+        "required": ["categoryId", "amountCents"]
       },
       "SplitTransactionDto": {
         "type": "object",
@@ -8372,9 +7937,7 @@
             }
           }
         },
-        "required": [
-          "parts"
-        ]
+        "required": ["parts"]
       },
       "CorrectTransactionDto": {
         "type": "object",
@@ -8432,11 +7995,7 @@
       },
       "PeriodStatus": {
         "type": "string",
-        "enum": [
-          "complete",
-          "partial",
-          "empty"
-        ],
+        "enum": ["complete", "partial", "empty"],
         "description": "`complete`: the data reaches the end of the month. `partial`: it stops inside it, so only its first `throughDay` days are known and comparisons use the same days of the other months. `empty`: it stops before the month, so there is nothing to compare."
       },
       "MonthPeriodDto": {
@@ -8498,11 +8057,7 @@
       },
       "BudgetStatus": {
         "type": "string",
-        "enum": [
-          "ok",
-          "warning",
-          "over"
-        ],
+        "enum": ["ok", "warning", "over"],
         "description": "`ok` below 80 % of the target, `warning` from 80 % to 100 % included, `over` above 100 %."
       },
       "BudgetLineDto": {
@@ -8695,11 +8250,7 @@
             }
           }
         },
-        "required": [
-          "totalCents",
-          "categoryCount",
-          "top"
-        ]
+        "required": ["totalCents", "categoryCount", "top"]
       },
       "BudgetMonthDto": {
         "type": "object",
@@ -8731,13 +8282,7 @@
             "$ref": "#/components/schemas/UnbudgetedSpendingDto"
           }
         },
-        "required": [
-          "month",
-          "period",
-          "items",
-          "totals",
-          "unbudgeted"
-        ]
+        "required": ["month", "period", "items", "totals", "unbudgeted"]
       },
       "EnvelopeDto": {
         "type": "object",
@@ -8834,13 +8379,7 @@
             }
           }
         },
-        "required": [
-          "month",
-          "today",
-          "dayOfMonth",
-          "daysInMonth",
-          "items"
-        ]
+        "required": ["month", "today", "dayOfMonth", "daysInMonth", "items"]
       },
       "BudgetHistoryCellDto": {
         "type": "object",
@@ -8868,12 +8407,7 @@
             ]
           }
         },
-        "required": [
-          "month",
-          "targetCents",
-          "spentCents",
-          "status"
-        ]
+        "required": ["month", "targetCents", "spentCents", "status"]
       },
       "BudgetHistoryCategoryDto": {
         "type": "object",
@@ -8901,13 +8435,7 @@
             }
           }
         },
-        "required": [
-          "categoryId",
-          "slug",
-          "name",
-          "color",
-          "months"
-        ]
+        "required": ["categoryId", "slug", "name", "color", "months"]
       },
       "BudgetHistoryTotalDto": {
         "type": "object",
@@ -8935,12 +8463,7 @@
             ]
           }
         },
-        "required": [
-          "month",
-          "targetCents",
-          "spentCents",
-          "status"
-        ]
+        "required": ["month", "targetCents", "spentCents", "status"]
       },
       "BudgetHistoryDto": {
         "type": "object",
@@ -8967,11 +8490,7 @@
             }
           }
         },
-        "required": [
-          "months",
-          "categories",
-          "totals"
-        ]
+        "required": ["months", "categories", "totals"]
       },
       "BudgetSuggestionDto": {
         "type": "object",
@@ -9043,12 +8562,7 @@
             }
           }
         },
-        "required": [
-          "month",
-          "months",
-          "monthsWithData",
-          "items"
-        ]
+        "required": ["month", "months", "monthsWithData", "items"]
       },
       "UpsertBudgetDto": {
         "type": "object",
@@ -9077,9 +8591,7 @@
             "description": "Envelope: follow the category during the month on the dashboard (\"Ce mois-ci\"). Omitted: kept from the target in effect."
           }
         },
-        "required": [
-          "monthlyTargetCents"
-        ]
+        "required": ["monthlyTargetCents"]
       },
       "BudgetDto": {
         "type": "object",
@@ -9162,10 +8674,7 @@
       },
       "AccountGroup": {
         "type": "string",
-        "enum": [
-          "cash",
-          "investments"
-        ],
+        "enum": ["cash", "investments"],
         "description": "`cash` = checking and savings accounts, `investments` = the others."
       },
       "DashboardAccountDto": {
@@ -9352,11 +8861,7 @@
             "description": "Balance of the account at the end of the month, in cents."
           }
         },
-        "required": [
-          "accountId",
-          "type",
-          "balanceCents"
-        ]
+        "required": ["accountId", "type", "balanceCents"]
       },
       "HistoryMonthDto": {
         "type": "object",
@@ -9411,9 +8916,7 @@
             }
           }
         },
-        "required": [
-          "months"
-        ]
+        "required": ["months"]
       },
       "ReviewNetWorthDto": {
         "type": "object",
@@ -9582,13 +9085,7 @@
             "description": "Date the account’s data goes up to (cash: latest transaction or statement end; investments: latest value), null when it has none."
           }
         },
-        "required": [
-          "id",
-          "name",
-          "type",
-          "group",
-          "lastDate"
-        ]
+        "required": ["id", "name", "type", "group", "lastDate"]
       },
       "MonthReviewDto": {
         "type": "object",
@@ -9805,11 +9302,7 @@
       },
       "SpendingTrendSeriesType": {
         "type": "string",
-        "enum": [
-          "category",
-          "uncategorized",
-          "other"
-        ]
+        "enum": ["category", "uncategorized", "other"]
       },
       "SpendingTrendSeriesDto": {
         "type": "object",
@@ -9869,10 +9362,7 @@
         "type": "object",
         "properties": {
           "months": {
-            "example": [
-              "2026-09",
-              "2026-10"
-            ],
+            "example": ["2026-09", "2026-10"],
             "description": "Months shown, oldest first.",
             "type": "array",
             "items": {
@@ -9941,13 +9431,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "id",
-          "date",
-          "valueCents",
-          "contributionsCents",
-          "note"
-        ]
+        "required": ["id", "date", "valueCents", "contributionsCents", "note"]
       },
       "UpsertSnapshotDto": {
         "type": "object",
@@ -9968,9 +9452,7 @@
             "maxLength": 500
           }
         },
-        "required": [
-          "valueCents"
-        ]
+        "required": ["valueCents"]
       },
       "BulkSnapshotRowDto": {
         "type": "object",
@@ -9991,10 +9473,7 @@
             "description": "Net contributions to date (deposits minus withdrawals) in cents, when known. Omitted or null keeps the contributions already known for that day."
           }
         },
-        "required": [
-          "date",
-          "valueCents"
-        ]
+        "required": ["date", "valueCents"]
       },
       "BulkSnapshotsDto": {
         "type": "object",
@@ -10009,9 +9488,7 @@
             }
           }
         },
-        "required": [
-          "rows"
-        ]
+        "required": ["rows"]
       },
       "BulkSnapshotsResultDto": {
         "type": "object",
@@ -10025,10 +9502,7 @@
             "description": "Days whose snapshot was replaced."
           }
         },
-        "required": [
-          "created",
-          "updated"
-        ]
+        "required": ["created", "updated"]
       },
       "ValueChangeDto": {
         "type": "object",
@@ -10305,18 +9779,11 @@
             }
           }
         },
-        "required": [
-          "totals",
-          "accounts"
-        ]
+        "required": ["totals", "accounts"]
       },
       "CryptoHoldingOrigin": {
         "type": "string",
-        "enum": [
-          "import",
-          "sync",
-          "manual"
-        ],
+        "enum": ["import", "sync", "manual"],
         "description": "`import` (exchange export) and `sync` (wallet) lines are derived and read-only; `manual` lines are typed by hand. Imports and syncs never replace manual lines."
       },
       "ValuedHoldingDto": {
@@ -10376,11 +9843,7 @@
           },
           "priceSource": {
             "type": "string",
-            "enum": [
-              "provider",
-              "manual",
-              null
-            ],
+            "enum": ["provider", "manual", null],
             "nullable": true
           },
           "priceFetchedAt": {
@@ -10471,11 +9934,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "date",
-          "valueCents",
-          "contributionsCents"
-        ]
+        "required": ["date", "valueCents", "contributionsCents"]
       },
       "WalletSyncStatusDto": {
         "type": "object",
@@ -10497,11 +9956,7 @@
             "description": "When the last sync attempt failed: the synced holdings are those of `syncedAt` (stale). Null once a sync succeeds."
           }
         },
-        "required": [
-          "enabled",
-          "syncedAt",
-          "failedAt"
-        ]
+        "required": ["enabled", "syncedAt", "failedAt"]
       },
       "AccountHoldingsDto": {
         "type": "object",
@@ -10603,12 +10058,7 @@
             "maxLength": 500
           }
         },
-        "required": [
-          "assetId",
-          "symbol",
-          "name",
-          "quantity"
-        ]
+        "required": ["assetId", "symbol", "name", "quantity"]
       },
       "HoldingDto": {
         "type": "object",
@@ -10761,12 +10211,7 @@
             "description": "A price refresh was attempted in this request and failed."
           }
         },
-        "required": [
-          "accounts",
-          "totals",
-          "priceApiEnabled",
-          "refreshFailed"
-        ]
+        "required": ["accounts", "totals", "priceApiEnabled", "refreshFailed"]
       },
       "CryptoAssetDto": {
         "type": "object",
@@ -10789,12 +10234,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "id",
-          "symbol",
-          "name",
-          "rank"
-        ]
+        "required": ["id", "symbol", "name", "rank"]
       },
       "ManualPriceDto": {
         "type": "object",
@@ -10805,9 +10245,7 @@
             "example": "0.000123"
           }
         },
-        "required": [
-          "priceEur"
-        ]
+        "required": ["priceEur"]
       },
       "CryptoPriceDto": {
         "type": "object",
@@ -10822,29 +10260,18 @@
           },
           "source": {
             "type": "string",
-            "enum": [
-              "provider",
-              "manual"
-            ]
+            "enum": ["provider", "manual"]
           },
           "fetchedAt": {
             "type": "string",
             "format": "date-time"
           }
         },
-        "required": [
-          "assetId",
-          "priceEur",
-          "source",
-          "fetchedAt"
-        ]
+        "required": ["assetId", "priceEur", "source", "fetchedAt"]
       },
       "CryptoKeyFamily": {
         "type": "string",
-        "enum": [
-          "bitcoin",
-          "evm"
-        ]
+        "enum": ["bitcoin", "evm"]
       },
       "WalletKeyDto": {
         "type": "object",
@@ -10917,13 +10344,7 @@
             "example": "USDC"
           }
         },
-        "required": [
-          "id",
-          "accountId",
-          "assetId",
-          "symbol",
-          "name"
-        ]
+        "required": ["id", "accountId", "assetId", "symbol", "name"]
       },
       "AddWalletTokenDto": {
         "type": "object",
@@ -10944,11 +10365,7 @@
             "example": "USDC"
           }
         },
-        "required": [
-          "assetId",
-          "symbol",
-          "name"
-        ]
+        "required": ["assetId", "symbol", "name"]
       },
       "CryptoImportUploadDto": {
         "type": "object",
@@ -10959,16 +10376,11 @@
             "description": "Binance or Coinbase \"Transactions\" CSV export (UTF-8), at most 5 MB."
           }
         },
-        "required": [
-          "file"
-        ]
+        "required": ["file"]
       },
       "CryptoImportFormat": {
         "type": "string",
-        "enum": [
-          "binance_csv",
-          "coinbase_csv"
-        ]
+        "enum": ["binance_csv", "coinbase_csv"]
       },
       "CryptoImportCountsDto": {
         "type": "object",
@@ -10993,13 +10405,7 @@
             "description": "Lines written on commit."
           }
         },
-        "required": [
-          "rows",
-          "new",
-          "duplicates",
-          "issues",
-          "inserted"
-        ]
+        "required": ["rows", "new", "duplicates", "issues", "inserted"]
       },
       "CryptoImportIssueDto": {
         "type": "object",
@@ -11012,10 +10418,7 @@
             "description": "Why the line was skipped (no data)."
           }
         },
-        "required": [
-          "lineNumber",
-          "message"
-        ]
+        "required": ["lineNumber", "message"]
       },
       "CryptoUnknownOperationDto": {
         "type": "object",
@@ -11027,10 +10430,7 @@
             "type": "integer"
           }
         },
-        "required": [
-          "operation",
-          "count"
-        ]
+        "required": ["operation", "count"]
       },
       "CryptoImportHoldingDto": {
         "type": "object",
@@ -11066,11 +10466,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "ok",
-              "negative",
-              "unmapped"
-            ],
+            "enum": ["ok", "negative", "unmapped"],
             "description": "`negative`: earlier movements are missing; `unmapped`: no price id. Neither becomes a holding."
           }
         },
@@ -11146,10 +10542,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "new",
-              "duplicate"
-            ]
+            "enum": ["new", "duplicate"]
           }
         },
         "required": [
@@ -11189,10 +10582,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "pending",
-              "committed"
-            ]
+            "enum": ["pending", "committed"]
           },
           "createdAt": {
             "type": "string",
@@ -11290,12 +10680,7 @@
             "maxLength": 100
           }
         },
-        "required": [
-          "ticker",
-          "assetId",
-          "symbol",
-          "name"
-        ]
+        "required": ["ticker", "assetId", "symbol", "name"]
       },
       "CommitCryptoImportDto": {
         "type": "object",
@@ -11317,9 +10702,7 @@
             "description": "Movements deleted (0 for a pending import)."
           }
         },
-        "required": [
-          "deletedMovements"
-        ]
+        "required": ["deletedMovements"]
       },
       "ForecastAccountDto": {
         "type": "object",
@@ -11350,13 +10733,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "id",
-          "name",
-          "type",
-          "balanceCents",
-          "balanceDate"
-        ]
+        "required": ["id", "name", "type", "balanceCents", "balanceDate"]
       },
       "ForecastItemDto": {
         "type": "object",
@@ -11488,12 +10865,7 @@
             "description": "Variable-spending estimate applied that day (≤ 0)."
           }
         },
-        "required": [
-          "date",
-          "balanceCents",
-          "items",
-          "estimateCents"
-        ]
+        "required": ["date", "balanceCents", "items", "estimateCents"]
       },
       "ForecastBalanceAtDto": {
         "type": "object",
@@ -11507,10 +10879,7 @@
             "type": "integer"
           }
         },
-        "required": [
-          "date",
-          "balanceCents"
-        ]
+        "required": ["date", "balanceCents"]
       },
       "ForecastDto": {
         "type": "object",
@@ -11818,10 +11187,7 @@
             }
           }
         },
-        "required": [
-          "totalCents",
-          "accounts"
-        ]
+        "required": ["totalCents", "accounts"]
       },
       "InvestmentsStockDto": {
         "type": "object",
@@ -11836,10 +11202,7 @@
             }
           }
         },
-        "required": [
-          "totals",
-          "accounts"
-        ]
+        "required": ["totals", "accounts"]
       },
       "SavingsStockDto": {
         "type": "object",
@@ -11870,12 +11233,7 @@
             ]
           }
         },
-        "required": [
-          "totalCents",
-          "gainCents",
-          "cash",
-          "investments"
-        ]
+        "required": ["totalCents", "gainCents", "cash", "investments"]
       },
       "SavingsOverviewDto": {
         "type": "object",
@@ -11959,9 +11317,7 @@
             "description": "Monthly savings target in cents (e.g. 86000 = 860 €), null to clear it."
           }
         },
-        "required": [
-          "monthlyTargetCents"
-        ]
+        "required": ["monthlyTargetCents"]
       },
       "SavingsTargetResultDto": {
         "type": "object",
@@ -11971,16 +11327,11 @@
             "nullable": true
           }
         },
-        "required": [
-          "monthlyTargetCents"
-        ]
+        "required": ["monthlyTargetCents"]
       },
       "SavingsGoalSource": {
         "type": "string",
-        "enum": [
-          "accounts",
-          "manual"
-        ]
+        "enum": ["accounts", "manual"]
       },
       "GoalProjectionDto": {
         "type": "object",
@@ -12164,10 +11515,7 @@
             "example": "#0284c7"
           }
         },
-        "required": [
-          "name",
-          "targetCents"
-        ]
+        "required": ["name", "targetCents"]
       },
       "UpdateGoalDto": {
         "type": "object",
@@ -12228,11 +11576,7 @@
       },
       "AcknowledgeableStep": {
         "type": "string",
-        "enum": [
-          "recurring",
-          "budget",
-          "savings"
-        ]
+        "enum": ["recurring", "budget", "savings"]
       },
       "MonthCloseStep": {
         "type": "string",
@@ -12260,10 +11604,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "key",
-          "done"
-        ]
+        "required": ["key", "done"]
       },
       "CloseImportAccountDto": {
         "type": "object",
@@ -12356,10 +11697,7 @@
             }
           }
         },
-        "required": [
-          "accounts",
-          "gaps"
-        ]
+        "required": ["accounts", "gaps"]
       },
       "CloseReviewQueueDto": {
         "type": "object",
@@ -12369,9 +11707,7 @@
             "description": "Transactions of the month waiting in the review queue."
           }
         },
-        "required": [
-          "count"
-        ]
+        "required": ["count"]
       },
       "ClosePriceChangeDto": {
         "type": "object",
@@ -12423,10 +11759,7 @@
             }
           }
         },
-        "required": [
-          "suggestedCount",
-          "priceChanges"
-        ]
+        "required": ["suggestedCount", "priceChanges"]
       },
       "CloseGoalDto": {
         "type": "object",
@@ -12490,12 +11823,7 @@
             }
           }
         },
-        "required": [
-          "netCents",
-          "targetCents",
-          "gapCents",
-          "goals"
-        ]
+        "required": ["netCents", "targetCents", "gapCents", "goals"]
       },
       "CloseInvestmentsDto": {
         "type": "object",
@@ -12508,16 +11836,11 @@
             }
           }
         },
-        "required": [
-          "accounts"
-        ]
+        "required": ["accounts"]
       },
       "ReportCategoryKind": {
         "type": "string",
-        "enum": [
-          "income",
-          "expense"
-        ]
+        "enum": ["income", "expense"]
       },
       "ReportCategoryDto": {
         "type": "object",
@@ -12654,13 +11977,7 @@
       },
       "ReportChangeField": {
         "type": "string",
-        "enum": [
-          "income",
-          "expense",
-          "net",
-          "net_worth",
-          "category"
-        ]
+        "enum": ["income", "expense", "net", "net_worth", "category"]
       },
       "ReportChangeDto": {
         "type": "object",
@@ -12729,10 +12046,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "open",
-              "closed"
-            ]
+            "enum": ["open", "closed"]
           },
           "closedAt": {
             "type": "string",
