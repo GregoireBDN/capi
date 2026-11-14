@@ -11,7 +11,9 @@ import {
   Min,
 } from 'class-validator'
 import {
+  CRYPTO_HOLDING_ORIGINS,
   CRYPTO_PRICE_SOURCES,
+  type CryptoHoldingOrigin,
   type CryptoPriceSource,
 } from '#/database/schema/domain-enums'
 
@@ -136,6 +138,14 @@ export class HoldingDto {
 
   @ApiProperty({ type: String, nullable: true })
   note!: string | null
+
+  @ApiProperty({
+    enum: CRYPTO_HOLDING_ORIGINS,
+    enumName: 'CryptoHoldingOrigin',
+    description:
+      '`import` (exchange export) and `sync` (wallet) lines are derived and read-only; `manual` lines are typed by hand. Imports and syncs never replace manual lines.',
+  })
+  origin!: CryptoHoldingOrigin
 }
 
 export class ValuedHoldingDto extends HoldingDto {

@@ -451,4 +451,47 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
       ).rejects.toBeInstanceOf(ConflictException)
     })
   })
+
+  it('keeps imported and synced holdings read-only, next to manual ones', async () => {
+    await inRollback(async ({ crypto, account, tx }) => {
+      const id = await account()
+      // A line written by a wallet sync (#129) or an exchange import (#128).
+      const [synced] = await tx
+        .insert(schema.cryptoHoldingsTable)
+        .values({
+          accountId: id,
+          ...BTC,
+          symbol: 'BTC',
+          quantity: '0.5',
+          location: 'Ledger',
+          origin: 'sync',
+        })
+        .returning()
+      // The same asset at the same place, typed by hand: kept apart.
+      const manual = await crypto.create(
+        id,
+        { ...BTC, quantity: '0.01', location: 'Ledger' },
+        NOW,
+      )
+      expect(manual.origin).toBe('manual')
+
+      await expect(
+        crypto.update(id, synced.id, { ...BTC, quantity: '9' }, NOW),
+      ).rejects.toThrow('Imported or synced holdings are read-only')
+      await expect(crypto.remove(id, synced.id, NOW)).rejects.toBeInstanceOf(
+        BadRequestException,
+      )
+      await crypto.update(id, manual.id, { ...BTC, quantity: '0.02', location: 'Ledger' }, NOW)
+
+      const listed = await crypto.holdings(id, NOW)
+      expect(
+        listed.holdings.map((h) => [h.origin, h.quantity, h.valueCents]),
+      ).toEqual([
+        ['sync', '0.5', 3_000_025],
+        ['manual', '0.02', 120_001],
+      ])
+      // Valuation unchanged: every line counts.
+      expect(listed.totals.valueCents).toBe(3_120_026)
+    })
+  })
 })

@@ -3996,6 +3996,163 @@
         ]
       }
     },
+    "/api/accounts/{id}/wallet-keys": {
+      "get": {
+        "description": "Session only (never reachable with an access token).",
+        "operationId": "WalletKeysController_list",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WalletKeyDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a wallet crypto account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Public keys of a wallet crypto account",
+        "tags": [
+          "Crypto"
+        ]
+      },
+      "post": {
+        "description": "The key is validated (format and checksum) before it is saved; private keys and recovery phrases are refused.",
+        "operationId": "WalletKeysController_add",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WalletKeyInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletKeyDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid key, chains not of the key family, not a wallet account, archived account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "Key already tracked by an account."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Add a public key to a wallet crypto account",
+        "tags": [
+          "Crypto"
+        ]
+      }
+    },
+    "/api/accounts/{id}/wallet-keys/{keyId}": {
+      "delete": {
+        "description": "A wallet account keeps at least one key.",
+        "operationId": "WalletKeysController_remove",
+        "parameters": [
+          {
+            "name": "keyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Last key, not a wallet account, archived account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Remove a public key",
+        "tags": [
+          "Crypto"
+        ]
+      }
+    },
     "/api/forecast": {
       "get": {
         "description": "Current balance of the selected accounts, the remaining occurrences of their confirmed, active recurring items until the end of the month (Europe/Paris), and optionally an estimate of the day-to-day spending; projected day by day with the lowest point and the first day under the threshold. Transfers and one-offs never count in the estimate.",
@@ -5554,6 +5711,26 @@
         ],
         "description": "`checking` and `savings` are transactional (fed by imports, balance from transactions); the others are investment accounts (balance from dated value snapshots)."
       },
+      "CryptoAccountSource": {
+        "type": "string",
+        "enum": [
+          "exchange",
+          "wallet",
+          "manual",
+          null
+        ],
+        "description": "Crypto accounts only (null otherwise): where the holdings come from. `exchange` = computed from imported exports, `wallet` = read from public keys, `manual` = typed by hand. Set at creation."
+      },
+      "CryptoExchangeProvider": {
+        "type": "string",
+        "enum": [
+          "binance",
+          "coinbase",
+          "other",
+          null
+        ],
+        "description": "Exchange crypto accounts only (null otherwise)."
+      },
       "AccountDto": {
         "type": "object",
         "properties": {
@@ -5597,6 +5774,30 @@
             "nullable": true,
             "description": "Calendar date the balance is known at (latest transaction or snapshot)."
           },
+          "cryptoSource": {
+            "nullable": true,
+            "description": "Crypto accounts only (null otherwise): where the holdings come from. `exchange` = computed from imported exports, `wallet` = read from public keys, `manual` = typed by hand. Set at creation.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoAccountSource"
+              }
+            ]
+          },
+          "cryptoProvider": {
+            "nullable": true,
+            "description": "Exchange crypto accounts only (null otherwise).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoExchangeProvider"
+              }
+            ]
+          },
+          "cryptoSyncedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Last import (exchange) or sync (wallet) of the holdings; null until the first one."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -5615,8 +5816,50 @@
           "archivedAt",
           "balanceCents",
           "balanceDate",
+          "cryptoSource",
+          "cryptoProvider",
+          "cryptoSyncedAt",
           "createdAt",
           "updatedAt"
+        ]
+      },
+      "CryptoChain": {
+        "type": "string",
+        "enum": [
+          "bitcoin",
+          "ethereum",
+          "arbitrum",
+          "base",
+          "optimism",
+          "polygon",
+          "bsc"
+        ],
+        "description": "Chains to read the key on. Bitcoin keys: `bitcoin` only (default). EVM addresses: one or more EVM chains (default `ethereum`)."
+      },
+      "WalletKeyInputDto": {
+        "type": "object",
+        "properties": {
+          "publicKey": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Bitcoin extended public key (xpub, ypub, zpub) or EVM address (0x…). Format and checksum are checked; private keys and recovery phrases are refused."
+          },
+          "chains": {
+            "type": "array",
+            "description": "Chains to read the key on. Bitcoin keys: `bitcoin` only (default). EVM addresses: one or more EVM chains (default `ethereum`).",
+            "items": {
+              "$ref": "#/components/schemas/CryptoChain"
+            }
+          },
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 100,
+            "example": "Compte principal"
+          }
+        },
+        "required": [
+          "publicKey"
         ]
       },
       "CreateAccountDto": {
@@ -5640,6 +5883,30 @@
             "nullable": true,
             "maxLength": 100,
             "example": "CIC"
+          },
+          "cryptoSource": {
+            "description": "Crypto accounts only: where the holdings come from (default `manual`). Cannot change later.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoAccountSource"
+              }
+            ]
+          },
+          "cryptoProvider": {
+            "description": "Required for an `exchange` crypto account, refused otherwise.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoExchangeProvider"
+              }
+            ]
+          },
+          "walletKeys": {
+            "maxItems": 20,
+            "description": "At least one for a `wallet` crypto account, refused otherwise. Each key is validated (format and checksum) before anything is saved.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WalletKeyInputDto"
+            }
           }
         },
         "required": [
@@ -9242,6 +9509,15 @@
           "accounts"
         ]
       },
+      "CryptoHoldingOrigin": {
+        "type": "string",
+        "enum": [
+          "import",
+          "sync",
+          "manual"
+        ],
+        "description": "`import` (exchange export) and `sync` (wallet) lines are derived and read-only; `manual` lines are typed by hand. Imports and syncs never replace manual lines."
+      },
       "ValuedHoldingDto": {
         "type": "object",
         "properties": {
@@ -9282,6 +9558,14 @@
           "note": {
             "type": "string",
             "nullable": true
+          },
+          "origin": {
+            "description": "`import` (exchange export) and `sync` (wallet) lines are derived and read-only; `manual` lines are typed by hand. Imports and syncs never replace manual lines.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoHoldingOrigin"
+              }
+            ]
           },
           "priceEur": {
             "type": "string",
@@ -9327,6 +9611,7 @@
           "location",
           "investedCents",
           "note",
+          "origin",
           "priceEur",
           "priceSource",
           "priceFetchedAt",
@@ -9527,6 +9812,14 @@
           "note": {
             "type": "string",
             "nullable": true
+          },
+          "origin": {
+            "description": "`import` (exchange export) and `sync` (wallet) lines are derived and read-only; `manual` lines are typed by hand. Imports and syncs never replace manual lines.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoHoldingOrigin"
+              }
+            ]
           }
         },
         "required": [
@@ -9538,7 +9831,8 @@
           "quantity",
           "location",
           "investedCents",
-          "note"
+          "note",
+          "origin"
         ]
       },
       "CryptoSummaryAccountDto": {
@@ -9694,6 +9988,60 @@
           "priceEur",
           "source",
           "fetchedAt"
+        ]
+      },
+      "CryptoKeyFamily": {
+        "type": "string",
+        "enum": [
+          "bitcoin",
+          "evm"
+        ]
+      },
+      "WalletKeyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "family": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoKeyFamily"
+              }
+            ]
+          },
+          "publicKey": {
+            "type": "string",
+            "description": "The key as stored (EVM addresses EIP-55 checksummed)."
+          },
+          "chains": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CryptoChain"
+            }
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "accountId",
+          "family",
+          "publicKey",
+          "chains",
+          "label",
+          "createdAt"
         ]
       },
       "ForecastAccountDto": {
