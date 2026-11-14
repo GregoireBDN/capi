@@ -7,6 +7,7 @@ export const ROUTES = {
   transactions: '/transactions',
   review: '/review',
   budget: '/budget',
+  monthReview: '/month-review',
   subscriptions: '/subscriptions',
   forecast: '/forecast',
   savings: '/savings',

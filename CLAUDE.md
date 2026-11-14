@@ -37,6 +37,11 @@ These rules are non-negotiable. Code, tests and reviews must enforce them.
 - A partial month is compared **like for like**: the same first days of the previous month and of the averaged months. An empty month is not compared at all. Without a `month` parameter, endpoints show the current month when it has data, else the month the data stops in. Responses carry a `period` (`MonthPeriodDto`) and the web states it with `PeriodNote` (`lib/period.ts`).
 - The dashboard is read once a month: it opens on the review of the previous calendar month (`GET /api/dashboard/review`, `MonthReview`): net worth at the month end and its change split into saved (income + expenses) and the rest (investments and anything else), spending against the budget with the categories furthest above and below their target, and the accounts not updated up to the month end (cash: data stops before it and no import committed after it; investments: no value on or after it).
 
+### Month-end review (closing a month)
+
+- The guided "Revue du mois" (`/month-review`, `apps/api/src/month-close/`, `GET|PATCH /api/month-close/:month`) computes its steps from existing data: imports up to date per cash account (the month review's missing accounts, missing days, running-balance gaps from the stored bank rows, manual expenses excluded), the month's review queue, recurring items (no `suggested` left; the month's price changes ticked as seen), budget and savings (ticked as seen), investment values at the month end, then the close. Only `recurring`, `budget` and `savings` are ticked by hand (`month_closes.acknowledged`).
+- `POST /api/month-close/:month/close` (months before the current Europe/Paris month only) freezes the report (flow, net worth at the month end, savings target, totals per category with the month before and targets, largest one-offs, notes) in `month_closes.report`; later edits show as `changes` against the live report. A closed month refuses ticks and notes until `POST .../reopen`, which drops the frozen report and keeps the notes. Closing and reopening are session-only (never `@TokenAccess('write')`).
+
 ### Accounts
 
 - Account types: `checking`, `savings`, `brokerage` (PEA), `life_insurance`, `employee_savings`, `crypto`.

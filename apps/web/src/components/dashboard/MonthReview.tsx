@@ -11,7 +11,12 @@ import {
   ProgressMeter,
 } from '@finances/ui'
 import { Link } from '@tanstack/react-router'
-import { ChevronLeftIcon, ChevronRightIcon, UploadIcon } from 'lucide-react'
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ListChecksIcon,
+  UploadIcon,
+} from 'lucide-react'
 import type {
   MonthReviewDto,
   ReviewCategoryDto,
@@ -21,7 +26,7 @@ import {
   isValuedByHand,
   UpdateValueButton,
 } from '#/components/accounts/UpdateValueButton'
-import { formatMonth, shiftMonth } from '#/lib/calendar'
+import { ofMonth, shiftMonth } from '#/lib/calendar'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
 
@@ -35,19 +40,6 @@ const signedWholeEuros = new Intl.NumberFormat('fr-FR', {
 /** `+1 120 €`, `−60 €`, `0 €`. */
 export function formatSignedWhole(cents: number): string {
   return signedWholeEuros.format(cents / 100)
-}
-
-/** "octobre" (lower case, no year). */
-function monthWord(month: string): string {
-  return formatMonth(month)
-    .toLowerCase()
-    .replace(/\s\d{4}$/, '')
-}
-
-/** "d’octobre", "de novembre". */
-function ofMonth(month: string): string {
-  const word = monthWord(month)
-  return /^[aeiouy]/.test(word) ? `d’${word}` : `de ${word}`
 }
 
 interface MonthReviewProps {
@@ -149,11 +141,19 @@ export function MonthReview({
             )}
           </section>
 
-          <Button asChild className="w-full">
-            <Link to={ROUTES.budget} search={{ month: review.nextMonth }}>
-              Préparer le budget {ofMonth(review.nextMonth)}
-            </Link>
-          </Button>
+          <div className="grid gap-2">
+            <Button asChild className="w-full">
+              <Link to={ROUTES.budget} search={{ month: review.nextMonth }}>
+                Préparer le budget {ofMonth(review.nextMonth)}
+              </Link>
+            </Button>
+            <Button asChild outline variant="secondary" className="w-full">
+              <Link to={ROUTES.monthReview} search={{ month }}>
+                <ListChecksIcon aria-hidden />
+                Revue et clôture {ofMonth(month)}
+              </Link>
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </section>
@@ -217,10 +217,12 @@ function NetWorthSection({ review }: { review: MonthReviewDto }) {
             />
             Épargné
           </dt>
-          <dd className="font-medium whitespace-nowrap tabular-nums">
-            {formatSignedWhole(savedCents)}
+          <dd className="flex flex-wrap gap-x-1 font-medium tabular-nums">
+            <span className="whitespace-nowrap">
+              {formatSignedWhole(savedCents)}
+            </span>
             {flow.savingsRate !== null && (
-              <span className="text-muted-foreground font-normal">
+              <span className="text-muted-foreground font-normal whitespace-nowrap">
                 {' '}
                 · {formatPercent(flow.savingsRate)}
               </span>

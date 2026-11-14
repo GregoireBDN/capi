@@ -4130,6 +4130,212 @@
           "Savings"
         ]
       }
+    },
+    "/api/month-close/{month}": {
+      "get": {
+        "description": "Each step and whether it is done: imports up to date per cash account (missing days, running-balance gaps), review queue of the month empty, recurring items confirmed and the month’s price changes seen, budget seen, savings seen, investment values updated, month closed. The report as the data stands now and, once closed, the report frozen then with the figures changed since.",
+        "operationId": "MonthCloseController_get",
+        "parameters": [
+          {
+            "name": "month",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthCloseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid month."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Steps, progress and report of a month’s review",
+        "tags": [
+          "Month close"
+        ]
+      },
+      "patch": {
+        "operationId": "MonthCloseController_update",
+        "parameters": [
+          {
+            "name": "month",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMonthCloseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthCloseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid month or body."
+          },
+          "401": {
+            "description": ""
+          },
+          "409": {
+            "description": "The month is closed."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Save the notes and the steps marked as seen",
+        "tags": [
+          "Month close"
+        ]
+      }
+    },
+    "/api/month-close/{month}/close": {
+      "post": {
+        "description": "Freezes the month’s report (totals per category, income, expenses, savings, net worth, notes). Only a month before the current one (Europe/Paris) can be closed.",
+        "operationId": "MonthCloseController_close",
+        "parameters": [
+          {
+            "name": "month",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseMonthDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthCloseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid month, or not over yet."
+          },
+          "401": {
+            "description": ""
+          },
+          "409": {
+            "description": "Already closed."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Close the month",
+        "tags": [
+          "Month close"
+        ]
+      }
+    },
+    "/api/month-close/{month}/reopen": {
+      "post": {
+        "description": "Drops the frozen report; the notes are kept.",
+        "operationId": "MonthCloseController_reopen",
+        "parameters": [
+          {
+            "name": "month",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthCloseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid month."
+          },
+          "401": {
+            "description": ""
+          },
+          "409": {
+            "description": "Not closed."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Reopen a closed month",
+        "tags": [
+          "Month close"
+        ]
+      }
     }
   },
   "info": {
@@ -10035,6 +10241,630 @@
           "archived": {
             "type": "boolean",
             "description": "Archive (true) or restore (false) the goal."
+          }
+        }
+      },
+      "AcknowledgeableStep": {
+        "type": "string",
+        "enum": [
+          "recurring",
+          "budget",
+          "savings"
+        ]
+      },
+      "MonthCloseStep": {
+        "type": "string",
+        "enum": [
+          "imports",
+          "review_queue",
+          "recurring",
+          "budget",
+          "savings",
+          "investments",
+          "close"
+        ]
+      },
+      "MonthCloseStepDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MonthCloseStep"
+              }
+            ]
+          },
+          "done": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "done"
+        ]
+      },
+      "CloseImportAccountDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountType"
+              }
+            ]
+          },
+          "lastDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Latest day with imported data (manual expenses excluded)."
+          },
+          "upToDate": {
+            "type": "boolean",
+            "description": "Data reaches the month end, or an import was committed after it."
+          },
+          "missingDays": {
+            "type": "integer",
+            "description": "Days of the month after `lastDate` (the whole month when there is no data); 0 when up to date."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "lastDate",
+          "upToDate",
+          "missingDays"
+        ]
+      },
+      "CloseContinuityGapDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "fromDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Last day whose balance follows."
+          },
+          "toDate": {
+            "type": "string",
+            "format": "date",
+            "description": "First day whose balance does not follow."
+          },
+          "differenceCents": {
+            "type": "integer",
+            "description": "Bank balance − expected balance: the amount of the missing rows."
+          }
+        },
+        "required": [
+          "accountId",
+          "accountName",
+          "fromDate",
+          "toDate",
+          "differenceCents"
+        ]
+      },
+      "CloseImportsDto": {
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloseImportAccountDto"
+            }
+          },
+          "gaps": {
+            "description": "Days of the month where the bank running balance does not follow from the previous one and the rows booked since.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloseContinuityGapDto"
+            }
+          }
+        },
+        "required": [
+          "accounts",
+          "gaps"
+        ]
+      },
+      "CloseReviewQueueDto": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "Transactions of the month waiting in the review queue."
+          }
+        },
+        "required": [
+          "count"
+        ]
+      },
+      "ClosePriceChangeDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "previousAmountCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "latestAmountCents": {
+            "type": "integer"
+          },
+          "priceChangeCents": {
+            "type": "integer",
+            "description": "New − previous price."
+          },
+          "priceChangedOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "previousAmountCents",
+          "latestAmountCents",
+          "priceChangeCents",
+          "priceChangedOn"
+        ]
+      },
+      "CloseRecurringDto": {
+        "type": "object",
+        "properties": {
+          "suggestedCount": {
+            "type": "integer",
+            "description": "Detected recurring items still to confirm or dismiss."
+          },
+          "priceChanges": {
+            "description": "Confirmed items whose price changed during the month.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClosePriceChangeDto"
+            }
+          }
+        },
+        "required": [
+          "suggestedCount",
+          "priceChanges"
+        ]
+      },
+      "CloseGoalDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "targetCents": {
+            "type": "integer"
+          },
+          "currentCents": {
+            "type": "integer"
+          },
+          "progressRatio": {
+            "type": "number"
+          },
+          "reached": {
+            "type": "boolean"
+          },
+          "targetDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "targetCents",
+          "currentCents",
+          "progressRatio",
+          "reached",
+          "targetDate"
+        ]
+      },
+      "CloseSavingsDto": {
+        "type": "object",
+        "properties": {
+          "netCents": {
+            "type": "integer",
+            "description": "Saved in the month: income + expenses (transfers excluded)."
+          },
+          "targetCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "gapCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "`netCents` − `targetCents`; null without a target."
+          },
+          "goals": {
+            "description": "Active goals.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloseGoalDto"
+            }
+          }
+        },
+        "required": [
+          "netCents",
+          "targetCents",
+          "gapCents",
+          "goals"
+        ]
+      },
+      "CloseInvestmentsDto": {
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "description": "Investment accounts without a value on or after the month end.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewMissingAccountDto"
+            }
+          }
+        },
+        "required": [
+          "accounts"
+        ]
+      },
+      "ReportCategoryKind": {
+        "type": "string",
+        "enum": [
+          "income",
+          "expense"
+        ]
+      },
+      "ReportCategoryDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Null for the uncategorized transactions."
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportCategoryKind"
+              }
+            ]
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Cents: spent for `expense` (positive when money went out), received for `income`."
+          },
+          "previousAmountCents": {
+            "type": "integer",
+            "description": "Same figure for the month before."
+          },
+          "targetCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Monthly budget target (expense categories), null when none."
+          }
+        },
+        "required": [
+          "categoryId",
+          "name",
+          "color",
+          "kind",
+          "amountCents",
+          "previousAmountCents",
+          "targetCents"
+        ]
+      },
+      "ReportOneOffDto": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "label": {
+            "type": "string"
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Signed cents."
+          },
+          "categoryName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "transactionId",
+          "date",
+          "label",
+          "amountCents",
+          "categoryName"
+        ]
+      },
+      "MonthReportDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "flow": {
+            "description": "Income, expenses and net of the month (transfers excluded).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MonthFlowDto"
+              }
+            ]
+          },
+          "netWorthCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Net worth at the month end, in cents."
+          },
+          "savingsTargetCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Monthly savings target, in cents."
+          },
+          "categories": {
+            "description": "Totals per category and kind (income, expense; transfers never), largest first, budgeted categories included even without spending.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportCategoryDto"
+            }
+          },
+          "oneOffs": {
+            "description": "Up to 5 one-off transactions, largest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportOneOffDto"
+            }
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "month",
+          "flow",
+          "netWorthCents",
+          "savingsTargetCents",
+          "categories",
+          "oneOffs",
+          "notes"
+        ]
+      },
+      "ReportChangeField": {
+        "type": "string",
+        "enum": [
+          "income",
+          "expense",
+          "net",
+          "net_worth",
+          "category"
+        ]
+      },
+      "ReportChangeDto": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportChangeField"
+              }
+            ]
+          },
+          "kind": {
+            "nullable": true,
+            "description": "For `category`: income or expense.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportCategoryKind"
+              }
+            ]
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Category name."
+          },
+          "closedCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "currentCents": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "field",
+          "kind",
+          "categoryId",
+          "name",
+          "closedCents",
+          "currentCents"
+        ]
+      },
+      "MonthCloseDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "nextMonth": {
+            "type": "string",
+            "example": "2026-11"
+          },
+          "period": {
+            "$ref": "#/components/schemas/MonthPeriodDto"
+          },
+          "closable": {
+            "type": "boolean",
+            "description": "The month is over (before the current Europe/Paris month), so it can be closed."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ]
+          },
+          "closedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "acknowledged": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AcknowledgeableStep"
+            }
+          },
+          "steps": {
+            "description": "In order.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MonthCloseStepDto"
+            }
+          },
+          "imports": {
+            "$ref": "#/components/schemas/CloseImportsDto"
+          },
+          "reviewQueue": {
+            "$ref": "#/components/schemas/CloseReviewQueueDto"
+          },
+          "recurring": {
+            "$ref": "#/components/schemas/CloseRecurringDto"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/ReviewBudgetDto"
+          },
+          "savings": {
+            "$ref": "#/components/schemas/CloseSavingsDto"
+          },
+          "investments": {
+            "$ref": "#/components/schemas/CloseInvestmentsDto"
+          },
+          "report": {
+            "description": "The report as the data stands now.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MonthReportDto"
+              }
+            ]
+          },
+          "closedReport": {
+            "nullable": true,
+            "description": "The report frozen when the month was closed.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MonthReportDto"
+              }
+            ]
+          },
+          "changes": {
+            "description": "Figures that changed since the close (empty while the month is open).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportChangeDto"
+            }
+          }
+        },
+        "required": [
+          "month",
+          "nextMonth",
+          "period",
+          "closable",
+          "status",
+          "closedAt",
+          "notes",
+          "acknowledged",
+          "steps",
+          "imports",
+          "reviewQueue",
+          "recurring",
+          "budget",
+          "savings",
+          "investments",
+          "report",
+          "closedReport",
+          "changes"
+        ]
+      },
+      "UpdateMonthCloseDto": {
+        "type": "object",
+        "properties": {
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 4000,
+            "description": "Notes of the month; empty or null clears them."
+          },
+          "acknowledged": {
+            "type": "array",
+            "description": "Steps marked as seen; replaces the current list.",
+            "items": {
+              "$ref": "#/components/schemas/AcknowledgeableStep"
+            }
+          }
+        }
+      },
+      "CloseMonthDto": {
+        "type": "object",
+        "properties": {
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 4000,
+            "description": "Notes saved with the close (kept as they are when absent)."
           }
         }
       }
