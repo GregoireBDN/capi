@@ -12,6 +12,12 @@ export interface ToolDefinition<Shape extends z.ZodRawShape> {
   title: string
   description: string
   inputSchema: Shape
+  /**
+   * Set on write tools: they preview without `confirm: true` and need a
+   * `write` token to apply. `idempotent`: calling again with the same
+   * arguments changes nothing more.
+   */
+  write?: { idempotent: boolean }
   /** Returns the text shown to the model (French, euros, French dates). */
   run(context: ToolContext, args: z.infer<z.ZodObject<Shape>>): Promise<string>
 }

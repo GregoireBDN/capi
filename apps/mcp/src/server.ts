@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { z } from 'zod'
 import { ApiError } from './api/client.js'
+import { monthReviewPrompt, monthReviewPromptArgs } from './prompts.js'
 import { tools } from './tools/index.js'
 import {
   type ToolContext,
@@ -12,10 +13,11 @@ import {
 export const SERVER_NAME = 'finances'
 export const SERVER_VERSION = '0.0.1'
 
-const INSTRUCTIONS = `Read-only access to the owner's personal finances (single user, EUR, Europe/Paris).
+const INSTRUCTIONS = `Access to the owner's personal finances (single user, EUR, Europe/Paris).
 Amounts are euros; negative = money out. Internal transfers between the owner's accounts are never income or expenses.
 Statements are imported by hand, so the current month is often partial: tools say how far the data goes and compare partial months like for like.
-Start with accounts_overview or list_categories to learn the names that filters accept.`
+Start with accounts_overview or list_categories to learn the names that filters accept.
+Write tools (add_transaction, categorize_transactions, mark_one_off, set_transaction_note, create_rule, set_budget_targets) never change anything without confirm: true. Call them without confirm first, show the owner the preview, and only call again with confirm: true after the owner explicitly agrees. They need a write token; nothing can be deleted through them.`
 
 /**
  * Runs a tool and turns failures into an error result the model can read. Only
@@ -61,10 +63,27 @@ export function createServer(context: ToolContext): McpServer {
         title: tool.title,
         description: tool.description,
         inputSchema: tool.inputSchema,
-        annotations: { readOnlyHint: true, openWorldHint: false },
+        annotations: tool.write
+          ? {
+              readOnlyHint: false,
+              destructiveHint: false,
+              idempotentHint: tool.write.idempotent,
+              openWorldHint: false,
+            }
+          : { readOnlyHint: true, openWorldHint: false },
       },
       (args) => runTool(tool, context, args),
     )
   }
+  server.registerPrompt(
+    'revue_du_mois',
+    {
+      title: 'Revue du mois',
+      description:
+        'Walks through the month-end review with the tools: imports, review queue, recurring items, budget, savings, investments, next month’s budget, close.',
+      argsSchema: monthReviewPromptArgs,
+    },
+    ({ month }) => monthReviewPrompt(context.now(), month),
+  )
   return server
 }

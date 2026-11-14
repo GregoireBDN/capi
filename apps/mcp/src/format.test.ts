@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  addMonths,
+  centsToText,
+  parseEuros,
   addDays,
   euros,
   frenchDate,
@@ -59,5 +62,37 @@ describe('format', () => {
     expect(table(['a', 'b'], [['x|y', '1']])).toBe(
       '| a | b |\n| --- | --- |\n| x/y | 1 |',
     )
+  })
+
+  it.each([
+    ['12,50', 1250, null],
+    ['12.5', 1250, null],
+    ['1 234,56 €', 123456, null],
+    ['1\u202f234', 123400, null],
+    ['+20', 2000, '+'],
+    ['-0,05', 5, '-'],
+    ['42 EUR', 4200, null],
+  ])('parses %s into cents without floats', (text, cents, sign) => {
+    expect(parseEuros(text)).toEqual({ cents, sign })
+  })
+
+  it.each(['', 'abc', '12,505', '1.234,56', '1,234.56', '--5', '12,'])(
+    'rejects %j',
+    (text) => {
+      expect(parseEuros(text)).toBeNull()
+    },
+  )
+
+  it('writes cents back as text a tool accepts', () => {
+    expect(centsToText(4250)).toBe('42,50')
+    expect(centsToText(5)).toBe('0,05')
+    expect(centsToText(-123400)).toBe('-1234,00')
+    expect(parseEuros(centsToText(98765))?.cents).toBe(98765)
+  })
+
+  it('moves calendar months across years', () => {
+    expect(addMonths('2026-01', -1)).toBe('2025-12')
+    expect(addMonths('2026-12', 1)).toBe('2027-01')
+    expect(addMonths('2026-11', -13)).toBe('2025-10')
   })
 })

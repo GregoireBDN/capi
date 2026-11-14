@@ -15,7 +15,8 @@ import {
 } from './lookup.js'
 import { defineTool, ToolInputError } from './tool.js'
 
-function transactionLine(t: TransactionDto): string {
+/** One transaction per line, with its id (what the write tools take). */
+export function transactionLine(t: TransactionDto): string {
   const flags = [
     t.kind === 'transfer' ? 'virement interne' : null,
     t.isOneOff ? 'ponctuel' : null,
@@ -29,14 +30,14 @@ function transactionLine(t: TransactionDto): string {
   const category = t.category?.name ?? 'sans catégorie'
   const note = t.note ? ` — note : ${t.note}` : ''
   const suffix = flags.length > 0 ? ` [${flags.join(', ')}]` : ''
-  return `- ${frenchDate(t.bookingDate)} · ${signedEuros(t.amountCents)} · ${label} · ${category} · ${t.accountName}${suffix}${note}`
+  return `- ${frenchDate(t.bookingDate)} · ${signedEuros(t.amountCents)} · ${label} · ${category} · ${t.accountName}${suffix}${note} · id ${t.id}`
 }
 
 export const searchTransactionsTool = defineTool({
   name: 'search_transactions',
   title: 'Rechercher des opérations',
   description:
-    'Search booked transactions by month or date range, category, account, text and kind, newest first. Returns the matching rows (amounts signed: negative = money out) and totals of income and expenses over every match (internal transfers are never counted as income or expense).',
+    'Search booked transactions by month or date range, category, account, text and kind, newest first. Returns the matching rows with their id (amounts signed: negative = money out) and totals of income and expenses over every match (internal transfers are never counted as income or expense).',
   inputSchema: {
     month: z
       .string()

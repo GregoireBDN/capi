@@ -44,13 +44,7 @@ function pick<T extends { id: string }>(
   )
 }
 
-export async function resolveAccount(
-  api: ApiClient,
-  input: string,
-): Promise<AccountDto> {
-  const accounts = await api.get<AccountDto[]>('/api/accounts', {
-    includeArchived: true,
-  })
+export function pickAccount(accounts: AccountDto[], input: string): AccountDto {
   return pick(
     accounts,
     input,
@@ -60,19 +54,38 @@ export async function resolveAccount(
   )
 }
 
-/** `null` = the uncategorized bucket. */
-export async function resolveCategory(
+export async function resolveAccount(
   api: ApiClient,
   input: string,
-): Promise<CategoryDto | null> {
-  if (
-    ['uncategorized', 'sans categorie', 'non categorise', 'aucune'].includes(
-      normalize(input),
-    )
-  ) {
-    return null
-  }
-  const categories = await api.get<CategoryDto[]>('/api/categories')
+): Promise<AccountDto> {
+  return pickAccount(await listAccounts(api), input)
+}
+
+/** Every account, archived ones included. */
+export function listAccounts(api: ApiClient): Promise<AccountDto[]> {
+  return api.get<AccountDto[]>('/api/accounts', { includeArchived: true })
+}
+
+export function listCategories(api: ApiClient): Promise<CategoryDto[]> {
+  return api.get<CategoryDto[]>('/api/categories')
+}
+
+/** True when `input` names the uncategorized bucket. */
+export function isUncategorized(input: string): boolean {
+  return [
+    'uncategorized',
+    'sans categorie',
+    'non categorise',
+    'aucune',
+  ].includes(normalize(input))
+}
+
+/** `null` = the uncategorized bucket. */
+export function pickCategory(
+  categories: CategoryDto[],
+  input: string,
+): CategoryDto | null {
+  if (isUncategorized(input)) return null
   return pick(
     categories,
     input,
@@ -82,5 +95,16 @@ export async function resolveCategory(
   )
 }
 
+/** `null` = the uncategorized bucket. */
+export async function resolveCategory(
+  api: ApiClient,
+  input: string,
+): Promise<CategoryDto | null> {
+  if (isUncategorized(input)) return null
+  return pickCategory(await listCategories(api), input)
+}
+
 export const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/
+export const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export const DATE_PATTERN = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/
