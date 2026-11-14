@@ -11,5 +11,7 @@ import { DashboardService } from './dashboard.service'
   imports: [AuthModule, AccountsModule, TransactionsModule, BudgetsModule],
   controllers: [DashboardController],
   providers: [DashboardService],
+  // The month-end review (#75) builds on the month review.
+  exports: [DashboardService],
 })
 export class DashboardModule {}

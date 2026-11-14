@@ -17,6 +17,7 @@ import { EmailModule } from '#/email/email.module'
 import { ForecastModule } from '#/forecast/forecast.module'
 import { HealthModule } from '#/health/health.module'
 import { ImportsModule } from '#/imports/imports.module'
+import { MonthCloseModule } from '#/month-close/month-close.module'
 import { InvestmentsModule } from '#/investments/investments.module'
 import { RecurringModule } from '#/recurring/recurring.module'
 import { SavingsModule } from '#/savings/savings.module'
@@ -54,6 +55,7 @@ import { UserModule } from '#/user/user.module'
     CryptoModule,
     ForecastModule,
     SavingsModule,
+    MonthCloseModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

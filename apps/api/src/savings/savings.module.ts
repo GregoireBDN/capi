@@ -10,5 +10,7 @@ import { SavingsService } from './savings.service'
   imports: [AuthModule, AccountsModule, InvestmentsModule],
   controllers: [SavingsController],
   providers: [SavingsService],
+  // The month-end review (#75) reads the target and the goals.
+  exports: [SavingsService],
 })
 export class SavingsModule {}
