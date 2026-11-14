@@ -22,6 +22,7 @@ import { Route as AppSavingsRouteImport } from './routes/_app/savings'
 import { Route as AppRulesRouteImport } from './routes/_app/rules'
 import { Route as AppReviewRouteImport } from './routes/_app/review'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
+import { Route as AppMonthReviewRouteImport } from './routes/_app/month-review'
 import { Route as AppImportRouteImport } from './routes/_app/import'
 import { Route as AppForecastRouteImport } from './routes/_app/forecast'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
@@ -94,6 +95,11 @@ const AppProfileRoute = AppProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AppRoute,
 } as any)
+const AppMonthReviewRoute = AppMonthReviewRouteImport.update({
+  id: '/month-review',
+  path: '/month-review',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppImportRoute = AppImportRouteImport.update({
   id: '/import',
   path: '/import',
@@ -140,6 +146,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AppDashboardRoute
   '/forecast': typeof AppForecastRoute
   '/import': typeof AppImportRoute
+  '/month-review': typeof AppMonthReviewRoute
   '/profile': typeof AppProfileRoute
   '/review': typeof AppReviewRoute
   '/rules': typeof AppRulesRoute
@@ -161,6 +168,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AppDashboardRoute
   '/forecast': typeof AppForecastRoute
   '/import': typeof AppImportRoute
+  '/month-review': typeof AppMonthReviewRoute
   '/profile': typeof AppProfileRoute
   '/review': typeof AppReviewRoute
   '/rules': typeof AppRulesRoute
@@ -184,6 +192,7 @@ export interface FileRoutesById {
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/forecast': typeof AppForecastRoute
   '/_app/import': typeof AppImportRoute
+  '/_app/month-review': typeof AppMonthReviewRoute
   '/_app/profile': typeof AppProfileRoute
   '/_app/review': typeof AppReviewRoute
   '/_app/rules': typeof AppRulesRoute
@@ -207,6 +216,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/forecast'
     | '/import'
+    | '/month-review'
     | '/profile'
     | '/review'
     | '/rules'
@@ -228,6 +238,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/forecast'
     | '/import'
+    | '/month-review'
     | '/profile'
     | '/review'
     | '/rules'
@@ -250,6 +261,7 @@ export interface FileRouteTypes {
     | '/_app/dashboard'
     | '/_app/forecast'
     | '/_app/import'
+    | '/_app/month-review'
     | '/_app/profile'
     | '/_app/review'
     | '/_app/rules'
@@ -364,6 +376,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProfileRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/month-review': {
+      id: '/_app/month-review'
+      path: '/month-review'
+      fullPath: '/month-review'
+      preLoaderRoute: typeof AppMonthReviewRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/import': {
       id: '/_app/import'
       path: '/import'
@@ -422,6 +441,7 @@ interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
   AppForecastRoute: typeof AppForecastRoute
   AppImportRoute: typeof AppImportRoute
+  AppMonthReviewRoute: typeof AppMonthReviewRoute
   AppProfileRoute: typeof AppProfileRoute
   AppReviewRoute: typeof AppReviewRoute
   AppRulesRoute: typeof AppRulesRoute
@@ -439,6 +459,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
   AppForecastRoute: AppForecastRoute,
   AppImportRoute: AppImportRoute,
+  AppMonthReviewRoute: AppMonthReviewRoute,
   AppProfileRoute: AppProfileRoute,
   AppReviewRoute: AppReviewRoute,
   AppRulesRoute: AppRulesRoute,

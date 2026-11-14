@@ -77,3 +77,11 @@ export function formatDay(date: string): string {
   const text = dayLabel.format(new Date(Date.UTC(year, month - 1, day)))
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
+
+/** "d’octobre", "de novembre" (lower case, no year). */
+export function ofMonth(month: string): string {
+  const word = formatMonth(month)
+    .toLowerCase()
+    .replace(/\s\d{4}$/, '')
+  return /^[aeiouy]/.test(word) ? `d’${word}` : `de ${word}`
+}
