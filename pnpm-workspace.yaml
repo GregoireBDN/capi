@@ -1,3 +1,29 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+
+# Supply-chain settings (#156, checked by Semgrep in security.yml). They apply
+# to every resolution: `pnpm add`, `pnpm update`, and an install that has to
+# change the lockfile. A frozen install only fetches what the lockfile pins.
+#
+# - minimumReleaseAge: never resolve a version published less than 7 days
+#   (10080 minutes) ago, so a hijacked release is usually yanked first.
+# - trustPolicy: refuse a version published with a lower trust level
+#   (trusted publishing / provenance) than earlier versions of the package.
+# - blockExoticSubdeps: transitive dependencies come from the registry only,
+#   never from git URLs or tarballs.
+#
+# Exceptions: an urgent security fix younger than 7 days goes in
+# `minimumReleaseAgeExclude`, and a package whose trust level legitimately
+# dropped goes in `trustPolicyExclude`, each as an exact `name@version` with a
+# comment giving the reason and the issue; remove the entry once it is no
+# longer needed. Don't lower the settings themselves.
+minimumReleaseAge: 10080
+trustPolicy: no-downgrade
+blockExoticSubdeps: true
+trustPolicyExclude:
+  # Long-standing releases (Dec 2024) published without provenance after
+  # earlier 4.0.x ones had it; pulled in by @nestjs/cli.
+  - 'chokidar@4.0.3'
+  # Same (Nov 2024 release); pulled in by @types/node 22.
+  - 'undici-types@6.21.0'
