@@ -1,5 +1,26 @@
-import { ApiProperty } from '@nestjs/swagger'
-import { EmailField, NameField, PasswordField, TokenField } from './fields'
+import { applyDecorators } from '@nestjs/common'
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
+import { IsBoolean, IsOptional } from 'class-validator'
+import {
+  EmailField,
+  NameField,
+  NewPasswordField,
+  PasswordField,
+  TokenField,
+} from './fields'
+
+/** Also revoke every personal access token (MCP, scripts). */
+const RevokeAccessTokensField = () =>
+  applyDecorators(
+    IsOptional(),
+    IsBoolean(),
+    ApiPropertyOptional({
+      type: Boolean,
+      default: false,
+      description:
+        'Also revoke every personal access token. Other sessions are always ended.',
+    }),
+  )
 
 export class RegisterDto {
   @EmailField()
@@ -8,7 +29,7 @@ export class RegisterDto {
   @NameField()
   name!: string
 
-  @PasswordField()
+  @NewPasswordField()
   password!: string
 }
 
@@ -34,8 +55,22 @@ export class ResetPasswordDto {
   @TokenField()
   token!: string
 
-  @PasswordField()
+  @NewPasswordField()
   password!: string
+
+  @RevokeAccessTokensField()
+  revokeAccessTokens?: boolean
+}
+
+export class ChangePasswordDto {
+  @PasswordField()
+  currentPassword!: string
+
+  @NewPasswordField()
+  newPassword!: string
+
+  @RevokeAccessTokensField()
+  revokeAccessTokens?: boolean
 }
 
 export class RegistrationStatusDto {

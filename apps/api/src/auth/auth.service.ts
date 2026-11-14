@@ -7,7 +7,8 @@ import {
 import { JwtService } from '@nestjs/jwt'
 import * as bcrypt from 'bcryptjs'
 import * as crypto from 'node:crypto'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull, ne, sql } from 'drizzle-orm'
+import { personalAccessTokensTable } from '#/auth/access-tokens/access-tokens.schema'
 import { DatabaseService } from '#/database/database.service'
 import {
   emailVerificationTokensTable,
@@ -26,7 +27,12 @@ import {
   REFRESH_TOKEN_TTL_MS,
   SESSION_MAX_LIFETIME_MS,
 } from './auth.constants'
-import type { ForgotPasswordDto, LoginDto, RegisterDto } from './dto/auth.dto'
+import type {
+  ChangePasswordDto,
+  ForgotPasswordDto,
+  LoginDto,
+  RegisterDto,
+} from './dto/auth.dto'
 
 /** A freshly minted access token + refresh token pair for one session. */
 export interface SessionTokens {
@@ -40,6 +46,17 @@ export interface SessionTokens {
  * table and create a second account.
  */
 const REGISTRATION_LOCK_KEY = 4_242_001
+
+/**
+ * Compared against when the email is unknown, so a failed sign-in takes as
+ * long whether or not the address is the owner's. Hashed once, lazily.
+ */
+let dummyPasswordHash: Promise<string> | undefined
+const dummyHash = () =>
+  (dummyPasswordHash ??= bcrypt.hash(
+    crypto.randomBytes(16).toString('hex'),
+    BCRYPT_SALT_ROUNDS,
+  ))
 
 @Injectable()
 export class AuthService {
@@ -163,6 +180,8 @@ export class AuthService {
       .from(usersTable)
       .where(eq(usersTable.email, dto.email))
     if (!user?.passwordHash) {
+      // Same bcrypt cost as a wrong password: no hint the address is unknown.
+      await bcrypt.compare(dto.password, await dummyHash())
       throw new UnauthorizedException(AUTH_ERRORS.INVALID_CREDENTIALS)
     }
 
@@ -373,6 +392,9 @@ export class AuthService {
 
     if (!user || !user.passwordHash) return
 
+    // Only the latest link works: earlier unused ones are spent.
+    await this.spendResetTokens(user.id, new Date())
+
     const token = crypto.randomBytes(32).toString('hex')
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
     const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MS)
@@ -387,7 +409,16 @@ export class AuthService {
     await this.email.sendPasswordReset(user.email, resetUrl)
   }
 
-  async resetPassword(token: string, password: string): Promise<void> {
+  /**
+   * Sets a new password from an emailed link. Every session (refresh-token
+   * family) is ended: a reset after a compromise must lock the attacker out.
+   * Access tokens too when asked. All pending links are spent.
+   */
+  async resetPassword(
+    token: string,
+    password: string,
+    { revokeAccessTokens = false }: { revokeAccessTokens?: boolean } = {},
+  ): Promise<void> {
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
     const [record] = await this.db.db
       .select()
@@ -405,13 +436,136 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS)
     const now = new Date()
+    // Spend the link first: a concurrent use of the same link loses.
+    const [spent] = await this.db.db
+      .update(passwordResetTokensTable)
+      .set({ usedAt: now })
+      .where(
+        and(
+          eq(passwordResetTokensTable.id, record.id),
+          isNull(passwordResetTokensTable.usedAt),
+        ),
+      )
+      .returning({ id: passwordResetTokensTable.id })
+    if (!spent) throw new BadRequestException(AUTH_ERRORS.INVALID_RESET_TOKEN)
+
     await this.db.db
       .update(usersTable)
       .set({ passwordHash })
       .where(eq(usersTable.id, record.userId))
+    await this.endSessionsAfterPasswordChange(record.userId, now, {
+      keepFamilyId: null,
+      revokeAccessTokens,
+    })
+  }
+
+  /**
+   * Changes the password of the signed-in owner (fresh session required by
+   * the route). The current password must match. Every other session is
+   * ended; the one making the change (its refresh token) stays signed in.
+   */
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+    currentRefreshToken: string | undefined,
+  ): Promise<void> {
+    const [user] = await this.db.db
+      .select({ passwordHash: usersTable.passwordHash })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId))
+    if (!user) throw new UnauthorizedException(AUTH_ERRORS.USER_NOT_FOUND)
+
+    const valid =
+      !!user.passwordHash &&
+      (await bcrypt.compare(dto.currentPassword, user.passwordHash))
+    if (!valid) {
+      throw new BadRequestException(AUTH_ERRORS.WRONG_CURRENT_PASSWORD)
+    }
+    if (dto.newPassword === dto.currentPassword) {
+      throw new BadRequestException(AUTH_ERRORS.SAME_PASSWORD)
+    }
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_SALT_ROUNDS)
+    const now = new Date()
+    await this.db.db
+      .update(usersTable)
+      .set({ passwordHash })
+      .where(eq(usersTable.id, userId))
+    await this.endSessionsAfterPasswordChange(userId, now, {
+      keepFamilyId: await this.liveFamilyOf(userId, currentRefreshToken),
+      revokeAccessTokens: dto.revokeAccessTokens ?? false,
+    })
+  }
+
+  /** The family of a refresh token still usable by this user, if any. */
+  private async liveFamilyOf(
+    userId: string,
+    token: string | undefined,
+  ): Promise<string | null> {
+    if (!token) return null
+    const [record] = await this.db.db
+      .select({ familyId: refreshTokensTable.familyId })
+      .from(refreshTokensTable)
+      .where(
+        and(
+          eq(refreshTokensTable.tokenHash, this.hashToken(token)),
+          eq(refreshTokensTable.userId, userId),
+          isNull(refreshTokensTable.revokedAt),
+        ),
+      )
+    return record?.familyId ?? null
+  }
+
+  /**
+   * After a reset or a change: revokes every refresh-token family of the
+   * user but `keepFamilyId`, spends pending reset links and, when asked,
+   * revokes the personal access tokens. Access JWTs already issued stay valid
+   * until they expire (15 minutes, stateless).
+   */
+  private async endSessionsAfterPasswordChange(
+    userId: string,
+    now: Date,
+    {
+      keepFamilyId,
+      revokeAccessTokens,
+    }: { keepFamilyId: string | null; revokeAccessTokens: boolean },
+  ): Promise<void> {
+    await this.db.db
+      .update(refreshTokensTable)
+      .set({ revokedAt: now })
+      .where(
+        and(
+          eq(refreshTokensTable.userId, userId),
+          isNull(refreshTokensTable.revokedAt),
+          keepFamilyId
+            ? ne(refreshTokensTable.familyId, keepFamilyId)
+            : undefined,
+        ),
+      )
+    await this.spendResetTokens(userId, now)
+    if (revokeAccessTokens) {
+      await this.db.db
+        .update(personalAccessTokensTable)
+        .set({ revokedAt: now })
+        .where(
+          and(
+            eq(personalAccessTokensTable.userId, userId),
+            isNull(personalAccessTokensTable.revokedAt),
+          ),
+        )
+    }
+  }
+
+  /** Marks every unused reset link of the user as used. */
+  private async spendResetTokens(userId: string, now: Date): Promise<void> {
     await this.db.db
       .update(passwordResetTokensTable)
       .set({ usedAt: now })
-      .where(eq(passwordResetTokensTable.id, record.id))
+      .where(
+        and(
+          eq(passwordResetTokensTable.userId, userId),
+          isNull(passwordResetTokensTable.usedAt),
+        ),
+      )
   }
 }

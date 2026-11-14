@@ -50,11 +50,10 @@ describe('LoginForm', () => {
     const { user } = setup()
 
     await user.type(screen.getByLabelText('Email'), 'not-an-email')
-    await user.type(screen.getByLabelText('Mot de passe'), 'short')
     await user.click(screen.getByRole('button', { name: 'Se connecter' }))
 
     expect(await screen.findByText('Email invalide')).toBeInTheDocument()
-    expect(screen.getByText('Au moins 8 caractères')).toBeInTheDocument()
+    expect(screen.getByText('Mot de passe requis')).toBeInTheDocument()
     expect(authControllerLogin).not.toHaveBeenCalled()
   })
 
