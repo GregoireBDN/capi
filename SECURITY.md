@@ -6,6 +6,10 @@ Finances is a single-user, self-hosted app holding personal financial data. Prod
 
 Do not open a public issue or PR describing it. Report it privately to the owner (GitHub: Security → Report a vulnerability, or directly). Never include real financial data (CSV rows, labels, amounts, balances, account numbers) or a live secret in a report: describe it, or use synthetic values.
 
+## Audit
+
+The manual audit lives in [`docs/security/`](docs/security/): the [threat model](docs/security/threat-model.md), the [OWASP ASVS 4.0 level 2 checklist](docs/security/asvs-l2-checklist.md), the latest [report](docs/security/audit-2026-11-14.md) with its owner checklist for the server, and [re-runnable checks](docs/security/pentest/README.md) against a throwaway production-like stack. Re-run them before exposing anything beyond the tailnet (#78) and after changes to authentication, the `/api` proxy or the deployment.
+
 ## Automated checks
 
 | Check                                                                  | Where                                                                           | Fails on                                                                                 |
