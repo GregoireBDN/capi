@@ -27,11 +27,6 @@ function toDto(row: SelectCryptoWalletToken): WalletTokenDto {
   }
 }
 
-function isUniqueViolation(error: unknown): boolean {
-  const e = error as { code?: string; cause?: { code?: string } } | null
-  return e?.code === '23505' || e?.cause?.code === '23505'
-}
-
 /**
  * Tokens a wallet account reads on its EVM chains on top of the native coins
  * and the assets it already holds ("Ajouter un jeton"). Changing them makes
@@ -74,23 +69,17 @@ export class WalletTokensService {
         'This asset is not a token of a supported EVM chain',
       )
     }
-    let row: SelectCryptoWalletToken
-    try {
-      ;[row] = await this.db
-        .insert(t)
-        .values({
-          accountId,
-          assetId: dto.assetId,
-          symbol: dto.symbol,
-          name: dto.name,
-        })
-        .returning()
-    } catch (error) {
-      if (isUniqueViolation(error)) {
-        throw new ConflictException('This token is already read')
-      }
-      throw error
-    }
+    const [row] = await this.db
+      .insert(t)
+      .values({
+        accountId,
+        assetId: dto.assetId,
+        symbol: dto.symbol,
+        name: dto.name,
+      })
+      .onConflictDoNothing({ target: [t.accountId, t.assetId] })
+      .returning()
+    if (!row) throw new ConflictException('This token is already read')
     this.walletSync.invalidate(accountId)
     return toDto(row)
   }

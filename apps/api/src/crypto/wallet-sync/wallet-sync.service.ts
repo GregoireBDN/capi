@@ -332,8 +332,13 @@ export class WalletSyncService {
     for (const branch of [0, 1] as const) {
       let start = 0
       let lastUsed = -1
+      // Strict gap limit: ask exactly the addresses needed to see
+      // `gapLimit` unused ones in a row after the last used one.
       while (start - lastUsed - 1 < this.gapLimit) {
-        const count = Math.min(this.gapLimit, MAX_ADDRESSES_PER_BRANCH - start)
+        const count = Math.min(
+          this.gapLimit - (start - lastUsed - 1),
+          MAX_ADDRESSES_PER_BRANCH - start,
+        )
         if (count <= 0) break
         const addresses = this.deriver.derive(extendedKey, branch, start, count)
         const states = await provider.addressStates(addresses)
