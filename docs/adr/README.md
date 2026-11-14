@@ -4,6 +4,7 @@ Decisions that shape the project beyond a single change. One file per decision, 
 
 Each ADR states its **status** (Proposed, Accepted, Superseded by NNNN), the **context**, the **decision** with the alternatives rejected and why, and its **consequences**.
 
-| #                                 | Decision                          | Status   |
-| --------------------------------- | --------------------------------- | -------- |
-| [0001](0001-multi-app-hosting.md) | Multi-app hosting on a single VPS | Accepted |
+| #                                   | Decision                                           | Status   |
+| ----------------------------------- | -------------------------------------------------- | -------- |
+| [0001](0001-multi-app-hosting.md)   | Multi-app hosting on a single VPS                  | Accepted |
+| [0002](0002-wallet-sync-privacy.md) | Reading self-custody wallets from public endpoints | Accepted |

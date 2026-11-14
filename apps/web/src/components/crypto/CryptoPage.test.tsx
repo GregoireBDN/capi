@@ -112,6 +112,7 @@ function account(
     snapshot: null,
     priceApiEnabled: true,
     refreshFailed: false,
+    sync: null,
     ...overrides,
   }
 }

@@ -105,6 +105,31 @@ export const cryptoWalletKeysTable = pgTable(
   ],
 )
 
+/**
+ * Tokens a wallet account reads on its EVM chains ("Ajouter un jeton"), on
+ * top of the native coins and the assets it already holds. Their contracts
+ * are looked up from the price provider by asset id.
+ */
+export const cryptoWalletTokensTable = pgTable(
+  'crypto_wallet_tokens',
+  {
+    ...coreColumns,
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accountsTable.id, { onDelete: 'cascade' }),
+    /** Price provider asset id (CoinGecko id, e.g. `usd-coin`). */
+    assetId: varchar('asset_id', { length: 100 }).notNull(),
+    symbol: varchar('symbol', { length: 20 }).notNull(),
+    name: varchar('name', { length: 100 }).notNull(),
+  },
+  (t) => [
+    unique('crypto_wallet_tokens_account_asset_unique').on(
+      t.accountId,
+      t.assetId,
+    ),
+  ],
+)
+
 /** Last known EUR price of an asset: cache of the price API, or manual. */
 export const cryptoPricesTable = pgTable(
   'crypto_prices',
@@ -121,4 +146,6 @@ export const cryptoPricesTable = pgTable(
 export type SelectCryptoHolding = typeof cryptoHoldingsTable.$inferSelect
 export type InsertCryptoHolding = typeof cryptoHoldingsTable.$inferInsert
 export type SelectCryptoWalletKey = typeof cryptoWalletKeysTable.$inferSelect
+export type SelectCryptoWalletToken =
+  typeof cryptoWalletTokensTable.$inferSelect
 export type SelectCryptoPrice = typeof cryptoPricesTable.$inferSelect

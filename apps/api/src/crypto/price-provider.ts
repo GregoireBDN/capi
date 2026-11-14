@@ -24,11 +24,7 @@ export interface PriceProvider {
 }
 
 export type PriceProviderFailure =
-  | 'timeout'
-  | 'network'
-  | 'rate_limited'
-  | 'http'
-  | 'malformed'
+  'timeout' | 'network' | 'rate_limited' | 'http' | 'malformed'
 
 export class PriceProviderError extends Error {
   constructor(

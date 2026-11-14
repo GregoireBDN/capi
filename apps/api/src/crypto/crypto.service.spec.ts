@@ -14,6 +14,7 @@ import { TransactionsService } from '#/transactions/transactions.service'
 import { CryptoPricesService } from './crypto-prices.service'
 import { CryptoService } from './crypto.service'
 import { type PriceProvider, PriceProviderError } from './price-provider'
+import { WalletSyncService } from './wallet-sync/wallet-sync.service'
 
 /**
  * Integration checks against the dedicated test database (see
@@ -81,7 +82,13 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
           provider: enabled ? (provider as PriceProvider) : null,
           ttlMs: TTL,
         })
-        const crypto = new CryptoService(database, accounts, prices)
+        const walletSync = new WalletSyncService(database, {
+          bitcoin: null,
+          evm: null,
+          tokens: null,
+          intervalMs: TTL,
+        })
+        const crypto = new CryptoService(database, accounts, prices, walletSync)
         const investments = new InvestmentsService(database, accounts)
         const dashboard = new DashboardService(
           database,

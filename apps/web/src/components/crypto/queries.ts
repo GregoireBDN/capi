@@ -4,6 +4,7 @@ import {
   accountHoldingsControllerCreate,
   accountHoldingsControllerList,
   accountHoldingsControllerRemove,
+  accountHoldingsControllerSync,
   accountHoldingsControllerUpdate,
   accountHoldingsControllerValuate,
   cryptoControllerSearch,
@@ -13,8 +14,15 @@ import {
   walletKeysControllerAdd,
   walletKeysControllerList,
   walletKeysControllerRemove,
+  walletTokensControllerAdd,
+  walletTokensControllerList,
+  walletTokensControllerRemove,
 } from '#/api'
-import type { SaveHoldingDto, WalletKeyInputDto } from '#/api/types.gen'
+import type {
+  AddWalletTokenDto,
+  SaveHoldingDto,
+  WalletKeyInputDto,
+} from '#/api/types.gen'
 import { afterSnapshotsChanged } from '#/components/accounts/queries'
 import { unwrap } from '#/lib/queries'
 
@@ -25,6 +33,8 @@ export const cryptoKeys = {
   summary: ['crypto', 'summary'] as const,
   walletKeys: (accountId: string) =>
     ['crypto', 'wallet-keys', accountId] as const,
+  walletTokens: (accountId: string) =>
+    ['crypto', 'wallet-tokens', accountId] as const,
 }
 
 /** Every open crypto account with its valued holdings (the Crypto page). */
@@ -154,6 +164,49 @@ export function removeWalletKey(accountId: string, keyId: string) {
   return unwrap(
     walletKeysControllerRemove({
       path: { id: accountId, keyId },
+      throwOnError: false,
+    }),
+  )
+}
+
+/** "Synchroniser": reads the wallet on chain, then values the account. */
+export function syncWallet(accountId: string) {
+  return unwrap(
+    accountHoldingsControllerSync({
+      path: { id: accountId },
+      throwOnError: false,
+    }),
+  )
+}
+
+/** Tokens a wallet account reads on its EVM chains ("Ajouter un jeton"). */
+export function walletTokensQuery(accountId: string) {
+  return queryOptions({
+    queryKey: cryptoKeys.walletTokens(accountId),
+    queryFn: () =>
+      unwrap(
+        walletTokensControllerList({
+          path: { id: accountId },
+          throwOnError: false,
+        }),
+      ),
+  })
+}
+
+export function addWalletToken(accountId: string, body: AddWalletTokenDto) {
+  return unwrap(
+    walletTokensControllerAdd({
+      path: { id: accountId },
+      body,
+      throwOnError: false,
+    }),
+  )
+}
+
+export function removeWalletToken(accountId: string, tokenId: string) {
+  return unwrap(
+    walletTokensControllerRemove({
+      path: { id: accountId, tokenId },
       throwOnError: false,
     }),
   )

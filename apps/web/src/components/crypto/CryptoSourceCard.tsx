@@ -1,5 +1,6 @@
 import {
   Alert,
+  AlertDescription,
   AlertTitle,
   Button,
   Card,
@@ -18,6 +19,7 @@ import {
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  CoinsIcon,
   FileUpIcon,
   KeyRoundIcon,
   PlusIcon,
@@ -26,14 +28,27 @@ import {
 } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
-import type { AccountDto, WalletKeyDto } from '#/api/types.gen'
+import type {
+  AccountDto,
+  AccountHoldingsDto,
+  WalletKeyDto,
+  WalletTokenDto,
+} from '#/api/types.gen'
+import { ApiRequestError } from '#/lib/queries'
 import { holdingErrorMessage } from './errors'
 import { ExchangeImportSheet } from './ExchangeImportSheet'
+import { AssetPicker } from './HoldingEditor'
 import {
   addWalletKey,
+  addWalletToken,
+  afterHoldingsChanged,
   cryptoKeys,
+  holdingsQuery,
   removeWalletKey,
+  removeWalletToken,
+  syncWallet,
   walletKeysQuery,
+  walletTokensQuery,
 } from './queries'
 import {
   CRYPTO_CHAIN_LABELS,
@@ -60,14 +75,296 @@ const syncedAtFormat = new Intl.DateTimeFormat('fr-FR', {
 })
 
 /** "Dernier import : jamais" / "Dernière synchronisation : 5 novembre…". */
-export function syncedAtText(account: AccountDto): string {
+export function syncedAtText(
+  account: AccountDto,
+  syncedAt: string | null = account.cryptoSyncedAt,
+): string {
   const what =
     account.cryptoSource === 'exchange'
       ? 'Dernier import'
       : 'Dernière synchronisation'
-  return account.cryptoSyncedAt === null
+  return syncedAt === null
     ? `${what} : jamais`
-    : `${what} : ${syncedAtFormat.format(new Date(account.cryptoSyncedAt))}`
+    : `${what} : ${syncedAtFormat.format(new Date(syncedAt))}`
+}
+
+/** Whether the latest sync attempt failed (the holdings shown are older). */
+export function syncFailed(result: AccountHoldingsDto): boolean {
+  const sync = result.sync
+  if (!sync?.failedAt) return false
+  return (
+    sync.syncedAt === null ||
+    new Date(sync.failedAt).getTime() >= new Date(sync.syncedAt).getTime()
+  )
+}
+
+function syncErrorMessage(error: unknown): string {
+  if (error instanceof ApiRequestError && error.status === 400) {
+    return 'La synchronisation est désactivée sur ce serveur.'
+  }
+  return holdingErrorMessage(error)
+}
+
+/** "Synchroniser" and its mutation, shared by the card and the token list. */
+function useWalletSync(accountId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => syncWallet(accountId),
+    // The sync date before, to tell a fresh sync from a skipped one (the API
+    // asks the chains at most every 30 s).
+    onMutate: () =>
+      queryClient.getQueryData<AccountHoldingsDto>(
+        cryptoKeys.holdings(accountId),
+      )?.sync?.syncedAt ?? null,
+    onSuccess: async (result, _variables, syncedBefore) => {
+      queryClient.setQueryData(cryptoKeys.holdings(accountId), result)
+      if (syncFailed(result)) {
+        toast.error(
+          'Synchronisation impossible pour le moment : les derniers avoirs connus sont conservés.',
+        )
+      } else if (
+        syncedBefore !== null &&
+        result.sync?.syncedAt === syncedBefore
+      ) {
+        toast('Wallet déjà synchronisé il y a quelques secondes')
+      } else {
+        toast.success('Wallet synchronisé')
+      }
+      await afterHoldingsChanged(queryClient)
+    },
+    onError: (error) => toast.error(syncErrorMessage(error)),
+  })
+}
+
+function tokenErrorMessage(error: unknown): string {
+  if (error instanceof ApiRequestError) {
+    if (error.status === 409) return 'Ce jeton est déjà suivi.'
+    if (error.status === 400) {
+      return error.apiMessage?.startsWith('Native')
+        ? 'BTC, ETH, BNB et POL sont toujours lus : inutile de les ajouter.'
+        : 'Ce jeton n’existe sur aucune des chaînes EVM prises en charge.'
+    }
+  }
+  return holdingErrorMessage(error)
+}
+
+/** "Ajouter un jeton": picks an asset, read on the wallet's EVM chains. */
+function AddWalletTokenSheet({
+  open,
+  onOpenChange,
+  accountId,
+  onAdded,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  accountId: string
+  onAdded: () => void
+}) {
+  const isMobile = useIsMobile()
+  const queryClient = useQueryClient()
+  const id = useId()
+
+  const add = useMutation({
+    mutationFn: (asset: { id: string; symbol: string; name: string }) =>
+      addWalletToken(accountId, {
+        assetId: asset.id,
+        symbol: asset.symbol,
+        name: asset.name,
+      }),
+    onSuccess: async (token) => {
+      toast.success(`${token.symbol} sera lu à la prochaine synchronisation`)
+      onOpenChange(false)
+      await queryClient.invalidateQueries({
+        queryKey: cryptoKeys.walletTokens(accountId),
+      })
+      onAdded()
+    },
+    onError: (error) => toast.error(tokenErrorMessage(error)),
+  })
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side={isMobile ? 'bottom' : 'right'}
+        className={
+          isMobile
+            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
+            : undefined
+        }
+      >
+        <SheetHeader className="pb-0">
+          <SheetTitle>Ajouter un jeton</SheetTitle>
+          <SheetDescription>
+            Un jeton ERC-20 ou BEP-20 à lire sur les chaînes EVM du wallet
+            (USDC, USDT…). Les monnaies natives sont toujours lues.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="space-y-2 px-4 pb-6">
+          <label htmlFor={id} className="text-sm font-medium">
+            Jeton
+          </label>
+          <AssetPicker
+            id={id}
+            invalid={false}
+            onPick={(asset) => {
+              if (!add.isPending) add.mutate(asset)
+            }}
+          />
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function WalletTokenList({
+  accountId,
+  writable,
+  onChanged,
+}: {
+  accountId: string
+  writable: boolean
+  onChanged: () => void
+}) {
+  const queryClient = useQueryClient()
+  const tokens = useQuery(walletTokensQuery(accountId))
+  const [adding, setAdding] = useState(false)
+
+  const remove = useMutation({
+    mutationFn: (token: WalletTokenDto) =>
+      removeWalletToken(accountId, token.id),
+    onSuccess: async (_, token) => {
+      toast.success(`${token.symbol} n’est plus lu`)
+      await queryClient.invalidateQueries({
+        queryKey: cryptoKeys.walletTokens(accountId),
+      })
+      onChanged()
+    },
+    onError: (error) => toast.error(tokenErrorMessage(error)),
+  })
+
+  if (tokens.isPending) {
+    return <Skeleton className="h-10 w-full" aria-label="Chargement" />
+  }
+  if (tokens.isError) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Impossible de charger les jetons.</AlertTitle>
+      </Alert>
+    )
+  }
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium">Jetons lus</p>
+      {tokens.data.length === 0 ? (
+        <p className="text-muted-foreground text-sm">
+          Monnaies natives et actifs déjà détenus uniquement.
+        </p>
+      ) : (
+        <ul className="divide-y" aria-label="Jetons lus">
+          {tokens.data.map((token) => (
+            <li
+              key={token.id}
+              className="flex min-h-11 items-center gap-3 py-1 text-sm"
+            >
+              <CoinsIcon
+                aria-hidden
+                className="text-muted-foreground size-4 shrink-0"
+              />
+              <span className="font-medium">{token.symbol}</span>
+              <span className="text-muted-foreground min-w-0 flex-1 truncate">
+                {token.name}
+              </span>
+              {writable && (
+                <Button
+                  size="sm"
+                  iconOnly
+                  variant="secondary"
+                  ghost
+                  aria-label={`Ne plus lire ${token.symbol}`}
+                  loading={remove.isPending && remove.variables.id === token.id}
+                  onClick={() => remove.mutate(token)}
+                >
+                  <Trash2Icon />
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {writable && (
+        <>
+          <Button
+            size="sm"
+            outline
+            variant="secondary"
+            iconStart={<PlusIcon />}
+            onClick={() => setAdding(true)}
+          >
+            Ajouter un jeton
+          </Button>
+          <AddWalletTokenSheet
+            open={adding}
+            onOpenChange={setAdding}
+            accountId={accountId}
+            onAdded={onChanged}
+          />
+        </>
+      )}
+    </div>
+  )
+}
+
+/** Last sync, stale state and "Synchroniser" of a wallet account. */
+function WalletSyncSection({
+  account,
+  writable,
+  holdings,
+  mutation,
+}: {
+  account: AccountDto
+  writable: boolean
+  holdings: AccountHoldingsDto | undefined
+  mutation: ReturnType<typeof useWalletSync>
+}) {
+  const sync = holdings?.sync ?? null
+  const enabled = sync?.enabled ?? false
+  const failed = holdings ? syncFailed(holdings) : false
+
+  return (
+    <>
+      <p className="text-sm">
+        {syncedAtText(account, sync?.syncedAt ?? account.cryptoSyncedAt)}
+      </p>
+      {failed && sync?.failedAt && (
+        <Alert variant="warning">
+          <AlertTitle>La dernière synchronisation a échoué</AlertTitle>
+          <AlertDescription>
+            Tentative du {syncedAtFormat.format(new Date(sync.failedAt))}. Les
+            avoirs affichés sont ceux de la dernière synchronisation réussie.
+          </AlertDescription>
+        </Alert>
+      )}
+      {writable && holdings && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
+          <Button
+            size="sm"
+            disabled={!enabled}
+            loading={mutation.isPending}
+            iconStart={<RefreshCwIcon />}
+            onClick={() => mutation.mutate()}
+          >
+            Synchroniser
+          </Button>
+          {!enabled && (
+            <span className="text-muted-foreground text-xs">
+              Synchronisation désactivée sur ce serveur : ajoutez vos avoirs à
+              la main.
+            </span>
+          )}
+        </div>
+      )}
+    </>
+  )
 }
 
 function keyErrorMessage(error: unknown): string {
@@ -270,8 +567,8 @@ function WalletKeyList({
 /**
  * Where a crypto account's holdings come from: an exchange's exports, a
  * wallet's public keys, or typed by hand. Shows the last import or sync and
- * its action: "Importer un export" for an exchange (#128); the wallet sync
- * (#129) is shown, not available yet.
+ * its action: "Importer un export" for an exchange (#128), "Synchroniser"
+ * for a wallet when the server reads chains (#129).
  */
 export function CryptoSourceCard({
   account,
@@ -329,6 +626,17 @@ function ExternalSourceCard({
   exchange: boolean
 }) {
   const [importing, setImporting] = useState(false)
+  // Same query (and cache entry) as the holdings panel below.
+  const holdings = useQuery({
+    ...holdingsQuery(account.id),
+    enabled: !exchange,
+  })
+  const walletSync = useWalletSync(account.id)
+  const syncAfterChange = () => {
+    if (!exchange && writable && holdings.data?.sync?.enabled) {
+      walletSync.mutate()
+    }
+  }
   return (
     <section aria-label="Source des avoirs">
       <Card className="min-w-0">
@@ -339,32 +647,38 @@ function ExternalSourceCard({
               ? 'Avoirs calculés depuis les exports de la plateforme.'
               : 'Avoirs lus sur la blockchain avec les clés publiques du wallet.'}
           </CardDescription>
-          <p className="text-sm">{syncedAtText(account)}</p>
-          {writable && exchange && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
-              <Button
-                size="sm"
-                iconStart={<FileUpIcon />}
-                onClick={() => setImporting(true)}
-              >
-                Importer un export
-              </Button>
-            </div>
-          )}
-          {writable && !exchange && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
-              <Button size="sm" disabled iconStart={<RefreshCwIcon />}>
-                Synchroniser
-              </Button>
-              <span className="text-muted-foreground text-xs">
-                Bientôt disponible. En attendant, ajoutez vos avoirs à la main.
-              </span>
-            </div>
+          {exchange ? (
+            <>
+              <p className="text-sm">{syncedAtText(account)}</p>
+              {writable && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
+                  <Button
+                    size="sm"
+                    iconStart={<FileUpIcon />}
+                    onClick={() => setImporting(true)}
+                  >
+                    Importer un export
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <WalletSyncSection
+              account={account}
+              writable={writable}
+              holdings={holdings.data}
+              mutation={walletSync}
+            />
           )}
         </CardHeader>
         {!exchange && (
-          <CardContent>
+          <CardContent className="space-y-6">
             <WalletKeyList accountId={account.id} writable={writable} />
+            <WalletTokenList
+              accountId={account.id}
+              writable={writable}
+              onChanged={syncAfterChange}
+            />
           </CardContent>
         )}
       </Card>

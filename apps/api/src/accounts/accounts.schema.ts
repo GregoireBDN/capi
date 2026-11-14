@@ -51,6 +51,14 @@ export const accountsTable = pgTable(
     cryptoProvider: cryptoExchangeProviderEnum('crypto_provider'),
     /** Last import (exchange) or sync (wallet) of the holdings. */
     cryptoSyncedAt: timestamp('crypto_synced_at', { withTimezone: true }),
+    /**
+     * Wallet crypto accounts only: when the last sync attempt failed (the
+     * last known holdings are kept and shown as stale); null once a sync
+     * succeeds.
+     */
+    cryptoSyncFailedAt: timestamp('crypto_sync_failed_at', {
+      withTimezone: true,
+    }),
   },
   (t) => [
     check(

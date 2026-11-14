@@ -28,8 +28,13 @@ import type {
   HoldingsTotalsDto,
   SaveHoldingDto,
   ValuationSnapshotDto,
+  WalletSyncStatusDto,
 } from './dto/crypto.dto'
 import { valuateHoldings } from './valuation'
+import {
+  type WalletSyncStatus,
+  WalletSyncService,
+} from './wallet-sync/wallet-sync.service'
 
 const h = cryptoHoldingsTable
 const s = balanceSnapshotsTable
@@ -51,6 +56,17 @@ function toHoldingDto(row: SelectCryptoHolding): HoldingDto {
     investedCents: row.investedCents,
     note: row.note,
     origin: row.origin,
+  }
+}
+
+function syncStatusDto(
+  status: WalletSyncStatus | undefined,
+): WalletSyncStatusDto | null {
+  if (!status) return null
+  return {
+    enabled: status.enabled,
+    syncedAt: status.syncedAt?.toISOString() ?? null,
+    failedAt: status.failedAt?.toISOString() ?? null,
   }
 }
 
@@ -78,6 +94,7 @@ export class CryptoService {
     private readonly database: DatabaseService,
     private readonly accounts: AccountsService,
     private readonly prices: CryptoPricesService,
+    private readonly walletSync: WalletSyncService,
   ) {}
 
   private get db() {
@@ -107,6 +124,27 @@ export class CryptoService {
   ): Promise<AccountHoldingsDto> {
     const account = await this.writableCryptoAccount(accountId)
     const [result] = await this.valuate([account], 'force', true, now)
+    return result
+  }
+
+  /**
+   * "Synchroniser" (wallet accounts): reads the wallet on chain now, then
+   * values the account. A failed sync keeps the last synced holdings and is
+   * reported in `sync.failedAt`, never as an error.
+   */
+  async sync(
+    accountId: string,
+    now: Date = new Date(),
+  ): Promise<AccountHoldingsDto> {
+    const account = await this.writableCryptoAccount(accountId)
+    if (account.cryptoSource !== 'wallet') {
+      throw new BadRequestException('Only wallet accounts are synced')
+    }
+    if (!this.walletSync.enabled) {
+      throw new BadRequestException('Wallet sync is disabled on this server')
+    }
+    await this.walletSync.syncNow(account.id, now)
+    const [result] = await this.valuate([account], 'auto', true, now)
     return result
   }
 
@@ -277,18 +315,17 @@ export class CryptoService {
     write: boolean,
     now: Date,
   ): Promise<AccountHoldingsDto[]> {
+    const ids = accounts.map((account) => account.id)
+    // A valuation that refreshes prices first reads the wallets due a sync.
+    if (mode !== 'none') await this.walletSync.syncDue(ids, now)
+    const syncStatuses = await this.walletSync.statuses(ids)
     const rows =
       accounts.length === 0
         ? []
         : await this.db
             .select()
             .from(h)
-            .where(
-              inArray(
-                h.accountId,
-                accounts.map((account) => account.id),
-              ),
-            )
+            .where(inArray(h.accountId, ids))
             .orderBy(asc(h.symbol), asc(h.location), asc(h.createdAt))
     const { quotes, refreshFailed } = await this.prices.quotes(
       rows.map((row) => row.assetId),
@@ -338,6 +375,7 @@ export class CryptoService {
         snapshot,
         priceApiEnabled: this.prices.enabled,
         refreshFailed,
+        sync: syncStatusDto(syncStatuses.get(account.id)),
       })
     }
     return results

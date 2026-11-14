@@ -9,6 +9,12 @@ import {
   type PriceProvider,
   PriceProviderError,
 } from './price-provider'
+import type {
+  EvmChain,
+  TokenContractProvider,
+  TokenDeployment,
+} from './wallet-sync/chain-provider'
+import { chainOfPlatform } from './wallet-sync/chains'
 
 export const DEFAULT_PRICE_API_URL = 'https://api.coingecko.com/api/v3'
 /** Requests are abandoned after this long. */
@@ -36,6 +42,23 @@ const searchSchema = z.looseObject({
   ),
 })
 
+const platformsSchema = z.looseObject({
+  detail_platforms: z
+    .record(
+      z.string(),
+      z
+        .looseObject({
+          decimal_place: jsonNumber.nullish(),
+          contract_address: z.string().nullish(),
+        })
+        .nullable(),
+    )
+    .nullish(),
+})
+const CONTRACT_ADDRESS = /^0x[0-9a-fA-F]{40}$/
+/** Token decimals beyond this are not ERC-20 tokens we can hold exactly. */
+const MAX_TOKEN_DECIMALS = 36
+
 interface CoinGeckoOptions {
   baseUrl?: string
   timeoutMs?: number
@@ -48,7 +71,9 @@ interface CoinGeckoOptions {
  * one call, `precision=full`) and `search` for the asset picker. Prices are
  * read from the JSON text into exact decimal strings, never floats.
  */
-export class CoinGeckoPriceProvider implements PriceProvider {
+export class CoinGeckoPriceProvider
+  implements PriceProvider, TokenContractProvider
+{
   private readonly baseUrl: string
   private readonly timeoutMs: number
   private readonly fetchFn: typeof fetch
@@ -95,6 +120,45 @@ export class CoinGeckoPriceProvider implements PriceProvider {
         rank: Number.isSafeInteger(rank) ? rank : null,
       }
     })
+  }
+
+  /**
+   * Contract address and decimals of a token on each supported EVM chain
+   * (`coins/:id` platforms). Only the asset id is sent.
+   */
+  async tokenDeployments(
+    assetId: string,
+  ): Promise<Partial<Record<EvmChain, TokenDeployment>>> {
+    const body = await this.getJson(`coins/${encodeURIComponent(assetId)}`, {
+      localization: 'false',
+      tickers: 'false',
+      market_data: 'false',
+      community_data: 'false',
+      developer_data: 'false',
+      sparkline: 'false',
+    })
+    const parsed = platformsSchema.safeParse(body)
+    if (!parsed.success) throw new PriceProviderError('malformed')
+    const deployments: Partial<Record<EvmChain, TokenDeployment>> = {}
+    for (const [platform, detail] of Object.entries(
+      parsed.data.detail_platforms ?? {},
+    )) {
+      const chain = chainOfPlatform(platform)
+      const address = detail?.contract_address
+      const decimals = Number(detail?.decimal_place ?? NaN)
+      if (
+        !chain ||
+        !address ||
+        !CONTRACT_ADDRESS.test(address) ||
+        !Number.isInteger(decimals) ||
+        decimals < 0 ||
+        decimals > MAX_TOKEN_DECIMALS
+      ) {
+        continue
+      }
+      deployments[chain] = { address, decimals }
+    }
+    return deployments
   }
 
   private async getJson(

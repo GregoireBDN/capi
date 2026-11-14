@@ -136,4 +136,48 @@ describe('CoinGeckoPriceProvider', () => {
         .reason,
     ).toBe('malformed')
   })
+
+  it('reads token contracts and decimals of the supported EVM chains', async () => {
+    const calls: URL[] = []
+    const client = provider((url) => {
+      calls.push(url)
+      return json(
+        JSON.stringify({
+          id: 'usd-coin',
+          detail_platforms: {
+            ethereum: {
+              decimal_place: 6,
+              contract_address: '0x1111111111111111111111111111111111111111',
+            },
+            'binance-smart-chain': {
+              decimal_place: 18,
+              contract_address: '0x2222222222222222222222222222222222222222',
+            },
+            'polygon-pos': { decimal_place: null, contract_address: '0x33' },
+            solana: { decimal_place: 6, contract_address: 'So1ana' },
+            '': { decimal_place: null, contract_address: '' },
+          },
+        }),
+      )
+    })
+    expect(await client.tokenDeployments('usd-coin')).toEqual({
+      ethereum: {
+        address: '0x1111111111111111111111111111111111111111',
+        decimals: 6,
+      },
+      bsc: {
+        address: '0x2222222222222222222222222222222222222222',
+        decimals: 18,
+      },
+    })
+    expect(calls[0].pathname).toBe('/api/v3/coins/usd-coin')
+    expect(calls[0].searchParams.get('market_data')).toBe('false')
+  })
+
+  it('fails on a malformed coin document', async () => {
+    const error = await failure(
+      provider(() => json('{"detail_platforms":[1]}')).tokenDeployments('x'),
+    )
+    expect(error.reason).toBe('malformed')
+  })
 })

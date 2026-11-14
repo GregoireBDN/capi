@@ -220,6 +220,33 @@ export class ValuationSnapshotDto {
   contributionsCents!: number | null
 }
 
+/** Sync state of a wallet account (#129). */
+export class WalletSyncStatusDto {
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'Whether the server reads wallets on chain (`WALLET_SYNC_ENABLED`). Off: holdings are typed by hand.',
+  })
+  enabled!: boolean
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'Last successful sync.',
+  })
+  syncedAt!: string | null
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'When the last sync attempt failed: the synced holdings are those of `syncedAt` (stale). Null once a sync succeeds.',
+  })
+  failedAt!: string | null
+}
+
 export class AccountHoldingsDto {
   @ApiProperty({ type: String, format: 'uuid' })
   accountId!: string
@@ -252,6 +279,13 @@ export class AccountHoldingsDto {
     description: 'A price refresh was attempted in this request and failed.',
   })
   refreshFailed!: boolean
+
+  @ApiProperty({
+    type: WalletSyncStatusDto,
+    nullable: true,
+    description: 'Wallet accounts only (null otherwise).',
+  })
+  sync!: WalletSyncStatusDto | null
 }
 
 export class CryptoSummaryAccountDto extends AccountHoldingsDto {
