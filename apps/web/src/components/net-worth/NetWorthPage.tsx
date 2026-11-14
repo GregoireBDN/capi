@@ -52,14 +52,15 @@ import {
   NET_WORTH_HISTORY_MONTHS,
   NET_WORTH_PERIOD_LABELS,
   NET_WORTH_PERIODS,
-  type NetWorthDelta,
-  type NetWorthPeriod,
-  type NetWorthPoint,
+  
+  
+  
   netWorthDeltas,
   netWorthSeries,
-  type TypeBreakdown,
-  typeShare,
+  
+  typeShare
 } from './net-worth'
+import type {NetWorthDelta, NetWorthPeriod, NetWorthPoint, TypeBreakdown} from './net-worth';
 
 const CHART_HEIGHT = 240
 
@@ -288,7 +289,7 @@ function HistoryCard({
         >
           <ChevronLeftIcon />
         </Button>
-        <div className="min-w-0 flex-1 text-center" aria-live="polite">
+        <div role="status" className="min-w-0 flex-1 text-center">
           <CardTitle className="text-muted-foreground text-sm font-normal">
             {pointTitle(selected.month, isCurrent)}
           </CardTitle>

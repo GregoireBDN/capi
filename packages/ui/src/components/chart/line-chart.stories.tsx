@@ -192,7 +192,7 @@ export const TodayMarkerMobile: Story = {
  */
 export const Selectable: Story = {
   render: function Render(args) {
-    const [selected, setSelected] = useState(
+    const [selected, setSelected] = useState<string>(
       netWorth2026[netWorth2026.length - 1]!.month,
     )
     const row = netWorth2026.find((item) => item.month === selected)
