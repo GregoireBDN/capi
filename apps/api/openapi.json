@@ -2264,7 +2264,7 @@
     },
     "/api/transactions/manual": {
       "post": {
-        "description": "Amount, expense category, day (default: today in Europe/Paris), optional label (default: the category name), account (default: the first checking account). Counts in spending and budgets at once, never as imported data; the import of the bank export replaces it with the matching bank row, keeping its category and note.",
+        "description": "Expense, income or transfer: amount and direction (default: in for income, out otherwise), kind (default: the category’s, else expense), optional category (without one it goes to review and needs a label), day (default: today in Europe/Paris), label (default: the category name), account (default: the first checking account), one-off flag and note. Counts in statistics, budgets and balances at once, never as imported data; the import of the bank export replaces it with the matching bank row, keeping its category, note and split.",
         "operationId": "TransactionsController_createManual",
         "parameters": [],
         "requestBody": {
@@ -2272,7 +2272,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateManualExpenseDto"
+                "$ref": "#/components/schemas/CreateManualTransactionDto"
               }
             }
           }
@@ -2289,7 +2289,7 @@
             }
           },
           "400": {
-            "description": "Not an expense category, not an open checking or savings account, no checking account, a future day, or invalid body."
+            "description": "Unknown category, neither label nor category, not an open checking or savings account, no checking account, a future day, or invalid body."
           },
           "401": {
             "description": ""
@@ -2300,7 +2300,7 @@
             "token": []
           }
         ],
-        "summary": "Note an expense by hand",
+        "summary": "Enter a transaction by hand",
         "tags": [
           "Transactions"
         ]
@@ -2308,7 +2308,7 @@
     },
     "/api/transactions/manual/{id}": {
       "patch": {
-        "description": "Same fields as when noting it; all optional.",
+        "description": "Same fields as when entering it; all optional. The sign is kept unless `direction` is sent; a split transaction keeps its amount.",
         "operationId": "TransactionsController_updateManual",
         "parameters": [
           {
@@ -2326,7 +2326,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateManualExpenseDto"
+                "$ref": "#/components/schemas/UpdateManualTransactionDto"
               }
             }
           }
@@ -2343,13 +2343,13 @@
             }
           },
           "400": {
-            "description": "Invalid body or nothing to update."
+            "description": "Invalid body, nothing to update, or an amount change on a split transaction."
           },
           "401": {
             "description": ""
           },
           "404": {
-            "description": "No manual expense with this id."
+            "description": "No manual transaction with this id."
           }
         },
         "security": [
@@ -2357,7 +2357,7 @@
             "token": []
           }
         ],
-        "summary": "Edit an expense noted by hand",
+        "summary": "Edit a transaction entered by hand",
         "tags": [
           "Transactions"
         ]
@@ -2383,7 +2383,7 @@
             "description": ""
           },
           "404": {
-            "description": "No manual expense with this id."
+            "description": "No manual transaction with this id."
           }
         },
         "security": [
@@ -2391,7 +2391,207 @@
             "token": []
           }
         ],
-        "summary": "Delete an expense noted by hand",
+        "summary": "Delete a transaction entered by hand",
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
+    "/api/transactions/{id}/splits": {
+      "put": {
+        "description": "Replaces the parts (2 to 20). Each has the sign of the transaction and they sum exactly to its amount; the transaction takes the category of the largest part. Statistics and budgets count each part in its category. Choosing a category for the whole transaction (`PATCH`) ends the split.",
+        "operationId": "TransactionsController_split",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SplitTransactionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parts that do not sum to the amount, of the wrong sign, an unknown category, or invalid body."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Split a transaction between categories",
+        "tags": [
+          "Transactions"
+        ]
+      },
+      "delete": {
+        "description": "It stays in its current category (the largest part’s).",
+        "operationId": "TransactionsController_unsplit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Undo the split of a transaction",
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
+    "/api/transactions/{id}/correction": {
+      "put": {
+        "description": "\"Modifier une opération importée\": the bank values are kept (`originalAmountCents`, `originalBookingDate`) and still feed balances, continuity checks, coverage and the dedupe of later imports, so re-importing never duplicates or overwrites the correction. Statistics use the corrected values.",
+        "operationId": "TransactionsController_correct",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectTransactionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A transaction entered by hand, an amount change on a split transaction, nothing to update, or invalid body."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Correct the amount or date of an imported transaction",
+        "tags": [
+          "Transactions"
+        ]
+      },
+      "delete": {
+        "operationId": "TransactionsController_restoreBankValues",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The bank amount would not match the split parts."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Restore the bank amount and date of a corrected transaction",
         "tags": [
           "Transactions"
         ]
@@ -6649,6 +6849,32 @@
           "kind"
         ]
       },
+      "TransactionSplitDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "category": {
+            "$ref": "#/components/schemas/TransactionCategoryDto"
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Signed integer cents, same sign as the transaction."
+          }
+        },
+        "required": [
+          "id",
+          "categoryId",
+          "category",
+          "amountCents"
+        ]
+      },
       "TransactionDto": {
         "type": "object",
         "properties": {
@@ -6730,7 +6956,25 @@
           },
           "manual": {
             "type": "boolean",
-            "description": "Expense noted by hand during the month, replaced by its bank row on import."
+            "description": "Entered by hand (no import), replaced by its bank row on import."
+          },
+          "originalAmountCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Bank amount of an imported row whose amount was corrected by hand; null otherwise."
+          },
+          "originalBookingDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Bank booking date of an imported row whose date was corrected by hand; null otherwise."
+          },
+          "splits": {
+            "description": "Parts of a transaction split between categories (empty when not split). They sum to `amountCents`; statistics and budgets count each part in its category.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransactionSplitDto"
+            }
           },
           "createdAt": {
             "type": "string",
@@ -6759,6 +7003,9 @@
           "isOneOff",
           "note",
           "manual",
+          "originalAmountCents",
+          "originalBookingDate",
+          "splits",
           "createdAt",
           "updatedAt"
         ]
@@ -6900,7 +7147,15 @@
           "updated"
         ]
       },
-      "CreateManualExpenseDto": {
+      "MoneyDirection": {
+        "type": "string",
+        "enum": [
+          "out",
+          "in"
+        ],
+        "description": "Money out of the account or in. Default: `in` for income, `out` otherwise."
+      },
+      "CreateManualTransactionDto": {
         "type": "object",
         "properties": {
           "amountCents": {
@@ -6908,18 +7163,35 @@
             "minimum": 1,
             "maximum": 100000000,
             "example": 1250,
-            "description": "Amount spent, positive integer cents."
+            "description": "Amount, positive integer cents; `direction` gives the sign."
+          },
+          "direction": {
+            "description": "Money out of the account or in. Default: `in` for income, `out` otherwise.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDirection"
+              }
+            ]
+          },
+          "kind": {
+            "description": "Default: the kind of the category, else `expense`. `transfer` = move between own accounts, never income or expense.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
           },
           "categoryId": {
             "type": "string",
             "format": "uuid",
-            "description": "An expense category."
+            "nullable": true,
+            "description": "Category. Without one the transaction goes to the review queue and needs a label."
           },
           "bookingDate": {
             "type": "string",
             "format": "date",
             "example": "2026-11-13",
-            "description": "Day of the expense. Default: today in Europe/Paris."
+            "description": "Day of the transaction. Default: today in Europe/Paris."
           },
           "label": {
             "type": "string",
@@ -6931,25 +7203,50 @@
             "type": "string",
             "format": "uuid",
             "description": "A checking or savings account. Default: the first checking account."
+          },
+          "isOneOff": {
+            "type": "boolean",
+            "description": "Exceptional, excluded from averages. Default: false."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 2000
           }
         },
         "required": [
-          "amountCents",
-          "categoryId"
+          "amountCents"
         ]
       },
-      "UpdateManualExpenseDto": {
+      "UpdateManualTransactionDto": {
         "type": "object",
         "properties": {
           "amountCents": {
             "type": "integer",
             "minimum": 1,
             "maximum": 100000000,
-            "description": "Amount spent, positive integer cents."
+            "description": "Amount, positive integer cents. The sign is kept."
+          },
+          "direction": {
+            "description": "Money out of the account or in. Omitted: unchanged.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDirection"
+              }
+            ]
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
           },
           "categoryId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "nullable": true,
+            "description": "Null: no category (back to the review queue). Sets the category’s kind unless `kind` is sent."
           },
           "bookingDate": {
             "type": "string",
@@ -6965,6 +7262,66 @@
           "accountId": {
             "type": "string",
             "format": "uuid"
+          },
+          "isOneOff": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 2000,
+            "description": "Null or empty: no note."
+          }
+        }
+      },
+      "SplitPartDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Signed integer cents, same sign as the transaction, never 0."
+          }
+        },
+        "required": [
+          "categoryId",
+          "amountCents"
+        ]
+      },
+      "SplitTransactionDto": {
+        "type": "object",
+        "properties": {
+          "parts": {
+            "minItems": 2,
+            "maxItems": 20,
+            "description": "Replaces the parts. They must sum exactly to the transaction amount.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SplitPartDto"
+            }
+          }
+        },
+        "required": [
+          "parts"
+        ]
+      },
+      "CorrectTransactionDto": {
+        "type": "object",
+        "properties": {
+          "amountCents": {
+            "type": "integer",
+            "minimum": -100000000,
+            "maximum": 100000000,
+            "description": "Corrected signed amount, integer cents (never 0)."
+          },
+          "bookingDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-13",
+            "description": "Corrected booking date."
           }
         }
       },

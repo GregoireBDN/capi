@@ -16,6 +16,8 @@ import {
   recurringItemsTable,
   type SelectCategory,
   TRANSACTION_KINDS,
+  transactionLinesView,
+  transactionSplitsTable,
   transactionsTable,
 } from '#/database/schema'
 import { generateCategorySlug } from './category-slug'
@@ -220,6 +222,10 @@ export class CategoriesService {
       .set({ categoryId: toId })
       .where(eq(transactionsTable.categoryId, fromId))
     await tx
+      .update(transactionSplitsTable)
+      .set({ categoryId: toId })
+      .where(eq(transactionSplitsTable.categoryId, fromId))
+    await tx
       .update(categorizationRulesTable)
       .set({ categoryId: toId })
       .where(eq(categorizationRulesTable.categoryId, fromId))
@@ -258,7 +264,7 @@ export class CategoriesService {
   ): Promise<CategoryUsageDto> {
     const countWhere = async (
       table:
-        | typeof transactionsTable
+        | typeof transactionLinesView
         | typeof categorizationRulesTable
         | typeof budgetsTable
         | typeof recurringItemsTable,
@@ -270,7 +276,8 @@ export class CategoriesService {
       return row.n
     }
     const [transactions, rules, budgets, recurringItems] = await Promise.all([
-      countWhere(transactionsTable),
+      // Split parts count in their own categories.
+      countWhere(transactionLinesView),
       countWhere(categorizationRulesTable),
       countWhere(budgetsTable),
       countWhere(recurringItemsTable),

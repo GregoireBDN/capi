@@ -17,7 +17,9 @@ import {
   Max,
   MaxLength,
   Min,
+  NotEquals,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator'
 import {
   TRANSACTION_KINDS,
@@ -80,6 +82,23 @@ export class TransactionCategoryDto {
     description: 'Category group: the kind its transactions get by default.',
   })
   kind!: TransactionKind
+}
+
+export class TransactionSplitDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  categoryId!: string
+
+  @ApiProperty({ type: TransactionCategoryDto })
+  category!: TransactionCategoryDto
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Signed integer cents, same sign as the transaction.',
+  })
+  amountCents!: number
 }
 
 export class TransactionDto {
@@ -150,9 +169,33 @@ export class TransactionDto {
   @ApiProperty({
     type: Boolean,
     description:
-      'Expense noted by hand during the month, replaced by its bank row on import.',
+      'Entered by hand (no import), replaced by its bank row on import.',
   })
   manual!: boolean
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Bank amount of an imported row whose amount was corrected by hand; null otherwise.',
+  })
+  originalAmountCents!: number | null
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    nullable: true,
+    description:
+      'Bank booking date of an imported row whose date was corrected by hand; null otherwise.',
+  })
+  originalBookingDate!: string | null
+
+  @ApiProperty({
+    type: [TransactionSplitDto],
+    description:
+      'Parts of a transaction split between categories (empty when not split). They sum to `amountCents`; statistics and budgets count each part in its category.',
+  })
+  splits!: TransactionSplitDto[]
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date
@@ -441,6 +484,39 @@ export class BulkUpdateTransactionsDto extends TransactionChangesDto {
   @ArrayUnique()
   @IsUUID('all', { each: true })
   ids!: string[]
+}
+
+/** Most parts of one split. */
+export const SPLIT_MAX_PARTS = 20
+
+export class SplitPartDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  @IsUUID()
+  categoryId!: string
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Signed integer cents, same sign as the transaction, never 0.',
+  })
+  @IsInt()
+  @NotEquals(0)
+  amountCents!: number
+}
+
+export class SplitTransactionDto {
+  @ApiProperty({
+    type: [SplitPartDto],
+    minItems: 2,
+    maxItems: SPLIT_MAX_PARTS,
+    description:
+      'Replaces the parts. They must sum exactly to the transaction amount.',
+  })
+  @IsArray()
+  @ArrayMinSize(2)
+  @ArrayMaxSize(SPLIT_MAX_PARTS)
+  @ValidateNested({ each: true })
+  @Type(() => SplitPartDto)
+  parts!: SplitPartDto[]
 }
 
 export class BulkUpdateResultDto {

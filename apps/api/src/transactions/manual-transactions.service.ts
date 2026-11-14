@@ -14,11 +14,13 @@ import {
   categoriesTable,
   transactionsTable,
 } from '#/database/schema'
+import type { TransactionKind } from '#/database/schema/domain-enums'
 import { parisToday } from '#/investments/days'
 import type {
-  CreateManualExpenseDto,
-  UpdateManualExpenseDto,
-} from './dto/manual-expense.dto'
+  CreateManualTransactionDto,
+  MoneyDirection,
+  UpdateManualTransactionDto,
+} from './dto/manual-transaction.dto'
 import type { TransactionDto } from './dto/transaction.dto'
 import { TransactionsService } from './transactions.service'
 
@@ -26,21 +28,30 @@ type Db = PostgresJsDatabase<typeof schema>
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
 
 /**
- * Prefix of the dedupe hash of a manual expense. The hash column is the
- * identity of a bank row; a manual expense has none, so it gets a random one
- * that no import can produce (imports use 64 hex characters).
+ * Prefix of the dedupe hash of a manual transaction. The hash column is the
+ * identity of a bank row; a manual transaction has none, so it gets a random
+ * one that no import can produce (imports use 64 hex characters).
  */
 const MANUAL_HASH_PREFIX = 'manual:'
 
+/** Sign of the amount when no direction is sent. */
+function defaultDirection(kind: TransactionKind): MoneyDirection {
+  return kind === 'income' ? 'in' : 'out'
+}
+
+function signed(amountCents: number, direction: MoneyDirection): number {
+  return direction === 'in' ? amountCents : -amountCents
+}
+
 /**
- * Expenses noted by hand during the month (#137): amount, expense category,
- * day, optional label, account. Stored as `expense` transactions flagged
- * `manual`, without an import; the CIC import replaces each one by its bank
- * row (`imports/reconcile/`). They never count as imported data
- * (`coverage/`). A minimal subset of manual transactions (#74).
+ * Transactions entered by hand (#137, #74): expense, income or transfer, with
+ * amount, day, account, label, category, one-off flag and note. Stored with
+ * `manual = true`, without an import; the import of the bank export replaces
+ * each one by its bank row (`imports/reconcile/`). They count in statistics
+ * and balances at once but never as imported data (`coverage/`).
  */
 @Injectable()
-export class ManualExpensesService {
+export class ManualTransactionsService {
   constructor(
     private readonly database: DatabaseService,
     private readonly transactions: TransactionsService,
@@ -51,11 +62,18 @@ export class ManualExpensesService {
   }
 
   async create(
-    dto: CreateManualExpenseDto,
+    dto: CreateManualTransactionDto,
     now: Date = new Date(),
   ): Promise<TransactionDto> {
     const id = await this.db.transaction(async (tx) => {
-      const category = await this.expenseCategory(tx, dto.categoryId)
+      const category = dto.categoryId
+        ? await this.requireCategory(tx, dto.categoryId)
+        : null
+      const label = dto.label ?? category?.name
+      if (!label) {
+        throw new BadRequestException('A label or a categoryId is required')
+      }
+      const kind = dto.kind ?? category?.kind ?? 'expense'
       const accountId = dto.accountId
         ? await this.requireAccount(tx, dto.accountId)
         : await this.defaultAccount(tx)
@@ -68,10 +86,16 @@ export class ManualExpensesService {
         .values({
           accountId,
           bookingDate,
-          amountCents: -dto.amountCents,
-          rawLabel: dto.label ?? category.name,
-          kind: 'expense',
-          categoryId: category.id,
+          amountCents: signed(
+            dto.amountCents,
+            dto.direction ?? defaultDirection(kind),
+          ),
+          rawLabel: label,
+          kind,
+          categoryId: category?.id ?? null,
+          needsReview: category === null,
+          isOneOff: dto.isOneOff ?? false,
+          note: dto.note ?? null,
           manual: true,
           dedupeHash: `${MANUAL_HASH_PREFIX}${randomUUID()}`,
         })
@@ -83,11 +107,12 @@ export class ManualExpensesService {
 
   /**
    * Partial update. A label left to its default (the category name) follows
-   * a category change; `label: null` goes back to the default.
+   * a category change; `label: null` goes back to the default. The sign of
+   * the amount is kept unless `direction` is sent.
    */
   async update(
     id: string,
-    dto: UpdateManualExpenseDto,
+    dto: UpdateManualTransactionDto,
     now: Date = new Date(),
   ): Promise<TransactionDto> {
     await this.db.transaction(async (tx) => {
@@ -102,14 +127,29 @@ export class ManualExpensesService {
       const labelIsDefault = current.rawLabel === defaultLabel
 
       const set: Partial<typeof transactionsTable.$inferInsert> = {}
-      let categoryName = defaultLabel
+      let categoryName: string | null = defaultLabel
       if (dto.categoryId !== undefined) {
-        const category = await this.expenseCategory(tx, dto.categoryId)
-        set.categoryId = category.id
-        set.kind = 'expense'
-        categoryName = category.name
+        const category = dto.categoryId
+          ? await this.requireCategory(tx, dto.categoryId)
+          : null
+        set.categoryId = category?.id ?? null
+        set.ruleId = null
+        set.needsReview = category === null
+        if (category) set.kind = category.kind
+        categoryName = category?.name ?? null
       }
-      if (dto.amountCents !== undefined) set.amountCents = -dto.amountCents
+      if (dto.kind !== undefined) set.kind = dto.kind
+      if (dto.amountCents !== undefined || dto.direction !== undefined) {
+        const magnitude = dto.amountCents ?? Math.abs(current.amountCents)
+        const direction =
+          dto.direction ?? (current.amountCents > 0 ? 'in' : 'out')
+        set.amountCents = signed(magnitude, direction)
+        if (set.amountCents !== current.amountCents && current.split) {
+          throw new BadRequestException(
+            'The transaction is split: remove the split before changing its amount',
+          )
+        }
+      }
       if (dto.bookingDate !== undefined) {
         set.bookingDate = this.checkDate(dto.bookingDate, now)
       }
@@ -117,10 +157,16 @@ export class ManualExpensesService {
         set.accountId = await this.requireAccount(tx, dto.accountId)
       }
       if (dto.label !== undefined) {
-        set.rawLabel = dto.label ?? categoryName ?? current.rawLabel
+        const label = dto.label ?? categoryName
+        if (!label) {
+          throw new BadRequestException('A label or a categoryId is required')
+        }
+        set.rawLabel = label
       } else if (dto.categoryId !== undefined && labelIsDefault) {
-        set.rawLabel = categoryName
+        if (categoryName) set.rawLabel = categoryName
       }
+      if (dto.isOneOff !== undefined) set.isOneOff = dto.isOneOff
+      if (dto.note !== undefined) set.note = dto.note
       if (Object.keys(set).length === 0) {
         throw new BadRequestException('Nothing to update')
       }
@@ -140,7 +186,7 @@ export class ManualExpensesService {
       )
       .returning({ id: transactionsTable.id })
     if (deleted.length === 0) {
-      throw new NotFoundException('Manual expense not found')
+      throw new NotFoundException('Manual transaction not found')
     }
   }
 
@@ -149,17 +195,19 @@ export class ManualExpensesService {
       .select({
         rawLabel: transactionsTable.rawLabel,
         categoryId: transactionsTable.categoryId,
+        amountCents: transactionsTable.amountCents,
       })
       .from(transactionsTable)
       .where(
         and(eq(transactionsTable.id, id), eq(transactionsTable.manual, true)),
       )
       .for('update')
-    if (!row) throw new NotFoundException('Manual expense not found')
-    return row
+    if (!row) throw new NotFoundException('Manual transaction not found')
+    const split = await this.transactions.isSplit(id, tx)
+    return { ...row, split }
   }
 
-  private async expenseCategory(tx: Tx, id: string) {
+  private async requireCategory(tx: Tx, id: string) {
     const [category] = await tx
       .select({
         id: categoriesTable.id,
@@ -171,9 +219,6 @@ export class ManualExpensesService {
       .limit(1)
     if (!category) {
       throw new BadRequestException('categoryId does not match any category')
-    }
-    if (category.kind !== 'expense') {
-      throw new BadRequestException('categoryId must be an expense category')
     }
     return category
   }
@@ -220,7 +265,7 @@ export class ManualExpensesService {
     return account.id
   }
 
-  /** An expense noted by hand has happened: never after today (Paris). */
+  /** A transaction entered by hand has happened: never after today (Paris). */
   private checkDate(day: string, now: Date): string {
     if (day > parisToday(now)) {
       throw new BadRequestException('bookingDate cannot be in the future')

@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common'
@@ -33,6 +34,7 @@ import {
   BulkUpdateTransactionsDto,
   ListTransactionsQueryDto,
   ReviewCountDto,
+  SplitTransactionDto,
   TransactionDto,
   TransactionFiltersQueryDto,
   TransactionListDto,
@@ -40,10 +42,11 @@ import {
   UpdateTransactionDto,
 } from './dto/transaction.dto'
 import {
-  CreateManualExpenseDto,
-  UpdateManualExpenseDto,
-} from './dto/manual-expense.dto'
-import { ManualExpensesService } from './manual-expenses.service'
+  CorrectTransactionDto,
+  CreateManualTransactionDto,
+  UpdateManualTransactionDto,
+} from './dto/manual-transaction.dto'
+import { ManualTransactionsService } from './manual-transactions.service'
 import { TransactionsService } from './transactions.service'
 
 const ID_PARAM = { name: 'id', type: String, format: 'uuid' } as const
@@ -56,7 +59,7 @@ const ID_PARAM = { name: 'id', type: String, format: 'uuid' } as const
 export class TransactionsController {
   constructor(
     private readonly transactionsService: TransactionsService,
-    private readonly manualExpenses: ManualExpensesService,
+    private readonly manualTransactions: ManualTransactionsService,
   ) {}
 
   @Get()
@@ -118,46 +121,122 @@ export class TransactionsController {
   @Post('manual')
   @TokenAccess('write')
   @ApiOperation({
-    summary: 'Note an expense by hand',
+    summary: 'Enter a transaction by hand',
     description:
-      'Amount, expense category, day (default: today in Europe/Paris), optional label (default: the category name), account (default: the first checking account). Counts in spending and budgets at once, never as imported data; the import of the bank export replaces it with the matching bank row, keeping its category and note.',
+      'Expense, income or transfer: amount and direction (default: in for income, out otherwise), kind (default: the category’s, else expense), optional category (without one it goes to review and needs a label), day (default: today in Europe/Paris), label (default: the category name), account (default: the first checking account), one-off flag and note. Counts in statistics, budgets and balances at once, never as imported data; the import of the bank export replaces it with the matching bank row, keeping its category, note and split.',
   })
-  @ApiBody({ type: CreateManualExpenseDto })
+  @ApiBody({ type: CreateManualTransactionDto })
   @ApiCreatedResponse({ type: TransactionDto })
   @ApiBadRequestResponse({
     description:
-      'Not an expense category, not an open checking or savings account, no checking account, a future day, or invalid body.',
+      'Unknown category, neither label nor category, not an open checking or savings account, no checking account, a future day, or invalid body.',
   })
-  createManual(@Body() dto: CreateManualExpenseDto): Promise<TransactionDto> {
-    return this.manualExpenses.create(dto)
+  createManual(
+    @Body() dto: CreateManualTransactionDto,
+  ): Promise<TransactionDto> {
+    return this.manualTransactions.create(dto)
   }
 
   @Patch('manual/:id')
   @TokenAccess('write')
   @ApiOperation({
-    summary: 'Edit an expense noted by hand',
-    description: 'Same fields as when noting it; all optional.',
+    summary: 'Edit a transaction entered by hand',
+    description:
+      'Same fields as when entering it; all optional. The sign is kept unless `direction` is sent; a split transaction keeps its amount.',
   })
   @ApiParam(ID_PARAM)
-  @ApiBody({ type: UpdateManualExpenseDto })
+  @ApiBody({ type: UpdateManualTransactionDto })
   @ApiOkResponse({ type: TransactionDto })
-  @ApiBadRequestResponse({ description: 'Invalid body or nothing to update.' })
-  @ApiNotFoundResponse({ description: 'No manual expense with this id.' })
+  @ApiBadRequestResponse({
+    description:
+      'Invalid body, nothing to update, or an amount change on a split transaction.',
+  })
+  @ApiNotFoundResponse({ description: 'No manual transaction with this id.' })
   updateManual(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateManualExpenseDto,
+    @Body() dto: UpdateManualTransactionDto,
   ): Promise<TransactionDto> {
-    return this.manualExpenses.update(id, dto)
+    return this.manualTransactions.update(id, dto)
   }
 
   @Delete('manual/:id')
   @HttpCode(204)
-  @ApiOperation({ summary: 'Delete an expense noted by hand' })
+  @ApiOperation({ summary: 'Delete a transaction entered by hand' })
   @ApiParam(ID_PARAM)
   @ApiNoContentResponse()
-  @ApiNotFoundResponse({ description: 'No manual expense with this id.' })
+  @ApiNotFoundResponse({ description: 'No manual transaction with this id.' })
   async removeManual(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    await this.manualExpenses.remove(id)
+    await this.manualTransactions.remove(id)
+  }
+
+  @Put(':id/splits')
+  @ApiOperation({
+    summary: 'Split a transaction between categories',
+    description:
+      'Replaces the parts (2 to 20). Each has the sign of the transaction and they sum exactly to its amount; the transaction takes the category of the largest part. Statistics and budgets count each part in its category. Choosing a category for the whole transaction (`PATCH`) ends the split.',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiBody({ type: SplitTransactionDto })
+  @ApiOkResponse({ type: TransactionDto })
+  @ApiBadRequestResponse({
+    description:
+      'Parts that do not sum to the amount, of the wrong sign, an unknown category, or invalid body.',
+  })
+  @ApiNotFoundResponse()
+  split(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SplitTransactionDto,
+  ): Promise<TransactionDto> {
+    return this.transactionsService.split(id, dto.parts)
+  }
+
+  @Delete(':id/splits')
+  @ApiOperation({
+    summary: 'Undo the split of a transaction',
+    description: 'It stays in its current category (the largest part’s).',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiOkResponse({ type: TransactionDto })
+  @ApiNotFoundResponse()
+  unsplit(@Param('id', ParseUUIDPipe) id: string): Promise<TransactionDto> {
+    return this.transactionsService.unsplit(id)
+  }
+
+  @Put(':id/correction')
+  @ApiOperation({
+    summary: 'Correct the amount or date of an imported transaction',
+    description:
+      '"Modifier une opération importée": the bank values are kept (`originalAmountCents`, `originalBookingDate`) and still feed balances, continuity checks, coverage and the dedupe of later imports, so re-importing never duplicates or overwrites the correction. Statistics use the corrected values.',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiBody({ type: CorrectTransactionDto })
+  @ApiOkResponse({ type: TransactionDto })
+  @ApiBadRequestResponse({
+    description:
+      'A transaction entered by hand, an amount change on a split transaction, nothing to update, or invalid body.',
+  })
+  @ApiNotFoundResponse()
+  correct(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CorrectTransactionDto,
+  ): Promise<TransactionDto> {
+    return this.transactionsService.correct(id, dto)
+  }
+
+  @Delete(':id/correction')
+  @ApiOperation({
+    summary: 'Restore the bank amount and date of a corrected transaction',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiOkResponse({ type: TransactionDto })
+  @ApiBadRequestResponse({
+    description: 'The bank amount would not match the split parts.',
+  })
+  @ApiNotFoundResponse()
+  restoreBankValues(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<TransactionDto> {
+    return this.transactionsService.restoreBankValues(id)
   }
 
   @Patch(':id')

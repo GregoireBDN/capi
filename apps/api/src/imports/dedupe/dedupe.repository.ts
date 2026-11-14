@@ -1,7 +1,11 @@
-import { and, asc, between, eq, isNotNull, lt, max } from 'drizzle-orm'
+import { and, asc, between, eq, isNotNull, lt, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type * as schema from '#/database/schema'
-import { transactionsTable } from '#/database/schema'
+import {
+  bankAmountCents,
+  bankBookingDate,
+  transactionsTable,
+} from '#/database/schema'
 import { normalizeLabel } from '#/imports/normalize/label'
 import { addDays, toEpochDay } from './calendar-date'
 import { endOfDayBalance } from './continuity'
@@ -43,8 +47,9 @@ export async function loadExistingForRange(
   const rows = await db
     .select({
       id: transactionsTable.id,
-      bookingDate: transactionsTable.bookingDate,
-      amountCents: transactionsTable.amountCents,
+      // Bank values: a row corrected by hand (#74) still matches its source.
+      bookingDate: bankBookingDate,
+      amountCents: bankAmountCents,
       rawLabel: transactionsTable.rawLabel,
       balanceAfterCents: transactionsTable.balanceAfterCents,
       dedupeHash: transactionsTable.dedupeHash,
@@ -56,13 +61,13 @@ export async function loadExistingForRange(
         // Expenses noted by hand are reconciled apart (`imports/reconcile/`).
         eq(transactionsTable.manual, false),
         between(
-          transactionsTable.bookingDate,
+          bankBookingDate,
           addDays(from, -tolerance),
           addDays(to, tolerance),
         ),
       ),
     )
-    .orderBy(asc(transactionsTable.bookingDate), asc(transactionsTable.id))
+    .orderBy(asc(bankBookingDate), asc(transactionsTable.id))
 
   return rows.map((row) => ({
     ...row,
@@ -86,18 +91,18 @@ export async function loadPreviousBalance(
     isNotNull(transactionsTable.balanceAfterCents),
   )
   const [latest] = await db
-    .select({ day: max(transactionsTable.bookingDate) })
+    .select({ day: sql<string | null>`max(${bankBookingDate})` })
     .from(transactionsTable)
-    .where(and(withBalance, lt(transactionsTable.bookingDate, before)))
+    .where(and(withBalance, lt(bankBookingDate, before)))
   if (!latest?.day) return null
 
   const rows = await db
     .select({
-      amountCents: transactionsTable.amountCents,
+      amountCents: bankAmountCents,
       balanceAfterCents: transactionsTable.balanceAfterCents,
     })
     .from(transactionsTable)
-    .where(and(withBalance, eq(transactionsTable.bookingDate, latest.day)))
+    .where(and(withBalance, eq(bankBookingDate, latest.day)))
 
   return endOfDayBalance(
     rows.flatMap((r) =>

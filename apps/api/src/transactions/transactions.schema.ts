@@ -3,12 +3,15 @@ import {
   boolean,
   date,
   index,
+  integer,
   pgTable,
+  pgView,
   text,
   unique,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { accountsTable } from '#/accounts/accounts.schema'
 import {
@@ -58,6 +61,15 @@ export const transactionsTable = pgTable(
      */
     manual: boolean('manual').notNull().default(false),
     /**
+     * Bank values of an imported row whose amount or date was corrected by
+     * hand (#74): null until then. `amountCents` / `bookingDate` hold the
+     * corrected values, which statistics use; the bank's data (balances,
+     * continuity, dedupe of later imports, coverage) keeps reading these
+     * through `bankAmountCents` / `bankBookingDate`.
+     */
+    originalAmountCents: bigint('original_amount_cents', { mode: 'number' }),
+    originalBookingDate: date('original_booking_date', { mode: 'string' }),
+    /**
      * Identity of the row in its source, computed by the importer. Re-importing
      * the same row yields the same hash; legitimate identical transactions on
      * the same day get distinct hashes through their occurrence index (see
@@ -77,6 +89,69 @@ export const transactionsTable = pgTable(
   ],
 )
 
+/**
+ * Parts of a transaction split between several categories (#74): one row per
+ * part, same sign as the transaction, summing exactly to its amount. The
+ * transaction keeps the category of its largest part for display; statistics
+ * and budgets read the parts through `transactionLinesView`.
+ */
+export const transactionSplitsTable = pgTable(
+  'transaction_splits',
+  {
+    ...coreColumns,
+    transactionId: uuid('transaction_id')
+      .notNull()
+      .references(() => transactionsTable.id, { onDelete: 'cascade' }),
+    categoryId: uuid('category_id')
+      .notNull()
+      .references(() => categoriesTable.id, { onDelete: 'restrict' }),
+    /** Signed integer cents, same sign as the transaction. */
+    amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
+    position: integer('position').notNull(),
+  },
+  (t) => [
+    unique('transaction_splits_position_unique').on(
+      t.transactionId,
+      t.position,
+    ),
+    index().on(t.categoryId),
+  ],
+)
+
+/**
+ * One line per category of each transaction: the transaction itself when it
+ * is not split, else one line per part (its category and amount, everything
+ * else from the transaction). Statistics that count per category (spending,
+ * budgets, month report, savings flows, transaction totals) read this view,
+ * so a split counts in each of its categories.
+ */
+export const transactionLinesView = pgView('transaction_lines', {
+  id: uuid('id').notNull(),
+  splitId: uuid('split_id'),
+  accountId: uuid('account_id').notNull(),
+  importId: uuid('import_id'),
+  bookingDate: date('booking_date', { mode: 'string' }).notNull(),
+  amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
+  rawLabel: text('raw_label').notNull(),
+  merchant: varchar('merchant', { length: 255 }),
+  kind: transactionKindEnum('kind').notNull(),
+  categoryId: uuid('category_id'),
+  needsReview: boolean('needs_review').notNull(),
+  isOneOff: boolean('is_one_off').notNull(),
+  manual: boolean('manual').notNull(),
+}).as(
+  sql`select t.id, s.id as split_id, t.account_id, t.import_id, t.booking_date, case when s.id is null then t.amount_cents else s.amount_cents end as amount_cents, t.raw_label, t.merchant, t.kind, case when s.id is null then t.category_id else s.category_id end as category_id, t.needs_review, t.is_one_off, t.manual from transactions t left join transaction_splits s on s.transaction_id = t.id`,
+)
+
+/** Amount as the bank gave it: the original of a corrected row. */
+export const bankAmountCents =
+  sql<number>`coalesce(${transactionsTable.originalAmountCents}, ${transactionsTable.amountCents})`.mapWith(
+    Number,
+  )
+
+/** Booking date as the bank gave it: the original of a corrected row. */
+export const bankBookingDate = sql<string>`coalesce(${transactionsTable.originalBookingDate}, ${transactionsTable.bookingDate})`
+
 export const insertTransactionSchema = createInsertSchema(
   transactionsTable,
 ).omit({
@@ -86,5 +161,6 @@ export const insertTransactionSchema = createInsertSchema(
 })
 export const selectTransactionSchema = createSelectSchema(transactionsTable)
 
+export type SelectTransactionSplit = typeof transactionSplitsTable.$inferSelect
 export type InsertTransaction = typeof transactionsTable.$inferInsert
 export type SelectTransaction = typeof transactionsTable.$inferSelect

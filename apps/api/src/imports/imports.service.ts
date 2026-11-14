@@ -30,6 +30,7 @@ import {
   importsTable,
   type InsertTransaction,
   type SelectImport,
+  transactionSplitsTable,
   transactionsTable,
 } from '#/database/schema'
 import {
@@ -258,6 +259,12 @@ export class ImportsService {
         new Map([...overrides].map(([i, o]) => [i, o.categoryId])),
         replaced,
       )
+      // Bank row (by dedupe hash) replacing each manual transaction.
+      const replacing = new Map<string, string>()
+      toInsert.forEach((row) => {
+        const manualRow = replaced.get(row.index)
+        if (manualRow) replacing.set(row.dedupeHash, manualRow.id)
+      })
       let inserted = 0
       for (let start = 0; start < values.length; start += INSERT_CHUNK_SIZE) {
         const written = await tx
@@ -266,8 +273,21 @@ export class ImportsService {
           .onConflictDoNothing({
             target: [transactionsTable.accountId, transactionsTable.dedupeHash],
           })
-          .returning({ id: transactionsTable.id })
+          .returning({
+            id: transactionsTable.id,
+            dedupeHash: transactionsTable.dedupeHash,
+          })
         inserted += written.length
+        // The split of a manual transaction moves to its bank row (same
+        // amount, so the parts still sum to it).
+        for (const row of written) {
+          const manualId = replacing.get(row.dedupeHash)
+          if (manualId === undefined) continue
+          await tx
+            .update(transactionSplitsTable)
+            .set({ transactionId: row.id })
+            .where(eq(transactionSplitsTable.transactionId, manualId))
+        }
       }
 
       await this.settleManualExpenses(tx, record, manual, replaced)

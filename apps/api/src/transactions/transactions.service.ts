@@ -27,6 +27,8 @@ import {
   accountsTable,
   categoriesTable,
   categorizationRulesTable,
+  transactionLinesView,
+  transactionSplitsTable,
   transactionsTable,
 } from '#/database/schema'
 import {
@@ -37,9 +39,12 @@ import {
   type TransactionFiltersQueryDto,
   type TransactionListDto,
   type TransactionSort,
+  type SplitPartDto,
+  type TransactionSplitDto,
   type TransactionSummaryDto,
   type UpdateTransactionDto,
 } from './dto/transaction.dto'
+import type { CorrectTransactionDto } from './dto/manual-transaction.dto'
 
 type Db = PostgresJsDatabase<typeof schema>
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
@@ -80,11 +85,13 @@ const transactionColumns = {
   isOneOff: transactionsTable.isOneOff,
   note: transactionsTable.note,
   manual: transactionsTable.manual,
+  originalAmountCents: transactionsTable.originalAmountCents,
+  originalBookingDate: transactionsTable.originalBookingDate,
   createdAt: transactionsTable.createdAt,
   updatedAt: transactionsTable.updatedAt,
 }
 
-type TransactionRow = Omit<TransactionDto, 'category'> & {
+type TransactionRow = Omit<TransactionDto, 'category' | 'splits'> & {
   categoryKey: string | null
   categorySlug: string | null
   categoryName: string | null
@@ -92,7 +99,10 @@ type TransactionRow = Omit<TransactionDto, 'category'> & {
   categoryKind: TransactionDto['kind'] | null
 }
 
-function toDto(row: TransactionRow): TransactionDto {
+function toDto(
+  row: TransactionRow,
+  splits: TransactionSplitDto[] = [],
+): TransactionDto {
   const {
     categoryKey,
     categorySlug,
@@ -113,6 +123,7 @@ function toDto(row: TransactionRow): TransactionDto {
             color: categoryColor,
             kind: categoryKind!,
           },
+    splits,
   }
 }
 
@@ -149,7 +160,7 @@ function orderBy(sort: TransactionSort): SQL[] {
 
 /** `coalesce(sum(amount) filter (where ...), 0)` as a JS number of cents. */
 function sumWhere(condition: SQL) {
-  return sql<number>`coalesce(sum(${transactionsTable.amountCents}) filter (where ${condition}), 0)::bigint`.mapWith(
+  return sql<number>`coalesce(sum(${transactionLinesView.amountCents}) filter (where ${condition}), 0)::bigint`.mapWith(
     Number,
   )
 }
@@ -196,7 +207,12 @@ export class TransactionsService {
         .offset((page - 1) * limit),
       executor.select({ total: count() }).from(transactionsTable).where(where),
     ])
-    return { items: rows.map(toDto), total, page, limit }
+    return {
+      items: await this.withSplits(rows, executor),
+      total,
+      page,
+      limit,
+    }
   }
 
   /**
@@ -208,14 +224,16 @@ export class TransactionsService {
     query: TransactionFiltersQueryDto,
     executor: Executor = this.db,
   ): Promise<TransactionSummaryDto> {
-    const t = transactionsTable
+    // Lines: a split counts each part in its category (filter included) and
+    // is still one transaction in the counts.
+    const t = transactionLinesView
     const isIncome = eq(t.kind, 'income')
     const isExpense = eq(t.kind, 'expense')
     const [row] = await executor
       .select({
-        count: count(),
+        count: sql<number>`count(distinct ${t.id})`.mapWith(Number),
         transferCount:
-          sql<number>`count(*) filter (where ${eq(t.kind, 'transfer')})`.mapWith(
+          sql<number>`count(distinct ${t.id}) filter (where ${eq(t.kind, 'transfer')})`.mapWith(
             Number,
           ),
         incomeCents: sumWhere(isIncome),
@@ -224,7 +242,7 @@ export class TransactionsService {
         oneOffExpenseCents: sumWhere(and(isExpense, eq(t.isOneOff, true))!),
       })
       .from(t)
-      .where(this.filters(query))
+      .where(this.filters(query, t))
     return {
       count: row.count,
       incomeCents: row.incomeCents,
@@ -253,7 +271,233 @@ export class TransactionsService {
       .where(eq(transactionsTable.id, id))
       .limit(1)
     if (!row) throw new NotFoundException('Transaction not found')
-    return toDto(row)
+    const [item] = await this.withSplits([row], executor)
+    return item
+  }
+
+  /** Whether the transaction is split between categories. */
+  async isSplit(id: string, executor: Executor = this.db): Promise<boolean> {
+    const [part] = await executor
+      .select({ id: transactionSplitsTable.id })
+      .from(transactionSplitsTable)
+      .where(eq(transactionSplitsTable.transactionId, id))
+      .limit(1)
+    return part !== undefined
+  }
+
+  /**
+   * Splits a transaction between categories, replacing any previous split.
+   * The parts keep its sign, are never 0 and sum exactly to its amount; the
+   * transaction takes the category of its largest part (first on a tie),
+   * filed by hand and out of review. Statistics count each part.
+   */
+  split(id: string, parts: SplitPartDto[]): Promise<TransactionDto> {
+    return this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ amountCents: transactionsTable.amountCents })
+        .from(transactionsTable)
+        .where(eq(transactionsTable.id, id))
+        .for('update')
+      if (!current) throw new NotFoundException('Transaction not found')
+      const sign = Math.sign(current.amountCents)
+      if (parts.some((part) => Math.sign(part.amountCents) !== sign)) {
+        throw new BadRequestException(
+          'Every part must have the sign of the transaction',
+        )
+      }
+      const total = parts.reduce((sum, part) => sum + part.amountCents, 0)
+      if (total !== current.amountCents) {
+        throw new BadRequestException(
+          'The parts must sum to the transaction amount',
+        )
+      }
+      const categoryIds = [...new Set(parts.map((part) => part.categoryId))]
+      const known = await tx
+        .select({ id: categoriesTable.id })
+        .from(categoriesTable)
+        .where(inArray(categoriesTable.id, categoryIds))
+      if (known.length !== categoryIds.length) {
+        throw new BadRequestException('categoryId does not match any category')
+      }
+      const largest = parts.reduce((best, part) =>
+        Math.abs(part.amountCents) > Math.abs(best.amountCents) ? part : best,
+      )
+      await tx
+        .delete(transactionSplitsTable)
+        .where(eq(transactionSplitsTable.transactionId, id))
+      await tx.insert(transactionSplitsTable).values(
+        parts.map((part, position) => ({
+          transactionId: id,
+          categoryId: part.categoryId,
+          amountCents: part.amountCents,
+          position,
+        })),
+      )
+      await tx
+        .update(transactionsTable)
+        .set({
+          categoryId: largest.categoryId,
+          ruleId: null,
+          needsReview: false,
+        })
+        .where(eq(transactionsTable.id, id))
+      return this.findOne(id, tx)
+    })
+  }
+
+  /** Puts a split transaction back in one category (its current one). */
+  unsplit(id: string): Promise<TransactionDto> {
+    return this.db.transaction(async (tx) => {
+      await this.findOne(id, tx)
+      await tx
+        .delete(transactionSplitsTable)
+        .where(eq(transactionSplitsTable.transactionId, id))
+      return this.findOne(id, tx)
+    })
+  }
+
+  /**
+   * Corrects the amount or date of an imported row by hand ("modifier une
+   * opération importée"). The bank values are kept the first time
+   * (`originalAmountCents`, `originalBookingDate`) and keep feeding balances,
+   * continuity checks, coverage and the dedupe of later imports, so a
+   * re-import never duplicates or overwrites the correction. Setting a value
+   * back to the bank's drops its original. Rows entered by hand are edited
+   * through `PATCH /transactions/manual/{id}` instead.
+   */
+  correct(id: string, dto: CorrectTransactionDto): Promise<TransactionDto> {
+    if (dto.amountCents === undefined && dto.bookingDate === undefined) {
+      throw new BadRequestException('Nothing to update')
+    }
+    return this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({
+          manual: transactionsTable.manual,
+          amountCents: transactionsTable.amountCents,
+          bookingDate: transactionsTable.bookingDate,
+          originalAmountCents: transactionsTable.originalAmountCents,
+          originalBookingDate: transactionsTable.originalBookingDate,
+        })
+        .from(transactionsTable)
+        .where(eq(transactionsTable.id, id))
+        .for('update')
+      if (!current) throw new NotFoundException('Transaction not found')
+      if (current.manual) {
+        throw new BadRequestException(
+          'A manual transaction is edited through PATCH /transactions/manual/{id}',
+        )
+      }
+      const set: TransactionSet = {}
+      if (
+        dto.amountCents !== undefined &&
+        dto.amountCents !== current.amountCents
+      ) {
+        if (await this.isSplit(id, tx)) {
+          throw new BadRequestException(
+            'The transaction is split: remove the split before changing its amount',
+          )
+        }
+        const bank = current.originalAmountCents ?? current.amountCents
+        set.amountCents = dto.amountCents
+        set.originalAmountCents = dto.amountCents === bank ? null : bank
+      }
+      if (
+        dto.bookingDate !== undefined &&
+        dto.bookingDate !== current.bookingDate
+      ) {
+        const bank = current.originalBookingDate ?? current.bookingDate
+        set.bookingDate = dto.bookingDate
+        set.originalBookingDate = dto.bookingDate === bank ? null : bank
+      }
+      if (Object.keys(set).length > 0) {
+        await tx
+          .update(transactionsTable)
+          .set(set)
+          .where(eq(transactionsTable.id, id))
+      }
+      return this.findOne(id, tx)
+    })
+  }
+
+  /** Puts the bank amount and date of a corrected imported row back. */
+  restoreBankValues(id: string): Promise<TransactionDto> {
+    return this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({
+          originalAmountCents: transactionsTable.originalAmountCents,
+          amountCents: transactionsTable.amountCents,
+        })
+        .from(transactionsTable)
+        .where(eq(transactionsTable.id, id))
+        .for('update')
+      if (!current) throw new NotFoundException('Transaction not found')
+      if (
+        current.originalAmountCents !== null &&
+        current.originalAmountCents !== current.amountCents &&
+        (await this.isSplit(id, tx))
+      ) {
+        throw new BadRequestException(
+          'The transaction is split: remove the split before changing its amount',
+        )
+      }
+      await tx
+        .update(transactionsTable)
+        .set({
+          amountCents: sql`coalesce(${transactionsTable.originalAmountCents}, ${transactionsTable.amountCents})`,
+          bookingDate: sql`coalesce(${transactionsTable.originalBookingDate}, ${transactionsTable.bookingDate})`,
+          originalAmountCents: null,
+          originalBookingDate: null,
+        })
+        .where(eq(transactionsTable.id, id))
+      return this.findOne(id, tx)
+    })
+  }
+
+  /** Rows as the API returns them, with the parts of the split ones. */
+  private async withSplits(
+    rows: TransactionRow[],
+    executor: Executor,
+  ): Promise<TransactionDto[]> {
+    if (rows.length === 0) return []
+    const s = transactionSplitsTable
+    const parts = await executor
+      .select({
+        id: s.id,
+        transactionId: s.transactionId,
+        categoryId: s.categoryId,
+        amountCents: s.amountCents,
+        slug: categoriesTable.slug,
+        name: categoriesTable.name,
+        color: categoriesTable.color,
+        kind: categoriesTable.kind,
+      })
+      .from(s)
+      .innerJoin(categoriesTable, eq(categoriesTable.id, s.categoryId))
+      .where(
+        inArray(
+          s.transactionId,
+          rows.map((row) => row.id),
+        ),
+      )
+      .orderBy(asc(s.transactionId), asc(s.position))
+    const byTransaction = new Map<string, TransactionSplitDto[]>()
+    for (const part of parts) {
+      const list = byTransaction.get(part.transactionId) ?? []
+      list.push({
+        id: part.id,
+        categoryId: part.categoryId,
+        amountCents: part.amountCents,
+        category: {
+          id: part.categoryId,
+          slug: part.slug,
+          name: part.name,
+          color: part.color,
+          kind: part.kind,
+        },
+      })
+      byTransaction.set(part.transactionId, list)
+    }
+    return rows.map((row) => toDto(row, byTransaction.get(row.id)))
   }
 
   /** Partial update of one transaction; returns it as listed. */
@@ -267,6 +511,7 @@ export class TransactionsService {
           .set(set)
           .where(eq(transactionsTable.id, id))
       }
+      if (dto.categoryId !== undefined) await this.dropSplits(tx, [id])
       return this.findOne(id, tx)
     })
   }
@@ -289,8 +534,22 @@ export class TransactionsService {
         .set(set)
         .where(inArray(transactionsTable.id, ids))
         .returning({ id: transactionsTable.id })
+      if (changes.categoryId !== undefined) {
+        await this.dropSplits(
+          tx,
+          updated.map((row) => row.id),
+        )
+      }
       return { updated: updated.length }
     })
+  }
+
+  /** A category chosen for the whole transaction ends its split. */
+  private async dropSplits(executor: Executor, ids: string[]) {
+    if (ids.length === 0) return
+    await executor
+      .delete(transactionSplitsTable)
+      .where(inArray(transactionSplitsTable.transactionId, ids))
   }
 
   private select(executor: Executor) {
@@ -307,8 +566,18 @@ export class TransactionsService {
       )
   }
 
-  /** WHERE clause of the filters; rejects contradictory combinations. */
-  private filters(query: TransactionFiltersQueryDto): SQL | undefined {
+  /**
+   * WHERE clause of the filters; rejects contradictory combinations. On the
+   * transactions, a category matches the transaction's own or one of its
+   * split parts; on the lines (`transactionLinesView`), the line's.
+   */
+  private filters(
+    query: TransactionFiltersQueryDto,
+    source:
+      | typeof transactionsTable
+      | typeof transactionLinesView = transactionsTable,
+  ): SQL | undefined {
+    const transactionsTable = source
     if (query.categoryId !== undefined && query.uncategorized !== undefined) {
       throw new BadRequestException(
         'categoryId and uncategorized cannot be combined',
@@ -331,7 +600,15 @@ export class TransactionsService {
       conditions.push(eq(transactionsTable.accountId, query.accountId))
     }
     if (query.categoryId !== undefined) {
-      conditions.push(eq(transactionsTable.categoryId, query.categoryId))
+      const ownCategory = eq(transactionsTable.categoryId, query.categoryId)
+      conditions.push(
+        source === transactionLinesView
+          ? ownCategory
+          : or(
+              ownCategory,
+              sql`exists (select 1 from ${transactionSplitsTable} where ${transactionSplitsTable.transactionId} = ${transactionsTable.id} and ${transactionSplitsTable.categoryId} = ${query.categoryId})`,
+            ),
+      )
     }
     if (query.uncategorized !== undefined) {
       conditions.push(

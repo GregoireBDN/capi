@@ -1,7 +1,11 @@
 import { and, eq, isNotNull, max, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import * as schema from '#/database/schema'
-import { importsTable, transactionsTable } from '#/database/schema'
+import {
+  bankBookingDate,
+  importsTable,
+  transactionsTable,
+} from '#/database/schema'
 import { parisToday } from '#/investments/days'
 import { type MonthPeriod, monthPeriod } from './period'
 
@@ -31,7 +35,10 @@ export async function dataUntilByAccount(
   const i = importsTable
   const [booked, imported] = await Promise.all([
     executor
-      .select({ accountId: t.accountId, last: max(t.bookingDate) })
+      .select({
+        accountId: t.accountId,
+        last: sql<string | null>`max(${bankBookingDate})`,
+      })
       .from(t)
       .where(eq(t.manual, false))
       .groupBy(t.accountId),
@@ -82,7 +89,7 @@ export async function dataUntil(
   const i = importsTable
   const [[booked], [imported]] = await Promise.all([
     executor
-      .select({ last: max(t.bookingDate) })
+      .select({ last: sql<string | null>`max(${bankBookingDate})` })
       .from(t)
       .where(
         and(

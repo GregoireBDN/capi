@@ -11,7 +11,7 @@ import {
   categoriesTable,
   transactionsTable,
 } from '#/database/schema'
-import { ManualExpensesService } from './manual-expenses.service'
+import { ManualTransactionsService } from './manual-transactions.service'
 import { TransactionsService } from './transactions.service'
 
 /**
@@ -29,7 +29,7 @@ const NOW = new Date('2026-10-31T23:30:00Z')
 
 interface Fixture {
   tx: Tx
-  service: ManualExpensesService
+  service: ManualTransactionsService
   checking: string
   outings: string
   groceries: string
@@ -37,7 +37,7 @@ interface Fixture {
 }
 
 describe.skipIf(!process.env.DATABASE_URL)(
-  'ManualExpensesService (database)',
+  'ManualTransactionsService (database)',
   () => {
     let client: postgres.Sql
     let db: Db
@@ -104,7 +104,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           const database = { db: tx } as never
           await fn({
             tx,
-            service: new ManualExpensesService(
+            service: new ManualTransactionsService(
               database,
               new TransactionsService(database),
             ),
@@ -177,8 +177,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
-    it('refuses what is not an expense noted on an open cash account', async () => {
-      await withFixture(async ({ tx, service, outings, salary }) => {
+    it('refuses an unknown category, a closed or non-cash account, a future day', async () => {
+      await withFixture(async ({ tx, service, outings }) => {
         const [archived] = await tx
           .select()
           .from(accountsTable)
@@ -188,7 +188,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
           .values({ name: 'PEA', type: 'brokerage' })
           .returning()
         const cases = [
-          { amountCents: 100, categoryId: salary },
+          { amountCents: 100 },
+          { amountCents: 100, label: null },
           {
             amountCents: 100,
             categoryId: '00000000-0000-4000-8000-000000000000',
@@ -258,8 +259,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
-    it('leaves the bank balance and its date alone', async () => {
-      await withFixture(async ({ tx, service, outings, checking }) => {
+    it('counts in the balance after the bank anchor, never dating it', async () => {
+      await withFixture(async ({ tx, service, outings, salary, checking }) => {
         await tx.insert(transactionsTable).values({
           accountId: checking,
           bookingDate: '2026-10-10',
@@ -270,11 +271,155 @@ describe.skipIf(!process.env.DATABASE_URL)(
           dedupeHash: 'b'.repeat(64),
         })
         await service.create({ amountCents: 1_250, categoryId: outings }, NOW)
+        await service.create(
+          {
+            amountCents: 10_000,
+            categoryId: salary,
+            bookingDate: '2026-10-20',
+          },
+          NOW,
+        )
+        // Already in the bank's anchor day: not counted twice.
+        await service.create(
+          { amountCents: 700, categoryId: outings, bookingDate: '2026-10-10' },
+          NOW,
+        )
         const accounts = new AccountsService({ db: tx } as never)
         expect(await accounts.findOne(checking)).toMatchObject({
-          balanceCents: 99_500,
+          balanceCents: 99_500 - 1_250 + 10_000,
           balanceDate: '2026-10-10',
         })
+      })
+    })
+
+    it('makes the balance of an account only fed by hand', async () => {
+      await withFixture(async ({ tx, service, outings, salary }) => {
+        const [cash] = await tx
+          .insert(accountsTable)
+          .values({ name: 'Cash', type: 'savings' })
+          .returning()
+        await service.create(
+          {
+            amountCents: 5_000,
+            categoryId: salary,
+            accountId: cash.id,
+            bookingDate: '2026-10-01',
+          },
+          NOW,
+        )
+        await service.create(
+          {
+            amountCents: 1_200,
+            categoryId: outings,
+            accountId: cash.id,
+            bookingDate: '2026-10-15',
+          },
+          NOW,
+        )
+        const accounts = new AccountsService({ db: tx } as never)
+        expect(await accounts.findOne(cash.id)).toMatchObject({
+          balanceCents: 3_800,
+          balanceDate: '2026-10-15',
+        })
+      })
+    })
+
+    it('enters income and transfers with the sign of their direction', async () => {
+      await withFixture(async ({ tx, service, salary }) => {
+        const income = await service.create(
+          { amountCents: 250_000, categoryId: salary, isOneOff: true },
+          NOW,
+        )
+        expect(income).toMatchObject({
+          amountCents: 250_000,
+          kind: 'income',
+          isOneOff: true,
+          needsReview: false,
+        })
+        const [moves] = await tx
+          .insert(categoriesTable)
+          .values({
+            slug: 'manual_test_moves',
+            name: 'Épargne test',
+            kind: 'transfer',
+          })
+          .returning()
+        const out = await service.create(
+          { amountCents: 30_000, categoryId: moves.id, note: 'Livret' },
+          NOW,
+        )
+        expect(out).toMatchObject({
+          amountCents: -30_000,
+          kind: 'transfer',
+          note: 'Livret',
+        })
+        const back = await service.create(
+          {
+            amountCents: 5_000,
+            kind: 'transfer',
+            direction: 'in',
+            label: 'Retour',
+          },
+          NOW,
+        )
+        expect(back).toMatchObject({
+          amountCents: 5_000,
+          kind: 'transfer',
+          categoryId: null,
+          rawLabel: 'Retour',
+          // No category: the review queue.
+          needsReview: true,
+        })
+        // A refund: an expense coming in.
+        expect(
+          await service.create(
+            {
+              amountCents: 1_500,
+              kind: 'expense',
+              direction: 'in',
+              label: 'Remb.',
+            },
+            NOW,
+          ),
+        ).toMatchObject({ amountCents: 1_500, kind: 'expense' })
+      })
+    })
+
+    it('edits the kind, direction, one-off flag and note; the sign stays otherwise', async () => {
+      await withFixture(async ({ service, outings, salary }) => {
+        const created = await service.create(
+          { amountCents: 1_250, categoryId: outings },
+          NOW,
+        )
+        expect(
+          await service.update(created.id, { amountCents: 2_000 }, NOW),
+        ).toMatchObject({ amountCents: -2_000 })
+        expect(
+          await service.update(
+            created.id,
+            { categoryId: salary, direction: 'in' },
+            NOW,
+          ),
+        ).toMatchObject({ amountCents: 2_000, kind: 'income' })
+        expect(
+          await service.update(
+            created.id,
+            { kind: 'transfer', isOneOff: true, note: 'Note' },
+            NOW,
+          ),
+        ).toMatchObject({
+          amountCents: 2_000,
+          kind: 'transfer',
+          isOneOff: true,
+          note: 'Note',
+        })
+        expect(
+          await service.update(
+            created.id,
+            { categoryId: null, note: null },
+            NOW,
+          ),
+        ).toMatchObject({ categoryId: null, needsReview: true, note: null })
       })
     })
 
