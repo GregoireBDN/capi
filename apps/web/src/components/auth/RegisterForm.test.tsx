@@ -87,7 +87,9 @@ describe('RegisterForm', () => {
 
   it('toasts the API error message and does not navigate on failure', async () => {
     authControllerRegister.mockResolvedValue({
-      error: { message: 'name must be shorter than or equal to 255 characters' },
+      error: {
+        message: 'name must be shorter than or equal to 255 characters',
+      },
       response: new Response(null, { status: 400 }),
     })
     const user = userEvent.setup()

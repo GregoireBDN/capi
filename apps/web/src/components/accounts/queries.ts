@@ -131,12 +131,13 @@ export function afterAccountsChanged(queryClient: QueryClient) {
 
 /**
  * A snapshot changes the account's balance, its performance, the investments
- * summary and the dashboard net worth.
+ * summary, the dashboard net worth and the savings page.
  */
 export function afterSnapshotsChanged(queryClient: QueryClient) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: accountKeys.all }),
     queryClient.invalidateQueries({ queryKey: accountKeys.investments }),
     queryClient.invalidateQueries({ queryKey: dashboardKeys.all }),
+    queryClient.invalidateQueries({ queryKey: savingsKeys.all }),
   ])
 }

@@ -19,7 +19,7 @@ import {
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { SnapshotDto } from '#/api/types.gen'
 import { formatCalendarDate, formatCents } from '#/lib/money'
@@ -41,6 +41,8 @@ interface SnapshotEditorProps {
   snapshot?: SnapshotDto
   /** Prefilled contributions when adding (the latest known ones). */
   defaultContributionsCents?: number | null
+  /** Shown in the title when the sheet is opened away from the account page. */
+  accountName?: string
 }
 
 interface FormErrors {
@@ -80,6 +82,7 @@ export function SnapshotEditor({
   withContributions,
   snapshot,
   defaultContributionsCents,
+  accountName,
 }: SnapshotEditorProps) {
   const isMobile = useIsMobile()
   const queryClient = useQueryClient()
@@ -90,6 +93,7 @@ export function SnapshotEditor({
   const [note, setNote] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const valueRef = useRef<HTMLInputElement>(null)
 
   // Fresh form on every opening.
   useEffect(() => {
@@ -158,7 +162,9 @@ export function SnapshotEditor({
   const shown = submitted ? errors : {}
   const title = snapshot
     ? `Valeur du ${formatCalendarDate(snapshot.date)}`
-    : 'Ajouter une valeur'
+    : accountName
+      ? `Mettre à jour « ${accountName} »`
+      : 'Ajouter une valeur'
 
   return (
     <>
@@ -170,6 +176,12 @@ export function SnapshotEditor({
               ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
               : undefined
           }
+          // A new value is what is typed: the date is today's.
+          onOpenAutoFocus={(event) => {
+            if (snapshot) return
+            event.preventDefault()
+            valueRef.current?.focus()
+          }}
         >
           <SheetHeader className="pb-0">
             <SheetTitle>{title}</SheetTitle>
@@ -197,6 +209,7 @@ export function SnapshotEditor({
               <FieldLabel htmlFor={`${id}-value`}>Valeur</FieldLabel>
               <InputGroup>
                 <InputGroupInput
+                  ref={valueRef}
                   id={`${id}-value`}
                   inputMode="decimal"
                   autoComplete="off"
@@ -240,19 +253,22 @@ export function SnapshotEditor({
                 )}
               </Field>
             )}
-            <Field>
-              <FieldLabel htmlFor={`${id}-note`}>Note</FieldLabel>
-              <Textarea
-                id={`${id}-note`}
-                rows={2}
-                maxLength={NOTE_MAX}
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-              />
-              <FieldDescription>
-                Facultative, par ex. « relevé annuel ».
-              </FieldDescription>
-            </Field>
+            {/* Opened away from the account page: the value, quickly. */}
+            {(snapshot || !accountName) && (
+              <Field>
+                <FieldLabel htmlFor={`${id}-note`}>Note</FieldLabel>
+                <Textarea
+                  id={`${id}-note`}
+                  rows={2}
+                  maxLength={NOTE_MAX}
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                />
+                <FieldDescription>
+                  Facultative, par ex. « relevé annuel ».
+                </FieldDescription>
+              </Field>
+            )}
             <div className="flex flex-col-reverse gap-2 sm:flex-row">
               {snapshot && (
                 <Button

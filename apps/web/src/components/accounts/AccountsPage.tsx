@@ -28,8 +28,10 @@ import { plural } from '#/lib/plural'
 import { accountsQuery } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import { NewAccountButton } from './AccountEditor'
+import { AddInvestmentButton } from './AddInvestmentSheet'
 import { formatAge, isInvestmentType } from './labels'
 import { archivedAccountsQuery, investmentsSummaryQuery } from './queries'
+import { isValuedByHand, UpdateValueButton } from './UpdateValueButton'
 
 function AccountRow({
   account,
@@ -44,11 +46,11 @@ function AccountRow({
   const date = summary ? summary.valueDate : account.balanceDate
   const gain = summary?.gainCents ?? null
   return (
-    <li>
+    <li className="flex items-center gap-1">
       <Link
         to={ROUTES.account}
         params={{ accountId: account.id }}
-        className="hover:bg-muted/50 focus-visible:ring-ring -mx-2 flex items-center gap-2 rounded-md px-2 py-2.5 text-sm outline-none focus-visible:ring-2"
+        className="hover:bg-muted/50 focus-visible:ring-ring -mx-2 flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2.5 text-sm outline-none focus-visible:ring-2"
       >
         <div className="min-w-0 flex-1 space-y-0.5">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3">
@@ -82,6 +84,9 @@ function AccountRow({
           className="text-muted-foreground size-4 shrink-0"
         />
       </Link>
+      {account.archivedAt === null && isValuedByHand(account.type) && (
+        <UpdateValueButton account={account} />
+      )}
     </li>
   )
 }
@@ -134,7 +139,10 @@ export function AccountsPage() {
           title="Comptes"
           description="Vos comptes, leur valeur et la date de leur dernier relevé."
         />
-        <NewAccountButton />
+        <div className="flex flex-wrap gap-2">
+          <AddInvestmentButton />
+          <NewAccountButton outline />
+        </div>
       </div>
 
       {accounts.isPending && (

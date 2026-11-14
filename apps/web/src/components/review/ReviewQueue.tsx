@@ -13,6 +13,7 @@ import {
 } from '@finances/ui'
 import { CheckIcon, CircleCheckBigIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 import {
   categoriesControllerList,
@@ -64,8 +65,11 @@ function byQueueOrder(a: TransactionDto, b: TransactionDto) {
  *
  * Corrections are optimistic: the item leaves the list at once and comes back
  * if the API refuses the change.
+ *
+ * `reminder` goes under the header (the route passes the investment values
+ * to update).
  */
-export function ReviewQueue() {
+export function ReviewQueue({ reminder }: { reminder?: ReactNode } = {}) {
   const [categories, setCategories] = useState<CategoryDto[]>([])
   const [items, setItems] = useState<TransactionDto[]>([])
   const [total, setTotal] = useState(0)
@@ -331,6 +335,8 @@ export function ReviewQueue() {
   return (
     <div className="space-y-6">
       <PageHeader title="À revoir" description={description} />
+
+      {reminder}
 
       {offer && (
         <RuleOfferBanner

@@ -14,7 +14,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { PiggyBankIcon, UploadIcon } from 'lucide-react'
-import { NewAccountButton } from '#/components/accounts/AccountEditor'
+import { AddInvestmentButton } from '#/components/accounts/AddInvestmentSheet'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import type { SavingsOverviewDto } from '#/api/types.gen'
 import { formatMonth } from '#/lib/calendar'
@@ -107,11 +107,7 @@ export function SavingsPage() {
                 Importer un relevé
               </Link>
             </Button>
-            <NewAccountButton
-              label="Ajouter un placement"
-              defaultType="brokerage"
-              outline
-            />
+            <AddInvestmentButton outline />
           </EmptyContent>
         </Empty>
       )}

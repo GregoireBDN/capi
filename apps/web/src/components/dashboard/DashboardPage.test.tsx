@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import {
@@ -26,7 +26,16 @@ const api = vi.hoisted(() => ({
   dashboardControllerHistory: vi.fn(),
   dashboardControllerReview: vi.fn(),
   forecastControllerForecast: vi.fn(),
+  accountSnapshotsControllerUpsert: vi.fn(),
 }))
+const toast = vi.hoisted(() =>
+  Object.assign(vi.fn(), {
+    success: vi.fn(),
+    warning: vi.fn(),
+    error: vi.fn(),
+  }),
+)
+vi.mock('sonner', () => ({ toast }))
 
 vi.mock('#/api', () => api)
 vi.mock('@tanstack/react-router', () => ({
@@ -74,6 +83,7 @@ const checking: DashboardAccountDto = {
   balanceCents: 123_456,
   balanceDate: '2026-11-03',
   dataUntil: '2026-11-03',
+  stale: false,
 }
 const savings: DashboardAccountDto = {
   id: '10000000-0000-4000-8000-000000000002',
@@ -84,6 +94,7 @@ const savings: DashboardAccountDto = {
   balanceCents: 500_000,
   balanceDate: '2026-10-31',
   dataUntil: '2026-10-31',
+  stale: false,
 }
 const pea: DashboardAccountDto = {
   id: '10000000-0000-4000-8000-000000000003',
@@ -94,6 +105,7 @@ const pea: DashboardAccountDto = {
   balanceCents: 1_000_000,
   balanceDate: '2026-10-31',
   dataUntil: '2026-10-31',
+  stale: false,
 }
 const crypto: DashboardAccountDto = {
   id: '10000000-0000-4000-8000-000000000004',
@@ -104,6 +116,7 @@ const crypto: DashboardAccountDto = {
   balanceCents: null,
   balanceDate: null,
   dataUntil: null,
+  stale: false,
 }
 
 const overview: DashboardOverviewDto = {
@@ -368,6 +381,67 @@ describe('DashboardPage', () => {
     expect(screen.queryByText(/-100/)).not.toBeInTheDocument()
   })
 
+  it('updates a missing investment value from the month review', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    api.accountSnapshotsControllerUpsert.mockImplementation(() =>
+      ok({ id: 's1', date: '2026-11-05', valueCents: 1_050_000, note: null }),
+    )
+    api.dashboardControllerReview.mockImplementation(() =>
+      ok({
+        ...review,
+        closed: false,
+        missing: [
+          {
+            id: pea.id,
+            name: 'PEA test',
+            type: 'brokerage',
+            group: 'investments',
+            lastDate: '2026-09-30',
+          },
+          {
+            id: crypto.id,
+            name: 'Crypto test',
+            type: 'crypto',
+            group: 'investments',
+            lastDate: null,
+          },
+        ],
+      }),
+    )
+    renderPage()
+
+    const card = await screen.findByRole('region', { name: 'Bilan d’octobre' })
+    const missing = within(card).getByRole('region', {
+      name: 'Comptes à mettre à jour',
+    })
+    // Nothing to import: only investment values are missing.
+    expect(
+      within(missing).queryByRole('link', { name: /Importer/ }),
+    ).not.toBeInTheDocument()
+    // Crypto values come from holdings, not typed by hand.
+    expect(
+      within(missing).queryByRole('button', {
+        name: 'Mettre à jour « Crypto test »',
+      }),
+    ).not.toBeInTheDocument()
+
+    await user.click(
+      within(missing).getByRole('button', {
+        name: 'Mettre à jour « PEA test »',
+      }),
+    )
+    await user.type(await screen.findByLabelText('Valeur'), '10 500')
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+
+    await waitFor(() =>
+      expect(api.accountSnapshotsControllerUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { id: pea.id, date: '2026-11-05' },
+        }),
+      ),
+    )
+  })
+
   it('shows the spending alone when no budget is set', async () => {
     api.dashboardControllerReview.mockImplementation(() =>
       ok({
@@ -430,6 +504,91 @@ describe('DashboardPage', () => {
     ).toHaveAttribute('href', `/accounts/${pea.id}`)
     expect(investments).toHaveTextContent('PEA / compte-titres')
     expect(investments).toHaveTextContent('Solde inconnu')
+  })
+
+  it('updates an investment value in three taps from the accounts list', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    api.accountSnapshotsControllerUpsert.mockImplementation(() =>
+      ok({ id: 's1', date: '2026-11-05', valueCents: 1_050_000, note: null }),
+    )
+    renderPage()
+
+    const investments = await screen.findByRole('region', {
+      name: 'Investissements',
+    })
+    // Tap 1: the row's action, no detour through the account page.
+    await user.click(
+      within(investments).getByRole('button', {
+        name: 'Mettre à jour « PEA test »',
+      }),
+    )
+    const sheet = await screen.findByRole('dialog', {
+      name: 'Mettre à jour « PEA test »',
+    })
+    // Dated today in Paris, the value field ready to type in (tap 2).
+    expect(within(sheet).getByLabelText('Date')).toHaveValue('2026-11-05')
+    expect(within(sheet).getByLabelText('Valeur')).toHaveFocus()
+    await user.keyboard('10 500')
+    // Tap 3.
+    await user.click(within(sheet).getByRole('button', { name: 'Enregistrer' }))
+
+    await waitFor(() =>
+      expect(api.accountSnapshotsControllerUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { id: pea.id, date: '2026-11-05' },
+          body: { valueCents: 1_050_000, contributionsCents: null, note: null },
+        }),
+      ),
+    )
+    // The overview (net worth, balances) is fetched again.
+    await waitFor(() =>
+      expect(api.dashboardControllerOverview).toHaveBeenCalledTimes(2),
+    )
+    // Crypto values come from holdings: no quick update.
+    expect(
+      within(investments).queryByRole('button', {
+        name: 'Mettre à jour « Crypto test »',
+      }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('flags an investment value older than a month', async () => {
+    api.dashboardControllerOverview.mockImplementation(() =>
+      ok({
+        ...overview,
+        accounts: overview.accounts.map((account) =>
+          account.id === pea.id
+            ? { ...account, balanceDate: '2026-09-30', stale: true }
+            : account,
+        ),
+      }),
+    )
+    renderPage()
+
+    const investments = await screen.findByRole('region', {
+      name: 'Investissements',
+    })
+    expect(
+      within(investments).getByRole('link', { name: /PEA test/ }),
+    ).toHaveTextContent('au 30 sept. 2026 · à mettre à jour')
+    expect(
+      within(screen.getByRole('region', { name: 'Liquidités' })).queryByText(
+        /à mettre à jour/,
+      ),
+    ).not.toBeInTheDocument()
+  })
+
+  it('opens the add-an-investment flow from the accounts card', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderPage()
+
+    await screen.findByRole('region', { name: 'Investissements' })
+    await user.click(
+      screen.getByRole('button', { name: 'Ajouter un placement' }),
+    )
+    expect(
+      await screen.findByRole('dialog', { name: 'Ajouter un placement' }),
+    ).toBeInTheDocument()
   })
 
   it('points to the review queue and to the import', async () => {
