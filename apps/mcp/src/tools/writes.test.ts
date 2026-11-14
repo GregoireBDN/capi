@@ -220,6 +220,21 @@ describe('categorize_transactions', () => {
     )
   })
 
+  it('warns when a category would turn an internal transfer into an expense', async () => {
+    const { call } = await connect({
+      ...routes,
+      'GET /api/transactions': listRoute([
+        tx(ID_1, { kind: 'transfer', categoryId: null, category: null }),
+      ]),
+    })
+    const { text } = await call('categorize_transactions', {
+      ids: [ID_1],
+      category: 'Courses',
+    })
+    expect(text).toContain('virement interne → dépense')
+    expect(text).toContain('kind "transfer" le garde en virement')
+  })
+
   it('uses PATCH for one transaction and passes an explicit kind', async () => {
     const { call, writes } = await connect(routes)
     const { text } = await call('categorize_transactions', {
@@ -615,7 +630,7 @@ describe('month-end review', () => {
 
     const result = await client.getPrompt({ name: 'revue_du_mois' })
     const text = (result.messages[0]?.content as { text: string }).text
-    expect(text).toContain('revue du mois de octobre 2026 (2026-10)')
+    expect(text).toContain("revue du mois d'octobre 2026 (2026-10)")
     expect(text).toContain('month_close_status (month 2026-10)')
     expect(text).toContain('set_budget_targets (month 2026-11)')
     expect(text).toContain('confirm: true')

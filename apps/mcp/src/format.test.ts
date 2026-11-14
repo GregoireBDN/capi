@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   addMonths,
   centsToText,
+  ofMonth,
   parseEuros,
   addDays,
   euros,
@@ -88,6 +89,13 @@ describe('format', () => {
     expect(centsToText(5)).toBe('0,05')
     expect(centsToText(-123400)).toBe('-1234,00')
     expect(parseEuros(centsToText(98765))?.cents).toBe(98765)
+  })
+
+  it('elides "de" before a vowel', () => {
+    expect(ofMonth('2026-10')).toBe("d'octobre 2026")
+    expect(ofMonth('2026-04')).toBe("d'avril 2026")
+    expect(ofMonth('2026-08')).toBe("d'août 2026")
+    expect(ofMonth('2026-11')).toBe('de novembre 2026')
   })
 
   it('moves calendar months across years', () => {

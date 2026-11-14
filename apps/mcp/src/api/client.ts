@@ -114,11 +114,11 @@ async function errorMessage(
 ): Promise<string> {
   switch (response.status) {
     case 401:
-      return "Token refusé par l'API (invalide, expiré ou révoqué). Créez un token sur la page Profil de l'application (portée « lecture », ou « écriture » pour les modifications) et mettez à jour FINANCES_API_TOKEN."
+      return "Token refusé par l'API (invalide, expiré ou révoqué). Créez un token sur la page Profil de l'application (portée « Lecture seule », ou « Lecture et écriture » pour les modifications) et mettez à jour FINANCES_API_TOKEN."
     case 403:
       return method === 'GET'
         ? "Accès refusé pour ce token : cette donnée n'est pas accessible avec un token."
-        : "Modification refusée : le token configuré est en lecture seule. Pour les outils d'écriture, créez un token de portée « écriture » sur la page Profil et mettez à jour FINANCES_API_TOKEN. Rien n'a été modifié."
+        : "Modification refusée : le token configuré est en lecture seule. Pour les outils d'écriture, créez un token de portée « Lecture et écriture » sur la page Profil et mettez à jour FINANCES_API_TOKEN. Rien n'a été modifié."
     case 404:
       return "Introuvable : l'élément demandé n'existe pas (ou plus)."
     case 409:

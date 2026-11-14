@@ -283,6 +283,9 @@ export const categorizeTransactionsTool = defineTool({
         t.splits.length > 0 && category
           ? `ventilation en ${t.splits.length} parts supprimée`
           : null,
+        t.kind === 'transfer' && nextKind(t) !== 'transfer'
+          ? 'attention : un virement interne deviendrait une opération comptée ; kind "transfer" le garde en virement'
+          : null,
       ].filter(Boolean)
       return `- ${transactionRef(t)} : ${categoryName(t)} → ${target}${kind}${extras.length ? ` (${extras.join(', ')})` : ''}`
     }

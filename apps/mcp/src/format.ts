@@ -85,6 +85,12 @@ export function frenchMonth(month: string): string {
   return match && name ? `${name} ${match[1]}` : month
 }
 
+/** `2026-10` → `d'octobre 2026`, `2026-11` → `de novembre 2026`. */
+export function ofMonth(month: string): string {
+  const name = frenchMonth(month)
+  return /^[aeiouy]/i.test(name) ? `d'${name}` : `de ${name}`
+}
+
 /** `2026-11` → `nov. 2026` (table headers). */
 export function shortMonth(month: string): string {
   const match = /^(\d{4})-(\d{2})/.exec(month)

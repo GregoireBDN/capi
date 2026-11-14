@@ -10,6 +10,7 @@ import {
   euros,
   frenchDate,
   frenchMonth,
+  ofMonth,
   parisToday,
   periodNote,
   signedEuros,
@@ -48,7 +49,7 @@ export const monthCloseStatusTool = defineTool({
     const mark = (key: MonthCloseStep) =>
       `${done.get(key) ? '✓' : '✗'} ${STEP_LABELS[key]}`
     const lines = [
-      `Revue de ${frenchMonth(close.month)} : ${close.status === 'closed' ? `clôturée le ${frenchDate(close.closedAt)}` : 'ouverte'}${close.status === 'open' && !close.closable ? ' (pas encore clôturable : le mois n’est pas fini)' : ''}.`,
+      `Revue ${ofMonth(close.month)} : ${close.status === 'closed' ? `clôturée le ${frenchDate(close.closedAt)}` : 'ouverte'}${close.status === 'open' && !close.closable ? ' (pas encore clôturable : le mois n’est pas fini)' : ''}.`,
       periodNote(close.period),
       `Étapes faites : ${close.steps.filter((s) => s.done).length}/${close.steps.length}.`,
       '',

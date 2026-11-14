@@ -5,7 +5,7 @@
  */
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
-import { addMonths, frenchMonth, parisToday } from './format.js'
+import { addMonths, ofMonth, parisToday } from './format.js'
 import { MONTH_PATTERN } from './tools/lookup.js'
 
 export const monthReviewPromptArgs = {
@@ -23,8 +23,7 @@ export function monthReviewPrompt(
 ): GetPromptResult {
   const reviewed = month ?? addMonths(parisToday(now).slice(0, 7), -1)
   const next = addMonths(reviewed, 1)
-  const name = frenchMonth(reviewed)
-  const text = `Accompagne-moi dans la revue du mois de ${name} (${reviewed}), étape par étape, avec les outils du serveur finances. Réponds en français, de façon concise.
+  const text = `Accompagne-moi dans la revue du mois ${ofMonth(reviewed)} (${reviewed}), étape par étape, avec les outils du serveur finances. Réponds en français, de façon concise.
 
 Règles :
 - Les chiffres viennent uniquement des outils ; ne les invente ni ne les arrondis.
@@ -40,10 +39,10 @@ Règles :
 5. Budget : budget_status (month ${reviewed}), catégories au-dessus et en dessous de la cible ; ajoute une note sur une opération qui explique un écart si je le demande (set_transaction_note).
 6. Épargne : savings_and_goals ; ce que j'ai épargné, l'objectif et les objectifs d'épargne.
 7. Placements : les comptes sans valeur à la fin du mois (month_close_status) ; je les mets à jour dans l'application.
-8. Budget de ${frenchMonth(next)} : budget_suggestions (month ${next}) et budget_history ; propose des cibles réalistes, puis un seul set_budget_targets (month ${next}) avec toutes les catégories, après mon accord sur l'aperçu.
+8. Budget ${ofMonth(next)} : budget_suggestions (month ${next}) et budget_history ; propose des cibles réalistes, puis un seul set_budget_targets (month ${next}) avec toutes les catégories, après mon accord sur l'aperçu.
 9. Clôture : récapitule ce qui a changé pendant la revue et ce qui reste ; je coche les étapes et clôture le mois dans l'application (Revue du mois).`
   return {
-    description: `Revue du mois de ${name}`,
+    description: `Revue du mois ${ofMonth(reviewed)}`,
     messages: [{ role: 'user', content: { type: 'text', text } }],
   }
 }
