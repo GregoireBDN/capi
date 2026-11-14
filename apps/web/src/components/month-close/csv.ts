@@ -1,52 +1,54 @@
 import type { MonthReportDto } from '#/api/types.gen'
+import { amount, text, toCsv } from '#/lib/csv'
 
-/** `-123456` → `-1234,56` (integer arithmetic, French decimal comma). */
-export function centsToCsv(cents: number | null): string {
-  if (cents === null) return ''
-  const sign = cents < 0 ? '-' : ''
-  const abs = Math.abs(cents)
-  return `${sign}${Math.floor(abs / 100)},${String(abs % 100).padStart(2, '0')}`
-}
-
-function cell(value: string): string {
-  return /[;"\n\r]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value
-}
+export { csvAmount as centsToCsv } from '#/lib/csv'
 
 /**
  * The month's report as a CSV for a French spreadsheet: `;` separated,
- * decimal comma, CRLF lines (the caller adds the UTF-8 BOM).
+ * decimal comma, CRLF lines (the caller adds the UTF-8 BOM). Labels, category
+ * names and notes are text cells, neutralised against formulas (`#/lib/csv`).
  */
 export function reportToCsv(report: MonthReportDto): string {
-  const rows: string[][] = [
-    ['Rubrique', 'Libellé', 'Montant (€)', 'Mois précédent (€)', 'Budget (€)'],
-    ['Total', 'Revenus', centsToCsv(report.flow.incomeCents), '', ''],
-    ['Total', 'Dépenses', centsToCsv(report.flow.expenseCents), '', ''],
-    ['Total', 'Épargné', centsToCsv(report.flow.netCents), '', ''],
-    ['Total', 'Épargne cible', centsToCsv(report.savingsTargetCents), '', ''],
+  const empty = text('')
+  const total = (label: string, cents: number | null) => [
+    text('Total'),
+    text(label),
+    amount(cents),
+    empty,
+    empty,
+  ]
+  const rows = [
     [
-      'Total',
-      'Patrimoine en fin de mois',
-      centsToCsv(report.netWorthCents),
-      '',
-      '',
-    ],
+      'Rubrique',
+      'Libellé',
+      'Montant (€)',
+      'Mois précédent (€)',
+      'Budget (€)',
+    ].map(text),
+    total('Revenus', report.flow.incomeCents),
+    total('Dépenses', report.flow.expenseCents),
+    total('Épargné', report.flow.netCents),
+    total('Épargne cible', report.savingsTargetCents),
+    total('Patrimoine en fin de mois', report.netWorthCents),
     ...report.categories.map((category) => [
-      category.kind === 'expense' ? 'Dépense' : 'Revenu',
-      category.name ?? 'Sans catégorie',
-      centsToCsv(category.amountCents),
-      centsToCsv(category.previousAmountCents),
-      centsToCsv(category.targetCents),
+      text(category.kind === 'expense' ? 'Dépense' : 'Revenu'),
+      text(category.name ?? 'Sans catégorie'),
+      amount(category.amountCents),
+      amount(category.previousAmountCents),
+      amount(category.targetCents),
     ]),
     ...report.oneOffs.map((oneOff) => [
-      'Ponctuel',
-      `${oneOff.date} ${oneOff.label}`,
-      centsToCsv(oneOff.amountCents),
-      '',
-      '',
+      text('Ponctuel'),
+      text(`${oneOff.date} ${oneOff.label}`),
+      amount(oneOff.amountCents),
+      empty,
+      empty,
     ]),
   ]
-  if (report.notes) rows.push(['Notes', report.notes, '', '', ''])
-  return rows.map((row) => row.map(cell).join(';')).join('\r\n') + '\r\n'
+  if (report.notes) {
+    rows.push([text('Notes'), text(report.notes), empty, empty, empty])
+  }
+  return toCsv(rows)
 }
 
 /** Saves the report as `rapport-YYYY-MM.csv`. */

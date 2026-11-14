@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { PinoLogger } from 'nestjs-pino'
+import { pathWithoutQuery } from '../logging/safe-url'
 
 /**
  * Uniform error envelope returned for every unhandled exception. A single shape
@@ -52,6 +53,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const { status, message } = this.normalise(exception)
     const requestId = String(request.id)
+    // The body echoes the URL to its own caller; log lines keep the path
+    // only (query strings hold search text and filters, #181).
+    const path = pathWithoutQuery(request.url)
 
     const body: ErrorResponse = {
       statusCode: status,
@@ -68,12 +72,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // expected client errors: log a terse line at warn for traceability.
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(
-        { err: exception, requestId, path: request.url },
+        { err: exception, requestId, path },
         'Unhandled exception',
       )
     } else {
       this.logger.warn(
-        { requestId, path: request.url, statusCode: status },
+        { requestId, path, statusCode: status },
         message.join('; '),
       )
     }

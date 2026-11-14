@@ -109,8 +109,9 @@ The owner's pre-app history (a Google Sheet, ~3,250 categorized rows since 07/20
 
 - **No real financial data** in the repo, tests, fixtures, issues, PRs or logs. Use only anonymized or synthetic fixtures (fake labels, amounts and account numbers).
 - Real bank exports live in the git-ignored `data/` folder at the repo root. Never commit it and never paste its contents anywhere.
-- Do not log transaction labels, amounts or balances. Failed database queries carry their bound values (Drizzle's `Failed query: ... params: ...` message, `params`, the Postgres `detail`): the logger's `err` serializer and `logMethod` hook (`apps/api/src/common/logging/safe-error.ts`, wired in `config/logger.ts`) reduce them to the error class, SQL text, Postgres code and object names, and stack frames. Keep them when changing the logger.
+- Do not log transaction labels, amounts or balances. Query strings carry the transactions search text (`?q=`) and filters: the API request log keeps the path only (`req.url` without its query, no `query`, `Referer` without its query; `req` serializer in `config/logger.ts`, `common/logging/safe-url.ts`, #181), and so does the `path` of `AllExceptionsFilter` log lines (its error body keeps the URL). Failed database queries carry their bound values (Drizzle's `Failed query: ... params: ...` message, `params`, the Postgres `detail`): the logger's `err` serializer and `logMethod` hook (`apps/api/src/common/logging/safe-error.ts`, wired in `config/logger.ts`) reduce them to the error class, SQL text, Postgres code and object names, and stack frames. Keep them when changing the logger.
 - **No third-party analytics or tracking**, on the API or on the web app.
+- **CSV exports** (the month report, any future one) are written with `apps/web/src/lib/csv.ts`: `text()` cells starting with `=`, `+`, `-`, `@`, a tab or a carriage return are prefixed with `'` and quoted (CSV / formula injection, #175), `amount()` cells are integer cents written with a decimal comma and keep their minus sign.
 
 ## Workflow conventions
 
@@ -185,7 +186,7 @@ Pre-commit hook runs `lint-staged`: ESLint + Prettier on `.ts`/`.tsx`, Prettier 
 
 The web app talks to the API through a **generated, type-safe client** — do not hand-write fetch calls or edit the generated output.
 
-1. `apps/api` generates `apps/api/openapi.json` via `pnpm --filter @finances/api generate` (`src/generate-spec.ts` boots the Nest app in-memory and dumps the Swagger document).
+1. `apps/api` generates `apps/api/openapi.json` via `pnpm --filter @finances/api generate` (`src/generate-spec.ts` boots the Nest app in-memory and dumps the Swagger document), built by `createOpenApiDocument` in `src/config/swagger.ts`). The live Swagger UI (`/api/docs`) and document (`/api/docs-json`) are served **outside production only** (`setupSwagger`, #180): production answers 404, and nothing needs them at runtime.
 2. `apps/web` consumes that spec via `@hey-api/openapi-ts` (`apps/web/openapi-ts.config.ts`), emitting a typed fetch client into `apps/web/src/api/` (`client.gen.ts`, `sdk.gen.ts`, `types.gen.ts`).
 3. Turborepo's `generate` task chains these, so `pnpm generate` from the root runs API spec generation before web client generation. `build` and `check-types` depend on `generate`.
 

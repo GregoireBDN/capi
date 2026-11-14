@@ -1,11 +1,14 @@
 import './load-env'
 import 'reflect-metadata'
 import { NestFactory } from '@nestjs/core'
-import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify'
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify'
 import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { AppModule } from './app.module'
+import { createOpenApiDocument } from './config/swagger'
 
 async function generateSpec() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -16,13 +19,8 @@ async function generateSpec() {
 
   app.setGlobalPrefix('api')
 
-  const config = new DocumentBuilder()
-    .setTitle('Finances API')
-    .setVersion('1.0')
-    .addCookieAuth('token')
-    .build()
-
-  const document = SwaggerModule.createDocument(app, config)
+  // Same document as the development Swagger UI (`config/swagger.ts`).
+  const document = createOpenApiDocument(app)
   const outPath = resolve(process.cwd(), 'openapi.json')
   writeFileSync(outPath, JSON.stringify(document, null, 2))
   console.log(`OpenAPI spec written to ${outPath}`)
