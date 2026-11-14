@@ -110,12 +110,23 @@ function useWalletSync(accountId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => syncWallet(accountId),
-    onSuccess: async (result) => {
+    // The sync date before, to tell a fresh sync from a skipped one (the API
+    // asks the chains at most every 30 s).
+    onMutate: () =>
+      queryClient.getQueryData<AccountHoldingsDto>(
+        cryptoKeys.holdings(accountId),
+      )?.sync?.syncedAt ?? null,
+    onSuccess: async (result, _variables, syncedBefore) => {
       queryClient.setQueryData(cryptoKeys.holdings(accountId), result)
       if (syncFailed(result)) {
         toast.error(
           'Synchronisation impossible pour le moment : les derniers avoirs connus sont conservés.',
         )
+      } else if (
+        syncedBefore !== null &&
+        result.sync?.syncedAt === syncedBefore
+      ) {
+        toast('Wallet déjà synchronisé il y a quelques secondes')
       } else {
         toast.success('Wallet synchronisé')
       }
