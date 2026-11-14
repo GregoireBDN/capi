@@ -58,10 +58,12 @@ describe('computeMovementHashes', () => {
       { quantity: '-0.000005' },
     ]
     for (const patch of variants) {
-      expect(computeMovementHashes('binance_csv', [movement(patch)])[0]).not.toBe(
-        base,
-      )
+      expect(
+        computeMovementHashes('binance_csv', [movement(patch)])[0],
+      ).not.toBe(base)
     }
-    expect(computeMovementHashes('coinbase_csv', [movement()])[0]).not.toBe(base)
+    expect(computeMovementHashes('coinbase_csv', [movement()])[0]).not.toBe(
+      base,
+    )
   })
 })

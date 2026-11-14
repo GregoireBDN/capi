@@ -60,7 +60,15 @@ describe('parseCoinbaseCsv', () => {
       coinbaseCsv([
         ['a1', '2023-01-01T10:00:00Z', 'Sell', 'ETH', '0.5', '€500', '€495'],
         ['a2', '2023-01-02T10:00:00Z', 'Send', 'ETH', '0.1', '€100', '€100'],
-        ['a3', '2023-01-03T10:00:00Z', 'Advanced Trade Buy', 'ETH', '-1', '€1', '€1'],
+        [
+          'a3',
+          '2023-01-03T10:00:00Z',
+          'Advanced Trade Buy',
+          'ETH',
+          '-1',
+          '€1',
+          '€1',
+        ],
       ]),
     )
     expect(movements.map((m) => m.quantity)).toEqual(['-0.5', '-0.1', '1'])

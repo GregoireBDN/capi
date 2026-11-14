@@ -28,6 +28,7 @@ import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import type { AccountDto, WalletKeyDto } from '#/api/types.gen'
 import { holdingErrorMessage } from './errors'
+import { ExchangeImportSheet } from './ExchangeImportSheet'
 import {
   addWalletKey,
   cryptoKeys,
@@ -269,8 +270,8 @@ function WalletKeyList({
 /**
  * Where a crypto account's holdings come from: an exchange's exports, a
  * wallet's public keys, or typed by hand. Shows the last import or sync and
- * its action, which arrive with the exchange imports (#128) and the wallet
- * sync (#129): shown, not available yet.
+ * its action: "Importer un export" for an exchange (#128); the wallet sync
+ * (#129) is shown, not available yet.
  */
 export function CryptoSourceCard({
   account,
@@ -307,6 +308,28 @@ export function CryptoSourceCard({
 
   const exchange = source === 'exchange'
   return (
+    <ExternalSourceCard
+      account={account}
+      writable={writable}
+      title={title}
+      exchange={exchange}
+    />
+  )
+}
+
+function ExternalSourceCard({
+  account,
+  writable,
+  title,
+  exchange,
+}: {
+  account: AccountDto
+  writable: boolean
+  title: string
+  exchange: boolean
+}) {
+  const [importing, setImporting] = useState(false)
+  return (
     <section aria-label="Source des avoirs">
       <Card className="min-w-0">
         <CardHeader>
@@ -317,14 +340,21 @@ export function CryptoSourceCard({
               : 'Avoirs lus sur la blockchain avec les clés publiques du wallet.'}
           </CardDescription>
           <p className="text-sm">{syncedAtText(account)}</p>
-          {writable && (
+          {writable && exchange && (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
               <Button
                 size="sm"
-                disabled
-                iconStart={exchange ? <FileUpIcon /> : <RefreshCwIcon />}
+                iconStart={<FileUpIcon />}
+                onClick={() => setImporting(true)}
               >
-                {exchange ? 'Importer un export' : 'Synchroniser'}
+                Importer un export
+              </Button>
+            </div>
+          )}
+          {writable && !exchange && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
+              <Button size="sm" disabled iconStart={<RefreshCwIcon />}>
+                Synchroniser
               </Button>
               <span className="text-muted-foreground text-xs">
                 Bientôt disponible. En attendant, ajoutez vos avoirs à la main.
@@ -338,6 +368,13 @@ export function CryptoSourceCard({
           </CardContent>
         )}
       </Card>
+      {writable && exchange && (
+        <ExchangeImportSheet
+          open={importing}
+          onOpenChange={setImporting}
+          accountId={account.id}
+        />
+      )}
     </section>
   )
 }

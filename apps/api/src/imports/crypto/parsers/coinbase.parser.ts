@@ -1,8 +1,5 @@
 import type { CryptoMovementKind } from '#/database/schema/domain-enums'
-import type {
-  CryptoParseResult,
-  ParsedMovement,
-} from '../crypto-import.types'
+import type { CryptoParseResult, ParsedMovement } from '../crypto-import.types'
 import { formatQuantity, parseMoneyCents, parseQuantity } from '../quantity'
 import {
   cell,

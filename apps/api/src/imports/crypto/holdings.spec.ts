@@ -37,7 +37,9 @@ const line = (
 
 describe('computeHoldings', () => {
   it('matches the Binance balances of the fixture, EUR left out', () => {
-    const holdings = byAsset(parseBinanceCsv(binanceCsv(BINANCE_EARLY)).movements)
+    const holdings = byAsset(
+      parseBinanceCsv(binanceCsv(BINANCE_EARLY)).movements,
+    )
     expect(
       Object.fromEntries(
         Object.entries(holdings).map(([id, holding]) => [id, holding.quantity]),
@@ -47,7 +49,9 @@ describe('computeHoldings', () => {
   })
 
   it('computes the Binance invested amounts, fees included', () => {
-    const holdings = byAsset(parseBinanceCsv(binanceCsv(BINANCE_EARLY)).movements)
+    const holdings = byAsset(
+      parseBinanceCsv(binanceCsv(BINANCE_EARLY)).movements,
+    )
     // 200 € bought 0.003992 BTC; the conversion took 0.001 (50.10 €) to ETH,
     // the withdrawal another 0.001 (50.10 €).
     expect(holdings.bitcoin.investedCents).toBe(9980)

@@ -1,9 +1,6 @@
 import type { CryptoMovementKind } from '#/database/schema/domain-enums'
 import type { ParseIssue } from '#/imports/parsers/parsed-row'
-import type {
-  CryptoParseResult,
-  ParsedMovement,
-} from '../crypto-import.types'
+import type { CryptoParseResult, ParsedMovement } from '../crypto-import.types'
 import { formatQuantity, parseQuantity } from '../quantity'
 import {
   cell,

@@ -161,7 +161,10 @@ export class CryptoImportsService {
         .where(
           and(
             isNull(ci.committedAt),
-            lt(ci.createdAt, new Date(now.getTime() - PENDING_CRYPTO_PREVIEW_TTL_MS)),
+            lt(
+              ci.createdAt,
+              new Date(now.getTime() - PENDING_CRYPTO_PREVIEW_TTL_MS),
+            ),
           ),
         )
       const [row] = await tx
@@ -319,7 +322,11 @@ export class CryptoImportsService {
       if (current.committedAt) {
         await this.recomputeHoldings(tx, current.accountId, now)
       }
-      return { accountId: current.accountId, committed: !!current.committedAt, count }
+      return {
+        accountId: current.accountId,
+        committed: !!current.committedAt,
+        count,
+      }
     })
     if (result.committed) await this.valuate(result.accountId, now)
     return { deletedMovements: result.count }
@@ -332,27 +339,25 @@ export class CryptoImportsService {
    */
   private async recomputeHoldings(tx: Tx, accountId: string, now: Date) {
     const movements = await this.loadMovements(tx, accountId)
-    const tickers = [
-      ...new Set(movements.map((row) => row.asset)),
-    ].filter((ticker) => !FIAT_TICKERS.has(ticker))
+    const tickers = [...new Set(movements.map((row) => row.asset))].filter(
+      (ticker) => !FIAT_TICKERS.has(ticker),
+    )
     const mappings = await this.knownMappings(tx, tickers)
     const holdings = computeHoldings(movements, resolverOf(mappings))
     const kept = holdings.filter((holding) => holding.status === 'ok')
 
-    await tx
-      .delete(h)
-      .where(
-        and(
-          eq(h.accountId, accountId),
-          eq(h.origin, 'import'),
-          kept.length > 0
-            ? notInArray(
-                h.assetId,
-                kept.map((holding) => holding.assetId!),
-              )
-            : undefined,
-        ),
-      )
+    await tx.delete(h).where(
+      and(
+        eq(h.accountId, accountId),
+        eq(h.origin, 'import'),
+        kept.length > 0
+          ? notInArray(
+              h.assetId,
+              kept.map((holding) => holding.assetId!),
+            )
+          : undefined,
+      ),
+    )
     for (const holding of kept) {
       await tx
         .insert(h)
@@ -536,7 +541,8 @@ function resolverOf(mappings: Map<string, AssetMapping>) {
 function unknownOperations(rows: CryptoPreviewRow[]): UnknownOperation[] {
   const counts = new Map<string, number>()
   for (const row of rows) {
-    if (!row.known) counts.set(row.operation, (counts.get(row.operation) ?? 0) + 1)
+    if (!row.known)
+      counts.set(row.operation, (counts.get(row.operation) ?? 0) + 1)
   }
   return [...counts]
     .map(([operation, count]) => ({ operation, count }))

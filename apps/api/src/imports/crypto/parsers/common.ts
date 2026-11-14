@@ -92,7 +92,8 @@ const TIMESTAMP =
 export function parseUtcTimestamp(text: string): string | null {
   const match = TIMESTAMP.exec(text.trim())
   if (!match) return null
-  const year = match[1].length === 2 ? 2000 + Number(match[1]) : Number(match[1])
+  const year =
+    match[1].length === 2 ? 2000 + Number(match[1]) : Number(match[1])
   const [month, day, hour, minute, second] = match.slice(2).map(Number)
   const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second))
   if (

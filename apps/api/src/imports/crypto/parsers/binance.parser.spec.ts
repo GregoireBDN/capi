@@ -52,9 +52,9 @@ describe('parseBinanceCsv', () => {
       Withdraw: 'withdrawal',
       'Mystery Bonus': 'other',
     })
-    expect(movements.find((m) => m.operation === 'Mystery Bonus')).toMatchObject(
-      { known: false, quantity: '0.00000001' },
-    )
+    expect(
+      movements.find((m) => m.operation === 'Mystery Bonus'),
+    ).toMatchObject({ known: false, quantity: '0.00000001' })
   })
 
   it('reads the English headers and other operation types', () => {
@@ -62,8 +62,20 @@ describe('parseBinanceCsv', () => {
       binanceCsv(
         [
           ['2024-06-01 00:00:00', 'Spot', 'Buy Crypto With Fiat', 'btc', '0.1'],
-          ['2024-06-01 00:00:01', 'Funding', 'Transfer Funds to Funding Wallet', 'BTC', '0.1'],
-          ['2024-06-02 00:00:00', 'Spot', 'Simple Earn Flexible Interest', 'USDC', '0.01'],
+          [
+            '2024-06-01 00:00:01',
+            'Funding',
+            'Transfer Funds to Funding Wallet',
+            'BTC',
+            '0.1',
+          ],
+          [
+            '2024-06-02 00:00:00',
+            'Spot',
+            'Simple Earn Flexible Interest',
+            'USDC',
+            '0.01',
+          ],
         ],
         { header: BINANCE_EN_HEADER, bom: false },
       ),
@@ -82,7 +94,13 @@ describe('parseBinanceCsv', () => {
       ['2025-01-01 10:00:00', 'Spot', 'Deposit', 'BTC', 'abc'],
       ['2025-01-01 10:00:00', 'Spot', 'Deposit', '', '1'],
       ['2025-01-01 10:00:00', 'Spot', '', 'BTC', '1'],
-      ['2025-01-01 10:00:00', 'Spot', 'Deposit', 'BTC', '0.0000000000000000001'],
+      [
+        '2025-01-01 10:00:00',
+        'Spot',
+        'Deposit',
+        'BTC',
+        '0.0000000000000000001',
+      ],
       ['2025-01-01 10:00:00', 'Spot', 'Deposit', 'BTC', '2'],
     ]).concat('100000001,2025-01-01 10:00:00\r\n')
     const { movements, issues } = parseBinanceCsv(csv)
@@ -98,7 +116,9 @@ describe('parseBinanceCsv', () => {
   })
 
   it('accepts two-digit years of older exports and skips blank lines', () => {
-    const csv = binanceCsv([['21-03-15 10:00:00', 'Spot', 'Deposit', 'ETH', '1']])
+    const csv = binanceCsv([
+      ['21-03-15 10:00:00', 'Spot', 'Deposit', 'ETH', '1'],
+    ])
     const { movements } = parseBinanceCsv(`${csv}\r\n,,,,,,\r\n`)
     expect(movements).toHaveLength(1)
     expect(movements[0].occurredAt).toBe('2021-03-15T10:00:00Z')

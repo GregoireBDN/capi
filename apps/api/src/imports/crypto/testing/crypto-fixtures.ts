@@ -24,7 +24,9 @@ export function binanceCsv(
   const body = lines.map(
     ([time, account, operation, coin, change, remark = '']) =>
       // Trailing spaces, as in the real exports.
-      [UID, time, `${account} `, `${operation} `, coin, change, remark].join(','),
+      [UID, time, `${account} `, `${operation} `, coin, change, remark].join(
+        ',',
+      ),
   )
   return `${bom ? BOM : ''}${[header, ...body].join('\r\n')}\r\n`
 }
@@ -83,7 +85,15 @@ export const COINBASE_HEADER =
   'ID,Timestamp,Transaction Type,Asset,Quantity Transacted,Price Currency,Price at Transaction,Subtotal,Total (inclusive of fees and/or spread),Fees and/or Spread,Notes,Sender Address,Recipient Address'
 
 /** id, time, type, asset, quantity, subtotal, total (EUR, `€…`). */
-export type CoinbaseLine = [string, string, string, string, string, string, string]
+export type CoinbaseLine = [
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+]
 
 export function coinbaseCsv(lines: CoinbaseLine[]): string {
   const preamble = [
@@ -111,16 +121,96 @@ export function coinbaseCsv(lines: CoinbaseLine[]): string {
 }
 
 export const COINBASE_2025: CoinbaseLine[] = [
-  ['cb0001', '2025-03-01 10:00:00 UTC', 'Deposit', 'EUR', '100', '€100.00', '€100.00'],
-  ['cb0002', '2025-03-01 10:05:00 UTC', 'Buy', 'BTC', '0.001', '€49.50', '€50.99000000000001'],
-  ['cb0003', '2025-03-02 09:00:00 UTC', 'Convert', 'BTC', '-0.0005', '€25.00', '€25.00'],
-  ['cb0004', '2025-03-02 09:00:00 UTC', 'Convert', 'ETH', '0.01', '€24.90', '€24.90'],
-  ['cb0005', '2025-03-03 09:00:00 UTC', 'Retail Simple Price Improvement', 'BTC', '0.000001', '€0.05', '€0.05'],
-  ['cb0006', '2025-03-04 09:00:00 UTC', 'Staking Income', 'ETH', '0.0001', '€0.25', '€0.25'],
-  ['cb0007', '2025-03-05 09:00:00 UTC', 'Send', 'ETH', '-0.005', '€12.00', '€12.00'],
-  ['cb0008', '2025-03-06 09:00:00 UTC', 'Sell', 'BTC', '-0.0002', '€10.00', '€9.80'],
-  ['cb0009', '2025-03-07 09:00:00 UTC', 'Receive', 'SOL', '2', '€300.00', '€300.00'],
-  ['cb0010', '2025-03-08 09:00:00 UTC', 'Mystery Airdrop', 'XYZ', '5', '€0.00', '€0.00'],
+  [
+    'cb0001',
+    '2025-03-01 10:00:00 UTC',
+    'Deposit',
+    'EUR',
+    '100',
+    '€100.00',
+    '€100.00',
+  ],
+  [
+    'cb0002',
+    '2025-03-01 10:05:00 UTC',
+    'Buy',
+    'BTC',
+    '0.001',
+    '€49.50',
+    '€50.99000000000001',
+  ],
+  [
+    'cb0003',
+    '2025-03-02 09:00:00 UTC',
+    'Convert',
+    'BTC',
+    '-0.0005',
+    '€25.00',
+    '€25.00',
+  ],
+  [
+    'cb0004',
+    '2025-03-02 09:00:00 UTC',
+    'Convert',
+    'ETH',
+    '0.01',
+    '€24.90',
+    '€24.90',
+  ],
+  [
+    'cb0005',
+    '2025-03-03 09:00:00 UTC',
+    'Retail Simple Price Improvement',
+    'BTC',
+    '0.000001',
+    '€0.05',
+    '€0.05',
+  ],
+  [
+    'cb0006',
+    '2025-03-04 09:00:00 UTC',
+    'Staking Income',
+    'ETH',
+    '0.0001',
+    '€0.25',
+    '€0.25',
+  ],
+  [
+    'cb0007',
+    '2025-03-05 09:00:00 UTC',
+    'Send',
+    'ETH',
+    '-0.005',
+    '€12.00',
+    '€12.00',
+  ],
+  [
+    'cb0008',
+    '2025-03-06 09:00:00 UTC',
+    'Sell',
+    'BTC',
+    '-0.0002',
+    '€10.00',
+    '€9.80',
+  ],
+  [
+    'cb0009',
+    '2025-03-07 09:00:00 UTC',
+    'Receive',
+    'SOL',
+    '2',
+    '€300.00',
+    '€300.00',
+  ],
+  [
+    'cb0010',
+    '2025-03-08 09:00:00 UTC',
+    'Mystery Airdrop',
+    'XYZ',
+    '5',
+    '€0.00',
+    '€0.00',
+  ],
 ]
 
 /** Balances after `COINBASE_2025` (EUR left out). */
