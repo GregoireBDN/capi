@@ -17,11 +17,13 @@ import { FingerprintIcon, PlusIcon } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import type { PasskeyDto } from '#/api/types.gen'
+import { ReauthSheet } from '#/components/auth/ReauthSheet'
 import {
   addPasskey,
   defaultPasskeyName,
   passkeysSupported,
 } from '#/lib/passkeys'
+import { needsReauth } from '#/lib/reauth'
 import { PasskeySheet } from './PasskeySheet'
 import {
   passkeyErrorMessage,
@@ -30,7 +32,6 @@ import {
   renamePasskey,
   revokePasskey,
 } from './queries'
-import { ReauthSheet } from './ReauthSheet'
 
 const NAME_MAX = 100
 
@@ -169,17 +170,28 @@ function RenameSheet({
   )
 }
 
+/** What waits for the owner to sign in again. */
+type PendingAction = { kind: 'add' } | { kind: 'revoke'; passkey: PasskeyDto }
+
 /**
- * Profile section: the owner's passkeys (add, rename, revoke). Adding needs a
- * fresh session; when the last sign-in is too old, `ReauthSheet` asks for the
- * password or a passkey first, then the addition resumes.
+ * Profile section: the owner's passkeys (add, rename, revoke). Adding and
+ * revoking need a fresh session; when the last sign-in is too old,
+ * `ReauthSheet` asks for the password or a passkey first, then the action
+ * resumes.
  */
 export function PasskeysCard({ email }: { email: string }) {
   const queryClient = useQueryClient()
   const passkeys = useQuery(passkeysQuery)
   const [supported, setSupported] = useState(false)
   const [adding, setAdding] = useState(false)
+  // Kept after closing so the sheet's text doesn't change while it animates out.
+  const [reauth, setReauth] = useState<PendingAction>({ kind: 'add' })
   const [reauthOpen, setReauthOpen] = useState(false)
+
+  function askReauth(action: PendingAction) {
+    setReauth(action)
+    setReauthOpen(true)
+  }
   const [toRename, setToRename] = useState<PasskeyDto | null>(null)
   const [toRevoke, setToRevoke] = useState<PasskeyDto | null>(null)
 
@@ -194,7 +206,7 @@ export function PasskeysCard({ email }: { email: string }) {
       toast.success(`Passkey ${result.data.name} ajoutée`)
       await queryClient.invalidateQueries({ queryKey: passkeyKeys.all })
     } else if (result.status === 'reauth') {
-      setReauthOpen(true)
+      askReauth({ kind: 'add' })
     } else if (result.status === 'error') {
       toast.error(result.message)
     }
@@ -207,7 +219,14 @@ export function PasskeysCard({ email }: { email: string }) {
       setToRevoke(null)
       await queryClient.invalidateQueries({ queryKey: passkeyKeys.all })
     },
-    onError: (error) => toast.error(passkeyErrorMessage(error)),
+    onError: (error, passkey) => {
+      if (needsReauth(error)) {
+        setToRevoke(null)
+        askReauth({ kind: 'revoke', passkey })
+      } else {
+        toast.error(passkeyErrorMessage(error))
+      }
+    },
   })
 
   const list = passkeys.data ?? []
@@ -269,10 +288,23 @@ export function PasskeysCard({ email }: { email: string }) {
         open={reauthOpen}
         onOpenChange={setReauthOpen}
         email={email}
-        canUsePasskey={supported && list.length > 0}
+        {...(reauth.kind === 'revoke'
+          ? {
+              purpose: 'révoquer une passkey',
+              continueLabel: 'Révoquer la passkey',
+              continueDescription: `Vous pouvez maintenant révoquer la passkey ${reauth.passkey.name}.`,
+              continueVariant: 'danger' as const,
+            }
+          : {
+              purpose: 'ajouter une passkey',
+              continueLabel: 'Ajouter la passkey',
+              continueDescription:
+                'Vous pouvez maintenant créer la passkey sur cet appareil.',
+            })}
         onContinue={() => {
           setReauthOpen(false)
-          void add()
+          if (reauth.kind === 'revoke') revoke.mutate(reauth.passkey)
+          else void add()
         }}
       />
       <RenameSheet passkey={toRename} onClose={() => setToRename(null)} />

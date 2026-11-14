@@ -1,6 +1,7 @@
-import { profileControllerRemove, profileControllerUpdate } from '#/api'
+import { profileControllerUpdate } from '#/api'
 import { AccessTokensCard } from '#/components/access-tokens/AccessTokensCard'
 import { PasskeysCard } from '#/components/passkeys/PasskeysCard'
+import { DeleteAccountCard } from '#/components/profile/DeleteAccountCard'
 import { getInitials } from '#/components/app-shell/user-initials'
 import { useAuth } from '#/lib/auth-context'
 import { ROUTES } from '#/lib/routes'
@@ -16,7 +17,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  ConfirmDialog,
   Field,
   FieldError,
   FieldLabel,
@@ -32,11 +32,10 @@ import {
   ShieldAlertIcon,
   SunIcon,
   TagsIcon,
-  TriangleAlertIcon,
   UserIcon,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -73,8 +72,6 @@ function ProfilePage() {
 
   const currentUser = user ?? guardUser
   const { mode, setPreference } = useThemePreference()
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleting, setDeleting] = useState(false)
 
   const form = useForm<NameValues>({
     resolver: zodResolver(nameSchema),
@@ -98,20 +95,6 @@ function ProfilePage() {
     }
     await refresh()
     toast.success('Nom mis à jour')
-  }
-
-  async function onDeleteAccount() {
-    setDeleting(true)
-    const res = await profileControllerRemove({
-      throwOnError: false,
-    })
-    if (res.error) {
-      toast.error('Impossible de supprimer le compte')
-      setDeleting(false)
-      return
-    }
-    await logout()
-    await navigate({ to: ROUTES.auth })
   }
 
   const initials = getInitials(currentUser.name)
@@ -311,38 +294,15 @@ function ProfilePage() {
 
       <PasskeysCard email={currentUser.email} />
 
-      <AccessTokensCard />
+      <AccessTokensCard email={currentUser.email} />
 
-      {/* Danger zone */}
-      <Card className="ring-destructive/30">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-destructive">
-            <TriangleAlertIcon className="size-4" />
-            Zone dangereuse
-          </CardTitle>
-          <CardDescription>
-            La suppression de votre compte est définitive. Toutes vos données
-            seront effacées et ne pourront pas être récupérées.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ConfirmDialog
-            open={deleteOpen}
-            onOpenChange={setDeleteOpen}
-            onConfirm={onDeleteAccount}
-            title="Supprimer votre compte ?"
-            description="Cette action est irréversible. Toutes vos données seront définitivement supprimées et vous ne pourrez pas récupérer votre compte."
-            confirmLabel="Supprimer définitivement"
-            variant="danger"
-            loading={deleting}
-            trigger={
-              <Button variant="danger" outline className="w-full sm:w-auto">
-                Supprimer mon compte
-              </Button>
-            }
-          />
-        </CardContent>
-      </Card>
+      <DeleteAccountCard
+        email={currentUser.email}
+        onDeleted={async () => {
+          await logout()
+          await navigate({ to: ROUTES.auth })
+        }}
+      />
     </div>
   )
 }

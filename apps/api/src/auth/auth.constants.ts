@@ -8,7 +8,8 @@ export const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000
 export const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000
 /**
  * A session counts as fresh for this long after a password or passkey sign-in
- * (`auth_time` claim): adding a passkey needs a fresh session.
+ * (`auth_time` claim). Adding or revoking a passkey, creating an access token
+ * and deleting the account need a fresh session (`FreshAuthGuard`).
  */
 export const FRESH_AUTH_MAX_AGE_SECONDS = 5 * 60
 

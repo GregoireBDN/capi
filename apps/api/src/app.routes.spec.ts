@@ -132,8 +132,7 @@ function asArray(value: string | string[] | undefined): string[] {
 
 function declaredTokenAccess(target: object): TokenAccessLevel | undefined {
   return Reflect.getMetadata(TOKEN_ACCESS_KEY, target) as
-    | TokenAccessLevel
-    | undefined
+    TokenAccessLevel | undefined
 }
 
 function hasAuthGuard(target: object): boolean {
@@ -162,8 +161,7 @@ function discoverRoutes(app: NestFastifyApplication): DiscoveredRoute[] {
         const handler = proto[name]
         if (name === 'constructor' || typeof handler !== 'function') continue
         const requestMethod = Reflect.getMetadata(METHOD_METADATA, handler) as
-          | RequestMethod
-          | undefined
+          RequestMethod | undefined
         if (requestMethod === undefined) continue
         const method = RequestMethod[requestMethod]
         // Same resolution as `JwtGuard`: handler, then class, then the method default.
@@ -379,9 +377,10 @@ describe('API route audit', () => {
               emailVerifiedAt: new Date(),
             })
             .returning({ id: usersTable.id })
+          // A sign-in just now: deleting the account needs a fresh session.
           const token = app
             .get(JwtService, { strict: false })
-            .sign({ sub: owner.id })
+            .sign({ sub: owner.id, auth_time: Math.floor(Date.now() / 1000) })
           await fn({ id: owner.id, cookie: `token=${token}`, tx })
           throw ROLLBACK
         })
