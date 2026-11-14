@@ -17,6 +17,11 @@
       "inputs": ["openapi.json", "openapi-ts.config.ts"],
       "outputs": ["src/api/**"]
     },
+    "@finances/mcp#generate": {
+      "dependsOn": ["@finances/api#generate"],
+      "inputs": ["openapi.json", "openapi-ts.config.ts"],
+      "outputs": ["src/api/generated/**"]
+    },
     "dev": {
       "cache": false,
       "persistent": true
