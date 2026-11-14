@@ -28,9 +28,9 @@ import type { AccountDto, AccountType } from '#/api/types.gen'
 import {
   CryptoSourceFields,
   cryptoProviderName,
-  type CryptoSourceValues,
   validateCryptoSource,
 } from '#/components/crypto/CryptoSourceFields'
+import type { CryptoSourceValues } from '#/components/crypto/CryptoSourceFields'
 import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { ROUTES } from '#/lib/routes'
 import { parseAmountToCents } from './amount'

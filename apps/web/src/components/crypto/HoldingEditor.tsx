@@ -35,10 +35,12 @@ import { createAccount } from '#/components/accounts/queries'
 import {
   CryptoSourceFields,
   cryptoProviderName,
-  type CryptoSourceErrors,
-  type CryptoSourceValues,
   EMPTY_CRYPTO_SOURCE,
   validateCryptoSource,
+} from './CryptoSourceFields'
+import type {
+  CryptoSourceErrors,
+  CryptoSourceValues,
 } from './CryptoSourceFields'
 import { holdingErrorMessage } from './errors'
 import { decimalToInput, parsePriceInput, parseQuantityInput } from './format'
@@ -242,7 +244,7 @@ export function HoldingEditor({
 
   const save = useMutation({
     mutationFn: async () => {
-      let id = holding?.accountId ?? accountId ?? target
+      let targetId = holding?.accountId ?? accountId ?? target
       if (picksAccount && target === NEW_ACCOUNT) {
         if (!created.current) {
           const name = cryptoProviderName(source)
@@ -252,9 +254,9 @@ export function HoldingEditor({
             institution: name,
           })
         }
-        id = created.current.id
+        targetId = created.current.id
       }
-      const saved = await saveHolding(id, holding?.id, {
+      const saved = await saveHolding(targetId, holding?.id, {
         assetId: asset!.id,
         symbol: asset!.symbol,
         name: asset!.name,
