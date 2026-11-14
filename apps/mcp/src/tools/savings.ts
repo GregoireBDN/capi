@@ -96,7 +96,12 @@ export const savingsTool = defineTool({
         `Objectif d'épargne mensuel : ${euros(overview.monthlyTargetCents)}.`,
       )
     }
-    const windows = averages.filter((a) => a.monthCount > 0)
+    // 3, 6 and 12 months: with a short history they cover the same months.
+    const windows = averages.filter(
+      (a, i) =>
+        a.monthCount > 0 &&
+        averages.findIndex((b) => b.from === a.from && b.to === a.to) === i,
+    )
     if (windows.length > 0) {
       lines.push(
         '',
@@ -113,7 +118,7 @@ export const savingsTool = defineTool({
       `Livrets et comptes d'épargne : ${euros(stock.cash.totalCents)}`,
       ...stock.cash.accounts.map(
         (a) =>
-          `- ${a.name} : ${eurosOrUnknown(a.balanceCents)} au ${frenchDate(a.balanceDate)}`,
+          `- ${a.name} : ${a.balanceCents === null ? 'solde inconnu' : `${euros(a.balanceCents)} au ${frenchDate(a.balanceDate)}`}`,
       ),
       `Placements : ${euros(stock.investments.totals.valueCents)}, versé ${eurosOrUnknown(stock.investments.totals.contributionsCents)}, plus-value ${eurosOrUnknown(stock.investments.totals.gainCents)} (${percent(stock.investments.totals.returnRate)})`,
       ...stock.investments.accounts.map(investmentLine),

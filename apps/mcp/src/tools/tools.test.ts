@@ -7,6 +7,8 @@ import type {
   MonthReviewDto,
   RecurringItemDto,
   RecurringSummaryDto,
+  SavingsGoalDto,
+  SavingsOverviewDto,
   SpendingByCategoryDto,
   SpendingTrendDto,
   TransactionListDto,
@@ -611,5 +613,91 @@ describe('month_review', () => {
     )
     expect(text).toContain("taux d'épargne 28 %")
     expect(text).toContain('- Restaurants : 300,00 € pour 200,00 € (+100,00 €)')
+  })
+})
+
+describe('savings_and_goals', () => {
+  it('shows each distinct average window once and goals with their projection', async () => {
+    const window = {
+      months: 3,
+      monthCount: 3,
+      from: '2026-08',
+      to: '2026-10',
+      incomeCents: 250000,
+      expenseCents: -180000,
+      netCents: 70000,
+      netExcludingOneOffsCents: 70000,
+      movedCents: 50000,
+      savingsRate: 0.28,
+    }
+    const overview: SavingsOverviewDto = {
+      currentMonth: '2026-11',
+      period: period(),
+      current: flow({ month: '2026-11' }),
+      previous: flow(),
+      monthlyTargetCents: 60000,
+      months: [],
+      averages: [window, { ...window, months: 6 }, { ...window, months: 12 }],
+      projectionAverageCents: 70000,
+      stock: {
+        totalCents: 500000,
+        gainCents: null,
+        cash: {
+          totalCents: 500000,
+          accounts: [{ ...livret, balanceCents: null, balanceDate: null }],
+        },
+        investments: {
+          totals: {
+            valueCents: 0,
+            contributionsCents: null,
+            gainCents: null,
+            returnRate: null,
+            withoutContributionsCount: 0,
+            withoutValueCount: 0,
+            staleCount: 0,
+          },
+          accounts: [],
+        },
+      },
+    }
+    const goal: SavingsGoalDto = {
+      id: 'g1',
+      name: 'Voyage',
+      targetCents: 300000,
+      targetDate: '2027-06-30',
+      source: 'manual',
+      manualAmountCents: 120000,
+      accountIds: [],
+      color: null,
+      archived: false,
+      currentCents: 120000,
+      progressRatio: 0.4,
+      remainingCents: 180000,
+      reached: false,
+      monthsLeft: 7,
+      targetDatePassed: false,
+      requiredMonthlyCents: 25715,
+      projection: {
+        averageMonthlyCents: 70000,
+        reachable: true,
+        monthsNeeded: 3,
+        projectedDate: '2027-02-28',
+        onTrack: true,
+      },
+    }
+    const { call } = await connect({
+      '/api/savings/overview': overview,
+      '/api/savings/goals': [
+        goal,
+        { ...goal, id: 'g2', name: 'Archivé', archived: true },
+      ],
+    })
+    const { text } = await call('savings_and_goals')
+    expect(text.match(/- 3 mois \(août 2026 à oct\. 2026\)/g)).toHaveLength(1)
+    expect(text).toContain('- Livret A : solde inconnu')
+    expect(text).toContain(
+      '- Voyage : 1 200,00 € sur 3 000,00 € (40 %) · reste 1 800,00 € · échéance 30/06/2027 · 257,15 € / mois nécessaires · atteint vers février 2027 au rythme moyen de 700,00 € / mois (dans les temps)',
+    )
+    expect(text).not.toContain('Archivé')
   })
 })
