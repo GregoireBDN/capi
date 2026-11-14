@@ -456,4 +456,30 @@ describe('report CSV', () => {
     expect(lines).toContain('Ponctuel;2026-10-18 MAGASIN TEST;-600,00;;')
     expect(lines).toContain('Notes;"Note; avec ""guillemets""";;;')
   })
+
+  it('keeps labels, category names and notes from becoming formulas', () => {
+    const base = report()
+    const csv = reportToCsv({
+      ...base,
+      notes: '=HYPERLINK("https://exemple.test";"Voir")',
+      categories: [{ ...base.categories[0], name: '@Courses' }],
+      oneOffs: [
+        {
+          transactionId: '30000000-0000-4000-8000-000000000009',
+          date: '2026-10-18',
+          label: '=HYPERLINK("https://exemple.test")',
+          amountCents: -60_000,
+          categoryName: null,
+        },
+      ],
+    })
+    const lines = csv.split('\r\n')
+    expect(lines).toContain(
+      `Notes;"'=HYPERLINK(""https://exemple.test"";""Voir"")";;;`,
+    )
+    expect(lines).toContain(`Dépense;"'@Courses";400,00;300,00;350,00`)
+    expect(lines).toContain(
+      'Ponctuel;"2026-10-18 =HYPERLINK(""https://exemple.test"")";-600,00;;',
+    )
+  })
 })
