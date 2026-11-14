@@ -85,6 +85,12 @@ export function frenchMonth(month: string): string {
   return match && name ? `${name} ${match[1]}` : month
 }
 
+/** `2026-10` → `d'octobre 2026`, `2026-11` → `de novembre 2026`. */
+export function ofMonth(month: string): string {
+  const name = frenchMonth(month)
+  return /^[aeiouy]/i.test(name) ? `d'${name}` : `de ${name}`
+}
+
 /** `2026-11` → `nov. 2026` (table headers). */
 export function shortMonth(month: string): string {
   const match = /^(\d{4})-(\d{2})/.exec(month)
@@ -131,4 +137,38 @@ export function addDays(date: string, days: number): string {
   const [y, m, d] = date.split('-').map(Number)
   const shifted = new Date(Date.UTC(y ?? 0, (m ?? 1) - 1, (d ?? 1) + days))
   return shifted.toISOString().slice(0, 10)
+}
+
+/**
+ * Euros typed as text → integer cents, straight from the digits (never through
+ * a float): `12,50` / `12.50` / `1 234,5 €` → 1250 / 1250 / 123450. A leading
+ * `+` or `-` is returned apart (`sign`); `null` when the text isn't an amount
+ * (more than two decimals, thousands separators other than spaces...).
+ */
+export function parseEuros(
+  text: string,
+): { cents: number; sign: '+' | '-' | null } | null {
+  const compact = text.replace(/[\s€]/g, '').replace(/eur$/i, '')
+  const match = /^([+-]?)(\d+)(?:[.,](\d{1,2}))?$/.exec(compact)
+  if (!match) return null
+  const [, sign, units = '', decimals = ''] = match
+  if (units.length > 12) return null
+  const cents = Number(units) * 100 + Number(decimals.padEnd(2, '0'))
+  if (!Number.isSafeInteger(cents)) return null
+  return { cents, sign: sign === '+' || sign === '-' ? sign : null }
+}
+
+/** Cents → euros as text a tool accepts back (`4250` → `42,50`), without floats. */
+export function centsToText(cents: number): string {
+  const abs = Math.abs(cents)
+  const units = Math.trunc(abs / 100)
+  const decimals = String(abs % 100).padStart(2, '0')
+  return `${cents < 0 ? '-' : ''}${units},${decimals}`
+}
+
+/** `2026-01` + -1 → `2025-12` (calendar months as text). */
+export function addMonths(month: string, months: number): string {
+  const [y, m] = month.split('-').map(Number)
+  const index = (y ?? 0) * 12 + ((m ?? 1) - 1) + months
+  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`
 }

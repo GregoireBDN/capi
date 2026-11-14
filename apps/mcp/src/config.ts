@@ -2,7 +2,7 @@
 export interface Config {
   /** Origin of the app (web or API), without a trailing slash or `/api`. */
   apiUrl: string
-  /** Personal access token (`fin_pat_…`), scope `read`. */
+  /** Personal access token (`fin_pat_…`): `read`, or `write` for the write tools. */
   token: string
 }
 
@@ -20,7 +20,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   if (!token) {
     throw new ConfigError(
-      'FINANCES_API_TOKEN is not set: create a read token on the profile page of the app.',
+      'FINANCES_API_TOKEN is not set: create a token on the profile page of the app (read scope, or write for the write tools).',
     )
   }
   let url: URL

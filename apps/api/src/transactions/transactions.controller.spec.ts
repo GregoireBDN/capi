@@ -136,7 +136,20 @@ describe('TransactionsController (HTTP)', () => {
       })
     })
 
+    it('parses a comma-separated ids filter', async () => {
+      const response = await request(
+        'GET',
+        `/transactions?ids=${ID},%20${OTHER_ID}`,
+      )
+
+      expect(response.statusCode).toBe(200)
+      expect(service.list).toHaveBeenCalledWith({ ids: [ID, OTHER_ID] })
+    })
+
     it.each([
+      ['ids='],
+      ['ids=nope'],
+      [`ids=${Array.from({ length: 101 }, () => ID).join(',')}`],
       ['needsReview=yes'],
       ['isOneOff=1'],
       ['sort=amount'],

@@ -5,22 +5,37 @@ import { createServer } from '../server.js'
 
 export const TEST_TOKEN = `fin_pat_${'a'.repeat(43)}`
 
-type Route = unknown | ((url: URL) => unknown)
+type Route = unknown | ((url: URL, body: unknown) => unknown)
 
-/** Fake `fetch`: JSON per path, or a `Response` for errors. Records every URL. */
+export interface Call {
+  method: string
+  url: URL
+  headers: Headers
+  body: unknown
+}
+
+/**
+ * Fake `fetch`: JSON per `"METHOD /path"` (or `/path` for any method), or a
+ * `Response` for errors. Records every call with its parsed JSON body.
+ */
 export function mockFetch(routes: Record<string, Route>) {
-  const calls: { url: URL; headers: Headers }[] = []
+  const calls: Call[] = []
   const fetchImpl = (async (
     input: string | URL | Request,
     init?: RequestInit,
   ) => {
     const url = new URL(input instanceof Request ? input.url : input)
-    calls.push({ url, headers: new Headers(init?.headers) })
-    const route = routes[url.pathname]
+    const method = init?.method ?? 'GET'
+    const body =
+      typeof init?.body === 'string'
+        ? (JSON.parse(init.body) as unknown)
+        : undefined
+    calls.push({ method, url, headers: new Headers(init?.headers), body })
+    const route = routes[`${method} ${url.pathname}`] ?? routes[url.pathname]
     if (route === undefined) return new Response('{}', { status: 404 })
-    const body = typeof route === 'function' ? route(url) : route
-    if (body instanceof Response) return body
-    return new Response(JSON.stringify(body), {
+    const result = typeof route === 'function' ? route(url, body) : route
+    if (result instanceof Response) return result
+    return new Response(JSON.stringify(result), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     })
@@ -48,6 +63,12 @@ export async function connect(
     client.connect(clientTransport),
   ])
 
+  /** Calls that change data: anything but GET and the read-only POST previews. */
+  const writes = () =>
+    calls.filter(
+      (c) => c.method !== 'GET' && !/\/(preview|suggest)$/.test(c.url.pathname),
+    )
+
   async function call(name: string, args: Record<string, unknown> = {}) {
     const result = await client.callTool({ name, arguments: args })
     const content = result.content as { type: string; text: string }[]
@@ -56,7 +77,7 @@ export async function connect(
       isError: result.isError === true,
     }
   }
-  return { client, call, calls }
+  return { client, call, calls, writes }
 }
 
 export function jsonError(

@@ -49,24 +49,47 @@ const summary: TransactionSummaryDto = {
 afterEach(() => vi.restoreAllMocks())
 
 describe('tool list', () => {
-  it('exposes small, read-only tools', async () => {
+  it('exposes small tools, read-only ones marked so', async () => {
     const { client } = await connect({})
     const { tools } = await client.listTools()
     expect(tools.map((t) => t.name).sort()).toEqual([
       'accounts_overview',
+      'add_transaction',
       'budget_history',
       'budget_status',
+      'budget_suggestions',
+      'categorize_transactions',
+      'create_rule',
       'list_categories',
+      'mark_one_off',
+      'month_close_status',
       'month_end_forecast',
       'month_review',
+      'review_queue',
       'savings_and_goals',
       'search_transactions',
+      'set_budget_targets',
+      'set_transaction_note',
       'spending_by_category',
       'spending_history',
       'subscriptions',
     ])
+    const writeTools = new Set([
+      'add_transaction',
+      'categorize_transactions',
+      'create_rule',
+      'mark_one_off',
+      'set_budget_targets',
+      'set_transaction_note',
+    ])
     for (const tool of tools) {
-      expect(tool.annotations?.readOnlyHint).toBe(true)
+      const write = writeTools.has(tool.name)
+      expect(tool.annotations?.readOnlyHint).toBe(!write)
+      if (write) {
+        expect(tool.annotations?.destructiveHint).toBe(false)
+        expect(tool.inputSchema.properties).toHaveProperty('confirm')
+      }
+      expect(tool.name).not.toMatch(/delete|remove/)
       expect(tool.description?.length).toBeGreaterThan(40)
       expect(
         Object.keys(tool.inputSchema.properties ?? {}).length,

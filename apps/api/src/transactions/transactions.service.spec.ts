@@ -269,6 +269,21 @@ describe.skipIf(!process.env.DATABASE_URL)(
         })
       })
 
+      it('filters by ids, unknown ones ignored', async () => {
+        await withFixture(async ({ tx, service, checking }) => {
+          const [first, , third] = await insert(tx, [
+            transaction(checking, { bookingDate: '2026-01-10' }),
+            transaction(checking),
+            transaction(checking, { bookingDate: '2026-01-20' }),
+          ])
+          const { items, total } = await service.list({
+            ids: [first.id, third.id, '7f0c5a7e-2d1b-4c3a-9e8f-123456789abc'],
+          })
+          expect(items.map((t) => t.id)).toEqual([third.id, first.id])
+          expect(total).toBe(2)
+        })
+      })
+
       it('filters by the one-off flag', async () => {
         await withFixture(async ({ tx, service, checking }) => {
           const [oneOff, regular] = await insert(tx, [

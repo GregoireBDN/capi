@@ -102,4 +102,52 @@ describe('ApiClient', () => {
     expect(error.status).toBe(0)
     expect(error.message).toContain('API injoignable (http://api.test)')
   })
+
+  it('sends writes as JSON with the method and the token', async () => {
+    const { api, calls } = client({
+      'PUT /api/budgets/x': { ok: true },
+    })
+    await api.send('PUT', '/api/budgets/x', { monthlyTargetCents: 100 })
+    expect(calls[0]?.method).toBe('PUT')
+    expect(calls[0]?.body).toEqual({ monthlyTargetCents: 100 })
+    expect(calls[0]?.headers.get('content-type')).toBe('application/json')
+    expect(calls[0]?.headers.get('authorization')).toBe(`Bearer ${TEST_TOKEN}`)
+  })
+
+  it('explains a write refused to a read token (403)', async () => {
+    const { api } = client({ '/api/transactions/x': jsonError(403) })
+    const error = await failure(api.send('PATCH', '/api/transactions/x', {}))
+    expect(error.message).toMatch(/lecture seule/)
+    expect(error.message).toMatch(/Rien n'a été modifié/)
+  })
+
+  it('passes on the reason of a conflict (409)', async () => {
+    const { api } = client({
+      '/api/month-close/2026-10': jsonError(409, {
+        message: 'Month is closed',
+      }),
+    })
+    const error = await failure(
+      api.send('PATCH', '/api/month-close/2026-10', {}),
+    )
+    expect(error.status).toBe(409)
+    expect(error.message).toBe(
+      "Conflit : Month is closed. Rien n'a été modifié : refaites un aperçu.",
+    )
+  })
+
+  it('says a timed-out write may or may not have been applied', async () => {
+    const api = new ApiClient({
+      baseUrl: 'http://api.test',
+      token: TEST_TOKEN,
+      fetch: (() =>
+        Promise.reject(
+          Object.assign(new Error('timeout'), { name: 'TimeoutError' }),
+        )) as typeof fetch,
+    })
+    const error = await failure(
+      api.send('POST', '/api/transactions/manual', {}),
+    )
+    expect(error.message).toMatch(/a pu être appliquée ou non/)
+  })
 })
