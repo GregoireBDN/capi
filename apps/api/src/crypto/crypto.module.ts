@@ -12,6 +12,15 @@ import { CryptoService } from './crypto.service'
 import { CRYPTO_PRICE_OPTIONS, type CryptoPriceOptions } from './price-provider'
 import { WalletKeysController } from './wallet-keys/wallet-keys.controller'
 import { WalletKeysService } from './wallet-keys/wallet-keys.service'
+import { EsploraProvider } from './wallet-sync/esplora.provider'
+import { EvmRpcProvider } from './wallet-sync/evm-rpc.provider'
+import {
+  WALLET_SYNC_OPTIONS,
+  type WalletSyncOptions,
+  WalletSyncService,
+} from './wallet-sync/wallet-sync.service'
+import { WalletTokensController } from './wallet-sync/wallet-tokens.controller'
+import { WalletTokensService } from './wallet-sync/wallet-tokens.service'
 
 @Module({
   // AuthModule provides JwtGuard and the JwtService it depends on.
@@ -20,6 +29,7 @@ import { WalletKeysService } from './wallet-keys/wallet-keys.service'
     AccountHoldingsController,
     CryptoController,
     WalletKeysController,
+    WalletTokensController,
   ],
   providers: [
     {
@@ -31,9 +41,32 @@ import { WalletKeysService } from './wallet-keys/wallet-keys.service'
         ttlMs: env.PRICE_CACHE_TTL_SECONDS * 1000,
       }),
     },
+    {
+      provide: WALLET_SYNC_OPTIONS,
+      // Off (the default): no provider at all, so nothing is ever sent.
+      useFactory: (): WalletSyncOptions => {
+        const timeoutMs = env.WALLET_SYNC_TIMEOUT_MS
+        const enabled = env.WALLET_SYNC_ENABLED
+        return {
+          bitcoin: enabled
+            ? new EsploraProvider({ baseUrl: env.ESPLORA_URL, timeoutMs })
+            : null,
+          evm: enabled
+            ? new EvmRpcProvider({ urls: env.evmRpcUrls, timeoutMs })
+            : null,
+          tokens:
+            enabled && env.PRICE_API_ENABLED
+              ? new CoinGeckoPriceProvider({ baseUrl: env.PRICE_API_URL })
+              : null,
+          intervalMs: env.WALLET_SYNC_INTERVAL_SECONDS * 1000,
+        }
+      },
+    },
     CryptoPricesService,
     CryptoService,
     WalletKeysService,
+    WalletSyncService,
+    WalletTokensService,
   ],
   exports: [CryptoService, CryptoPricesService],
 })

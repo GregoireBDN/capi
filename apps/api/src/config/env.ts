@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { z } from 'zod'
+import { evmRpcUrls } from '#/crypto/wallet-sync/chains'
 import {
   compileTrustedProxies,
   DEFAULT_TRUSTED_PROXIES,
@@ -116,6 +117,30 @@ const envSchema = z.object({
   PRICE_API_URL: z.url().default('https://api.coingecko.com/api/v3'),
   /** How long a fetched price is fresh before it is asked again. */
   PRICE_CACHE_TTL_SECONDS: z.coerce.number().int().min(30).default(600),
+
+  // Wallet sync (#129, ADR 0002): reads wallet balances from their public
+  // keys on key-less public endpoints, which then see the addresses. Opt-in:
+  // anything but the literal "true" keeps it off and sends nothing.
+  WALLET_SYNC_ENABLED: z
+    .string()
+    .optional()
+    .transform((value) => value === 'true'),
+  /** Esplora REST API (mempool.space, or a self-hosted instance). */
+  ESPLORA_URL: z.url().default('https://mempool.space/api'),
+  /**
+   * JSON object of EVM JSON-RPC URLs keyed by chain id, overriding the
+   * public defaults (`{"1":"https://my-node/rpc"}`; `""` turns a chain off).
+   */
+  EVM_RPC_URLS: z.string().optional(),
+  /** Timeout of each chain request. */
+  WALLET_SYNC_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1000)
+    .max(60_000)
+    .default(10_000),
+  /** A wallet is synced again automatically at most this often. */
+  WALLET_SYNC_INTERVAL_SECONDS: z.coerce.number().int().min(60).default(600),
 })
 
 /**
@@ -150,10 +175,20 @@ function loadEnv() {
   }
 
   const webauthn = resolveWebauthn(parsed.data)
+  let rpcUrls: ReturnType<typeof evmRpcUrls>
+  try {
+    rpcUrls = evmRpcUrls(parsed.data.EVM_RPC_URLS)
+  } catch (error) {
+    throw new Error(
+      `Invalid environment configuration:\n  - ${(error as Error).message}`,
+    )
+  }
 
   return {
     ...parsed.data,
     webauthn,
+    /** EVM JSON-RPC endpoint per chain (defaults + `EVM_RPC_URLS`). */
+    evmRpcUrls: rpcUrls,
     JWT_SECRET: parsed.data.JWT_SECRET ?? randomBytes(32).toString('hex'),
     isProduction,
     /** Whether emails can be sent (SMTP_HOST set; always true outside production). */

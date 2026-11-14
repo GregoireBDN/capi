@@ -27,6 +27,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
+import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import { CryptoPricesService } from './crypto-prices.service'
 import { CryptoService } from './crypto.service'
@@ -107,6 +108,25 @@ export class AccountHoldingsController {
   @ApiNotFoundResponse()
   valuate(@Param('id', ParseUUIDPipe) id: string): Promise<AccountHoldingsDto> {
     return this.crypto.refresh(id)
+  }
+
+  @Post('sync')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Sync a wallet account from its public keys ("Synchroniser")',
+    description:
+      "Reads the balances of the wallet's public keys on their chains (Bitcoin through Esplora, EVM chains through JSON-RPC: only public addresses and token contracts are sent), replaces the account's synced holdings (manual lines are kept), then values the account. Asks the chains at most every 30 s per wallet. A failing chain endpoint never fails the request: the last synced holdings are kept and `sync.failedAt` is set. Session only.",
+  })
+  @ApiParam(ID_PARAM)
+  @ApiOkResponse({ type: AccountHoldingsDto })
+  @ApiBadRequestResponse({
+    description:
+      'Not a wallet crypto account, archived account, wallet sync disabled on this server.',
+  })
+  @ApiNotFoundResponse()
+  @TokenAccess('none')
+  sync(@Param('id', ParseUUIDPipe) id: string): Promise<AccountHoldingsDto> {
+    return this.crypto.sync(id)
   }
 
   @Put(':holdingId')
