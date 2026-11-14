@@ -69,6 +69,26 @@ describe('proxyToApi (/api/* → API)', () => {
     expect(headers.get('x-forwarded-host')).toBe('web.test')
   })
 
+  it('forwards Origin and Sec-Fetch-Site, which the API checks on writes (#179)', async () => {
+    const api = upstream(() => new Response(null, { status: 204 }))
+
+    await proxyToApi(
+      new Request('http://web.test/api/crypto/valuate', {
+        method: 'POST',
+        headers: {
+          cookie: 'token=abc',
+          origin: 'http://web.test',
+          'sec-fetch-site': 'same-origin',
+        },
+      }),
+      { apiUrl: API_URL, fetch: api.fetch },
+    )
+
+    const headers = new Headers(api.calls[0].init.headers)
+    expect(headers.get('origin')).toBe('http://web.test')
+    expect(headers.get('sec-fetch-site')).toBe('same-origin')
+  })
+
   it('passes every Set-Cookie header through and drops encoding headers', async () => {
     const api = upstream(() => {
       const headers = new Headers({

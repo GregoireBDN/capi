@@ -9,6 +9,7 @@ import { Logger } from 'nestjs-pino'
 import { AppModule } from './app.module'
 import { registerJsonDepthLimit } from './common/http/json-depth'
 import { registerNoStoreHeaders } from './common/http/no-store'
+import { registerSameOriginCheck } from './common/http/same-origin'
 import { env } from './config/env'
 import { createFastifyAdapter } from './config/fastify-adapter'
 import { REQUEST_ID_HEADER } from './config/logger'
@@ -40,6 +41,10 @@ async function bootstrap() {
   // `Cache-Control: no-store` on every response (see `common/http/no-store.ts`).
   // Helmet sets no caching headers, so nothing conflicts with it.
   registerNoStoreHeaders(app.getHttpAdapter().getInstance())
+
+  // Unsafe requests from a page on another origin (a sibling subdomain's form
+  // post with the owner's cookies) get 403 before anything else runs (#179).
+  registerSameOriginCheck(app.getHttpAdapter().getInstance())
 
   // Deeply nested JSON bodies get a 400 before validation (#182).
   registerJsonDepthLimit(app.getHttpAdapter().getInstance())
