@@ -134,6 +134,13 @@
       "when": 1794653664206,
       "tag": "0018_crypto_account_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794654435706,
+      "tag": "0019_passkeys",
+      "breakpoints": true
     }
   ]
 }

@@ -10,9 +10,11 @@ import {
 } from '@finances/ui'
 import { ForgotForm } from './ForgotForm'
 import { LoginForm } from './LoginForm'
+import { PasskeyOffer } from './PasskeyOffer'
 import { RegisterForm } from './RegisterForm'
 
-export type AuthMode = 'login' | 'register' | 'forgot'
+/** `passkey-offer`: right after a password sign-in (see `LoginForm`). */
+export type AuthMode = 'login' | 'register' | 'forgot' | 'passkey-offer'
 
 interface AuthCardProps {
   /**
@@ -36,6 +38,10 @@ const COPY = {
     title: 'Mot de passe oublié',
     description: 'Recevez un lien de réinitialisation par email',
   },
+  'passkey-offer': {
+    title: 'Connexion plus rapide',
+    description: 'Ajoutez une passkey à ce compte',
+  },
 } satisfies Record<AuthMode, { title: string; description: string }>
 
 export function AuthCard({
@@ -55,14 +61,18 @@ export function AuthCard({
 
       <CardContent>
         {mode === 'login' && (
-          <LoginForm onSwitchToForgot={() => setMode('forgot')} />
+          <LoginForm
+            onSwitchToForgot={() => setMode('forgot')}
+            onPasskeyOffer={() => setMode('passkey-offer')}
+          />
         )}
+        {mode === 'passkey-offer' && <PasskeyOffer />}
         {mode === 'register' && <RegisterForm />}
         {mode === 'forgot' && <ForgotForm />}
       </CardContent>
 
       <CardFooter className="justify-center">
-        {mode === 'login' ? (
+        {mode === 'passkey-offer' ? null : mode === 'login' ? (
           registrationOpen && (
             <p className="text-muted-foreground text-sm">
               Pas encore de compte ?{' '}

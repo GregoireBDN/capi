@@ -135,6 +135,29 @@ describe('JwtGuard', () => {
       expect(request.accessToken).toBeUndefined()
     })
 
+    it('attaches the sign-in time from the auth_time claim', async () => {
+      verify.mockReturnValue({ sub: 'user-123', auth_time: 1_794_650_000 })
+      const { context, request } = createContext({
+        cookies: { token: 'good-token' },
+      })
+
+      await expect(guard.canActivate(context)).resolves.toBe(true)
+      expect(request.user).toStrictEqual({
+        sub: 'user-123',
+        authTime: 1_794_650_000,
+      })
+    })
+
+    it('ignores an auth_time that is not a number', async () => {
+      verify.mockReturnValue({ sub: 'user-123', auth_time: 'now' })
+      const { context, request } = createContext({
+        cookies: { token: 'good-token' },
+      })
+
+      await expect(guard.canActivate(context)).resolves.toBe(true)
+      expect(request.user).toStrictEqual({ sub: 'user-123' })
+    })
+
     it('lets the session call write and session-only routes', async () => {
       verify.mockReturnValue({ sub: 'user-123' })
       for (const [handler, controller] of [

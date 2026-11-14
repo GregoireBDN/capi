@@ -12,7 +12,8 @@ import { AuthService } from './auth.service'
  * burns the whole family (theft detection). Logout revokes the family.
  */
 
-const sha256 = (value: string) => crypto.createHash('sha256').update(value).digest('hex')
+const sha256 = (value: string) =>
+  crypto.createHash('sha256').update(value).digest('hex')
 
 /**
  * Drizzle query-builder stub. `insert().values()` and `update().set().where()`
@@ -39,7 +40,8 @@ function buildChain(
     if (captured) captured.values = row
     return chain
   })
-  chain.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve)
+  chain.then = (resolve: (v: unknown) => unknown) =>
+    Promise.resolve(result).then(resolve)
   return chain
 }
 
@@ -72,7 +74,11 @@ describe('AuthService sessions', () => {
 
       expect(tokens.accessToken).toBe('access-token')
       expect(tokens.refreshToken).toMatch(/^[a-f0-9]{64}$/) // 32 random bytes, hex
-      const row = inserted.values as { userId: string; tokenHash: string; familyId: string }
+      const row = inserted.values as {
+        userId: string
+        tokenHash: string
+        familyId: string
+      }
       expect(row.userId).toBe('user-1')
       expect(row.tokenHash).toBe(sha256(tokens.refreshToken))
       // The plaintext token is never persisted.
@@ -110,10 +116,63 @@ describe('AuthService sessions', () => {
       expect(tokens.refreshToken).toMatch(/^[a-f0-9]{64}$/)
     })
 
+    it('keeps the sign-in time of the family in the new pair', async () => {
+      const authenticatedAt = new Date('2026-11-14T09:00:00Z')
+      const inserted: { values?: unknown } = {}
+      mockDb.select.mockReturnValue(
+        buildChain([
+          {
+            id: 'rt-1',
+            userId: 'user-1',
+            familyId: 'fam-1',
+            expiresAt: new Date(Date.now() + 60_000),
+            revokedAt: null,
+            authenticatedAt,
+          },
+        ]),
+      )
+      mockDb.update.mockReturnValue(buildChain([{}]))
+      mockDb.insert.mockReturnValue(buildChain([{}], inserted))
+
+      await service.rotateRefreshToken('old-raw-token')
+
+      expect(inserted.values).toMatchObject({ authenticatedAt })
+      expect(mockJwt.sign).toHaveBeenCalledWith(
+        { sub: 'user-1', auth_time: authenticatedAt.getTime() / 1000 },
+        expect.any(Object),
+      )
+    })
+
+    it('signs no auth_time for a family that predates it', async () => {
+      mockDb.select.mockReturnValue(
+        buildChain([
+          {
+            id: 'rt-1',
+            userId: 'user-1',
+            familyId: 'fam-1',
+            expiresAt: new Date(Date.now() + 60_000),
+            revokedAt: null,
+            authenticatedAt: null,
+          },
+        ]),
+      )
+      mockDb.update.mockReturnValue(buildChain([{}]))
+      mockDb.insert.mockReturnValue(buildChain([{}]))
+
+      await service.rotateRefreshToken('old-raw-token')
+
+      expect(mockJwt.sign).toHaveBeenCalledWith(
+        { sub: 'user-1' },
+        expect.any(Object),
+      )
+    })
+
     it('rejects an unknown token', async () => {
       mockDb.select.mockReturnValue(buildChain([]))
 
-      await expect(service.rotateRefreshToken('nope')).rejects.toThrow(UnauthorizedException)
+      await expect(service.rotateRefreshToken('nope')).rejects.toThrow(
+        UnauthorizedException,
+      )
       expect(mockDb.update).not.toHaveBeenCalled()
       expect(mockDb.insert).not.toHaveBeenCalled()
     })
@@ -131,7 +190,9 @@ describe('AuthService sessions', () => {
         ]),
       )
 
-      await expect(service.rotateRefreshToken('expired')).rejects.toThrow(UnauthorizedException)
+      await expect(service.rotateRefreshToken('expired')).rejects.toThrow(
+        UnauthorizedException,
+      )
       expect(mockDb.update).not.toHaveBeenCalled()
       expect(mockDb.insert).not.toHaveBeenCalled()
     })
@@ -151,7 +212,9 @@ describe('AuthService sessions', () => {
       )
       mockDb.update.mockReturnValue(buildChain([{}], revoke))
 
-      await expect(service.rotateRefreshToken('reused')).rejects.toThrow(UnauthorizedException)
+      await expect(service.rotateRefreshToken('reused')).rejects.toThrow(
+        UnauthorizedException,
+      )
       // The family was revoked (defence against a stolen token)...
       expect(mockDb.update).toHaveBeenCalledTimes(1)
       // ...and no new session was issued.

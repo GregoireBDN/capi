@@ -24,6 +24,7 @@
     "@finances/ui": "workspace:*",
     "@hey-api/client-fetch": "^0.13.1",
     "@hookform/resolvers": "^5.2.2",
+    "@simplewebauthn/browser": "14.0.0",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-query": "^5.100.10",
     "@tanstack/react-router": "1.170.41",

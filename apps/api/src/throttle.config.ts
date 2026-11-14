@@ -15,6 +15,13 @@ export const THROTTLE_LIMITS = {
   register: 5,
   forgotPassword: 3,
   resendVerification: 3,
+  /**
+   * Passkeys: a sign-in or registration verification counts like a login
+   * attempt; options are asked on every visit of the sign-in page (conditional
+   * UI) and again on a button press, hence a little more room.
+   */
+  passkeyOptions: 10,
+  passkeyVerify: 5,
   /** Token renewal — generous enough for legitimate access-token expiry. */
   refresh: 30,
 } as const

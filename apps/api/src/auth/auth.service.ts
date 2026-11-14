@@ -175,11 +175,21 @@ export class AuthService {
     return crypto.createHash('sha256').update(token).digest('hex')
   }
 
-  private signAccessToken(userId: string): string {
-    return this.jwt.sign(
-      { sub: userId },
-      { expiresIn: ACCESS_TOKEN_TTL_SECONDS },
-    )
+  /**
+   * `auth_time` (seconds) is when the user last signed in with a password or a
+   * passkey; routes that need a fresh session read it (see `JwtGuard`).
+   */
+  private signAccessToken(
+    userId: string,
+    authenticatedAt: Date | null,
+  ): string {
+    const payload = authenticatedAt
+      ? {
+          sub: userId,
+          auth_time: Math.floor(authenticatedAt.getTime() / 1000),
+        }
+      : { sub: userId }
+    return this.jwt.sign(payload, { expiresIn: ACCESS_TOKEN_TTL_SECONDS })
   }
 
   /**
@@ -190,6 +200,7 @@ export class AuthService {
   private async issueRefreshToken(
     userId: string,
     familyId: string,
+    authenticatedAt: Date | null,
   ): Promise<SessionTokens> {
     const refreshToken = crypto.randomBytes(32).toString('hex')
     await this.db.db.insert(refreshTokensTable).values({
@@ -197,13 +208,20 @@ export class AuthService {
       familyId,
       tokenHash: this.hashToken(refreshToken),
       expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+      authenticatedAt,
     })
-    return { accessToken: this.signAccessToken(userId), refreshToken }
+    return {
+      accessToken: this.signAccessToken(userId, authenticatedAt),
+      refreshToken,
+    }
   }
 
-  /** Starts a brand-new session (fresh family) after a successful auth. */
+  /**
+   * Starts a brand-new session (fresh family) after a successful auth, password
+   * or passkey alike: same cookies, rotation and reuse detection.
+   */
   createSession(userId: string): Promise<SessionTokens> {
-    return this.issueRefreshToken(userId, crypto.randomUUID())
+    return this.issueRefreshToken(userId, crypto.randomUUID(), new Date())
   }
 
   /**
@@ -234,7 +252,12 @@ export class AuthService {
       .set({ revokedAt: new Date() })
       .where(eq(refreshTokensTable.id, record.id))
 
-    return this.issueRefreshToken(record.userId, record.familyId)
+    // Renewing the access token is not a new sign-in: keep the family's time.
+    return this.issueRefreshToken(
+      record.userId,
+      record.familyId,
+      record.authenticatedAt,
+    )
   }
 
   private async revokeFamily(familyId: string): Promise<void> {

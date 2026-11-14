@@ -34,7 +34,12 @@ const REFRESH_URL = '/api/auth/refresh'
  * Endpoints where a 401 is a genuine auth failure (bad credentials, missing
  * session) rather than an expired access token — replaying them makes no sense.
  */
-const NO_RETRY = ['/api/auth/refresh', '/api/auth/login', '/api/auth/register']
+const NO_RETRY = [
+  '/api/auth/refresh',
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/passkeys/authentication',
+]
 
 /** Clones taken before the body is consumed, so a 401 can be replayed. */
 const replayable = new WeakMap<Request, Request>()

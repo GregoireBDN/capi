@@ -6,6 +6,8 @@ import { AccessTokensService } from '#/auth/access-tokens/access-tokens.service'
 import { AuthController } from '#/auth/auth.controller'
 import { AuthService } from '#/auth/auth.service'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
+import { PasskeysController } from '#/auth/passkeys/passkeys.controller'
+import { PasskeysService } from '#/auth/passkeys/passkeys.service'
 import { env } from '#/config/env'
 
 @Module({
@@ -14,8 +16,14 @@ import { env } from '#/config/env'
       secret: env.JWT_SECRET,
     }),
   ],
-  controllers: [AuthController, AccessTokensController],
-  providers: [AuthService, JwtGuard, AccessTokensService, AccessTokenAuditHook],
+  controllers: [AuthController, AccessTokensController, PasskeysController],
+  providers: [
+    AuthService,
+    JwtGuard,
+    AccessTokensService,
+    AccessTokenAuditHook,
+    PasskeysService,
+  ],
   // JwtGuard is instantiated in each consuming module: export what it injects.
   exports: [AuthService, JwtGuard, JwtModule, AccessTokensService],
 })

@@ -42,6 +42,20 @@ const envSchema = z.object({
   APP_URL: z.url().default('http://localhost:3000'),
 
   /**
+   * Passkeys (WebAuthn): relying party id (a domain, no scheme or port) and the
+   * exact origin the browser signs in from. Both default to `APP_URL`'s host
+   * name and origin; override them only if the app is reached elsewhere.
+   */
+  WEBAUTHN_RP_ID: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(1).optional(),
+  ),
+  WEBAUTHN_ORIGIN: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.url().optional(),
+  ),
+
+  /**
    * Peers allowed to set the client IP through `X-Forwarded-For` (Fastify
    * `trustProxy`): the web server's `/api` proxy. See `trusted-proxies.ts`.
    */
@@ -104,6 +118,27 @@ const envSchema = z.object({
   PRICE_CACHE_TTL_SECONDS: z.coerce.number().int().min(30).default(600),
 })
 
+/**
+ * Relying party settings for passkeys. The RP id must be the origin's host or
+ * one of its parent domains, or every ceremony would fail in the browser:
+ * refuse to boot instead.
+ */
+export function resolveWebauthn(values: {
+  APP_URL: string
+  WEBAUTHN_RP_ID?: string
+  WEBAUTHN_ORIGIN?: string
+}): { rpId: string; origin: string } {
+  const origin = new URL(values.WEBAUTHN_ORIGIN ?? values.APP_URL).origin
+  const host = new URL(origin).hostname
+  const rpId = values.WEBAUTHN_RP_ID ?? host
+  if (host !== rpId && !host.endsWith(`.${rpId}`)) {
+    throw new Error(
+      `Invalid environment configuration:\n  - WEBAUTHN_RP_ID: must be the host of WEBAUTHN_ORIGIN (or APP_URL) or a parent domain of it`,
+    )
+  }
+  return { rpId, origin }
+}
+
 function loadEnv() {
   const parsed = envSchema.safeParse(process.env)
 
@@ -114,8 +149,11 @@ function loadEnv() {
     throw new Error(`Invalid environment configuration:\n${issues}`)
   }
 
+  const webauthn = resolveWebauthn(parsed.data)
+
   return {
     ...parsed.data,
+    webauthn,
     JWT_SECRET: parsed.data.JWT_SECRET ?? randomBytes(32).toString('hex'),
     isProduction,
     /** Whether emails can be sent (SMTP_HOST set; always true outside production). */
