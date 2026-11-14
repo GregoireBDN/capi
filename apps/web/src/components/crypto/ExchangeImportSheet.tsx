@@ -64,13 +64,15 @@ function UnmappedTicker({
   const [picking, setPicking] = useState(false)
   return (
     <li className="space-y-2 py-2">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="font-medium">{ticker}</span>
-        <span className="text-muted-foreground min-w-0 flex-1 text-sm">
-          {choice
-            ? `→ ${choice.name} (${choice.symbol.toUpperCase()})`
-            : 'Aucun actif associé'}
-        </span>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="min-w-[9rem] flex-1">
+          <p className="font-medium">{ticker}</p>
+          <p className="text-muted-foreground text-sm">
+            {choice
+              ? `→ ${choice.name} (${choice.symbol.toUpperCase()})`
+              : 'Aucun actif associé'}
+          </p>
+        </div>
         <Button
           size="sm"
           variant="secondary"
