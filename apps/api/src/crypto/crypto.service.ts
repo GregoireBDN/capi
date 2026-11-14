@@ -161,7 +161,22 @@ export class CryptoService {
   }
 
   /** Every non-archived crypto account, valued with one batched price fetch. */
-  async summary(now: Date = new Date()): Promise<CryptoSummaryDto> {
+  summary(now: Date = new Date()): Promise<CryptoSummaryDto> {
+    return this.summarize(false, now)
+  }
+
+  /**
+   * "Actualiser les cours" for every crypto account: one batched price
+   * request, then today's snapshot of each account.
+   */
+  refreshAll(now: Date = new Date()): Promise<CryptoSummaryDto> {
+    return this.summarize(true, now)
+  }
+
+  private async summarize(
+    force: boolean,
+    now: Date,
+  ): Promise<CryptoSummaryDto> {
     const accounts = await this.db
       .select()
       .from(accountsTable)
@@ -173,8 +188,10 @@ export class CryptoService {
         asc(accountsTable.createdAt),
         asc(accountsTable.id),
       )
-    const due = accounts.some((account) => this.valuationDue(account.id, now))
-    const rows = await this.valuate(accounts, due ? 'auto' : 'none', due, now)
+    const due =
+      force || accounts.some((account) => this.valuationDue(account.id, now))
+    const mode: RefreshMode = force ? 'force' : due ? 'auto' : 'none'
+    const rows = await this.valuate(accounts, mode, due, now)
 
     let invested = 0
     let investedKnown = rows.length > 0

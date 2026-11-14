@@ -8,6 +8,8 @@ import {
   accountHoldingsControllerValuate,
   cryptoControllerSearch,
   cryptoControllerSetPrice,
+  cryptoControllerSummary,
+  cryptoControllerValuate,
 } from '#/api'
 import type { SaveHoldingDto } from '#/api/types.gen'
 import { afterSnapshotsChanged } from '#/components/accounts/queries'
@@ -17,6 +19,20 @@ export const cryptoKeys = {
   all: ['crypto'] as const,
   holdings: (accountId: string) => ['crypto', 'holdings', accountId] as const,
   assets: (query: string) => ['crypto', 'assets', query] as const,
+  summary: ['crypto', 'summary'] as const,
+}
+
+/** Every open crypto account with its valued holdings (the Crypto page). */
+export const cryptoSummaryQuery = queryOptions({
+  queryKey: cryptoKeys.summary,
+  queryFn: () => unwrap(cryptoControllerSummary({ throwOnError: false })),
+  // Price ages depend on "now"; the API rate-limits the actual refreshes.
+  staleTime: 0,
+})
+
+/** "Actualiser les cours" of every crypto account, one batched request. */
+export function refreshAllPrices() {
+  return unwrap(cryptoControllerValuate({ throwOnError: false }))
 }
 
 export function holdingsQuery(accountId: string) {
