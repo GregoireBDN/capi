@@ -49,8 +49,11 @@
       "ip-address": "10.7.5",
       "jose": "6.2.14",
       "js-yaml@4": "4.3.2",
+      "nanoid@3": "3.3.18",
+      "postcss@8": "8.5.23",
       "seroval": "1.6.8",
-      "seroval-plugins": "1.6.8"
+      "seroval-plugins": "1.6.8",
+      "source-map-js@1": "1.2.2"
     }
   }
 }
