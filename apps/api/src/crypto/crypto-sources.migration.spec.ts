@@ -34,7 +34,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await client.end()
     })
 
-    /** Tables as they were before 0016, holding synthetic legacy rows. */
+    /** Tables as they were before 0017, holding synthetic legacy rows. */
     async function legacyTables(sql: postgres.TransactionSql) {
       await sql.unsafe(`
         CREATE SCHEMA ${SCHEMA};
