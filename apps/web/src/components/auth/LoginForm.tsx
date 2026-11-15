@@ -18,6 +18,7 @@ import {
   signInWithPasskey,
 } from '#/lib/passkeys'
 import type { PasskeyResult } from '#/lib/passkeys'
+import { postLoginReturnPath } from '#/lib/post-login'
 import { ROUTES } from '#/lib/routes'
 import {
   Alert,
@@ -58,7 +59,9 @@ export function LoginForm({
 
   const enterApp = useCallback(async () => {
     await refresh()
-    await navigate({ to: ROUTES.dashboard })
+    // Back to the OAuth consent page when it sent the owner here (#78).
+    const back = postLoginReturnPath()
+    await (back ? navigate({ href: back }) : navigate({ to: ROUTES.dashboard }))
   }, [navigate, refresh])
 
   /** Shared handling of a passkey sign-in; true when signed in. */

@@ -169,6 +169,15 @@ export class OAuthConsentController {
   constructor(private readonly oauth: OAuthService) {}
 
   @Get('authorize')
+  // Listed one by one: the OpenAPI generator runs without decorator metadata.
+  @ApiQuery({ name: 'client_id', required: false, type: String })
+  @ApiQuery({ name: 'redirect_uri', required: false, type: String })
+  @ApiQuery({ name: 'response_type', required: false, type: String })
+  @ApiQuery({ name: 'code_challenge', required: false, type: String })
+  @ApiQuery({ name: 'code_challenge_method', required: false, type: String })
+  @ApiQuery({ name: 'scope', required: false, type: String })
+  @ApiQuery({ name: 'state', required: false, type: String })
+  @ApiQuery({ name: 'resource', required: false, type: String })
   @ApiOperation({
     summary:
       'Check an authorization request and describe it for the consent page',
