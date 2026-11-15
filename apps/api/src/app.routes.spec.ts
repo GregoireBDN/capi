@@ -85,6 +85,12 @@ const PUBLIC_ROUTES = [
  * The MCP import tools (#103, `apps/mcp/src/tools/import-writes.ts`) use
  * `POST /api/imports/preview` (preview_bank_import, stores a pending import)
  * and `POST /api/imports/:id/commit` (commit_bank_import).
+ * The investment tools (#104) use `POST /api/accounts/:id/snapshots/bulk`
+ * (add_investment_snapshots) and `POST /api/accounts/:id/holdings`,
+ * `PUT /api/accounts/:id/holdings/:holdingId` (sync_crypto_holdings: tokens
+ * only change hand-entered lines of manual-source crypto accounts, 403
+ * otherwise, `CryptoService.assertTokenMayWrite`). Account creation stays
+ * session-only.
  * The others were opened with the tokens for scripts and later tools.
  */
 const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
@@ -93,6 +99,10 @@ const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
   'PATCH /api/savings/goals/:id': 'write',
   'PATCH /api/transactions/:id': 'write',
   'PATCH /api/transactions/manual/:id': 'write',
+  // #104: sync_crypto_holdings (MCP) adds and replaces hand-entered holdings;
+  // only manual lines of manual-source accounts (403 otherwise); DELETE stays
+  // session-only.
+  'POST /api/accounts/:id/holdings': 'write',
   'POST /api/accounts/:id/snapshots/bulk': 'write',
   'POST /api/budgets/suggest': 'read',
   'POST /api/categorization-rules': 'write',
@@ -107,6 +117,7 @@ const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
   'POST /api/savings/goals': 'write',
   'POST /api/transactions/bulk-update': 'write',
   'POST /api/transactions/manual': 'write',
+  'PUT /api/accounts/:id/holdings/:holdingId': 'write',
   'PUT /api/accounts/:id/snapshots/:date': 'write',
   'PUT /api/budgets/:categoryId': 'write',
   'PUT /api/savings/target': 'write',

@@ -2,6 +2,12 @@ import { accountsOverviewTool } from './accounts.js'
 import { setBudgetTargetsTool } from './budget-writes.js'
 import { budgetHistoryTool, budgetStatusTool } from './budgets.js'
 import { listCategoriesTool } from './categories.js'
+import {
+  addInvestmentSnapshotsTool,
+  createInvestmentAccountTool,
+  syncCryptoHoldingsTool,
+} from './investment-writes.js'
+import { listInvestmentAccountsTool } from './investments.js'
 import { monthEndForecastTool } from './forecast.js'
 import {
   commitBankImportTool,
@@ -42,6 +48,9 @@ export const readTools = [
   monthCloseStatusTool,
   reviewQueueTool,
   listImportsTool,
+  // #104: investments, before importing statement values.
+  listInvestmentAccountsTool,
+  createInvestmentAccountTool,
 ]
 
 /**
@@ -58,6 +67,9 @@ export const writeTools = [
   // Bank CSV imports (#103): preview, then commit with `confirm: true`.
   previewBankImportTool,
   commitBankImportTool,
+  // #104
+  addInvestmentSnapshotsTool,
+  syncCryptoHoldingsTool,
 ]
 
 export const tools = [...readTools, ...writeTools]

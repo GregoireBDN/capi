@@ -1,5 +1,9 @@
 import '#/load-env'
-import { BadRequestException, ConflictException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common'
 import { eq } from 'drizzle-orm'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -504,6 +508,53 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
       ])
       // Valuation unchanged: every line counts.
       expect(listed.totals.valueCents).toBe(3_120_026)
+    })
+  })
+  it('lets tokens change only hand-entered lines of manual accounts (#104)', async () => {
+    await inRollback(async ({ crypto, account, tx }) => {
+      const manualId = await account()
+      await expect(
+        crypto.assertTokenMayWrite(manualId),
+      ).resolves.toBeUndefined()
+      const manual = await crypto.create(
+        manualId,
+        { ...BTC, quantity: '0.01', location: 'Ledger' },
+        NOW,
+      )
+      await expect(
+        crypto.assertTokenMayWrite(manualId, manual.id),
+      ).resolves.toBeUndefined()
+
+      const [synced] = await tx
+        .insert(schema.cryptoHoldingsTable)
+        .values({
+          accountId: manualId,
+          ...BTC,
+          quantity: '0.5',
+          origin: 'sync',
+        })
+        .returning()
+      await expect(
+        crypto.assertTokenMayWrite(manualId, synced.id),
+      ).rejects.toThrow('cannot change imported or synced holdings')
+
+      for (const source of ['exchange', 'wallet'] as const) {
+        const id = await account('crypto', `Compte ${source}`)
+        await tx
+          .update(schema.accountsTable)
+          .set({
+            cryptoSource: source,
+            cryptoProvider: source === 'exchange' ? 'binance' : null,
+          })
+          .where(eq(schema.accountsTable.id, id))
+        await expect(crypto.assertTokenMayWrite(id)).rejects.toBeInstanceOf(
+          ForbiddenException,
+        )
+      }
+      const pea = await account('brokerage', 'PEA')
+      await expect(crypto.assertTokenMayWrite(pea)).rejects.toBeInstanceOf(
+        BadRequestException,
+      )
     })
   })
 })

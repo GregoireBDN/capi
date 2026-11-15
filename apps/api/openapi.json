@@ -4022,6 +4022,9 @@
           "401": {
             "description": ""
           },
+          "403": {
+            "description": "Personal access token (#104) on an exchange or wallet account, or on an imported or synced line: tokens only change hand-entered lines of manual crypto accounts."
+          },
           "404": {
             "description": ""
           },
@@ -4184,6 +4187,9 @@
           },
           "401": {
             "description": ""
+          },
+          "403": {
+            "description": "Personal access token (#104) on an exchange or wallet account, or on an imported or synced line: tokens only change hand-entered lines of manual crypto accounts."
           },
           "404": {
             "description": ""

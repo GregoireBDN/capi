@@ -625,8 +625,10 @@ describe('month-end review', () => {
   it('lists the prompt and fills in the previous month by default', async () => {
     const { client } = await connect({})
     const { prompts } = await client.listPrompts()
-    expect(prompts.map((p) => p.name)).toEqual(['revue_du_mois'])
-    expect(prompts[0]?.title).toBe('Revue du mois')
+    expect(prompts.map((p) => p.name)).toContain('revue_du_mois')
+    expect(prompts.find((p) => p.name === 'revue_du_mois')?.title).toBe(
+      'Revue du mois',
+    )
 
     const result = await client.getPrompt({ name: 'revue_du_mois' })
     const text = (result.messages[0]?.content as { text: string }).text
