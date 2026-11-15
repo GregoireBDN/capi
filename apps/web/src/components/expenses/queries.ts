@@ -3,12 +3,14 @@ import type { QueryClient } from '@tanstack/react-query'
 import {
   budgetsControllerEnvelopes,
   transactionsControllerCreateManual,
+  transactionsControllerManualSuggestions,
   transactionsControllerRemoveManual,
   transactionsControllerUpdateManual,
 } from '#/api'
 import type {
   CreateManualTransactionDto,
   TransactionDto,
+  TransactionKind,
   UpdateManualTransactionDto,
 } from '#/api/types.gen'
 import { ApiRequestError, unwrap } from '#/lib/queries'
@@ -24,6 +26,23 @@ export const envelopesQuery = queryOptions({
   // Expenses are noted elsewhere too (other tab, phone): refetch on mount.
   staleTime: 0,
 })
+
+/**
+ * Labels and categories offered first when entering a transaction of this
+ * kind by hand (#196). Under `transactions`, so every save refetches it.
+ */
+export const manualSuggestionsQuery = (kind: TransactionKind) =>
+  queryOptions({
+    queryKey: ['transactions', 'manual-suggestions', kind] as const,
+    queryFn: () =>
+      unwrap(
+        transactionsControllerManualSuggestions({
+          query: { kind },
+          throwOnError: false,
+        }),
+      ),
+    staleTime: 5 * 60_000,
+  })
 
 export function createManualExpense(body: CreateManualTransactionDto) {
   return unwrap(

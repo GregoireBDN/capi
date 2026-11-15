@@ -18,6 +18,7 @@ const api = vi.hoisted(() => ({
   transactionsControllerCreateManual: vi.fn(),
   transactionsControllerUpdateManual: vi.fn(),
   transactionsControllerRemoveManual: vi.fn(),
+  transactionsControllerManualSuggestions: vi.fn(),
   accountsControllerList: vi.fn(),
   categoriesControllerList: vi.fn(),
 }))
@@ -73,11 +74,32 @@ const category = (id: string, name: string, kind: CategoryDto['kind']) =>
   }) as CategoryDto
 const OUTINGS = 'c0000000-0000-4000-8000-000000000001'
 const SHOPPING = 'c0000000-0000-4000-8000-000000000002'
+const GROCERIES = 'c0000000-0000-4000-8000-000000000004'
 const categories = [
   category(SHOPPING, 'Shopping', 'expense'),
   category(OUTINGS, 'Sorties', 'expense'),
   category('c0000000-0000-4000-8000-000000000003', 'Salaire', 'income'),
+  category(GROCERIES, 'Courses', 'expense'),
 ]
+
+/** Names of the category chips, and the chosen one. */
+function categoryChips(dialog: HTMLElement) {
+  const chips = within(
+    within(dialog).getByRole('group', { name: 'Catégorie' }),
+  ).getAllByRole('radio')
+  return {
+    names: chips.map((chip) => chip.textContent),
+    checked: chips
+      .filter((chip) => chip.getAttribute('aria-checked') === 'true')
+      .map((chip) => chip.textContent),
+  }
+}
+
+function optionNames(select: HTMLElement) {
+  return within(select)
+    .getAllByRole('option')
+    .map((option) => option.textContent)
+}
 
 const account = (id: string, name: string, type: AccountDto['type']) =>
   ({
@@ -153,6 +175,9 @@ beforeEach(() => {
   api.budgetsControllerEnvelopes.mockImplementation(() => ok(envelopes))
   api.accountsControllerList.mockImplementation(() => ok(accounts))
   api.categoriesControllerList.mockImplementation(() => ok(categories))
+  api.transactionsControllerManualSuggestions.mockImplementation(() =>
+    ok({ items: [], categoryIds: [] }),
+  )
   api.transactionsControllerCreateManual.mockImplementation(() =>
     ok({ amountCents: -1_250, category: categories[1] }),
   )
@@ -199,23 +224,34 @@ describe('MonthEnvelopes', () => {
       }),
     )
     const dialog = await screen.findByRole('dialog')
-    const categorySelect = within(dialog).getByLabelText('Catégorie')
-    await waitFor(() => expect(categorySelect).toHaveValue(OUTINGS))
-    // Envelopes first, income categories never offered.
-    expect(
-      within(categorySelect)
-        .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).toEqual(['Shopping', 'Sorties'])
+    // The amount comes first and is focused.
+    expect(within(dialog).getByLabelText('Montant')).toHaveFocus()
+    // Envelopes first, then the other expense categories; never income.
+    await waitFor(() =>
+      expect(categoryChips(dialog)).toEqual({
+        names: ['Shopping', 'Sorties', 'Courses'],
+        checked: ['Sorties'],
+      }),
+    )
+    const other = within(dialog).getByLabelText('Autre catégorie')
+    expect(other).toHaveValue('')
+    expect(optionNames(other)).toEqual([
+      'Autre…',
+      'Shopping',
+      'Sorties',
+      'Courses',
+    ])
     expect(within(dialog).getByLabelText('Date')).toHaveValue('2026-11-13')
-    // Only cash accounts; the checking one by default.
+    expect(
+      within(dialog).getByRole('radio', { name: 'Aujourd’hui' }),
+    ).toHaveAttribute('aria-checked', 'true')
+    // Only cash accounts, under "Plus d'options"; the checking one by default.
+    await user.click(
+      within(dialog).getByRole('button', { name: /Plus d’options/ }),
+    )
     const accountSelect = within(dialog).getByLabelText('Compte')
     await waitFor(() => expect(accountSelect).toHaveValue(CHECKING))
-    expect(
-      within(accountSelect)
-        .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).toEqual(['Livret A', 'Compte courant'])
+    expect(optionNames(accountSelect)).toEqual(['Livret A', 'Compte courant'])
 
     await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
     expect(within(dialog).getByText('Indiquez un montant')).toBeInTheDocument()
@@ -223,6 +259,8 @@ describe('MonthEnvelopes', () => {
 
     await user.type(within(dialog).getByLabelText('Montant'), '12,50')
     await user.type(within(dialog).getByLabelText('Libellé'), ' Ciné ')
+    await user.click(within(dialog).getByRole('radio', { name: 'Hier' }))
+    expect(within(dialog).getByLabelText('Date')).toHaveValue('2026-11-12')
     await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
 
     await waitFor(() =>
@@ -232,7 +270,7 @@ describe('MonthEnvelopes', () => {
           kind: 'expense',
           direction: 'out',
           categoryId: OUTINGS,
-          bookingDate: '2026-11-13',
+          bookingDate: '2026-11-12',
           label: 'Ciné',
           accountId: CHECKING,
           isOneOff: false,
@@ -246,6 +284,151 @@ describe('MonthEnvelopes', () => {
     )
     // The envelopes are refetched.
     expect(api.budgetsControllerEnvelopes.mock.calls.length).toBeGreaterThan(1)
+  })
+
+  it('offers the most used categories and the labels used before', async () => {
+    api.transactionsControllerManualSuggestions.mockImplementation(() =>
+      ok({
+        items: [
+          { label: 'Boulangerie test', categoryId: GROCERIES },
+          { label: 'Cinéma test', categoryId: OUTINGS },
+          { label: 'Marché test', categoryId: null },
+        ],
+        categoryIds: [GROCERIES],
+      }),
+    )
+    const user = userEvent.setup()
+    renderCard()
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Ajouter une dépense' }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    expect(api.transactionsControllerManualSuggestions).toHaveBeenCalledWith({
+      query: { kind: 'expense' },
+      throwOnError: false,
+    })
+    // Most used first, then the envelopes; the first one chosen by default.
+    await waitFor(() =>
+      expect(categoryChips(dialog)).toEqual({
+        names: ['Courses', 'Shopping', 'Sorties'],
+        checked: ['Courses'],
+      }),
+    )
+    const suggestions = within(dialog).getByRole('list', {
+      name: 'Libellés déjà utilisés',
+    })
+    expect(
+      within(suggestions)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Boulangerie test', 'Cinéma test', 'Marché test'])
+
+    // Typing narrows them, accents ignored.
+    await user.type(within(dialog).getByLabelText('Libellé'), 'cine')
+    expect(
+      within(suggestions)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Cinéma test'])
+    // A tap fills the label and its usual category.
+    await user.click(
+      within(suggestions).getByRole('button', { name: 'Cinéma test' }),
+    )
+    expect(within(dialog).getByLabelText('Libellé')).toHaveValue('Cinéma test')
+    expect(categoryChips(dialog).checked).toEqual(['Sorties'])
+    // A label without a usual category keeps the chosen one.
+    await user.clear(within(dialog).getByLabelText('Libellé'))
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Marché test' }),
+    )
+    expect(within(dialog).getByLabelText('Libellé')).toHaveValue('Marché test')
+    expect(categoryChips(dialog).checked).toEqual(['Sorties'])
+
+    await user.type(within(dialog).getByLabelText('Montant'), '4,20')
+    await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
+    await waitFor(() =>
+      expect(api.transactionsControllerCreateManual).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            amountCents: 420,
+            categoryId: OUTINGS,
+            label: 'Marché test',
+          }) as unknown,
+        }),
+      ),
+    )
+  })
+
+  it('picks a category from the whole list when it is not a chip', async () => {
+    const extra = ['Alpha', 'Bêta', 'Gamma', 'Delta'].map((name, index) =>
+      category(`c0000000-0000-4000-8000-00000000001${index}`, name, 'expense'),
+    )
+    api.categoriesControllerList.mockImplementation(() =>
+      ok([...categories, ...extra]),
+    )
+    const user = userEvent.setup()
+    renderCard()
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Ajouter une dépense' }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    // Five chips: the envelopes, then the others in alphabetical order.
+    await waitFor(() =>
+      expect(categoryChips(dialog).names).toEqual([
+        'Shopping',
+        'Sorties',
+        'Alpha',
+        'Bêta',
+        'Courses',
+      ]),
+    )
+    const other = within(dialog).getByLabelText('Autre catégorie')
+    await user.selectOptions(other, extra[3].id)
+    // The list shows it; no chip is chosen.
+    expect(other).toHaveValue(extra[3].id)
+    expect(categoryChips(dialog).checked).toEqual([])
+    await user.click(within(dialog).getByRole('radio', { name: 'Alpha' }))
+    expect(other).toHaveValue('')
+  })
+
+  it('sets the sign from the kind; a transfer asks for it', async () => {
+    const user = userEvent.setup()
+    renderCard()
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Ajouter une dépense' }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).queryByLabelText('Sens')).not.toBeInTheDocument()
+    await user.click(within(dialog).getByRole('radio', { name: 'Virement' }))
+    const direction = within(dialog).getByLabelText('Sens')
+    expect(direction).toHaveValue('out')
+    await user.selectOptions(direction, 'in')
+    // A transfer needs no category.
+    expect(within(dialog).getByLabelText('Autre catégorie')).toHaveValue(
+      '__none__',
+    )
+    await user.type(within(dialog).getByLabelText('Montant'), '100')
+    await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
+    expect(
+      within(dialog).getByText('Sans catégorie, indiquez un libellé'),
+    ).toBeInTheDocument()
+    await user.type(within(dialog).getByLabelText('Libellé'), 'Épargne')
+    await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
+    await waitFor(() =>
+      expect(api.transactionsControllerCreateManual).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            kind: 'transfer',
+            direction: 'in',
+            categoryId: null,
+            label: 'Épargne',
+          }) as unknown,
+        }),
+      ),
+    )
   })
 
   it('refuses a date in the future', async () => {
@@ -306,7 +489,7 @@ describe('ManualTransactionSheet (editing)', () => {
     updatedAt: STAMP,
   } as TransactionDto
 
-  function renderSheet(onOpenChange = vi.fn()) {
+  function renderSheet(onOpenChange = vi.fn(), item = expense) {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     })
@@ -319,7 +502,7 @@ describe('ManualTransactionSheet (editing)', () => {
         <ManualTransactionSheet
           open
           onOpenChange={onOpenChange}
-          expense={expense}
+          expense={item}
         />
       </QueryClientProvider>,
     )
@@ -332,13 +515,14 @@ describe('ManualTransactionSheet (editing)', () => {
     renderSheet()
 
     const dialog = await screen.findByRole('dialog')
-    const categorySelect = within(dialog).getByLabelText('Catégorie')
     // Once the lists are loaded, the expense's own values are kept.
-    await waitFor(() =>
-      expect(within(categorySelect).getAllByRole('option')).toHaveLength(2),
-    )
-    expect(categorySelect).toHaveValue(OUTINGS)
-    expect(within(dialog).getByLabelText('Compte')).toHaveValue(CHECKING)
+    await waitFor(() => expect(categoryChips(dialog).names).toHaveLength(3))
+    expect(categoryChips(dialog).checked).toEqual(['Sorties'])
+    // Nothing optional is set: the options stay folded.
+    expect(
+      within(dialog).getByRole('button', { name: /Plus d’options/ }),
+    ).toHaveAttribute('aria-expanded', 'false')
+    expect(within(dialog).queryByLabelText('Compte')).not.toBeInTheDocument()
     expect(within(dialog).getByLabelText('Montant')).toHaveValue('25')
     expect(within(dialog).getByLabelText('Date')).toHaveValue('2026-11-08')
     expect(within(dialog).getByLabelText('Libellé')).toHaveValue('Ciné')
@@ -365,6 +549,35 @@ describe('ManualTransactionSheet (editing)', () => {
         },
         throwOnError: false,
       }),
+    )
+  })
+
+  it('shows the options of a refund, and keeps its sign', async () => {
+    const refund = { ...expense, amountCents: 1_500, note: 'Avoir' }
+    api.transactionsControllerUpdateManual.mockImplementation(() => ok(refund))
+    const user = userEvent.setup()
+    renderSheet(vi.fn(), refund)
+
+    const dialog = await screen.findByRole('dialog')
+    expect(
+      within(dialog).getByRole('button', { name: /Plus d’options/ }),
+    ).toHaveAttribute('aria-expanded', 'true')
+    expect(within(dialog).getByLabelText('Sens')).toHaveValue('in')
+    expect(within(dialog).getByLabelText('Note')).toHaveValue('Avoir')
+    await waitFor(() => expect(categoryChips(dialog).names).toHaveLength(3))
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Enregistrer' }),
+    )
+    await waitFor(() =>
+      expect(api.transactionsControllerUpdateManual).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            amountCents: 1_500,
+            direction: 'in',
+            note: 'Avoir',
+          }) as unknown,
+        }),
+      ),
     )
   })
 

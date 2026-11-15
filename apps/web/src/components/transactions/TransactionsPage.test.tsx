@@ -23,6 +23,7 @@ const api = vi.hoisted(() => ({
   transactionsControllerBulkUpdate: vi.fn(),
   transactionsControllerReviewCount: vi.fn(),
   transactionsControllerCreateManual: vi.fn(),
+  transactionsControllerManualSuggestions: vi.fn(),
   transactionsControllerUpdateManual: vi.fn(),
   transactionsControllerRemoveManual: vi.fn(),
   transactionsControllerSplit: vi.fn(),
@@ -234,6 +235,9 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-11-05T10:00:00Z'))
   api.accountsControllerList.mockReturnValue(ok(accounts))
   api.categoriesControllerList.mockReturnValue(ok(categories))
+  api.transactionsControllerManualSuggestions.mockReturnValue(
+    ok({ items: [], categoryIds: [] }),
+  )
   api.transactionsControllerList.mockReturnValue(listOf(rows))
   api.transactionsControllerSummary.mockReturnValue(ok(summary))
   api.transactionsControllerReviewCount.mockReturnValue(ok({ count: 1 }))
@@ -1062,13 +1066,14 @@ describe('TransactionsPage', () => {
       expect(
         screen.getByRole('dialog', { name: 'Ajouter un revenu' }),
       ).toBeInTheDocument()
-      expect(within(sheet).getByLabelText('Sens')).toHaveValue('in')
-      await user.selectOptions(
-        within(sheet).getByLabelText('Catégorie'),
-        salary.id,
-      )
+      await user.click(within(sheet).getByRole('radio', { name: salary.name }))
       await user.type(within(sheet).getByLabelText('Montant'), '300')
       await user.type(within(sheet).getByLabelText('Libellé'), 'Prime')
+      await user.click(
+        within(sheet).getByRole('button', { name: /Plus d’options/ }),
+      )
+      // The kind sets the sign; it is only changed for a correction.
+      expect(within(sheet).getByLabelText('Sens')).toHaveValue('in')
       await user.click(
         within(sheet).getByRole('switch', { name: /Ponctuelle/ }),
       )

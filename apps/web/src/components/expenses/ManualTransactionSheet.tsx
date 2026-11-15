@@ -21,12 +21,15 @@ import {
   Textarea,
   ToggleGroup,
   ToggleGroupItem,
+  cn,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useMemo, useState } from 'react'
+import { ChevronDownIcon } from 'lucide-react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type {
+  ManualSuggestionDto,
   MoneyDirection,
   TransactionDto,
   TransactionKind,
@@ -46,8 +49,15 @@ import {
   deleteManualExpense,
   manualBody,
   manualExpenseErrorMessage,
+  manualSuggestionsQuery,
   updateManualExpense,
 } from './queries'
+import {
+  CategoryChips,
+  DateChips,
+  LabelSuggestions,
+  matchingSuggestions,
+} from './manual-fields'
 import { splitTransaction } from '#/components/transactions/edits'
 
 const LABEL_MAX = 255
@@ -56,6 +66,8 @@ const NOTE_MAX = 2000
 const MAX_CENTS = 100_000_000
 /** How long a toast offering "Annuler" stays up. */
 const UNDO_TOAST_MS = 8000
+/** Categories shown as chips; the others are under "Autre…". */
+const CATEGORY_CHIPS_MAX = 5
 
 /** Error for the amount typed, or null when valid. */
 export function expenseAmountError(text: string): string | null {
@@ -70,6 +82,32 @@ export function expenseAmountError(text: string): string | null {
 /** Sign of the amount when the user did not choose one. */
 function defaultDirection(kind: TransactionKind): MoneyDirection {
   return kind === 'income' ? 'in' : 'out'
+}
+
+/** "Sortie" (money out) or "Entrée" (money in). */
+function DirectionSelect({
+  id,
+  className,
+  value,
+  onChange,
+}: {
+  id?: string
+  className?: string
+  value: MoneyDirection
+  onChange: (direction: MoneyDirection) => void
+}) {
+  return (
+    <NativeSelect
+      id={id}
+      aria-label={id ? undefined : 'Sens'}
+      className={className}
+      value={value}
+      onChange={(event) => onChange(event.target.value as MoneyDirection)}
+    >
+      <NativeSelectOption value="out">Sortie</NativeSelectOption>
+      <NativeSelectOption value="in">Entrée</NativeSelectOption>
+    </NativeSelect>
+  )
 }
 
 const TITLES: Record<TransactionKind, [add: string, edit: string]> = {
@@ -93,11 +131,16 @@ interface ManualTransactionSheetProps {
 
 /**
  * Enters a transaction by hand, or edits / deletes one: kind (expense,
- * income, internal transfer), amount and direction, category, day (today by
- * default), label, account (the first checking account by default), one-off
- * flag and note. The import of the bank export replaces it with the matching
- * bank row. Every save offers "Annuler". A bottom sheet on phones, a side
- * sheet otherwise.
+ * income, internal transfer), amount (the kind sets the sign; a transfer
+ * asks for it), category, label, day (today by default), and under "Plus
+ * d'options" the account (the first checking account by default), the sign
+ * of an expense or income (a refund), one-off flag and note. The import of
+ * the bank export replaces it with the matching bank row. Every save offers
+ * "Annuler". A bottom sheet on phones, a side sheet otherwise.
+ *
+ * Mobile-first (#196): the amount comes first and is focused, categories
+ * and days are chips, labels used before are suggested (with their usual
+ * category), and the actions stay at the bottom, above the keyboard.
  */
 export function ManualTransactionSheet({
   open,
@@ -126,7 +169,13 @@ export function ManualTransactionSheet({
   const [note, setNote] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const amountRef = useRef<HTMLInputElement>(null)
   const today = currentDay()
+  const suggestions = useQuery({
+    ...manualSuggestionsQuery(kind),
+    enabled: open,
+  })
 
   const kindCategories = useMemo(() => {
     const all = pickableCategories(
@@ -141,6 +190,29 @@ export function ManualTransactionSheet({
       (a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name, 'fr'),
     )
   }, [categories.data, expense?.categoryId, suggestedCategoryIds, kind])
+
+  // The categories most used for the kind, then the envelopes, then the
+  // rest in list order; none until the most used are known (or failed to
+  // load), so the chips never move under the finger.
+  const chipIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (suggestions.isPending) return []
+    const pickable = new Set(kindCategories.map((category) => category.id))
+    for (const categoryKey of [
+      ...(suggestions.data?.categoryIds ?? []),
+      ...suggestedCategoryIds,
+      ...kindCategories.map((category) => category.id),
+    ]) {
+      if (ids.size >= CATEGORY_CHIPS_MAX) break
+      if (pickable.has(categoryKey)) ids.add(categoryKey)
+    }
+    return [...ids]
+  }, [
+    suggestions.isPending,
+    suggestions.data,
+    suggestedCategoryIds,
+    kindCategories,
+  ])
 
   const cashAccounts = useMemo(
     () =>
@@ -178,17 +250,25 @@ export function ManualTransactionSheet({
     setAccountId(expense?.accountId ?? '')
     setIsOneOff(expense?.isOneOff ?? false)
     setNote(expense?.note ?? '')
+    // Optional fields already used stay in view when editing.
+    setMoreOpen(
+      expense !== undefined &&
+        (expense.isOneOff ||
+          expense.note !== null ||
+          (expense.kind !== 'transfer' &&
+            expense.amountCents > 0 !== (expense.kind === 'income'))),
+    )
     setSubmitted(false)
   }, [open, expense, initialCategoryId, initialKind])
 
-  // An expense needs a category: the first one offered by default. Other
-  // kinds may stay without one (the review queue). Functional updates: the
-  // reset above may have set a value in the same commit, which must win.
+  // An expense needs a category: the first chip (the most used) by default.
+  // Other kinds may stay without one (the review queue). Functional updates:
+  // the reset above may have set a value in the same commit, which must win.
   useEffect(() => {
-    if (!open || kind !== 'expense' || kindCategories.length === 0) return
+    if (!open || kind !== 'expense' || chipIds.length === 0) return
     if (expense && expense.kind === 'expense' && !expense.categoryId) return
-    setCategoryId((current) => current || kindCategories[0].id)
-  }, [open, kind, kindCategories, expense])
+    setCategoryId((current) => current || chipIds[0])
+  }, [open, kind, chipIds, expense])
   useEffect(() => {
     if (!open || cashAccounts.length === 0) return
     const preferred =
@@ -208,6 +288,49 @@ export function ManualTransactionSheet({
         : '',
     )
   }
+
+  // A new expense needs a category; other kinds may go to the review queue,
+  // and an expense entered without one may stay so.
+  const allowNoCategory =
+    kind !== 'expense' || (expense?.kind === 'expense' && !expense.categoryId)
+
+  const shownSuggestions = useMemo(
+    () => matchingSuggestions(suggestions.data?.items ?? [], label),
+    [suggestions.data, label],
+  )
+
+  function pickSuggestion(item: ManualSuggestionDto) {
+    setLabel(item.label)
+    if (
+      item.categoryId &&
+      kindCategories.some((category) => category.id === item.categoryId)
+    ) {
+      setCategoryId(item.categoryId)
+    }
+  }
+
+  // What "Plus d'options" holds when closed, so nothing is set unseen.
+  const chosenAccount = cashAccounts.find((option) => option.id === accountId)
+  const defaultAccountId = (
+    cashAccounts.find((option) => option.type === 'checking') ??
+    cashAccounts.at(0)
+  )?.id
+  const moreSummary = [
+    cashAccounts.length > 1 &&
+    chosenAccount &&
+    chosenAccount.id !== defaultAccountId
+      ? chosenAccount.name
+      : null,
+    kind !== 'transfer' && direction !== defaultDirection(kind)
+      ? direction === 'in'
+        ? 'Entrée'
+        : 'Sortie'
+      : null,
+    isOneOff ? 'Ponctuelle' : null,
+    note.trim() ? 'Note' : null,
+  ]
+    .filter(Boolean)
+    .join(', ')
 
   const amountError = expenseAmountError(amount)
   const dateError =
@@ -308,184 +431,255 @@ export function ManualTransactionSheet({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side={isMobile ? 'bottom' : 'right'}
-          className={
-            isMobile
-              ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-              : 'overflow-y-auto'
-          }
+          className={cn(
+            // The fields scroll; the actions stay at the bottom, above the
+            // on-screen keyboard (see `Sheet`).
+            'gap-0',
+            isMobile &&
+              'max-h-[calc(90svh-var(--keyboard-inset,0px))] rounded-t-xl',
+          )}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault()
+            amountRef.current?.focus({ preventScroll: true })
+          }}
         >
-          <SheetHeader className="pb-0">
-            <SheetTitle>{expense ? editTitle : addTitle}</SheetTitle>
-            <SheetDescription>
-              Saisie à la main en attendant le relevé : l’import la remplacera
-              par l’opération de la banque, en gardant sa catégorie.
-            </SheetDescription>
-          </SheetHeader>
-          <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
-            <Field>
-              <FieldLabel id={`${id}-kind`}>Type</FieldLabel>
-              <ToggleGroup
-                type="single"
-                variant="outline"
-                aria-labelledby={`${id}-kind`}
-                className="w-full"
-                value={kind}
-                onValueChange={(value) => {
-                  if (value) changeKind(value as TransactionKind)
-                }}
-              >
-                {TRANSACTION_KINDS.map((option) => (
-                  <ToggleGroupItem
-                    key={option}
-                    value={option}
-                    className="flex-1"
-                  >
-                    {option === 'transfer' ? 'Virement' : KIND_LABELS[option]}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-            </Field>
-
-            <Field data-invalid={showAmountError}>
-              <FieldLabel htmlFor={`${id}-amount`}>Montant</FieldLabel>
-              <div className="flex flex-wrap gap-2">
-                <InputGroup className="min-w-[7rem] flex-1">
-                  <InputGroupInput
-                    id={`${id}-amount`}
-                    inputMode="decimal"
-                    autoComplete="off"
-                    placeholder="12,50"
-                    value={amount}
-                    aria-invalid={showAmountError}
-                    onChange={(event) => setAmount(event.target.value)}
-                  />
-                  <InputGroupAddon align="inline-end">
-                    <InputGroupText>€</InputGroupText>
-                  </InputGroupAddon>
-                </InputGroup>
-                <NativeSelect
-                  aria-label="Sens"
-                  value={direction}
-                  onChange={(event) =>
-                    setDirection(event.target.value as MoneyDirection)
-                  }
-                >
-                  <NativeSelectOption value="out">Sortie</NativeSelectOption>
-                  <NativeSelectOption value="in">Entrée</NativeSelectOption>
-                </NativeSelect>
-              </div>
-              {showAmountError && <FieldError>{amountError}</FieldError>}
-            </Field>
-
-            <Field>
-              <FieldLabel htmlFor={`${id}-category`}>Catégorie</FieldLabel>
-              <NativeSelect
-                id={`${id}-category`}
-                className="w-full"
-                value={categoryId}
-                disabled={!categories.isSuccess}
-                onChange={(event) => setCategoryId(event.target.value)}
-              >
-                {(kind !== 'expense' ||
-                  (expense?.kind === 'expense' && !expense.categoryId)) && (
-                  <NativeSelectOption value="">
-                    Sans catégorie
-                  </NativeSelectOption>
-                )}
-                {kindCategories.map((category) => (
-                  <NativeSelectOption key={category.id} value={category.id}>
-                    {category.name}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </Field>
-
-            <Field data-invalid={showDateError}>
-              <FieldLabel htmlFor={`${id}-date`}>Date</FieldLabel>
-              <Input
-                id={`${id}-date`}
-                type="date"
-                max={today}
-                value={date}
-                aria-invalid={showDateError}
-                onChange={(event) => setDate(event.target.value)}
-              />
-              {showDateError && <FieldError>{dateError}</FieldError>}
-            </Field>
-
-            <Field data-invalid={showLabelError}>
-              <FieldLabel htmlFor={`${id}-label`}>Libellé</FieldLabel>
-              <Input
-                id={`${id}-label`}
-                autoComplete="off"
-                maxLength={LABEL_MAX}
-                placeholder={
-                  categoryId
-                    ? 'Facultatif, par ex. « ciné »'
-                    : 'Par ex. « ciné »'
-                }
-                value={label}
-                aria-invalid={showLabelError}
-                onChange={(event) => setLabel(event.target.value)}
-              />
-              {showLabelError && <FieldError>{labelError}</FieldError>}
-            </Field>
-
-            {cashAccounts.length > 1 && (
-              <Field>
-                <FieldLabel htmlFor={`${id}-account`}>Compte</FieldLabel>
-                <NativeSelect
-                  id={`${id}-account`}
+          <form
+            noValidate
+            onSubmit={submit}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
+              <SheetHeader className="pr-14 pb-2">
+                <SheetTitle>{expense ? editTitle : addTitle}</SheetTitle>
+                <SheetDescription>
+                  L’import du relevé la remplacera.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="space-y-3 px-4 pb-4">
+                <ToggleGroup
+                  type="single"
+                  variant="outline"
+                  aria-label="Type"
                   className="w-full"
-                  value={accountId}
-                  onChange={(event) => setAccountId(event.target.value)}
+                  value={kind}
+                  onValueChange={(value) => {
+                    if (value) changeKind(value as TransactionKind)
+                  }}
                 >
-                  {cashAccounts.map((account) => (
-                    <NativeSelectOption key={account.id} value={account.id}>
-                      {account.name}
-                    </NativeSelectOption>
+                  {TRANSACTION_KINDS.map((option) => (
+                    <ToggleGroupItem
+                      key={option}
+                      value={option}
+                      className="flex-1"
+                    >
+                      {option === 'transfer' ? 'Virement' : KIND_LABELS[option]}
+                    </ToggleGroupItem>
                   ))}
-                </NativeSelect>
-              </Field>
-            )}
-            {noAccount && (
-              <FieldDescription>
-                Ajoutez d’abord un compte courant pour saisir une opération.
-              </FieldDescription>
-            )}
+                </ToggleGroup>
 
-            <div className="flex min-h-11 items-center justify-between gap-3">
-              <label htmlFor={`${id}-one-off`} className="text-sm">
-                Ponctuelle
-                <span className="text-muted-foreground block text-xs">
-                  Exclue des moyennes et des abonnements
-                </span>
-              </label>
-              <Switch
-                id={`${id}-one-off`}
-                checked={isOneOff}
-                onCheckedChange={setIsOneOff}
-              />
+                <Field data-invalid={showAmountError}>
+                  <FieldLabel htmlFor={`${id}-amount`} className="sr-only">
+                    Montant
+                  </FieldLabel>
+                  <div className="flex flex-wrap gap-2">
+                    <InputGroup className="h-12 min-w-[7rem] flex-1">
+                      <InputGroupAddon>
+                        <InputGroupText
+                          aria-hidden
+                          className="text-2xl font-semibold"
+                        >
+                          {direction === 'in' ? '+' : '−'}
+                        </InputGroupText>
+                      </InputGroupAddon>
+                      <InputGroupInput
+                        ref={amountRef}
+                        id={`${id}-amount`}
+                        inputMode="decimal"
+                        enterKeyHint="next"
+                        autoComplete="off"
+                        placeholder="0,00"
+                        className="h-full text-2xl font-semibold tabular-nums md:text-2xl"
+                        value={amount}
+                        aria-invalid={showAmountError}
+                        onChange={(event) => setAmount(event.target.value)}
+                      />
+                      <InputGroupAddon align="inline-end">
+                        <InputGroupText className="text-xl">€</InputGroupText>
+                      </InputGroupAddon>
+                    </InputGroup>
+                    {kind === 'transfer' && (
+                      <DirectionSelect
+                        className="[&>select]:h-12"
+                        value={direction}
+                        onChange={setDirection}
+                      />
+                    )}
+                  </div>
+                  {showAmountError && <FieldError>{amountError}</FieldError>}
+                </Field>
+
+                <Field>
+                  <FieldLabel id={`${id}-category`}>Catégorie</FieldLabel>
+                  <CategoryChips
+                    labelId={`${id}-category`}
+                    categories={kindCategories}
+                    chipIds={chipIds}
+                    value={categoryId}
+                    allowNone={allowNoCategory}
+                    disabled={!categories.isSuccess}
+                    onChange={setCategoryId}
+                  />
+                </Field>
+
+                <Field data-invalid={showLabelError}>
+                  <FieldLabel htmlFor={`${id}-label`} className="sr-only">
+                    Libellé
+                  </FieldLabel>
+                  <Input
+                    id={`${id}-label`}
+                    autoComplete="off"
+                    enterKeyHint="done"
+                    maxLength={LABEL_MAX}
+                    placeholder={
+                      categoryId
+                        ? 'Libellé (facultatif), par ex. « ciné »'
+                        : 'Libellé, par ex. « ciné »'
+                    }
+                    value={label}
+                    aria-invalid={showLabelError}
+                    onChange={(event) => setLabel(event.target.value)}
+                  />
+                  <LabelSuggestions
+                    items={shownSuggestions}
+                    onPick={pickSuggestion}
+                  />
+                  {showLabelError && <FieldError>{labelError}</FieldError>}
+                </Field>
+
+                <Field data-invalid={showDateError}>
+                  <DateChips
+                    value={date}
+                    today={today}
+                    invalid={showDateError}
+                    onChange={setDate}
+                  />
+                  {showDateError && <FieldError>{dateError}</FieldError>}
+                </Field>
+
+                {noAccount && (
+                  <FieldDescription>
+                    Ajoutez d’abord un compte courant pour saisir une opération.
+                  </FieldDescription>
+                )}
+
+                <div>
+                  <Button
+                    type="button"
+                    ghost
+                    variant="secondary"
+                    className="-ml-2.5"
+                    aria-expanded={moreOpen}
+                    aria-controls={moreOpen ? `${id}-more` : undefined}
+                    onClick={() => setMoreOpen((current) => !current)}
+                  >
+                    <ChevronDownIcon
+                      aria-hidden
+                      className={cn(
+                        'transition-transform motion-reduce:transition-none',
+                        moreOpen && 'rotate-180',
+                      )}
+                    />
+                    Plus d’options
+                    {!moreOpen && moreSummary && (
+                      <span className="text-muted-foreground font-normal">
+                        · {moreSummary}
+                      </span>
+                    )}
+                  </Button>
+                  {moreOpen && (
+                    <div id={`${id}-more`} className="space-y-3 pt-2">
+                      {cashAccounts.length > 1 && (
+                        <Field>
+                          <FieldLabel htmlFor={`${id}-account`}>
+                            Compte
+                          </FieldLabel>
+                          <NativeSelect
+                            id={`${id}-account`}
+                            className="w-full"
+                            value={accountId}
+                            onChange={(event) =>
+                              setAccountId(event.target.value)
+                            }
+                          >
+                            {cashAccounts.map((account) => (
+                              <NativeSelectOption
+                                key={account.id}
+                                value={account.id}
+                              >
+                                {account.name}
+                              </NativeSelectOption>
+                            ))}
+                          </NativeSelect>
+                        </Field>
+                      )}
+
+                      {kind !== 'transfer' && (
+                        <Field>
+                          <FieldLabel htmlFor={`${id}-direction`}>
+                            Sens
+                          </FieldLabel>
+                          <DirectionSelect
+                            id={`${id}-direction`}
+                            className="w-full"
+                            value={direction}
+                            onChange={setDirection}
+                          />
+                          <FieldDescription>
+                            {kind === 'expense'
+                              ? 'Entrée pour un remboursement.'
+                              : 'Sortie pour un revenu rendu ou corrigé.'}
+                          </FieldDescription>
+                        </Field>
+                      )}
+
+                      <div className="flex min-h-11 items-center justify-between gap-3">
+                        <label htmlFor={`${id}-one-off`} className="text-sm">
+                          Ponctuelle
+                          <span className="text-muted-foreground block text-xs">
+                            Exclue des moyennes et des abonnements
+                          </span>
+                        </label>
+                        <Switch
+                          id={`${id}-one-off`}
+                          checked={isOneOff}
+                          onCheckedChange={setIsOneOff}
+                        />
+                      </div>
+
+                      <Field>
+                        <FieldLabel htmlFor={`${id}-note`}>Note</FieldLabel>
+                        <Textarea
+                          id={`${id}-note`}
+                          rows={2}
+                          maxLength={NOTE_MAX}
+                          placeholder="Facultatif"
+                          value={note}
+                          onChange={(event) => setNote(event.target.value)}
+                        />
+                      </Field>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
-            <Field>
-              <FieldLabel htmlFor={`${id}-note`}>Note</FieldLabel>
-              <Textarea
-                id={`${id}-note`}
-                rows={2}
-                maxLength={NOTE_MAX}
-                placeholder="Facultatif"
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-              />
-            </Field>
-
-            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+            <div className="bg-popover flex shrink-0 gap-2 border-t px-4 py-2.5">
               {expense && (
                 <Button
                   type="button"
                   variant="danger"
                   outline
+                  size="lg"
                   onClick={() => setConfirmOpen(true)}
                 >
                   Supprimer
@@ -493,7 +687,8 @@ export function ManualTransactionSheet({
               )}
               <Button
                 type="submit"
-                className="sm:ml-auto"
+                size="lg"
+                className="flex-1"
                 loading={save.isPending}
                 disabled={(kind === 'expense' && !categoryId) || !accountId}
               >
