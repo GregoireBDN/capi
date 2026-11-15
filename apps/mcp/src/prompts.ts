@@ -29,11 +29,11 @@ Règles :
 - Les chiffres viennent uniquement des outils ; ne les invente ni ne les arrondis.
 - Toute modification passe d'abord par l'aperçu de l'outil (sans confirm). Montre-moi l'aperçu et attends mon accord explicite avant de rappeler l'outil avec confirm: true. Une étape à la fois.
 - Les virements entre mes comptes ne sont jamais des revenus ni des dépenses.
-- Ce qui ne se fait pas avec les outils (import des relevés, valeurs des placements, cocher une étape, clôturer le mois) : dis-moi quoi faire dans l'application.
+- Ce qui ne se fait pas avec les outils (valeurs des placements, cocher une étape, clôturer le mois) : dis-moi quoi faire dans l'application.
 
 Étapes :
 1. État de la revue : month_close_status (month ${reviewed}) et month_review (month ${reviewed}). Résume ce qui reste à faire.
-2. Relevés : si des comptes ne sont pas à jour ou ont un trou de solde, liste-les ; je les importe dans l'application (page Import), puis on relance month_close_status.
+2. Relevés : si des comptes ne sont pas à jour ou ont un trou de solde, liste-les (list_imports) ; je te donne le fichier CSV : preview_bank_import, puis commit_bank_import après mon accord sur l'aperçu (ou je l'importe dans l'application), puis on relance month_close_status.
 3. Opérations à revoir : review_queue (month ${reviewed}). Propose une catégorie pour chacune (list_categories, search_transactions pour les opérations semblables déjà classées), regroupe celles qui vont ensemble, puis categorize_transactions par groupe. Signale les virements entre mes comptes (kind transfer) et les dépenses exceptionnelles (mark_one_off). Si un même commerçant revient, propose une règle avec create_rule (aperçu d'abord).
 4. Abonnements : subscriptions ; signale les nouveaux abonnements détectés et les changements de prix du mois. Je les confirme et coche l'étape dans l'application.
 5. Budget : budget_status (month ${reviewed}), catégories au-dessus et en dessous de la cible ; ajoute une note sur une opération qui explique un écart si je le demande (set_transaction_note).

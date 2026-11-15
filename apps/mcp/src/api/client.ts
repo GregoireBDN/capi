@@ -61,6 +61,14 @@ export class ApiClient {
     return this.request<T>(method, path, query, body)
   }
 
+  /**
+   * POST a multipart form (a bank export for the import preview, #103). The
+   * file is sent as is and never logged.
+   */
+  upload<T>(path: string, form: FormData): Promise<T> {
+    return this.request<T>('POST', path, {}, form)
+  }
+
   private async request<T>(
     method: 'GET' | WriteMethod,
     path: string,
@@ -77,13 +85,20 @@ export class ApiClient {
       Authorization: `Bearer ${this.token}`,
       Accept: 'application/json',
     }
-    if (body !== undefined) headers['Content-Type'] = 'application/json'
+    const multipart = body instanceof FormData
+    // fetch sets the multipart Content-Type with its boundary.
+    if (body !== undefined && !multipart)
+      headers['Content-Type'] = 'application/json'
     let response: Response
     try {
       response = await this.fetchImpl(url, {
         method,
         headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: multipart
+          ? body
+          : body === undefined
+            ? undefined
+            : JSON.stringify(body),
         signal: AbortSignal.timeout(this.timeoutMs),
       })
     } catch (error) {

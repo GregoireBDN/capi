@@ -3,7 +3,7 @@
 Lets Claude (Claude Desktop or Claude Code, on the owner's machine) answer questions about the finances, and help with the month-end routine, by calling the app's API with a **personal access token** (read-only, or write for the write tools). It runs locally over **stdio**: the MCP client starts it as a child process; nothing listens on a port.
 
 - It only calls the public API (`/api/...`) with `Authorization: Bearer <token>`; it never opens the database.
-- Read tools work with a `read` token. Write tools need a `write` token and **never change anything without `confirm: true`**: called without it they return a preview of exactly what would change. The API refuses every non-GET route to tokens unless the route opts in, and no route that deletes, imports or touches accounts or sign-in ever does: there are **no delete tools**.
+- Read tools work with a `read` token. Write tools need a `write` token and **never change anything without `confirm: true`**: called without it they return a preview of exactly what would change. The API refuses every non-GET route to tokens unless the route opts in, and no route that deletes or touches accounts or sign-in ever does: there are **no delete tools**. Of the import routes, only the bank CSV preview and commit are open to `write` tokens (#103).
 - Outputs are French text: euros formatted from integer cents, dates as `dd/mm/yyyy`, months as `novembre 2026`. Negative amounts are money out; internal transfers are never counted as income or expenses.
 - Nothing about the data is logged. stdout carries the MCP protocol; the few log lines go to stderr and hold only a tool name and an HTTP status.
 
@@ -43,9 +43,22 @@ How they behave:
 - **Undo.** Results list exactly what changed and how to undo it: the same tool with the previous values (category, one-off flag, note, targets). A created transaction, a created rule or a target where there was none are removed in the app (no delete tools).
 - Errors: a `read` token gets "token en lecture seule" (403), a conflict (409) or rate limit (429) says that nothing was changed; a write that timed out may or may not have been applied, and calling it again does no harm.
 
+### Bank statement imports (write token, #103)
+
+| Tool                  | API                                                    | What it does                                                                                                                                                                                                |
+| --------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `preview_bank_import` | `POST /api/imports/preview` (multipart)                | Uploads a CIC CSV export for a checking or savings account: new / already imported / conflicting rows, continuity of the running balance, proposed categories, a `previewId`. **Writes no transaction.**    |
+| `commit_bank_import`  | `GET /api/imports/:id`, `POST /api/imports/:id/commit` | Without `confirm`: what the preview would write. With `confirm: true`: writes the new rows (conflicts only with `includeConflicts: true`), then lists the import's rows in the review queue with their ids. |
+| `list_imports`        | `GET /api/imports` (read token)                        | Last import, its period and how far the statements go per checking / savings account; previews waiting to be committed.                                                                                     |
+
+- The file is either a path on your machine (`filePath`, absolute or `~/…`, a `.csv` of at most 5 MB, sent as is: CIC exports are Windows-1252) or its text (`content`, sent as UTF-8 with a BOM, which the parser recognizes). Nothing else on the disk is read.
+- Same flow as the Import page: the API parses the file, dedupes it against what is stored (re-importing a file or an overlapping period adds nothing; identical rows of one file stay distinct), shows probable duplicates from another source as conflicts, checks the running balance and proposes categories with the rules. Nothing is written until `commit_bank_import` with `confirm: true`; a pending preview expires after 24 hours.
+- Committing a preview that is already committed changes nothing and says so. Rows that went to the review queue come back with their ids, for `categorize_transactions` and `create_rule`. Undoing an import is done in the app (page Import).
+- A `read` token gets "lecture seule" on both write tools. Neither the file, its path, labels nor amounts are logged.
+
 ### Prompt "Revue du mois"
 
-`revue_du_mois` (optional `month`, default the previous month) starts a guided month-end review: `month_close_status` and `month_review`, statements to import, the review queue (categorize, one-offs, rules), subscriptions, budget, savings, investment values, then next month's budget with `budget_suggestions` and one `set_budget_targets`. Every change goes through a preview you approve; imports, investment values, ticking steps and closing the month stay in the app. In Claude Code it shows as `/mcp__finances__revue_du_mois`.
+`revue_du_mois` (optional `month`, default the previous month) starts a guided month-end review: `month_close_status` and `month_review`, statements to import (`list_imports`, then `preview_bank_import` / `commit_bank_import` with your file, or the app), the review queue (categorize, one-offs, rules), subscriptions, budget, savings, investment values, then next month's budget with `budget_suggestions` and one `set_budget_targets`. Every change goes through a preview you approve; investment values, ticking steps and closing the month stay in the app. In Claude Code it shows as `/mcp__finances__revue_du_mois`.
 
 Account and category filters take names (case- and accent-insensitive, a unique partial match works) or slugs; ambiguous or unknown names come back with the list of choices. Months are `YYYY-MM`, dates `YYYY-MM-DD`. A partial current month is stated and compared like for like, as in the app.
 

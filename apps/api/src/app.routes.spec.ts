@@ -28,6 +28,7 @@ import {
 import { JwtGuard } from './auth/guards/jwt.guard'
 import { createFastifyAdapter } from './config/fastify-adapter'
 import { DatabaseService } from './database/database.service'
+import { registerMultipart } from './imports/upload/multipart'
 import * as schema from './database/schema'
 import { usersTable } from './user/user.schema'
 
@@ -71,8 +72,9 @@ const PUBLIC_ROUTES = [
  * The only routes a personal access token may call with a method other than
  * GET/HEAD (#73), with the level they declare through `@TokenAccess()`. Every
  * other mutating route stays session-only. `read` ones save nothing (previews,
- * suggestions). Never add a DELETE, an import, an account, auth, profile or
- * token-management route here.
+ * suggestions). Never add a DELETE, an account, auth, profile or
+ * token-management route here, nor another import route: only the bank import
+ * preview and commit are open (#103), see `TOKEN_IMPORT_ROUTES`.
  *
  * The MCP write tools (#77, `apps/mcp/src/tools/*-writes.ts`) use:
  * `POST /api/transactions/manual` (add_transaction), `PATCH /api/transactions/:id`
@@ -80,6 +82,9 @@ const PUBLIC_ROUTES = [
  * mark_one_off, set_transaction_note), `POST /api/categorization-rules`,
  * `/preview` and `/apply` (create_rule), `PUT /api/budgets/:categoryId`
  * (set_budget_targets) and `POST /api/budgets/suggest` (budget_suggestions).
+ * The MCP import tools (#103, `apps/mcp/src/tools/import-writes.ts`) use
+ * `POST /api/imports/preview` (preview_bank_import, stores a pending import)
+ * and `POST /api/imports/:id/commit` (commit_bank_import).
  * The others were opened with the tokens for scripts and later tools.
  */
 const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
@@ -94,6 +99,9 @@ const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
   'POST /api/categorization-rules/apply': 'write',
   'POST /api/categorization-rules/preview': 'read',
   'POST /api/categorization-rules/suggest': 'read',
+  // MCP bank import tools (#103): the preview → commit flow, nothing else.
+  'POST /api/imports/:id/commit': 'write',
+  'POST /api/imports/preview': 'write',
   'POST /api/recurring/confirm': 'write',
   'POST /api/recurring/detect': 'write',
   'POST /api/savings/goals': 'write',
@@ -103,6 +111,12 @@ const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
   'PUT /api/budgets/:categoryId': 'write',
   'PUT /api/savings/target': 'write',
 }
+
+/** The only import routes a token may call besides GETs (#103). */
+const TOKEN_IMPORT_ROUTES = [
+  'POST /api/imports/:id/commit',
+  'POST /api/imports/preview',
+]
 
 const SOME_UUID = '7f0c5a7e-2d1b-4c3a-9e8f-123456789abc'
 
@@ -132,7 +146,8 @@ function asArray(value: string | string[] | undefined): string[] {
 
 function declaredTokenAccess(target: object): TokenAccessLevel | undefined {
   return Reflect.getMetadata(TOKEN_ACCESS_KEY, target) as
-    TokenAccessLevel | undefined
+    | TokenAccessLevel
+    | undefined
 }
 
 function hasAuthGuard(target: object): boolean {
@@ -161,7 +176,8 @@ function discoverRoutes(app: NestFastifyApplication): DiscoveredRoute[] {
         const handler = proto[name]
         if (name === 'constructor' || typeof handler !== 'function') continue
         const requestMethod = Reflect.getMetadata(METHOD_METADATA, handler) as
-          RequestMethod | undefined
+          | RequestMethod
+          | undefined
         if (requestMethod === undefined) continue
         const method = RequestMethod[requestMethod]
         // Same resolution as `JwtGuard`: handler, then class, then the method default.
@@ -222,6 +238,7 @@ describe('API route audit', () => {
         }
       })
     await app.register(fastifyCookie)
+    await registerMultipart(app)
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -310,13 +327,25 @@ describe('API route audit', () => {
       '/api/access-tokens',
       '/api/profile',
       '/api/auth',
-      '/api/imports',
+      '/api/crypto-imports',
     ])('never reach a mutating route under %s', (prefix) => {
       const scoped = mutating().filter((route) => route.path.startsWith(prefix))
       expect(scoped.length).toBeGreaterThan(0)
       for (const route of scoped) {
         expect(route.tokenAccess, route.key).toBe('none')
       }
+    })
+
+    it('reach only the bank import preview and commit under /api/imports', () => {
+      const scoped = mutating().filter((route) =>
+        route.path.startsWith('/api/imports'),
+      )
+      const open = scoped
+        .filter((route) => route.tokenAccess !== 'none')
+        .map((route) => route.key)
+        .sort()
+      expect(open).toEqual(TOKEN_IMPORT_ROUTES)
+      expect(scoped.length).toBeGreaterThan(open.length)
     })
 
     it('never reach token management, even with GET', () => {
@@ -461,6 +490,33 @@ describe('API route audit', () => {
             remoteAddress: nextIp(),
             headers: bearer,
             payload: method === 'GET' || method === 'DELETE' ? undefined : {},
+          })
+          expect(res.statusCode, `${method} ${url}`).toBe(status)
+        }
+      })
+    })
+
+    it('opens only the bank import preview and commit to a write token (#103)', async () => {
+      await asOwner(async ({ id }) => {
+        const tokens = app.get(AccessTokensService, { strict: false })
+        const read = await tokens.create(id, { name: 'Read', scope: 'read' })
+        const write = await tokens.create(id, { name: 'Write', scope: 'write' })
+        const calls = [
+          [read.token, 'GET', '/api/imports', 200],
+          [read.token, 'POST', '/api/imports/preview', 403],
+          [read.token, 'POST', `/api/imports/${SOME_UUID}/commit`, 403],
+          // Past the guard: not a multipart body, unknown import.
+          [write.token, 'POST', '/api/imports/preview', 415],
+          [write.token, 'POST', `/api/imports/${SOME_UUID}/commit`, 404],
+          [write.token, 'DELETE', `/api/imports/${SOME_UUID}`, 403],
+        ] as const
+        for (const [token, method, url, status] of calls) {
+          const res = await app.inject({
+            method,
+            url,
+            remoteAddress: nextIp(),
+            headers: { authorization: `Bearer ${token}` },
+            payload: method === 'POST' ? {} : undefined,
           })
           expect(res.statusCode, `${method} ${url}`).toBe(status)
         }

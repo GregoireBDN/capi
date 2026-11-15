@@ -29,7 +29,9 @@ export function mockFetch(routes: Record<string, Route>) {
     const body =
       typeof init?.body === 'string'
         ? (JSON.parse(init.body) as unknown)
-        : undefined
+        : init?.body instanceof FormData
+          ? init.body
+          : undefined
     calls.push({ method, url, headers: new Headers(init?.headers), body })
     const route = routes[`${method} ${url.pathname}`] ?? routes[url.pathname]
     if (route === undefined) return new Response('{}', { status: 404 })

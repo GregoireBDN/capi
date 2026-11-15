@@ -59,12 +59,15 @@ describe('tool list', () => {
       'budget_status',
       'budget_suggestions',
       'categorize_transactions',
+      'commit_bank_import',
       'create_rule',
       'list_categories',
+      'list_imports',
       'mark_one_off',
       'month_close_status',
       'month_end_forecast',
       'month_review',
+      'preview_bank_import',
       'review_queue',
       'savings_and_goals',
       'search_transactions',
@@ -81,13 +84,18 @@ describe('tool list', () => {
       'mark_one_off',
       'set_budget_targets',
       'set_transaction_note',
+      'preview_bank_import',
+      'commit_bank_import',
     ])
+    // Writes no transaction (a pending preview only): nothing to confirm (#103).
+    const withoutConfirm = new Set(['preview_bank_import'])
     for (const tool of tools) {
       const write = writeTools.has(tool.name)
       expect(tool.annotations?.readOnlyHint).toBe(!write)
       if (write) {
         expect(tool.annotations?.destructiveHint).toBe(false)
-        expect(tool.inputSchema.properties).toHaveProperty('confirm')
+        if (!withoutConfirm.has(tool.name))
+          expect(tool.inputSchema.properties).toHaveProperty('confirm')
       }
       expect(tool.name).not.toMatch(/delete|remove/)
       expect(tool.description?.length).toBeGreaterThan(40)
