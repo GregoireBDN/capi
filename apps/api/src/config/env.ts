@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { z } from 'zod'
 import { evmRpcUrls } from '#/crypto/wallet-sync/chains'
+import { resolveRemoteMcp } from '#/auth/oauth/remote-mcp.config'
 import {
   compileTrustedProxies,
   DEFAULT_TRUSTED_PROXIES,
@@ -150,6 +151,21 @@ const envSchema = z.object({
     .default(10_000),
   /** A wallet is synced again automatically at most this often. */
   WALLET_SYNC_INTERVAL_SECONDS: z.coerce.number().int().min(60).default(600),
+
+  // Remote MCP access (#78, ADR 0003): OAuth authorization server for the
+  // claude.ai / Claude app connectors. Off unless the literal "true": no
+  // /api/oauth route is mounted and OAuth tokens are refused (kill switch).
+  REMOTE_MCP_ENABLED: z
+    .string()
+    .optional()
+    .transform((value) => value === 'true'),
+  /** Public origin of the MCP adapter (`apps/mcp --http`): the OAuth issuer; the MCP endpoint is `<origin>/mcp`. */
+  REMOTE_MCP_PUBLIC_URL: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.url().optional(),
+  ),
+  /** Comma-separated redirect URIs a client may register (exact match). Empty = the claude.ai / claude.com callbacks. */
+  REMOTE_MCP_REDIRECT_URIS: z.string().optional(),
 })
 
 /**
@@ -184,6 +200,14 @@ function loadEnv() {
   }
 
   const webauthn = resolveWebauthn(parsed.data)
+  let remoteMcp: ReturnType<typeof resolveRemoteMcp>
+  try {
+    remoteMcp = resolveRemoteMcp({ ...parsed.data, isProduction })
+  } catch (error) {
+    throw new Error(
+      `Invalid environment configuration:\n  - ${(error as Error).message}`,
+    )
+  }
   let rpcUrls: ReturnType<typeof evmRpcUrls>
   try {
     rpcUrls = evmRpcUrls(parsed.data.EVM_RPC_URLS)
@@ -196,6 +220,8 @@ function loadEnv() {
   return {
     ...parsed.data,
     webauthn,
+    /** Remote MCP access (#78): OAuth issuer, MCP resource, consent page. */
+    remoteMcp,
     /** EVM JSON-RPC endpoint per chain (defaults + `EVM_RPC_URLS`). */
     evmRpcUrls: rpcUrls,
     JWT_SECRET: parsed.data.JWT_SECRET ?? randomBytes(32).toString('hex'),

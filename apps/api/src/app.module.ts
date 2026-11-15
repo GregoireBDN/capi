@@ -8,6 +8,8 @@ import { AllExceptionsFilter } from '#/common/filters/all-exceptions.filter'
 import { AccountsModule } from '#/accounts/accounts.module'
 import { accessTokenThrottler } from '#/auth/access-tokens/access-token.throttler'
 import { AuthModule } from '#/auth/auth.module'
+import { RemoteMcpModule } from '#/auth/oauth/remote-mcp.module'
+import { env } from '#/config/env'
 import { BudgetsModule } from '#/budgets/budgets.module'
 import { CategoriesModule } from '#/categories/categories.module'
 import { CryptoModule } from '#/crypto/crypto.module'
@@ -43,6 +45,8 @@ import { UserModule } from '#/user/user.module'
     EmailModule,
     UserModule,
     AuthModule,
+    // Remote MCP access (#78): no route at all unless REMOTE_MCP_ENABLED=true.
+    RemoteMcpModule.register(env.remoteMcp.enabled),
     HealthModule,
     CategoriesModule,
     AccountsModule,
