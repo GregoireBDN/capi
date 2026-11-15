@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { PanelLeftCloseIcon } from 'lucide-react'
+import { ChevronsLeftIcon } from 'lucide-react'
 import {
   Button,
   Sidebar,
@@ -83,7 +83,7 @@ export function AppSidebar({ user }: { user: UserDto }) {
             title="Masquer le menu"
             onClick={() => setOpen(false)}
           >
-            <PanelLeftCloseIcon />
+            <ChevronsLeftIcon />
           </Button>
         )}
       </SidebarHeader>
