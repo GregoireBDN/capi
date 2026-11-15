@@ -239,8 +239,7 @@ export function PasskeysCard({ email }: { email: string }) {
           Passkeys
         </CardTitle>
         <CardDescription>
-          Connectez-vous avec Face ID ou Touch ID, sans saisir de mot de passe.
-          Votre mot de passe reste toujours utilisable.
+          Face ID ou Touch ID au lieu du mot de passe, qui reste utilisable.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

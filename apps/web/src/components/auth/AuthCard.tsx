@@ -38,11 +38,10 @@ const COPY = {
     title: 'Mot de passe oublié',
     description: 'Recevez un lien de réinitialisation par email',
   },
-  'passkey-offer': {
-    title: 'Connexion plus rapide',
-    description: 'Ajoutez une passkey à ce compte',
-  },
-} satisfies Record<AuthMode, { title: string; description: string }>
+} satisfies Record<
+  Exclude<AuthMode, 'passkey-offer'>,
+  { title: string; description: string }
+>
 
 export function AuthCard({
   registrationOpen,
@@ -52,45 +51,50 @@ export function AuthCard({
     initialMode === 'register' && !registrationOpen ? 'login' : initialMode,
   )
 
+  // The passkey offer is a security step of its own: no logo, no card.
+  if (mode === 'passkey-offer') return <PasskeyOffer />
+
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">{COPY[mode].title}</CardTitle>
-        <CardDescription>{COPY[mode].description}</CardDescription>
-      </CardHeader>
+    <>
+      <img src="/logo.svg" alt="Finances" className="size-12" />
+      <Card className="w-full max-w-sm">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">{COPY[mode].title}</CardTitle>
+          <CardDescription>{COPY[mode].description}</CardDescription>
+        </CardHeader>
 
-      <CardContent>
-        {mode === 'login' && (
-          <LoginForm
-            onSwitchToForgot={() => setMode('forgot')}
-            onPasskeyOffer={() => setMode('passkey-offer')}
-          />
-        )}
-        {mode === 'passkey-offer' && <PasskeyOffer />}
-        {mode === 'register' && <RegisterForm />}
-        {mode === 'forgot' && <ForgotForm />}
-      </CardContent>
+        <CardContent>
+          {mode === 'login' && (
+            <LoginForm
+              onSwitchToForgot={() => setMode('forgot')}
+              onPasskeyOffer={() => setMode('passkey-offer')}
+            />
+          )}
+          {mode === 'register' && <RegisterForm />}
+          {mode === 'forgot' && <ForgotForm />}
+        </CardContent>
 
-      <CardFooter className="justify-center">
-        {mode === 'passkey-offer' ? null : mode === 'login' ? (
-          registrationOpen && (
+        <CardFooter className="justify-center">
+          {mode === 'login' ? (
+            registrationOpen && (
+              <p className="text-muted-foreground text-sm">
+                Pas encore de compte ?{' '}
+                <SwitchButton onClick={() => setMode('register')}>
+                  S&apos;inscrire
+                </SwitchButton>
+              </p>
+            )
+          ) : (
             <p className="text-muted-foreground text-sm">
-              Pas encore de compte ?{' '}
-              <SwitchButton onClick={() => setMode('register')}>
-                S&apos;inscrire
+              {mode === 'register' ? 'Déjà un compte ? ' : null}
+              <SwitchButton onClick={() => setMode('login')}>
+                {mode === 'register' ? 'Se connecter' : 'Retour à la connexion'}
               </SwitchButton>
             </p>
-          )
-        ) : (
-          <p className="text-muted-foreground text-sm">
-            {mode === 'register' ? 'Déjà un compte ? ' : null}
-            <SwitchButton onClick={() => setMode('login')}>
-              {mode === 'register' ? 'Se connecter' : 'Retour à la connexion'}
-            </SwitchButton>
-          </p>
-        )}
-      </CardFooter>
-    </Card>
+          )}
+        </CardFooter>
+      </Card>
+    </>
   )
 }
 

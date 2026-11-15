@@ -21,8 +21,7 @@ function AuthPage() {
   const { mode } = Route.useSearch()
 
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-6 px-4 py-12">
-      <img src="/logo.svg" alt="Finances" className="size-12" />
+    <div className="flex min-h-svh flex-col items-center justify-center gap-6 px-4 py-8">
       <AuthCard
         // Remount when the requested mode changes so the card picks it up.
         key={mode ?? 'login'}

@@ -23,6 +23,34 @@ describe('PasskeyOffer', () => {
     navigate.mockResolvedValue(undefined)
   })
 
+  it('keeps to a title, one line and the two actions', () => {
+    render(<PasskeyOffer />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Connexion sans mot de passe' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('La prochaine fois, entrez avec Face ID ou Touch ID.'),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Ajouter une passkey' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Plus tard' }),
+    ).toBeInTheDocument()
+    // The details wait behind the disclosure.
+    expect(screen.getByText(/trousseau/)).not.toBeVisible()
+  })
+
+  it('tells the password stays usable under "En savoir plus"', async () => {
+    const user = userEvent.setup()
+    render(<PasskeyOffer />)
+
+    await user.click(screen.getByText('En savoir plus'))
+
+    expect(screen.getByText(/mot de passe reste utilisable/)).toBeVisible()
+  })
+
   it('adds a passkey named after the device and opens the app', async () => {
     passkeys.addPasskey.mockResolvedValue({ status: 'ok', data: {} })
     const user = userEvent.setup()
@@ -65,5 +93,24 @@ describe('PasskeyOffer', () => {
     expect(passkeys.dismissPasskeyOffer).toHaveBeenCalled()
     expect(navigate).toHaveBeenCalledWith({ to: '/dashboard' })
     expect(passkeys.addPasskey).not.toHaveBeenCalled()
+  })
+
+  it('shows the error of a failed passkey and stays', async () => {
+    passkeys.addPasskey.mockResolvedValue({
+      status: 'error',
+      message: 'La passkey n’a pas pu être ajoutée.',
+    })
+    const user = userEvent.setup()
+    render(<PasskeyOffer />)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Ajouter une passkey' }),
+    )
+
+    expect(
+      await screen.findByText('La passkey n’a pas pu être ajoutée.'),
+    ).toBeInTheDocument()
+    expect(navigate).not.toHaveBeenCalled()
+    expect(passkeys.dismissPasskeyOffer).not.toHaveBeenCalled()
   })
 })
