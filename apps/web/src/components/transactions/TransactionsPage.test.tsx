@@ -1066,7 +1066,10 @@ describe('TransactionsPage', () => {
       expect(
         screen.getByRole('dialog', { name: 'Ajouter un revenu' }),
       ).toBeInTheDocument()
-      await user.click(within(sheet).getByRole('radio', { name: salary.name }))
+      await user.selectOptions(
+        within(sheet).getByLabelText('Catégorie'),
+        salary.id,
+      )
       await user.type(within(sheet).getByLabelText('Montant'), '300')
       await user.type(within(sheet).getByLabelText('Libellé'), 'Prime')
       await user.click(

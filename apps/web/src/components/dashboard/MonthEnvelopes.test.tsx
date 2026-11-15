@@ -82,19 +82,6 @@ const categories = [
   category(GROCERIES, 'Courses', 'expense'),
 ]
 
-/** Names of the category chips, and the chosen one. */
-function categoryChips(dialog: HTMLElement) {
-  const chips = within(
-    within(dialog).getByRole('group', { name: 'Catégorie' }),
-  ).getAllByRole('radio')
-  return {
-    names: chips.map((chip) => chip.textContent),
-    checked: chips
-      .filter((chip) => chip.getAttribute('aria-checked') === 'true')
-      .map((chip) => chip.textContent),
-  }
-}
-
 function optionNames(select: HTMLElement) {
   return within(select)
     .getAllByRole('option')
@@ -227,16 +214,9 @@ describe('MonthEnvelopes', () => {
     // The amount comes first and is focused.
     expect(within(dialog).getByLabelText('Montant')).toHaveFocus()
     // Envelopes first, then the other expense categories; never income.
-    await waitFor(() =>
-      expect(categoryChips(dialog)).toEqual({
-        names: ['Shopping', 'Sorties', 'Courses'],
-        checked: ['Sorties'],
-      }),
-    )
-    const other = within(dialog).getByLabelText('Autre catégorie')
-    expect(other).toHaveValue('')
-    expect(optionNames(other)).toEqual([
-      'Autre…',
+    const categorySelect = within(dialog).getByLabelText('Catégorie')
+    await waitFor(() => expect(categorySelect).toHaveValue(OUTINGS))
+    expect(optionNames(categorySelect)).toEqual([
       'Shopping',
       'Sorties',
       'Courses',
@@ -286,7 +266,7 @@ describe('MonthEnvelopes', () => {
     expect(api.budgetsControllerEnvelopes.mock.calls.length).toBeGreaterThan(1)
   })
 
-  it('offers the most used categories and the labels used before', async () => {
+  it('offers the usual labels with their category', async () => {
     api.transactionsControllerManualSuggestions.mockImplementation(() =>
       ok({
         items: [
@@ -308,42 +288,33 @@ describe('MonthEnvelopes', () => {
       query: { kind: 'expense' },
       throwOnError: false,
     })
-    // Most used first, then the envelopes; the first one chosen by default.
-    await waitFor(() =>
-      expect(categoryChips(dialog)).toEqual({
-        names: ['Courses', 'Shopping', 'Sorties'],
-        checked: ['Courses'],
-      }),
-    )
-    const suggestions = within(dialog).getByRole('list', {
-      name: 'Libellés déjà utilisés',
-    })
+    // The most used category by default.
+    const categorySelect = within(dialog).getByLabelText('Catégorie')
+    await waitFor(() => expect(categorySelect).toHaveValue(GROCERIES))
+    const habits = within(dialog).getByRole('list', { name: 'Habituels' })
     expect(
-      within(suggestions)
+      within(habits)
         .getAllByRole('button')
         .map((button) => button.textContent),
-    ).toEqual(['Boulangerie test', 'Cinéma test', 'Marché test'])
+    ).toEqual([
+      'Boulangerie test · Courses',
+      'Cinéma test · Sorties',
+      'Marché test',
+    ])
 
-    // Typing narrows them, accents ignored.
-    await user.type(within(dialog).getByLabelText('Libellé'), 'cine')
-    expect(
-      within(suggestions)
-        .getAllByRole('button')
-        .map((button) => button.textContent),
-    ).toEqual(['Cinéma test'])
     // A tap fills the label and its usual category.
-    await user.click(
-      within(suggestions).getByRole('button', { name: 'Cinéma test' }),
-    )
+    await user.click(within(habits).getByRole('button', { name: /Cinéma/ }))
     expect(within(dialog).getByLabelText('Libellé')).toHaveValue('Cinéma test')
-    expect(categoryChips(dialog).checked).toEqual(['Sorties'])
+    expect(categorySelect).toHaveValue(OUTINGS)
+    expect(
+      within(habits).getByRole('button', { name: /Cinéma/ }),
+    ).toHaveAttribute('aria-pressed', 'true')
     // A label without a usual category keeps the chosen one.
-    await user.clear(within(dialog).getByLabelText('Libellé'))
     await user.click(
-      within(dialog).getByRole('button', { name: 'Marché test' }),
+      within(habits).getByRole('button', { name: 'Marché test' }),
     )
     expect(within(dialog).getByLabelText('Libellé')).toHaveValue('Marché test')
-    expect(categoryChips(dialog).checked).toEqual(['Sorties'])
+    expect(categorySelect).toHaveValue(OUTINGS)
 
     await user.type(within(dialog).getByLabelText('Montant'), '4,20')
     await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
@@ -360,39 +331,6 @@ describe('MonthEnvelopes', () => {
     )
   })
 
-  it('picks a category from the whole list when it is not a chip', async () => {
-    const extra = ['Alpha', 'Bêta', 'Gamma', 'Delta'].map((name, index) =>
-      category(`c0000000-0000-4000-8000-00000000001${index}`, name, 'expense'),
-    )
-    api.categoriesControllerList.mockImplementation(() =>
-      ok([...categories, ...extra]),
-    )
-    const user = userEvent.setup()
-    renderCard()
-
-    await user.click(
-      await screen.findByRole('button', { name: 'Ajouter une dépense' }),
-    )
-    const dialog = await screen.findByRole('dialog')
-    // Five chips: the envelopes, then the others in alphabetical order.
-    await waitFor(() =>
-      expect(categoryChips(dialog).names).toEqual([
-        'Shopping',
-        'Sorties',
-        'Alpha',
-        'Bêta',
-        'Courses',
-      ]),
-    )
-    const other = within(dialog).getByLabelText('Autre catégorie')
-    await user.selectOptions(other, extra[3].id)
-    // The list shows it; no chip is chosen.
-    expect(other).toHaveValue(extra[3].id)
-    expect(categoryChips(dialog).checked).toEqual([])
-    await user.click(within(dialog).getByRole('radio', { name: 'Alpha' }))
-    expect(other).toHaveValue('')
-  })
-
   it('sets the sign from the kind; a transfer asks for it', async () => {
     const user = userEvent.setup()
     renderCard()
@@ -407,9 +345,7 @@ describe('MonthEnvelopes', () => {
     expect(direction).toHaveValue('out')
     await user.selectOptions(direction, 'in')
     // A transfer needs no category.
-    expect(within(dialog).getByLabelText('Autre catégorie')).toHaveValue(
-      '__none__',
-    )
+    expect(within(dialog).getByLabelText('Catégorie')).toHaveValue('')
     await user.type(within(dialog).getByLabelText('Montant'), '100')
     await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
     expect(
@@ -516,8 +452,9 @@ describe('ManualTransactionSheet (editing)', () => {
 
     const dialog = await screen.findByRole('dialog')
     // Once the lists are loaded, the expense's own values are kept.
-    await waitFor(() => expect(categoryChips(dialog).names).toHaveLength(3))
-    expect(categoryChips(dialog).checked).toEqual(['Sorties'])
+    const categorySelect = within(dialog).getByLabelText('Catégorie')
+    await waitFor(() => expect(optionNames(categorySelect)).toHaveLength(3))
+    expect(categorySelect).toHaveValue(OUTINGS)
     // Nothing optional is set: the options stay folded.
     expect(
       within(dialog).getByRole('button', { name: /Plus d’options/ }),
@@ -564,7 +501,11 @@ describe('ManualTransactionSheet (editing)', () => {
     ).toHaveAttribute('aria-expanded', 'true')
     expect(within(dialog).getByLabelText('Sens')).toHaveValue('in')
     expect(within(dialog).getByLabelText('Note')).toHaveValue('Avoir')
-    await waitFor(() => expect(categoryChips(dialog).names).toHaveLength(3))
+    await waitFor(() =>
+      expect(
+        optionNames(within(dialog).getByLabelText('Catégorie')),
+      ).toHaveLength(3),
+    )
     await user.click(
       within(dialog).getByRole('button', { name: 'Enregistrer' }),
     )

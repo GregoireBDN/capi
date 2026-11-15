@@ -1,12 +1,6 @@
-import {
-  NativeSelect,
-  NativeSelectOption,
-  ToggleGroup,
-  ToggleGroupItem,
-  cn,
-} from '@finances/ui'
+import { ToggleGroup, ToggleGroupItem, cn } from '@finances/ui'
 import { CalendarIcon } from 'lucide-react'
-import type { CategoryDto, ManualSuggestionDto } from '#/api/types.gen'
+import type { ManualSuggestionDto } from '#/api/types.gen'
 
 /**
  * Quick-entry fields of `ManualTransactionSheet` (#196): chips a thumb can
@@ -15,7 +9,7 @@ import type { CategoryDto, ManualSuggestionDto } from '#/api/types.gen'
 
 /** A rounded, tappable chip (44px high: the 22px root makes h-8 44px). */
 export const CHIP_CLASS = cn(
-  'h-8 shrink-0 rounded-full border border-input px-3.5',
+  'h-8 shrink-0 rounded-full border border-input px-3',
   'text-sm font-medium whitespace-nowrap',
   'transition-colors outline-none',
   'hover:bg-muted',
@@ -100,7 +94,7 @@ export function DateChips({
         )}
       >
         <CalendarIcon aria-hidden className="size-4" />
-        <span>{other ? formatShortDay(value) : 'Autre jour'}</span>
+        <span>{other ? formatShortDay(value) : 'Autre'}</span>
         <input
           type="date"
           aria-label="Date"
@@ -124,103 +118,7 @@ export function DateChips({
   )
 }
 
-/** Value of the "Autre…" list for "no category". */
-const NO_CATEGORY = '__none__'
-
-/**
- * The most used categories of the kind as chips, then "Autre…": the whole
- * list in a native select (the system picker on phones), which shows the
- * category picked there when it is not one of the chips.
- */
-export function CategoryChips({
-  labelId,
-  categories,
-  chipIds,
-  value,
-  allowNone,
-  disabled,
-  onChange,
-}: {
-  labelId: string
-  /** Every pickable category of the kind, in list order. */
-  categories: readonly CategoryDto[]
-  /** Categories shown as chips, in order. */
-  chipIds: readonly string[]
-  value: string
-  /** Whether "no category" is a valid choice (not for a new expense). */
-  allowNone: boolean
-  disabled: boolean
-  onChange: (categoryId: string) => void
-}) {
-  const chips = chipIds
-    .map((id) => categories.find((category) => category.id === id))
-    .filter((category) => category !== undefined)
-  const onChip = chips.some((category) => category.id === value)
-  const listValue = onChip
-    ? ''
-    : value === ''
-      ? allowNone
-        ? NO_CATEGORY
-        : ''
-      : value
-  return (
-    <ToggleGroup
-      type="single"
-      spacing={1.5}
-      aria-labelledby={labelId}
-      className="w-full flex-wrap"
-      disabled={disabled}
-      value={onChip ? value : ''}
-      onValueChange={(next) => {
-        if (next) onChange(next)
-        else if (allowNone) onChange('')
-      }}
-    >
-      {chips.map((category) => (
-        <ToggleGroupItem
-          key={category.id}
-          value={category.id}
-          className={cn(CHIP_CLASS, CHIP_ON, 'max-w-full min-w-0')}
-        >
-          <span className="truncate">{category.name}</span>
-        </ToggleGroupItem>
-      ))}
-      <NativeSelect
-        aria-label="Autre catégorie"
-        disabled={disabled}
-        data-state={listValue === '' ? 'off' : 'on'}
-        className={cn(
-          'max-w-full min-w-0',
-          '[&>select]:h-8 [&>select]:rounded-full [&>select]:pl-3.5 [&>select]:font-medium',
-          '[&>select]:truncate',
-          listValue !== '' &&
-            '[&>select]:border-primary [&>select]:bg-primary/10 [&>select]:text-primary dark:[&>select]:bg-primary/20',
-        )}
-        value={listValue}
-        onChange={(event) => {
-          const next = event.target.value
-          onChange(next === NO_CATEGORY ? '' : next)
-        }}
-      >
-        <NativeSelectOption value="" disabled>
-          Autre…
-        </NativeSelectOption>
-        {allowNone && (
-          <NativeSelectOption value={NO_CATEGORY}>
-            Sans catégorie
-          </NativeSelectOption>
-        )}
-        {categories.map((category) => (
-          <NativeSelectOption key={category.id} value={category.id}>
-            {category.name}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
-    </ToggleGroup>
-  )
-}
-
-/** Lower case without accents, to match what is typed with a suggestion. */
+/** Lower case without accents, to compare labels. */
 function fold(text: string): string {
   return text
     .normalize('NFD')
@@ -229,51 +127,62 @@ function fold(text: string): string {
     .trim()
 }
 
-/** Suggestions shown at most under the label field. */
-const SHOWN_MAX = 8
-
-/** The suggestions matching what is typed (all of them when nothing is). */
-export function matchingSuggestions(
-  items: readonly ManualSuggestionDto[],
-  typed: string,
-): ManualSuggestionDto[] {
-  const query = fold(typed)
-  return items
-    .filter((item) => {
-      const label = fold(item.label)
-      return query === '' || (label.includes(query) && label !== query)
-    })
-    .slice(0, SHOWN_MAX)
-}
+/** Habits shown at most. */
+const HABITS_MAX = 8
 
 /**
- * Labels used before, as one row of chips that scrolls sideways (inside
- * itself: the sheet never does).
+ * "Habituels": the labels used before, each with its usual category, as one
+ * row of chips that scrolls sideways (inside itself: the sheet never does).
+ * A tap fills the label and, when it has one, the category. The chip of the
+ * label typed shows as chosen.
  */
-export function LabelSuggestions({
+export function HabitChips({
+  labelId,
   items,
+  label,
+  categoryName,
   onPick,
 }: {
+  labelId: string
   items: readonly ManualSuggestionDto[]
+  /** The label typed, to show its chip as chosen. */
+  label: string
+  /** Name of a category of the kind, or undefined. */
+  categoryName: (categoryId: string) => string | undefined
   onPick: (item: ManualSuggestionDto) => void
 }) {
   if (items.length === 0) return null
+  const typed = fold(label)
   return (
     <ul
-      aria-label="Libellés déjà utilisés"
+      aria-labelledby={labelId}
       className="-mx-4 flex gap-1.5 overflow-x-auto px-4 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
-      {items.map((item) => (
-        <li key={item.label} className="shrink-0">
-          <button
-            type="button"
-            className={cn(CHIP_CLASS, 'bg-muted/60 font-normal')}
-            onClick={() => onPick(item)}
-          >
-            {item.label}
-          </button>
-        </li>
-      ))}
+      {items.slice(0, HABITS_MAX).map((item) => {
+        const category = item.categoryId
+          ? categoryName(item.categoryId)
+          : undefined
+        const chosen = typed !== '' && fold(item.label) === typed
+        return (
+          <li key={item.label} className="shrink-0">
+            <button
+              type="button"
+              aria-pressed={chosen}
+              data-state={chosen ? 'on' : 'off'}
+              className={cn(CHIP_CLASS, CHIP_ON, 'font-normal')}
+              onClick={() => onPick(item)}
+            >
+              <span className="font-medium">{item.label}</span>
+              {category && (
+                <span className="text-muted-foreground">
+                  {' · '}
+                  {category}
+                </span>
+              )}
+            </button>
+          </li>
+        )
+      })}
     </ul>
   )
 }

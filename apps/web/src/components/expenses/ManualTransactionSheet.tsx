@@ -52,22 +52,20 @@ import {
   manualSuggestionsQuery,
   updateManualExpense,
 } from './queries'
-import {
-  CategoryChips,
-  DateChips,
-  LabelSuggestions,
-  matchingSuggestions,
-} from './manual-fields'
+import { DateChips, HabitChips } from './manual-fields'
 import { splitTransaction } from '#/components/transactions/edits'
 
 const LABEL_MAX = 255
 const NOTE_MAX = 2000
 /** Highest amount the API accepts (1 000 000 €). */
 const MAX_CENTS = 100_000_000
+/**
+ * One height for every control but the amount (44px with the 22px root):
+ * fields, menus, chips and buttons line up.
+ */
+const FIELD_HEIGHT = 'h-8 min-h-8'
 /** How long a toast offering "Annuler" stays up. */
 const UNDO_TOAST_MS = 8000
-/** Categories shown as chips; the others are under "Autre…". */
-const CATEGORY_CHIPS_MAX = 5
 
 /** Error for the amount typed, or null when valid. */
 export function expenseAmountError(text: string): string | null {
@@ -191,28 +189,15 @@ export function ManualTransactionSheet({
     )
   }, [categories.data, expense?.categoryId, suggestedCategoryIds, kind])
 
-  // The categories most used for the kind, then the envelopes, then the
-  // rest in list order; none until the most used are known (or failed to
-  // load), so the chips never move under the finger.
-  const chipIds = useMemo(() => {
-    const ids = new Set<string>()
-    if (suggestions.isPending) return []
-    const pickable = new Set(kindCategories.map((category) => category.id))
-    for (const categoryKey of [
-      ...(suggestions.data?.categoryIds ?? []),
-      ...suggestedCategoryIds,
-      ...kindCategories.map((category) => category.id),
-    ]) {
-      if (ids.size >= CATEGORY_CHIPS_MAX) break
-      if (pickable.has(categoryKey)) ids.add(categoryKey)
-    }
-    return [...ids]
-  }, [
-    suggestions.isPending,
-    suggestions.data,
-    suggestedCategoryIds,
-    kindCategories,
-  ])
+  // A new expense gets the category most used for the kind (else the first
+  // listed), once the most used are known or failed to load.
+  const defaultCategoryId = useMemo(() => {
+    if (suggestions.isPending || kindCategories.length === 0) return null
+    const mostUsed = suggestions.data?.categoryIds.find((categoryKey) =>
+      kindCategories.some((category) => category.id === categoryKey),
+    )
+    return mostUsed ?? kindCategories[0].id
+  }, [suggestions.isPending, suggestions.data, kindCategories])
 
   const cashAccounts = useMemo(
     () =>
@@ -261,14 +246,14 @@ export function ManualTransactionSheet({
     setSubmitted(false)
   }, [open, expense, initialCategoryId, initialKind])
 
-  // An expense needs a category: the first chip (the most used) by default.
+  // An expense needs a category: the most used one by default.
   // Other kinds may stay without one (the review queue). Functional updates:
   // the reset above may have set a value in the same commit, which must win.
   useEffect(() => {
-    if (!open || kind !== 'expense' || chipIds.length === 0) return
+    if (!open || kind !== 'expense' || defaultCategoryId === null) return
     if (expense && expense.kind === 'expense' && !expense.categoryId) return
-    setCategoryId((current) => current || chipIds[0])
-  }, [open, kind, chipIds, expense])
+    setCategoryId((current) => current || defaultCategoryId)
+  }, [open, kind, defaultCategoryId, expense])
   useEffect(() => {
     if (!open || cashAccounts.length === 0) return
     const preferred =
@@ -294,10 +279,8 @@ export function ManualTransactionSheet({
   const allowNoCategory =
     kind !== 'expense' || (expense?.kind === 'expense' && !expense.categoryId)
 
-  const shownSuggestions = useMemo(
-    () => matchingSuggestions(suggestions.data?.items ?? [], label),
-    [suggestions.data, label],
-  )
+  const categoryName = (categoryKey: string) =>
+    kindCategories.find((category) => category.id === categoryKey)?.name
 
   function pickSuggestion(item: ManualSuggestionDto) {
     setLabel(item.label)
@@ -518,43 +501,61 @@ export function ManualTransactionSheet({
                   {showAmountError && <FieldError>{amountError}</FieldError>}
                 </Field>
 
-                <Field>
-                  <FieldLabel id={`${id}-category`}>Catégorie</FieldLabel>
-                  <CategoryChips
-                    labelId={`${id}-category`}
-                    categories={kindCategories}
-                    chipIds={chipIds}
-                    value={categoryId}
-                    allowNone={allowNoCategory}
-                    disabled={!categories.isSuccess}
-                    onChange={setCategoryId}
+                <div className="space-y-1.5">
+                  <p
+                    id={`${id}-habits`}
+                    className="text-muted-foreground text-sm"
+                  >
+                    Habituels
+                  </p>
+                  <HabitChips
+                    labelId={`${id}-habits`}
+                    items={suggestions.data?.items ?? []}
+                    label={label}
+                    categoryName={categoryName}
+                    onPick={pickSuggestion}
                   />
-                </Field>
+                </div>
 
-                <Field data-invalid={showLabelError}>
-                  <FieldLabel htmlFor={`${id}-label`} className="sr-only">
-                    Libellé
-                  </FieldLabel>
+                <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
+                  <FieldLabel htmlFor={`${id}-category`}>Catégorie</FieldLabel>
+                  <NativeSelect
+                    id={`${id}-category`}
+                    className="w-full"
+                    value={categoryId}
+                    disabled={!categories.isSuccess}
+                    onChange={(event) => setCategoryId(event.target.value)}
+                  >
+                    {allowNoCategory && (
+                      <NativeSelectOption value="">
+                        Sans catégorie
+                      </NativeSelectOption>
+                    )}
+                    {kindCategories.map((category) => (
+                      <NativeSelectOption key={category.id} value={category.id}>
+                        {category.name}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+
+                  <FieldLabel htmlFor={`${id}-label`}>Libellé</FieldLabel>
                   <Input
                     id={`${id}-label`}
+                    className={FIELD_HEIGHT}
                     autoComplete="off"
                     enterKeyHint="done"
                     maxLength={LABEL_MAX}
-                    placeholder={
-                      categoryId
-                        ? 'Libellé (facultatif), par ex. « ciné »'
-                        : 'Libellé, par ex. « ciné »'
-                    }
+                    placeholder={categoryId ? 'Facultatif' : 'Par ex. « ciné »'}
                     value={label}
                     aria-invalid={showLabelError}
                     onChange={(event) => setLabel(event.target.value)}
                   />
-                  <LabelSuggestions
-                    items={shownSuggestions}
-                    onPick={pickSuggestion}
-                  />
-                  {showLabelError && <FieldError>{labelError}</FieldError>}
-                </Field>
+                  {showLabelError && (
+                    <FieldError className="col-start-2">
+                      {labelError}
+                    </FieldError>
+                  )}
+                </div>
 
                 <Field data-invalid={showDateError}>
                   <DateChips
@@ -679,7 +680,7 @@ export function ManualTransactionSheet({
                   type="button"
                   variant="danger"
                   outline
-                  size="lg"
+                  className={FIELD_HEIGHT}
                   onClick={() => setConfirmOpen(true)}
                 >
                   Supprimer
@@ -687,8 +688,7 @@ export function ManualTransactionSheet({
               )}
               <Button
                 type="submit"
-                size="lg"
-                className="flex-1"
+                className={cn('flex-1 font-medium', FIELD_HEIGHT)}
                 loading={save.isPending}
                 disabled={(kind === 'expense' && !categoryId) || !accountId}
               >

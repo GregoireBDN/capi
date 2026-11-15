@@ -55,6 +55,16 @@ const SCENARIOS: Array<Scenario> = [
     step: clickFirst(/oubli/i),
   },
   { name: 'dashboard', path: '/dashboard' },
+  {
+    name: 'dashboard-expense-sheet',
+    path: '/dashboard',
+    step: async (page) => {
+      await page
+        .getByRole('button', { name: 'Ajouter une dépense', exact: true })
+        .click()
+      await page.getByRole('dialog').waitFor()
+    },
+  },
   { name: 'net-worth', path: '/net-worth' },
   { name: 'shell-nav', path: '/dashboard', step: openNav },
   {
@@ -76,6 +86,14 @@ const SCENARIOS: Array<Scenario> = [
     path: '/transactions?month=all',
     step: async (page) => {
       await clickFirst(/^Modifier /)(page)
+      await page.getByRole('dialog').waitFor()
+    },
+  },
+  {
+    name: 'transactions-add',
+    path: '/transactions?month=all',
+    step: async (page) => {
+      await clickFirst(/^Ajouter une opération$/)(page)
       await page.getByRole('dialog').waitFor()
     },
   },
@@ -281,8 +299,24 @@ function auditPage(min: { target: number; font: number; width: number }) {
       h: el.scrollWidth,
     })
   }
+  // A sheet or dialog that scrolls sideways inside itself (a field wider
+  // than the screen): the page does not, but the finger can pan it (#196).
+  // Rows of chips that scroll sideways on purpose are short: left out.
+  const dialogOverflow = [
+    ...document.querySelectorAll<HTMLElement>('[role=dialog], [role=dialog] *'),
+  ]
+    .filter((el) => {
+      if (!visible(el) || el.clientHeight < 120) return false
+      const { overflowX } = getComputedStyle(el)
+      return (
+        ['auto', 'scroll'].includes(overflowX) &&
+        el.scrollWidth > el.clientWidth + 1
+      )
+    })
+    .map((el) => describe(el))
   window.scrollTo(0, scrollY)
   return {
+    dialogOverflow,
     overflowingText,
     // Compared with the device width: a mobile browser widens the layout
     // viewport (innerWidth) to fit content that overflows.
@@ -360,6 +394,9 @@ test.describe('mobile layout', () => {
           JSON.stringify(result, null, 2),
         )
         expect.soft(result.overflow, 'horizontal scroll').toBe(false)
+        expect
+          .soft(result.dialogOverflow, 'dialog scrolling sideways')
+          .toEqual([])
         expect
           .soft(result.smallTargets, `targets < ${MIN_TARGET}px`)
           .toEqual([])
