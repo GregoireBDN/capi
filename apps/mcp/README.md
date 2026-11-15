@@ -1,6 +1,6 @@
-# @finances/mcp — local MCP server
+# @finances/mcp — MCP server (local stdio, remote HTTP)
 
-Lets Claude (Claude Desktop or Claude Code, on the owner's machine) answer questions about the finances, and help with the month-end routine, by calling the app's API with a **personal access token** (read-only, or write for the write tools). It runs locally over **stdio**: the MCP client starts it as a child process; nothing listens on a port.
+Lets Claude (Claude Desktop or Claude Code, on the owner's machine) answer questions about the finances, and help with the month-end routine, by calling the app's API with a **personal access token** (read-only, or write for the write tools). It runs locally over **stdio**: the MCP client starts it as a child process; nothing listens on a port. A remote HTTP transport with OAuth exists for claude.ai and the Claude apps, **disabled** (see [Remote access](#remote-access-claudeai-claude-apps--78-disabled)).
 
 - It only calls the public API (`/api/...`) with `Authorization: Bearer <token>`; it never opens the database.
 - Read tools work with a `read` token. Write tools need a `write` token and **never change anything without `confirm: true`**: called without it they return a preview of exactly what would change. The API refuses every non-GET route to tokens unless the route opts in, and no route that deletes or touches accounts or sign-in ever does: there are **no delete tools**. Of the import routes, only the bank CSV preview and commit are open to `write` tokens (#103).
@@ -158,6 +158,25 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (Settings
 
 Claude Desktop doesn't expand variables, so the token sits in that file: keep it private (`chmod 600`). If `node` isn't found, put its absolute path in `command` (`which node`). Server logs (stderr) are in `~/Library/Logs/Claude/mcp-server-finances.log`.
 
+## Remote access (claude.ai, Claude apps) — #78, disabled
+
+`node dist/index.js --http` (`pnpm --filter @finances/mcp start:http`) runs the same tools as a **remote MCP server** over Streamable HTTP, for claude.ai and the Claude mobile and desktop connectors, authorized with **OAuth 2.1**. It is **off**: it refuses to start unless `REMOTE_MCP_ENABLED=true`, and the API mounts no OAuth route without it. Enabling waits for the security audit (#102); design in [ADR 0003](../../docs/adr/0003-remote-mcp-oauth.md), steps in [the runbook](../../docs/runbooks/remote-mcp.md).
+
+- **Public surface, nothing else**: `POST /mcp` (stateless: one MCP server per request, JSON responses; `GET` / `DELETE` → 405), `/.well-known/oauth-protected-resource[/mcp]`, and `/.well-known/oauth-authorization-server`, `/oauth/register`, `/oauth/token`, `/oauth/revoke` relayed to the API's `/api/oauth/*` (form bodies converted to JSON, 16 KB at most). Any other path is 404: the API stays private.
+- **Tokens**: `/mcp` takes only OAuth access tokens (`fin_oat_…`) issued by the API for this resource, checked with `GET /api/oauth/token-info` (cached 30 s) and forwarded to the API, which applies the same scope rules as a personal access token. Without a valid token: `401` with `WWW-Authenticate: Bearer resource_metadata="…"`, which starts Claude's OAuth flow. A personal access token never works here.
+- **Consent** happens on the web app (`/oauth/authorize`, on the tailnet), in the owner's browser; read only unless "Autoriser les modifications" is ticked. Connections are listed and disconnected from **Profil → Applications connectées**.
+- **Differences with stdio**: `preview_bank_import` takes the CSV text (`content`) only, never a `filePath` (the server would read its own disk); error messages talk about reconnecting the connector.
+- **Limits and logs**: 120 requests/min per client IP and per token here, plus the API's own limits; `Origin` other than the public origin → 403; the client IP comes from `X-Forwarded-For` only through `MCP_TRUSTED_PROXIES`. Logs hold the method, a fixed route label and the status.
+
+| Variable                | Example                                                       |
+| ----------------------- | ------------------------------------------------------------- |
+| `REMOTE_MCP_ENABLED`    | `true` (anything else: refuses to start)                      |
+| `FINANCES_API_URL`      | `http://api:4000` (the API, from this process)                |
+| `REMOTE_MCP_PUBLIC_URL` | `https://finances-mcp.example.com` (origin, https)            |
+| `MCP_HTTP_HOST`         | `127.0.0.1` (default), `0.0.0.0` in a container               |
+| `MCP_HTTP_PORT`         | `4100` (default)                                              |
+| `MCP_TRUSTED_PROXIES`   | `loopback` (default); IPs, CIDR ranges, `uniquelocal`, `none` |
+
 ## Development
 
 ```bash
@@ -169,5 +188,6 @@ npx @modelcontextprotocol/inspector -e FINANCES_API_URL=http://localhost:4000 \
 
 - `src/api/generated/` holds types generated from `apps/api/openapi.json` (git-ignored, like the web client); `src/api/client.ts` is the small fetch client (bearer token, timeouts, error messages).
 - One file per tool group in `src/tools/` (write tools in `*-writes.ts`, shared preview/confirm helpers in `write.ts`); `src/prompts.ts` and `src/investments-prompt.ts` hold the prompts; `src/quantity.ts` checks crypto quantities as exact decimal strings; `src/format.ts` formats cents and calendar dates (no time zone conversion; "today" is Europe/Paris) and parses typed euros into cents.
-- Tests use synthetic fixtures only and go through a real MCP client over an in-memory transport (`src/test/mock-api.ts`).
+- Tests use synthetic fixtures only and go through a real MCP client over an in-memory transport (`src/test/mock-api.ts`); `src/http/server.test.ts` drives the remote adapter with a real Streamable HTTP client on an ephemeral port.
+- `src/http/`: the remote adapter (`server.ts`), its configuration, client IP and rate limiter.
 - For a manual run, start an API on a throwaway database (never `finances`), sign up, create a token (`POST /api/access-tokens` with the session cookie, or the profile page; `write` scope to try the write tools) and point the inspector at it.
