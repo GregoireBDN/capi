@@ -165,7 +165,7 @@ function ResetPasswordPage() {
                     }
                   />
                   <Label htmlFor="revoke-access-tokens" className="font-normal">
-                    Révoquer aussi les jetons d’accès
+                    Révoquer aussi les jetons d’accès et les applications connectées
                   </Label>
                 </div>
                 <FieldDescription>

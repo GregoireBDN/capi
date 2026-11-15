@@ -21,7 +21,8 @@ export async function recordAccessTokenUse(
   reply: FastifyReply,
 ): Promise<void> {
   const token = request.accessToken
-  if (!token) return
+  // OAuth tokens (#78) are audited by `OAuthAuditHook` in `oauth_audit`.
+  if (!token || token.kind === 'oauth') return
   try {
     await accessTokens.recordUse({
       tokenId: token.id,

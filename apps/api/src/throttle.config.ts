@@ -24,6 +24,13 @@ export const THROTTLE_LIMITS = {
   passkeyVerify: 5,
   /** Token renewal — generous enough for legitimate access-token expiry. */
   refresh: 30,
+  /**
+   * Remote MCP OAuth (#78): public routes called by the connector's servers.
+   * Registration happens once per connection; the token endpoint serves code
+   * exchanges and refreshes (every 15 minutes per connection).
+   */
+  oauthRegister: 5,
+  oauthToken: 20,
 } as const
 
 /**

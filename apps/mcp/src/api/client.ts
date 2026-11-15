@@ -26,6 +26,14 @@ export interface ApiClientOptions {
   token: string
   fetch?: typeof fetch
   timeoutMs?: number
+  /**
+   * `stdio` (default): a personal access token from the environment.
+   * `http`: the OAuth access token of a remote connection (#78); the error
+   * messages then talk about the connector instead of FINANCES_API_TOKEN.
+   */
+  mode?: 'stdio' | 'http'
+  /** Remote transport: the client IP, sent as `X-Forwarded-For` for the API's rate limits. */
+  forwardedFor?: string
 }
 
 const DEFAULT_TIMEOUT_MS = 20_000
@@ -35,12 +43,16 @@ export class ApiClient {
   private readonly token: string
   private readonly fetchImpl: typeof fetch
   private readonly timeoutMs: number
+  private readonly mode: 'stdio' | 'http'
+  private readonly forwardedFor: string | undefined
 
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, '')
     this.token = options.token
     this.fetchImpl = options.fetch ?? fetch
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+    this.mode = options.mode ?? 'stdio'
+    this.forwardedFor = options.forwardedFor
   }
 
   /** GET `path` (starting with `/api/`) with the query parameters that are set. */
@@ -85,6 +97,7 @@ export class ApiClient {
       Authorization: `Bearer ${this.token}`,
       Accept: 'application/json',
     }
+    if (this.forwardedFor) headers['X-Forwarded-For'] = this.forwardedFor
     const multipart = body instanceof FormData
     // fetch sets the multipart Content-Type with its boundary.
     if (body !== undefined && !multipart)
@@ -112,11 +125,16 @@ export class ApiClient {
       }
       throw new ApiError(
         0,
-        `API injoignable (${new URL(this.baseUrl).origin}) : vérifiez FINANCES_API_URL et que l'application tourne.`,
+        this.mode === 'http'
+          ? 'API injoignable depuis le serveur MCP. Réessayez dans un instant.'
+          : `API injoignable (${new URL(this.baseUrl).origin}) : vérifiez FINANCES_API_URL et que l'application tourne.`,
       )
     }
     if (!response.ok) {
-      throw new ApiError(response.status, await errorMessage(response, method))
+      throw new ApiError(
+        response.status,
+        await errorMessage(response, method, this.mode),
+      )
     }
     if (response.status === 204) return undefined as T
     return (await response.json()) as T
@@ -126,7 +144,16 @@ export class ApiClient {
 async function errorMessage(
   response: Response,
   method: 'GET' | WriteMethod,
+  mode: 'stdio' | 'http',
 ): Promise<string> {
+  if (mode === 'http' && response.status === 401) {
+    return "Connexion refusée par l'API (expirée ou déconnectée depuis le profil). Reconnectez le connecteur Finances dans Claude."
+  }
+  if (mode === 'http' && response.status === 403) {
+    return method === 'GET'
+      ? "Accès refusé : cette donnée n'est pas accessible à un connecteur."
+      : "Modification refusée : le connecteur a été autorisé en lecture seule (ou cette action reste réservée à l'application). Pour les modifications, déconnectez-le depuis le profil et reconnectez-le en cochant « Autoriser les modifications ». Rien n'a été modifié."
+  }
   switch (response.status) {
     case 401:
       return "Token refusé par l'API (invalide, expiré ou révoqué). Créez un token sur la page Profil de l'application (portée « Lecture seule », ou « Lecture et écriture » pour les modifications) et mettez à jour FINANCES_API_TOKEN."

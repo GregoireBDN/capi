@@ -7,6 +7,7 @@ import {
   defaultPasskeyName,
   dismissPasskeyOffer,
 } from '#/lib/passkeys'
+import { postLoginReturnPath } from '#/lib/post-login'
 import { ROUTES } from '#/lib/routes'
 import { FaceIdIcon } from './FaceIdIcon'
 import { Alert, AlertAction, AlertDescription, Button } from '@finances/ui'
@@ -24,7 +25,11 @@ export function PasskeyOffer() {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const enterApp = () => navigate({ to: ROUTES.dashboard })
+  const enterApp = () => {
+    // Back to the OAuth consent page when it sent the owner here (#78).
+    const back = postLoginReturnPath()
+    return back ? navigate({ href: back }) : navigate({ to: ROUTES.dashboard })
+  }
 
   async function onAdd() {
     setError(null)

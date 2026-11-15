@@ -49,7 +49,11 @@ vi.mock('./config/logger', async (importOriginal) => {
   }
 })
 
-/** Guards that authenticate the caller. Add new ones (e.g. a bearer guard) here. */
+/**
+ * Guards that authenticate the caller. Add new ones (e.g. a bearer guard) here.
+ * The remote MCP OAuth routes (#78) are not mounted here (`REMOTE_MCP_ENABLED`
+ * is off in specs): `auth/oauth/remote-mcp.module.spec.ts` audits them.
+ */
 const AUTH_GUARDS: Type<CanActivate>[] = [JwtGuard]
 
 /** The only routes reachable without a session. Keep this list short. */
