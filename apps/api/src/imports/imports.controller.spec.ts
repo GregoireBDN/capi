@@ -15,7 +15,8 @@ import {
   it,
   vi,
 } from 'vitest'
-import { JWT_GUARD_TEST_PROVIDERS } from '#/auth/guards/jwt-guard.testing'
+import { AccessTokensService } from '#/auth/access-tokens/access-tokens.service'
+import { JwtGuard } from '#/auth/guards/jwt.guard'
 import { cicCsv } from '#/imports/testing/cic-csv-fixture'
 import { ImportsController } from './imports.controller'
 import { ImportsService } from './imports.service'
@@ -28,6 +29,9 @@ import { IMPORT_FILE_MAX_BYTES, registerMultipart } from './upload/multipart'
  */
 
 const ACCOUNT_ID = '7f0c5a7e-2d1b-4c3a-9e8f-123456789abc'
+const IMPORT_ID = '0b5f6c1e-8a2d-4f3b-9c7e-abcdef012345'
+const READ_TOKEN = `fin_pat_${'r'.repeat(43)}`
+const WRITE_TOKEN = `fin_pat_${'w'.repeat(43)}`
 const FILE = cicCsv([
   {
     date: '2026-10-01',
@@ -67,14 +71,25 @@ function multipart(parts: Part[]) {
 describe('ImportsController (HTTP)', () => {
   let app: NestFastifyApplication
   let cookie: string
-  const service = { preview: vi.fn() }
+  const service = { preview: vi.fn(), commit: vi.fn(), remove: vi.fn() }
+  const accessTokens = {
+    authenticate: (token: string) =>
+      Promise.resolve(
+        token === READ_TOKEN
+          ? { id: 'tok-read', userId: 'user-1', scope: 'read' }
+          : token === WRITE_TOKEN
+            ? { id: 'tok-write', userId: 'user-1', scope: 'write' }
+            : null,
+      ),
+  }
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [ImportsController],
       providers: [
-        ...JWT_GUARD_TEST_PROVIDERS,
+        JwtGuard,
+        { provide: AccessTokensService, useValue: accessTokens },
         { provide: ImportsService, useValue: service },
       ],
     }).compile()
@@ -102,6 +117,9 @@ describe('ImportsController (HTTP)', () => {
   beforeEach(() => {
     service.preview.mockReset()
     service.preview.mockResolvedValue({ id: 'import-1' })
+    service.commit.mockReset()
+    service.commit.mockResolvedValue({ id: IMPORT_ID })
+    service.remove.mockReset()
   })
 
   function upload(parts: Part[], headers: Record<string, string> = { cookie }) {
@@ -152,6 +170,52 @@ describe('ImportsController (HTTP)', () => {
     )
     expect(response.statusCode).toBe(401)
     expect(service.preview).not.toHaveBeenCalled()
+  })
+
+  describe('with a personal access token (#103)', () => {
+    const parts: Part[] = [
+      { name: 'accountId', value: ACCOUNT_ID },
+      { name: 'file', filename: 'export.csv', content: FILE },
+    ]
+    const bearer = (token: string) => ({ authorization: `Bearer ${token}` })
+
+    it('lets a write token upload a preview', async () => {
+      const response = await upload(parts, bearer(WRITE_TOKEN))
+      expect(response.statusCode).toBe(201)
+      expect(service.preview).toHaveBeenCalledWith(
+        expect.objectContaining({ accountId: ACCOUNT_ID, buffer: FILE }),
+      )
+    })
+
+    it('refuses a preview to a read token', async () => {
+      const response = await upload(parts, bearer(READ_TOKEN))
+      expect(response.statusCode).toBe(403)
+      expect(service.preview).not.toHaveBeenCalled()
+    })
+
+    it('lets a write token commit and refuses a read token', async () => {
+      const commit = (token: string) =>
+        app.inject({
+          method: 'POST',
+          url: `/imports/${IMPORT_ID}/commit`,
+          payload: {},
+          headers: bearer(token),
+        })
+      expect((await commit(READ_TOKEN)).statusCode).toBe(403)
+      expect(service.commit).not.toHaveBeenCalled()
+      expect((await commit(WRITE_TOKEN)).statusCode).toBe(200)
+      expect(service.commit).toHaveBeenCalledWith(IMPORT_ID, {})
+    })
+
+    it('never lets a token discard or undo an import', async () => {
+      const response = await app.inject({
+        method: 'DELETE',
+        url: `/imports/${IMPORT_ID}`,
+        headers: bearer(WRITE_TOKEN),
+      })
+      expect(response.statusCode).toBe(403)
+      expect(service.remove).not.toHaveBeenCalled()
+    })
   })
 
   it.each<[string, Part[], RegExp]>([

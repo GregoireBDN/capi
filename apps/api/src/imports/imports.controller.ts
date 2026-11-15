@@ -18,6 +18,7 @@ import {
   ApiConsumes,
   ApiCookieAuth,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -30,6 +31,7 @@ import {
 import { plainToInstance } from 'class-transformer'
 import { validate } from 'class-validator'
 import type { FastifyRequest } from 'fastify'
+import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import {
   CommitImportDto,
@@ -52,7 +54,11 @@ const ID_PARAM = { name: 'id', type: String, format: 'uuid' } as const
 export class ImportsController {
   constructor(private readonly importsService: ImportsService) {}
 
+  // Preview and commit are open to `write` tokens for the MCP import tools
+  // (#103): they keep the preview → commit flow, dedupe and continuity check.
+  // Deleting (discarding or undoing) an import stays session-only.
   @Post('preview')
+  @TokenAccess('write')
   @ApiOperation({
     summary: 'Upload a bank export and preview it',
     description:
@@ -67,6 +73,9 @@ export class ImportsController {
   })
   @ApiPayloadTooLargeResponse({ description: 'The file exceeds 5 MB.' })
   @ApiUnsupportedMediaTypeResponse({ description: 'Not a multipart body.' })
+  @ApiForbiddenResponse({
+    description: 'Personal access token without the `write` scope.',
+  })
   async preview(@Req() request: FastifyRequest): Promise<ImportDetailDto> {
     const upload = await readMultipartUpload(request)
     const fields = plainToInstance(PreviewImportFieldsDto, upload.fields)
@@ -91,6 +100,7 @@ export class ImportsController {
   }
 
   @Post(':id/commit')
+  @TokenAccess('write')
   @HttpCode(200)
   @ApiOperation({
     summary: 'Commit a previewed import',
@@ -107,6 +117,9 @@ export class ImportsController {
   @ApiNotFoundResponse()
   @ApiConflictResponse({
     description: 'Already committed, or the preview is outdated.',
+  })
+  @ApiForbiddenResponse({
+    description: 'Personal access token without the `write` scope.',
   })
   commit(
     @Param('id', ParseUUIDPipe) id: string,
