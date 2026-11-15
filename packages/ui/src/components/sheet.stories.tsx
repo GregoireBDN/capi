@@ -91,6 +91,42 @@ export const Bottom: Story = {
   ),
 }
 
+export const BottomWithWideContent: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A bottom sheet clips horizontal overflow: content wider than the screen (here a 150% wide box) never lets the sheet pan sideways under the finger. Scrolling its content never scrolls the page behind it.',
+      },
+    },
+  },
+  render: () => (
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button>Open wide sheet</Button>
+      </SheetTrigger>
+      <SheetContent side="bottom">
+        <SheetHeader>
+          <SheetTitle>Wide content</SheetTitle>
+          <SheetDescription>Cannot be dragged sideways.</SheetDescription>
+        </SheetHeader>
+        <div className="mx-4 mb-4 h-10 w-[150%] rounded-lg bg-muted" />
+      </SheetContent>
+    </Sheet>
+  ),
+  play: async ({ canvasElement, userEvent, step }) => {
+    const canvas = within(canvasElement)
+    await step('Open the sheet', async () => {
+      await userEvent.click(canvas.getByRole('button', { name: /open wide sheet/i }))
+      await expect(await screen.findByText(/wide content/i)).toBeVisible()
+    })
+    await step('Horizontal overflow is clipped', async () => {
+      const sheet = screen.getByRole('dialog')
+      await expect(getComputedStyle(sheet).overflowX).toBe('hidden')
+    })
+  },
+}
+
 export const OpenCloseInteraction: Story = {
   render: () => (
     <Sheet>
