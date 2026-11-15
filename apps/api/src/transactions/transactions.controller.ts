@@ -44,6 +44,8 @@ import {
 import {
   CorrectTransactionDto,
   CreateManualTransactionDto,
+  ManualSuggestionsDto,
+  ManualSuggestionsQueryDto,
   UpdateManualTransactionDto,
 } from './dto/manual-transaction.dto'
 import { ManualTransactionsService } from './manual-transactions.service'
@@ -116,6 +118,21 @@ export class TransactionsController {
     @Body() dto: BulkUpdateTransactionsDto,
   ): Promise<BulkUpdateResultDto> {
     return this.transactionsService.bulkUpdate(dto)
+  }
+
+  @Get('manual/suggestions')
+  @ApiOperation({
+    summary: 'Labels to suggest when entering a transaction by hand',
+    description:
+      'Most used first: the labels typed on manual transactions of the kind over the last year (counted double) and the merchants of imported rows of the kind seen at least twice over the last six months, each with the category it is filed under at least 70 % of the time when that category is open, else null.',
+  })
+  @ApiQuery({ type: ManualSuggestionsQueryDto })
+  @ApiOkResponse({ type: ManualSuggestionsDto })
+  @ApiBadRequestResponse({ description: 'Unknown kind.' })
+  manualSuggestions(
+    @Query() query: ManualSuggestionsQueryDto,
+  ): Promise<ManualSuggestionsDto> {
+    return this.manualTransactions.suggestions(query.kind)
   }
 
   @Post('manual')

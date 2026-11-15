@@ -423,6 +423,109 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
+    it('suggests typed labels and frequent merchants with their usual category', async () => {
+      await withFixture(
+        async ({ tx, service, checking, outings, groceries, salary }) => {
+          const note = (
+            label: string | undefined,
+            categoryId: string,
+            day: string,
+          ) =>
+            service.create(
+              { amountCents: 500, categoryId, label, bookingDate: day },
+              NOW,
+            )
+          // Typed three times, twice under one category: no dominant one.
+          await note('Fournil Fictif', groceries, '2026-10-01')
+          await note('fournil fictif ', groceries, '2026-10-05')
+          await note('Fournil fictif', outings, '2026-10-06')
+          // Typed twice, always the same category; spelt as last typed.
+          await note('ciné test', outings, '2026-09-01')
+          await note('Ciné Test', outings, '2026-10-02')
+          // Left to its default label (the category name): not typed.
+          await note(undefined, outings, '2026-10-03')
+          // Over a year old: forgotten.
+          await note('Vieux libellé', outings, '2025-10-01')
+          // Another kind.
+          await service.create(
+            {
+              amountCents: 500,
+              categoryId: salary,
+              label: 'Prime fictive',
+              direction: 'in',
+              bookingDate: '2026-10-04',
+            },
+            NOW,
+          )
+          const imported = (merchant: string, day: string, hash: string) => ({
+            accountId: checking,
+            bookingDate: day,
+            amountCents: -900,
+            rawLabel: `CB ${merchant.toUpperCase()} 01/10`,
+            merchant,
+            kind: 'expense' as const,
+            categoryId: groceries,
+            dedupeHash: hash.repeat(64),
+          })
+          await tx.insert(transactionsTable).values([
+            // Seen four times: suggested, filed under groceries.
+            imported('Épicerie Fictive', '2026-10-10', 'a'),
+            imported('Épicerie Fictive', '2026-10-11', 'b'),
+            imported('Épicerie Fictive', '2026-10-12', 'c'),
+            imported('Épicerie Fictive', '2026-10-13', 'd'),
+            // Seen once: left out.
+            imported('Magasin Unique', '2026-10-14', 'e'),
+            // Seen twice, but more than six months ago.
+            imported('Ancien Magasin', '2026-03-01', 'f'),
+            imported('Ancien Magasin', '2026-03-02', '0'),
+          ])
+
+          const ours = new Set([
+            'Fournil fictif',
+            'Ciné Test',
+            'Épicerie Fictive',
+            'Sorties test',
+            'Vieux libellé',
+            'Prime fictive',
+            'Magasin Unique',
+            'Ancien Magasin',
+          ])
+          const { items } = await service.suggestions('expense', NOW)
+          expect(items.filter((item) => ours.has(item.label))).toEqual([
+            { label: 'Fournil fictif', categoryId: null },
+            { label: 'Épicerie Fictive', categoryId: groceries },
+            { label: 'Ciné Test', categoryId: outings },
+          ])
+
+          const income = await service.suggestions('income', NOW)
+          expect(income.items.filter((item) => ours.has(item.label))).toEqual([
+            { label: 'Prime fictive', categoryId: salary },
+          ])
+
+          // Most used categories of the kind over 90 days: groceries (4
+          // imported + 2 typed) before outings (3 typed + the default one).
+          const ranked = (await service.suggestions('expense', NOW)).categoryIds
+          expect(
+            ranked.filter((id) => id === groceries || id === outings),
+          ).toEqual([groceries, outings])
+          expect(ranked).not.toContain(salary)
+          expect(income.categoryIds).toContain(salary)
+
+          // An archived category is no longer filled in.
+          await tx
+            .update(categoriesTable)
+            .set({ archivedAt: NOW })
+            .where(eq(categoriesTable.id, outings))
+          const afterArchive = await service.suggestions('expense', NOW)
+          expect(afterArchive.items).toContainEqual({
+            label: 'Ciné Test',
+            categoryId: null,
+          })
+          expect(afterArchive.categoryIds).not.toContain(outings)
+        },
+      )
+    })
+
     it('deletes it, and never touches an imported transaction', async () => {
       await withFixture(async ({ tx, service, outings, checking }) => {
         const created = await service.create(

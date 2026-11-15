@@ -210,6 +210,11 @@ function SheetContent({
             // Typography
             'text-sm',
 
+            // Never pans sideways under the finger (a too-wide field must not
+            // make the whole sheet scroll horizontally on iOS), and scrolling
+            // its content never scrolls the page behind it.
+            'overflow-x-hidden overscroll-contain',
+
             // Transitions
             'transition duration-200 ease-in-out',
             'motion-reduce:duration-0',

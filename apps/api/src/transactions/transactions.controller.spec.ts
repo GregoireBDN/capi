@@ -44,6 +44,7 @@ describe('TransactionsController (HTTP)', () => {
     restoreBankValues: vi.fn(),
   }
   const manual = {
+    suggestions: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     remove: vi.fn(),
@@ -85,6 +86,7 @@ describe('TransactionsController (HTTP)', () => {
     manual.create.mockResolvedValue({ id: ID })
     manual.update.mockResolvedValue({ id: ID })
     manual.remove.mockResolvedValue(undefined)
+    manual.suggestions.mockResolvedValue({ items: [], categoryIds: [] })
     service.list.mockResolvedValue({ items: [], total: 0, page: 1, limit: 20 })
     service.summary.mockResolvedValue({ count: 0 })
     service.reviewCount.mockResolvedValue(3)
@@ -306,6 +308,34 @@ describe('TransactionsController (HTTP)', () => {
   })
 
   describe('manual transactions', () => {
+    it('suggests labels for a kind, expense by default', async () => {
+      manual.suggestions.mockResolvedValue({
+        items: [{ label: 'Boulangerie', categoryId: ID }],
+        categoryIds: [ID],
+      })
+      const response = await request('GET', '/transactions/manual/suggestions')
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({
+        items: [{ label: 'Boulangerie', categoryId: ID }],
+        categoryIds: [ID],
+      })
+      expect(manual.suggestions).toHaveBeenLastCalledWith(undefined)
+
+      await request('GET', '/transactions/manual/suggestions?kind=income')
+      expect(manual.suggestions).toHaveBeenLastCalledWith('income')
+    })
+
+    it('refuses an unknown kind or another filter for suggestions', async () => {
+      for (const query of ['kind=refund', 'q=ciné']) {
+        const response = await request(
+          'GET',
+          `/transactions/manual/suggestions?${query}`,
+        )
+        expect(response.statusCode).toBe(400)
+      }
+      expect(manual.suggestions).not.toHaveBeenCalled()
+    })
+
     it('notes an expense with only an amount and a category', async () => {
       const response = await request('POST', '/transactions/manual', {
         amountCents: 1250,

@@ -258,3 +258,47 @@ export class CorrectTransactionDto {
   @IsISO8601({ strict: true })
   bookingDate?: string
 }
+
+/** Labels suggested at most when entering a transaction by hand (#196). */
+export const MANUAL_SUGGESTIONS_MAX = 12
+/** Categories offered first at most when entering a transaction by hand. */
+export const MANUAL_CATEGORIES_MAX = 8
+
+export class ManualSuggestionsQueryDto {
+  @ApiPropertyOptional({
+    ...KIND_DOC,
+    description: 'Kind of the transaction being entered. Default: `expense`.',
+  })
+  @IsOptional()
+  @IsIn(TRANSACTION_KINDS)
+  kind?: TransactionKind
+}
+
+export class ManualSuggestionDto {
+  @ApiProperty({ type: String, example: 'Boulangerie' })
+  label!: string
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Category this label is filed under most of the time (at least 70 % of its uses), when it is still pickable and of the requested kind; else null.',
+  })
+  categoryId!: string | null
+}
+
+export class ManualSuggestionsDto {
+  @ApiProperty({
+    type: [ManualSuggestionDto],
+    description: `At most ${MANUAL_SUGGESTIONS_MAX}, most used first.`,
+  })
+  items!: ManualSuggestionDto[]
+
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    description: `Open categories of the kind most used over the last 90 days (a split counts in each of its categories), most used first; at most ${MANUAL_CATEGORIES_MAX}.`,
+  })
+  categoryIds!: string[]
+}

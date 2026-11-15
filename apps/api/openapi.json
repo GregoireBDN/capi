@@ -2632,6 +2632,54 @@
         ]
       }
     },
+    "/api/transactions/manual/suggestions": {
+      "get": {
+        "description": "Most used first: the labels typed on manual transactions of the kind over the last year (counted double) and the merchants of imported rows of the kind seen at least twice over the last six months, each with the category it is filed under at least 70 % of the time when that category is open, else null.",
+        "operationId": "TransactionsController_manualSuggestions",
+        "parameters": [
+          {
+            "description": "Kind of the transaction being entered. Default: `expense`.",
+            "required": false,
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/TransactionKind"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualSuggestionsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown kind."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Labels to suggest when entering a transaction by hand",
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
     "/api/transactions/manual": {
       "post": {
         "description": "Expense, income or transfer: amount and direction (default: in for income, out otherwise), kind (default: the category’s, else expense), optional category (without one it goes to review and needs a label), day (default: today in Europe/Paris), label (default: the category name), account (default: the first checking account), one-off flag and note. Counts in statistics, budgets and balances at once, never as imported data; the import of the bank export replaces it with the matching bank row, keeping its category, note and split.",
@@ -8313,6 +8361,49 @@
         },
         "required": [
           "updated"
+        ]
+      },
+      "ManualSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "example": "Boulangerie"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Category this label is filed under most of the time (at least 70 % of its uses), when it is still pickable and of the requested kind; else null."
+          }
+        },
+        "required": [
+          "label",
+          "categoryId"
+        ]
+      },
+      "ManualSuggestionsDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "At most 12, most used first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ManualSuggestionDto"
+            }
+          },
+          "categoryIds": {
+            "description": "Open categories of the kind most used over the last 90 days (a split counts in each of its categories), most used first; at most 8.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "items",
+          "categoryIds"
         ]
       },
       "MoneyDirection": {

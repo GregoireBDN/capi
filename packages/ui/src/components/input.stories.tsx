@@ -68,6 +68,33 @@ export const Types: Story = {
   ),
 }
 
+export const DateAndTime: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Date and time inputs drop the native look (`appearance: none`), so on iOS they stay as wide as their container instead of sticking out of it, and their value is left-aligned like the other fields.',
+      },
+    },
+  },
+  render: () => (
+    <div className="w-56 space-y-3 border border-dashed p-2">
+      <Input placeholder="Text input" />
+      <Input type="date" defaultValue="2026-11-15" aria-label="Date" />
+      <Input type="time" defaultValue="08:30" aria-label="Time" />
+    </div>
+  ),
+  play: async ({ canvas, step }) => {
+    await step('The date input is no wider than the text input', async () => {
+      const text = canvas.getByPlaceholderText(/text input/i)
+      const date = canvas.getByLabelText('Date')
+      await expect(date.getBoundingClientRect().width).toBeLessThanOrEqual(
+        text.getBoundingClientRect().width,
+      )
+    })
+  },
+}
+
 export const States: Story = {
   parameters: { docs: { description: { story: 'Disabled and invalid (`aria-invalid`) visual states.' } } },
   render: () => (

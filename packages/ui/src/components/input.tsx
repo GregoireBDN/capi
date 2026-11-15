@@ -42,6 +42,18 @@ function Input({ className, type, ...props }: InputProps) {
           // Placeholder
           "placeholder:text-muted-foreground",
 
+          // Date and time inputs: iOS Safari gives them a native look with
+          // an intrinsic width that ignores w-full, so they stick out of
+          // narrow containers (and let a sheet pan sideways), and centres
+          // their value. A plain box keeps them as wide as the other fields.
+          "[&[type=date]]:appearance-none",
+          "[&[type=datetime-local]]:appearance-none",
+          "[&[type=month]]:appearance-none",
+          "[&[type=time]]:appearance-none",
+          "[&::-webkit-date-and-time-value]:text-left",
+          // An empty value would otherwise collapse to no height on iOS
+          "[&::-webkit-date-and-time-value]:min-h-[1.5em]",
+
           // File Input Styling
           "file:inline-flex file:h-6 file:border-0 file:bg-transparent",
           "file:text-sm file:font-medium file:text-foreground",
