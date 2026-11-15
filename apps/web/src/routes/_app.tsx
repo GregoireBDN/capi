@@ -38,9 +38,9 @@ function AppLayout() {
       style={{ '--sidebar-width': 'min(16rem, 32vw)' } as CSSProperties}
     >
       <AppSidebar user={currentUser} />
-      {/* --app-top-bar: height of AppTopBar (shown below md, and from md up
-          while the sidebar is hidden), for sticky elements under it. */}
-      <SidebarInset className="min-w-0 [--app-top-bar:3rem] md:peer-data-[state=expanded]:[--app-top-bar:0px]">
+      {/* --app-top-bar: height of AppTopBar (shown below md only), for
+          sticky elements under it. */}
+      <SidebarInset className="min-w-0 [--app-top-bar:3rem] md:[--app-top-bar:0px]">
         <AppTopBar />
         <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 md:py-10">
           <Outlet />
