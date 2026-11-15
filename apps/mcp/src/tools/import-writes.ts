@@ -338,7 +338,12 @@ export const previewBankImportTool = defineTool({
         'Name shown in the import history. Default: the file name, or releve-cic.csv for content.',
       ),
   },
-  async run({ api }, args) {
+  async run({ api, remote }, args) {
+    if (remote && args.filePath !== undefined) {
+      throw new ToolInputError(
+        "Connexion à distance : le serveur ne lit aucun fichier. Donnez le texte du CSV dans content (l'export CIC ouvert ou collé).",
+      )
+    }
     if ((args.filePath === undefined) === (args.content === undefined)) {
       throw new ToolInputError(
         'Donnez soit filePath (chemin du fichier), soit content (texte du CSV), pas les deux.',

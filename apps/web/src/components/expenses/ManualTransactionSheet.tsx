@@ -420,6 +420,10 @@ export function ManualTransactionSheet({
             'gap-0',
             isMobile &&
               'max-h-[calc(90svh-var(--keyboard-inset,0px))] rounded-t-xl',
+            // With the keyboard open, every pixel above it up to the status
+            // bar: the amount being typed must stay in view (#205).
+            isMobile &&
+              'data-keyboard-open:max-h-[calc(100svh-var(--keyboard-inset,0px)-env(safe-area-inset-top)-0.5rem)]',
           )}
           onOpenAutoFocus={(event) => {
             event.preventDefault()
@@ -432,9 +436,10 @@ export function ManualTransactionSheet({
             className="flex min-h-0 flex-1 flex-col"
           >
             <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
-              <SheetHeader className="pr-14 pb-2">
+              <SheetHeader className="pr-14 pb-2 group-data-keyboard-open/sheet:pb-1">
                 <SheetTitle>{expense ? editTitle : addTitle}</SheetTitle>
-                <SheetDescription>
+                {/* Not while typing: room for the fields (#205). */}
+                <SheetDescription className="group-data-keyboard-open/sheet:sr-only">
                   L’import du relevé la remplacera.
                 </SheetDescription>
               </SheetHeader>

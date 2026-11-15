@@ -6,6 +6,8 @@ import { AccessTokensService } from '#/auth/access-tokens/access-tokens.service'
 import { AuthController } from '#/auth/auth.controller'
 import { AuthService } from '#/auth/auth.service'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
+import { OAuthService } from '#/auth/oauth/oauth.service'
+import { REMOTE_MCP_CONFIG } from '#/auth/oauth/remote-mcp.config'
 import { PasskeysController } from '#/auth/passkeys/passkeys.controller'
 import { PasskeysService } from '#/auth/passkeys/passkeys.service'
 import { env } from '#/config/env'
@@ -23,8 +25,18 @@ import { env } from '#/config/env'
     AccessTokensService,
     AccessTokenAuditHook,
     PasskeysService,
+    // Remote MCP (#78): always provided so JwtGuard can refuse OAuth tokens
+    // while it is off; its routes live in RemoteMcpModule.
+    { provide: REMOTE_MCP_CONFIG, useValue: env.remoteMcp },
+    OAuthService,
   ],
   // JwtGuard is instantiated in each consuming module: export what it injects.
-  exports: [AuthService, JwtGuard, JwtModule, AccessTokensService],
+  exports: [
+    AuthService,
+    JwtGuard,
+    JwtModule,
+    AccessTokensService,
+    OAuthService,
+  ],
 })
 export class AuthModule {}

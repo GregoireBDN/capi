@@ -1,6 +1,7 @@
 import { redirect } from '@tanstack/react-router'
 import type { UserDto } from '#/api/types.gen'
 import { fetchCurrentUser } from '#/lib/auth'
+import { safeReturnPath } from '#/lib/post-login'
 import { ROUTES } from '#/lib/routes'
 
 /**
@@ -14,10 +15,32 @@ export async function requireUser(): Promise<UserDto> {
   return user
 }
 
-/** Guard for the login page: signed-in users go straight to the dashboard. */
-export async function redirectIfAuthenticated(): Promise<void> {
+/**
+ * Guard for the login page: signed-in users go straight to the dashboard, or
+ * back to the OAuth consent page that sent them here (`?redirect=`, #78).
+ */
+export async function redirectIfAuthenticated(
+  returnTo?: string,
+): Promise<void> {
   const user = await fetchCurrentUser()
-  if (user) throw redirect({ to: ROUTES.dashboard })
+  if (!user) return
+  const back = safeReturnPath(returnTo)
+  throw back ? redirect({ href: back }) : redirect({ to: ROUTES.dashboard })
+}
+
+/**
+ * Guard for the OAuth consent page (#78): anonymous visitors sign in first
+ * and come back to the same request.
+ */
+export async function requireUserForConsent(href: string): Promise<UserDto> {
+  const user = await fetchCurrentUser()
+  if (!user) {
+    throw redirect({
+      to: ROUTES.auth,
+      search: { redirect: safeReturnPath(href) ?? undefined },
+    })
+  }
+  return user
 }
 
 /**

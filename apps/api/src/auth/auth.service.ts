@@ -9,6 +9,7 @@ import * as bcrypt from 'bcryptjs'
 import * as crypto from 'node:crypto'
 import { and, eq, isNull, ne, sql } from 'drizzle-orm'
 import { personalAccessTokensTable } from '#/auth/access-tokens/access-tokens.schema'
+import { oauthGrantsTable } from '#/auth/oauth/oauth.schema'
 import { DatabaseService } from '#/database/database.service'
 import {
   emailVerificationTokensTable,
@@ -519,8 +520,9 @@ export class AuthService {
   /**
    * After a reset or a change: revokes every refresh-token family of the
    * user but `keepFamilyId`, spends pending reset links and, when asked,
-   * revokes the personal access tokens. Access JWTs already issued stay valid
-   * until they expire (15 minutes, stateless).
+   * revokes the personal access tokens and the remote MCP connections (OAuth
+   * grants, #78, whose tokens die with them). Access JWTs already issued stay
+   * valid until they expire (15 minutes, stateless).
    */
   private async endSessionsAfterPasswordChange(
     userId: string,
@@ -551,6 +553,15 @@ export class AuthService {
           and(
             eq(personalAccessTokensTable.userId, userId),
             isNull(personalAccessTokensTable.revokedAt),
+          ),
+        )
+      await this.db.db
+        .update(oauthGrantsTable)
+        .set({ revokedAt: now })
+        .where(
+          and(
+            eq(oauthGrantsTable.userId, userId),
+            isNull(oauthGrantsTable.revokedAt),
           ),
         )
     }

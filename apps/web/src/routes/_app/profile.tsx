@@ -1,5 +1,6 @@
 import { profileControllerUpdate } from '#/api'
 import { AccessTokensCard } from '#/components/access-tokens/AccessTokensCard'
+import { ConnectedAppsCard } from '#/components/oauth/ConnectedAppsCard'
 import { PasskeysCard } from '#/components/passkeys/PasskeysCard'
 import { ChangePasswordCard } from '#/components/profile/ChangePasswordCard'
 import { DeleteAccountCard } from '#/components/profile/DeleteAccountCard'
@@ -298,6 +299,8 @@ function ProfilePage() {
       <PasskeysCard email={currentUser.email} />
 
       <AccessTokensCard email={currentUser.email} />
+
+      <ConnectedAppsCard />
 
       <DeleteAccountCard
         email={currentUser.email}

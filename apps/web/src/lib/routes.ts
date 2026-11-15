@@ -19,4 +19,5 @@ export const ROUTES = {
   categories: '/categories',
   rules: '/rules',
   verifyEmail: '/verify-email',
+  oauthAuthorize: '/oauth/authorize',
 } as const

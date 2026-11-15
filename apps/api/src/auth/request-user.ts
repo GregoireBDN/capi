@@ -11,10 +11,18 @@ export interface RequestUser {
   authTime?: number
 }
 
-/** Set by `JwtGuard` when the request authenticated with a personal access token. */
+/**
+ * Set by `JwtGuard` when the request authenticated with a bearer token: a
+ * personal access token, or an OAuth access token of the remote MCP
+ * connection (#78, `kind: 'oauth'`, `id` = the grant). Both are limited
+ * the same way by their scope and the route's `@TokenAccess()`.
+ */
 export interface RequestAccessToken {
   id: string
   scope: AccessTokenScope
+  kind?: 'oauth'
+  /** OAuth access tokens only. */
+  expiresAt?: Date
 }
 
 declare module 'fastify' {

@@ -1,4 +1,5 @@
 import './load-env'
+import './generate-spec-env'
 import 'reflect-metadata'
 import { NestFactory } from '@nestjs/core'
 import {

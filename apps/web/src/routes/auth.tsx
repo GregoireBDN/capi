@@ -2,15 +2,21 @@ import { createFileRoute } from '@tanstack/react-router'
 import { AuthCard } from '#/components/auth/AuthCard'
 import { getRegistrationOpen } from '#/lib/auth'
 import { redirectIfAuthenticated } from '#/lib/auth-guard'
+import { safeReturnPath } from '#/lib/post-login'
 
 interface AuthSearch {
   mode?: 'register'
+  /** The OAuth consent page to come back to after signing in (#78). */
+  redirect?: string
 }
 
 export const Route = createFileRoute('/auth')({
-  validateSearch: (search: Record<string, unknown>): AuthSearch =>
-    search['mode'] === 'register' ? { mode: 'register' } : {},
-  beforeLoad: redirectIfAuthenticated,
+  validateSearch: (search: Record<string, unknown>): AuthSearch => {
+    const redirect = safeReturnPath(search['redirect']) ?? undefined
+    if (search['mode'] === 'register') return { mode: 'register' }
+    return redirect ? { redirect } : {}
+  },
+  beforeLoad: ({ search }) => redirectIfAuthenticated(search.redirect),
   loader: async () => ({ registrationOpen: await getRegistrationOpen() }),
   head: () => ({ meta: [{ title: 'Connexion · Finances' }] }),
   component: AuthPage,
