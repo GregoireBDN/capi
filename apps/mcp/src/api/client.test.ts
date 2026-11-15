@@ -24,6 +24,17 @@ async function failure(promise: Promise<unknown>): Promise<ApiError> {
 }
 
 describe('ApiClient', () => {
+  it('uploads a multipart form with the bearer and without a JSON type', async () => {
+    const { api, calls } = client({ 'POST /api/imports/preview': { id: 'x' } })
+    const form = new FormData()
+    form.append('accountId', 'acc')
+    form.append('file', new Blob(['a;b']), 'export.csv')
+    await api.upload('/api/imports/preview', form)
+    expect(calls[0]?.headers.get('authorization')).toBe(`Bearer ${TEST_TOKEN}`)
+    expect(calls[0]?.headers.get('content-type')).toBeNull()
+    expect(calls[0]?.body).toBe(form)
+  })
+
   it('sends the token as a bearer and only the query parameters that are set', async () => {
     const { api, calls } = client({ '/api/transactions': { items: [] } })
     await api.get('/api/transactions', {
