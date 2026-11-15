@@ -2,6 +2,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { z } from 'zod'
 import { ApiError } from './api/client.js'
+import {
+  investmentsImportPrompt,
+  investmentsImportPromptArgs,
+} from './investments-prompt.js'
 import { monthReviewPrompt, monthReviewPromptArgs } from './prompts.js'
 import { tools } from './tools/index.js'
 import {
@@ -17,7 +21,7 @@ const INSTRUCTIONS = `Access to the owner's personal finances (single user, EUR,
 Amounts are euros; negative = money out. Internal transfers between the owner's accounts are never income or expenses.
 Statements are imported by hand, so the current month is often partial: tools say how far the data goes and compare partial months like for like.
 Start with accounts_overview or list_categories to learn the names that filters accept.
-Write tools (add_transaction, categorize_transactions, mark_one_off, set_transaction_note, create_rule, set_budget_targets) never change anything without confirm: true. Call them without confirm first, show the owner the preview, and only call again with confirm: true after the owner explicitly agrees. They need a write token; nothing can be deleted through them.
+Write tools (add_transaction, categorize_transactions, mark_one_off, set_transaction_note, create_rule, set_budget_targets, add_investment_snapshots, sync_crypto_holdings) never change anything without confirm: true. Call them without confirm first, show the owner the preview, and only call again with confirm: true after the owner explicitly agrees. They need a write token; nothing can be deleted through them.
 Bank statements (CIC CSV) are imported in two steps: preview_bank_import uploads the file and writes nothing; commit_bank_import with confirm: true writes the new rows, only after the owner agreed to the preview. list_imports tells what was imported up to when.`
 
 /**
@@ -85,6 +89,16 @@ export function createServer(context: ToolContext): McpServer {
       argsSchema: monthReviewPromptArgs,
     },
     ({ month }) => monthReviewPrompt(context.now(), month),
+  )
+  server.registerPrompt(
+    'importer_mes_investissements',
+    {
+      title: 'Importer mes investissements',
+      description:
+        'Reads the investment statements of a Google Drive folder (with the client’s Drive connector) and records the new values with list_investment_accounts, add_investment_snapshots and sync_crypto_holdings, after a summary and previews.',
+      argsSchema: investmentsImportPromptArgs,
+    },
+    ({ folder }) => investmentsImportPrompt(context.now(), folder),
   )
   return server
 }

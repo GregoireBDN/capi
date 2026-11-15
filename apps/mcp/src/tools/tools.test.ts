@@ -54,15 +54,18 @@ describe('tool list', () => {
     const { tools } = await client.listTools()
     expect(tools.map((t) => t.name).sort()).toEqual([
       'accounts_overview',
+      'add_investment_snapshots',
       'add_transaction',
       'budget_history',
       'budget_status',
       'budget_suggestions',
       'categorize_transactions',
       'commit_bank_import',
+      'create_investment_account',
       'create_rule',
       'list_categories',
       'list_imports',
+      'list_investment_accounts',
       'mark_one_off',
       'month_close_status',
       'month_end_forecast',
@@ -76,8 +79,11 @@ describe('tool list', () => {
       'spending_by_category',
       'spending_history',
       'subscriptions',
+      'sync_crypto_holdings',
     ])
     const writeTools = new Set([
+      'add_investment_snapshots',
+      'sync_crypto_holdings',
       'add_transaction',
       'categorize_transactions',
       'create_rule',

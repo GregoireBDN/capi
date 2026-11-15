@@ -36,6 +36,19 @@ Read tools added with the write tools: `month_close_status` (`GET /api/month-clo
 | `create_rule`             | `POST /api/categorization-rules` (+ `/preview`, `/apply`)           | A categorization rule ("label contains …" → category), last in order; optionally re-applies the rules to existing transactions.                                      |
 | `set_budget_targets`      | `PUT /api/budgets/:categoryId`                                      | Monthly targets of one or several expense categories from a month on, in one call (e.g. next month's budget prepared from `budget_suggestions`).                     |
 
+### Investment tools (#104)
+
+For values Claude reads in the owner's statements (see [Importing investment values from Google Drive](../../docs/runbooks/investments-from-drive.md)): the app never sees the documents, only the extracted dates, cents and quantities.
+
+| Tool                        | API                                                                                                | What it does                                                                                                                                                                                                                                                                                                                              |
+| --------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_investment_accounts`  | `GET /api/investments/summary`, `GET /api/accounts`                                                | Read. Investment accounts with type, institution, crypto source, last value and date, net contributions, stale ones.                                                                                                                                                                                                                      |
+| `add_investment_snapshots`  | `GET /api/accounts/:id/snapshots`, `POST /api/accounts/:id/snapshots/bulk`                         | Write. Dated values (and optional net contributions) of an investment account, upserted per day; the preview shows new / replaced / unchanged days and the effect on the current value and net worth.                                                                                                                                     |
+| `sync_crypto_holdings`      | `GET /api/accounts/:id/holdings`, `POST` / `PUT …/holdings[/:holdingId]`, `GET /api/crypto/assets` | Write. The quantities held at one location (wallet / exchange label) of a crypto account, as exact decimal strings. It owns only the **hand-entered** lines of that location: imported and synced lines are never touched (an asset held through one is refused), and hand-entered lines missing from the list are set to 0 (no deletes). |
+| `create_investment_account` | `GET /api/accounts`                                                                                | Read. Tokens cannot create accounts: it checks the name (open or archived duplicate) and gives the fields to enter in the app.                                                                                                                                                                                                            |
+
+Contributions are carried by the snapshots (`contributionsCents`), so there is no separate contributions tool. The tickers are resolved against the account's holdings first, then the app's asset search (only the ticker is sent to the price provider); an ambiguous ticker asks for the CoinGecko id.
+
 How they behave:
 
 - **Preview, then confirm.** Without `confirm: true` a write tool only reads: it resolves names, loads the current state (`GET /api/transactions?ids=…` for a selection) and shows each change (current → new). Claude shows it to you and calls again with `confirm: true` only after you agree. Amounts are typed as text (`"12,50"`) and converted to cents without floats.
@@ -59,6 +72,10 @@ How they behave:
 ### Prompt "Revue du mois"
 
 `revue_du_mois` (optional `month`, default the previous month) starts a guided month-end review: `month_close_status` and `month_review`, statements to import (`list_imports`, then `preview_bank_import` / `commit_bank_import` with your file, or the app), the review queue (categorize, one-offs, rules), subscriptions, budget, savings, investment values, then next month's budget with `budget_suggestions` and one `set_budget_targets`. Every change goes through a preview you approve; investment values, ticking steps and closing the month stay in the app. In Claude Code it shows as `/mcp__finances__revue_du_mois`.
+
+### Prompt "Importer mes investissements"
+
+`importer_mes_investissements` (optional `folder`, default `Finances`) walks the owner's Google Drive folder **with the client's own Google Drive connector**: one sub-folder per vehicle, files named `<Vehicle>_<Document>_<YYYY-MM[-DD]>`, only documents newer than each account's last value, the date a statement's value belongs to (valuation date, else the end of the quarter or year), accounts created by the owner in the app after asking, a summary table before any write, unreadable or scanned documents flagged for the owner to type. Then `add_investment_snapshots` / `sync_crypto_holdings` previews, and `confirm: true` after approval. Setup: [`docs/runbooks/investments-from-drive.md`](../../docs/runbooks/investments-from-drive.md). The MCP server and the API make no call to Google.
 
 Account and category filters take names (case- and accent-insensitive, a unique partial match works) or slugs; ambiguous or unknown names come back with the list of choices. Months are `YYYY-MM`, dates `YYYY-MM-DD`. A partial current month is stated and compared like for like, as in the app.
 
@@ -151,6 +168,6 @@ npx @modelcontextprotocol/inspector -e FINANCES_API_URL=http://localhost:4000 \
 ```
 
 - `src/api/generated/` holds types generated from `apps/api/openapi.json` (git-ignored, like the web client); `src/api/client.ts` is the small fetch client (bearer token, timeouts, error messages).
-- One file per tool group in `src/tools/` (write tools in `*-writes.ts`, shared preview/confirm helpers in `write.ts`); `src/prompts.ts` holds the prompt; `src/format.ts` formats cents and calendar dates (no time zone conversion; "today" is Europe/Paris) and parses typed euros into cents.
+- One file per tool group in `src/tools/` (write tools in `*-writes.ts`, shared preview/confirm helpers in `write.ts`); `src/prompts.ts` and `src/investments-prompt.ts` hold the prompts; `src/quantity.ts` checks crypto quantities as exact decimal strings; `src/format.ts` formats cents and calendar dates (no time zone conversion; "today" is Europe/Paris) and parses typed euros into cents.
 - Tests use synthetic fixtures only and go through a real MCP client over an in-memory transport (`src/test/mock-api.ts`).
 - For a manual run, start an API on a throwaway database (never `finances`), sign up, create a token (`POST /api/access-tokens` with the session cookie, or the profile page; `write` scope to try the write tools) and point the inspector at it.
