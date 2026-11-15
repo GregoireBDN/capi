@@ -7,12 +7,24 @@ import { AuthCard } from './AuthCard'
 // The forms themselves are covered by their own tests; stub them so this suite
 // only exercises which view the card shows and which links it offers.
 vi.mock('./LoginForm', () => ({
-  LoginForm: ({ onSwitchToForgot }: { onSwitchToForgot: () => void }) => (
-    <button type="button" onClick={onSwitchToForgot}>
-      login-form
-    </button>
+  LoginForm: ({
+    onSwitchToForgot,
+    onPasskeyOffer,
+  }: {
+    onSwitchToForgot: () => void
+    onPasskeyOffer: () => void
+  }) => (
+    <>
+      <button type="button" onClick={onSwitchToForgot}>
+        login-form
+      </button>
+      <button type="button" onClick={onPasskeyOffer}>
+        password-sign-in
+      </button>
+    </>
   ),
 }))
+vi.mock('./PasskeyOffer', () => ({ PasskeyOffer: () => <p>passkey-offer</p> }))
 vi.mock('./RegisterForm', () => ({ RegisterForm: () => <p>register-form</p> }))
 vi.mock('./ForgotForm', () => ({ ForgotForm: () => <p>forgot-form</p> }))
 
@@ -62,5 +74,20 @@ describe('AuthCard', () => {
       screen.getByRole('button', { name: 'Retour à la connexion' }),
     )
     expect(screen.getByText('login-form')).toBeInTheDocument()
+  })
+
+  it('shows the passkey offer on its own after a password sign-in', async () => {
+    const user = userEvent.setup()
+    render(<AuthCard registrationOpen />)
+    expect(screen.getByRole('img', { name: 'Finances' })).toBeInTheDocument()
+
+    await user.click(screen.getByText('password-sign-in'))
+
+    expect(screen.getByText('passkey-offer')).toBeInTheDocument()
+    expect(screen.queryByText('Connexion')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('img', { name: 'Finances' }),
+    ).not.toBeInTheDocument()
+    expect(signUp()).not.toBeInTheDocument()
   })
 })
