@@ -422,7 +422,7 @@ function plannedLine(p: Planned): string {
     case 'unchanged':
       return `- ${p.current.symbol} : ${frenchQuantity(p.current.quantity)}`
     case 'zero':
-      return `- ${p.current.symbol} : ${frenchQuantity(p.current.quantity)} → 0 (absent de l'export)`
+      return `- ${p.current.symbol} : ${frenchQuantity(p.current.quantity)} → 0 (absent de l'export : la ligne reste, à 0, jusqu'à ce que le propriétaire la supprime dans l'application)`
   }
 }
 
@@ -430,7 +430,7 @@ export const syncCryptoHoldingsTool = defineTool({
   name: 'sync_crypto_holdings',
   title: 'Mettre à jour des avoirs crypto',
   description:
-    "Set the crypto quantities held at one location (wallet or exchange label) of a crypto account, from an export or statement: the given list becomes the account's hand-entered holdings at that location. The tool owns only the hand-entered (manual) lines of that location: lines imported from an exchange export or synced from a wallet are never touched, and an asset held through such a line at that location is refused. Manual lines of that location missing from the list are set to 0 (delete them in the app if wanted; nothing is deleted through MCP). Without confirm: preview of added / changed / set to 0 / unchanged lines. With confirm: true writes only what differs and returns the new account value. Quantities are exact decimal strings, never rounded.",
+    "Set the crypto quantities held at one location (wallet or exchange label) of a crypto account, from an export or statement: the given list becomes the account's hand-entered holdings at that location. The tool owns only the hand-entered (manual) lines of that location: lines imported from an exchange export or synced from a wallet are never touched, and an asset held through such a line at that location is refused. Only for crypto accounts with the manual source: exchange accounts are fed by their imports and wallets by their sync, in the app (refused here, and by the API for tokens). Manual lines of that location missing from the list are set to quantity 0, not deleted: the owner deletes them in the app (no deletes through MCP). Without confirm: preview of added / changed / set to 0 / unchanged lines. With confirm: true writes only what differs and returns the new account value. Quantities are exact decimal strings, never rounded.",
   write: { idempotent: true },
   inputSchema: {
     account: z
@@ -479,6 +479,13 @@ export const syncCryptoHoldingsTool = defineTool({
     if (account.type !== 'crypto') {
       throw new ToolInputError(
         `${account.name} n'est pas un compte crypto : utilisez add_investment_snapshots pour ses valeurs. Rien n'a été modifié.`,
+      )
+    }
+    if (account.cryptoSource !== 'manual') {
+      throw new ToolInputError(
+        account.cryptoSource === 'exchange'
+          ? `${account.name} est un compte de plateforme : ses avoirs viennent de l'import de ses exports dans l'application (compte → Importer), pas de cet outil. Rien n'a été modifié.`
+          : `${account.name} est un portefeuille synchronisé : ses avoirs viennent de ses clés publiques (« Synchroniser » dans l'application), pas de cet outil. Rien n'a été modifié.`,
       )
     }
     const path = `/api/accounts/${account.id}/holdings`
@@ -663,9 +670,15 @@ export const syncCryptoHoldingsTool = defineTool({
           : { invested: centsToText(h.investedCents) }),
       }))
     const added = of('add')
+    const zeroed = applied.filter((p) => p.action === 'zero')
     return [
       `${header} : ${applied.length} ligne(s) mise(s) à jour.`,
       ...details,
+      ...(zeroed.length > 0
+        ? [
+            `À supprimer dans l'application (compte ${account.name}, avoirs) si ces actifs ne reviendront pas : ${zeroed.map((p) => (p.action === 'zero' ? p.current.symbol : '')).join(', ')}, maintenant à 0. Aucun outil MCP ne supprime.`,
+          ]
+        : []),
       `Valeur du compte : ${euros(before.totals.valueCents)} → ${euros(after.totals.valueCents)}${after.complete ? '' : ' (incomplète : des actifs sans prix ; fixez leur prix dans l’application)'}.`,
       '',
       `Pour revenir à l'état précédent : sync_crypto_holdings account "${account.name}", location ${JSON.stringify(location)}, holdings ${JSON.stringify(undo)}, confirm: true${added.length > 0 ? ' (les lignes ajoutées passeront à 0 ; supprimez-les dans l’application si besoin)' : ''}.`,
@@ -713,7 +726,7 @@ export const createInvestmentAccountTool = defineTool({
       ...(institution ? [`- Établissement : ${institution}`] : []),
       ...(args.type === 'crypto'
         ? [
-            "- Pour un export Binance ou Coinbase, préférez une source « Plateforme » et l'import du fichier dans l'application ; pour un portefeuille, « Portefeuille » avec ses clés publiques. sync_crypto_holdings sert aux autres exports (saisie manuelle).",
+            "- Pour un export Binance ou Coinbase, préférez une source « Plateforme » et l'import du fichier dans l'application ; pour un portefeuille, « Portefeuille » avec ses clés publiques. sync_crypto_holdings ne sert qu'aux comptes en « Saisie manuelle » (autres exports, relevés).",
           ]
         : []),
       '',

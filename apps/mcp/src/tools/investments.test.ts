@@ -37,6 +37,19 @@ const archivedPee: AccountDto = {
   type: 'employee_savings',
   archivedAt: '2026-01-01T00:00:00.000Z',
 }
+const binance: AccountDto = {
+  ...cryptoWallet,
+  id: '00000000-0000-4000-8000-000000000007',
+  name: 'Plateforme Test',
+  cryptoSource: 'exchange',
+  cryptoProvider: 'binance',
+}
+const ledger: AccountDto = {
+  ...cryptoWallet,
+  id: '00000000-0000-4000-8000-000000000008',
+  name: 'Portefeuille Test',
+  cryptoSource: 'wallet',
+}
 const accounts = [
   checking,
   livret,
@@ -44,6 +57,8 @@ const accounts = [
   lifeInsurance,
   cryptoWallet,
   archivedPee,
+  binance,
+  ledger,
 ]
 
 function snapshot(
@@ -438,7 +453,7 @@ describe('sync_crypto_holdings', () => {
       'Modifiés (1) :\n- BTC : 0,5 → 0,75, investi 10 000,00 € → 12 000,00 €',
     )
     expect(text).toContain(
-      "Mis à 0 (1) :\n- ADA : 100 → 0 (absent de l'export)",
+      "Mis à 0 (1) :\n- ADA : 100 → 0 (absent de l'export : la ligne reste, à 0, jusqu'à ce que le propriétaire la supprime dans l'application)",
     )
     expect(text).toContain('jamais modifiées par cet outil : USDT')
     expect(text).not.toContain('SOL')
@@ -502,6 +517,9 @@ describe('sync_crypto_holdings', () => {
     )
     for (const body of bodies) expect(typeof body.quantity).toBe('string')
     expect(first.text).toContain('3 ligne(s) mise(s) à jour')
+    expect(first.text).toContain(
+      "À supprimer dans l'application (compte Crypto Test, avoirs) si ces actifs ne reviendront pas : ADA, maintenant à 0.",
+    )
     expect(first.text).toContain('Valeur du compte : 100,00 € → 1,00 €')
     expect(first.text).toContain(
       'holdings [{"asset":"bitcoin","quantity":"0.5","invested":"10000,00"},{"asset":"cardano","quantity":"100","invested":"10000,00"}], confirm: true',
@@ -579,6 +597,21 @@ describe('sync_crypto_holdings', () => {
       holdings: [],
     })
     expect(notCrypto.text).toContain("n'est pas un compte crypto")
+    const exchange = await call('sync_crypto_holdings', {
+      account: 'Plateforme Test',
+      location: '',
+      holdings: [{ asset: 'BTC', quantity: '1' }],
+      confirm: true,
+    })
+    expect(exchange.isError).toBe(true)
+    expect(exchange.text).toContain('compte de plateforme')
+    const wallet = await call('sync_crypto_holdings', {
+      account: 'Portefeuille Test',
+      location: '',
+      holdings: [],
+      confirm: true,
+    })
+    expect(wallet.text).toContain('portefeuille synchronisé')
     expect(writes()).toHaveLength(0)
   })
 })

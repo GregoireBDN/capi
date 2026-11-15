@@ -10,14 +10,17 @@ import {
   Post,
   Put,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common'
+import type { FastifyRequest } from 'fastify'
 import {
   ApiBadRequestResponse,
   ApiBody,
   ApiConflictResponse,
   ApiCookieAuth,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -28,6 +31,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
 import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
+import '#/auth/request-user'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import { CryptoPricesService } from './crypto-prices.service'
 import { CryptoService } from './crypto.service'
@@ -49,6 +53,8 @@ const HOLDING_PARAM = {
   format: 'uuid',
 } as const
 const SEARCH_MAX = 50
+const TOKEN_FORBIDDEN =
+  'Personal access token (#104) on an exchange or wallet account, or on an imported or synced line: tokens only change hand-entered lines of manual crypto accounts.'
 
 @ApiTags('Crypto')
 @ApiCookieAuth('token')
@@ -86,11 +92,14 @@ export class AccountHoldingsController {
     description: 'Invalid body, not a crypto account, archived account.',
   })
   @ApiConflictResponse({ description: 'Same asset and location already held.' })
+  @ApiForbiddenResponse({ description: TOKEN_FORBIDDEN })
   @ApiNotFoundResponse()
-  create(
+  async create(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: SaveHoldingDto,
+    @Req() req: FastifyRequest,
   ): Promise<HoldingDto> {
+    if (req.accessToken) await this.crypto.assertTokenMayWrite(id)
     return this.crypto.create(id, dto)
   }
 
@@ -144,12 +153,17 @@ export class AccountHoldingsController {
     description: 'Invalid body, not a crypto account, archived account.',
   })
   @ApiConflictResponse({ description: 'Same asset and location already held.' })
+  @ApiForbiddenResponse({ description: TOKEN_FORBIDDEN })
   @ApiNotFoundResponse()
-  update(
+  async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('holdingId', ParseUUIDPipe) holdingId: string,
     @Body() dto: SaveHoldingDto,
+    @Req() req: FastifyRequest,
   ): Promise<HoldingDto> {
+    if (req.accessToken) {
+      await this.crypto.assertTokenMayWrite(id, holdingId)
+    }
     return this.crypto.update(id, holdingId, dto)
   }
 

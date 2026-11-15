@@ -47,7 +47,7 @@ Running it again on the same documents changes nothing: the tools skip the value
 ## What the tools may change
 
 - `add_investment_snapshots`: dated values (and net contributions) of an investment account, through `POST /api/accounts/:id/snapshots/bulk`; existing days are replaced, nothing is deleted.
-- `sync_crypto_holdings`: the **hand-entered** holdings of one location (wallet / exchange label) of a crypto account, through `POST /api/accounts/:id/holdings` and `PUT /api/accounts/:id/holdings/:holdingId`. Lines imported from an exchange export or synced from a wallet are never touched; a hand-entered line missing from the new list is set to 0 (delete it in the app if you want it gone).
+- `sync_crypto_holdings`: the **hand-entered** holdings of one location (wallet / exchange label) of a crypto account with the **manual** source ("Saisie manuelle"), through `POST /api/accounts/:id/holdings` and `PUT /api/accounts/:id/holdings/:holdingId`. Lines imported from an exchange export or synced from a wallet are never touched; a hand-entered line missing from the new list is set to quantity 0 and stays until you delete it in the app. Exchange and wallet accounts are refused (their imports and syncs feed them); the API refuses them to tokens too.
 - Account creation, deletions, exchange imports, wallet keys and sync stay in the app, signed in.
 
 ## Privacy

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common'
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
@@ -146,6 +147,36 @@ export class CryptoService {
     await this.walletSync.syncNow(account.id, now)
     const [result] = await this.valuate([account], 'auto', true, now)
     return result
+  }
+
+  /**
+   * Personal access tokens (#104, MCP `sync_crypto_holdings`) may only add
+   * or replace hand-entered lines of a `manual`-source account: exchange and
+   * wallet accounts are fed by their imports and syncs, and imported or
+   * synced lines are never theirs to change. Called by the controller for
+   * token requests, before `create` / `update`.
+   */
+  async assertTokenMayWrite(
+    accountId: string,
+    holdingId?: string,
+  ): Promise<void> {
+    const account = await this.cryptoAccount(accountId)
+    if (account.cryptoSource !== 'manual') {
+      throw new ForbiddenException(
+        'Personal access tokens can only change the holdings of manual crypto accounts',
+      )
+    }
+    if (holdingId === undefined) return
+    const [row] = await this.db
+      .select({ origin: h.origin })
+      .from(h)
+      .where(and(eq(h.id, holdingId), eq(h.accountId, accountId)))
+      .limit(1)
+    if (row && row.origin !== 'manual') {
+      throw new ForbiddenException(
+        'Personal access tokens cannot change imported or synced holdings',
+      )
+    }
   }
 
   async create(
