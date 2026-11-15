@@ -7,8 +7,10 @@ import * as React from 'react'
 import { Button } from './button'
 import {
   isKeyboardOpen,
+  keyboardAccessoryAllowance,
   keyboardInset,
   revealEndScrollTop,
+  scrollParentWithin,
 } from './sheet-keyboard'
 import { cn } from '../lib/utils'
 
@@ -124,47 +126,65 @@ function SheetOverlay({ className, ...props }: SheetOverlayProps) {
  *
  * While the keyboard is open the element also gets `data-keyboard-open`: it
  * keeps room at its end for the iOS accessory bar that floats over the page
- * (see `KEYBOARD_ACCESSORY_ALLOWANCE_PX`), and, when the keyboard has just
- * opened on one of its fields, it scrolls its end (the actions) into view as
- * far as the focused field allows.
+ * (`--keyboard-accessory`, less in the installed app, which has no address
+ * pill), and whenever the keyboard opens or changes height while one of its
+ * fields has focus, it scrolls the element that scrolls that field (the
+ * sheet, or a body inside it with the actions in a footer) so the field stays
+ * in view and, as far as it allows, the end too.
  */
 function useKeyboardInset(node: HTMLElement | null, enabled: boolean) {
   React.useEffect(() => {
     const viewport =
       typeof window === 'undefined' ? null : window.visualViewport
     if (!enabled || !node || !viewport) return
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true
+    node.style.setProperty(
+      '--keyboard-accessory',
+      `${keyboardAccessoryAllowance(standalone)}px`,
+    )
     let wasOpen = false
+    let lastInset = 0
     let frame = 0
-    const revealEnd = () => {
+    const revealFocus = () => {
       const focused = document.activeElement
       if (!(focused instanceof HTMLElement) || !node.contains(focused)) return
-      node.scrollTop = revealEndScrollTop({
-        scrollTop: node.scrollTop,
-        scrollHeight: node.scrollHeight,
-        clientHeight: node.clientHeight,
+      const scroller = scrollParentWithin<HTMLElement>(focused, node)
+      if (!scroller) return
+      scroller.scrollTop = revealEndScrollTop({
+        scrollTop: scroller.scrollTop,
+        scrollHeight: scroller.scrollHeight,
+        clientHeight: scroller.clientHeight,
         focusTop:
           focused.getBoundingClientRect().top -
-          node.getBoundingClientRect().top,
+          scroller.getBoundingClientRect().top,
       })
     }
-    const update = () => {
+    const update = (resized: boolean) => {
       const inset = keyboardInset(window.innerHeight, viewport)
       node.style.setProperty('--keyboard-inset', `${inset}px`)
       const open = isKeyboardOpen(inset)
       node.toggleAttribute('data-keyboard-open', open)
-      if (open && !wasOpen) {
+      // The keyboard opened or changed height (decimal → text): the sheet
+      // was resized under the focused field. Not on a scroll of the visual
+      // viewport, so the user's own scrolling is left alone.
+      if (open && (!wasOpen || (resized && inset !== lastInset))) {
         cancelAnimationFrame(frame)
-        frame = requestAnimationFrame(revealEnd)
+        frame = requestAnimationFrame(revealFocus)
       }
       wasOpen = open
+      lastInset = inset
     }
-    update()
-    viewport.addEventListener('resize', update)
-    viewport.addEventListener('scroll', update)
+    const onResize = () => update(true)
+    const onScroll = () => update(false)
+    update(true)
+    viewport.addEventListener('resize', onResize)
+    viewport.addEventListener('scroll', onScroll)
     return () => {
       cancelAnimationFrame(frame)
-      viewport.removeEventListener('resize', update)
-      viewport.removeEventListener('scroll', update)
+      viewport.removeEventListener('resize', onResize)
+      viewport.removeEventListener('scroll', onScroll)
     }
   }, [node, enabled])
 }
@@ -230,8 +250,8 @@ function SheetContent({
             // Above the on-screen keyboard (see useKeyboardInset)
             'data-[side=bottom]:bottom-(--keyboard-inset,0px)',
             // ...and its floating accessory bar on iOS: the home indicator is
-            // under the keyboard then. 84px = KEYBOARD_ACCESSORY_ALLOWANCE_PX.
-            'data-[side=bottom]:data-keyboard-open:pb-[84px]',
+            // under the keyboard then (see keyboardAccessoryAllowance).
+            'data-[side=bottom]:data-keyboard-open:pb-(--keyboard-accessory,84px)',
 
             // Side: Left
             'data-[side=left]:inset-y-0',
