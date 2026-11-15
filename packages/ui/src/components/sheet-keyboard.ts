@@ -17,6 +17,19 @@ export const KEYBOARD_OPEN_MIN_PX = 120
  */
 export const KEYBOARD_ACCESSORY_ALLOWANCE_PX = 84
 
+/**
+ * The same room in the installed app (home screen PWA): no address pill,
+ * only the accessory bar (keeping 84px there left an empty band, #205).
+ */
+export const KEYBOARD_ACCESSORY_ALLOWANCE_STANDALONE_PX = 50
+
+/** Room to keep for what floats over the page above the keyboard. */
+export function keyboardAccessoryAllowance(standalone: boolean): number {
+  return standalone
+    ? KEYBOARD_ACCESSORY_ALLOWANCE_STANDALONE_PX
+    : KEYBOARD_ACCESSORY_ALLOWANCE_PX
+}
+
 /** Height of the keyboard over the layout viewport, 0 when none. */
 export function keyboardInset(
   innerHeight: number,
@@ -36,9 +49,11 @@ export function isKeyboardOpen(inset: number): boolean {
 const FOCUS_MARGIN_PX = 16
 
 /**
- * Scroll position of a scrollable sheet that brings its end (where the
- * actions are) into view, without scrolling the focused field out of the top.
- * `focusTop` is the field's top relative to the sheet's visible top.
+ * Scroll position of a scrollable sheet (or of the body that scrolls inside
+ * it) that brings its end (where the actions are when they scroll with the
+ * content) into view, without scrolling the focused field out of the top.
+ * `focusTop` is the field's top relative to the scroller's visible top. A
+ * field already scrolled above the top is brought back into view.
  */
 export function revealEndScrollTop({
   scrollTop,
@@ -51,7 +66,41 @@ export function revealEndScrollTop({
   clientHeight: number
   focusTop: number
 }): number {
+  if (focusTop < 0) return Math.max(0, scrollTop + focusTop - FOCUS_MARGIN_PX)
   const end = Math.max(0, scrollHeight - clientHeight)
   const keepFocus = scrollTop + focusTop - FOCUS_MARGIN_PX
   return Math.max(scrollTop, Math.min(end, keepFocus))
+}
+
+/** What `scrollParentWithin` reads from an element. */
+export interface ScrollBox {
+  parentElement: ScrollBox | null
+  scrollHeight: number
+  clientHeight: number
+}
+
+/**
+ * The element that scrolls `field` vertically inside `container`: its
+ * nearest ancestor (or `container` itself) that can scroll, or null.
+ * `overflowY` reads an element's computed `overflow-y`.
+ */
+export function scrollParentWithin<T extends ScrollBox>(
+  field: T,
+  container: T,
+  overflowY: (element: T) => string = (element) =>
+    getComputedStyle(element as unknown as Element).overflowY,
+): T | null {
+  let element = field.parentElement as T | null
+  while (element) {
+    const overflow = overflowY(element)
+    if (
+      (overflow === 'auto' || overflow === 'scroll') &&
+      element.scrollHeight > element.clientHeight
+    ) {
+      return element
+    }
+    if (element === container) return null
+    element = element.parentElement as T | null
+  }
+  return null
 }
