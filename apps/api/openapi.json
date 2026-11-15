@@ -5885,7 +5885,7 @@
           "revokeAccessTokens": {
             "type": "boolean",
             "default": false,
-            "description": "Also revoke every personal access token. Other sessions are always ended."
+            "description": "Also revoke every personal access token and connected application (remote MCP). Other sessions are always ended."
           }
         },
         "required": ["token", "password"]
@@ -5904,7 +5904,7 @@
           "revokeAccessTokens": {
             "type": "boolean",
             "default": false,
-            "description": "Also revoke every personal access token. Other sessions are always ended."
+            "description": "Also revoke every personal access token and connected application (remote MCP). Other sessions are always ended."
           }
         },
         "required": ["currentPassword", "newPassword"]

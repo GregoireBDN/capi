@@ -9,7 +9,7 @@ import {
   TokenField,
 } from './fields'
 
-/** Also revoke every personal access token (MCP, scripts). */
+/** Also revoke every personal access token (MCP, scripts) and connected application (OAuth, #78). */
 const RevokeAccessTokensField = () =>
   applyDecorators(
     IsOptional(),
@@ -18,7 +18,7 @@ const RevokeAccessTokensField = () =>
       type: Boolean,
       default: false,
       description:
-        'Also revoke every personal access token. Other sessions are always ended.',
+        'Also revoke every personal access token and connected application (remote MCP). Other sessions are always ended.',
     }),
   )
 

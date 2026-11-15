@@ -99,7 +99,7 @@ export function ChangePasswordCard({ email }: { email: string }) {
     form.reset(emptyValues)
     toast.success(
       values.revokeAccessTokens
-        ? 'Mot de passe changé. Vos autres sessions et vos jetons d’accès ont été révoqués.'
+        ? 'Mot de passe changé. Vos autres sessions, vos jetons d’accès et vos applications connectées ont été révoqués.'
         : 'Mot de passe changé. Vos autres sessions ont été fermées.',
     )
     if (values.revokeAccessTokens) {
@@ -186,7 +186,7 @@ export function ChangePasswordCard({ email }: { email: string }) {
               }
             />
             <Label htmlFor={`${id}-tokens`} className="font-normal">
-              Révoquer aussi les jetons d’accès (Claude, scripts)
+              Révoquer aussi les jetons d’accès et les applications connectées (Claude, scripts)
             </Label>
           </div>
           {error && (

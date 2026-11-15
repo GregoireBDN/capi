@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import * as crypto from 'node:crypto'
 import postgres from 'postgres'
+import * as bcrypt from 'bcryptjs'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { AppModule } from '#/app.module'
 import { AccessTokensService } from '#/auth/access-tokens/access-tokens.service'
@@ -62,6 +63,7 @@ vi.mock('#/config/env', async (importOriginal) => {
 type Db = PostgresJsDatabase<typeof schema>
 
 const ROLLBACK = Symbol('rollback')
+const PASSWORD = 'synthetic-password-1'
 const SOME_UUID = '7f0c5a7e-2d1b-4c3a-9e8f-123456789abc'
 
 interface TokenPair {
@@ -96,8 +98,10 @@ describe.skipIf(!process.env.DATABASE_URL)('Remote MCP OAuth (HTTP)', () => {
   let db: Db
   let currentTx: Db | undefined
   let jwt: JwtService
+  let passwordHash: string
 
   beforeAll(async () => {
+    passwordHash = await bcrypt.hash(PASSWORD, 4)
     client = postgres(process.env.DATABASE_URL!, { max: 1 })
     db = drizzle(client, { schema })
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
@@ -170,7 +174,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Remote MCP OAuth (HTTP)', () => {
           .values({
             email: 'owner@example.test',
             name: 'Owner Test',
-            passwordHash: 'not-used',
+            passwordHash,
             emailVerifiedAt: new Date(),
           })
           .returning({ id: usersTable.id })
@@ -649,15 +653,14 @@ describe.skipIf(!process.env.DATABASE_URL)('Remote MCP OAuth (HTTP)', () => {
           cookie: owner.stale,
         })
         expect(list.statusCode).toBe(200)
-        const [grant] =
-          list.json<
-            {
-              id: string
-              clientName: string
-              redirectHost: string
-              scope: string
-            }[]
-          >()
+        const [grant] = list.json<
+          {
+            id: string
+            clientName: string
+            redirectHost: string
+            scope: string
+          }[]
+        >()
         expect(grant).toMatchObject({
           clientName: 'Claude',
           redirectHost: 'claude.ai',
@@ -707,6 +710,25 @@ describe.skipIf(!process.env.DATABASE_URL)('Remote MCP OAuth (HTTP)', () => {
         expect((await tokenInfo(tokens.access_token)).statusCode).toBe(401)
         expect((await refresh(clientId, tokens.refresh_token)).statusCode).toBe(
           200,
+        )
+      })
+    })
+
+    it('disconnects every application when a password change asks to revoke tokens', async () => {
+      await asOwner(async (owner) => {
+        const { clientId, tokens } = await connect(owner)
+        const res = await call('POST', '/api/auth/change-password', {
+          cookie: owner.fresh,
+          payload: {
+            currentPassword: PASSWORD,
+            newPassword: 'another-synthetic-password',
+            revokeAccessTokens: true,
+          },
+        })
+        expect(res.statusCode, res.body).toBeLessThan(300)
+        expect((await tokenInfo(tokens.access_token)).statusCode).toBe(401)
+        expect((await refresh(clientId, tokens.refresh_token)).statusCode).toBe(
+          400,
         )
       })
     })
