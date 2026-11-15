@@ -5,6 +5,11 @@ export interface ToolContext {
   api: ApiClient
   /** Current instant (injected for tests); "today" is derived in Europe/Paris. */
   now: () => Date
+  /**
+   * Remote transport (#78): the server does not run on the owner's machine,
+   * so tools never read local files.
+   */
+  remote?: boolean
 }
 
 export interface ToolDefinition<Shape extends z.ZodRawShape> {

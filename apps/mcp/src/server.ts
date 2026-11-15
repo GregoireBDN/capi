@@ -56,10 +56,17 @@ export async function runTool<Shape extends z.ZodRawShape>(
   }
 }
 
+const REMOTE_INSTRUCTIONS = `
+This is the remote connection: the server does not run on the owner's machine, so preview_bank_import takes the CSV text (content), never a filePath. Write tools need the connection to have been approved with "Autoriser les modifications".`
+
 export function createServer(context: ToolContext): McpServer {
   const server = new McpServer(
     { name: SERVER_NAME, version: SERVER_VERSION },
-    { instructions: INSTRUCTIONS },
+    {
+      instructions: context.remote
+        ? INSTRUCTIONS + REMOTE_INSTRUCTIONS
+        : INSTRUCTIONS,
+    },
   )
   for (const tool of tools as ToolDefinition<z.ZodRawShape>[]) {
     server.registerTool(

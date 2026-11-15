@@ -5,7 +5,7 @@ import { createServer } from '../server.js'
 
 export const TEST_TOKEN = `fin_pat_${'a'.repeat(43)}`
 
-type Route = unknown | ((url: URL, body: unknown) => unknown)
+type Route = unknown | ((url: URL, body: unknown, headers: Headers) => unknown)
 
 export interface Call {
   method: string
@@ -32,10 +32,12 @@ export function mockFetch(routes: Record<string, Route>) {
         : init?.body instanceof FormData
           ? init.body
           : undefined
-    calls.push({ method, url, headers: new Headers(init?.headers), body })
+    const headers = new Headers(init?.headers)
+    calls.push({ method, url, headers, body })
     const route = routes[`${method} ${url.pathname}`] ?? routes[url.pathname]
     if (route === undefined) return new Response('{}', { status: 404 })
-    const result = typeof route === 'function' ? route(url, body) : route
+    const result =
+      typeof route === 'function' ? route(url, body, headers) : route
     if (result instanceof Response) return result
     return new Response(JSON.stringify(result), {
       status: 200,

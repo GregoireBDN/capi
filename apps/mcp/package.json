@@ -12,7 +12,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
+    "start:http": "node dist/index.js --http",
     "dev": "tsx src/index.ts",
+    "dev:http": "tsx src/index.ts --http",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "vitest run",
     "check-types": "tsc --noEmit",
