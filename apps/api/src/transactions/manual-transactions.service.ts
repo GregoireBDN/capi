@@ -3,7 +3,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import { and, asc, eq, isNull } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  isNotNull,
+  isNull,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { randomUUID } from 'node:crypto'
 import { isTransactionalAccount } from '#/accounts/accounts.service'
@@ -12,15 +23,20 @@ import * as schema from '#/database/schema'
 import {
   accountsTable,
   categoriesTable,
+  transactionLinesView,
   transactionsTable,
 } from '#/database/schema'
 import type { TransactionKind } from '#/database/schema/domain-enums'
 import { parisToday } from '#/investments/days'
-import type {
-  CreateManualTransactionDto,
-  MoneyDirection,
-  UpdateManualTransactionDto,
+import {
+  type CreateManualTransactionDto,
+  MANUAL_CATEGORIES_MAX,
+  MANUAL_SUGGESTIONS_MAX,
+  type ManualSuggestionsDto,
+  type MoneyDirection,
+  type UpdateManualTransactionDto,
 } from './dto/manual-transaction.dto'
+import { rankSuggestions, type SuggestionGroup } from './manual-suggestions'
 import type { TransactionDto } from './dto/transaction.dto'
 import { TransactionsService } from './transactions.service'
 
@@ -38,6 +54,13 @@ const MANUAL_HASH_PREFIX = 'manual:'
 function defaultDirection(kind: TransactionKind): MoneyDirection {
   return kind === 'income' ? 'in' : 'out'
 }
+
+/** Days back the labels typed on manual transactions are suggested. */
+const TYPED_LABEL_DAYS = 365
+/** Days back the merchants of imported rows are suggested. */
+const MERCHANT_DAYS = 180
+/** Days back the most used categories are counted. */
+const CATEGORY_DAYS = 90
 
 function signed(amountCents: number, direction: MoneyDirection): number {
   return direction === 'in' ? amountCents : -amountCents
@@ -176,6 +199,109 @@ export class ManualTransactionsService {
         .where(eq(transactionsTable.id, id))
     })
     return this.transactions.findOne(id)
+  }
+
+  /**
+   * Labels to suggest when entering a transaction of this kind (#196): the
+   * labels typed on manual transactions of the last year and the frequent
+   * merchants of imported rows of the last six months, each with the
+   * category it is usually filed under (see `manual-suggestions.ts`), and
+   * the open categories of the kind most used over the last 90 days.
+   * Computed from existing data; labels are never logged.
+   */
+  async suggestions(
+    kind: TransactionKind = 'expense',
+    now: Date = new Date(),
+  ): Promise<ManualSuggestionsDto> {
+    const t = transactionsTable
+    const c = categoriesTable
+    const today = parisToday(now)
+    const since = (days: number) => sql`(${today}::date - ${days}::int)`
+
+    const typedKey = sql<string>`lower(btrim(${t.rawLabel}))`
+    const typed = this.db
+      .select({
+        key: typedKey,
+        label: sql<string>`(array_agg(btrim(${t.rawLabel}) order by ${t.bookingDate} desc))[1]`,
+        categoryId: t.categoryId,
+        uses: sql<number>`count(*)::int`,
+        lastUsed: sql<string>`max(${t.bookingDate})::text`,
+      })
+      .from(t)
+      .leftJoin(c, eq(c.id, t.categoryId))
+      .where(
+        and(
+          eq(t.manual, true),
+          eq(t.kind, kind),
+          gte(t.bookingDate, since(TYPED_LABEL_DAYS)),
+          // A label left to its default is the category name: not typed.
+          or(isNull(c.name), ne(t.rawLabel, c.name)),
+        ),
+      )
+      .groupBy(typedKey, t.categoryId)
+
+    const merchantKey = sql<string>`lower(btrim(${t.merchant}))`
+    const merchants = this.db
+      .select({
+        key: merchantKey,
+        label: sql<string>`(array_agg(btrim(${t.merchant}) order by ${t.bookingDate} desc))[1]`,
+        categoryId: t.categoryId,
+        uses: sql<number>`count(*)::int`,
+        lastUsed: sql<string>`max(${t.bookingDate})::text`,
+      })
+      .from(t)
+      .where(
+        and(
+          eq(t.manual, false),
+          eq(t.kind, kind),
+          isNotNull(t.merchant),
+          gte(t.bookingDate, since(MERCHANT_DAYS)),
+        ),
+      )
+      .groupBy(merchantKey, t.categoryId)
+
+    const lines = transactionLinesView
+    const uses = sql<number>`count(*)::int`
+    const mostUsed = this.db
+      .select({ id: c.id })
+      .from(lines)
+      .innerJoin(c, eq(c.id, lines.categoryId))
+      .where(
+        and(
+          eq(lines.kind, kind),
+          eq(c.kind, kind),
+          isNull(c.archivedAt),
+          gte(lines.bookingDate, since(CATEGORY_DAYS)),
+          sql`${lines.bookingDate} <= ${today}::date`,
+        ),
+      )
+      .groupBy(c.id)
+      .orderBy(desc(uses), asc(c.name))
+      .limit(MANUAL_CATEGORIES_MAX)
+
+    const [typedRows, merchantRows, pickable, categoryRows] = await Promise.all(
+      [
+        typed,
+        merchants,
+        this.db
+          .select({ id: c.id })
+          .from(c)
+          .where(and(eq(c.kind, kind), isNull(c.archivedAt))),
+        mostUsed,
+      ],
+    )
+    const groups: SuggestionGroup[] = [
+      ...typedRows.map((row) => ({ ...row, manual: true })),
+      ...merchantRows.map((row) => ({ ...row, manual: false })),
+    ]
+    return {
+      items: rankSuggestions(
+        groups,
+        new Set(pickable.map((category) => category.id)),
+        MANUAL_SUGGESTIONS_MAX,
+      ),
+      categoryIds: categoryRows.map((category) => category.id),
+    }
   }
 
   async remove(id: string): Promise<void> {
