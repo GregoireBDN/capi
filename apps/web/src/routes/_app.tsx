@@ -35,7 +35,18 @@ function AppLayout() {
     // held sideways) so the page keeps room; 16rem from ~1100px up.
     <SidebarProvider
       defaultOpen={sidebarOpen}
-      style={{ '--sidebar-width': 'min(16rem, 32vw)' } as CSSProperties}
+      style={
+        {
+          '--sidebar-width': 'min(16rem, 32vw)',
+          // Folded to its icons: a column that grows a little with the
+          // screen (about 72px up to 1500px wide, 88px on a large one)...
+          '--sidebar-width-icon': 'clamp(3.25rem, 4.6vw, 4rem)',
+          // ...and its buttons, icons and logo sized from it (`AppSidebar`).
+          '--rail-button': 'calc(var(--sidebar-width-icon) - 1rem)',
+          '--rail-icon': 'calc(var(--rail-button) * 0.5)',
+          '--rail-logo': 'calc(var(--rail-button) * 0.64)',
+        } as CSSProperties
+      }
     >
       <AppSidebar user={currentUser} />
       {/* --app-top-bar: height of AppTopBar (shown below md only), for

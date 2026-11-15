@@ -11,7 +11,10 @@ import {
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
+  Tooltip,
+  TooltipContent,
   TooltipProvider,
+  TooltipTrigger,
   cn,
   useSidebar,
 } from '@finances/ui'
@@ -20,6 +23,21 @@ import { useReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
 import { NAV_ITEMS, isNavItemActive } from './nav-items'
 import { UserMenu } from './UserMenu'
+
+/**
+ * Page icons a little larger than the menu default, and, folded, square
+ * buttons that fill the column with icons sized from it (`routes/_app.tsx`
+ * sets `--rail-button` and `--rail-icon` from the column width).
+ */
+export const RAIL_BUTTON = cn(
+  '[&_svg]:size-[1.1rem]',
+  'group-data-[collapsible=icon]:size-(--rail-button)!',
+  'group-data-[collapsible=icon]:p-0!',
+  'group-data-[collapsible=icon]:justify-center',
+  'group-data-[collapsible=icon]:[&_svg]:size-(--rail-icon)',
+  // The name stays for screen readers but takes no room: the icon centres.
+  'group-data-[collapsible=icon]:[&>span]:sr-only',
+)
 
 /**
  * Sidebar of the authenticated layout. From `md` up it is a fixed column the
@@ -41,7 +59,11 @@ export function AppSidebar({ user }: { user: UserDto }) {
 
   const brand = (
     <>
-      <img src="/logo.svg" alt="" className="size-7 shrink-0" />
+      <img
+        src="/logo.svg"
+        alt=""
+        className="size-7 shrink-0 group-data-[collapsible=icon]:size-(--rail-logo)"
+      />
       <span className="truncate text-base font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
         Finances
       </span>
@@ -63,25 +85,32 @@ export function AppSidebar({ user }: { user: UserDto }) {
           ) : (
             // The whole header folds and unfolds the column: one large,
             // quiet target, usable with a finger (iPad, phone held sideways).
-            <button
-              type="button"
-              aria-label={open ? 'Réduire le menu' : 'Agrandir le menu'}
-              title={open ? 'Réduire le menu' : 'Agrandir le menu'}
-              aria-expanded={open}
-              onClick={toggleSidebar}
-              className={cn(
-                'flex min-h-11 w-full min-w-11 items-center gap-2 rounded-md p-2 text-left',
-                'hover:bg-sidebar-accent transition-colors outline-none',
-                'focus-visible:ring-sidebar-ring focus-visible:ring-2',
-                'group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0',
-              )}
-            >
-              {brand}
-              <ChevronLeftIcon
-                aria-hidden
-                className="text-muted-foreground ml-auto size-4 shrink-0 group-data-[collapsible=icon]:hidden"
-              />
-            </button>
+            // Folded, it is the logo, in the same square as the page icons.
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={open ? 'Réduire le menu' : 'Agrandir le menu'}
+                  aria-expanded={open}
+                  onClick={toggleSidebar}
+                  className={cn(
+                    'flex min-h-11 w-full min-w-11 items-center gap-2 rounded-md p-2 text-left',
+                    'hover:bg-sidebar-accent transition-colors outline-none',
+                    'focus-visible:ring-sidebar-ring focus-visible:ring-2',
+                    'group-data-[collapsible=icon]:size-(--rail-button) group-data-[collapsible=icon]:min-h-0 group-data-[collapsible=icon]:min-w-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0',
+                  )}
+                >
+                  {brand}
+                  <ChevronLeftIcon
+                    aria-hidden
+                    className="text-muted-foreground ml-auto size-[1.1rem] shrink-0 group-data-[collapsible=icon]:hidden"
+                  />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" align="center" hidden={open}>
+                Agrandir le menu
+              </TooltipContent>
+            </Tooltip>
           )}
         </SidebarHeader>
 
@@ -99,6 +128,7 @@ export function AppSidebar({ user }: { user: UserDto }) {
                           asChild
                           isActive={active}
                           tooltip={label}
+                          className={RAIL_BUTTON}
                         >
                           <Link
                             to={to}
