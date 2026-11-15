@@ -73,6 +73,7 @@ export class AccountHoldingsController {
   }
 
   @Post()
+  @TokenAccess('write')
   @ApiOperation({
     summary: 'Add a holding',
     description:
@@ -130,6 +131,7 @@ export class AccountHoldingsController {
   }
 
   @Put(':holdingId')
+  @TokenAccess('write')
   @ApiOperation({
     summary: 'Replace a holding',
     description: 'Omitted optional fields are cleared.',
