@@ -65,21 +65,49 @@ const LOGOUT_PATH = '/api/auth/logout'
 /**
  * Largest request body the proxy forwards: the API's biggest accepted body is
  * an import file (`IMPORT_FILE_MAX_BYTES`, 5 MB in
- * `apps/api/src/imports/upload/multipart.ts`) plus a little multipart framing;
- * JSON bodies are capped lower by the API itself. Anything bigger is refused
- * with 413 before it is buffered, so an anonymous request can't make the web
- * process hold hundreds of MB (#173).
+ * `apps/api/src/imports/upload/multipart.ts`) plus a little multipart framing.
+ * Anything bigger is refused with 413 before it is buffered, so an anonymous
+ * request can't make the web process hold hundreds of MB (#173).
  */
 export const PROXY_BODY_MAX_BYTES = 5 * 1024 * 1024 + 16 * 1024
 
+/**
+ * Largest body the API reads outside multipart uploads: Fastify's default
+ * `bodyLimit` (1 MiB), which applies to every body it parses (JSON, text). The
+ * API answers 413 as soon as it sees a bigger `Content-Length` and closes the
+ * connection while the proxy is still uploading, which `fetch` reports as a
+ * network error (502). So the proxy refuses those bodies itself, with the
+ * API's message (#201).
+ */
+export const API_BODY_LIMIT_BYTES = 1024 * 1024
+
 export const TOO_LARGE = Symbol('too-large')
 
-function payloadTooLarge(): Response {
+/** Only multipart uploads (`@fastify/multipart`) go past the API's bodyLimit. */
+export function bodyLimitFor(contentType: string | null): number {
+  const mediaType = contentType?.split(';', 1)[0].trim().toLowerCase()
+  return mediaType === 'multipart/form-data'
+    ? PROXY_BODY_MAX_BYTES
+    : API_BODY_LIMIT_BYTES
+}
+
+function payloadTooLarge(limit: number): Response {
   return Response.json(
-    {
-      statusCode: 413,
-      message: `Request body exceeds the ${Math.floor(PROXY_BODY_MAX_BYTES / 1024 / 1024)} MB limit`,
-    },
+    limit === API_BODY_LIMIT_BYTES
+      ? {
+          // The API's own answer (`FST_ERR_CTP_BODY_TOO_LARGE`, in the
+          // `AllExceptionsFilter` envelope).
+          statusCode: 413,
+          error: 'Payload Too Large',
+          message: ['Request body is too large'],
+        }
+      : {
+          statusCode: 413,
+          error: 'Payload Too Large',
+          message: [
+            `Request body exceeds the ${Math.floor(limit / 1024 / 1024)} MB limit`,
+          ],
+        },
     { status: 413 },
   )
 }
@@ -200,8 +228,9 @@ export async function proxyToApi(
   if (url.pathname === LOGOUT_PATH) forgetRefreshes()
 
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD'
-  const body = hasBody ? await readCappedBody(request) : undefined
-  if (body === TOO_LARGE) return payloadTooLarge()
+  const limit = bodyLimitFor(request.headers.get('content-type'))
+  const body = hasBody ? await readCappedBody(request, limit) : undefined
+  if (body === TOO_LARGE) return payloadTooLarge(limit)
   try {
     const upstream = await (target.fetch ?? fetch)(
       new URL(url.pathname + url.search, target.apiUrl),
