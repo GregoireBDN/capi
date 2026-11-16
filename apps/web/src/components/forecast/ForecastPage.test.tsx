@@ -118,6 +118,12 @@ describe('ForecastPage', () => {
     expect(
       within(tiles).getByText(/Point bas le dim\. 29 nov\./),
     ).toBeInTheDocument()
+    // It says from which date it projects (#215).
+    expect(
+      within(tiles).getByText(
+        /solde connu au ven\. 27 nov\., prévision à partir du sam\. 28 nov\./,
+      ),
+    ).toBeInTheDocument()
     expect(tile('À payer')).toHaveTextContent('830 €')
     expect(tile('À recevoir')).toHaveTextContent('2 500 €')
     expect(lastQuery()).toEqual({
@@ -153,6 +159,31 @@ describe('ForecastPage', () => {
     expect(
       await screen.findByText(`Solde sous ${euros(50_000)} le dim. 29 nov.`),
     ).toBeInTheDocument()
+  })
+
+  it('calls a forecast on old data indicative and offers to update it', async () => {
+    api.forecastControllerForecast.mockImplementation(() =>
+      ok(
+        forecast({
+          knownUntil: '2026-10-31',
+          projectedFrom: '2026-11-01',
+          stale: true,
+          belowThreshold: null,
+        }),
+      ),
+    )
+    renderPage()
+    expect(await screen.findByText('Prévision indicative')).toBeInTheDocument()
+    expect(
+      screen.getByText(/Vos relevés s’arrêtent au sam\. 31 oct\./),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Importer un relevé' }),
+    ).toHaveAttribute('href', '/import')
+    expect(
+      screen.getByRole('button', { name: 'Ajouter une dépense' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/Solde sous/)).not.toBeInTheDocument()
   })
 
   it('saves the threshold on this device and sends it in cents', async () => {

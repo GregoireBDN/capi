@@ -17,7 +17,7 @@ export const monthEndForecastTool = defineTool({
   name: 'month_end_forecast',
   title: 'Prévision de fin de mois',
   description:
-    'Projected balance of the checking accounts at the end of the current month: current balance, confirmed recurring debits and credits still expected, an estimate of day-to-day spending, the lowest point and the first day under a threshold.',
+    'Projected balance of the checking accounts at the end of the current month, from the day after the imported data ends: current balance, confirmed recurring debits and credits still expected, an estimate of day-to-day spending, the lowest point and the first day under a threshold (not checked when the data is more than 7 days old: the forecast is then indicative).',
   inputSchema: {
     accounts: z
       .array(z.string().max(100))
@@ -67,11 +67,23 @@ export const monthEndForecastTool = defineTool({
     const lines = [
       `Prévision au ${frenchDate(data.monthEnd)} (aujourd'hui ${frenchDate(data.today)}) pour : ${data.accounts.map((a) => a.name).join(', ') || 'aucun compte'}.`,
       `Solde de départ : ${euros(data.startingBalanceCents)} (dernier solde connu au ${frenchDate(data.startingBalanceDate)}).`,
+      data.knownUntil
+        ? `Relevés importés jusqu'au ${frenchDate(data.knownUntil)} : prévision à partir du ${frenchDate(data.projectedFrom)}.`
+        : `Aucun relevé importé : prévision à partir du ${frenchDate(data.projectedFrom)}.`,
       `Récurrents encore attendus : débits ${euros(data.expectedDebitsCents)}, crédits ${euros(data.expectedCreditsCents)} (${data.recurringItemCount} élément(s) récurrent(s) confirmés suivis).`,
     ]
-    if (data.estimate) {
+    if (data.stale) {
       lines.push(
-        `Dépenses courantes estimées : ${euros(data.estimate.totalCents)} sur ${data.estimate.days} jour(s) (${euros(data.estimate.dailyCents)} / jour, moyenne du ${frenchDate(data.estimate.basedOnFrom)} au ${frenchDate(data.estimate.basedOnTo)}).`,
+        `Prévision indicative : les données ont plus de ${data.staleAfterDays} jours, pas d'alerte de solde bas. Importer un relevé ou noter les dépenses la rend fiable.`,
+      )
+    }
+    if (data.estimate) {
+      const covered =
+        data.estimate.coveredCents > 0
+          ? ` ; ${euros(data.estimate.coveredCents)} de dépenses notées à la main remplacent l'estimation des jours passés`
+          : ''
+      lines.push(
+        `Dépenses courantes estimées : ${euros(data.estimate.totalCents)} sur ${data.estimate.days} jour(s) (${euros(data.estimate.dailyCents)} / jour, moyenne du ${frenchDate(data.estimate.basedOnFrom)} au ${frenchDate(data.estimate.basedOnTo)}${covered}).`,
       )
     }
     lines.push(
@@ -79,7 +91,9 @@ export const monthEndForecastTool = defineTool({
       `Point le plus bas : ${euros(data.lowest.balanceCents)} le ${frenchDate(data.lowest.date)}.`,
       data.belowThreshold
         ? `Passe sous ${euros(data.thresholdCents)} le ${frenchDate(data.belowThreshold.date)} (${euros(data.belowThreshold.balanceCents)}).`
-        : `Ne passe pas sous ${euros(data.thresholdCents)}.`,
+        : data.stale
+          ? `Seuil de ${euros(data.thresholdCents)} non vérifié (prévision indicative).`
+          : `Ne passe pas sous ${euros(data.thresholdCents)}.`,
     )
     if (data.items.length > 0)
       lines.push(

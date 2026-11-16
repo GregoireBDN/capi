@@ -34,6 +34,9 @@ export function ForecastCard() {
         <CardTitle>Fin de mois</CardTitle>
         <CardDescription>
           Solde prévu au {formatShortDay(data.monthEnd)}
+          {data.stale && data.knownUntil
+            ? ` · indicatif, relevés au ${formatShortDay(data.knownUntil)}`
+            : ''}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">

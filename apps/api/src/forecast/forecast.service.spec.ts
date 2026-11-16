@@ -7,6 +7,7 @@ import { AccountsService } from '#/accounts/accounts.service'
 import * as schema from '#/database/schema'
 import {
   accountsTable,
+  importsTable,
   type InsertRecurringItem,
   type InsertTransaction,
   recurringItemsTable,
@@ -29,6 +30,8 @@ type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
 const ROLLBACK = Symbol('rollback')
 /** 12:00 in Paris on October 15, 2026. */
 const OCTOBER_15 = new Date('2026-10-15T10:00:00Z')
+/** 12:00 in Paris on November 16, 2026. */
+const NOVEMBER_16 = new Date('2026-11-16T11:00:00Z')
 
 const RENT = 'PRLV SEPA SOCIETE IMMO EXEMPLE'
 const STREAMING = 'PRLV SEPA STREAMFLIX EXEMPLE'
@@ -67,6 +70,7 @@ describe.skipIf(!process.env.DATABASE_URL)('ForecastService (database)', () => {
       .transaction(async (tx) => {
         await tx.delete(recurringItemsTable)
         await tx.delete(transactionsTable)
+        await tx.delete(importsTable)
         await tx.delete(accountsTable)
         const [checking, savings] = await tx
           .insert(accountsTable)
@@ -230,6 +234,11 @@ describe.skipIf(!process.env.DATABASE_URL)('ForecastService (database)', () => {
       expect(forecast.accounts.map((a) => a.id)).toEqual([f.checking])
       expect(forecast.startingBalanceCents).toBe(start)
       expect(forecast.startingBalanceDate).toBe('2026-10-12')
+      // Three days of lag: projected from the day after the data, not stale.
+      expect(forecast.knownUntil).toBe('2026-10-12')
+      expect(forecast.projectedFrom).toBe('2026-10-13')
+      expect(forecast.stale).toBe(false)
+      expect(forecast.staleAfterDays).toBe(7)
       expect(forecast.recurringItemCount).toBe(3)
       // Rent is booked for October; streaming and salary are still due.
       expect(
@@ -246,16 +255,17 @@ describe.skipIf(!process.env.DATABASE_URL)('ForecastService (database)', () => {
         dailyCents: Math.round((12 * 6_900 - 1_000) / 92),
         basedOnFrom: '2026-07-01',
         basedOnTo: '2026-09-30',
-        // October 13 to 31.
+        // October 13 to 31, each on its own day.
         days: 19,
+        coveredCents: 0,
         totalCents: -889 * 19,
       })
 
-      expect(forecast.points).toHaveLength(17)
+      expect(forecast.points).toHaveLength(19)
       expect(forecast.points[0]).toMatchObject({
-        date: '2026-10-15',
-        balanceCents: start - 889 * 3,
-        estimateCents: -889 * 3,
+        date: '2026-10-13',
+        balanceCents: start - 889,
+        estimateCents: -889,
       })
       expect(forecast.endBalanceCents).toBe(start - 1_399 + 250_000 - 889 * 19)
       expect(forecast.lowest).toEqual({
@@ -285,7 +295,11 @@ describe.skipIf(!process.env.DATABASE_URL)('ForecastService (database)', () => {
   it('reads today in Europe/Paris around midnight on the last day', () =>
     withFixture(async (f) => {
       await seedHousehold(f)
-      // 23:30 in Paris (UTC+1): still October 31, a single point.
+      // Data up to the last day: a single point.
+      await f.insert([
+        { bookingDate: '2026-10-31', rawLabel: 'CB MARCHE 1031' },
+      ])
+      // 23:30 in Paris (UTC+1): still October 31.
       const lastDay = await f.service.forecast(
         {},
         new Date('2026-10-31T22:30:00Z'),
@@ -299,6 +313,7 @@ describe.skipIf(!process.env.DATABASE_URL)('ForecastService (database)', () => {
       )
       expect(next.today).toBe('2026-11-01')
       expect(next.monthEnd).toBe('2026-11-30')
+      expect(next.projectedFrom).toBe('2026-11-01')
       expect(next.points).toHaveLength(30)
       expect(next.estimate?.basedOnFrom).toBe('2026-08-01')
       expect(next.estimate?.basedOnTo).toBe('2026-10-31')
@@ -370,5 +385,136 @@ describe.skipIf(!process.env.DATABASE_URL)('ForecastService (database)', () => {
           f.service.forecast({ accountIds }, OCTOBER_15),
         ).rejects.toBeInstanceOf(BadRequestException)
       }
+    }))
+
+  it('projects from the end of the imported data, without a false alarm, when it lags (#215)', () =>
+    withFixture(async (f) => {
+      // Data up to October 12, today November 16: 35 days behind.
+      await seedHousehold(f)
+      const start = await sumOfAmounts(f.tx)
+      const forecast = await f.service.forecast(
+        { thresholdCents: start },
+        NOVEMBER_16,
+      )
+      expect(forecast).toMatchObject({
+        today: '2026-11-16',
+        monthEnd: '2026-11-30',
+        knownUntil: '2026-10-12',
+        projectedFrom: '2026-10-13',
+        stale: true,
+        startingBalanceCents: start,
+      })
+      // Every item not imported yet stays on its own date.
+      expect(forecast.items.map((i) => [i.name, i.date])).toEqual([
+        [STREAMING, '2026-10-20'],
+        [SALARY, '2026-10-31'],
+        [RENT, '2026-11-02'],
+        [STREAMING, '2026-11-20'],
+        [SALARY, '2026-11-30'],
+      ])
+      // August–October: 10 × 69 € of groceries − a 10 € refund over 92 days.
+      const daily = Math.round((10 * 6_900 - 1_000) / 92)
+      expect(forecast.estimate).toMatchObject({
+        dailyCents: daily,
+        // October 13 to November 30, one day at a time.
+        days: 49,
+        coveredCents: 0,
+        totalCents: -daily * 49,
+      })
+      expect(forecast.points).toHaveLength(49)
+      expect(forecast.points[0]).toMatchObject({
+        date: '2026-10-13',
+        estimateCents: -daily,
+      })
+      expect(forecast.endBalanceCents).toBe(
+        start - 80_000 + 2 * (250_000 - 1_399) - daily * 49,
+      )
+      // The projection goes under the threshold, but the data is too old
+      // to raise the alert.
+      expect(forecast.lowest.balanceCents).toBeLessThan(start)
+      expect(forecast.belowThreshold).toBeNull()
+
+      // The same lag on fresh data does raise it.
+      const fresh = await f.service.forecast(
+        { thresholdCents: start },
+        OCTOBER_15,
+      )
+      expect(fresh.stale).toBe(false)
+      expect(fresh.belowThreshold).not.toBeNull()
+    }))
+
+  it('knows the data up to the end of the latest committed statement', () =>
+    withFixture(async (f) => {
+      await seedHousehold(f)
+      // The statement ends on October 14, after its last row (October 12).
+      await f.tx.insert(importsTable).values({
+        accountId: f.checking,
+        source: 'cic_csv',
+        fileName: 'releve-exemple.csv',
+        fileHash: 'f'.repeat(64),
+        periodStart: '2026-10-01',
+        periodEnd: '2026-10-14',
+        committedAt: new Date('2026-10-14T18:00:00Z'),
+      })
+      const forecast = await f.service.forecast({}, OCTOBER_15)
+      expect(forecast.knownUntil).toBe('2026-10-14')
+      expect(forecast.projectedFrom).toBe('2026-10-15')
+      expect(forecast.estimate).toMatchObject({ days: 17 })
+      expect(forecast.points[0].date).toBe('2026-10-15')
+    }))
+
+  it('counts expenses entered by hand since the data instead of the estimate', () =>
+    withFixture(async (f) => {
+      await seedHousehold(f)
+      await f.insert([
+        // Day-to-day spending noted on October 13 and 14.
+        {
+          bookingDate: '2026-10-13',
+          rawLabel: 'Boulangerie',
+          amountCents: -1_500,
+          manual: true,
+          dedupeHash: 'manual:forecast-spec-1',
+        },
+        {
+          bookingDate: '2026-10-14',
+          rawLabel: 'Marché',
+          amountCents: -500,
+          manual: true,
+          dedupeHash: 'manual:forecast-spec-2',
+        },
+        // A one-off is in the balance but never replaces the estimate.
+        {
+          bookingDate: '2026-10-14',
+          rawLabel: 'Vélo',
+          amountCents: -10_000,
+          isOneOff: true,
+          manual: true,
+          dedupeHash: 'manual:forecast-spec-3',
+        },
+      ])
+      const start = await sumOfAmounts(f.tx)
+      const forecast = await f.service.forecast({}, OCTOBER_15)
+
+      // Manual rows are in the balance but never move the known date.
+      expect(forecast.startingBalanceCents).toBe(start)
+      expect(forecast.knownUntil).toBe('2026-10-12')
+      expect(forecast.projectedFrom).toBe('2026-10-13')
+      // 20 € noted: the estimate of October 13 and 14 (2 × 8.89 €) and
+      // 2.22 € of October 15 are already spent.
+      expect(forecast.estimate).toMatchObject({
+        dailyCents: 889,
+        days: 19,
+        coveredCents: 2_000,
+        totalCents: -(889 * 19 - 2_000),
+      })
+      expect(forecast.points.slice(0, 4).map((p) => p.estimateCents)).toEqual([
+        0,
+        0,
+        -(889 * 3 - 2_000),
+        -889,
+      ])
+      expect(forecast.endBalanceCents).toBe(
+        start - 1_399 + 250_000 - (889 * 19 - 2_000),
+      )
     }))
 })

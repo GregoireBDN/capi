@@ -40,7 +40,10 @@ export interface ExpectedItem {
   recurringItemId: string
   accountId: string
   name: string
-  /** Day the projection applies it: the expected date, or today when it is late. */
+  /**
+   * Day the projection applies it: the expected date, or the first projected
+   * day when it is late.
+   */
   date: string
   /** Date the series expects it on. */
   expectedDate: string
@@ -56,8 +59,28 @@ export interface ExpectedItem {
 export interface ProjectionWindow {
   /** Today in Europe/Paris. */
   today: string
+  /**
+   * First projected day: the day after the date the balance is known up to
+   * (`knownUntil`), today at the latest (see `projectionStart`).
+   */
+  start: string
   /** Last day of today's month. */
   monthEnd: string
+}
+
+/**
+ * First projected day for data known up to `knownUntil` (#215): the next
+ * day, so the days not imported yet are projected on their own dates rather
+ * than piled up on today. Today when the data reaches today or when nothing
+ * is known.
+ */
+export function projectionStart(
+  today: string,
+  knownUntil: string | null,
+): string {
+  if (knownUntil === null) return today
+  const next = addDays(knownUntil, 1)
+  return next < today ? next : today
 }
 
 /**
@@ -68,12 +91,12 @@ export interface ProjectionWindow {
  * An occurrence is skipped when it is already booked (a booked occurrence of
  * the series within the cadence tolerance of the expected date) or missed
  * (the data goes past the expected date by more than the tolerance without
- * it). A late one still within the tolerance, or one expected before today
- * but after the horizon (not imported yet), is applied today.
+ * it). A late one still within the tolerance is applied on the first
+ * projected day.
  */
 export function expectedOccurrences(
   item: ForecastRecurringItem,
-  { today, monthEnd }: ProjectionWindow,
+  { start, monthEnd }: ProjectionWindow,
   horizon: string | null,
 ): ExpectedItem[] {
   if (item.nextExpectedDate === null) return []
@@ -99,7 +122,7 @@ export function expectedOccurrences(
       recurringItemId: item.id,
       accountId: item.accountId,
       name: item.name,
-      date: maxDate(expected, today),
+      date: maxDate(expected, start),
       expectedDate: expected,
       amountCents: sign * item.typicalAmountCents,
       direction: item.direction,
@@ -128,22 +151,58 @@ export function averageDailyCents(
 }
 
 /**
- * Days the variable-spending estimate covers: every day after `balanceDate`
- * (the spending up to it is already in the balance) until `monthEnd`. Days
- * before today are not projected on their own: they count on today.
+ * Days the variable-spending estimate covers: every day after `knownUntil`
+ * (the spending up to it is already in the balance) until `monthEnd`, each
+ * on its own date (a day before the first projected one counts on it).
  * Returns the number of days applied on each projected day.
  */
 export function estimateDays(
-  { today, monthEnd }: ProjectionWindow,
-  balanceDate: string | null,
+  { start, monthEnd }: ProjectionWindow,
+  knownUntil: string | null,
 ): Map<string, number> {
   const days = new Map<string, number>()
-  const first = balanceDate === null ? today : addDays(balanceDate, 1)
+  const first = knownUntil === null ? start : addDays(knownUntil, 1)
   for (let date = first; date <= monthEnd; date = addDays(date, 1)) {
-    const on = maxDate(date, today)
+    const on = maxDate(date, start)
     days.set(on, (days.get(on) ?? 0) + 1)
   }
   return days
+}
+
+export interface SpreadEstimate {
+  /** Positive cents of estimated spending applied on each projected day. */
+  byDate: Map<string, number>
+  /** Part of `coveredCents` used (at most the elapsed days' estimate). */
+  coveredCents: number
+}
+
+/**
+ * Spreads `dailyCents` over the estimated days. Day-to-day spending entered
+ * by hand since the known balance date (`coveredCents`, positive cents) is
+ * already in the balance: it replaces the estimate of the elapsed days (up to
+ * today), earliest first, so it is never counted twice. The days after today
+ * keep the whole estimate.
+ */
+export function spreadEstimate(
+  daysByDate: ReadonlyMap<string, number>,
+  dailyCents: number,
+  coveredCents: number,
+  today: string,
+): SpreadEstimate {
+  const byDate = new Map<string, number>()
+  let covered = Math.max(0, coveredCents)
+  let used = 0
+  for (const date of [...daysByDate.keys()].sort()) {
+    let cents = dailyCents * (daysByDate.get(date) ?? 0)
+    if (date <= today && covered > 0) {
+      const take = Math.min(covered, cents)
+      covered -= take
+      used += take
+      cents -= take
+    }
+    byDate.set(date, cents)
+  }
+  return { byDate, coveredCents: used }
 }
 
 export interface ProjectionPoint {
@@ -167,23 +226,22 @@ export interface Projection {
 }
 
 /**
- * Daily balance from today to month end (one point when today is the last
- * day): the starting balance, then each day's expected items and estimate.
+ * Daily balance from the first projected day to month end (one point when it
+ * is the last day): the starting balance, then each day's expected items and
+ * estimate.
  */
 export function buildProjection({
   window,
   startingBalanceCents,
   items,
-  dailyEstimateCents,
-  estimateDaysByDate,
+  estimateByDate,
   thresholdCents,
 }: {
   window: ProjectionWindow
   startingBalanceCents: number
   items: readonly ExpectedItem[]
-  /** Positive cents spent per day, null without an estimate. */
-  dailyEstimateCents: number | null
-  estimateDaysByDate: ReadonlyMap<string, number>
+  /** Positive cents of estimated spending per projected day. */
+  estimateByDate: ReadonlyMap<string, number>
   thresholdCents: number
 }): Projection {
   const byDate = new Map<string, ExpectedItem[]>()
@@ -197,7 +255,7 @@ export function buildProjection({
   let balance = startingBalanceCents
   let estimateTotalCents = 0
   for (
-    let date = window.today;
+    let date = window.start;
     date <= window.monthEnd;
     date = addDays(date, 1)
   ) {
@@ -207,10 +265,7 @@ export function buildProjection({
         a.name.localeCompare(b.name, 'fr') ||
         a.recurringItemId.localeCompare(b.recurringItemId),
     )
-    const estimateCents =
-      dailyEstimateCents === null || dailyEstimateCents === 0
-        ? 0
-        : -dailyEstimateCents * (estimateDaysByDate.get(date) ?? 0)
+    const estimateCents = -(estimateByDate.get(date) ?? 0) || 0
     balance +=
       dayItems.reduce((sum, item) => sum + item.amountCents, 0) + estimateCents
     estimateTotalCents += estimateCents
