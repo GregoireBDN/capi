@@ -70,7 +70,9 @@ describe('AuthService sessions', () => {
       const inserted: { values?: unknown } = {}
       mockDb.insert.mockReturnValue(buildChain([{}], inserted))
 
-      const tokens = await service.createSession('user-1')
+      const tokens = await service.createSession('user-1', {
+        method: 'password',
+      })
 
       expect(tokens.accessToken).toBe('access-token')
       expect(tokens.refreshToken).toMatch(/^[a-f0-9]{64}$/) // 32 random bytes, hex
@@ -84,6 +86,21 @@ describe('AuthService sessions', () => {
       // The plaintext token is never persisted.
       expect(row.tokenHash).not.toBe(tokens.refreshToken)
       expect(row.familyId).toMatch(/^[0-9a-f-]{36}$/) // uuid
+    })
+
+    it('keeps the sign-in method and a coarse device, never the raw User-Agent', async () => {
+      const inserted: { values?: unknown } = {}
+      mockDb.insert.mockReturnValue(buildChain([{}], inserted))
+      const userAgent =
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1'
+
+      await service.createSession('user-1', { method: 'passkey', userAgent })
+
+      expect(inserted.values).toMatchObject({
+        signInMethod: 'passkey',
+        device: 'Safari · iPhone',
+      })
+      expect(JSON.stringify(inserted.values)).not.toContain('26_1')
     })
   })
 
@@ -141,6 +158,34 @@ describe('AuthService sessions', () => {
         { sub: 'user-1', auth_time: authenticatedAt.getTime() / 1000 },
         expect.any(Object),
       )
+    })
+
+    it('copies the sign-in method and device of the family', async () => {
+      const inserted: { values?: unknown } = {}
+      mockDb.select.mockReturnValue(
+        buildChain([
+          {
+            id: 'rt-1',
+            userId: 'user-1',
+            familyId: 'fam-1',
+            expiresAt: new Date(Date.now() + 60_000),
+            revokedAt: null,
+            authenticatedAt: new Date(),
+            signInMethod: 'password',
+            device: 'Firefox · Linux',
+          },
+        ]),
+      )
+      mockDb.update.mockReturnValue(buildChain([{}]))
+      mockDb.insert.mockReturnValue(buildChain([{}], inserted))
+
+      await service.rotateRefreshToken('old-raw-token')
+
+      expect(inserted.values).toMatchObject({
+        familyId: 'fam-1',
+        signInMethod: 'password',
+        device: 'Firefox · Linux',
+      })
     })
 
     it('signs no auth_time for a family that predates it', async () => {

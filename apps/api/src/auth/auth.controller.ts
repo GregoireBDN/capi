@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   Post,
   Req,
@@ -38,11 +39,8 @@ import {
 import { FreshAuthGuard } from '#/auth/guards/fresh-auth.guard'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import {
-  ACCESS_COOKIE,
-  COOKIE_DEFAULTS,
-  LEGACY_REFRESH_COOKIE_PATH,
-  REFRESH_COOKIE,
-  REFRESH_COOKIE_PATH,
+  clearSessionCookies,
+  readRefreshCookie,
   setSessionCookies,
 } from '#/auth/session-cookies'
 import { UserDto } from '#/user/user.dto'
@@ -78,8 +76,12 @@ export class AuthController {
   @ApiForbiddenResponse({
     description: 'Registration is closed: an account already exists.',
   })
-  async register(@Body() dto: RegisterDto, @Res() reply: FastifyReply) {
-    const tokens = await this.authService.register(dto)
+  async register(
+    @Body() dto: RegisterDto,
+    @Res() reply: FastifyReply,
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    const tokens = await this.authService.register(dto, userAgent)
     setSessionCookies(reply, tokens)
     await reply.status(201).send({ success: true })
   }
@@ -89,8 +91,12 @@ export class AuthController {
   @HttpCode(200)
   @ApiBody({ type: LoginDto })
   @ApiOkResponse({ schema: { example: { success: true } } })
-  async login(@Body() dto: LoginDto, @Res() reply: FastifyReply) {
-    const tokens = await this.authService.login(dto)
+  async login(
+    @Body() dto: LoginDto,
+    @Res() reply: FastifyReply,
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    const tokens = await this.authService.login(dto, userAgent)
     setSessionCookies(reply, tokens)
     await reply.send({ success: true })
   }
@@ -100,7 +106,7 @@ export class AuthController {
   @HttpCode(200)
   @ApiOkResponse({ schema: { example: { success: true } } })
   async refresh(@Req() req: FastifyRequest, @Res() reply: FastifyReply) {
-    const token = req.cookies?.[REFRESH_COOKIE]
+    const token = readRefreshCookie(req)
     if (!token) throw new UnauthorizedException()
     const tokens = await this.authService.rotateRefreshToken(token)
     setSessionCookies(reply, tokens)
@@ -110,23 +116,14 @@ export class AuthController {
   @Post('logout')
   @ApiOkResponse({ schema: { example: { success: true } } })
   async logout(@Req() req: FastifyRequest, @Res() reply: FastifyReply) {
-    await this.authService.revokeSession(req.cookies?.[REFRESH_COOKIE])
+    await this.authService.revokeSession(readRefreshCookie(req))
     // Drop pages and API responses the browser may still hold in its HTTP
     // cache. Not "storage": it would also unregister the service worker and
     // wipe its (non-sensitive) shell cache and the theme preference; not
     // "cookies": the session cookies are cleared explicitly below.
-    await reply
-      .header('Clear-Site-Data', '"cache"')
-      .clearCookie(ACCESS_COOKIE, { ...COOKIE_DEFAULTS })
-      .clearCookie(REFRESH_COOKIE, {
-        ...COOKIE_DEFAULTS,
-        path: REFRESH_COOKIE_PATH,
-      })
-      .clearCookie(REFRESH_COOKIE, {
-        ...COOKIE_DEFAULTS,
-        path: LEGACY_REFRESH_COOKIE_PATH,
-      })
-      .send({ success: true })
+    await clearSessionCookies(reply.header('Clear-Site-Data', '"cache"')).send({
+      success: true,
+    })
   }
 
   @Post('forgot-password')
@@ -188,11 +185,7 @@ export class AuthController {
     @Body() dto: ChangePasswordDto,
   ) {
     const { sub } = (req as FastifyRequest & { user: { sub: string } }).user
-    await this.authService.changePassword(
-      sub,
-      dto,
-      req.cookies?.[REFRESH_COOKIE],
-    )
+    await this.authService.changePassword(sub, dto, readRefreshCookie(req))
     return { success: true }
   }
 

@@ -4,8 +4,10 @@ import type { UserDto } from '#/api/types.gen'
  * Server-side session resolution for SSR guards and the `/api` proxy.
  *
  * The browser reaches the API through the web origin (see `routes/api/$.ts`),
- * so page requests carry both session cookies: the short-lived `token` access
- * JWT and the rotating `refresh_token`. When the access token has expired, the
+ * so page requests carry both session cookies: the short-lived access JWT and
+ * the rotating refresh token (`__Host-token` / `__Host-refresh_token` in
+ * production, `token` / `refresh_token` over HTTP in dev; see
+ * `ACCESS_COOKIES`). When the access token has expired, the
  * SSR guard renews the session itself — exactly like the browser client does on
  * a 401 — and forwards the rotated cookies to the browser, so a full reload of
  * a protected page renders instead of bouncing through `/auth`.
@@ -15,8 +17,37 @@ import type { UserDto } from '#/api/types.gen'
  * request context; `lib/auth.ts` and `routes/api/$.ts` wire it to the request.
  */
 
-export const ACCESS_COOKIE = 'token'
-export const REFRESH_COOKIE = 'refresh_token'
+/**
+ * Session cookie names, most trusted first. The API sets `__Host-` names in
+ * production (#217) and plain ones outside it (HTTP dev, where `Secure`
+ * cookies can't be set); the web server never sets them itself, it only reads
+ * and forwards what the browser holds. A plain refresh cookie in production is
+ * a session from before #217: it is presented as is, and the API moves it to
+ * the `__Host-` names when it rotates it.
+ */
+export const ACCESS_COOKIES = ['__Host-token', 'token'] as const
+export const REFRESH_COOKIES = [
+  '__Host-refresh_token',
+  'refresh_token',
+] as const
+
+/** A cookie as the browser sent it: name and value. */
+export interface SessionCookie {
+  name: string
+  value: string
+}
+
+/** The first non-empty cookie among `names` (in that order). */
+export function findCookie(
+  cookies: Map<string, string>,
+  names: readonly string[],
+): SessionCookie | undefined {
+  for (const name of names) {
+    const value = cookies.get(name)
+    if (value) return { name, value }
+  }
+  return undefined
+}
 
 export const ME_PATH = '/api/auth/me'
 export const REFRESH_PATH = '/api/auth/refresh'
@@ -152,10 +183,10 @@ function isLive(entry: RefreshEntry, now: number): boolean {
  * the grace window (or to another process) still revokes the family.
  */
 export async function refreshSession(
-  refreshToken: string,
+  refreshCookie: SessionCookie,
   target: ApiTarget,
 ): Promise<RefreshOutcome> {
-  const key = await sha256(refreshToken)
+  const key = await sha256(refreshCookie.value)
   const now = Date.now()
   for (const [k, entry] of refreshes)
     if (!isLive(entry, now)) refreshes.delete(k)
@@ -164,7 +195,7 @@ export async function refreshSession(
   if (existing) return latestRotation(await existing.outcome)
 
   const entry: RefreshEntry = {
-    outcome: requestRefresh(refreshToken, target).then((result) => {
+    outcome: requestRefresh(refreshCookie, target).then((result) => {
       if (result.ok) entry.expiresAt = Date.now() + REFRESH_GRACE_MS
       else if (refreshes.get(key) === entry) refreshes.delete(key)
       return result
@@ -178,8 +209,11 @@ export async function refreshSession(
 function rotatedRefreshToken(setCookies: string[]): string | undefined {
   for (const setCookie of setCookies) {
     const [pair = ''] = setCookie.split(';')
-    if (!pair.startsWith(`${REFRESH_COOKIE}=`)) continue
-    const value = pair.slice(REFRESH_COOKIE.length + 1).trim()
+    const eq = pair.indexOf('=')
+    if (eq <= 0) continue
+    const name = pair.slice(0, eq).trim()
+    if (!(REFRESH_COOKIES as readonly string[]).includes(name)) continue
+    const value = pair.slice(eq + 1).trim()
     if (value) return value
   }
   return undefined
@@ -202,7 +236,7 @@ async function latestRotation(
 }
 
 async function requestRefresh(
-  refreshToken: string,
+  { name, value }: SessionCookie,
   target: ApiTarget,
 ): Promise<RefreshOutcome> {
   try {
@@ -210,7 +244,7 @@ async function requestRefresh(
       new URL(REFRESH_PATH, target.apiUrl),
       {
         method: 'POST',
-        headers: { cookie: `${REFRESH_COOKIE}=${refreshToken}` },
+        headers: { cookie: `${name}=${value}` },
         redirect: 'manual',
       },
     )
@@ -261,8 +295,8 @@ async function fetchMe(
  * Resolves the signed-in user for an incoming request, renewing an expired
  * access token with the refresh cookie when needed.
  *
- * - valid `token` → the user, nothing to forward;
- * - missing/expired `token` + `refresh_token` → rotate, then retry with the new
+ * - valid access token → the user, nothing to forward;
+ * - missing/expired access token + refresh token → rotate, then retry with the new
  *   access token; the rotated `Set-Cookie` values are returned for forwarding;
  * - no usable cookie, or a rejected refresh → `user: null` (the guard
  *   redirects to `/auth` before rendering anything).
@@ -274,17 +308,17 @@ export async function resolveServerSession(
   const cookies = parseCookieHeader(cookieHeader)
   const anonymous: ServerSession = { user: null, setCookies: [], cookieHeader }
 
-  if (cookies.has(ACCESS_COOKIE)) {
+  if (findCookie(cookies, ACCESS_COOKIES)) {
     const me = await fetchMe(cookieHeader, target)
     if (me.user) return { user: me.user, setCookies: [], cookieHeader }
     // Only an auth failure is worth a refresh; an API outage is not.
     if (me.status !== 401) return anonymous
   }
 
-  const refreshToken = cookies.get(REFRESH_COOKIE)
-  if (!refreshToken) return anonymous
+  const refreshCookie = findCookie(cookies, REFRESH_COOKIES)
+  if (!refreshCookie) return anonymous
 
-  const refreshed = await refreshSession(refreshToken, target)
+  const refreshed = await refreshSession(refreshCookie, target)
   if (!refreshed.ok) return anonymous
 
   const nextCookieHeader = applySetCookies(cookieHeader, refreshed.setCookies)

@@ -49,6 +49,18 @@ export const refreshTokensTable = pgTable('refresh_tokens', {
    * for routes that need a fresh session. Null for sessions older than #100.
    */
   authenticatedAt: timestamp('authenticated_at'),
+  /**
+   * How the family started (`SessionSignInMethod`), copied on every rotation
+   * for the sessions list (#217). Null for sessions older than #217.
+   */
+  signInMethod: varchar('sign_in_method', { length: 16 }).$type<
+    'password' | 'passkey' | 'sign_up'
+  >(),
+  /**
+   * Coarse device of the sign-in ("Safari · iPhone", `describeDevice`), copied
+   * on every rotation; never the raw User-Agent. Null when unknown.
+   */
+  device: varchar('device', { length: 64 }),
 })
 
 export type PasswordResetToken = typeof passwordResetTokensTable.$inferSelect

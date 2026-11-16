@@ -20,6 +20,7 @@ import {
 } from '#/auth/access-tokens/token-access.decorator'
 import { OAUTH_ACCESS_TOKEN_PREFIX } from '#/auth/oauth/oauth.constants'
 import { OAuthService } from '#/auth/oauth/oauth.service'
+import { readAccessCookie } from '#/auth/session-cookies'
 import type { RequestAccessToken } from '#/auth/request-user'
 import '#/auth/request-user'
 
@@ -64,7 +65,7 @@ export class JwtGuard implements CanActivate {
     if (bearer !== undefined)
       return this.authenticateToken(context, request, bearer)
 
-    const token = request.cookies?.['token']
+    const token = readAccessCookie(request)
     if (!token) throw new UnauthorizedException()
     try {
       const payload = this.jwt.verify<{ sub: string; auth_time?: unknown }>(

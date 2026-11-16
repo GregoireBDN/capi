@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   Param,
   ParseUUIDPipe,
@@ -86,8 +87,7 @@ export class PasskeysController {
   @Throttle(VERIFY_THROTTLE)
   @ApiOperation({
     summary: 'Sign in with a passkey',
-    description:
-      'Sets the same `token` and `refresh_token` cookies as a password login.',
+    description: 'Sets the same session cookies as a password login.',
   })
   @ApiBody({ type: AuthenticatePasskeyDto })
   @ApiOkResponse({ schema: { example: { success: true } } })
@@ -99,9 +99,13 @@ export class PasskeysController {
   async authenticate(
     @Body() body: AuthenticatePasskeyDto,
     @Res() reply: FastifyReply,
+    @Headers('user-agent') userAgent?: string,
   ): Promise<void> {
     const userId = await this.passkeys.authenticate(body.response)
-    setSessionCookies(reply, await this.auth.createSession(userId))
+    setSessionCookies(
+      reply,
+      await this.auth.createSession(userId, { method: 'passkey', userAgent }),
+    )
     await reply.send({ success: true })
   }
 

@@ -9,6 +9,7 @@ import * as bcrypt from 'bcryptjs'
 import * as crypto from 'node:crypto'
 import { and, eq, isNull, ne, sql } from 'drizzle-orm'
 import { personalAccessTokensTable } from '#/auth/access-tokens/access-tokens.schema'
+import { describeDevice } from '#/auth/sessions/device'
 import { oauthGrantsTable } from '#/auth/oauth/oauth.schema'
 import { DatabaseService } from '#/database/database.service'
 import {
@@ -34,6 +35,16 @@ import type {
   LoginDto,
   RegisterDto,
 } from './dto/auth.dto'
+
+/** How a session (refresh-token family) started; shown in the sessions list. */
+export type SessionSignInMethod = 'password' | 'passkey' | 'sign_up'
+
+/** What a sign-in records about its session (#217). */
+export interface SessionSignIn {
+  method: SessionSignInMethod
+  /** The request's `User-Agent`; only `describeDevice(...)` of it is kept. */
+  userAgent?: string
+}
 
 /** A freshly minted access token + refresh token pair for one session. */
 export interface SessionTokens {
@@ -79,7 +90,7 @@ export class AuthService {
     return !existing
   }
 
-  async register(dto: RegisterDto): Promise<SessionTokens> {
+  async register(dto: RegisterDto, userAgent?: string): Promise<SessionTokens> {
     // Cheap pre-check so a closed instance doesn't spend a bcrypt round.
     if (!(await this.isRegistrationOpen())) {
       throw new ForbiddenException(AUTH_ERRORS.REGISTRATION_CLOSED)
@@ -113,7 +124,7 @@ export class AuthService {
     })
 
     if (env.smtpEnabled) await this.sendVerificationEmail(user.id, user.email)
-    return this.createSession(user.id)
+    return this.createSession(user.id, { method: 'sign_up', userAgent })
   }
 
   private async sendVerificationEmail(
@@ -175,7 +186,7 @@ export class AuthService {
     await this.sendVerificationEmail(user.id, user.email)
   }
 
-  async login(dto: LoginDto): Promise<SessionTokens> {
+  async login(dto: LoginDto, userAgent?: string): Promise<SessionTokens> {
     const [user] = await this.db.db
       .select()
       .from(usersTable)
@@ -189,7 +200,7 @@ export class AuthService {
     const valid = await bcrypt.compare(dto.password, user.passwordHash)
     if (!valid) throw new UnauthorizedException(AUTH_ERRORS.INVALID_CREDENTIALS)
 
-    return this.createSession(user.id)
+    return this.createSession(user.id, { method: 'password', userAgent })
   }
 
   private hashToken(token: string): string {
@@ -221,10 +232,15 @@ export class AuthService {
    */
   private async issueRefreshToken(
     userId: string,
-    familyId: string,
-    authenticatedAt: Date | null,
+    family: {
+      familyId: string
+      authenticatedAt: Date | null
+      signInMethod: SessionSignInMethod | null
+      device: string | null
+    },
     sessionEndsAt: Date | null = null,
   ): Promise<SessionTokens> {
+    const { familyId, authenticatedAt, signInMethod, device } = family
     const refreshToken = crypto.randomBytes(32).toString('hex')
     const ttlEnd = Date.now() + REFRESH_TOKEN_TTL_MS
     await this.db.db.insert(refreshTokensTable).values({
@@ -235,6 +251,8 @@ export class AuthService {
         sessionEndsAt ? Math.min(ttlEnd, sessionEndsAt.getTime()) : ttlEnd,
       ),
       authenticatedAt,
+      signInMethod,
+      device,
     })
     return {
       accessToken: this.signAccessToken(userId, authenticatedAt),
@@ -244,10 +262,19 @@ export class AuthService {
 
   /**
    * Starts a brand-new session (fresh family) after a successful auth, password
-   * or passkey alike: same cookies, rotation and reuse detection.
+   * or passkey alike: same cookies, rotation and reuse detection. The method
+   * and a coarse device name are kept for the sessions list (#217).
    */
-  createSession(userId: string): Promise<SessionTokens> {
-    return this.issueRefreshToken(userId, crypto.randomUUID(), new Date())
+  createSession(
+    userId: string,
+    { method, userAgent }: SessionSignIn,
+  ): Promise<SessionTokens> {
+    return this.issueRefreshToken(userId, {
+      familyId: crypto.randomUUID(),
+      authenticatedAt: new Date(),
+      signInMethod: method,
+      device: describeDevice(userAgent),
+    })
   }
 
   /**
@@ -302,12 +329,7 @@ export class AuthService {
     }
 
     // Renewing the access token is not a new sign-in: keep the family's time.
-    return this.issueRefreshToken(
-      record.userId,
-      record.familyId,
-      record.authenticatedAt,
-      sessionEndsAt,
-    )
+    return this.issueRefreshToken(record.userId, record, sessionEndsAt)
   }
 
   /**
