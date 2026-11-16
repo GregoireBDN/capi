@@ -2,11 +2,15 @@ import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 
 import {
+  PERMISSIONS_POLICY,
   createCspNonce,
+  crossOriginHeaders,
+  keepsOpener,
   pageCspDirectives,
   pageInlineScriptHashes,
   pageSecurityHeaders,
   serializeCsp,
+  serializePermissionsPolicy,
   sha256Source,
 } from './security-headers'
 import { INLINE_SCRIPTS, THEME_INIT_SCRIPT } from './inline-scripts'
@@ -105,5 +109,74 @@ describe('pageSecurityHeaders', () => {
       ...(await pageInlineScriptHashes()),
     ])
     expect(headers['content-security-policy']).not.toMatch(/unsafe-eval/)
+  })
+
+  it('isolates the page from other origins and denies unused features (#204)', async () => {
+    const headers = await pageSecurityHeaders('n0nce')
+
+    expect(headers['cross-origin-opener-policy']).toBe('same-origin')
+    expect(headers['cross-origin-resource-policy']).toBe('same-origin')
+    expect(headers['permissions-policy']).toBe(serializePermissionsPolicy())
+    expect(headers).not.toHaveProperty('cross-origin-embedder-policy')
+  })
+
+  it('leaves COOP out on the OAuth consent flow', async () => {
+    const headers = await pageSecurityHeaders('n0nce', { keepOpener: true })
+
+    expect(headers).not.toHaveProperty('cross-origin-opener-policy')
+    expect(headers['cross-origin-resource-policy']).toBe('same-origin')
+  })
+})
+
+describe('Permissions-Policy', () => {
+  const policy = new Map(
+    serializePermissionsPolicy()
+      .split(', ')
+      .map((entry) => entry.split('=') as [string, string]),
+  )
+
+  it('keeps passkeys on the app origin only', () => {
+    expect(policy.get('publickey-credentials-get')).toBe('(self)')
+    expect(policy.get('publickey-credentials-create')).toBe('(self)')
+  })
+
+  it('denies the powerful features the app never uses', () => {
+    for (const feature of [
+      'camera',
+      'microphone',
+      'geolocation',
+      'payment',
+      'usb',
+      'browsing-topics',
+    ]) {
+      expect(policy.get(feature)).toBe('()')
+    }
+  })
+
+  it('leaves the clipboard (copying an access token) at its default', () => {
+    expect(Object.keys(PERMISSIONS_POLICY)).not.toContain('clipboard-write')
+  })
+})
+
+describe('keepsOpener', () => {
+  const at = (path: string) => keepsOpener(new URL(path, 'https://app.test'))
+
+  it('is true on the consent page and on sign-in returning to it', () => {
+    expect(at('/oauth/authorize?client_id=c')).toBe(true)
+    expect(
+      at(
+        `/auth?redirect=${encodeURIComponent('/oauth/authorize?client_id=c')}`,
+      ),
+    ).toBe(true)
+  })
+
+  it('is false anywhere else', () => {
+    expect(at('/auth')).toBe(false)
+    expect(at('/auth?redirect=%2Fdashboard')).toBe(false)
+    expect(
+      at('/auth?redirect=https%3A%2F%2Fevil.test%2Foauth%2Fauthorize%3F'),
+    ).toBe(false)
+    expect(at('/dashboard')).toBe(false)
+    expect(crossOriginHeaders()).toHaveProperty('cross-origin-opener-policy')
   })
 })

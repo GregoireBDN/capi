@@ -35,6 +35,9 @@ const config = defineConfig({
       // `no-store` and their CSP from `src/start.ts`; the static offline page
       // gets its own CSP (`plugins/offline-csp.ts`).
       routeRules: {
+        // Static files (bundles, icons, manifest, worker) are for this origin
+        // only; pages get the same header from `src/start.ts` (#204).
+        '/**': { headers: { 'cross-origin-resource-policy': 'same-origin' } },
         '/sw.js': { headers: { 'cache-control': 'no-cache' } },
         '/manifest.json': { headers: { 'cache-control': 'no-cache' } },
         '/offline.html': { headers: offlinePageHeaders() },
