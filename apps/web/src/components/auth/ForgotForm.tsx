@@ -7,10 +7,12 @@ import { isRateLimited, rateLimitMessage } from '#/lib/api-errors'
 import { forgotSchema } from './auth.schemas'
 import type { ForgotValues } from './auth.schemas'
 import { Button, Field, FieldError, FieldLabel, Input } from '@finances/ui'
+import { useHydrated } from '#/lib/use-hydrated'
 
 export function ForgotForm() {
   const [sent, setSent] = useState(false)
 
+  const hydrated = useHydrated()
   const form = useForm<ForgotValues>({
     resolver: zodResolver(forgotSchema),
     defaultValues: { email: '' },
@@ -39,6 +41,7 @@ export function ForgotForm() {
 
   return (
     <form
+      method="post"
       onSubmit={form.handleSubmit(onSubmit)}
       className="space-y-3"
       noValidate
@@ -56,7 +59,12 @@ export function ForgotForm() {
           <FieldError>{form.formState.errors.email.message}</FieldError>
         )}
       </Field>
-      <Button type="submit" fullWidth loading={form.formState.isSubmitting}>
+      <Button
+        type="submit"
+        fullWidth
+        loading={form.formState.isSubmitting}
+        disabled={!hydrated}
+      >
         Envoyer le lien
       </Button>
     </form>

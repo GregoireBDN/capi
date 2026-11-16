@@ -23,6 +23,7 @@ import {
   Label,
   PasswordInput,
 } from '@finances/ui'
+import { useHydrated } from '#/lib/use-hydrated'
 
 export const Route = createFileRoute('/reset-password')({
   validateSearch: z.object({ token: z.string().optional() }),
@@ -47,6 +48,7 @@ function ResetPasswordPage() {
   const navigate = useNavigate()
   const [done, setDone] = useState(false)
 
+  const hydrated = useHydrated()
   const form = useForm<ResetValues>({
     resolver: zodResolver(resetSchema),
     defaultValues: { password: '', confirm: '', revokeAccessTokens: false },
@@ -116,6 +118,7 @@ function ResetPasswordPage() {
             </p>
           ) : (
             <form
+              method="post"
               onSubmit={form.handleSubmit(onSubmit)}
               className="space-y-3"
               noValidate
@@ -165,7 +168,8 @@ function ResetPasswordPage() {
                     }
                   />
                   <Label htmlFor="revoke-access-tokens" className="font-normal">
-                    Révoquer aussi les jetons d’accès et les applications connectées
+                    Révoquer aussi les jetons d’accès et les applications
+                    connectées
                   </Label>
                 </div>
                 <FieldDescription>
@@ -178,6 +182,7 @@ function ResetPasswordPage() {
                 type="submit"
                 fullWidth
                 loading={form.formState.isSubmitting}
+                disabled={!hydrated}
               >
                 Réinitialiser le mot de passe
               </Button>

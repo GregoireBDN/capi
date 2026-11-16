@@ -1,10 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { PROXY_BODY_MAX_BYTES, proxyToApi } from './api-proxy'
+import {
+  API_BODY_LIMIT_BYTES,
+  PROXY_BODY_MAX_BYTES,
+  bodyLimitFor,
+  proxyToApi,
+} from './api-proxy'
 import { DEFAULT_TRUSTED_PROXIES, compileTrustedProxies } from './client-ip'
 import { forgetRefreshes, resolveServerSession } from './server-session'
 
 const API_URL = 'http://api.test:4000'
+const MULTIPART = 'multipart/form-data; boundary=----test'
 
 type Captured = { url: string; init: RequestInit }
 
@@ -351,7 +357,7 @@ describe('proxyToApi request body cap (#173)', () => {
       new Request('http://web.test/api/imports/preview', {
         method: 'POST',
         headers: {
-          'content-type': 'text/plain',
+          'content-type': MULTIPART,
           'content-length': String(300 * MiB),
         },
         body: body.stream,
@@ -373,7 +379,7 @@ describe('proxyToApi request body cap (#173)', () => {
     const response = await proxyToApi(
       new Request('http://web.test/api/imports/preview', {
         method: 'POST',
-        headers: { 'content-type': 'text/plain' },
+        headers: { 'content-type': MULTIPART },
         body: body.stream,
         duplex: 'half',
       } as RequestInit),
@@ -394,7 +400,7 @@ describe('proxyToApi request body cap (#173)', () => {
     const response = await proxyToApi(
       new Request('http://web.test/api/imports/preview', {
         method: 'POST',
-        headers: { 'content-type': 'application/octet-stream' },
+        headers: { 'content-type': MULTIPART },
         body: payload,
       }),
       { apiUrl: API_URL, fetch: api.fetch },
@@ -417,7 +423,7 @@ describe('proxyToApi request body cap (#173)', () => {
     const response = await proxyToApi(
       new Request('http://web.test/api/imports/preview', {
         method: 'POST',
-        headers: { 'content-type': 'application/octet-stream' },
+        headers: { 'content-type': MULTIPART },
         body: new Uint8Array(5 * MiB + 1),
       }),
       { apiUrl: API_URL, fetch: api.fetch },
@@ -426,6 +432,97 @@ describe('proxyToApi request body cap (#173)', () => {
     expect(response.status).toBe(413)
     expect((await response.json()).message).toBe(
       'The file exceeds the 5 MB limit',
+    )
+  })
+  it('caps every body but multipart uploads at the API bodyLimit', () => {
+    expect(bodyLimitFor(MULTIPART)).toBe(PROXY_BODY_MAX_BYTES)
+    expect(bodyLimitFor('Multipart/Form-Data;boundary=x')).toBe(
+      PROXY_BODY_MAX_BYTES,
+    )
+    expect(bodyLimitFor('application/json')).toBe(API_BODY_LIMIT_BYTES)
+    expect(bodyLimitFor('application/json; charset=utf-8')).toBe(
+      API_BODY_LIMIT_BYTES,
+    )
+    expect(bodyLimitFor('text/plain')).toBe(API_BODY_LIMIT_BYTES)
+    expect(bodyLimitFor(null)).toBe(API_BODY_LIMIT_BYTES)
+  })
+
+  it('answers 413 itself for a 2 MB JSON body the API would refuse early (#201)', async () => {
+    // The API answers 413 as soon as it sees the length and closes the
+    // connection mid-upload: `fetch` rejects, which used to become a 502.
+    const api = upstream(() => {
+      throw new TypeError('fetch failed')
+    })
+
+    const response = await proxyToApi(
+      new Request('http://web.test/api/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'a@b.test', pad: 'x'.repeat(2 * MiB) }),
+      }),
+      { apiUrl: API_URL, fetch: api.fetch },
+    )
+
+    expect(response.status).toBe(413)
+    expect(await response.json()).toEqual({
+      statusCode: 413,
+      error: 'Payload Too Large',
+      message: ['Request body is too large'],
+    })
+    expect(api.calls).toHaveLength(0)
+  })
+
+  it('stops reading a chunked JSON body past the API bodyLimit', async () => {
+    const api = upstream(() => Response.json({ ok: true }))
+    const body = streamedBody(300 * MiB)
+
+    const response = await proxyToApi(
+      new Request('http://web.test/api/accounts', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: body.stream,
+        duplex: 'half',
+      } as RequestInit),
+      { apiUrl: API_URL, fetch: api.fetch },
+    )
+
+    expect(response.status).toBe(413)
+    expect(api.calls).toHaveLength(0)
+    expect(body.read()).toBeLessThan(API_BODY_LIMIT_BYTES + 3 * MiB)
+    expect(body.cancelled()).toBe(true)
+  })
+
+  it('drops Expect: 100-continue, which curl sends and fetch refuses (#201)', async () => {
+    const api = upstream(() => Response.json({ ok: true }, { status: 201 }))
+
+    const response = await proxyToApi(
+      new Request('http://web.test/api/imports/preview', {
+        method: 'POST',
+        headers: { 'content-type': MULTIPART, expect: '100-continue' },
+        body: new Uint8Array(3 * MiB),
+      }),
+      { apiUrl: API_URL, fetch: api.fetch },
+    )
+
+    expect(response.status).toBe(201)
+    expect(new Headers(api.calls[0].init.headers).has('expect')).toBe(false)
+  })
+
+  it('forwards a JSON body of exactly the API bodyLimit', async () => {
+    const api = upstream(() => Response.json({ ok: true }, { status: 201 }))
+
+    const response = await proxyToApi(
+      new Request('http://web.test/api/accounts', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: new Uint8Array(API_BODY_LIMIT_BYTES).fill(32),
+      }),
+      { apiUrl: API_URL, fetch: api.fetch },
+    )
+
+    expect(response.status).toBe(201)
+    expect((api.calls[0].init.body as ArrayBuffer).byteLength).toBe(
+      API_BODY_LIMIT_BYTES,
     )
   })
 })
