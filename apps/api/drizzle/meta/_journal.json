@@ -162,6 +162,13 @@
       "when": 1794731288239,
       "tag": "0022_remote_mcp_oauth",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794855035075,
+      "tag": "0023_session_metadata",
+      "breakpoints": true
     }
   ]
 }

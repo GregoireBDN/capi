@@ -1,6 +1,7 @@
 import {
-  REFRESH_COOKIE,
+  REFRESH_COOKIES,
   REFRESH_PATH,
+  findCookie,
   forgetRefreshes,
   parseCookieHeader,
   refreshSession,
@@ -191,13 +192,14 @@ async function proxyRefresh(
   request: Request,
   target: ApiTarget,
 ): Promise<Response | null> {
-  const token = parseCookieHeader(
-    request.headers.get('cookie') ?? undefined,
-  ).get(REFRESH_COOKIE)
+  const refreshCookie = findCookie(
+    parseCookieHeader(request.headers.get('cookie') ?? undefined),
+    REFRESH_COOKIES,
+  )
   // Without a token there is nothing to dedupe: let the API answer the 401.
-  if (!token) return null
+  if (!refreshCookie) return null
 
-  const outcome = await refreshSession(token, target)
+  const outcome = await refreshSession(refreshCookie, target)
   const headers = new Headers()
   if (outcome.contentType) headers.set('content-type', outcome.contentType)
   for (const cookie of outcome.setCookies) headers.append('set-cookie', cookie)

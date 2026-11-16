@@ -4,6 +4,7 @@ import type { UserDto } from '#/api/types.gen'
 import {
   REFRESH_GRACE_MS,
   applySetCookies,
+  findCookie,
   forgetRefreshes,
   parseCookieHeader,
   refreshSession,
@@ -21,9 +22,13 @@ const user = {
 /**
  * In-memory stand-in for the API's auth endpoints with the same rotation
  * semantics: a refresh token is single use, and presenting a revoked one
- * revokes the whole family (every later refresh fails).
+ * revokes the whole family (every later refresh fails). With `hostPrefix`
+ * it behaves like the production API (#217): `__Host-` names, the plain
+ * refresh cookie still accepted when the prefixed one is missing, the plain
+ * pair cleared on rotation.
  */
-function createFakeApi() {
+function createFakeApi({ hostPrefix = false } = {}) {
+  const prefix = hostPrefix ? '__Host-' : ''
   const validAccess = new Set<string>()
   const refresh = new Map<string, 'valid' | 'revoked'>()
   let familyRevoked = false
@@ -39,7 +44,7 @@ function createFakeApi() {
 
       if (url.pathname === '/api/auth/me') {
         calls.me++
-        const token = cookies.get('token')
+        const token = cookies.get(`${prefix}token`)
         if (token && validAccess.has(token) && !familyRevoked)
           return Response.json(user)
         return Response.json({ statusCode: 401 }, { status: 401 })
@@ -49,7 +54,9 @@ function createFakeApi() {
         calls.refresh++
         // Let concurrent callers pile up before the rotation completes.
         await new Promise((resolve) => setTimeout(resolve, 5))
-        const presented = cookies.get('refresh_token')
+        const presented =
+          cookies.get(`${prefix}refresh_token`) ||
+          (hostPrefix ? cookies.get('refresh_token') : undefined)
         const state = presented ? refresh.get(presented) : undefined
         if (state === 'revoked') familyRevoked = true
         if (!presented || state !== 'valid' || familyRevoked) {
@@ -66,13 +73,21 @@ function createFakeApi() {
           'set-cookie',
           'refresh_token=; Max-Age=0; Path=/api/auth; HttpOnly',
         )
+        if (hostPrefix) {
+          headers.append('set-cookie', 'token=; Max-Age=0; Path=/; HttpOnly')
+          headers.append(
+            'set-cookie',
+            'refresh_token=; Max-Age=0; Path=/; HttpOnly',
+          )
+        }
+        const secure = hostPrefix ? '; Secure' : ''
         headers.append(
           'set-cookie',
-          `token=${access}; Max-Age=900; Path=/; HttpOnly; SameSite=Lax`,
+          `${prefix}token=${access}; Max-Age=900; Path=/; HttpOnly${secure}; SameSite=Lax`,
         )
         headers.append(
           'set-cookie',
-          `refresh_token=${next}; Max-Age=2592000; Path=/; HttpOnly; SameSite=Lax`,
+          `${prefix}refresh_token=${next}; Max-Age=2592000; Path=/; HttpOnly${secure}; SameSite=Lax`,
         )
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
@@ -271,8 +286,8 @@ describe('resolveServerSession (SSR guard)', () => {
   })
 
   it('does not cache a rejected refresh', async () => {
-    await refreshSession('forged', target())
-    await refreshSession('forged', target())
+    await refreshSession({ name: 'refresh_token', value: 'forged' }, target())
+    await refreshSession({ name: 'refresh_token', value: 'forged' }, target())
 
     expect(api.calls.refresh).toBe(2)
   })
@@ -295,5 +310,72 @@ describe('cookie helpers', () => {
         'theme=dark; Expires=Thu, 01 Jan 1970 00:00:00 GMT',
       ]),
     ).toBe('token=new')
+  })
+})
+
+describe('resolveServerSession with __Host- cookies (production, #217)', () => {
+  let api: ReturnType<typeof createFakeApi>
+  const target = () => ({ apiUrl: API_URL, fetch: api.fetch })
+
+  beforeEach(() => {
+    forgetRefreshes()
+    api = createFakeApi({ hostPrefix: true })
+    api.issue('access-0', 'refresh-0')
+  })
+
+  it('uses a valid __Host- access token as is', async () => {
+    const session = await resolveServerSession(
+      '__Host-token=access-0; __Host-refresh_token=refresh-0',
+      target(),
+    )
+
+    expect(session.user).toEqual(user)
+    expect(session.setCookies).toEqual([])
+    expect(api.calls.refresh).toBe(0)
+  })
+
+  it('moves a session from before #217 to the __Host- names without signing out', async () => {
+    const session = await resolveServerSession(
+      'token=access-0; refresh_token=refresh-0; theme=dark',
+      target(),
+    )
+
+    expect(session.user).toEqual(user)
+    expect(api.calls.refresh).toBe(1)
+    const names = session.setCookies.map((c) => c.split('=')[0])
+    expect(names).toContain('__Host-token')
+    expect(names).toContain('__Host-refresh_token')
+    expect(session.cookieHeader).toBe(
+      'theme=dark; __Host-token=access-1; __Host-refresh_token=refresh-1',
+    )
+  })
+
+  it('presents the __Host- refresh cookie over a plain one set by a sibling domain', async () => {
+    api.issue('unused', 'tossed')
+    const session = await resolveServerSession(
+      'refresh_token=tossed; __Host-refresh_token=refresh-0',
+      target(),
+    )
+
+    expect(session.user).toEqual(user)
+    const refreshCall = vi
+      .mocked(api.fetch)
+      .mock.calls.find(([url]) => String(url).endsWith('/api/auth/refresh'))
+    expect(new Headers(refreshCall?.[1]?.headers).get('cookie')).toBe(
+      '__Host-refresh_token=refresh-0',
+    )
+  })
+})
+
+describe('findCookie', () => {
+  it('returns the first non-empty cookie in the given order', () => {
+    const cookies = parseCookieHeader(
+      'token=plain; __Host-token=; refresh_token=r',
+    )
+    expect(findCookie(cookies, ['__Host-token', 'token'])).toEqual({
+      name: 'token',
+      value: 'plain',
+    })
+    expect(findCookie(cookies, ['missing'])).toBeUndefined()
   })
 })

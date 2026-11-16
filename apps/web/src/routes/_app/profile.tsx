@@ -4,6 +4,7 @@ import { ConnectedAppsCard } from '#/components/oauth/ConnectedAppsCard'
 import { PasskeysCard } from '#/components/passkeys/PasskeysCard'
 import { ChangePasswordCard } from '#/components/profile/ChangePasswordCard'
 import { DeleteAccountCard } from '#/components/profile/DeleteAccountCard'
+import { SessionsCard } from '#/components/sessions/SessionsCard'
 import { getInitials } from '#/components/app-shell/user-initials'
 import { useAuth } from '#/lib/auth-context'
 import { ROUTES } from '#/lib/routes'
@@ -297,6 +298,8 @@ function ProfilePage() {
       <ChangePasswordCard email={currentUser.email} />
 
       <PasskeysCard email={currentUser.email} />
+
+      <SessionsCard email={currentUser.email} />
 
       <AccessTokensCard email={currentUser.email} />
 

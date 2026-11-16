@@ -363,15 +363,18 @@ describe('API route audit', () => {
       expect(scoped.length).toBeGreaterThan(open.length)
     })
 
-    it('never reach token management, even with GET', () => {
-      const management = routes.filter((route) =>
-        route.path.startsWith('/api/access-tokens'),
-      )
-      expect(management.length).toBeGreaterThan(0)
-      for (const route of management) {
-        expect(route.tokenAccess, route.key).toBe('none')
-      }
-    })
+    it.each(['/api/access-tokens', '/api/auth/sessions'])(
+      'never reach %s, even with GET',
+      (prefix) => {
+        const management = routes.filter((route) =>
+          route.path.startsWith(prefix),
+        )
+        expect(management.length).toBeGreaterThan(0)
+        for (const route of management) {
+          expect(route.tokenAccess, route.key).toBe('none')
+        }
+      },
+    )
   })
 
   it('no longer routes the old /api/users CRUD', async () => {

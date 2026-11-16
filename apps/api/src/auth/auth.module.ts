@@ -10,6 +10,8 @@ import { OAuthService } from '#/auth/oauth/oauth.service'
 import { REMOTE_MCP_CONFIG } from '#/auth/oauth/remote-mcp.config'
 import { PasskeysController } from '#/auth/passkeys/passkeys.controller'
 import { PasskeysService } from '#/auth/passkeys/passkeys.service'
+import { SessionsController } from '#/auth/sessions/sessions.controller'
+import { SessionsService } from '#/auth/sessions/sessions.service'
 import { env } from '#/config/env'
 
 @Module({
@@ -18,13 +20,19 @@ import { env } from '#/config/env'
       secret: env.JWT_SECRET,
     }),
   ],
-  controllers: [AuthController, AccessTokensController, PasskeysController],
+  controllers: [
+    AuthController,
+    AccessTokensController,
+    PasskeysController,
+    SessionsController,
+  ],
   providers: [
     AuthService,
     JwtGuard,
     AccessTokensService,
     AccessTokenAuditHook,
     PasskeysService,
+    SessionsService,
     // Remote MCP (#78): always provided so JwtGuard can refuse OAuth tokens
     // while it is off; its routes live in RemoteMcpModule.
     { provide: REMOTE_MCP_CONFIG, useValue: env.remoteMcp },
