@@ -6,7 +6,7 @@ import {
   createRoute,
   createRouter,
 } from '@tanstack/react-router'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarInset, SidebarProvider } from '@finances/ui'
@@ -85,39 +85,37 @@ function topBar() {
 }
 
 describe('App shell sidebar (≥ md)', () => {
-  it('shows the sidebar and hides the top bar by default', async () => {
+  it('shows the full sidebar and no top bar by default', async () => {
     await renderShell(true)
 
     expect(sidebar()).toHaveAttribute('data-state', 'expanded')
     expect(topBar()).toHaveClass('md:hidden')
     expect(
-      screen.getByRole('button', { name: 'Masquer le menu' }),
-    ).toBeInTheDocument()
+      screen.getByRole('button', { name: 'Réduire le menu' }),
+    ).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('hides the sidebar, then brings it back from the top bar', async () => {
+  it('folds down to its icons and back from its header', async () => {
     const ue = userEvent.setup()
     await renderShell(true)
 
-    await ue.click(screen.getByRole('button', { name: 'Masquer le menu' }))
+    const header = screen.getByRole('button', { name: 'Réduire le menu' })
+    await ue.click(header)
 
     expect(sidebar()).toHaveAttribute('data-state', 'collapsed')
-    expect(sidebar()).toHaveAttribute('data-collapsible', 'offcanvas')
-    expect(topBar()).not.toHaveClass('md:hidden')
-    const menuButton = screen.getByRole('button', { name: 'Ouvrir le menu' })
-    expect(menuButton).toHaveAttribute('aria-expanded', 'false')
-    await waitFor(() => expect(menuButton).toHaveFocus())
+    expect(sidebar()).toHaveAttribute('data-collapsible', 'icon')
+    // Still on screen: no top bar from md up, the pages stay reachable.
+    expect(topBar()).toHaveClass('md:hidden')
+    expect(screen.getByRole('link', { name: 'Budget' })).toBeInTheDocument()
+    // The same control, which keeps the focus, unfolds it.
+    expect(header).toHaveAccessibleName('Agrandir le menu')
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    expect(header).toHaveFocus()
     expect(parseSidebarOpen(document.cookie)).toBe(false)
 
-    await ue.click(menuButton)
-
+    await ue.click(header)
     expect(sidebar()).toHaveAttribute('data-state', 'expanded')
-    expect(topBar()).toHaveClass('md:hidden')
-    await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: 'Masquer le menu' }),
-      ).toHaveFocus(),
-    )
+    expect(header).toHaveAccessibleName('Réduire le menu')
     expect(parseSidebarOpen(document.cookie)).toBe(true)
   })
 
@@ -135,16 +133,16 @@ describe('App shell sidebar (≥ md)', () => {
     expect(sidebar()).toHaveAttribute('data-state', 'expanded')
   })
 
-  it('renders hidden from the first render when it was hidden before', async () => {
+  it('renders folded from the first render when it was folded before', async () => {
     document.cookie = 'sidebar_state=false; path=/'
 
     await renderShell(parseSidebarOpen(document.cookie))
 
     expect(sidebar()).toHaveAttribute('data-state', 'collapsed')
-    expect(topBar()).not.toHaveClass('md:hidden')
+    expect(sidebar()).toHaveAttribute('data-collapsible', 'icon')
     expect(
-      screen.getByRole('button', { name: 'Ouvrir le menu' }),
-    ).toHaveAttribute('aria-expanded', 'false')
+      screen.getByRole('button', { name: 'Agrandir le menu' }),
+    ).toBeInTheDocument()
   })
 })
 
@@ -164,20 +162,25 @@ describe('App shell sidebar (< md)', () => {
     vi.restoreAllMocks()
   })
 
-  it('opens the navigation sheet from the top bar, with no hide button', async () => {
+  it('opens the navigation sheet from the top bar, with no fold button', async () => {
     const ue = userEvent.setup()
     await renderShell(false)
 
     expect(
-      screen.queryByRole('button', { name: 'Masquer le menu' }),
+      screen.queryByRole('button', {
+        name: /Réduire le menu|Agrandir le menu/,
+      }),
     ).not.toBeInTheDocument()
 
     await ue.click(screen.getByRole('button', { name: 'Ouvrir le menu' }))
 
     const sheet = await screen.findByRole('dialog', { name: 'Menu' })
     expect(sheet).toBeInTheDocument()
+    // In the sheet, the header links to the dashboard instead.
     expect(
-      screen.queryByRole('button', { name: 'Masquer le menu' }),
+      screen.queryByRole('button', {
+        name: /Réduire le menu|Agrandir le menu/,
+      }),
     ).not.toBeInTheDocument()
     // The remembered desktop state is left alone.
     expect(document.cookie).not.toContain('sidebar_state')

@@ -66,20 +66,24 @@ export function UserMenu({ user, onNavigate }: UserMenuProps) {
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuButton size="lg" aria-label="Menu du compte">
+            <SidebarMenuButton
+              size="lg"
+              aria-label="Menu du compte"
+              className="group-data-[collapsible=icon]:size-(--rail-button)! group-data-[collapsible=icon]:justify-center"
+            >
               <span
                 aria-hidden
                 className="from-primary to-info text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold"
               >
                 {getInitials(user.name)}
               </span>
-              <span className="grid min-w-0 flex-1 leading-tight">
+              <span className="grid min-w-0 flex-1 leading-tight group-data-[collapsible=icon]:hidden">
                 <span className="truncate font-medium">{user.name}</span>
                 <span className="text-muted-foreground truncate text-xs">
                   {user.email}
                 </span>
               </span>
-              <ChevronsUpDownIcon className="text-muted-foreground ml-auto" />
+              <ChevronsUpDownIcon className="text-muted-foreground ml-auto group-data-[collapsible=icon]:hidden" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
 
