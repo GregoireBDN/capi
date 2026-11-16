@@ -287,7 +287,11 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
       )}
 
       {data.snapshots.length > 0 && (
-        <ValueChart snapshots={data.snapshots} withContributions={investment} />
+        <ValueChart
+          snapshots={data.snapshots}
+          withContributions={investment}
+          onAdd={investment && writable && !crypto ? openAdd : undefined}
+        />
       )}
 
       <SnapshotList

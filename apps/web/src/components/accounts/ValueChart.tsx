@@ -1,11 +1,14 @@
 import {
   AreaChart,
+  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
+  EmptyState,
 } from '@finances/ui'
+import { LineChartIcon, PlusIcon } from 'lucide-react'
 import type { ChartConfig } from '@finances/ui'
 import type { SnapshotDto } from '#/api/types.gen'
 import { formatCalendarDate } from '#/lib/money'
@@ -31,9 +34,12 @@ const cashConfig = {
 export function ValueChart({
   snapshots,
   withContributions,
+  onAdd,
 }: {
   snapshots: SnapshotDto[]
   withContributions: boolean
+  /** Adds a value (accounts valued by hand); no button without it. */
+  onAdd?: () => void
 }) {
   const showContributions =
     withContributions && snapshots.some((s) => s.contributionsCents !== null)
@@ -57,9 +63,29 @@ export function ValueChart({
       </CardHeader>
       <CardContent>
         {snapshots.length < 2 ? (
-          <p className="text-muted-foreground text-sm">
-            Il faut au moins deux valeurs pour tracer l’évolution.
-          </p>
+          <EmptyState
+            variant="inline"
+            icon={<LineChartIcon />}
+            title="Une seule valeur pour l’instant"
+            description={
+              withContributions
+                ? 'La courbe apparaîtra dès la deuxième valeur : ajoutez celle d’un autre relevé.'
+                : 'La courbe apparaîtra dès le deuxième solde relevé, au prochain import.'
+            }
+            actions={
+              onAdd && (
+                <Button
+                  size="sm"
+                  outline
+                  variant="secondary"
+                  iconStart={<PlusIcon />}
+                  onClick={onAdd}
+                >
+                  Ajouter une valeur
+                </Button>
+              )
+            }
+          />
         ) : (
           <AreaChart
             data={data}

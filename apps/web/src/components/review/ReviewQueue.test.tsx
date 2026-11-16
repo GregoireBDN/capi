@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,6 +27,11 @@ const toastMock = vi.hoisted(() =>
   Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 )
 vi.mock('sonner', () => ({ toast: toastMock }))
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ to, children }: { to: string; children: ReactNode }) => (
+    <a href={to}>{children}</a>
+  ),
+}))
 
 const mocked = vi.mocked(api)
 
@@ -558,6 +564,9 @@ describe('ReviewQueue', () => {
 
     expect(await screen.findByText('Tout est à jour')).toBeInTheDocument()
     expect(screen.queryByRole('list')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Voir les opérations' }),
+    ).toHaveAttribute('href', '/transactions')
   })
 
   it('loads more items without skipping any', async () => {

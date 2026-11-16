@@ -12,10 +12,11 @@ import {
   formatSignedEuros,
   formatSignedPercent,
   Skeleton,
+  EmptyState,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ChevronRightIcon } from 'lucide-react'
+import { ChevronRightIcon, LandmarkIcon, UploadIcon } from 'lucide-react'
 import type {
   AccountDto,
   InvestmentAccountSummaryDto,
@@ -164,10 +165,19 @@ export function AccountsPage() {
       )}
 
       {accounts.isSuccess && list.length === 0 && (
-        <p className="text-muted-foreground text-sm">
-          Aucun compte. Ajoutez votre compte courant, vos livrets, vos
-          placements (PEA, assurance vie…) ou vos cryptos.
-        </p>
+        <EmptyState
+          icon={<LandmarkIcon />}
+          title="Aucun compte pour l’instant"
+          description="Ajoutez votre compte courant, vos livrets, vos placements (PEA, assurance vie…) ou vos cryptos, ou importez un relevé : son compte est créé au passage."
+          actions={
+            <Button asChild>
+              <Link to={ROUTES.import}>
+                <UploadIcon aria-hidden />
+                Importer un relevé
+              </Link>
+            </Button>
+          }
+        />
       )}
 
       <div className="grid gap-4 @3xl:grid-cols-2 @3xl:items-start">

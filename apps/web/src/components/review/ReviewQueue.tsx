@@ -5,12 +5,14 @@ import {
   Button,
   Checkbox,
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
   Skeleton,
 } from '@finances/ui'
+import { Link } from '@tanstack/react-router'
 import { CheckIcon, CircleCheckBigIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -36,6 +38,7 @@ import type { RuleCreatedResult } from '#/components/transactions/RuleFromCorrec
 import { RuleOfferBanner } from '#/components/transactions/RuleOfferBanner'
 import type { RuleOffer } from '#/components/transactions/RuleOfferBanner'
 import { plural } from '#/lib/plural'
+import { ROUTES } from '#/lib/routes'
 import {
   adjustReviewCount,
   refreshReviewCount,
@@ -377,6 +380,11 @@ export function ReviewQueue({ reminder }: { reminder?: ReactNode } = {}) {
               prochains imports apparaîtront ici.
             </EmptyDescription>
           </EmptyHeader>
+          <EmptyContent className="flex-row flex-wrap justify-center">
+            <Button asChild outline variant="secondary">
+              <Link to={ROUTES.transactions}>Voir les opérations</Link>
+            </Button>
+          </EmptyContent>
         </Empty>
       )}
 
