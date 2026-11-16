@@ -29,7 +29,9 @@ async function collectViolations(page: Page) {
 
 const violations = (page: Page) => page.evaluate(() => window.__cspViolations)
 
-test('pages are sent with a CSP and frame protection', async ({ page }) => {
+test('pages are sent with a CSP, frame protection and isolation headers', async ({
+  page,
+}) => {
   await collectViolations(page)
   const response = await page.goto('/auth')
   const headers = response?.headers() ?? {}
@@ -39,6 +41,14 @@ test('pages are sent with a CSP and frame protection', async ({ page }) => {
   expect(policy).toContain("object-src 'none'")
   expect(policy).not.toMatch(/script-src[^;]*'unsafe-(inline|eval)'/)
   expect(headers['x-frame-options']).toBe('DENY')
+
+  // Cross-origin isolation and unused features denied, passkeys kept (#204).
+  expect(headers['cross-origin-opener-policy']).toBe('same-origin')
+  expect(headers['cross-origin-resource-policy']).toBe('same-origin')
+  expect(headers['permissions-policy']).toContain('camera=()')
+  expect(headers['permissions-policy']).toContain(
+    'publickey-credentials-get=(self)',
+  )
 
   // TanStack's inline scripts carry the header's nonce, read back on the client.
   const nonce = /'nonce-([^']+)'/.exec(policy)?.[1]
@@ -77,4 +87,21 @@ test('signed-in pages load with no CSP violation', async ({ page }) => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
   }
   expect(await violations(page)).toEqual([])
+})
+
+test('the OAuth consent flow keeps its opener, static files stay same-origin', async ({
+  request,
+}) => {
+  const consent = await request.get(
+    `/auth?redirect=${encodeURIComponent('/oauth/authorize?client_id=c')}`,
+  )
+  expect(consent.headers()['cross-origin-opener-policy']).toBeUndefined()
+  expect(consent.headers()['permissions-policy']).toContain('camera=()')
+
+  for (const path of ['/manifest.json', '/offline.html']) {
+    const response = await request.get(path)
+    expect(response.headers()['cross-origin-resource-policy']).toBe(
+      'same-origin',
+    )
+  }
 })

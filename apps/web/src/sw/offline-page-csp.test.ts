@@ -21,6 +21,9 @@ describe('offline page headers', () => {
     expect(policy).toContain("frame-ancestors 'none'")
     expect(policy).not.toContain('unsafe')
     expect(headers['x-frame-options']).toBe('DENY')
+    expect(headers['cross-origin-opener-policy']).toBe('same-origin')
+    expect(headers['cross-origin-resource-policy']).toBe('same-origin')
+    expect(headers['permissions-policy']).toContain('camera=()')
   })
 
   it('has no inline event handlers or style attributes a hash could not cover', () => {

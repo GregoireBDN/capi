@@ -1,4 +1,5 @@
 import { INLINE_SCRIPTS } from './inline-scripts'
+import { OAUTH_AUTHORIZE_PATH, safeReturnPath } from './post-login'
 
 /**
  * Content-Security-Policy and frame protection for every response of the web
@@ -20,6 +21,9 @@ import { INLINE_SCRIPTS } from './inline-scripts'
  *
  * WebAuthn needs no directive; the service worker is same-origin
  * (`worker-src`); Google Fonts serves the stylesheet and the font files.
+ *
+ * Plus `Permissions-Policy` and cross-origin isolation (COOP / CORP, #204),
+ * see `crossOriginHeaders`.
  */
 export type CspDirectives = Readonly<Record<string, readonly string[]>>
 
@@ -87,9 +91,80 @@ export function pageInlineScriptHashes(): Promise<string[]> {
   return inlineScriptHashes
 }
 
+/**
+ * Powerful browser features the app never uses are denied to every frame,
+ * its own pages included, so an injected script or a future embed can't ask
+ * for them (#204). Passkeys (WebAuthn) stay allowed on the app's own origin;
+ * the clipboard (copying a new access token) and fullscreen keep their
+ * default (`self`). Only features Chrome recognizes, so it logs no warning.
+ */
+export const PERMISSIONS_POLICY: Readonly<Record<string, string>> = {
+  accelerometer: '()',
+  bluetooth: '()',
+  'browsing-topics': '()',
+  camera: '()',
+  'display-capture': '()',
+  geolocation: '()',
+  gyroscope: '()',
+  hid: '()',
+  'idle-detection': '()',
+  magnetometer: '()',
+  microphone: '()',
+  midi: '()',
+  payment: '()',
+  'publickey-credentials-create': '(self)',
+  'publickey-credentials-get': '(self)',
+  'screen-wake-lock': '()',
+  serial: '()',
+  usb: '()',
+  'xr-spatial-tracking': '()',
+}
+
+export function serializePermissionsPolicy(
+  policy: Readonly<Record<string, string>> = PERMISSIONS_POLICY,
+): string {
+  return Object.entries(policy)
+    .map(([feature, allowlist]) => `${feature}=${allowlist}`)
+    .join(', ')
+}
+
+/**
+ * Pages of the OAuth consent flow (#78) are opened by the Claude app in a
+ * popup, which may need its `window.opener` back once the flow returns to
+ * Claude: `Cross-Origin-Opener-Policy: same-origin` would sever it for good.
+ * That is the consent page and the sign-in page when it returns to it.
+ */
+export function keepsOpener(url: URL): boolean {
+  return (
+    url.pathname === OAUTH_AUTHORIZE_PATH ||
+    (url.pathname === '/auth' &&
+      safeReturnPath(url.searchParams.get('redirect')) !== null)
+  )
+}
+
+/**
+ * Cross-origin isolation of the app's documents and resources (#204):
+ * another site's window keeps no handle on an app page (tab-nabbing,
+ * cross-window leaks) and can't embed its responses (`no-cors` reads,
+ * Spectre-style leaks). `Cross-Origin-Embedder-Policy` is left out: it would
+ * block Google Fonts (no CORP header) and nothing needs `SharedArrayBuffer`.
+ */
+export function crossOriginHeaders({
+  keepOpener = false,
+}: { keepOpener?: boolean } = {}): Record<string, string> {
+  return {
+    ...(keepOpener ? {} : { 'cross-origin-opener-policy': 'same-origin' }),
+    'cross-origin-resource-policy': 'same-origin',
+    'permissions-policy': serializePermissionsPolicy(),
+  }
+}
+
 export async function pageSecurityHeaders(
   nonce: string,
-  { dev = false }: { dev?: boolean } = {},
+  {
+    dev = false,
+    keepOpener = false,
+  }: { dev?: boolean; keepOpener?: boolean } = {},
 ): Promise<Record<string, string>> {
   const directives = pageCspDirectives({
     nonce,
@@ -100,6 +175,7 @@ export async function pageSecurityHeaders(
     'content-security-policy': serializeCsp(directives),
     // `frame-ancestors` for browsers without CSP level 2.
     'x-frame-options': 'DENY',
+    ...crossOriginHeaders({ keepOpener }),
   }
 }
 

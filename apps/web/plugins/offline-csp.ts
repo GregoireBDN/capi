@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { serializeCsp } from '../src/lib/security-headers'
+import { crossOriginHeaders, serializeCsp } from '../src/lib/security-headers'
 
 /**
  * Headers of the static offline page (`public/offline.html`, served by Nitro
@@ -25,6 +25,7 @@ export function offlinePageHeaders(
       'frame-ancestors': ["'none'"],
     }),
     'x-frame-options': 'DENY',
+    ...crossOriginHeaders(),
   }
 }
 

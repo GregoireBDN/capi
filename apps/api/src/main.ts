@@ -9,6 +9,7 @@ import { Logger } from 'nestjs-pino'
 import { AppModule } from './app.module'
 import { registerJsonDepthLimit } from './common/http/json-depth'
 import { registerNoStoreHeaders } from './common/http/no-store'
+import { registerPermissionsPolicy } from './common/http/permissions-policy'
 import { registerSameOriginCheck } from './common/http/same-origin'
 import { env } from './config/env'
 import { createFastifyAdapter } from './config/fastify-adapter'
@@ -54,6 +55,10 @@ async function bootstrap() {
   // File uploads (bank exports): one file per request, size-limited. Only
   // the import preview reads multipart bodies (`readMultipartUpload`).
   await registerMultipart(app)
+
+  // `Permissions-Policy` (helmet has none); helmet below adds COOP and CORP
+  // (`common/http/permissions-policy.ts`, #204).
+  registerPermissionsPolicy(app.getHttpAdapter().getInstance())
 
   // Security headers (CSP, HSTS, X-Frame-Options, etc.). The default CSP is
   // strict: the API only returns JSON, so no inline scripts/styles are needed.
