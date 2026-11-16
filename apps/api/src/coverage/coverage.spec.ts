@@ -9,7 +9,12 @@ import {
   type InsertTransaction,
   transactionsTable,
 } from '#/database/schema'
-import { dataUntil, dataUntilByAccount, resolvePeriod } from './coverage'
+import {
+  coverageSummary,
+  dataUntil,
+  dataUntilByAccount,
+  resolvePeriod,
+} from './coverage'
 
 /**
  * Integration checks against the migrated test database, inside a rolled
@@ -133,6 +138,38 @@ describe.skipIf(!process.env.DATABASE_URL)('data coverage (database)', () => {
         month: '2026-09',
         status: 'complete',
         defaultMonth: '2026-10',
+      })
+    })
+  })
+
+  it('lists the months with transactions and the default month', async () => {
+    await inRollback(async ({ tx, checking }) => {
+      expect(await coverageSummary(tx, NOW)).toEqual({
+        dataUntil: null,
+        currentMonth: '2026-11',
+        defaultMonth: '2026-11',
+        months: [],
+      })
+      await tx
+        .insert(transactionsTable)
+        .values([row(checking, '2026-08-03'), row(checking, '2026-10-21')])
+      expect(await coverageSummary(tx, NOW)).toEqual({
+        dataUntil: '2026-10-21',
+        currentMonth: '2026-11',
+        defaultMonth: '2026-10',
+        months: ['2026-08', '2026-10'],
+      })
+      await tx.insert(transactionsTable).values([
+        // Entered by hand: a month with data, but not imported.
+        { ...row(checking, '2026-11-02'), manual: true },
+        // Booked ahead of today, next month: never offered.
+        row(checking, '2026-12-01'),
+      ])
+      expect(await coverageSummary(tx, NOW)).toEqual({
+        dataUntil: '2026-11-05',
+        currentMonth: '2026-11',
+        defaultMonth: '2026-11',
+        months: ['2026-08', '2026-10', '2026-11'],
       })
     })
   })

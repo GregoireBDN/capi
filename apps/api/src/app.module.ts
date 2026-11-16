@@ -12,6 +12,7 @@ import { RemoteMcpModule } from '#/auth/oauth/remote-mcp.module'
 import { env } from '#/config/env'
 import { BudgetsModule } from '#/budgets/budgets.module'
 import { CategoriesModule } from '#/categories/categories.module'
+import { CoverageModule } from '#/coverage/coverage.module'
 import { CryptoModule } from '#/crypto/crypto.module'
 import { CryptoImportsModule } from '#/imports/crypto/crypto-imports.module'
 import { DashboardModule } from '#/dashboard/dashboard.module'
@@ -62,6 +63,7 @@ import { UserModule } from '#/user/user.module'
     ForecastModule,
     SavingsModule,
     MonthCloseModule,
+    CoverageModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

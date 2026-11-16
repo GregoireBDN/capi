@@ -150,9 +150,11 @@ type LinkTarget =
         | typeof ROUTES.import
         | typeof ROUTES.review
         | typeof ROUTES.subscriptions
-        | typeof ROUTES.savings
     }
-  | { to: typeof ROUTES.budget; search: { month: string } }
+  | {
+      to: typeof ROUTES.budget | typeof ROUTES.savings
+      search: { month: string }
+    }
 
 function Acknowledge({
   step,
@@ -385,7 +387,9 @@ function SavingsStep(props: StepsProps) {
         </ul>
       )}
       <Acknowledge {...props} step="savings" label="Épargne relue" />
-      <FixLink to={ROUTES.savings}>Voir l’épargne</FixLink>
+      <FixLink to={ROUTES.savings} search={{ month: props.review.month }}>
+        Voir l’épargne
+      </FixLink>
     </>
   )
 }

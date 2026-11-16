@@ -11,6 +11,7 @@ import {
   UploadIcon,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { isMonth } from '#/lib/calendar'
 import { ROUTES } from '#/lib/routes'
 
 export interface NavItem {
@@ -29,6 +30,34 @@ export interface NavItem {
   icon: LucideIcon
   /** Counter shown next to the label: the review queue size. */
   badge?: 'reviewCount'
+}
+
+/**
+ * Pages showing one month (`?month=YYYY-MM`): moving between them keeps the
+ * month chosen (the nav links carry it).
+ */
+const MONTH_PAGES: readonly string[] = [
+  ROUTES.spending,
+  ROUTES.transactions,
+  ROUTES.budget,
+  ROUTES.savings,
+  ROUTES.monthReview,
+]
+
+/**
+ * The month a nav link to `to` carries: the one in the URL of the month
+ * page shown, when `to` is another month page; else none (the page opens on
+ * its default month).
+ */
+export function carriedMonth(
+  pathname: string,
+  search: Record<string, unknown>,
+  to: string,
+): string | undefined {
+  if (to === pathname || !MONTH_PAGES.includes(to)) return undefined
+  if (!MONTH_PAGES.includes(pathname)) return undefined
+  const { month } = search
+  return typeof month === 'string' && isMonth(month) ? month : undefined
 }
 
 /** Main navigation of the authenticated app, in display order. */

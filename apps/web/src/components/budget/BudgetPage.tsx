@@ -23,7 +23,7 @@ import type { EditedBudget } from './BudgetEditor'
 import { BudgetHistory } from './BudgetHistory'
 import { BudgetList } from './BudgetList'
 import { BudgetSummary } from './BudgetSummary'
-import { MonthSwitcher } from '#/components/MonthSwitcher'
+import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { budgetHistoryQuery, budgetMonthQuery } from './queries'
 import { SuggestionsSheet } from './SuggestionsSheet'
 import { UnbudgetedCard } from './UnbudgetedCard'
@@ -97,7 +97,7 @@ export function BudgetPage({
       />
 
       <div className="flex flex-col gap-3 @2xl:flex-row @2xl:items-center @2xl:justify-between">
-        <MonthSwitcher month={month} today={today} onMonthChange={go} />
+        <MonthNavigator month={month} onMonthChange={go} />
         {budget.isSuccess && !empty && (
           <div className="grid grid-cols-2 gap-2 @2xl:flex">
             <Button

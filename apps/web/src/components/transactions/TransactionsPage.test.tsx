@@ -34,6 +34,7 @@ const api = vi.hoisted(() => ({
   categorizationRulesControllerPreview: vi.fn(),
   categorizationRulesControllerCreate: vi.fn(),
   categorizationRulesControllerApply: vi.fn(),
+  coverageControllerCoverage: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), {
@@ -235,6 +236,14 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-11-05T10:00:00Z'))
   api.accountsControllerList.mockReturnValue(ok(accounts))
   api.categoriesControllerList.mockReturnValue(ok(categories))
+  api.coverageControllerCoverage.mockReturnValue(
+    ok({
+      dataUntil: '2026-11-03',
+      currentMonth: '2026-11',
+      defaultMonth: '2026-11',
+      months: ['2026-09', '2026-10', '2026-11'],
+    }),
+  )
   api.transactionsControllerManualSuggestions.mockReturnValue(
     ok({ items: [], categoryIds: [] }),
   )
@@ -293,6 +302,47 @@ describe('TransactionsPage', () => {
     expect(totals).toHaveTextContent(
       'Mouvements internes exclus des revenus et des dépenses (1 virement entre vos comptes).',
     )
+  })
+
+  it('opens on the month the data stops in while the current one is empty', async () => {
+    api.coverageControllerCoverage.mockReturnValue(
+      ok({
+        dataUntil: '2026-09-30',
+        currentMonth: '2026-11',
+        defaultMonth: '2026-09',
+        months: ['2026-08', '2026-09'],
+      }),
+    )
+    const { user, onChange } = setup()
+    await waitForRows()
+
+    // Never asked for the empty current month first.
+    expect(
+      api.transactionsControllerList.mock.calls.map(
+        (call) => (call[0] as { query: { month?: string } }).query.month,
+      ),
+    ).toEqual(['2026-09'])
+    expect(lastQuery(api.transactionsControllerSummary)).toEqual({
+      month: '2026-09',
+    })
+    expect(
+      screen.getByRole('button', { name: 'Septembre 2026, choisir un mois' }),
+    ).toBeInTheDocument()
+
+    // A later month goes in the URL; back to September, it leaves it.
+    await user.click(screen.getByRole('button', { name: 'Mois suivant' }))
+    expect(onChange).toHaveBeenLastCalledWith({ month: '2026-10' }, undefined)
+    await user.click(screen.getByRole('button', { name: 'Mois précédent' }))
+    expect(onChange).toHaveBeenLastCalledWith({}, undefined)
+  })
+
+  it('falls back to the current month when the coverage cannot be read', async () => {
+    api.coverageControllerCoverage.mockReturnValue(failed())
+    setup()
+    await waitForRows()
+    expect(lastQuery(api.transactionsControllerSummary)).toEqual({
+      month: '2026-11',
+    })
   })
 
   it('groups rows by day with the day total, transfers excluded', async () => {

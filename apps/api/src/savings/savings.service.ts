@@ -106,13 +106,15 @@ export class SavingsService {
     {
       now = new Date(),
       executor = this.db,
-    }: { now?: Date; executor?: Executor } = {},
+      month,
+    }: { now?: Date; executor?: Executor; month?: string } = {},
   ): Promise<SavingsOverviewDto> {
     const current = currentMonth(now)
     const today = parisToday(now)
-    // The month of the headline figures: the current one when it has data,
-    // else the month the data stops in, compared like for like.
-    const period = await resolvePeriod(executor, undefined, { now })
+    // The month of the headline figures (asked for, else the current one
+    // when it has data, else the month the data stops in), compared like
+    // for like.
+    const period = await resolvePeriod(executor, month, { now })
     // The averages need the full months before the current one, whatever
     // the number of months returned.
     const span = Math.max(count, LONGEST_WINDOW + 1)

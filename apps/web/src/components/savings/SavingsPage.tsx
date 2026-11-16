@@ -17,7 +17,7 @@ import { PiggyBankIcon, UploadIcon } from 'lucide-react'
 import { AddInvestmentButton } from '#/components/accounts/AddInvestmentSheet'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import type { SavingsOverviewDto } from '#/api/types.gen'
-import { formatMonth } from '#/lib/calendar'
+import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { ROUTES } from '#/lib/routes'
 import { GoalsSection } from './GoalsSection'
 import { SavingsChart, SavingsChartSkeleton } from './SavingsChart'
@@ -56,17 +56,34 @@ function isEmptyOverview(overview: SavingsOverviewDto) {
  * target, a 12-month chart, what is put aside on savings and investment
  * accounts, and the goals with their projection.
  */
-export function SavingsPage() {
-  const overview = useQuery(savingsOverviewQuery())
+interface SavingsPageProps {
+  /** Month of the headline figures, from the URL; absent = the API's pick. */
+  month?: string
+  onMonthChange: (month: string | undefined) => void
+}
+
+export function SavingsPage({
+  month: monthParam,
+  onMonthChange,
+}: SavingsPageProps) {
+  const overview = useQuery(savingsOverviewQuery(monthParam))
   const data = overview.data
   const isEmpty = data !== undefined && isEmptyOverview(data)
+  const month = monthParam ?? data?.period.month
+  // The default month stays out of the URL.
+  const go = (target: string) =>
+    onMonthChange(target === data?.period.defaultMonth ? undefined : target)
 
   return (
     <div className="@container space-y-6">
       <PageHeader
         title="Épargne"
-        description={data ? formatMonth(data.period.month) : undefined}
+        description="Ce que vous mettez de côté chaque mois, et où."
       />
+
+      {month !== undefined && !isEmpty && (
+        <MonthNavigator month={month} onMonthChange={go} />
+      )}
 
       {overview.isPending && <OverviewSkeleton />}
 

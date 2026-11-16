@@ -16,18 +16,25 @@ export const SAVINGS_MONTHS = 12
 
 export const savingsKeys = {
   all: ['savings'] as const,
-  overview: (months: number) => ['savings', 'overview', months] as const,
+  overview: (months: number, month: string | null) =>
+    ['savings', 'overview', months, month] as const,
   goals: (includeArchived: boolean) =>
     ['savings', 'goals', includeArchived] as const,
 }
 
-/** Monthly savings, averages, target and stock. Always refetched on mount. */
-export function savingsOverviewQuery(months = SAVINGS_MONTHS) {
+/**
+ * Monthly savings, averages, target and stock; the headline figures for
+ * `month` (absent: the month the API picks). Always refetched on mount.
+ */
+export function savingsOverviewQuery(month?: string, months = SAVINGS_MONTHS) {
   return queryOptions({
-    queryKey: savingsKeys.overview(months),
+    queryKey: savingsKeys.overview(months, month ?? null),
     queryFn: () =>
       unwrap(
-        savingsControllerOverview({ query: { months }, throwOnError: false }),
+        savingsControllerOverview({
+          query: { months, ...(month ? { month } : {}) },
+          throwOnError: false,
+        }),
       ),
     staleTime: 0,
   })

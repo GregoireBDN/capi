@@ -339,6 +339,28 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
         throughDay: 2,
       })
       expect(december.current.netCents).toBe(250_000)
+
+      // A month asked for: its figures, compared with the whole month before.
+      const september = await savings.overview(4, {
+        now: NOW,
+        month: '2026-09',
+      })
+      expect(september.period).toMatchObject({
+        month: '2026-09',
+        status: 'complete',
+        defaultMonth: '2026-11',
+      })
+      expect(september.current.month).toBe('2026-09')
+      expect(september.previous).toMatchObject({
+        month: '2026-08',
+        until: '2026-08-31',
+      })
+      expect(september.months.map((m) => m.month)).toEqual([
+        '2026-08',
+        '2026-09',
+        '2026-10',
+        '2026-11',
+      ])
     })
   })
 

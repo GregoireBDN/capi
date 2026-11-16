@@ -8,12 +8,7 @@ import {
   NativeSelectOption,
   Toggle,
 } from '@finances/ui'
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  RotateCcwIcon,
-  SearchIcon,
-} from 'lucide-react'
+import { RotateCcwIcon, SearchIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type {
   AccountDto,
@@ -21,7 +16,8 @@ import type {
   TransactionKind,
   TransactionSort,
 } from '#/api/types.gen'
-import { currentMonth, formatMonth, shiftMonth } from '#/lib/calendar'
+import { MonthNavigator } from '#/components/month/MonthNavigator'
+import { currentMonth } from '#/lib/calendar'
 import { KIND_GROUP_LABELS, TRANSACTION_KINDS } from './labels'
 import {
   ALL_MONTHS,
@@ -49,55 +45,33 @@ interface TransactionFiltersProps {
   ) => void
   accounts: readonly AccountDto[]
   categories: readonly CategoryDto[]
-  /** Current month in Europe/Paris (`YYYY-MM`). */
-  today?: string
+  /**
+   * Month shown without a month in the URL (`YYYY-MM`): the current month
+   * when it has data, else the month the data stops in.
+   */
+  defaultMonth?: string
 }
 
-/** Month navigation: previous / next month (the whole history is a toggle). */
-function MonthPicker({
+/** The month navigator, or "Toutes les dates" while the toggle is on. */
+function MonthFilter({
   month,
-  today,
+  defaultMonth,
   onMonthChange,
 }: {
   month: string | undefined
-  today: string
+  defaultMonth: string
   onMonthChange: (month: string | undefined) => void
 }) {
   const all = month === ALL_MONTHS
-  const shown = all ? today : (month ?? today)
-  // The current month is the default: keep it out of the URL.
+  // The default month is kept out of the URL.
   const go = (target: string) =>
-    onMonthChange(target === today ? undefined : target)
-
+    onMonthChange(target === defaultMonth ? undefined : target)
   return (
-    <div className="flex items-center gap-1">
-      <Button
-        variant="secondary"
-        ghost
-        iconOnly
-        aria-label="Mois précédent"
-        disabled={all}
-        onClick={() => go(shiftMonth(shown, -1))}
-      >
-        <ChevronLeftIcon />
-      </Button>
-      <p
-        className="min-w-0 flex-1 truncate text-center text-base font-semibold @2xl:w-44 @2xl:flex-none"
-        aria-live="polite"
-      >
-        {all ? 'Toutes les dates' : formatMonth(shown)}
-      </p>
-      <Button
-        variant="secondary"
-        ghost
-        iconOnly
-        aria-label="Mois suivant"
-        disabled={all || shown >= today}
-        onClick={() => go(shiftMonth(shown, 1))}
-      >
-        <ChevronRightIcon />
-      </Button>
-    </div>
+    <MonthNavigator
+      month={all ? defaultMonth : (month ?? defaultMonth)}
+      label={all ? 'Toutes les dates' : undefined}
+      onMonthChange={go}
+    />
   )
 }
 
@@ -110,7 +84,7 @@ export function TransactionFilters({
   onSearchChange,
   accounts,
   categories,
-  today = currentMonth(),
+  defaultMonth = currentMonth(),
 }: TransactionFiltersProps) {
   const [text, setText] = useState(search.q ?? '')
   const latest = useRef({ search, onSearchChange })
@@ -141,9 +115,9 @@ export function TransactionFilters({
 
   return (
     <div className="space-y-3">
-      <MonthPicker
+      <MonthFilter
         month={search.month}
-        today={today}
+        defaultMonth={defaultMonth}
         onMonthChange={(month) => set('month', month)}
       />
 

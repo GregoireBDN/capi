@@ -158,7 +158,6 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
         search={search}
         onSearchChange={onSearchChange}
         month={month}
-        today={today}
         defaultMonth={data?.period.defaultMonth ?? today}
         accounts={(accounts.data ?? []).filter(isTransactional)}
       />
