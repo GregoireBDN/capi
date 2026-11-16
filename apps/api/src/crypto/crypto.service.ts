@@ -24,6 +24,7 @@ import { formatDecimal, parseDecimal } from './decimal'
 import type {
   AccountHoldingsDto,
   CryptoPriceDto,
+  CryptoSettingsDto,
   CryptoSummaryDto,
   HoldingDto,
   HoldingsTotalsDto,
@@ -244,6 +245,13 @@ export class CryptoService {
     await this.valuate([account], 'none', true, now)
   }
 
+  settings(): CryptoSettingsDto {
+    return {
+      priceApiEnabled: this.prices.enabled,
+      walletSyncEnabled: this.walletSync.enabled,
+    }
+  }
+
   /** Every non-archived crypto account, valued with one batched price fetch. */
   summary(now: Date = new Date()): Promise<CryptoSummaryDto> {
     return this.summarize(false, now)
@@ -377,7 +385,12 @@ export class CryptoService {
       let snapshot: ValuationSnapshotDto | null = null
       if (write && account.archivedAt === null) {
         this.valuedAt.set(account.id, now.getTime())
-        if (holdings.length > 0 && valuation.complete) {
+        // A first value of 0 € (lines at 0, nothing synced yet) records
+        // nothing: the account stays "not valued yet" until it holds some.
+        const firstZero = async () =>
+          valuation.totals.valueCents === 0 &&
+          !(await this.hasSnapshot(account.id))
+        if (holdings.length > 0 && valuation.complete && !(await firstZero())) {
           snapshot = await this.writeSnapshot(
             account.id,
             today,
@@ -410,6 +423,15 @@ export class CryptoService {
       })
     }
     return results
+  }
+
+  private async hasSnapshot(accountId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ id: s.id })
+      .from(s)
+      .where(eq(s.accountId, accountId))
+      .limit(1)
+    return row !== undefined
   }
 
   private async writeSnapshot(

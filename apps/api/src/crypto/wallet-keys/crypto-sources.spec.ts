@@ -10,7 +10,11 @@ import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { AccountsService } from '#/accounts/accounts.service'
 import * as schema from '#/database/schema'
-import { cryptoWalletKeysTable } from '#/database/schema'
+import {
+  balanceSnapshotsTable,
+  cryptoHoldingsTable,
+  cryptoWalletKeysTable,
+} from '#/database/schema'
 import { WalletKeysService } from './wallet-keys.service'
 
 /**
@@ -298,6 +302,148 @@ describe.skipIf(!process.env.DATABASE_URL)(
         await expect(
           keys.add(wallet.id, { publicKey: XPUB_2 }),
         ).rejects.toThrow('archived')
+      })
+    })
+
+    it('turns a manual account into a wallet with several keys (#207)', async () => {
+      await inRollback(async ({ tx, accounts, keys }) => {
+        const manual = await accounts.create({
+          name: 'Ledger',
+          type: 'crypto',
+          institution: 'Ledger',
+        })
+        // A 0 € value recorded while it held nothing.
+        await tx.insert(balanceSnapshotsTable).values({
+          accountId: manual.id,
+          date: '2026-11-10',
+          valueCents: 0,
+        })
+
+        const wallet = await accounts.changeCryptoSource(manual.id, {
+          cryptoSource: 'wallet',
+          walletKeys: [
+            { publicKey: XPUB },
+            { publicKey: ADDRESS.toLowerCase(), chains: ['ethereum', 'base'] },
+          ],
+        })
+        expect(wallet).toMatchObject({
+          id: manual.id,
+          cryptoSource: 'wallet',
+          cryptoProvider: null,
+          balanceCents: null,
+          balanceDate: null,
+        })
+        expect(await keys.list(wallet.id)).toMatchObject([
+          { family: 'bitcoin', publicKey: XPUB, chains: ['bitcoin'] },
+          {
+            family: 'evm',
+            publicKey: ADDRESS,
+            chains: ['ethereum', 'base'],
+          },
+        ])
+        const left = await tx
+          .select()
+          .from(balanceSnapshotsTable)
+          .where(eq(balanceSnapshotsTable.accountId, manual.id))
+        expect(left).toEqual([])
+
+        // Once a wallet, the source no longer changes.
+        await expect(
+          accounts.changeCryptoSource(manual.id, {
+            cryptoSource: 'exchange',
+            cryptoProvider: 'binance',
+          }),
+        ).rejects.toBeInstanceOf(ConflictException)
+      })
+    })
+
+    it('turns a manual account into an exchange and keeps its real values', async () => {
+      await inRollback(async ({ tx, accounts }) => {
+        const manual = await accounts.create({ name: 'Binance', type: 'crypto' })
+        await tx.insert(balanceSnapshotsTable).values([
+          { accountId: manual.id, date: '2026-10-31', valueCents: 125_000 },
+          { accountId: manual.id, date: '2026-11-10', valueCents: 0 },
+        ])
+        const exchange = await accounts.changeCryptoSource(manual.id, {
+          cryptoSource: 'exchange',
+          cryptoProvider: 'binance',
+        })
+        expect(exchange).toMatchObject({
+          cryptoSource: 'exchange',
+          cryptoProvider: 'binance',
+          balanceCents: 0,
+          balanceDate: '2026-11-10',
+        })
+        const kept = await tx
+          .select()
+          .from(balanceSnapshotsTable)
+          .where(eq(balanceSnapshotsTable.accountId, manual.id))
+        expect(kept).toHaveLength(2)
+      })
+    })
+
+    it('refuses to change the source of an account that holds something, or with bad input', async () => {
+      await inRollback(async ({ tx, accounts }) => {
+        const manual = await accounts.create({ name: 'Ledger', type: 'crypto' })
+        await expect(
+          accounts.changeCryptoSource(manual.id, { cryptoSource: 'wallet' }),
+        ).rejects.toThrow('needs a public key')
+        await expect(
+          accounts.changeCryptoSource(manual.id, { cryptoSource: 'exchange' }),
+        ).rejects.toThrow('needs a provider')
+        await expect(
+          accounts.changeCryptoSource(manual.id, {
+            cryptoSource: 'wallet',
+            walletKeys: [{ publicKey: XPRV }],
+          }),
+        ).rejects.toBeInstanceOf(BadRequestException)
+
+        // A key already tracked by another wallet: nothing is changed.
+        await accounts.create({
+          name: 'Trezor',
+          type: 'crypto',
+          cryptoSource: 'wallet',
+          walletKeys: [{ publicKey: XPUB_2 }],
+        })
+        await expect(
+          accounts.changeCryptoSource(manual.id, {
+            cryptoSource: 'wallet',
+            walletKeys: [{ publicKey: XPUB_2 }],
+          }),
+        ).rejects.toBeInstanceOf(ConflictException)
+
+        await tx.insert(cryptoHoldingsTable).values({
+          accountId: manual.id,
+          assetId: 'bitcoin',
+          symbol: 'BTC',
+          name: 'Bitcoin',
+          quantity: '0.5',
+          origin: 'manual',
+        })
+        await expect(
+          accounts.changeCryptoSource(manual.id, {
+            cryptoSource: 'wallet',
+            walletKeys: [{ publicKey: XPUB }],
+          }),
+        ).rejects.toThrow('Remove the holdings typed by hand')
+        expect((await accounts.findOne(manual.id)).cryptoSource).toBe('manual')
+
+        const checking = await accounts.create({
+          name: 'Checking',
+          type: 'checking',
+        })
+        await expect(
+          accounts.changeCryptoSource(checking.id, {
+            cryptoSource: 'wallet',
+            walletKeys: [{ publicKey: XPUB }],
+          }),
+        ).rejects.toBeInstanceOf(BadRequestException)
+        await expect(
+          accounts.changeCryptoSource(crypto.randomUUID(), {
+            cryptoSource: 'wallet',
+            walletKeys: [{ publicKey: XPUB }],
+          }),
+        ).rejects.toBeInstanceOf(NotFoundException)
       })
     })
   },
