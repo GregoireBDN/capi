@@ -142,7 +142,12 @@ export function ReauthSheet({
           Utiliser une passkey
         </Button>
       )}
-      <form noValidate onSubmit={confirmWithPassword} className="space-y-4">
+      <form
+        method="post"
+        noValidate
+        onSubmit={confirmWithPassword}
+        className="space-y-4"
+      >
         {/* Lets the password manager match the account. */}
         <input
           type="email"

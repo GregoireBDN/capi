@@ -33,6 +33,7 @@ import {
 } from '@finances/ui'
 import { loginSchema } from './auth.schemas'
 import type { LoginValues } from './auth.schemas'
+import { useHydrated } from '#/lib/use-hydrated'
 
 interface LoginFormProps {
   onSwitchToForgot: () => void
@@ -52,6 +53,7 @@ export function LoginForm({
   /** False once unmounted: late ceremony results are then ignored. */
   const mounted = useRef(true)
 
+  const hydrated = useHydrated()
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
@@ -137,6 +139,7 @@ export function LoginForm({
   return (
     <div className="space-y-3">
       <form
+        method="post"
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-3"
         noValidate
@@ -190,7 +193,12 @@ export function LoginForm({
           </Alert>
         )}
 
-        <Button type="submit" fullWidth loading={form.formState.isSubmitting}>
+        <Button
+          type="submit"
+          fullWidth
+          loading={form.formState.isSubmitting}
+          disabled={!hydrated}
+        >
           Se connecter
         </Button>
       </form>

@@ -16,6 +16,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { registerSchema } from './auth.schemas'
 import type { RegisterValues } from './auth.schemas'
+import { useHydrated } from '#/lib/use-hydrated'
 
 /** Single-user instance: the API answers 403 once the owner account exists. */
 const REGISTRATION_CLOSED_MESSAGE =
@@ -25,6 +26,7 @@ export function RegisterForm() {
   const navigate = useNavigate()
   const { refresh } = useAuth()
 
+  const hydrated = useHydrated()
   const form = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: { email: '', name: '', password: '', confirmPassword: '' },
@@ -55,6 +57,7 @@ export function RegisterForm() {
 
   return (
     <form
+      method="post"
       onSubmit={form.handleSubmit(onSubmit)}
       className="space-y-3"
       noValidate
@@ -117,7 +120,12 @@ export function RegisterForm() {
         )}
       </Field>
 
-      <Button type="submit" fullWidth loading={form.formState.isSubmitting}>
+      <Button
+        type="submit"
+        fullWidth
+        loading={form.formState.isSubmitting}
+        disabled={!hydrated}
+      >
         Créer un compte
       </Button>
     </form>

@@ -28,6 +28,7 @@ import type { ChangePasswordValues } from '#/components/auth/auth.schemas'
 import { ReauthSheet } from '#/components/auth/ReauthSheet'
 import { ApiRequestError, unwrap } from '#/lib/queries'
 import { needsReauth } from '#/lib/reauth'
+import { useHydrated } from '#/lib/use-hydrated'
 
 const WRONG_CURRENT_PASSWORD = 'Current password is incorrect'
 const SAME_PASSWORD = 'New password must differ from the current one'
@@ -50,6 +51,7 @@ export function ChangePasswordCard({ email }: { email: string }) {
   const queryClient = useQueryClient()
   const [reauthOpen, setReauthOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const hydrated = useHydrated()
   const form = useForm<ChangePasswordValues>({
     resolver: zodResolver(changePasswordSchema),
     defaultValues: emptyValues,
@@ -121,6 +123,7 @@ export function ChangePasswordCard({ email }: { email: string }) {
       </CardHeader>
       <CardContent>
         <form
+          method="post"
           noValidate
           className="space-y-4"
           onSubmit={form.handleSubmit(submit)}
@@ -186,7 +189,8 @@ export function ChangePasswordCard({ email }: { email: string }) {
               }
             />
             <Label htmlFor={`${id}-tokens`} className="font-normal">
-              Révoquer aussi les jetons d’accès et les applications connectées (Claude, scripts)
+              Révoquer aussi les jetons d’accès et les applications connectées
+              (Claude, scripts)
             </Label>
           </div>
           {error && (
@@ -199,6 +203,7 @@ export function ChangePasswordCard({ email }: { email: string }) {
               type="submit"
               className="w-full sm:w-auto"
               loading={isSubmitting}
+              disabled={!hydrated}
             >
               Changer le mot de passe
             </Button>
