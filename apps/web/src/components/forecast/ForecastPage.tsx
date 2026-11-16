@@ -275,7 +275,7 @@ export function ForecastPage() {
             includeVariable={includeVariable}
             onIncludeVariableChange={setIncludeVariable}
           />
-          <div className="grid gap-4 @4xl:grid-cols-2">
+          <div className="grid items-start gap-4 @4xl:grid-cols-2">
             <ForecastChart forecast={data} />
             {data.recurringItemCount === 0 ? (
               <div className="min-w-0 space-y-4">

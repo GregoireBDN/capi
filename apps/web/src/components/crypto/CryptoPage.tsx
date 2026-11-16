@@ -291,7 +291,7 @@ export function CryptoPage() {
               ` Dernier cours ${formatPriceAge(latest, now)}.`}
           </p>
 
-          <div className="grid grid-cols-1 gap-4 @3xl:grid-cols-2">
+          <div className="grid grid-cols-1 items-start gap-4 @3xl:grid-cols-2">
             {list.map((account) => (
               <AccountCard
                 key={account.accountId}
