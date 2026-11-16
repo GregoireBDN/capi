@@ -152,13 +152,17 @@ function AccountRow({
     <AccountLink
       accountId={accountId}
       account={account}
-      className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 py-2 text-sm"
+      className="flex min-w-0 flex-1 items-center gap-x-2 py-2 text-sm"
     >
-      <span className="min-w-[7rem] flex-1 break-words">
-        {account?.name ?? 'Compte'}
-      </span>
-      <span className="ml-auto whitespace-nowrap tabular-nums">
-        {formatWholeEuros(balanceCents)}
+      {/* The amount goes under the name when both don't fit; the chevron
+          stays at the end of the row. */}
+      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3">
+        <span className="min-w-[7rem] flex-1 break-words">
+          {account?.name ?? 'Compte'}
+        </span>
+        <span className="ml-auto whitespace-nowrap tabular-nums">
+          {formatWholeEuros(balanceCents)}
+        </span>
       </span>
       {account && <Chevron />}
     </AccountLink>
@@ -230,17 +234,19 @@ function Breakdown({
                   <AccountLink
                     accountId={only.accountId}
                     account={only.account}
-                    className="flex flex-wrap items-center gap-x-3 py-1"
+                    className="flex items-center gap-x-2 py-1"
                   >
-                    <TypeTotal
-                      type={type}
-                      share={share}
-                      accountName={
-                        onlyName && onlyName !== type.label
-                          ? onlyName
-                          : undefined
-                      }
-                    />
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3">
+                      <TypeTotal
+                        type={type}
+                        share={share}
+                        accountName={
+                          onlyName && onlyName !== type.label
+                            ? onlyName
+                            : undefined
+                        }
+                      />
+                    </div>
                     {only.account && <Chevron />}
                   </AccountLink>
                 ) : (
