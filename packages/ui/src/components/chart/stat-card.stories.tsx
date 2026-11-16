@@ -207,3 +207,63 @@ export const LargeDeltaNarrow: Story = {
     }
   },
 }
+
+/**
+ * Long amounts beside a sparkline, four tiles abreast as on a 1680px screen
+ * (and one tile on a phone), with the web app's 22px root font: the value
+ * shrinks to the room left by the sparkline and never wraps, the euro sign
+ * included (#211).
+ */
+export const LongAmountBesideSparkline: Story = {
+  parameters: { layout: 'padded' },
+  beforeEach: () => {
+    const root = document.documentElement
+    const previous = root.style.fontSize
+    root.style.fontSize = '22px'
+    return () => {
+      root.style.fontSize = previous
+    }
+  },
+  render: () => (
+    <div className="space-y-3">
+      <div className="grid grid-cols-4 gap-2" style={{ width: 1240 }}>
+        {[118_367, -1_234_567_89, 12_345_678_90, -99_999_99].map((value) => (
+          <StatCard
+            key={value}
+            label="Dépensé"
+            value={value}
+            trend={cashflow2026.map((row) => row.expenses)}
+          />
+        ))}
+      </div>
+      <div style={{ width: 288 }}>
+        <StatCard
+          label="Patrimoine net"
+          value={-1_234_567_89}
+          previousValue={-1_200_000_00}
+          trend={netWorth2026.map((row) => row.netWorth)}
+        />
+      </div>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const values = canvasElement.querySelectorAll<HTMLElement>(
+      '[data-slot="stat-card-value"]',
+    )
+    await expect(values).toHaveLength(5)
+    for (const value of values) {
+      const lineHeight = parseFloat(getComputedStyle(value).lineHeight)
+      const column = value.parentElement!
+      const right =
+        column.getBoundingClientRect().right -
+        parseFloat(getComputedStyle(column).paddingRight)
+      await expect(value.getBoundingClientRect().height).toBeLessThan(
+        lineHeight * 1.5,
+      )
+      await expect(value.scrollWidth).toBeLessThanOrEqual(value.clientWidth + 1)
+      await expect(value.getBoundingClientRect().right).toBeLessThanOrEqual(
+        right + 1,
+      )
+    }
+  },
+}
