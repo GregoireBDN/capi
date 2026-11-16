@@ -12,7 +12,8 @@
     "db:generate": "pnpm --filter @finances/api db:generate",
     "db:migrate": "pnpm --filter @finances/api db:migrate",
     "db:studio": "pnpm --filter @finances/api db:studio",
-    "db:seed": "pnpm --filter @finances/api db:seed"
+    "db:seed": "pnpm --filter @finances/api db:seed",
+    "db:demo": "pnpm --filter @finances/api db:demo"
   },
   "devDependencies": {
     "lint-staged": "^16.0.0",
