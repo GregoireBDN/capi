@@ -143,9 +143,13 @@ function CardAction({ className, ...props }: CardActionProps) {
       data-slot="card-action"
       className={cn(
         [
-          // Grid positioning (top-right corner of header; next to the
-          // title only on narrow cards, so the description gets the width)
-          'col-start-2 row-start-1 @md/card-header:row-span-2',
+          // Grid positioning: top-right corner of the header, beside the
+          // title only on narrow cards (the description gets the width) and
+          // beside the title and description on wide ones. `row-end-[-1]`
+          // keeps the start line: `row-span-2` (the `grid-row` shorthand)
+          // would reset it and let the description slip into the action's
+          // `auto` column, squeezing the title letter by letter (#209).
+          'col-start-2 row-start-1 @md/card-header:row-end-[-1]',
           'self-start justify-self-end',
         ].join(' '),
         className,
