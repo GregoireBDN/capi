@@ -34,6 +34,9 @@ const DROPPED_REQUEST_HEADERS = new Set([
   'upgrade',
   'host',
   'content-length',
+  // The proxy has read the whole body already; `fetch` (undici) also refuses
+  // the header outright, which curl sends for bodies over 1 MB (#201).
+  'expect',
   // Let the API answer uncompressed: `fetch` would decode the body anyway.
   'accept-encoding',
   // Client-supplied forwarding headers: the proxy sets its own (see

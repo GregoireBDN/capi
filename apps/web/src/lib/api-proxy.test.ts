@@ -492,6 +492,22 @@ describe('proxyToApi request body cap (#173)', () => {
     expect(body.cancelled()).toBe(true)
   })
 
+  it('drops Expect: 100-continue, which curl sends and fetch refuses (#201)', async () => {
+    const api = upstream(() => Response.json({ ok: true }, { status: 201 }))
+
+    const response = await proxyToApi(
+      new Request('http://web.test/api/imports/preview', {
+        method: 'POST',
+        headers: { 'content-type': MULTIPART, expect: '100-continue' },
+        body: new Uint8Array(3 * MiB),
+      }),
+      { apiUrl: API_URL, fetch: api.fetch },
+    )
+
+    expect(response.status).toBe(201)
+    expect(new Headers(api.calls[0].init.headers).has('expect')).toBe(false)
+  })
+
   it('forwards a JSON body of exactly the API bodyLimit', async () => {
     const api = upstream(() => Response.json({ ok: true }, { status: 201 }))
 
