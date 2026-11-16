@@ -357,6 +357,35 @@ describe('SavingsPage', () => {
     ).toBeInTheDocument()
   })
 
+  it('shows the target line and the one-offs per month in the chart data', async () => {
+    renderPage()
+
+    await screen.findByText('Épargne du mois')
+    const chart = screen
+      .getByText('Épargne par mois')
+      .closest('[data-slot="card"]') as HTMLElement
+    expect(chart).toHaveTextContent(
+      text('La ligne pointillée marque votre épargne cible (860 € par mois).'),
+    )
+    // One-offs: a column of the data table, not a run-on sentence.
+    expect(chart).not.toHaveTextContent('Dont ponctuel :')
+    expect(chart).toHaveTextContent(
+      '1 mois compte des revenus ou dépenses ponctuels',
+    )
+    const table = within(chart).getByRole('table', { hidden: true })
+    expect(
+      within(table).getByRole('columnheader', {
+        name: 'Dont ponctuel',
+        hidden: true,
+      }),
+    ).toBeInTheDocument()
+    const september = within(table).getByRole('row', {
+      name: /septembre 2026/,
+      hidden: true,
+    })
+    expect(september).toHaveTextContent(text('-1 500,00 €'))
+  })
+
   it('compares the month in progress with the same days of the previous one', async () => {
     renderPage()
 
