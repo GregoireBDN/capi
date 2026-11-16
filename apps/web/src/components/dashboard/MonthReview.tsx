@@ -11,12 +11,7 @@ import {
   ProgressMeter,
 } from '@finances/ui'
 import { Link } from '@tanstack/react-router'
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  ListChecksIcon,
-  UploadIcon,
-} from 'lucide-react'
+import { ChevronRightIcon, ListChecksIcon, UploadIcon } from 'lucide-react'
 import type {
   MonthReviewDto,
   ReviewCategoryDto,
@@ -26,7 +21,8 @@ import {
   isValuedByHand,
   UpdateValueButton,
 } from '#/components/accounts/UpdateValueButton'
-import { ofMonth, shiftMonth } from '#/lib/calendar'
+import { MonthNavigator } from '#/components/month/MonthNavigator'
+import { ofMonth } from '#/lib/calendar'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
 
@@ -65,34 +61,20 @@ export function MonthReview({
   return (
     <section aria-labelledby="month-review-title" className="min-w-0">
       <Card className="min-w-0">
-        <CardHeader className="flex flex-row items-center gap-1">
-          <Button
-            variant="secondary"
-            ghost
-            iconOnly
-            aria-label="Mois précédent"
-            onClick={() => onMonthChange(shiftMonth(month, -1))}
-          >
-            <ChevronLeftIcon />
-          </Button>
-          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-x-2 gap-y-1">
-            <CardTitle id="month-review-title" className="text-center">
+        <CardHeader className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <CardTitle id="month-review-title">
               Bilan {ofMonth(month)}
             </CardTitle>
             <Badge variant={closed ? 'success' : 'warning'}>
               {closed ? 'Complet' : 'À compléter'}
             </Badge>
           </div>
-          <Button
-            variant="secondary"
-            ghost
-            iconOnly
-            aria-label="Mois suivant"
-            disabled={month >= latest}
-            onClick={() => onMonthChange(shiftMonth(month, 1))}
-          >
-            <ChevronRightIcon />
-          </Button>
+          <MonthNavigator
+            month={month}
+            max={latest}
+            onMonthChange={onMonthChange}
+          />
         </CardHeader>
 
         <CardContent className="space-y-5">

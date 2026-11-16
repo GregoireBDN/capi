@@ -28,6 +28,7 @@ import { transactionListQuery, transactionSummaryQuery } from './queries'
 import { RuleFromCorrectionDialog } from './RuleFromCorrectionDialog'
 import { RuleOfferBanner } from './RuleOfferBanner'
 import { activeFilterCount, ALL_MONTHS, toFilters } from './search'
+import { coverageQuery } from '#/components/month/coverage'
 import type { TransactionsSearch } from './search'
 import { TransactionFilters } from './TransactionFilters'
 import type { SearchChangeOptions } from './TransactionFilters'
@@ -63,14 +64,31 @@ export function TransactionsPage({
   search,
   onSearchChange,
 }: TransactionsPageProps) {
-  const today = currentMonth()
-  const filters = useMemo(() => toFilters(search, today), [search, today])
+  // Without a month in the URL, the month the data stops in when the
+  // current one has none yet (the coverage rule); the current month if the
+  // coverage can't be read.
+  const coverage = useQuery(coverageQuery)
+  const defaultMonth = coverage.isError
+    ? currentMonth()
+    : coverage.data?.defaultMonth
+  const monthKnown = search.month !== undefined || defaultMonth !== undefined
+  const shownMonth = defaultMonth ?? currentMonth()
+  const filters = useMemo(
+    () => toFilters(search, shownMonth),
+    [search, shownMonth],
+  )
   const sort = search.sort ?? 'date_desc'
 
   const accounts = useQuery(accountsQuery)
   const categories = useQuery(categoriesQuery)
-  const summary = useQuery(transactionSummaryQuery(filters))
-  const list = useInfiniteQuery(transactionListQuery(filters, sort))
+  const summary = useQuery({
+    ...transactionSummaryQuery(filters),
+    enabled: monthKnown,
+  })
+  const list = useInfiniteQuery({
+    ...transactionListQuery(filters, sort),
+    enabled: monthKnown,
+  })
 
   const categoryList = categories.data ?? []
   const actions = useTransactionActions(categoryList)
@@ -124,7 +142,7 @@ export function TransactionsPage({
   const period =
     search.month === ALL_MONTHS
       ? 'sur toute la période'
-      : `en ${formatMonth(filters.month ?? today).toLowerCase()}`
+      : `en ${formatMonth(filters.month ?? shownMonth).toLowerCase()}`
 
   return (
     <div className="@container space-y-6">
@@ -153,7 +171,7 @@ export function TransactionsPage({
         onSearchChange={onSearchChange}
         accounts={visibleAccounts}
         categories={categoryList}
-        today={today}
+        defaultMonth={shownMonth}
       />
 
       {summary.isError ? null : <TransactionSummary summary={summary.data} />}

@@ -21,7 +21,7 @@ import {
 import type { UserDto } from '#/api/types.gen'
 import { useReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
-import { NAV_ITEMS, isNavItemActive } from './nav-items'
+import { carriedMonth, NAV_ITEMS, isNavItemActive } from './nav-items'
 import { UserMenu } from './UserMenu'
 
 /**
@@ -39,6 +39,11 @@ export const RAIL_BUTTON = cn(
   'group-data-[collapsible=icon]:[&>span]:sr-only',
 )
 
+/** Search of a nav link: the month carried, else none. */
+function monthSearch(month: string | undefined): { month?: string } {
+  return month === undefined ? {} : { month }
+}
+
 /**
  * Sidebar of the authenticated layout. From `md` up it is a fixed column the
  * owner folds down to its icons and back by tapping its header ("Finances"
@@ -49,6 +54,7 @@ export const RAIL_BUTTON = cn(
  */
 export function AppSidebar({ user }: { user: UserDto }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const search = useRouterState({ select: (s) => s.location.search })
   const { isMobile, open, setOpenMobile, toggleSidebar } = useSidebar()
   const reviewCount = useReviewCount()
 
@@ -132,6 +138,9 @@ export function AppSidebar({ user }: { user: UserDto }) {
                         >
                           <Link
                             to={to}
+                            search={monthSearch(
+                              carriedMonth(pathname, search, to),
+                            )}
                             onClick={closeMobileSheet}
                             aria-current={active ? 'page' : undefined}
                           >

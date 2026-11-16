@@ -132,3 +132,42 @@ export async function resolvePeriod(
     ? monthPeriod(probe.defaultMonth, until, today)
     : probe
 }
+
+/** What the month navigators need to know about the data. */
+export interface CoverageSummary {
+  /** Latest day with imported data overall (see `dataUntil`), or null. */
+  dataUntil: string | null
+  /** Current month in Europe/Paris (`YYYY-MM`). */
+  currentMonth: string
+  /** Month a page shows when none is asked for (see `defaultMonth`). */
+  defaultMonth: string
+  /**
+   * Months (`YYYY-MM`, oldest first) with at least one transaction, imported
+   * or entered by hand, up to the current month.
+   */
+  months: string[]
+}
+
+/**
+ * The data's reach for the month navigators: how far it goes, the month a
+ * page opens on, and the months that have transactions at all.
+ */
+export async function coverageSummary(
+  executor: Executor,
+  now: Date = new Date(),
+): Promise<CoverageSummary> {
+  const today = parisToday(now)
+  const current = today.slice(0, 7)
+  const t = transactionsTable
+  const monthOf = sql<string>`to_char(${t.bookingDate}, 'YYYY-MM')`
+  const [until, rows] = await Promise.all([
+    dataUntil(executor, { now }),
+    executor.selectDistinct({ month: monthOf }).from(t).orderBy(monthOf),
+  ])
+  return {
+    dataUntil: until,
+    currentMonth: current,
+    defaultMonth: monthPeriod(current, until, today).defaultMonth,
+    months: rows.map((row) => row.month).filter((month) => month <= current),
+  }
+}

@@ -13,6 +13,7 @@ import { SavingsPage } from './SavingsPage'
 
 const api = vi.hoisted(() => ({
   savingsControllerOverview: vi.fn(),
+  coverageControllerCoverage: vi.fn(),
   savingsControllerListGoals: vi.fn(),
   savingsControllerSetTarget: vi.fn(),
   savingsControllerCreateGoal: vi.fn(),
@@ -232,13 +233,19 @@ function ok<T>(data: T) {
 /** Testing Library collapses the narrow no-break spaces `Intl` emits. */
 const text = (value: string) => value.replace(/\s/g, ' ')
 
-function renderPage() {
+function renderPage({
+  month: shown,
+  onMonthChange = () => {},
+}: {
+  month?: string
+  onMonthChange?: (month: string | undefined) => void
+} = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <SavingsPage />
+      <SavingsPage month={shown} onMonthChange={onMonthChange} />
     </QueryClientProvider>,
   )
 }
@@ -255,6 +262,14 @@ beforeAll(() => {
 beforeEach(() => {
   vi.clearAllMocks()
   api.savingsControllerOverview.mockImplementation(() => ok(overview()))
+  api.coverageControllerCoverage.mockImplementation(() =>
+    ok({
+      dataUntil: '2026-11-03',
+      currentMonth: '2026-11',
+      defaultMonth: '2026-11',
+      months: ['2026-10', '2026-11'],
+    }),
+  )
   api.savingsControllerListGoals.mockImplementation(() => ok([goal()]))
   api.accountsControllerList.mockImplementation(() =>
     ok([
@@ -642,6 +657,24 @@ describe('SavingsPage', () => {
         }),
       ),
     )
+  })
+
+  it('asks for the month chosen and moves to another one', async () => {
+    const onMonthChange = vi.fn()
+    renderPage({ month: '2026-09', onMonthChange })
+    const user = userEvent.setup()
+    expect(
+      await screen.findByRole('button', {
+        name: 'Septembre 2026, choisir un mois',
+      }),
+    ).toBeInTheDocument()
+    expect(api.savingsControllerOverview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.objectContaining({ month: '2026-09' }) as unknown,
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Mois suivant' }))
+    expect(onMonthChange).toHaveBeenLastCalledWith('2026-10')
   })
 
   it('shows an empty state without any data', async () => {

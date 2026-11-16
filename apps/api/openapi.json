@@ -5714,7 +5714,7 @@
     },
     "/api/savings/overview": {
       "get": {
-        "description": "Per calendar month (Europe/Paris): income, expenses, net savings and rate (transfers excluded, as the dashboard), one-off impact, amounts moved from checking to savings / investments, gap to the monthly target. Averages over the 3, 6 and 12 full months before the current one. Savings stock: savings accounts and investments (value, contributions, gain).",
+        "description": "Headline figures of `month` (default: the current month when it has data, else the month the data stops in). Per calendar month (Europe/Paris): income, expenses, net savings and rate (transfers excluded, as the dashboard), one-off impact, amounts moved from checking to savings / investments, gap to the monthly target. Averages over the 3, 6 and 12 full months before the current one. Savings stock: savings accounts and investments (value, contributions, gain).",
         "operationId": "SavingsController_overview",
         "parameters": [
           {
@@ -5727,6 +5727,17 @@
               "maximum": 60,
               "default": 12,
               "type": "integer"
+            }
+          },
+          {
+            "description": "Month of the headline figures (`period`, `current`, `previous`), YYYY-MM. Default: the current month in Europe/Paris when it has data, else the month the data stops in. `months` and the averages do not depend on it.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
             }
           }
         ],
@@ -6183,6 +6194,37 @@
         "summary": "Reopen a closed month",
         "tags": [
           "Month close"
+        ]
+      }
+    },
+    "/api/coverage": {
+      "get": {
+        "description": "The latest day with imported data, the month pages open on without a `month` parameter (the current month when it has data, else the month the data stops in) and the months that have transactions.",
+        "operationId": "CoverageController_coverage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "How far the data goes, for the month navigators",
+        "tags": [
+          "Coverage"
         ]
       }
     }
@@ -14048,6 +14090,45 @@
             "description": "Notes saved with the close (kept as they are when absent)."
           }
         }
+      },
+      "CoverageDto": {
+        "type": "object",
+        "properties": {
+          "dataUntil": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "example": "2026-11-03",
+            "description": "Latest day with imported data (latest booked transaction or end of the latest committed import, every account), never after today in Europe/Paris. Null when nothing was imported. Transactions entered by hand do not count."
+          },
+          "currentMonth": {
+            "type": "string",
+            "example": "2026-11",
+            "description": "Current month in Europe/Paris (YYYY-MM)."
+          },
+          "defaultMonth": {
+            "type": "string",
+            "example": "2026-10",
+            "description": "Month shown when none is asked for: the current month when it has data, else the month the data stops in (YYYY-MM)."
+          },
+          "months": {
+            "example": [
+              "2026-09",
+              "2026-10"
+            ],
+            "description": "Months (YYYY-MM, oldest first) with at least one transaction, imported or entered by hand, up to the current month.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "dataUntil",
+          "currentMonth",
+          "defaultMonth",
+          "months"
+        ]
       }
     }
   }

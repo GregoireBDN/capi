@@ -55,7 +55,7 @@ export class SavingsController {
   @ApiOperation({
     summary: 'Monthly savings, averages, target and savings stock',
     description:
-      'Per calendar month (Europe/Paris): income, expenses, net savings and rate (transfers excluded, as the dashboard), one-off impact, amounts moved from checking to savings / investments, gap to the monthly target. Averages over the 3, 6 and 12 full months before the current one. Savings stock: savings accounts and investments (value, contributions, gain).',
+      'Headline figures of `month` (default: the current month when it has data, else the month the data stops in). Per calendar month (Europe/Paris): income, expenses, net savings and rate (transfers excluded, as the dashboard), one-off impact, amounts moved from checking to savings / investments, gap to the monthly target. Averages over the 3, 6 and 12 full months before the current one. Savings stock: savings accounts and investments (value, contributions, gain).',
   })
   @ApiQuery({ type: SavingsOverviewQueryDto })
   @ApiOkResponse({ type: SavingsOverviewDto })
@@ -63,7 +63,9 @@ export class SavingsController {
   overview(
     @Query() query: SavingsOverviewQueryDto,
   ): Promise<SavingsOverviewDto> {
-    return this.savings.overview(query.months ?? SAVINGS_MONTHS_DEFAULT)
+    return this.savings.overview(query.months ?? SAVINGS_MONTHS_DEFAULT, {
+      month: query.month,
+    })
   }
 
   @Put('target')

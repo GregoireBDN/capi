@@ -1,14 +1,7 @@
-import {
-  Button,
-  Label,
-  NativeSelect,
-  NativeSelectOption,
-  Switch,
-} from '@finances/ui'
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
+import { Label, NativeSelect, NativeSelectOption, Switch } from '@finances/ui'
 import { useId } from 'react'
 import type { AccountDto } from '#/api/types.gen'
-import { formatMonth, shiftMonth } from '#/lib/calendar'
+import { MonthNavigator } from '#/components/month/MonthNavigator'
 import {
   AVERAGE_PERIODS,
   compactSearch,
@@ -21,8 +14,6 @@ interface SpendingFiltersProps {
   onSearchChange: (next: SpendingSearch) => void
   /** Month shown (`YYYY-MM`). */
   month: string
-  /** Current month in Europe/Paris: the latest reachable. */
-  today: string
   /** Month shown without a month in the URL (picked by the API). */
   defaultMonth: string
   accounts: readonly AccountDto[]
@@ -36,7 +27,6 @@ export function SpendingFilters({
   search,
   onSearchChange,
   month,
-  today,
   defaultMonth,
   accounts,
 }: SpendingFiltersProps) {
@@ -55,33 +45,7 @@ export function SpendingFilters({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-1">
-        <Button
-          variant="secondary"
-          ghost
-          iconOnly
-          aria-label="Mois précédent"
-          onClick={() => goTo(shiftMonth(month, -1))}
-        >
-          <ChevronLeftIcon />
-        </Button>
-        <p
-          className="min-w-0 flex-1 truncate text-center text-base font-semibold @2xl:w-44 @2xl:flex-none"
-          aria-live="polite"
-        >
-          {formatMonth(month)}
-        </p>
-        <Button
-          variant="secondary"
-          ghost
-          iconOnly
-          aria-label="Mois suivant"
-          disabled={month >= today}
-          onClick={() => goTo(shiftMonth(month, 1))}
-        >
-          <ChevronRightIcon />
-        </Button>
-      </div>
+      <MonthNavigator month={month} onMonthChange={goTo} />
 
       <div className="grid grid-cols-2 gap-2 @2xl:flex @2xl:items-center [&_select]:pr-7 [&_select]:pl-2 [&_select]:text-xs [&_select]:tracking-tight @2xl:[&_select]:text-sm">
         <NativeSelect
