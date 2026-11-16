@@ -33,6 +33,7 @@ import {
   validateCryptoSource,
 } from '#/components/crypto/CryptoSourceFields'
 import type { CryptoSourceValues } from '#/components/crypto/CryptoSourceFields'
+import type { WalletKeyErrors } from '#/components/crypto/WalletKeyFields'
 import {
   CRYPTO_SOURCE_LABELS,
   walletKeyErrorMessage,
@@ -114,8 +115,8 @@ interface FormErrors {
   cryptoKind?: string
   provider?: string
   otherProvider?: string
-  publicKey?: string
-  chains?: string
+  walletKeys?: WalletKeyErrors[]
+  walletKeysError?: string
   value?: string
   date?: string
   contributions?: string
@@ -234,7 +235,7 @@ export function AccountEditor({
 
   /** Changes what the name is proposed from, and the name if not typed. */
   const choose = (patch: Partial<FormValues>) => {
-    if ('walletKey' in patch || 'cryptoKind' in patch) setKeyError(undefined)
+    if ('walletKeys' in patch || 'cryptoKind' in patch) setKeyError(undefined)
     setValues((current) => {
       const next = { ...current, ...patch }
       return nameTouched ? next : { ...next, name: suggestedName(next) }
@@ -244,7 +245,7 @@ export function AccountEditor({
   const errors = validate(values, today, creating)
   const valid = Object.keys(errors).length === 0
   const shown: FormErrors = submitted
-    ? { ...errors, ...(keyError && { publicKey: keyError }) }
+    ? { ...errors, ...(keyError && { walletKeysError: keyError }) }
     : {}
 
   const create = useMutation({

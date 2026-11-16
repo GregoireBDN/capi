@@ -932,12 +932,17 @@ describe('AccountDetailPage', () => {
     expect(
       screen.getByRole('region', { name: 'Avoirs crypto' }),
     ).toBeInTheDocument()
-    // Typed by hand: no import or sync action.
+    // Typed by hand: no import or sync action, only the way to read it from
+    // a wallet or an exchange instead (#207).
     const source = screen.getByRole('region', { name: 'Source des avoirs' })
     expect(
       within(source).getByText('Saisie manuelle · Ledger'),
     ).toBeInTheDocument()
-    expect(within(source).queryByRole('button')).not.toBeInTheDocument()
+    expect(
+      within(source)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Relier à un wallet ou une plateforme'])
     expect(
       screen.queryByText('Aucune valeur pour ce compte'),
     ).not.toBeInTheDocument()
