@@ -14,7 +14,7 @@ import type { UserDto } from '#/api/types.gen'
 import { resetReviewCount, setReviewCount } from '#/lib/review-count'
 
 import { AppSidebar } from './AppSidebar'
-import { NAV_ITEMS, isNavItemActive } from './nav-items'
+import { NAV_ITEMS, SETTINGS_ITEMS, isNavItemActive } from './nav-items'
 
 vi.mock('#/api', () => ({
   profileControllerUpdate: vi.fn(),
@@ -69,6 +69,8 @@ async function renderAt(path: string) {
     '/accounts',
     '/accounts/$accountId',
     '/import',
+    '/categories',
+    '/rules',
     '/profile',
   ].map((p) =>
     createRoute({
@@ -105,6 +107,9 @@ describe('AppSidebar', () => {
       ['Crypto', '/crypto'],
       ['Comptes', '/accounts'],
       ['Import', '/import'],
+      ['Catégories', '/categories'],
+      ['Règles', '/rules'],
+      ['Profil', '/profile'],
     ])
   })
 
@@ -115,7 +120,7 @@ describe('AppSidebar', () => {
     expect(active).toHaveAttribute('aria-current', 'page')
     expect(active).toHaveAttribute('data-active', 'true')
 
-    for (const { label } of NAV_ITEMS.filter(
+    for (const { label } of [...NAV_ITEMS, ...SETTINGS_ITEMS].filter(
       (item) => item.label !== 'Budget',
     )) {
       const link = nav.getByRole('link', { name: label })

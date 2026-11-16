@@ -5,10 +5,13 @@ import {
   InboxIcon,
   LandmarkIcon,
   LayoutDashboardIcon,
+  ListFilterIcon,
   PiggyBankIcon,
   RepeatIcon,
+  TagsIcon,
   TargetIcon,
   UploadIcon,
+  UserIcon,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { isMonth } from '#/lib/calendar'
@@ -26,7 +29,10 @@ export interface NavItem {
     | 'savings'
     | 'crypto'
     | 'accounts'
-    | 'import']
+    | 'import'
+    | 'categories'
+    | 'rules'
+    | 'profile']
   icon: LucideIcon
   /** Counter shown next to the label: the review queue size. */
   badge?: 'reviewCount'
@@ -78,6 +84,19 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Comptes', to: ROUTES.accounts, icon: LandmarkIcon },
   { label: 'Import', to: ROUTES.import, icon: UploadIcon },
 ]
+
+/** Settings, below the main navigation under « Réglages ». */
+export const SETTINGS_ITEMS: readonly NavItem[] = [
+  { label: 'Catégories', to: ROUTES.categories, icon: TagsIcon },
+  { label: 'Règles', to: ROUTES.rules, icon: ListFilterIcon },
+  { label: 'Profil', to: ROUTES.profile, icon: UserIcon },
+]
+
+/** Sidebar groups, in display order; the first one has no heading. */
+export const NAV_GROUPS: readonly {
+  label?: string
+  items: readonly NavItem[]
+}[] = [{ items: NAV_ITEMS }, { label: 'Réglages', items: SETTINGS_ITEMS }]
 
 /** A nav item is active on its own page and on any page nested below it. */
 export function isNavItemActive(pathname: string, to: string): boolean {

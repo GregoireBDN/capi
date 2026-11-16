@@ -6,7 +6,6 @@ import {
   Skeleton,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import { PlusIcon, WandSparklesIcon } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -14,7 +13,6 @@ import type { CategorizationRuleDto } from '#/api/types.gen'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { plural } from '#/lib/plural'
 import { accountsQuery, categoriesQuery } from '#/lib/queries'
-import { ROUTES } from '#/lib/routes'
 import { categoryProblem } from './describe'
 import { ruleErrorMessage } from './errors'
 import { moveById, moveOnto } from './order'
@@ -124,19 +122,11 @@ export function RulesPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 pb-24">
+    <div className="@container space-y-6 pb-24">
       <PageHeader
         title="Règles"
         description="Chaque opération importée est classée par la première règle qui lui correspond, de haut en bas. Changez l’ordre avec les flèches ou en glissant une règle."
       />
-      <p className="text-sm">
-        <Link
-          to={ROUTES.categories}
-          className="text-primary underline-offset-4 hover:underline"
-        >
-          Gérer les catégories
-        </Link>
-      </p>
 
       {rules.isPending && (
         <div className="space-y-3">
