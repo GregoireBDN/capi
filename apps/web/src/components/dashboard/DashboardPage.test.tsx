@@ -375,6 +375,25 @@ describe('DashboardPage', () => {
     ).toBeTruthy()
   })
 
+  it('leaves out « Placements et autres » when nothing but savings moved the net worth', async () => {
+    api.dashboardControllerReview.mockImplementation(() =>
+      ok({
+        ...review,
+        netWorth: {
+          ...review.netWorth,
+          changeCents: 65_520,
+          savedCents: 65_500,
+          otherCents: 20,
+        },
+      }),
+    )
+    renderPage()
+
+    const card = await screen.findByRole('region', { name: 'Bilan d’octobre' })
+    expect(card).toHaveTextContent(text('Épargné+655 € · 26,2 %'))
+    expect(card).not.toHaveTextContent('Placements et autres')
+  })
+
   it('says which accounts to update while the month is incomplete', async () => {
     api.dashboardControllerReview.mockImplementation(() =>
       ok({

@@ -154,6 +154,11 @@ function NetWorthSection({ review }: { review: MonthReviewDto }) {
     otherCents >= 0 &&
     changeCents > 0
   const savedShare = showBar ? savedCents / changeCents : 0
+  // Without investments (or anything else) the rest rounds to 0 €: no line.
+  const other =
+    otherCents !== null && Math.round(otherCents / 100) !== 0
+      ? otherCents
+      : null
 
   return (
     <section aria-label="Patrimoine" className="space-y-2">
@@ -178,7 +183,7 @@ function NetWorthSection({ review }: { review: MonthReviewDto }) {
           </p>
         )}
       </div>
-      {showBar && (
+      {showBar && other !== null && (
         <div
           aria-hidden
           className="bg-muted flex h-1.5 overflow-hidden rounded-full"
@@ -211,7 +216,7 @@ function NetWorthSection({ review }: { review: MonthReviewDto }) {
             )}
           </dd>
         </div>
-        {otherCents !== null && (
+        {other !== null && (
           <div className="min-w-0">
             <dt className="text-muted-foreground flex items-center gap-1.5 text-xs">
               <span
@@ -221,7 +226,7 @@ function NetWorthSection({ review }: { review: MonthReviewDto }) {
               Placements et autres
             </dt>
             <dd className="font-medium whitespace-nowrap tabular-nums">
-              {formatSignedWhole(otherCents)}
+              {formatSignedWhole(other)}
             </dd>
           </div>
         )}
