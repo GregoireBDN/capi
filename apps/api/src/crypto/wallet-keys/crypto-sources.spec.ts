@@ -359,7 +359,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
     it('turns a manual account into an exchange and keeps its real values', async () => {
       await inRollback(async ({ tx, accounts }) => {
-        const manual = await accounts.create({ name: 'Binance', type: 'crypto' })
+        const manual = await accounts.create({
+          name: 'Binance',
+          type: 'crypto',
+        })
         await tx.insert(balanceSnapshotsTable).values([
           { accountId: manual.id, date: '2026-10-31', valueCents: 125_000 },
           { accountId: manual.id, date: '2026-11-10', valueCents: 0 },
