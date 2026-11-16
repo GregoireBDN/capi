@@ -33,6 +33,7 @@ import {
   LandmarkIcon,
 } from 'lucide-react'
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import type {
   DashboardAccountDto,
   HistoryMonthDto,
@@ -98,55 +99,108 @@ function pointTitle(month: string, isCurrent: boolean): string {
   return isCurrent ? 'Aujourd’hui' : `Fin ${formatMonthLong(month)}`
 }
 
-function AccountRow({
+const LINK_ROW =
+  'hover:bg-muted/50 focus-visible:ring-ring -mx-2 min-h-11 rounded-md px-2 outline-none focus-visible:ring-2'
+
+/** Opens an account: its transactions (cash) or its value page (investments). */
+function AccountLink({
   accountId,
   account,
-  balanceCents,
-}: TypeBreakdown['accounts'][number]) {
-  const row =
-    'flex min-w-0 flex-1 flex-wrap items-center gap-x-3 py-2 text-sm hover:bg-muted/50 focus-visible:ring-ring -mx-2 rounded-md px-2 outline-none focus-visible:ring-2 min-h-11'
-  const content = (
-    <>
-      <span className="min-w-[7rem] flex-1 break-words">
-        {account?.name ?? 'Compte'}
-      </span>
-      <span className="ml-auto whitespace-nowrap tabular-nums">
-        {formatWholeEuros(balanceCents)}
-      </span>
-      {account && (
-        <ChevronRightIcon
-          aria-hidden
-          className="text-muted-foreground size-4 shrink-0"
-        />
-      )}
-    </>
-  )
-  if (!account) return <div className={row}>{content}</div>
+  className,
+  children,
+}: Pick<TypeBreakdown['accounts'][number], 'accountId' | 'account'> & {
+  className: string
+  children: ReactNode
+}) {
+  if (!account) return <div className={className}>{children}</div>
   return account.group === 'cash' ? (
     <Link
       to={ROUTES.transactions}
       search={{ account: accountId }}
       title="Voir les opérations"
-      className={row}
+      className={cn(LINK_ROW, className)}
     >
-      {content}
+      {children}
     </Link>
   ) : (
     <Link
       to={ROUTES.account}
       params={{ accountId }}
       title="Voir la valeur et la plus-value"
-      className={row}
+      className={cn(LINK_ROW, className)}
     >
-      {content}
+      {children}
     </Link>
+  )
+}
+
+function Chevron() {
+  return (
+    <ChevronRightIcon
+      aria-hidden
+      className="text-muted-foreground size-4 shrink-0 self-center"
+    />
+  )
+}
+
+function AccountRow({
+  accountId,
+  account,
+  balanceCents,
+}: TypeBreakdown['accounts'][number]) {
+  return (
+    <AccountLink
+      accountId={accountId}
+      account={account}
+      className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 py-2 text-sm"
+    >
+      <span className="min-w-[7rem] flex-1 break-words">
+        {account?.name ?? 'Compte'}
+      </span>
+      <span className="ml-auto whitespace-nowrap tabular-nums">
+        {formatWholeEuros(balanceCents)}
+      </span>
+      {account && <Chevron />}
+    </AccountLink>
+  )
+}
+
+/** A type's name, its share and its total, on one line (wraps on a phone). */
+function TypeTotal({
+  type,
+  share,
+  accountName,
+}: {
+  type: TypeBreakdown
+  share: number
+  /** The type's only account, when its name says more than the type. */
+  accountName?: string
+}) {
+  return (
+    <>
+      <div className="min-w-[7rem] flex-1">
+        <h3 className="text-sm font-medium">{type.label}</h3>
+        {accountName && (
+          <p className="text-muted-foreground text-xs break-words">
+            {accountName}
+          </p>
+        )}
+      </div>
+      <span className="ml-auto text-sm whitespace-nowrap tabular-nums">
+        <span className="text-muted-foreground">{formatPercent(share)}</span>{' '}
+        <span className="font-semibold">
+          {formatWholeEuros(type.totalCents)}
+        </span>
+      </span>
+    </>
   )
 }
 
 /**
  * Net worth at the selected month end by account type, each type with its
  * share and its accounts (links to their pages); the types add up to the
- * total shown at the bottom.
+ * total shown at the bottom. A type with a single account is that account:
+ * one row that opens it, rather than the type and then the same account.
  */
 function Breakdown({
   point,
@@ -168,19 +222,32 @@ function Breakdown({
         <ul className="space-y-4">
           {types.map((type) => {
             const share = typeShare(types, type)
+            const only = type.accounts.length === 1 ? type.accounts[0] : null
+            const onlyName = only?.account?.name
             return (
               <li key={type.type} aria-label={type.label}>
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                  <h3 className="text-sm font-medium">{type.label}</h3>
-                  <p className="text-sm whitespace-nowrap tabular-nums">
-                    <span className="text-muted-foreground">
-                      {formatPercent(share)}
-                    </span>{' '}
-                    <span className="font-semibold">
-                      {formatWholeEuros(type.totalCents)}
-                    </span>
-                  </p>
-                </div>
+                {only ? (
+                  <AccountLink
+                    accountId={only.accountId}
+                    account={only.account}
+                    className="flex flex-wrap items-center gap-x-3 py-1"
+                  >
+                    <TypeTotal
+                      type={type}
+                      share={share}
+                      accountName={
+                        onlyName && onlyName !== type.label
+                          ? onlyName
+                          : undefined
+                      }
+                    />
+                    {only.account && <Chevron />}
+                  </AccountLink>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-x-3">
+                    <TypeTotal type={type} share={share} />
+                  </div>
+                )}
                 <div
                   aria-hidden
                   className="bg-muted mt-1.5 h-1.5 overflow-hidden rounded-full"
@@ -190,13 +257,15 @@ function Breakdown({
                     style={{ width: `${share * 100}%` }}
                   />
                 </div>
-                <ul className="mt-1 divide-y">
-                  {type.accounts.map((item) => (
-                    <li key={item.accountId} className="flex">
-                      <AccountRow {...item} />
-                    </li>
-                  ))}
-                </ul>
+                {!only && (
+                  <ul className="mt-1 divide-y">
+                    {type.accounts.map((item) => (
+                      <li key={item.accountId} className="flex">
+                        <AccountRow {...item} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             )
           })}

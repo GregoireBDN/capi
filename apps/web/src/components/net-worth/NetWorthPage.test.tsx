@@ -275,13 +275,56 @@ describe('NetWorthPage', () => {
       euros(amount),
     )
 
-    // Each account opens its page.
+    // A type with a single account is that account: one row that opens
+    // its page, not the type and then the same account again.
+    expect(within(checkingType).getAllByRole('link')).toHaveLength(1)
+    expect(within(checkingType).queryByRole('list')).not.toBeInTheDocument()
     expect(
       within(checkingType).getByRole('link', { name: /Compte test/ }),
     ).toHaveAttribute('href', `/transactions?account=${checking.id}`)
     expect(
       within(peaType).getByRole('link', { name: /PEA test/ }),
     ).toHaveAttribute('href', `/accounts/${pea.id}`)
+  })
+
+  it('lists the accounts under a type only when it has several', async () => {
+    const livret2 = account(
+      '10000000-0000-4000-8000-000000000004',
+      'Autre livret test',
+      'savings',
+    )
+    api.dashboardControllerOverview.mockImplementation(() =>
+      ok({ ...overview, accounts: [checking, livret, livret2, pea] }),
+    )
+    api.dashboardControllerHistory.mockImplementation(() =>
+      ok({
+        months: history.months.map((month) => ({
+          ...month,
+          netWorthCents: month.netWorthCents! + 100_000,
+          accounts: [
+            ...month.accounts,
+            {
+              accountId: livret2.id,
+              type: 'savings' as const,
+              balanceCents: 100_000,
+            },
+          ],
+        })),
+      }),
+    )
+    renderPage()
+
+    const savingsType = await screen.findByRole('listitem', {
+      name: 'Livret d’épargne',
+    })
+    expect(savingsType).toHaveTextContent(euros(600_000))
+    const rows = within(within(savingsType).getByRole('list')).getAllByRole(
+      'link',
+    )
+    expect(rows.map((row) => row.textContent)).toEqual([
+      expect.stringContaining('Livret test'),
+      expect.stringContaining('Autre livret test'),
+    ])
   })
 
   it('stops at the month the data stops in', async () => {
