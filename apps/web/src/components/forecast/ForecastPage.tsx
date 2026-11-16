@@ -16,6 +16,8 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
+  HistoryIcon,
+  PlusIcon,
   RepeatIcon,
   TrendingUpIcon,
   TriangleAlertIcon,
@@ -24,6 +26,7 @@ import {
 import { useState } from 'react'
 import type { ForecastDto } from '#/api/types.gen'
 import { PageHeader } from '#/components/app-shell/PageHeader'
+import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
 import { formatShortDay } from '#/components/subscriptions/format'
 import { formatCents } from '#/lib/money'
 import { accountsQuery, isTransactional } from '#/lib/queries'
@@ -51,6 +54,54 @@ export function BelowThresholdAlert({ forecast }: { forecast: ForecastDto }) {
       </AlertDescription>
     </Alert>
   )
+}
+
+/**
+ * The data stops more than `staleAfterDays` before today (#215): the forecast
+ * is only indicative and raises no low-balance alert. Importing a statement
+ * or noting the expenses since makes it reliable again.
+ */
+export function StaleForecastNotice({ forecast }: { forecast: ForecastDto }) {
+  const [addOpen, setAddOpen] = useState(false)
+  if (!forecast.stale) return null
+  return (
+    <Alert>
+      <HistoryIcon aria-hidden />
+      <AlertTitle>Prévision indicative</AlertTitle>
+      <AlertDescription className="space-y-2">
+        <p>
+          {forecast.knownUntil
+            ? `Vos relevés s’arrêtent au ${formatShortDay(forecast.knownUntil)} : la prévision part de cette date, sans alerte de solde bas.`
+            : 'Aucun relevé importé : la prévision part d’aujourd’hui, sans alerte de solde bas.'}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm">
+            <Link to={ROUTES.import}>
+              <UploadIcon aria-hidden />
+              Importer un relevé
+            </Link>
+          </Button>
+          <Button
+            size="sm"
+            outline
+            variant="secondary"
+            onClick={() => setAddOpen(true)}
+          >
+            <PlusIcon aria-hidden />
+            Ajouter une dépense
+          </Button>
+        </div>
+      </AlertDescription>
+      <ManualTransactionSheet open={addOpen} onOpenChange={setAddOpen} />
+    </Alert>
+  )
+}
+
+/** "solde connu au …, prévision à partir du …" (#215). */
+export function knownBalanceNote(forecast: ForecastDto): string {
+  const known = forecast.knownUntil ?? forecast.startingBalanceDate
+  const from = `prévision à partir du ${formatShortDay(forecast.projectedFrom)}`
+  return known ? `solde connu au ${formatShortDay(known)}, ${from}` : from
 }
 
 function ForecastTiles({ forecast }: { forecast: ForecastDto }) {
@@ -91,11 +142,12 @@ function ForecastTiles({ forecast }: { forecast: ForecastDto }) {
       </div>
       <p className="text-muted-foreground px-1 text-xs">
         Point bas le {formatShortDay(forecast.lowest.date)} ·{' '}
-        {forecast.startingBalanceDate
-          ? `solde connu au ${formatShortDay(forecast.startingBalanceDate)}`
-          : 'aucun solde connu'}
+        {knownBalanceNote(forecast)}
         {forecast.estimate && forecast.estimate.totalCents !== 0
           ? ` · « À payer » inclut ${formatCents(-forecast.estimate.totalCents)} de dépenses courantes estimées`
+          : ''}
+        {forecast.estimate && forecast.estimate.coveredCents > 0
+          ? ` (moins ${formatCents(forecast.estimate.coveredCents)} déjà notés à la main)`
           : ''}
       </p>
     </section>
@@ -184,7 +236,7 @@ export function ForecastPage() {
         title="Prévision fin de mois"
         description={
           data
-            ? `Du ${formatShortDay(data.today)} au ${formatShortDay(data.monthEnd)}`
+            ? `Du ${formatShortDay(data.projectedFrom)} au ${formatShortDay(data.monthEnd)}`
             : undefined
         }
       />
@@ -211,6 +263,7 @@ export function ForecastPage() {
 
       {data && data.accounts.length > 0 && (
         <>
+          <StaleForecastNotice forecast={data} />
           <BelowThresholdAlert forecast={data} />
           <ForecastTiles forecast={data} />
           <ForecastSettings

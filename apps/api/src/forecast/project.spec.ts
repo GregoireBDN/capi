@@ -6,6 +6,8 @@ import {
   type ExpectedItem,
   expectedOccurrences,
   type ForecastRecurringItem,
+  projectionStart,
+  spreadEstimate,
 } from './project'
 
 /** Synthetic data only. */
@@ -29,7 +31,17 @@ function item(
   }
 }
 
-const NOVEMBER = { today: '2026-11-06', monthEnd: '2026-11-30' }
+const NOVEMBER = {
+  today: '2026-11-06',
+  start: '2026-11-06',
+  monthEnd: '2026-11-30',
+}
+/** Data imported up to October 31, today November 16 (#215). */
+const LAGGING = {
+  today: '2026-11-16',
+  start: '2026-11-01',
+  monthEnd: '2026-11-30',
+}
 const dates = (items: ExpectedItem[]) => items.map((i) => i.date)
 
 describe('expectedOccurrences', () => {
@@ -70,7 +82,7 @@ describe('expectedOccurrences', () => {
       dates(
         expectedOccurrences(
           item({ nextExpectedDate: '2026-01-31' }),
-          { today: '2026-02-01', monthEnd: '2026-02-28' },
+          { today: '2026-02-01', start: '2026-02-01', monthEnd: '2026-02-28' },
           '2026-01-30',
         ),
       ),
@@ -121,7 +133,7 @@ describe('expectedOccurrences', () => {
     ).toHaveLength(1)
   })
 
-  it('applies late or not-yet-imported occurrences today, drops missed ones', () => {
+  it('applies late occurrences on the first projected day, drops missed ones', () => {
     // Expected on the 3rd, data up to the 5th: still within 4 days.
     expect(
       expectedOccurrences(
@@ -161,6 +173,23 @@ describe('expectedOccurrences', () => {
         ),
       ),
     ).toEqual(['2026-11-06', '2026-11-25'])
+    // Projected from the day after the data: not imported yet, on its date.
+    expect(
+      expectedOccurrences(
+        item({ nextExpectedDate: '2026-11-02' }),
+        LAGGING,
+        '2026-10-31',
+      )[0],
+    ).toMatchObject({ date: '2026-11-02', expectedDate: '2026-11-02' })
+  })
+})
+
+describe('projectionStart', () => {
+  it('starts the day after the known data, today at the latest', () => {
+    expect(projectionStart('2026-11-16', '2026-10-31')).toBe('2026-11-01')
+    expect(projectionStart('2026-11-16', '2026-11-15')).toBe('2026-11-16')
+    expect(projectionStart('2026-11-16', '2026-11-16')).toBe('2026-11-16')
+    expect(projectionStart('2026-11-16', null)).toBe('2026-11-16')
   })
 })
 
@@ -183,6 +212,43 @@ describe('estimateDays', () => {
     expect(estimateDays(NOVEMBER, '2026-11-06').has('2026-11-06')).toBe(false)
     expect(estimateDays(NOVEMBER, null).get('2026-11-06')).toBe(1)
   })
+
+  it('puts each day after the known data on its own date', () => {
+    const days = estimateDays(LAGGING, '2026-10-31')
+    expect(days.size).toBe(30)
+    expect([...days.values()].every((count) => count === 1)).toBe(true)
+    expect(days.has('2026-10-31')).toBe(false)
+  })
+})
+
+describe('spreadEstimate', () => {
+  const days = estimateDays(LAGGING, '2026-10-31')
+
+  it('applies the daily average on every estimated day', () => {
+    const spread = spreadEstimate(days, 1_000, 0, LAGGING.today)
+    expect(spread.coveredCents).toBe(0)
+    expect(spread.byDate.get('2026-11-01')).toBe(1_000)
+    expect([...spread.byDate.values()].reduce((a, b) => a + b, 0)).toBe(30_000)
+  })
+
+  it('lets spending entered by hand replace the elapsed days, earliest first', () => {
+    const spread = spreadEstimate(days, 1_000, 2_500, LAGGING.today)
+    expect(spread.coveredCents).toBe(2_500)
+    expect(spread.byDate.get('2026-11-01')).toBe(0)
+    expect(spread.byDate.get('2026-11-02')).toBe(0)
+    expect(spread.byDate.get('2026-11-03')).toBe(500)
+    expect(spread.byDate.get('2026-11-04')).toBe(1_000)
+    expect([...spread.byDate.values()].reduce((a, b) => a + b, 0)).toBe(27_500)
+  })
+
+  it('never lets it cover the days after today', () => {
+    // 16 elapsed days (November 1–16) at 10 €: at most 160 € covered.
+    const spread = spreadEstimate(days, 1_000, 50_000, LAGGING.today)
+    expect(spread.coveredCents).toBe(16_000)
+    expect(spread.byDate.get('2026-11-16')).toBe(0)
+    expect(spread.byDate.get('2026-11-17')).toBe(1_000)
+    expect([...spread.byDate.values()].reduce((a, b) => a + b, 0)).toBe(14_000)
+  })
 })
 
 describe('buildProjection', () => {
@@ -192,15 +258,21 @@ describe('buildProjection', () => {
   })
 
   it('projects day by day, with the low point and the threshold crossing', () => {
+    const window = {
+      today: '2026-11-27',
+      start: '2026-11-27',
+      monthEnd: '2026-11-30',
+    }
     const projection = buildProjection({
-      window: { today: '2026-11-27', monthEnd: '2026-11-30' },
+      window,
       startingBalanceCents: 50_000,
       items: [expected('2026-11-28', -80_000), expected('2026-11-30', 250_000)],
-      dailyEstimateCents: 1_000,
-      estimateDaysByDate: estimateDays(
-        { today: '2026-11-27', monthEnd: '2026-11-30' },
-        '2026-11-25',
-      ),
+      estimateByDate: spreadEstimate(
+        estimateDays(window, '2026-11-25'),
+        1_000,
+        0,
+        window.today,
+      ).byDate,
       thresholdCents: 0,
     })
     expect(
@@ -226,11 +298,14 @@ describe('buildProjection', () => {
 
   it('has one point on the last day and no crossing above the threshold', () => {
     const projection = buildProjection({
-      window: { today: '2026-11-30', monthEnd: '2026-11-30' },
+      window: {
+        today: '2026-11-30',
+        start: '2026-11-30',
+        monthEnd: '2026-11-30',
+      },
       startingBalanceCents: 10_000,
       items: [],
-      dailyEstimateCents: null,
-      estimateDaysByDate: new Map(),
+      estimateByDate: new Map(),
       thresholdCents: 10_000,
     })
     expect(projection.points).toEqual([
@@ -242,5 +317,35 @@ describe('buildProjection', () => {
       date: '2026-11-30',
       balanceCents: 10_000,
     })
+  })
+  it('projects from the day after the known data when imports lag', () => {
+    const projection = buildProjection({
+      window: LAGGING,
+      startingBalanceCents: 100_000,
+      items: expectedOccurrences(
+        item({ nextExpectedDate: '2026-11-05', typicalAmountCents: 80_000 }),
+        LAGGING,
+        '2026-10-31',
+      ),
+      estimateByDate: spreadEstimate(
+        estimateDays(LAGGING, '2026-10-31'),
+        1_000,
+        0,
+        LAGGING.today,
+      ).byDate,
+      thresholdCents: 0,
+    })
+    expect(projection.points).toHaveLength(30)
+    expect(projection.points[0]).toMatchObject({
+      date: '2026-11-01',
+      balanceCents: 99_000,
+      estimateCents: -1_000,
+    })
+    expect(projection.points[4]).toMatchObject({
+      date: '2026-11-05',
+      balanceCents: 15_000,
+    })
+    expect(projection.endBalanceCents).toBe(100_000 - 80_000 - 30_000)
+    expect(projection.estimateTotalCents).toBe(-30_000)
   })
 })

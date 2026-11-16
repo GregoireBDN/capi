@@ -55,6 +55,10 @@ export function forecast(overrides: Partial<ForecastDto> = {}): ForecastDto {
     ],
     startingBalanceCents: 100_000,
     startingBalanceDate: '2026-11-27',
+    knownUntil: '2026-11-27',
+    projectedFrom: '2026-11-28',
+    stale: false,
+    staleAfterDays: 7,
     thresholdCents: 0,
     recurringItemCount: 2,
     items: [rent, salary],
@@ -63,6 +67,7 @@ export function forecast(overrides: Partial<ForecastDto> = {}): ForecastDto {
     estimate: {
       dailyCents: 1_000,
       days: 3,
+      coveredCents: 0,
       totalCents: -3_000,
       basedOnFrom: '2026-08-01',
       basedOnTo: '2026-10-31',

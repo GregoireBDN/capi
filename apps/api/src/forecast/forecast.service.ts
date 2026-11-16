@@ -1,20 +1,22 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
-import { and, eq, gte, inArray, lte, min } from 'drizzle-orm'
+import { and, eq, gt, gte, inArray, lte, min } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import {
   AccountsService,
   isTransactionalAccount,
 } from '#/accounts/accounts.service'
+import { dataUntilByAccount } from '#/coverage/coverage'
 import { monthEnd, shiftMonth } from '#/dashboard/calendar'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import { transactionsTable } from '#/database/schema'
 import { normalizeLabel } from '#/imports/normalize/label'
-import { maxDate, todayInParis } from '#/recurring/dates'
+import { daysBetween, maxDate, todayInParis } from '#/recurring/dates'
 import { seriesKey } from '#/recurring/detect'
 import { RecurringService } from '#/recurring/recurring.service'
 import {
   ESTIMATE_MONTHS,
+  FORECAST_STALE_AFTER_DAYS,
   type ForecastDto,
   type ForecastEstimateDto,
 } from './dto/forecast.dto'
@@ -24,6 +26,8 @@ import {
   estimateDays,
   expectedOccurrences,
   type ProjectionWindow,
+  projectionStart,
+  spreadEstimate,
 } from './project'
 
 type Db = PostgresJsDatabase<typeof schema>
@@ -41,6 +45,15 @@ export interface ForecastOptions {
  * day by day until the end of the month. "Today" and the month are read in
  * Europe/Paris. Everything is recomputed from the transactions on every
  * call, so the forecast follows the imports.
+ *
+ * Statements are imported by hand, so the data often stops before today
+ * (#215): the projection starts the day after the imported data ends
+ * (`coverage/` `dataUntil` of the selected accounts), not today, and the
+ * days not imported yet are estimated on their own dates. Transactions
+ * entered by hand since then are already in the balance: the day-to-day
+ * ones replace the estimate of the elapsed days. Data more than
+ * `FORECAST_STALE_AFTER_DAYS` old makes the forecast indicative: no
+ * low-balance alert.
  *
  * Never logs labels or amounts.
  */
@@ -66,12 +79,30 @@ export class ForecastService {
   ): Promise<ForecastDto> {
     const today = todayInParis(now)
     const month = today.slice(0, 7)
-    const window: ProjectionWindow = { today, monthEnd: monthEnd(month) }
 
     const accounts = await this.selectAccounts(accountIds)
     const selected = new Set(accounts.map((account) => account.id))
+    const coverage = await dataUntilByAccount(this.db, now)
+    const knownUntil = accounts.reduce<string | null>((latest, account) => {
+      const until = coverage.get(account.id)
+      if (until === undefined) return latest
+      return latest === null ? until : maxDate(latest, until)
+    }, null)
+    const window: ProjectionWindow = {
+      today,
+      start: projectionStart(today, knownUntil),
+      monthEnd: monthEnd(month),
+    }
+    const stale =
+      knownUntil === null ||
+      daysBetween(knownUntil, today) > FORECAST_STALE_AFTER_DAYS
+    // How far each account's data goes, to tell a booked or missed
+    // occurrence from one not imported yet.
     const horizons = new Map(
-      accounts.map((account) => [account.id, account.balanceDate]),
+      accounts.map((account) => [
+        account.id,
+        coverage.get(account.id) ?? account.balanceDate,
+      ]),
     )
     const startingBalanceCents = accounts.reduce(
       (sum, account) => sum + (account.balanceCents ?? 0),
@@ -120,29 +151,39 @@ export class ForecastService {
           a.name.localeCompare(b.name, 'fr'),
       )
 
+    const recurringKeys = new Set(
+      confirmed.map((item) =>
+        seriesKey(item.accountId, item.merchantKey, item.direction),
+      ),
+    )
     const daily = includeVariable
-      ? await this.averageDailySpending(
-          [...selected],
-          new Set(
-            confirmed.map((item) =>
-              seriesKey(item.accountId, item.merchantKey, item.direction),
-            ),
-          ),
-          month,
-        )
+      ? await this.averageDailySpending([...selected], recurringKeys, month)
       : null
-    const daysByDate = estimateDays(window, startingBalanceDate)
+    const daysByDate = estimateDays(window, knownUntil)
+    const spread = daily
+      ? spreadEstimate(
+          daysByDate,
+          daily.dailyCents,
+          await this.manualSpending(
+            [...selected],
+            recurringKeys,
+            knownUntil,
+            today,
+          ),
+          today,
+        )
+      : { byDate: new Map<string, number>(), coveredCents: 0 }
     const projection = buildProjection({
       window,
       startingBalanceCents,
       items,
-      dailyEstimateCents: daily?.dailyCents ?? null,
-      estimateDaysByDate: daysByDate,
+      estimateByDate: spread.byDate,
       thresholdCents,
     })
     const estimate: ForecastEstimateDto | null = daily && {
       ...daily,
       days: [...daysByDate.values()].reduce((sum, days) => sum + days, 0),
+      coveredCents: spread.coveredCents,
       totalCents: projection.estimateTotalCents,
     }
 
@@ -160,6 +201,10 @@ export class ForecastService {
       ),
       startingBalanceCents,
       startingBalanceDate,
+      knownUntil,
+      projectedFrom: window.start,
+      stale,
+      staleAfterDays: FORECAST_STALE_AFTER_DAYS,
       thresholdCents,
       recurringItemCount: active.length,
       items,
@@ -173,7 +218,8 @@ export class ForecastService {
       points: projection.points,
       endBalanceCents: projection.endBalanceCents,
       lowest: projection.lowest,
-      belowThreshold: projection.belowThreshold,
+      // Data lagging behind today would raise a false alarm (#215).
+      belowThreshold: stale ? null : projection.belowThreshold,
     }
   }
 
@@ -212,7 +258,10 @@ export class ForecastService {
     accountIds: string[],
     recurringKeys: ReadonlySet<string>,
     month: string,
-  ): Promise<Omit<ForecastEstimateDto, 'days' | 'totalCents'> | null> {
+  ): Promise<Omit<
+    ForecastEstimateDto,
+    'days' | 'coveredCents' | 'totalCents'
+  > | null> {
     if (accountIds.length === 0) return null
     const t = transactionsTable
     const periodEnd = monthEnd(shiftMonth(month, -1))
@@ -254,5 +303,53 @@ export class ForecastService {
     const dailyCents = averageDailyCents(spentCents, from, periodEnd)
     if (dailyCents === null) return null
     return { dailyCents, basedOnFrom: from, basedOnTo: periodEnd }
+  }
+
+  /**
+   * Day-to-day spending entered by hand (`manual`) after `knownUntil` and up
+   * to today, in positive cents: the same `expense` transactions as the
+   * estimate (no one-offs, no confirmed recurring series), refunds netted.
+   * They are already in the balance. Without imported data, today's only.
+   */
+  private async manualSpending(
+    accountIds: string[],
+    recurringKeys: ReadonlySet<string>,
+    knownUntil: string | null,
+    today: string,
+  ): Promise<number> {
+    if (accountIds.length === 0) return 0
+    const t = transactionsTable
+    const rows = await this.db
+      .select({
+        accountId: t.accountId,
+        amountCents: t.amountCents,
+        rawLabel: t.rawLabel,
+      })
+      .from(t)
+      .where(
+        and(
+          inArray(t.accountId, accountIds),
+          eq(t.manual, true),
+          eq(t.kind, 'expense'),
+          eq(t.isOneOff, false),
+          knownUntil === null
+            ? gte(t.bookingDate, today)
+            : gt(t.bookingDate, knownUntil),
+          lte(t.bookingDate, today),
+        ),
+      )
+    let spentCents = 0
+    for (const row of rows) {
+      const { merchantKey } = normalizeLabel(row.rawLabel, row.amountCents)
+      const direction = row.amountCents < 0 ? 'debit' : 'credit'
+      if (
+        merchantKey &&
+        recurringKeys.has(seriesKey(row.accountId, merchantKey, direction))
+      ) {
+        continue
+      }
+      spentCents -= row.amountCents
+    }
+    return Math.max(0, spentCents)
   }
 }

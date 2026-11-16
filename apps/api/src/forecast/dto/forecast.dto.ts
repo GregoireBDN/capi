@@ -25,6 +25,11 @@ export const FORECAST_MAX_ACCOUNTS = 50
 export const FORECAST_THRESHOLD_LIMIT = 100_000_000_000
 /** Full months before the current one the variable-spending estimate averages. */
 export const ESTIMATE_MONTHS = 3
+/**
+ * Days the data may lag behind today before the forecast is only indicative
+ * (no low-balance alert): statements are imported by hand (#215).
+ */
+export const FORECAST_STALE_AFTER_DAYS = 7
 
 const DATE_DOC = {
   type: String,
@@ -134,7 +139,7 @@ export class ForecastItemDto {
   @ApiProperty({
     ...DATE_DOC,
     description:
-      'Day the projection applies it: the expected date, or today when it is late or not imported yet.',
+      'Day the projection applies it: the expected date, or the first projected day (`projectedFrom`) when it is late.',
   })
   date!: string
 
@@ -178,13 +183,21 @@ export class ForecastEstimateDto {
   @ApiProperty({
     type: 'integer',
     description:
-      'Days left to estimate (after the balance date, until month end).',
+      'Days to estimate: after `knownUntil` (or from today when nothing is known), until month end.',
   })
   days!: number
 
   @ApiProperty({
     type: 'integer',
-    description: 'Estimated spending until month end, in signed cents (≤ 0).',
+    description:
+      'Day-to-day spending entered by hand since `knownUntil` (already in the balance) that replaces the estimate of the elapsed days, in positive cents: at most that estimate, so it is never counted twice.',
+  })
+  coveredCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Estimated spending still to apply until month end, in signed cents (≤ 0): the days × the daily average, less `coveredCents`.',
   })
   totalCents!: number
 
@@ -243,6 +256,34 @@ export class ForecastDto {
   })
   startingBalanceDate!: string | null
 
+  @ApiProperty({
+    ...DATE_DOC,
+    nullable: true,
+    description:
+      'Date the imported data of the selected accounts goes up to (`coverage/` `dataUntil`, the latest of them, never after today); null without imported data. Transactions entered by hand never move it.',
+  })
+  knownUntil!: string | null
+
+  @ApiProperty({
+    ...DATE_DOC,
+    description:
+      'First projected day: the day after `knownUntil`, today at the latest (today without imported data).',
+  })
+  projectedFrom!: string
+
+  @ApiProperty({
+    type: Boolean,
+    description: `True when \`knownUntil\` is more than ${FORECAST_STALE_AFTER_DAYS} days before today (or null): the forecast is only indicative and \`belowThreshold\` is null.`,
+  })
+  stale!: boolean
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Days of lag after which the forecast is `stale`.',
+    example: FORECAST_STALE_AFTER_DAYS,
+  })
+  staleAfterDays!: number
+
   @ApiProperty({ type: 'integer' })
   thresholdCents!: number
 
@@ -282,7 +323,7 @@ export class ForecastDto {
   @ApiProperty({
     type: [ForecastPointDto],
     description:
-      'End-of-day projected balance from today to month end (one point on the last day).',
+      'End-of-day projected balance from `projectedFrom` to month end (one point when it is the last day).',
   })
   points!: ForecastPointDto[]
 
@@ -299,7 +340,7 @@ export class ForecastDto {
     type: ForecastBalanceAtDto,
     nullable: true,
     description:
-      'First day the projection goes under `thresholdCents`, null if never.',
+      'First day the projection goes under `thresholdCents`, null if never or when the forecast is `stale` (no alert on data that lags behind).',
   })
   belowThreshold!: ForecastBalanceAtDto | null
 }

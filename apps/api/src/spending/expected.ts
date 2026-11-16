@@ -40,7 +40,7 @@ export function expectedByCategory(
   horizons: ReadonlyMap<string, string>,
 ): Map<string | null, number> {
   const start = firstDay(month)
-  const window = { today: start, monthEnd: monthEnd(month) }
+  const window = { today: start, start, monthEnd: monthEnd(month) }
   const result = new Map<string | null, number>()
   for (const item of items) {
     if (item.status !== 'confirmed' || !item.active) continue

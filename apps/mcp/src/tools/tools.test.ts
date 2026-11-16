@@ -547,6 +547,10 @@ describe('month_end_forecast', () => {
       ],
       startingBalanceCents: 123456,
       startingBalanceDate: '2026-11-10',
+      knownUntil: '2026-11-10',
+      projectedFrom: '2026-11-11',
+      stale: false,
+      staleAfterDays: 7,
       thresholdCents: 50000,
       recurringItemCount: 3,
       items: [],
@@ -576,6 +580,49 @@ describe('month_end_forecast', () => {
     })
     expect(text).toContain('Solde projeté en fin de mois : 634,56 €.')
     expect(text).toContain('Ne passe pas sous 500,00 €.')
+    expect(text).toContain(
+      "Relevés importés jusqu'au 10/11/2026 : prévision à partir du 11/11/2026.",
+    )
+    expect(text).not.toContain('indicative')
+  })
+
+  it('says when the forecast is only indicative', async () => {
+    const forecast: ForecastDto = {
+      today: '2026-11-16',
+      monthEnd: '2026-11-30',
+      accounts: [],
+      startingBalanceCents: 10000,
+      startingBalanceDate: '2026-10-31',
+      knownUntil: '2026-10-31',
+      projectedFrom: '2026-11-01',
+      stale: true,
+      staleAfterDays: 7,
+      thresholdCents: 0,
+      recurringItemCount: 0,
+      items: [],
+      expectedDebitsCents: 0,
+      expectedCreditsCents: 0,
+      estimate: {
+        dailyCents: 1000,
+        days: 30,
+        coveredCents: 2500,
+        totalCents: -27500,
+        basedOnFrom: '2026-08-01',
+        basedOnTo: '2026-10-31',
+      },
+      points: [],
+      endBalanceCents: -17500,
+      lowest: { date: '2026-11-30', balanceCents: -17500 },
+      belowThreshold: null,
+    }
+    const { call } = await connect({ '/api/forecast': forecast })
+    const { text } = await call('month_end_forecast', {})
+    expect(text).toContain(
+      "Relevés importés jusqu'au 31/10/2026 : prévision à partir du 01/11/2026.",
+    )
+    expect(text).toContain('Prévision indicative')
+    expect(text).toContain('Seuil de 0,00 € non vérifié')
+    expect(text).toContain('25,00 € de dépenses notées à la main')
   })
 
   it('refuses an investment account', async () => {
