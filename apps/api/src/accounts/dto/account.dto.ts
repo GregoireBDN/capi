@@ -181,7 +181,7 @@ export class CreateAccountDto {
     enum: CRYPTO_ACCOUNT_SOURCES,
     enumName: 'CryptoAccountSource',
     description:
-      'Crypto accounts only: where the holdings come from (default `manual`). Cannot change later.',
+      'Crypto accounts only: where the holdings come from (default `manual`). A `manual` account can later become an exchange or a wallet (`PUT /accounts/:id/crypto-source`).',
   })
   @IsOptional()
   @IsIn(CRYPTO_ACCOUNT_SOURCES)
@@ -202,6 +202,45 @@ export class CreateAccountDto {
     maxItems: WALLET_KEYS_MAX,
     description:
       'At least one for a `wallet` crypto account, refused otherwise. Each key is validated (format and checksum) before anything is saved.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(WALLET_KEYS_MAX)
+  @ValidateNested({ each: true })
+  @Type(() => WalletKeyInputDto)
+  walletKeys?: WalletKeyInputDto[]
+}
+
+/** Sources a `manual` crypto account can be turned into. */
+export const CONVERTIBLE_CRYPTO_SOURCES = ['exchange', 'wallet'] as const
+
+/**
+ * Turns a `manual` crypto account into an exchange (with its provider) or a
+ * wallet (with its public keys), e.g. one set up by hand before it could be
+ * read from its exports or keys.
+ */
+export class ChangeCryptoSourceDto {
+  @ApiProperty({
+    enum: CONVERTIBLE_CRYPTO_SOURCES,
+    description: 'The new source: `exchange` or `wallet`.',
+  })
+  @IsIn(CONVERTIBLE_CRYPTO_SOURCES)
+  cryptoSource!: (typeof CONVERTIBLE_CRYPTO_SOURCES)[number]
+
+  @ApiPropertyOptional({
+    enum: CRYPTO_EXCHANGE_PROVIDERS,
+    enumName: 'CryptoExchangeProvider',
+    description: 'Required for `exchange`, refused for `wallet`.',
+  })
+  @IsOptional()
+  @IsIn(CRYPTO_EXCHANGE_PROVIDERS)
+  cryptoProvider?: CryptoExchangeProvider
+
+  @ApiPropertyOptional({
+    type: [WalletKeyInputDto],
+    maxItems: WALLET_KEYS_MAX,
+    description:
+      'At least one for `wallet`, refused for `exchange`. Validated (format and checksum) before anything is saved.',
   })
   @IsOptional()
   @IsArray()

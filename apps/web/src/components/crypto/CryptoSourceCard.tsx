@@ -22,6 +22,7 @@ import {
   CoinsIcon,
   FileUpIcon,
   KeyRoundIcon,
+  LinkIcon,
   PlusIcon,
   RefreshCwIcon,
   Trash2Icon,
@@ -35,6 +36,7 @@ import type {
   WalletTokenDto,
 } from '#/api/types.gen'
 import { ApiRequestError } from '#/lib/queries'
+import { ChangeCryptoSourceSheet } from './ChangeCryptoSourceSheet'
 import { holdingErrorMessage } from './errors'
 import { ExchangeImportSheet } from './ExchangeImportSheet'
 import { AssetPicker } from './HoldingEditor'
@@ -590,16 +592,7 @@ export function CryptoSourceCard({
 
   if (source === 'manual') {
     return (
-      <section aria-label="Source des avoirs">
-        <Card className="min-w-0">
-          <CardHeader>
-            <CardTitle>{title}</CardTitle>
-            <CardDescription>
-              Avoirs saisis à la main : ajoutez-les et modifiez-les ci-dessous.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      </section>
+      <ManualSourceCard account={account} writable={writable} title={title} />
     )
   }
 
@@ -611,6 +604,54 @@ export function CryptoSourceCard({
       title={title}
       exchange={exchange}
     />
+  )
+}
+
+/**
+ * Holdings typed by hand, and the way to read them from a wallet's keys or an
+ * exchange's exports instead (an account set up by hand, #207).
+ */
+function ManualSourceCard({
+  account,
+  writable,
+  title,
+}: {
+  account: AccountDto
+  writable: boolean
+  title: string
+}) {
+  const [changing, setChanging] = useState(false)
+  return (
+    <section aria-label="Source des avoirs">
+      <Card className="min-w-0">
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+          <CardDescription>
+            Avoirs saisis à la main : ajoutez-les et modifiez-les ci-dessous.
+          </CardDescription>
+          {writable && (
+            <div className="pt-1">
+              <Button
+                size="sm"
+                outline
+                variant="secondary"
+                iconStart={<LinkIcon />}
+                onClick={() => setChanging(true)}
+              >
+                Relier à un wallet ou une plateforme
+              </Button>
+            </div>
+          )}
+        </CardHeader>
+      </Card>
+      {writable && (
+        <ChangeCryptoSourceSheet
+          open={changing}
+          onOpenChange={setChanging}
+          account={account}
+        />
+      )}
+    </section>
   )
 }
 

@@ -2350,6 +2350,66 @@
         ]
       }
     },
+    "/api/accounts/{id}/crypto-source": {
+      "put": {
+        "description": "Only a non-archived `manual` crypto account holding nothing changes source (409 otherwise). A wallet gets its public keys (validated, unique across accounts: 409 when one is already tracked). 0 € values recorded while the account held nothing are dropped when it never had another value. Session only.",
+        "operationId": "AccountsController_changeCryptoSource",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeCryptoSourceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body or key."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "Not a manual account, holdings typed by hand, or a key already tracked."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Turn a manual crypto account into an exchange or a wallet",
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
     "/api/imports/preview": {
       "post": {
         "description": "Parses the file, classifies every row (new / duplicate / conflict) against the account, proposes categories and checks the running balance. Stores a pending import; no transaction is written until `POST /imports/{id}/commit`. Pending previews older than 24 h are discarded when a new one is made.",
@@ -4863,6 +4923,37 @@
           }
         ],
         "summary": "Delete a holding",
+        "tags": [
+          "Crypto"
+        ]
+      }
+    },
+    "/api/crypto/settings": {
+      "get": {
+        "description": "Whether prices come from the price API and whether wallet accounts are synced on chain. Nothing is valued or fetched.",
+        "operationId": "CryptoController_settings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CryptoSettingsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "What this server reads by itself",
         "tags": [
           "Crypto"
         ]
@@ -7671,7 +7762,7 @@
             "example": "CIC"
           },
           "cryptoSource": {
-            "description": "Crypto accounts only: where the holdings come from (default `manual`). Cannot change later.",
+            "description": "Crypto accounts only: where the holdings come from (default `manual`). A `manual` account can later become an exchange or a wallet (`PUT /accounts/:id/crypto-source`).",
             "allOf": [
               {
                 "$ref": "#/components/schemas/CryptoAccountSource"
@@ -7722,6 +7813,38 @@
             "description": "true archives the account (kept with its history), false restores it."
           }
         }
+      },
+      "ChangeCryptoSourceDto": {
+        "type": "object",
+        "properties": {
+          "cryptoSource": {
+            "type": "string",
+            "enum": [
+              "exchange",
+              "wallet"
+            ],
+            "description": "The new source: `exchange` or `wallet`."
+          },
+          "cryptoProvider": {
+            "description": "Required for `exchange`, refused for `wallet`.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoExchangeProvider"
+              }
+            ]
+          },
+          "walletKeys": {
+            "maxItems": 20,
+            "description": "At least one for `wallet`, refused for `exchange`. Validated (format and checksum) before anything is saved.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WalletKeyInputDto"
+            }
+          }
+        },
+        "required": [
+          "cryptoSource"
+        ]
       },
       "ImportUploadSource": {
         "type": "string",
@@ -11699,6 +11822,23 @@
           "investedCents",
           "note",
           "origin"
+        ]
+      },
+      "CryptoSettingsDto": {
+        "type": "object",
+        "properties": {
+          "priceApiEnabled": {
+            "type": "boolean",
+            "description": "Prices come from the price API (else typed by hand)."
+          },
+          "walletSyncEnabled": {
+            "type": "boolean",
+            "description": "Wallet accounts are read on chain from their public keys (`WALLET_SYNC_ENABLED`); off, they stay empty until holdings are typed by hand."
+          }
+        },
+        "required": [
+          "priceApiEnabled",
+          "walletSyncEnabled"
         ]
       },
       "CryptoSummaryAccountDto": {

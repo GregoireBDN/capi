@@ -19,7 +19,7 @@ import {
   StatCard,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { PlusIcon, RefreshCwIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -34,6 +34,7 @@ import { formatCalendarDate, formatCents } from '#/lib/money'
 import { accountsQuery } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import { holdingErrorMessage } from './errors'
+import { ExchangeImportSheet } from './ExchangeImportSheet'
 import { formatPriceAge } from './format'
 import { HoldingEditor } from './HoldingEditor'
 import { HoldingList, PriceAlerts } from './HoldingsPanel'
@@ -149,7 +150,10 @@ export function CryptoPage() {
   const queryClient = useQueryClient()
   const summary = useQuery(cryptoSummaryQuery)
   const accounts = useQuery(accountsQuery)
+  const navigate = useNavigate()
   const [editor, setEditor] = useState<EditorState>({ open: false })
+  /** A new exchange, whose first export is imported right away. */
+  const [importing, setImporting] = useState<string>()
   const now = new Date()
 
   // A valuation wrote today's snapshots: balances and net worth follow.
@@ -310,6 +314,23 @@ export function CryptoPage() {
           accounts={list.map((row) => ({ id: row.accountId, name: row.name }))}
           holding={editor.open ? editor.holding : undefined}
           priceApiEnabled={data.priceApiEnabled}
+          onAccountCreated={(created) => {
+            // An exchange is fed by its exports: import the first one now. A
+            // wallet is read from its keys on its page (sync, keys, tokens).
+            if (created.cryptoSource === 'exchange') setImporting(created.id)
+            else
+              void navigate({
+                to: ROUTES.account,
+                params: { accountId: created.id },
+              })
+          }}
+        />
+      )}
+      {importing && (
+        <ExchangeImportSheet
+          open
+          onOpenChange={(open) => !open && setImporting(undefined)}
+          accountId={importing}
         />
       )}
     </div>

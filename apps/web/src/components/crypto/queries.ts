@@ -1,6 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
 import {
+  accountsControllerChangeCryptoSource,
   accountHoldingsControllerCreate,
   accountHoldingsControllerList,
   accountHoldingsControllerRemove,
@@ -9,6 +10,7 @@ import {
   accountHoldingsControllerValuate,
   cryptoControllerSearch,
   cryptoControllerSetPrice,
+  cryptoControllerSettings,
   cryptoControllerSummary,
   cryptoControllerValuate,
   walletKeysControllerAdd,
@@ -20,6 +22,7 @@ import {
 } from '#/api'
 import type {
   AddWalletTokenDto,
+  ChangeCryptoSourceDto,
   SaveHoldingDto,
   WalletKeyInputDto,
 } from '#/api/types.gen'
@@ -31,6 +34,7 @@ export const cryptoKeys = {
   holdings: (accountId: string) => ['crypto', 'holdings', accountId] as const,
   assets: (query: string) => ['crypto', 'assets', query] as const,
   summary: ['crypto', 'summary'] as const,
+  settings: ['crypto', 'settings'] as const,
   walletKeys: (accountId: string) =>
     ['crypto', 'wallet-keys', accountId] as const,
   walletTokens: (accountId: string) =>
@@ -43,6 +47,13 @@ export const cryptoSummaryQuery = queryOptions({
   queryFn: () => unwrap(cryptoControllerSummary({ throwOnError: false })),
   // Price ages depend on "now"; the API rate-limits the actual refreshes.
   staleTime: 0,
+})
+
+/** What this server reads by itself (price API, wallet sync). */
+export const cryptoSettingsQuery = queryOptions({
+  queryKey: cryptoKeys.settings,
+  queryFn: () => unwrap(cryptoControllerSettings({ throwOnError: false })),
+  staleTime: 5 * 60_000,
 })
 
 /** "Actualiser les cours" of every crypto account, one batched request. */
@@ -94,6 +105,20 @@ export function saveHolding(
           body,
           throwOnError: false,
         }),
+  )
+}
+
+/** Turns a manual crypto account into an exchange or a wallet (#207). */
+export function changeCryptoSource(
+  accountId: string,
+  body: ChangeCryptoSourceDto,
+) {
+  return unwrap(
+    accountsControllerChangeCryptoSource({
+      path: { id: accountId },
+      body,
+      throwOnError: false,
+    }),
   )
 }
 

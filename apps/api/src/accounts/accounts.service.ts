@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
@@ -23,6 +24,7 @@ import * as schema from '#/database/schema'
 import {
   accountsTable,
   balanceSnapshotsTable,
+  cryptoHoldingsTable,
   type InsertAccount,
   INVESTMENT_ACCOUNT_TYPES,
   type SelectAccount,
@@ -37,7 +39,11 @@ import {
   prepareWalletKeys,
 } from '#/crypto/wallet-keys/wallet-keys.repository'
 import { endOfDayBalance } from '#/imports/dedupe/continuity'
-import type { CreateAccountDto, UpdateAccountDto } from './dto/account.dto'
+import type {
+  ChangeCryptoSourceDto,
+  CreateAccountDto,
+  UpdateAccountDto,
+} from './dto/account.dto'
 
 type Db = PostgresJsDatabase<typeof schema>
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
@@ -68,7 +74,6 @@ function cryptoSetup(dto: CreateAccountDto): {
   provider: SelectAccount['cryptoProvider']
   keys: PreparedWalletKey[]
 } | null {
-  const keys = dto.walletKeys ?? []
   if (dto.type !== 'crypto') {
     if (
       dto.cryptoSource !== undefined ||
@@ -81,7 +86,19 @@ function cryptoSetup(dto: CreateAccountDto): {
     }
     return null
   }
-  const source = dto.cryptoSource ?? 'manual'
+  return sourceSetup(dto.cryptoSource ?? 'manual', dto)
+}
+
+/** Checks the provider and keys that go with a crypto source. */
+function sourceSetup(
+  source: NonNullable<SelectAccount['cryptoSource']>,
+  dto: Pick<CreateAccountDto, 'cryptoProvider' | 'walletKeys'>,
+): {
+  source: NonNullable<SelectAccount['cryptoSource']>
+  provider: SelectAccount['cryptoProvider']
+  keys: PreparedWalletKey[]
+} {
+  const keys = dto.walletKeys ?? []
   if (source === 'exchange' && dto.cryptoProvider === undefined) {
     throw new BadRequestException('An exchange account needs a provider')
   }
@@ -183,6 +200,70 @@ export class AccountsService {
         .returning()
       if (crypto) await insertWalletKeys(tx, account.id, crypto.keys)
       return { ...account, ...NO_BALANCE }
+    })
+  }
+
+  /**
+   * Turns a `manual` crypto account into an exchange or a wallet account
+   * (#207): one set up by hand, or before sources existed, can then be fed by
+   * its exports or read from its public keys. Only an account holding nothing
+   * changes source, so hand-entered lines are never counted twice next to
+   * imported or synced ones. Values of 0 € recorded while it held nothing
+   * carry no information and would hide the first real one: they are dropped
+   * when the account never had any other value.
+   */
+  async changeCryptoSource(
+    id: string,
+    dto: ChangeCryptoSourceDto,
+  ): Promise<AccountWithBalance> {
+    const crypto = sourceSetup(dto.cryptoSource, dto)
+    return this.db.transaction(async (tx) => {
+      const [account] = await tx
+        .select()
+        .from(accountsTable)
+        .where(eq(accountsTable.id, id))
+        .for('update')
+      if (!account) throw new NotFoundException('Account not found')
+      if (account.type !== 'crypto') {
+        throw new BadRequestException('Only crypto accounts have a source')
+      }
+      if (account.archivedAt) {
+        throw new BadRequestException('Cannot change an archived account')
+      }
+      if ((account.cryptoSource ?? 'manual') !== 'manual') {
+        throw new ConflictException(
+          'Only a manual crypto account can change its source',
+        )
+      }
+      const [held] = await tx
+        .select({ id: cryptoHoldingsTable.id })
+        .from(cryptoHoldingsTable)
+        .where(eq(cryptoHoldingsTable.accountId, id))
+        .limit(1)
+      if (held) {
+        throw new ConflictException(
+          'Remove the holdings typed by hand before changing the source',
+        )
+      }
+
+      await tx
+        .update(accountsTable)
+        .set({
+          cryptoSource: crypto.source,
+          cryptoProvider: crypto.provider,
+          cryptoSyncedAt: null,
+          cryptoSyncFailedAt: null,
+        })
+        .where(eq(accountsTable.id, id))
+      await insertWalletKeys(tx, id, crypto.keys)
+
+      const s = balanceSnapshotsTable
+      const [{ nonZero }] = await tx
+        .select({ nonZero: sql<number>`count(*)::int` })
+        .from(s)
+        .where(and(eq(s.accountId, id), sql`${s.valueCents} <> 0`))
+      if (nonZero === 0) await tx.delete(s).where(eq(s.accountId, id))
+      return this.findOne(id, tx)
     })
   }
 

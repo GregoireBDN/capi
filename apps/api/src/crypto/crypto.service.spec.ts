@@ -169,6 +169,33 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
     })
   })
 
+  it('says what the server reads by itself', async () => {
+    await inRollback(async ({ crypto }) => {
+      expect(crypto.settings()).toEqual({
+        priceApiEnabled: true,
+        walletSyncEnabled: false,
+      })
+    })
+  })
+
+  it('never records a first value of 0 € (#207)', async () => {
+    await inRollback(async ({ crypto, investments, account }) => {
+      const id = await account()
+      const zero = await crypto.create(id, { ...BTC, quantity: '0' }, NOW)
+      const empty = await crypto.refresh(id, later(1))
+      expect(empty.totals.valueCents).toBe(0)
+      expect(empty.snapshot).toBeNull()
+      expect(await investments.list(id)).toEqual([])
+
+      // Once the account has had a value, 0 € is a real value (sold out).
+      await crypto.update(id, zero.id, { ...BTC, quantity: '0.5' }, later(2))
+      await crypto.update(id, zero.id, { ...BTC, quantity: '0' }, later(3))
+      expect(await investments.list(id)).toMatchObject([
+        { date: '2026-11-05', valueCents: 0 },
+      ])
+    })
+  })
+
   it('refuses non-crypto and archived accounts', async () => {
     await inRollback(async ({ crypto, account, tx }) => {
       const pea = await account('brokerage')
@@ -333,18 +360,18 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
         expect(none.priceApiEnabled).toBe(false)
         expect(await investments.list(id)).toEqual([])
 
-        const price = await crypto.setManualPrice('ethereum', '0.000123', NOW)
-        expect(price).toMatchObject({ priceEur: '0.000123', source: 'manual' })
+        const price = await crypto.setManualPrice('ethereum', '0.012345', NOW)
+        expect(price).toMatchObject({ priceEur: '0.012345', source: 'manual' })
         const valued = await crypto.holdings(id, later(60 * 24))
         expect(valued.holdings[0]).toMatchObject({
           priceSource: 'manual',
           priceStale: false,
-          valueCents: 0, // 3 × 0.000123 € = 0.0369 cents → 0
+          valueCents: 4, // 3 × 0.012345 € = 3.7035 cents → 4
         })
         // Manual price day, then the automatic valuation of the next day.
         expect(await investments.list(id)).toMatchObject([
-          { date: '2026-11-05', valueCents: 0 },
-          { date: '2026-11-06', valueCents: 0 },
+          { date: '2026-11-05', valueCents: 4 },
+          { date: '2026-11-06', valueCents: 4 },
         ])
         expect(provider.fetchEurPrices).not.toHaveBeenCalled()
       },

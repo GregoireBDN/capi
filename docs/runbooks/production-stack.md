@@ -164,9 +164,11 @@ Wallet crypto accounts can be read on chain from their public keys (#129). It is
 | EVM address + token contracts (`eth_chainId`, `eth_getBalance`, `balanceOf`) | publicnode.com JSON-RPC per chain by default         | `EVM_RPC_URLS` (JSON keyed by chain id) |
 | Token asset ids (contracts and decimals lookup, cached 24 h)                 | CoinGecko (only when `PRICE_API_ENABLED` is also on) | `PRICE_API_URL`                         |
 
+- **While it is off**, setting up a wallet from `/crypto` or the accounts page says so before the account is created; the account keeps its keys and stays empty until sync is turned on (or holdings are typed on its page).
 - **Turn on**: set `WALLET_SYNC_ENABLED=true` in `.env`, then `dc up -d api`. Each wallet is synced before a valuation at most every `WALLET_SYNC_INTERVAL_SECONDS` (600) and with "Synchroniser" on its account page (at most every 30 s).
 - **Self-hosted endpoints**: `ESPLORA_URL=https://my-esplora/api`, `EVM_RPC_URLS={"1":"https://my-node/rpc","56":""}` (`""` turns a chain off; ids: 1 Ethereum, 42161 Arbitrum, 8453 Base, 10 Optimism, 137 Polygon, 56 BNB Chain). The API refuses to boot on an unknown chain id or a non-http(s) URL.
 - **Failures**: a timeout (`WALLET_SYNC_TIMEOUT_MS`, default 10 s), a rate limit or a wrong chain id keeps the last synced holdings, shown as stale on the account page. Logs say `Wallet sync failed (<reason>)` (`timeout`, `network`, `rate_limited`, `http`, `malformed`, `rpc`, `wrong_chain`, `tokens`) and never contain addresses or URLs.
+- **A wallet created as "Saisie manuelle"** (before #207, the Crypto page set up wallets as manual accounts): on its page, « Relier à un wallet ou une plateforme » turns it into a wallet with its public keys (remove any hand-typed holding first). 0 € values it recorded while empty are dropped.
 - **Turn off**: `WALLET_SYNC_ENABLED=false` and `dc up -d api`. Synced lines stay as they are (shown as last synced); add manual lines to keep the accounts up to date.
 
 ## Client IPs and trusted proxies

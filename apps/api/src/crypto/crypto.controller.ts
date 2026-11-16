@@ -40,6 +40,7 @@ import {
   ASSET_ID_PATTERN,
   CryptoAssetDto,
   CryptoPriceDto,
+  CryptoSettingsDto,
   CryptoSummaryDto,
   HoldingDto,
   ManualPriceDto,
@@ -195,6 +196,17 @@ export class CryptoController {
     private readonly crypto: CryptoService,
     private readonly prices: CryptoPricesService,
   ) {}
+
+  @Get('settings')
+  @ApiOperation({
+    summary: 'What this server reads by itself',
+    description:
+      'Whether prices come from the price API and whether wallet accounts are synced on chain. Nothing is valued or fetched.',
+  })
+  @ApiOkResponse({ type: CryptoSettingsDto })
+  settings(): CryptoSettingsDto {
+    return this.crypto.settings()
+  }
 
   @Get('summary')
   @ApiOperation({
