@@ -167,6 +167,7 @@ pnpm --filter @finances/ui-docs dev   # Storybook
 pnpm db:generate   # generate Drizzle migrations
 pnpm db:migrate    # apply migrations
 pnpm db:seed       # seed reference data (default categories); idempotent, safe to re-run
+pnpm db:demo       # demo account + synthetic data, throwaway databases only (see Demo data)
 pnpm db:studio     # Drizzle Studio
 
 # Run a single web test
@@ -177,6 +178,8 @@ cd apps/api && pnpm vitest run src/auth/auth.service.spec.ts
 ```
 
 Pre-commit hook runs `lint-staged`: ESLint + Prettier on `.ts`/`.tsx`, Prettier on JSON/MD/YAML.
+
+**Demo data** (#219, `apps/api/src/database/seed-demo.ts`, logic in `database/demo/`): `pnpm db:demo [--reset]` seeds the default categories, a verified owner `usertest@finances.test` / `usertest` (hashed directly, so the 12-character sign-up rule doesn't apply; sign-in accepts it) and ~14 months of deterministic synthetic data built through the app's own helpers (CIC-format labels, `normalizeLabel`, ordered rules + `categorize`, `computeDedupeHashes`, running balances, one committed `cic_csv` import per account and month, `RecurringService.detect`), bank data ending 10 days before today (Europe/Paris). It refuses `NODE_ENV=production` and the `finances` database (`demo/guard.ts`), and without `--reset` a database that already has users or accounts; `--reset` truncates every `public` table. Prints counts and the credentials only. Use it for manual and UX checks: `createdb finances_demo`, then with `DATABASE_URL=postgres://user:password@localhost:5432/finances_demo` run `pnpm db:migrate && pnpm db:demo --reset` and start the API (`PRICE_API_ENABLED=false` keeps the seeded crypto prices) and the web app against it; `node dist/database/seed-demo.js` where `tsx` is missing. Keep it in step with the schema when a migration adds data the pages rely on.
 
 **Testing note**: both apps use **Vitest**. The API's `vitest.config.ts` runs in a Node environment and picks up `src/**/*.spec.ts`; use `pnpm --filter @finances/api test` (or the single-file form above). The web app uses Vitest + Testing Library (`jsdom`), plus Playwright for E2E (`pnpm --filter @finances/web test:e2e`).
 

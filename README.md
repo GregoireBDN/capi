@@ -75,10 +75,28 @@ pnpm generate       # regenerate the OpenAPI spec + typed web client
 pnpm db:generate    # generate a Drizzle migration
 pnpm db:migrate     # apply migrations
 pnpm db:seed        # seed the default categories (idempotent)
+pnpm db:demo        # test account + synthetic data, throwaway databases only (see below)
 pnpm db:studio      # open Drizzle Studio
 ```
 
 Real bank exports go in the git-ignored `data/` folder. Never commit real financial data.
+
+## Demo data (manual testing)
+
+`pnpm db:demo` fills a **throwaway** database with a ready-made account and about 14 months of synthetic data (fake labels and amounts): checking and Livret A fed by committed CIC imports, PEA, life insurance, employee savings and a manual crypto account with value snapshots, subscriptions, transfers, one-offs, rows to review, a split, a manual transaction, budgets, savings goals, rules and recurring items. Bank data stops 10 days before today, so the current month is partial. It refuses `NODE_ENV=production` and the `finances` database.
+
+```bash
+docker compose exec db createdb -U user finances_demo   # or: createdb finances_demo
+export DATABASE_URL=postgres://user:password@localhost:5432/finances_demo
+pnpm db:migrate
+pnpm db:demo --reset          # --reset wipes the database first; re-run it to start over
+
+# API and web against it (the shell's DATABASE_URL wins over apps/api/.env)
+PRICE_API_ENABLED=false pnpm --filter @finances/api dev   # keeps the seeded crypto prices, no network
+pnpm --filter @finances/web dev                           # in another terminal
+```
+
+Then sign in on http://localhost:3000 with `usertest@finances.test` / `usertest` (printed by the command). Cookies ignore ports: if another local stack is signed in on `localhost` in the same browser, open the demo at http://demo.localhost:3000 instead so the two sessions don't overwrite each other. Where `tsx` is missing, run `node dist/database/seed-demo.js --reset` from `apps/api`.
 
 ## Importing the spreadsheet history
 
