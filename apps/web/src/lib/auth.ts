@@ -1,5 +1,5 @@
 import { createIsomorphicFn, createServerFn } from '@tanstack/react-start'
-import { getResponseHeaders } from '@tanstack/react-start/server'
+import { appendResponseHeader } from '@tanstack/react-start/server'
 import { createClient } from '#/api/client'
 import { authControllerMe, authControllerRegistrationStatus } from '#/api'
 import {
@@ -29,9 +29,9 @@ export const getMe = createServerFn().handler(
       apiUrl: serverApiUrl(),
     })
     if (session.setCookies.length > 0) {
-      const headers = getResponseHeaders()
-      for (const value of session.setCookies)
-        headers.append('set-cookie', value)
+      // Through the helper: `getResponseHeaders()` is a read-only snapshot
+      // since Start 1.169, so appending to it would drop the cookies.
+      appendResponseHeader('set-cookie', session.setCookies)
       setRequestCookieHeader(session.cookieHeader)
     }
     return session.user
