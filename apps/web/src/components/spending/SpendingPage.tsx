@@ -7,6 +7,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  cn,
   Empty,
   EmptyContent,
   EmptyDescription,
@@ -59,15 +60,17 @@ interface SpendingPageProps {
 function Section({
   title,
   action,
+  className,
   children,
 }: {
   title: string
   /** Control beside the title (wraps under it on a narrow card). */
   action?: React.ReactNode
+  className?: string
   children: React.ReactNode
 }) {
   return (
-    <Card size="sm" className="min-w-0">
+    <Card size="sm" className={cn('min-w-0', className)}>
       <CardHeader className="flex flex-wrap items-center justify-between gap-2">
         <CardTitle>{title}</CardTitle>
         {action}
@@ -239,8 +242,11 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
             </p>
           </div>
 
-          <div className="grid gap-4 @3xl:grid-cols-2">
-            <Section title="Répartition">
+          {/* Side by side, each card keeps its own height: the donut stays in
+              view (sticky) beside the longer category list instead of being
+              stretched to its height (#210). */}
+          <div className="grid items-start gap-4 @3xl:grid-cols-2">
+            <Section title="Répartition" className="@3xl:sticky @3xl:top-4">
               <SpendingDonut data={data} monthLabel={monthLabel} />
             </Section>
             <Section

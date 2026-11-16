@@ -115,19 +115,21 @@ export function SavingsPage() {
       {data && !isEmpty && (
         <>
           <SavingsKpis overview={data} />
-          <div className="grid gap-4 @4xl:grid-cols-2">
-            <SavingsChart
-              months={data.months}
-              target={data.monthlyTargetCents}
-            />
-            <TargetCard overview={data} />
-          </div>
+          <SavingsChart months={data.months} target={data.monthlyTargetCents} />
         </>
       )}
 
+      {/* The chart takes the whole width; below it the targets (monthly
+          target, then goals) beside the accounts, each card at its own
+          height rather than stretched to its neighbour's (#210). */}
       {data && (
-        <div className="grid gap-4 @4xl:grid-cols-2">
-          <GoalsSection projectionAverageCents={data.projectionAverageCents} />
+        <div className="grid items-start gap-4 @4xl:grid-cols-2">
+          <div className="min-w-0 space-y-4">
+            {!isEmpty && <TargetCard overview={data} />}
+            <GoalsSection
+              projectionAverageCents={data.projectionAverageCents}
+            />
+          </div>
           {!isEmpty && <SavingsStock stock={data.stock} />}
         </div>
       )}
