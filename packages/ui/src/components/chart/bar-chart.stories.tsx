@@ -209,6 +209,44 @@ export const VisibleDataTable: Story = {
   },
 }
 
+/** Savings with the one-off part of February and August: not drawn. */
+const savingsWithOneOffs = savings2026.map((row) => ({
+  ...row,
+  oneOff:
+    row.month === '2026-02' ? -64900 : row.month === '2026-08' ? 150000 : 0,
+}))
+
+/**
+ * `details`: values of each row that are not drawn (here the one-off part of
+ * each month's savings), listed under the series in the tooltip when not zero
+ * and as a column of the data table.
+ */
+export const WithDetails: Story = {
+  args: {
+    data: savingsWithOneOffs,
+    config: savingsConfig,
+    label: 'Épargne mensuelle en 2026, dont ponctuel',
+    details: { oneOff: 'Dont ponctuel' },
+    dataTable: 'details',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const graphic = await findChartGraphic(canvasElement, /dont ponctuel/)
+    await expectKeyboardTooltip(canvasElement, graphic, [
+      'février 2026',
+      'Dont ponctuel',
+      formatEuros(-64900),
+    ])
+    await expect(
+      canvas.getByRole('columnheader', { name: 'Dont ponctuel', hidden: true }),
+    ).toBeInTheDocument()
+    // Not a series: no bar, no legend entry.
+    await expect(canvasElement.querySelectorAll('.recharts-bar')).toHaveLength(
+      1,
+    )
+  },
+}
+
 export const Dark: Story = {
   globals: DARK,
 }

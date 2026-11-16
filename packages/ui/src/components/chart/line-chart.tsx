@@ -272,6 +272,8 @@ function LineChart<TDatum extends ChartDatum>(props: LineChartProps<TDatum>) {
           label={defaults.label}
           valueFormatter={defaults.valueFormatter}
           tooltipIndexFormatter={defaults.tooltipIndexFormatter}
+          keys={keys}
+          details={defaults.details}
         />
       }
     >
@@ -306,6 +308,7 @@ function LineChart<TDatum extends ChartDatum>(props: LineChartProps<TDatum>) {
           cursor={CURSOR}
           content={
             <ChartTooltipContent
+              details={defaults.details}
               valueFormatter={defaults.valueFormatter}
               labelFormatter={indexAxis.tooltipLabelFormatter}
             />
@@ -401,6 +404,8 @@ function AreaChart<TDatum extends ChartDatum>(props: AreaChartProps<TDatum>) {
           label={defaults.label}
           valueFormatter={defaults.valueFormatter}
           tooltipIndexFormatter={defaults.tooltipIndexFormatter}
+          keys={keys}
+          details={defaults.details}
         />
       }
     >
@@ -425,6 +430,7 @@ function AreaChart<TDatum extends ChartDatum>(props: AreaChartProps<TDatum>) {
           cursor={CURSOR}
           content={
             <ChartTooltipContent
+              details={defaults.details}
               valueFormatter={defaults.valueFormatter}
               labelFormatter={indexAxis.tooltipLabelFormatter}
             />
