@@ -46,6 +46,13 @@ const clickFirst =
     await page.getByRole(role, { name }).first().click()
   }
 
+async function openExpenseSheet(page: Page) {
+  await page
+    .getByRole('button', { name: 'Ajouter une dépense', exact: true })
+    .click()
+  await page.getByRole('dialog').waitFor()
+}
+
 const SCENARIOS: Array<Scenario> = [
   { name: 'auth', path: '/auth', signedIn: false },
   {
@@ -58,11 +65,28 @@ const SCENARIOS: Array<Scenario> = [
   {
     name: 'dashboard-expense-sheet',
     path: '/dashboard',
+    step: openExpenseSheet,
+  },
+  {
+    // The steps of the expense sheet (#245): the amount on its keypad...
+    name: 'dashboard-expense-amount',
+    path: '/dashboard',
     step: async (page) => {
-      await page
-        .getByRole('button', { name: 'Ajouter une dépense', exact: true })
-        .click()
-      await page.getByRole('dialog').waitFor()
+      await openExpenseSheet(page)
+      await page.getByRole('button', { name: 'Suivant' }).click()
+      await page.keyboard.type('12,5')
+    },
+  },
+  {
+    // ...then the details, with the options open.
+    name: 'dashboard-expense-details',
+    path: '/dashboard',
+    step: async (page) => {
+      await openExpenseSheet(page)
+      await page.getByRole('button', { name: 'Suivant' }).click()
+      await page.keyboard.type('12,5')
+      await page.getByRole('button', { name: 'Suivant' }).click()
+      await page.getByRole('button', { name: /Plus d’options/ }).click()
     },
   },
   { name: 'net-worth', path: '/net-worth' },
