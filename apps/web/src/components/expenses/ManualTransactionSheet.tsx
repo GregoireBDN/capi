@@ -1,21 +1,20 @@
 import {
   Button,
   ConfirmDialog,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
   Field,
   FieldDescription,
   FieldError,
   FieldLabel,
   Input,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
   NativeSelect,
   NativeSelectOption,
   Sheet,
   SheetContent,
   SheetDescription,
-  SheetHeader,
   SheetTitle,
   Switch,
   Textarea,
@@ -25,7 +24,11 @@ import {
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDownIcon } from 'lucide-react'
+import {
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+} from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type {
@@ -35,6 +38,7 @@ import type {
   TransactionKind,
 } from '#/api/types.gen'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
+import { isTextEntry } from '#/components/transactions/keyboard'
 import {
   KIND_LABELS,
   TRANSACTION_KINDS,
@@ -52,13 +56,24 @@ import {
   manualSuggestionsQuery,
   updateManualExpense,
 } from './queries'
-import { DateChips, HabitChips } from './manual-fields'
+import {
+  MAX_AMOUNT_CENTS,
+  amountKeyOf,
+  pressAmountKey,
+  typedAmount,
+} from './amount-entry'
+import type { AmountKey } from './amount-entry'
+import {
+  AmountKeypad,
+  CategoryDot,
+  CategoryChips,
+  DateChips,
+  HabitGrid,
+} from './manual-fields'
 import { splitTransaction } from '#/components/transactions/edits'
 
 const LABEL_MAX = 255
 const NOTE_MAX = 2000
-/** Highest amount the API accepts (1 000 000 €). */
-const MAX_CENTS = 100_000_000
 /**
  * One height for every control but the amount (44px with the 22px root):
  * fields, menus, chips and buttons line up.
@@ -73,7 +88,7 @@ export function expenseAmountError(text: string): string | null {
   const cents = parseEurosToCents(text)
   if (cents === null) return 'Montant invalide (ex. 12 ou 12,50)'
   if (cents <= 0) return 'Le montant doit être supérieur à 0'
-  if (cents > MAX_CENTS) return 'Montant trop élevé'
+  if (cents > MAX_AMOUNT_CENTS) return 'Montant trop élevé'
   return null
 }
 
@@ -108,6 +123,15 @@ function DirectionSelect({
   )
 }
 
+/** The steps of an entry (#245): one choice per screen. */
+const STEPS = ['category', 'amount', 'details'] as const
+type Step = (typeof STEPS)[number]
+const STEP_NAMES: Record<Step, string> = {
+  category: 'Catégorie',
+  amount: 'Montant',
+  details: 'Détails',
+}
+
 const TITLES: Record<TransactionKind, [add: string, edit: string]> = {
   expense: ['Ajouter une dépense', 'Modifier la dépense'],
   income: ['Ajouter un revenu', 'Modifier le revenu'],
@@ -134,11 +158,17 @@ interface ManualTransactionSheetProps {
  * d'options" the account (the first checking account by default), the sign
  * of an expense or income (a refund), one-off flag and note. The import of
  * the bank export replaces it with the matching bank row. Every save offers
- * "Annuler". A bottom sheet on phones, a side sheet otherwise.
+ * "Annuler".
  *
- * Mobile-first (#196): the amount comes first and is focused, categories
- * and days are chips, labels used before are suggested (with their usual
- * category), and the actions stay at the bottom, above the keyboard.
+ * In three steps (#245), one choice per screen, with "Suivant" and
+ * "Retour": the category (the kind, usual labels with their category, every
+ * category as a tile; a tap moves on), the amount, then the details (day,
+ * label, options) and "Ajouter". An envelope starts at the amount (its
+ * category is chosen), an edit at the details. On phones a bottom sheet of
+ * one height whose amount is typed on its own keypad, "Suivant" a key of
+ * it: the system keyboard never opens for the amount, and the buttons step
+ * aside while the label or note is typed. Elsewhere a dialog: the amount is
+ * typed in its field, and Enter moves on, then adds.
  */
 export function ManualTransactionSheet({
   open,
@@ -168,7 +198,12 @@ export function ManualTransactionSheet({
   const [submitted, setSubmitted] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [step, setStep] = useState<Step>('category')
   const amountRef = useRef<HTMLInputElement>(null)
+  const stepRef = useRef<HTMLHeadingElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+  /** Phones: the sheet's keypad instead of the system keyboard. */
+  const keypad = isMobile
   const today = currentDay()
   const suggestions = useQuery({
     ...manualSuggestionsQuery(kind),
@@ -180,14 +215,25 @@ export function ManualTransactionSheet({
       categories.data ?? [],
       expense?.categoryId,
     ).filter((category) => category.kind === kind)
+    // The envelopes first, then the kind's most used, then by name.
+    const ordered = [
+      ...suggestedCategoryIds,
+      ...(suggestions.data?.categoryIds ?? []),
+    ]
     const rank = (categoryKey: string) => {
-      const index = suggestedCategoryIds.indexOf(categoryKey)
-      return index === -1 ? suggestedCategoryIds.length : index
+      const index = ordered.indexOf(categoryKey)
+      return index === -1 ? ordered.length : index
     }
     return [...all].sort(
       (a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name, 'fr'),
     )
-  }, [categories.data, expense?.categoryId, suggestedCategoryIds, kind])
+  }, [
+    categories.data,
+    expense?.categoryId,
+    suggestedCategoryIds,
+    suggestions.data?.categoryIds,
+    kind,
+  ])
 
   // A new expense gets the category most used for the kind (else the first
   // listed), once the most used are known or failed to load.
@@ -243,6 +289,8 @@ export function ManualTransactionSheet({
           (expense.kind !== 'transfer' &&
             expense.amountCents > 0 !== (expense.kind === 'income'))),
     )
+    // An envelope already says the category; an edit starts at the end.
+    setStep(expense ? 'details' : initialCategoryId ? 'amount' : 'category')
     setSubmitted(false)
   }, [open, expense, initialCategoryId, initialKind])
 
@@ -279,17 +327,20 @@ export function ManualTransactionSheet({
   const allowNoCategory =
     kind !== 'expense' || (expense?.kind === 'expense' && !expense.categoryId)
 
-  const categoryName = (categoryKey: string) =>
-    kindCategories.find((category) => category.id === categoryKey)?.name
+  const categoryOf = (categoryKey: string) =>
+    kindCategories.find((category) => category.id === categoryKey)
 
+  // A usual label fills its category too, and moves on to the amount when
+  // that leaves a category (or the kind may go without one).
   function pickSuggestion(item: ManualSuggestionDto) {
     setLabel(item.label)
-    if (
+    const usual =
       item.categoryId &&
       kindCategories.some((category) => category.id === item.categoryId)
-    ) {
-      setCategoryId(item.categoryId)
-    }
+        ? item.categoryId
+        : null
+    if (usual) setCategoryId(usual)
+    if (usual || categoryId || allowNoCategory) setStep('amount')
   }
 
   // What "Plus d'options" holds when closed, so nothing is set unseen.
@@ -395,9 +446,22 @@ export function ManualTransactionSheet({
     onError: (error) => toast.error(manualExpenseErrorMessage(error)),
   })
 
+  // "Suivant" (and Enter) moves on; the last step saves, back to the first
+  // step that still lacks something.
   function submit(event: React.FormEvent) {
     event.preventDefault()
+    if (step === 'category') {
+      if (categoryId || allowNoCategory) setStep('amount')
+      return
+    }
+    if (step === 'amount') {
+      if (amountError) setSubmitted(true)
+      else setStep('details')
+      return
+    }
     setSubmitted(true)
+    if (kind === 'expense' && !categoryId) return setStep('category')
+    if (amountError) return setStep('amount')
     if (amountError || dateError || labelError || !accountId) return
     if (kind === 'expense' && !categoryId) return
     save.mutate()
@@ -409,300 +473,492 @@ export function ManualTransactionSheet({
   const noAccount = accounts.isSuccess && cashAccounts.length === 0
   const [addTitle, editTitle] = TITLES[kind]
 
-  return (
-    <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent
-          side={isMobile ? 'bottom' : 'right'}
-          className={cn(
-            // The fields scroll; the actions stay at the bottom, above the
-            // on-screen keyboard (see `Sheet`).
-            'gap-0',
-            isMobile &&
-              'max-h-[calc(90svh-var(--keyboard-inset,0px))] rounded-t-xl',
-            // With the keyboard open, every pixel above it up to the status
-            // bar: the amount being typed must stay in view (#205).
-            isMobile &&
-              'data-keyboard-open:max-h-[calc(100svh-var(--keyboard-inset,0px)-env(safe-area-inset-top)-0.5rem)]',
-          )}
-          onOpenAutoFocus={(event) => {
-            event.preventDefault()
-            amountRef.current?.focus({ preventScroll: true })
-          }}
-        >
-          <form
-            noValidate
-            onSubmit={submit}
-            className="flex min-h-0 flex-1 flex-col"
-          >
-            <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
-              <SheetHeader className="pr-14 pb-2 group-data-keyboard-open/sheet:pb-1">
-                <SheetTitle>{expense ? editTitle : addTitle}</SheetTitle>
-                {/* Not while typing: room for the fields (#205). */}
-                <SheetDescription className="group-data-keyboard-open/sheet:sr-only">
-                  L’import du relevé la remplacera.
-                </SheetDescription>
-              </SheetHeader>
-              <div className="space-y-3 px-4 pb-4">
-                <ToggleGroup
-                  type="single"
-                  variant="outline"
-                  aria-label="Type"
-                  className="w-full"
-                  value={kind}
-                  onValueChange={(value) => {
-                    if (value) changeKind(value as TransactionKind)
-                  }}
-                >
-                  {TRANSACTION_KINDS.map((option) => (
-                    <ToggleGroupItem
-                      key={option}
-                      value={option}
-                      className="flex-1"
-                    >
-                      {option === 'transfer' ? 'Virement' : KIND_LABELS[option]}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
+  const sign = direction === 'in' ? '+' : '−'
+  const chosenCategory = categoryOf(categoryId)
+  const categoryText =
+    chosenCategory?.name ?? (allowNoCategory ? 'Sans catégorie' : null)
+  const amountText = `${sign} ${amount || '0'} €`
+  const stepIndex = STEPS.indexOf(step)
 
-                <Field data-invalid={showAmountError}>
-                  <FieldLabel htmlFor={`${id}-amount`} className="sr-only">
-                    Montant
-                  </FieldLabel>
-                  <div className="flex flex-wrap gap-2">
-                    <InputGroup className="h-12 min-w-[7rem] flex-1">
-                      <InputGroupAddon>
-                        <InputGroupText
-                          aria-hidden
-                          className="text-2xl font-semibold"
-                        >
-                          {direction === 'in' ? '+' : '−'}
-                        </InputGroupText>
-                      </InputGroupAddon>
-                      <InputGroupInput
-                        ref={amountRef}
-                        id={`${id}-amount`}
-                        inputMode="decimal"
-                        enterKeyHint="next"
-                        autoComplete="off"
-                        placeholder="0,00"
-                        className="h-full text-2xl font-semibold tabular-nums md:text-2xl"
-                        value={amount}
-                        aria-invalid={showAmountError}
-                        onChange={(event) => setAmount(event.target.value)}
-                      />
-                      <InputGroupAddon align="inline-end">
-                        <InputGroupText className="text-xl">€</InputGroupText>
-                      </InputGroupAddon>
-                    </InputGroup>
-                    {kind === 'transfer' && (
+  // Each step starts on its heading (read out by screen readers), the
+  // amount field on a computer, so typing goes straight to it.
+  useEffect(() => {
+    if (!open) return
+    const frame = requestAnimationFrame(() => {
+      if (step === 'amount' && !keypad) {
+        amountRef.current?.focus({ preventScroll: true })
+      } else {
+        stepRef.current?.focus({ preventScroll: true })
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [open, step, keypad])
+
+  function press(key: AmountKey) {
+    setAmount((current) => pressAmountKey(current, key))
+  }
+
+  function chooseCategory(next: string) {
+    setCategoryId(next)
+    setStep('amount')
+  }
+
+  // On the amount step, digits typed anywhere go to the amount; Enter moves
+  // on (or adds); never while typing in a field.
+  function onKeyDown(event: React.KeyboardEvent) {
+    if (event.ctrlKey || event.metaKey || event.altKey) return
+    const target = event.target as Element
+    if (isTextEntry(target) || target instanceof HTMLSelectElement) return
+    const key = step === 'amount' ? amountKeyOf(event.key) : null
+    if (key) {
+      event.preventDefault()
+      press(key)
+    } else if (
+      event.key === 'Enter' &&
+      !(target instanceof HTMLButtonElement)
+    ) {
+      event.preventDefault()
+      formRef.current?.requestSubmit()
+    }
+  }
+
+  const Title = isMobile ? SheetTitle : DialogTitle
+  const Description = isMobile ? SheetDescription : DialogDescription
+  const submitLabel = expense ? 'Enregistrer' : 'Ajouter'
+  const nextDisabled = step === 'category' && !categoryId && !allowNoCategory
+  const saveDisabled = (kind === 'expense' && !categoryId) || !accountId
+
+  /** What the earlier steps chose, at the top of the later ones. */
+  const recap = (
+    <p className="text-muted-foreground flex min-w-0 items-center justify-center gap-1.5 text-sm">
+      {chosenCategory && <CategoryDot color={chosenCategory.color} />}
+      <span className="truncate">
+        {[categoryText, label.trim() || null].filter(Boolean).join(' · ')}
+      </span>
+    </p>
+  )
+
+  const footer = (
+    // Phones: never floating over the keyboard (#245), so it steps aside
+    // while the label or the note is typed; "OK" closes the keyboard.
+    <div className="flex shrink-0 gap-2 border-t px-4 py-3 group-data-keyboard-open/sheet:hidden">
+      {step === 'details' && expense && (
+        <Button
+          type="button"
+          variant="danger"
+          outline
+          className={FIELD_HEIGHT}
+          onClick={() => setConfirmOpen(true)}
+        >
+          Supprimer
+        </Button>
+      )}
+      <Button
+        type="submit"
+        className={cn('flex-1 font-medium', FIELD_HEIGHT)}
+        loading={step === 'details' && save.isPending}
+        disabled={step === 'details' ? saveDisabled : nextDisabled}
+      >
+        {step === 'details' ? (
+          submitLabel
+        ) : (
+          <>
+            Suivant
+            <ChevronRightIcon aria-hidden />
+          </>
+        )}
+      </Button>
+    </div>
+  )
+
+  const form = (
+    <form
+      ref={formRef}
+      noValidate
+      onSubmit={submit}
+      className="flex min-h-0 flex-1 flex-col"
+    >
+      <Title className="sr-only">{expense ? editTitle : addTitle}</Title>
+      <Description className="sr-only">
+        L’import du relevé la remplacera.
+      </Description>
+
+      {/* Where we are, and the way back; clear of the close button. */}
+      <div className="flex min-h-14 items-center gap-1 py-2 pr-12 pl-2">
+        {stepIndex > 0 ? (
+          <Button
+            type="button"
+            ghost
+            variant="secondary"
+            onClick={() => setStep(STEPS[stepIndex - 1])}
+          >
+            <ChevronLeftIcon aria-hidden />
+            Retour
+          </Button>
+        ) : (
+          <span className="w-2" />
+        )}
+        <h3
+          ref={stepRef}
+          tabIndex={-1}
+          className="min-w-0 flex-1 truncate text-base font-semibold outline-none"
+        >
+          {STEP_NAMES[step]}
+          <span className="text-muted-foreground ml-1.5 text-sm font-normal">
+            {stepIndex + 1}/{STEPS.length}
+          </span>
+        </h3>
+      </div>
+
+      {step === 'category' && (
+        <>
+          <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4">
+            <div className="@container">
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                aria-label="Type"
+                className="w-full"
+                value={kind}
+                onValueChange={(value) => {
+                  if (value) changeKind(value as TransactionKind)
+                }}
+              >
+                {TRANSACTION_KINDS.map((option) => (
+                  <ToggleGroupItem
+                    key={option}
+                    value={option}
+                    className="min-w-0 flex-1 px-1 text-[min(0.875rem,4.5cqi)]"
+                  >
+                    {option === 'transfer' ? 'Virement' : KIND_LABELS[option]}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </div>
+
+            {kind === 'transfer' && (
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                aria-label="Sens"
+                className="w-full"
+                value={direction}
+                onValueChange={(value) => {
+                  if (value) setDirection(value as MoneyDirection)
+                }}
+              >
+                <ToggleGroupItem value="out" className="flex-1">
+                  Sortie
+                </ToggleGroupItem>
+                <ToggleGroupItem value="in" className="flex-1">
+                  Entrée
+                </ToggleGroupItem>
+              </ToggleGroup>
+            )}
+
+            {(suggestions.data?.items.length ?? 0) > 0 && (
+              <section className="space-y-1.5">
+                <p
+                  id={`${id}-habits`}
+                  className="text-muted-foreground text-xs font-medium"
+                >
+                  Habituels
+                </p>
+                <HabitGrid
+                  labelId={`${id}-habits`}
+                  items={suggestions.data?.items ?? []}
+                  label={label}
+                  category={categoryOf}
+                  onPick={pickSuggestion}
+                />
+              </section>
+            )}
+
+            <section className="space-y-1.5">
+              <p
+                id={`${id}-categories`}
+                className="text-muted-foreground text-xs font-medium"
+              >
+                Catégorie
+              </p>
+              <CategoryChips
+                labelId={`${id}-categories`}
+                categories={kindCategories}
+                value={categoryId}
+                allowNone={allowNoCategory}
+                onChoose={chooseCategory}
+              />
+            </section>
+          </div>
+          {footer}
+        </>
+      )}
+
+      {step === 'amount' && (
+        <>
+          {/* The one focal point: the amount. */}
+          <div className="@container flex flex-1 flex-col justify-center px-4 pt-2 pb-5 text-center">
+            {recap}
+            <label htmlFor={`${id}-amount`} className="sr-only">
+              Montant
+            </label>
+            <div
+              className={cn(
+                'flex items-baseline justify-center gap-[0.2em] py-2 leading-tight font-semibold tabular-nums',
+                'text-[min(2.75rem,14cqi)]',
+                amount === '' && 'text-muted-foreground',
+                showAmountError && 'text-destructive',
+              )}
+            >
+              <span aria-hidden>{sign}</span>
+              {/* As wide as its text (a hidden copy sizes it). */}
+              <span className="grid">
+                <span
+                  aria-hidden
+                  className="invisible col-start-1 row-start-1 px-0.5 whitespace-pre"
+                >
+                  {amount || '0'}
+                </span>
+                <input
+                  ref={amountRef}
+                  id={`${id}-amount`}
+                  size={1}
+                  autoComplete="off"
+                  placeholder="0"
+                  value={amount}
+                  aria-invalid={showAmountError}
+                  aria-describedby={
+                    showAmountError ? `${id}-amount-error` : undefined
+                  }
+                  // Phones type on the keypad: the field only shows the
+                  // amount and never opens the system keyboard.
+                  readOnly={keypad}
+                  tabIndex={keypad ? -1 : undefined}
+                  inputMode={keypad ? 'none' : 'decimal'}
+                  enterKeyHint="next"
+                  className={cn(
+                    'col-start-1 row-start-1 w-full min-w-0 bg-transparent text-center outline-none placeholder:text-muted-foreground',
+                    keypad
+                      ? 'pointer-events-none'
+                      : 'border-b-2 border-transparent focus:border-primary',
+                  )}
+                  onChange={(event) => {
+                    const next = typedAmount(event.target.value)
+                    if (next !== null) setAmount(next)
+                  }}
+                />
+              </span>
+              <span aria-hidden>€</span>
+            </div>
+            {showAmountError && (
+              <FieldError id={`${id}-amount-error`} className="text-center">
+                {amountError}
+              </FieldError>
+            )}
+          </div>
+          {keypad ? (
+            <div className="bg-muted/60 shrink-0 border-t p-1.5">
+              <AmountKeypad
+                onKey={press}
+                submitLabel="Suivant"
+                submitIcon="next"
+                loading={false}
+                disabled={false}
+              />
+            </div>
+          ) : (
+            footer
+          )}
+        </>
+      )}
+
+      {step === 'details' && (
+        <>
+          <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4">
+            <div className="text-center">
+              <p
+                className={cn(
+                  'text-2xl font-semibold tabular-nums',
+                  showAmountError && 'text-destructive',
+                )}
+              >
+                {amountText}
+              </p>
+              {recap}
+            </div>
+
+            <Field data-invalid={showDateError}>
+              <DateChips
+                value={date}
+                today={today}
+                invalid={showDateError}
+                onChange={setDate}
+              />
+              {showDateError && <FieldError>{dateError}</FieldError>}
+            </Field>
+
+            <Field data-invalid={showLabelError}>
+              <FieldLabel htmlFor={`${id}-label`}>Libellé</FieldLabel>
+              <Input
+                id={`${id}-label`}
+                className={FIELD_HEIGHT}
+                autoComplete="off"
+                enterKeyHint="done"
+                maxLength={LABEL_MAX}
+                placeholder={categoryId ? 'Facultatif' : 'Par ex. « ciné »'}
+                value={label}
+                aria-invalid={showLabelError}
+                onChange={(event) => setLabel(event.target.value)}
+                onKeyDown={(event) => {
+                  // "OK" on a phone closes the keyboard, back to the button.
+                  if (keypad && event.key === 'Enter') {
+                    event.preventDefault()
+                    event.currentTarget.blur()
+                  }
+                }}
+              />
+              {showLabelError && <FieldError>{labelError}</FieldError>}
+            </Field>
+
+            {noAccount && (
+              <FieldDescription>
+                Ajoutez d’abord un compte courant pour saisir une opération.
+              </FieldDescription>
+            )}
+
+            <div>
+              <Button
+                type="button"
+                ghost
+                variant="secondary"
+                className="px-0"
+                aria-expanded={moreOpen}
+                aria-controls={moreOpen ? `${id}-more` : undefined}
+                onClick={() => setMoreOpen((current) => !current)}
+              >
+                <ChevronDownIcon
+                  aria-hidden
+                  className={cn(
+                    'transition-transform motion-reduce:transition-none',
+                    moreOpen && 'rotate-180',
+                  )}
+                />
+                Plus d’options
+                {!moreOpen && moreSummary && (
+                  <span className="text-muted-foreground font-normal">
+                    · {moreSummary}
+                  </span>
+                )}
+              </Button>
+              {moreOpen && (
+                <div id={`${id}-more`} className="space-y-3 pt-2">
+                  {cashAccounts.length > 1 && (
+                    <Field>
+                      <FieldLabel htmlFor={`${id}-account`}>Compte</FieldLabel>
+                      <NativeSelect
+                        id={`${id}-account`}
+                        className="w-full"
+                        value={accountId}
+                        onChange={(event) => setAccountId(event.target.value)}
+                      >
+                        {cashAccounts.map((account) => (
+                          <NativeSelectOption
+                            key={account.id}
+                            value={account.id}
+                          >
+                            {account.name}
+                          </NativeSelectOption>
+                        ))}
+                      </NativeSelect>
+                    </Field>
+                  )}
+
+                  {kind !== 'transfer' && (
+                    <Field>
+                      <FieldLabel htmlFor={`${id}-direction`}>Sens</FieldLabel>
                       <DirectionSelect
-                        className="[&>select]:h-12"
+                        id={`${id}-direction`}
+                        className="w-full"
                         value={direction}
                         onChange={setDirection}
                       />
-                    )}
-                  </div>
-                  {showAmountError && <FieldError>{amountError}</FieldError>}
-                </Field>
-
-                <div className="space-y-1.5">
-                  <p
-                    id={`${id}-habits`}
-                    className="text-muted-foreground text-sm"
-                  >
-                    Habituels
-                  </p>
-                  <HabitChips
-                    labelId={`${id}-habits`}
-                    items={suggestions.data?.items ?? []}
-                    label={label}
-                    categoryName={categoryName}
-                    onPick={pickSuggestion}
-                  />
-                </div>
-
-                <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
-                  <FieldLabel htmlFor={`${id}-category`}>Catégorie</FieldLabel>
-                  <NativeSelect
-                    id={`${id}-category`}
-                    className="w-full"
-                    value={categoryId}
-                    disabled={!categories.isSuccess}
-                    onChange={(event) => setCategoryId(event.target.value)}
-                  >
-                    {allowNoCategory && (
-                      <NativeSelectOption value="">
-                        Sans catégorie
-                      </NativeSelectOption>
-                    )}
-                    {kindCategories.map((category) => (
-                      <NativeSelectOption key={category.id} value={category.id}>
-                        {category.name}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-
-                  <FieldLabel htmlFor={`${id}-label`}>Libellé</FieldLabel>
-                  <Input
-                    id={`${id}-label`}
-                    className={FIELD_HEIGHT}
-                    autoComplete="off"
-                    enterKeyHint="done"
-                    maxLength={LABEL_MAX}
-                    placeholder={categoryId ? 'Facultatif' : 'Par ex. « ciné »'}
-                    value={label}
-                    aria-invalid={showLabelError}
-                    onChange={(event) => setLabel(event.target.value)}
-                  />
-                  {showLabelError && (
-                    <FieldError className="col-start-2">
-                      {labelError}
-                    </FieldError>
+                      <FieldDescription>
+                        {kind === 'expense'
+                          ? 'Entrée pour un remboursement.'
+                          : 'Sortie pour un revenu rendu ou corrigé.'}
+                      </FieldDescription>
+                    </Field>
                   )}
-                </div>
 
-                <Field data-invalid={showDateError}>
-                  <DateChips
-                    value={date}
-                    today={today}
-                    invalid={showDateError}
-                    onChange={setDate}
-                  />
-                  {showDateError && <FieldError>{dateError}</FieldError>}
-                </Field>
-
-                {noAccount && (
-                  <FieldDescription>
-                    Ajoutez d’abord un compte courant pour saisir une opération.
-                  </FieldDescription>
-                )}
-
-                <div>
-                  <Button
-                    type="button"
-                    ghost
-                    variant="secondary"
-                    className="-ml-2.5"
-                    aria-expanded={moreOpen}
-                    aria-controls={moreOpen ? `${id}-more` : undefined}
-                    onClick={() => setMoreOpen((current) => !current)}
-                  >
-                    <ChevronDownIcon
-                      aria-hidden
-                      className={cn(
-                        'transition-transform motion-reduce:transition-none',
-                        moreOpen && 'rotate-180',
-                      )}
-                    />
-                    Plus d’options
-                    {!moreOpen && moreSummary && (
-                      <span className="text-muted-foreground font-normal">
-                        · {moreSummary}
+                  <div className="flex min-h-11 items-center justify-between gap-3">
+                    <label htmlFor={`${id}-one-off`} className="text-sm">
+                      Ponctuelle
+                      <span className="text-muted-foreground block text-xs">
+                        Exclue des moyennes et des abonnements
                       </span>
-                    )}
-                  </Button>
-                  {moreOpen && (
-                    <div id={`${id}-more`} className="space-y-3 pt-2">
-                      {cashAccounts.length > 1 && (
-                        <Field>
-                          <FieldLabel htmlFor={`${id}-account`}>
-                            Compte
-                          </FieldLabel>
-                          <NativeSelect
-                            id={`${id}-account`}
-                            className="w-full"
-                            value={accountId}
-                            onChange={(event) =>
-                              setAccountId(event.target.value)
-                            }
-                          >
-                            {cashAccounts.map((account) => (
-                              <NativeSelectOption
-                                key={account.id}
-                                value={account.id}
-                              >
-                                {account.name}
-                              </NativeSelectOption>
-                            ))}
-                          </NativeSelect>
-                        </Field>
-                      )}
+                    </label>
+                    <Switch
+                      id={`${id}-one-off`}
+                      checked={isOneOff}
+                      onCheckedChange={setIsOneOff}
+                    />
+                  </div>
 
-                      {kind !== 'transfer' && (
-                        <Field>
-                          <FieldLabel htmlFor={`${id}-direction`}>
-                            Sens
-                          </FieldLabel>
-                          <DirectionSelect
-                            id={`${id}-direction`}
-                            className="w-full"
-                            value={direction}
-                            onChange={setDirection}
-                          />
-                          <FieldDescription>
-                            {kind === 'expense'
-                              ? 'Entrée pour un remboursement.'
-                              : 'Sortie pour un revenu rendu ou corrigé.'}
-                          </FieldDescription>
-                        </Field>
-                      )}
-
-                      <div className="flex min-h-11 items-center justify-between gap-3">
-                        <label htmlFor={`${id}-one-off`} className="text-sm">
-                          Ponctuelle
-                          <span className="text-muted-foreground block text-xs">
-                            Exclue des moyennes et des abonnements
-                          </span>
-                        </label>
-                        <Switch
-                          id={`${id}-one-off`}
-                          checked={isOneOff}
-                          onCheckedChange={setIsOneOff}
-                        />
-                      </div>
-
-                      <Field>
-                        <FieldLabel htmlFor={`${id}-note`}>Note</FieldLabel>
-                        <Textarea
-                          id={`${id}-note`}
-                          rows={2}
-                          maxLength={NOTE_MAX}
-                          placeholder="Facultatif"
-                          value={note}
-                          onChange={(event) => setNote(event.target.value)}
-                        />
-                      </Field>
-                    </div>
-                  )}
+                  <Field>
+                    <FieldLabel htmlFor={`${id}-note`}>Note</FieldLabel>
+                    <Textarea
+                      id={`${id}-note`}
+                      rows={2}
+                      maxLength={NOTE_MAX}
+                      placeholder="Facultatif"
+                      value={note}
+                      onChange={(event) => setNote(event.target.value)}
+                    />
+                  </Field>
                 </div>
-              </div>
-            </div>
-
-            <div className="bg-popover flex shrink-0 gap-2 border-t px-4 py-2.5">
-              {expense && (
-                <Button
-                  type="button"
-                  variant="danger"
-                  outline
-                  className={FIELD_HEIGHT}
-                  onClick={() => setConfirmOpen(true)}
-                >
-                  Supprimer
-                </Button>
               )}
-              <Button
-                type="submit"
-                className={cn('flex-1 font-medium', FIELD_HEIGHT)}
-                loading={save.isPending}
-                disabled={(kind === 'expense' && !categoryId) || !accountId}
-              >
-                {expense ? 'Enregistrer' : 'Ajouter'}
-              </Button>
             </div>
-          </form>
-        </SheetContent>
-      </Sheet>
+          </div>
+          {footer}
+        </>
+      )}
+    </form>
+  )
+
+  return (
+    <>
+      {isMobile ? (
+        <Sheet open={open} onOpenChange={onOpenChange}>
+          <SheetContent
+            side="bottom"
+            className={cn(
+              // One height for every step, so "Suivant" stays put.
+              'gap-0 rounded-t-xl data-[side=bottom]:h-[min(30rem,calc(92svh-var(--keyboard-inset,0px)))]',
+              // While the label or note is typed, every pixel above the
+              // keyboard up to the status bar.
+              'data-[side=bottom]:data-keyboard-open:h-[calc(100svh-var(--keyboard-inset,0px)-env(safe-area-inset-top)-0.5rem)]',
+            )}
+            onKeyDown={onKeyDown}
+            onOpenAutoFocus={(event) => {
+              // Never a field: no system keyboard (the step effect focuses
+              // the step's heading).
+              event.preventDefault()
+            }}
+          >
+            {form}
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent
+            className="flex h-[min(30rem,calc(100svh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
+            onKeyDown={onKeyDown}
+            onOpenAutoFocus={(event) => event.preventDefault()}
+          >
+            {form}
+          </DialogContent>
+        </Dialog>
+      )}
       {expense && (
         <ConfirmDialog
           open={confirmOpen}

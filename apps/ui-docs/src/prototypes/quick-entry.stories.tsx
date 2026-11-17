@@ -1,11 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import {
-  Button,
-  Input,
-  ToggleGroup,
-  ToggleGroupItem,
-  cn,
-} from '@finances/ui'
+import { Button, Input, ToggleGroup, ToggleGroupItem, cn } from '@finances/ui'
 import {
   CalendarIcon,
   CheckIcon,
@@ -23,7 +17,7 @@ import { useState, type ReactNode } from 'react'
  * directions shown to the owner before one is built in `apps/web`. They are
  * clickable mockups with synthetic data, not app code: nothing is saved.
  *
- * 1. Built-in keypad, no system keyboard (chosen).
+ * 1. Built-in keypad, no system keyboard.
  * 2. Two steps: the amount docked on the system keyboard, then the details.
  * 3. Usuals first: pick a usual expense, then type its amount.
  */
@@ -79,7 +73,10 @@ function PhoneSheet({
 }) {
   return (
     <div className="bg-background relative flex h-svh flex-col justify-end overflow-hidden">
-      <div aria-hidden className="text-muted-foreground absolute inset-x-0 top-0 space-y-2 p-4 text-sm">
+      <div
+        aria-hidden
+        className="text-muted-foreground absolute inset-x-0 top-0 space-y-2 p-4 text-sm"
+      >
         <div className="bg-muted h-6 w-1/2 rounded" />
         <div className="bg-muted h-20 rounded" />
         <div className="bg-muted h-20 rounded" />
@@ -207,10 +204,17 @@ function AmountDisplay({
 function FakeIosKeyboard({ onKey }: { onKey: (key: string) => void }) {
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', 'back']
   return (
-    <div aria-label="Clavier iOS (simulé)" className="bg-[#d1d3d9] dark:bg-[#2b2b2d]">
+    <div
+      aria-label="Clavier iOS (simulé)"
+      className="bg-[#d1d3d9] dark:bg-[#2b2b2d]"
+    >
       <div className="flex h-11 items-center justify-end gap-4 px-3 text-sm">
-        <span className="rounded-full bg-white/70 px-3 py-1 dark:bg-white/15">⌃ ⌄</span>
-        <span className="rounded-full bg-white/70 px-3 py-1 dark:bg-white/15">✓</span>
+        <span className="rounded-full bg-white/70 px-3 py-1 dark:bg-white/15">
+          ⌃ ⌄
+        </span>
+        <span className="rounded-full bg-white/70 px-3 py-1 dark:bg-white/15">
+          ✓
+        </span>
       </div>
       <div className="grid grid-cols-3 gap-1.5 px-1.5 pb-8">
         {keys.map((key) => (
@@ -241,7 +245,11 @@ function FakeIosKeyboard({ onKey }: { onKey: (key: string) => void }) {
  * Option 1: built-in keypad
  * ------------------------------------------------------------------------- */
 
-function KeypadPrototype({ initialAmount = '12,5' }: { initialAmount?: string }) {
+function KeypadPrototype({
+  initialAmount = '12,5',
+}: {
+  initialAmount?: string
+}) {
   const [kind, setKind] = useState('expense')
   const [amount, setAmount] = useState(initialAmount)
   const [usual, setUsual] = useState<string | null>('Boulangerie test')
@@ -253,7 +261,13 @@ function KeypadPrototype({ initialAmount = '12,5' }: { initialAmount?: string })
     <PhoneSheet>
       <div className="flex items-center gap-2 px-3 pt-3">
         <KindToggle value={kind} onChange={setKind} />
-        <Button ghost iconOnly size="sm" className="ml-auto" aria-label="Fermer">
+        <Button
+          ghost
+          iconOnly
+          size="sm"
+          className="ml-auto"
+          aria-label="Fermer"
+        >
           <XIcon />
         </Button>
       </div>
@@ -334,7 +348,10 @@ function KeypadPrototype({ initialAmount = '12,5' }: { initialAmount?: string })
           <button
             key={key}
             type="button"
-            style={{ gridColumn: (index % 3) + 1, gridRow: Math.floor(index / 3) + 1 }}
+            style={{
+              gridColumn: (index % 3) + 1,
+              gridRow: Math.floor(index / 3) + 1,
+            }}
             className="bg-background h-[2.2rem] rounded-lg text-xl font-medium shadow-xs active:bg-muted"
             onClick={() => setAmount((current) => pressKey(current, key))}
           >
@@ -359,7 +376,7 @@ function KeypadPrototype({ initialAmount = '12,5' }: { initialAmount?: string })
 }
 
 export const Option1Keypad: StoryObj = {
-  name: '1 · Built-in keypad (chosen)',
+  name: '1 · Built-in keypad',
   render: () => <KeypadPrototype />,
 }
 
@@ -376,7 +393,13 @@ function TwoStepPrototype({ initialStep }: { initialStep: 1 | 2 }) {
       <PhoneSheet full>
         <div className="flex items-center gap-2 px-3 pt-3">
           <h2 className="text-base font-semibold">Ajouter une dépense</h2>
-          <Button ghost iconOnly size="sm" className="ml-auto" aria-label="Fermer">
+          <Button
+            ghost
+            iconOnly
+            size="sm"
+            className="ml-auto"
+            aria-label="Fermer"
+          >
             <XIcon />
           </Button>
         </div>
@@ -394,7 +417,9 @@ function TwoStepPrototype({ initialStep }: { initialStep: 1 | 2 }) {
             <ChevronRightIcon />
           </Button>
         </div>
-        <FakeIosKeyboard onKey={(key) => setAmount((current) => pressKey(current, key))} />
+        <FakeIosKeyboard
+          onKey={(key) => setAmount((current) => pressKey(current, key))}
+        />
       </PhoneSheet>
     )
   }
@@ -405,7 +430,13 @@ function TwoStepPrototype({ initialStep }: { initialStep: 1 | 2 }) {
           <ChevronLeftIcon />− {amount} €
         </Button>
         <span className="text-muted-foreground text-sm">Étape 2 sur 2</span>
-        <Button ghost iconOnly size="sm" className="ml-auto" aria-label="Fermer">
+        <Button
+          ghost
+          iconOnly
+          size="sm"
+          className="ml-auto"
+          aria-label="Fermer"
+        >
           <XIcon />
         </Button>
       </div>
@@ -481,7 +512,13 @@ function UsualsFirstPrototype() {
             <ChevronLeftIcon />
             Habituels
           </Button>
-          <Button ghost iconOnly size="sm" className="ml-auto" aria-label="Fermer">
+          <Button
+            ghost
+            iconOnly
+            size="sm"
+            className="ml-auto"
+            aria-label="Fermer"
+          >
             <XIcon />
           </Button>
         </div>
@@ -496,7 +533,9 @@ function UsualsFirstPrototype() {
             Ajouter
           </Button>
         </div>
-        <FakeIosKeyboard onKey={(key) => setAmount((current) => pressKey(current, key))} />
+        <FakeIosKeyboard
+          onKey={(key) => setAmount((current) => pressKey(current, key))}
+        />
       </PhoneSheet>
     )
   }
@@ -504,7 +543,13 @@ function UsualsFirstPrototype() {
     <PhoneSheet>
       <div className="flex items-center gap-2 px-4 pt-3">
         <h2 className="text-base font-semibold">Ajouter une dépense</h2>
-        <Button ghost iconOnly size="sm" className="ml-auto" aria-label="Fermer">
+        <Button
+          ghost
+          iconOnly
+          size="sm"
+          className="ml-auto"
+          aria-label="Fermer"
+        >
           <XIcon />
         </Button>
       </div>

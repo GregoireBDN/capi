@@ -1,10 +1,17 @@
-import { ToggleGroup, ToggleGroupItem, cn } from '@finances/ui'
-import { CalendarIcon } from 'lucide-react'
+import { Button, ToggleGroup, ToggleGroupItem, cn } from '@finances/ui'
+import {
+  CalendarIcon,
+  CheckIcon,
+  ChevronRightIcon,
+  DeleteIcon,
+} from 'lucide-react'
 import type { ManualSuggestionDto } from '#/api/types.gen'
+import type { AmountKey } from './amount-entry'
 
 /**
- * Quick-entry fields of `ManualTransactionSheet` (#196): chips a thumb can
- * tap instead of a field to type in or a list to scroll through.
+ * Quick-entry fields of `ManualTransactionSheet` (#196, #245): chips and
+ * tiles a thumb can tap instead of a field to type in or a list to scroll
+ * through, and the keypad the amount is typed on.
  */
 
 /** A rounded, tappable chip (44px high: the 22px root makes h-8 44px). */
@@ -17,7 +24,7 @@ export const CHIP_CLASS = cn(
 )
 
 /** Chip look when chosen. */
-const CHIP_ON = cn(
+export const CHIP_ON = cn(
   'data-[state=on]:border-primary data-[state=on]:bg-primary/10',
   'data-[state=on]:text-primary',
   'dark:data-[state=on]:bg-primary/20',
@@ -127,56 +134,81 @@ function fold(text: string): string {
     .trim()
 }
 
-/** Habits shown at most. */
-const HABITS_MAX = 8
+/** Look of a habit tile. */
+const TILE_CLASS = cn(
+  'border-input flex min-h-11 w-full min-w-0 items-center gap-2 rounded-lg border px-2.5 py-1 text-left',
+  'text-sm font-medium transition-colors outline-none hover:bg-muted',
+  'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+)
+
+/** Habits shown at most: two rows of two, so the keypad stays in view. */
+const HABITS_MAX = 4
+
+/** The colour dot of a category (muted when it has none). */
+export function CategoryDot({ color }: { color: string | null | undefined }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'size-2.5 shrink-0 rounded-full',
+        !color && 'bg-muted-foreground/40',
+      )}
+      style={color ? { backgroundColor: color } : undefined}
+    />
+  )
+}
 
 /**
- * "Habituels": the labels used before, each with its usual category, as one
- * row of chips that scrolls sideways (inside itself: the sheet never does).
- * A tap fills the label and, when it has one, the category. The chip of the
- * label typed shows as chosen.
+ * "Habituels": the labels used before, each with its usual category, as a
+ * grid of two columns (never cut by the sheet's edge, #245). A tap fills the
+ * label and, when it has one, the category. The tile of the label typed
+ * shows as chosen.
  */
-export function HabitChips({
+export function HabitGrid({
   labelId,
   items,
   label,
-  categoryName,
+  category,
   onPick,
 }: {
   labelId: string
   items: readonly ManualSuggestionDto[]
-  /** The label typed, to show its chip as chosen. */
+  /** The label typed, to show its tile as chosen. */
   label: string
-  /** Name of a category of the kind, or undefined. */
-  categoryName: (categoryId: string) => string | undefined
+  /** A category of the kind, or undefined. */
+  category: (
+    categoryId: string,
+  ) => { name: string; color: string | null } | undefined
   onPick: (item: ManualSuggestionDto) => void
 }) {
   if (items.length === 0) return null
   const typed = fold(label)
   return (
-    <ul
-      aria-labelledby={labelId}
-      className="-mx-4 flex gap-1.5 overflow-x-auto px-4 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-    >
+    <ul aria-labelledby={labelId} className="grid grid-cols-2 gap-1.5">
       {items.slice(0, HABITS_MAX).map((item) => {
-        const category = item.categoryId
-          ? categoryName(item.categoryId)
-          : undefined
+        const usual = item.categoryId ? category(item.categoryId) : undefined
         const chosen = typed !== '' && fold(item.label) === typed
         return (
-          <li key={item.label} className="shrink-0">
+          <li key={item.label} className="min-w-0">
             <button
               type="button"
               aria-pressed={chosen}
               data-state={chosen ? 'on' : 'off'}
-              className={cn(CHIP_CLASS, CHIP_ON, 'font-normal')}
+              className={cn(
+                TILE_CLASS,
+                'flex-col items-start justify-center gap-0 font-normal',
+                CHIP_ON,
+              )}
               onClick={() => onPick(item)}
             >
-              <span className="font-medium">{item.label}</span>
-              {category && (
-                <span className="text-muted-foreground">
-                  {' · '}
-                  {category}
+              <span className="w-full truncate text-sm font-medium">
+                {item.label}
+              </span>
+              {usual && (
+                <span className="text-muted-foreground flex w-full min-w-0 items-center gap-1 text-xs">
+                  <CategoryDot color={usual.color} />
+                  <span className="sr-only"> · </span>
+                  <span className="truncate">{usual.name}</span>
                 </span>
               )}
             </button>
@@ -184,5 +216,153 @@ export function HabitChips({
         )
       })}
     </ul>
+  )
+}
+
+/** Value of the "Sans catégorie" tile (the review queue). */
+export const NO_CATEGORY = 'none'
+
+/**
+ * The kind's categories as chips that wrap, most likely first, all of them
+ * (the step is about this one choice, #245): nothing scrolls sideways or is
+ * cut. "Sans catégorie" comes last when the kind allows it. A tap chooses,
+ * even the tile already chosen (to move on).
+ */
+export function CategoryChips({
+  labelId,
+  categories,
+  value,
+  allowNone,
+  onChoose,
+}: {
+  labelId: string
+  /** Ordered, most likely first. */
+  categories: readonly { id: string; name: string; color: string | null }[]
+  /** The chosen category id, or '' for none. */
+  value: string
+  allowNone: boolean
+  onChoose: (categoryId: string) => void
+}) {
+  const options = [
+    ...categories,
+    ...(allowNone
+      ? [{ id: NO_CATEGORY, name: 'Sans catégorie', color: null }]
+      : []),
+  ]
+  const current = value === '' ? (allowNone ? NO_CATEGORY : '') : value
+  return (
+    <div
+      role="radiogroup"
+      aria-labelledby={labelId}
+      className="flex flex-wrap gap-1.5"
+    >
+      {options.map((category) => {
+        const chosen = category.id === current
+        return (
+          <button
+            key={category.id}
+            type="button"
+            role="radio"
+            aria-checked={chosen}
+            data-state={chosen ? 'on' : 'off'}
+            className={cn(
+              CHIP_CLASS,
+              CHIP_ON,
+              'inline-flex items-center gap-1.5',
+            )}
+            onClick={() =>
+              onChoose(category.id === NO_CATEGORY ? '' : category.id)
+            }
+          >
+            {category.id !== NO_CATEGORY && (
+              <CategoryDot color={category.color} />
+            )}
+            {category.name}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+const KEYPAD_DIGITS: readonly AmountKey[] = [
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  ',',
+  '0',
+  'back',
+]
+
+/**
+ * The sheet's own numeric keypad (#245): no system keyboard, so no
+ * accessory bar or keyboard inset, and the action is a key of it, under the
+ * thumb. Digits on three columns as on a phone, the action ("Suivant") the
+ * height of the fourth.
+ */
+export function AmountKeypad({
+  onKey,
+  submitLabel,
+  submitIcon = 'check',
+  loading,
+  disabled,
+}: {
+  onKey: (key: AmountKey) => void
+  submitLabel: string
+  /** "next" for a step that leads to another one. */
+  submitIcon?: 'check' | 'next'
+  loading: boolean
+  disabled: boolean
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Pavé numérique"
+      className="@container grid touch-manipulation grid-cols-[1fr_1fr_1fr_1.25fr] gap-1.5 select-none"
+    >
+      {KEYPAD_DIGITS.map((key, index) => (
+        <button
+          key={key}
+          type="button"
+          aria-label={key === 'back' ? 'Effacer' : undefined}
+          style={{
+            gridColumn: (index % 3) + 1,
+            gridRow: Math.floor(index / 3) + 1,
+          }}
+          className={cn(
+            'bg-background flex h-[2.2rem] items-center justify-center rounded-lg text-xl font-medium tabular-nums shadow-xs',
+            'short-screen:h-8 transition-colors outline-none active:bg-muted',
+            'focus-visible:ring-3 focus-visible:ring-ring/50',
+            'dark:bg-input/40 dark:active:bg-input/70',
+          )}
+          onClick={() => onKey(key)}
+        >
+          {key === 'back' ? <DeleteIcon aria-hidden className="size-6" /> : key}
+        </button>
+      ))}
+      <Button
+        type="submit"
+        loading={loading}
+        disabled={disabled}
+        style={{ gridColumn: 4, gridRow: '1 / span 4' }}
+        className="h-auto flex-col gap-1 rounded-lg px-1 font-semibold [&_svg]:size-7"
+      >
+        {submitIcon === 'next' ? (
+          <ChevronRightIcon aria-hidden />
+        ) : (
+          <CheckIcon aria-hidden />
+        )}
+        {/* Sized on the keypad: "Enregistrer" fits its key at 320px. */}
+        <span className="text-[min(0.875rem,4.2cqi)] whitespace-nowrap">
+          {submitLabel}
+        </span>
+      </Button>
+    </div>
   )
 }
