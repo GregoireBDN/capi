@@ -225,8 +225,19 @@ function setup(initial: TransactionsSearch = {}) {
   return { user, onChange }
 }
 
+/**
+ * Waits for the first page of rows (coverage, then the list), then returns the
+ * salary row's edit button.
+ *
+ * The wait uses a text query on purpose: the first role query of a worker
+ * spends 0.1 s (idle) to 0.75 s (loaded runner) warming up the accessibility
+ * tree code, and inside `findByRole` that time counts against the 1 s budget
+ * of the async utilities, so the file's first test failed on a busy CI runner
+ * (#240). Out of the wait, it is paid once and never times out.
+ */
 async function waitForRows() {
-  return screen.findByRole('button', { name: `Modifier ${salaryRow.rawLabel}` })
+  await screen.findByText(salaryRow.rawLabel)
+  return screen.getByRole('button', { name: `Modifier ${salaryRow.rawLabel}` })
 }
 
 beforeEach(() => {
