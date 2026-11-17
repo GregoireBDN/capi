@@ -4,17 +4,17 @@ import {
   AlertTitle,
   Button,
   Checkbox,
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
+  EmptyState,
   Skeleton,
 } from '@finances/ui'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowLeftRightIcon, PlusIcon, SearchXIcon } from 'lucide-react'
+import {
+  ArrowLeftRightIcon,
+  PlusIcon,
+  SearchXIcon,
+  UploadIcon,
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
@@ -28,7 +28,12 @@ import { transactionListQuery, transactionSummaryQuery } from './queries'
 import { RuleFromCorrectionDialog } from './RuleFromCorrectionDialog'
 import { RuleOfferBanner } from './RuleOfferBanner'
 import { activeFilterCount, ALL_MONTHS, toFilters } from './search'
-import { coverageQuery } from '#/components/month/coverage'
+import {
+  coverageQuery,
+  nearestMonthWithData,
+} from '#/components/month/coverage'
+import type { CoverageDto } from '#/api/types.gen'
+import { formatShortDay } from '#/lib/period'
 import type { TransactionsSearch } from './search'
 import { TransactionFilters } from './TransactionFilters'
 import type { SearchChangeOptions } from './TransactionFilters'
@@ -53,6 +58,93 @@ function ListSkeleton() {
         <Skeleton key={i} className="h-14 w-full rounded-lg" />
       ))}
     </div>
+  )
+}
+
+/** "3 nov." stays as is, "3 nov. 2025" gets its full stop. */
+function sentenceEnd(text: string): string {
+  return text.endsWith('.') ? text : `${text}.`
+}
+
+interface EmptyListProps {
+  /** Filters besides the month are set. */
+  filtered: boolean
+  /** The whole history is shown ("Toutes les dates"). */
+  allMonths: boolean
+  month: string
+  coverage: CoverageDto | undefined
+  onReset: () => void
+  onMonthChange: (month: string) => void
+}
+
+/**
+ * Nothing to list: the filters match nothing (reset them), or the month has
+ * no transaction (go to the nearest month with some, import a statement or
+ * add one by hand with the page's button), or there is no transaction at all.
+ */
+function EmptyList({
+  filtered,
+  allMonths,
+  month,
+  coverage,
+  onReset,
+  onMonthChange,
+}: EmptyListProps) {
+  if (filtered) {
+    return (
+      <EmptyState
+        icon={<SearchXIcon />}
+        title="Aucune opération ne correspond à ces filtres"
+        description="Modifiez ou réinitialisez les filtres pour élargir la recherche."
+        actions={
+          <Button outline variant="secondary" onClick={onReset}>
+            Réinitialiser les filtres
+          </Button>
+        }
+      />
+    )
+  }
+  const nearest =
+    allMonths || coverage === undefined
+      ? null
+      : nearestMonthWithData(coverage.months, month)
+  const until = coverage?.dataUntil ?? null
+  const importLink = (
+    <Button
+      asChild
+      outline={nearest !== null}
+      variant={nearest === null ? undefined : 'secondary'}
+    >
+      <Link to={ROUTES.import}>
+        <UploadIcon aria-hidden />
+        Importer un relevé
+      </Link>
+    </Button>
+  )
+  return (
+    <EmptyState
+      icon={<ArrowLeftRightIcon />}
+      title={
+        allMonths
+          ? 'Aucune opération pour l’instant'
+          : `Aucune opération en ${formatMonth(month).toLowerCase()}`
+      }
+      description={
+        until === null
+          ? 'Importez un relevé de compte ou ajoutez une opération : elles s’afficheront ici.'
+          : `Vos relevés importés s’arrêtent au ${sentenceEnd(formatShortDay(until, month.slice(0, 4)))}`
+      }
+      actions={
+        <>
+          {nearest !== null && (
+            <Button onClick={() => onMonthChange(nearest)}>
+              Voir {formatMonth(nearest).toLowerCase()}
+            </Button>
+          )}
+          {importLink}
+        </>
+      }
+    />
   )
 }
 
@@ -139,11 +231,6 @@ export function TransactionsPage({
 
   const visibleAccounts = (accounts.data ?? []).filter(isTransactional)
   const filtered = activeFilterCount(search) > 0
-  const period =
-    search.month === ALL_MONTHS
-      ? 'sur toute la période'
-      : `en ${formatMonth(filters.month ?? shownMonth).toLowerCase()}`
-
   return (
     <div className="@container space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -174,7 +261,10 @@ export function TransactionsPage({
         defaultMonth={shownMonth}
       />
 
-      {summary.isError ? null : <TransactionSummary summary={summary.data} />}
+      {/* No block of 0,00 € tiles above an empty list. */}
+      {summary.isError || summary.data?.count === 0 ? null : (
+        <TransactionSummary summary={summary.data} />
+      )}
 
       {list.isPending && <ListSkeleton />}
 
@@ -190,38 +280,19 @@ export function TransactionsPage({
       )}
 
       {list.isSuccess && items.length === 0 && (
-        <Empty className="border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              {filtered ? <SearchXIcon /> : <ArrowLeftRightIcon />}
-            </EmptyMedia>
-            <EmptyTitle>
-              {filtered
-                ? 'Aucune opération ne correspond à ces filtres'
-                : `Aucune opération ${period}`}
-            </EmptyTitle>
-            <EmptyDescription>
-              {filtered
-                ? 'Modifiez ou réinitialisez les filtres pour élargir la recherche.'
-                : 'Importez un relevé de compte pour voir vos opérations ici.'}
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            {filtered ? (
-              <Button
-                outline
-                variant="secondary"
-                onClick={() => onSearchChange({ month: search.month })}
-              >
-                Réinitialiser les filtres
-              </Button>
-            ) : (
-              <Button asChild outline variant="secondary">
-                <Link to={ROUTES.import}>Importer un relevé</Link>
-              </Button>
-            )}
-          </EmptyContent>
-        </Empty>
+        <EmptyList
+          filtered={filtered}
+          allMonths={search.month === ALL_MONTHS}
+          month={filters.month ?? shownMonth}
+          coverage={coverage.data}
+          onReset={() => onSearchChange({ month: search.month })}
+          onMonthChange={(month) =>
+            onSearchChange({
+              ...search,
+              month: month === shownMonth ? undefined : month,
+            })
+          }
+        />
       )}
 
       {list.isSuccess && items.length > 0 && (

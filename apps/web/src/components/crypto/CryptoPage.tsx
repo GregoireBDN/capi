@@ -13,6 +13,7 @@ import {
   EmptyContent,
   EmptyDescription,
   EmptyHeader,
+  EmptyState,
   EmptyTitle,
   formatWholeEuros,
   Skeleton,
@@ -20,10 +21,11 @@ import {
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { PlusIcon, RefreshCwIcon } from 'lucide-react'
+import { PlusIcon, RefreshCwIcon, WalletIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import type {
+  CryptoAccountSource,
   CryptoSummaryAccountDto,
   CryptoSummaryDto,
   ValuedHoldingDto,
@@ -66,14 +68,54 @@ function latestPriceAt(summary: CryptoSummaryDto): string | null {
   return latest
 }
 
+/**
+ * A crypto account holding nothing yet: what fills it, depending on where
+ * its holdings come from, and the way there (its page, where the exchange
+ * exports are imported and the wallet synchronized).
+ */
+function EmptyHoldings({
+  accountId,
+  source,
+}: {
+  accountId: string
+  source: CryptoAccountSource | null
+}) {
+  const hint =
+    source === 'exchange'
+      ? 'Importez l’export « Transactions » de la plateforme depuis la page du compte : ses avoirs apparaîtront ici.'
+      : source === 'wallet'
+        ? 'Synchronisez le portefeuille depuis la page du compte (clés publiques et jetons) : ses avoirs apparaîtront ici.'
+        : 'Ajoutez les quantités détenues : leur valeur est calculée avec le cours du jour.'
+  return (
+    <EmptyState
+      variant="inline"
+      icon={<WalletIcon />}
+      title="Aucun avoir sur ce compte"
+      description={hint}
+      actions={
+        source === 'exchange' || source === 'wallet' ? (
+          <Button asChild size="sm" variant="secondary" outline>
+            <Link to={ROUTES.account} params={{ accountId }}>
+              {source === 'exchange' ? 'Importer un export' : 'Synchroniser'}
+            </Link>
+          </Button>
+        ) : undefined
+      }
+    />
+  )
+}
+
 function AccountCard({
   account,
   valuedOn,
   now,
+  source,
   onAdd,
   onEdit,
 }: {
   account: CryptoSummaryAccountDto
+  /** Where the holdings come from (null: typed by hand). */
+  source: CryptoAccountSource | null
   /** Date of the account's latest value, if any. */
   valuedOn: string | null
   now: Date
@@ -112,9 +154,7 @@ function AccountCard({
       </CardHeader>
       <CardContent>
         {account.holdings.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            Aucun avoir sur ce compte.
-          </p>
+          <EmptyHoldings accountId={account.accountId} source={source} />
         ) : (
           <HoldingList
             holdings={account.holdings}
@@ -179,6 +219,12 @@ export function CryptoPage() {
 
   const data = summary.data
   const list = data?.accounts ?? []
+  const sources = new Map(
+    (accounts.data ?? []).map((account) => [
+      account.id,
+      account.cryptoSource ?? null,
+    ]),
+  )
   const holdingCount = list.reduce((n, row) => n + row.holdings.length, 0)
   const valuedOn = new Map(
     (accounts.data ?? []).map((account) => [account.id, account.balanceDate]),
@@ -297,6 +343,7 @@ export function CryptoPage() {
                 key={account.accountId}
                 account={account}
                 valuedOn={valuedOn.get(account.accountId) ?? null}
+                source={sources.get(account.accountId) ?? null}
                 now={now}
                 onAdd={() => openAdd(account.accountId)}
                 onEdit={(holding) => setEditor({ open: true, holding })}

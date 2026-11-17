@@ -21,6 +21,7 @@ import {
   parseHistoryTransactionsCsv,
 } from '#/imports/history/history-csv.parser'
 import { runHistoryImport } from '#/imports/history/history-import'
+import { RecurringService } from '#/recurring/recurring.service'
 import {
   parseAccountMapping,
   parseCategoryOverrides,
@@ -87,6 +88,15 @@ async function main() {
     )
 
     console.log(formatSummary(result, options))
+    if (options.commit) {
+      // The history may hold years of rent, subscriptions and salaries: find
+      // the recurring series now, as a bank import does, so Abonnements isn't
+      // empty until "Analyser mes opérations" is pressed (#214).
+      const recurring = await new RecurringService({ db } as never).detect()
+      console.log(
+        `Recurring detection: ${recurring.createdCount} new suggestion(s)`,
+      )
+    }
     if (options.report) {
       mkdirSync(dirname(options.report), { recursive: true })
       writeFileSync(

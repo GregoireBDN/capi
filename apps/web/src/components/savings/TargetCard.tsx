@@ -14,6 +14,7 @@ import {
   InputGroupInput,
   InputGroupText,
   ProgressMeter,
+  EmptyState,
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CircleCheckIcon, PencilIcon, TargetIcon } from 'lucide-react'
@@ -44,11 +45,9 @@ export function TargetCard({ overview }: { overview: SavingsOverviewDto }) {
     <Card className="min-w-0">
       <CardHeader>
         <CardTitle>Épargne cible</CardTitle>
-        <CardDescription>
-          {target === null
-            ? 'Combien vous voulez mettre de côté chaque mois.'
-            : `${formatCents(target)} par mois`}
-        </CardDescription>
+        {target !== null && (
+          <CardDescription>{`${formatCents(target)} par mois`}</CardDescription>
+        )}
         {!editing && target !== null && (
           <CardAction>
             <Button
@@ -67,10 +66,17 @@ export function TargetCard({ overview }: { overview: SavingsOverviewDto }) {
         {editing ? (
           <TargetForm target={target} onDone={() => setEditing(false)} />
         ) : target === null ? (
-          <Button outline variant="secondary" onClick={() => setEditing(true)}>
-            <TargetIcon aria-hidden />
-            Définir une cible
-          </Button>
+          <EmptyState
+            variant="inline"
+            icon={<TargetIcon />}
+            title="Pas encore de cible"
+            description="Fixez le montant à mettre de côté chaque mois : l’écart du mois et le graphique s’y compareront."
+            actions={
+              <Button onClick={() => setEditing(true)}>
+                Définir une cible
+              </Button>
+            }
+          />
         ) : (
           <TargetProgress overview={overview} target={target} />
         )}

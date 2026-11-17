@@ -720,16 +720,61 @@ describe('TransactionsPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('shows an empty month with a link to import', async () => {
+  it('shows an empty month: no zero tiles, the month with data, the import', async () => {
     api.transactionsControllerList.mockReturnValue(listOf([]))
-    setup()
+    api.transactionsControllerSummary.mockReturnValue(
+      ok({
+        ...summary,
+        count: 0,
+        incomeCents: 0,
+        expenseCents: 0,
+        netCents: 0,
+        oneOffExpenseCents: 0,
+        transferCount: 0,
+      }),
+    )
+    const { user, onChange } = setup()
 
     expect(
       await screen.findByText('Aucune opération en novembre 2026'),
     ).toBeInTheDocument()
     expect(
+      screen.getByText('Vos relevés importés s’arrêtent au 3 nov.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('region', { name: 'Résumé' }),
+    ).not.toBeInTheDocument()
+    expect(
       screen.getByRole('link', { name: 'Importer un relevé' }),
     ).toHaveAttribute('href', '/import')
+
+    await user.click(screen.getByRole('button', { name: 'Voir octobre 2026' }))
+    expect(onChange).toHaveBeenLastCalledWith({ month: '2026-10' }, undefined)
+  })
+
+  it('says when there is no transaction at all', async () => {
+    api.coverageControllerCoverage.mockReturnValue(
+      ok({
+        dataUntil: null,
+        currentMonth: '2026-11',
+        defaultMonth: '2026-11',
+        months: [],
+      }),
+    )
+    api.transactionsControllerList.mockReturnValue(listOf([]))
+    setup()
+
+    expect(
+      await screen.findByText(
+        'Importez un relevé de compte ou ajoutez une opération : elles s’afficheront ici.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /^Voir / }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Importer un relevé' }),
+    ).toBeInTheDocument()
   })
 
   it('offers to reset filters when nothing matches them', async () => {

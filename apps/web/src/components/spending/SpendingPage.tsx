@@ -8,12 +8,7 @@ import {
   CardHeader,
   CardTitle,
   cn,
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
+  EmptyState,
   formatEuros,
   Skeleton,
   ToggleGroup,
@@ -21,7 +16,8 @@ import {
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ChartPieIcon } from 'lucide-react'
+import { ChartPieIcon, UploadIcon } from 'lucide-react'
+import { NearestMonthButton } from '#/components/month/NearestMonthButton'
 import { useMemo } from 'react'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { PeriodNote } from '#/components/PeriodNote'
@@ -191,24 +187,18 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
       )}
 
       {data && data.categories.length === 0 && (
-        <Empty className="border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <ChartPieIcon />
-            </EmptyMedia>
-            <EmptyTitle>
-              Aucune dépense en {formatMonth(month).toLowerCase()}
-            </EmptyTitle>
-            <EmptyDescription>
-              {data.oneOffCents > 0 && !includeOneOffs
-                ? `Seules des dépenses ponctuelles (${formatEuros(data.oneOffCents)}) ont été faites ce mois-ci.`
-                : stopsBefore
-                  ? `Vos données s’arrêtent au ${formatShortDay(stopsBefore, today.slice(0, 4))} : importez un relevé plus récent ou changez de mois.`
-                  : 'Importez un relevé de compte ou changez de mois.'}
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            {data.oneOffCents > 0 && !includeOneOffs ? (
+        <EmptyState
+          icon={<ChartPieIcon />}
+          title={`Aucune dépense en ${formatMonth(month).toLowerCase()}`}
+          description={
+            data.oneOffCents > 0 && !includeOneOffs
+              ? `Seules des dépenses ponctuelles (${formatEuros(data.oneOffCents)}) ont été faites ce mois-ci.`
+              : stopsBefore
+                ? `Vos données s’arrêtent au ${formatShortDay(stopsBefore, today.slice(0, 4))} : importez un relevé plus récent ou changez de mois.`
+                : 'Importez un relevé de compte ou changez de mois.'
+          }
+          actions={
+            data.oneOffCents > 0 && !includeOneOffs ? (
               <Button
                 outline
                 variant="secondary"
@@ -217,12 +207,28 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
                 Inclure les dépenses ponctuelles
               </Button>
             ) : (
-              <Button asChild outline variant="secondary">
-                <Link to={ROUTES.import}>Importer un relevé</Link>
-              </Button>
-            )}
-          </EmptyContent>
-        </Empty>
+              <>
+                <NearestMonthButton
+                  month={month}
+                  onMonthChange={(target) =>
+                    set({
+                      month:
+                        target === data.period.defaultMonth
+                          ? undefined
+                          : target,
+                    })
+                  }
+                />
+                <Button asChild outline variant="secondary">
+                  <Link to={ROUTES.import}>
+                    <UploadIcon aria-hidden />
+                    Importer un relevé
+                  </Link>
+                </Button>
+              </>
+            )
+          }
+        />
       )}
 
       {data && data.categories.length > 0 && (

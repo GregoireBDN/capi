@@ -14,6 +14,7 @@ import {
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
+  EmptyState,
   EmptyTitle,
   formatMonthLong,
   formatPercent,
@@ -31,6 +32,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   LandmarkIcon,
+  LineChartIcon,
 } from 'lucide-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
@@ -407,20 +409,34 @@ function HistoryCard({
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
-        <LineChart
-          data={series}
-          index="month"
-          indexLabel="Mois"
-          indexScale="time"
-          config={CONFIG}
-          height={CHART_HEIGHT}
-          valueFormatter={formatWholeEuros}
-          tooltipIndexFormatter={formatMonthLong}
-          label={`Patrimoine net en fin de mois, de ${formatMonthLong(first)} à ${formatMonthLong(last)}`}
-          dataTable="details"
-          selectedIndex={selected.month}
-          onSelectIndex={onSelect}
-        />
+        {series.length < 2 ? (
+          <EmptyState
+            variant="inline"
+            icon={<LineChartIcon />}
+            title="Un seul mois connu pour l’instant"
+            description="La courbe apparaîtra avec un deuxième mois : importez un autre relevé ou mettez à jour la valeur de vos placements."
+            actions={
+              <Button asChild size="sm" outline variant="secondary">
+                <Link to={ROUTES.import}>Importer un relevé</Link>
+              </Button>
+            }
+          />
+        ) : (
+          <LineChart
+            data={series}
+            index="month"
+            indexLabel="Mois"
+            indexScale="time"
+            config={CONFIG}
+            height={CHART_HEIGHT}
+            valueFormatter={formatWholeEuros}
+            tooltipIndexFormatter={formatMonthLong}
+            label={`Patrimoine net en fin de mois, de ${formatMonthLong(first)} à ${formatMonthLong(last)}`}
+            dataTable="details"
+            selectedIndex={selected.month}
+            onSelectIndex={onSelect}
+          />
+        )}
       </CardContent>
     </Card>
   )

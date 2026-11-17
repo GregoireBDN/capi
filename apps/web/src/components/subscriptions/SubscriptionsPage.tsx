@@ -3,22 +3,20 @@ import {
   AlertDescription,
   AlertTitle,
   Button,
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
+  EmptyState,
   Skeleton,
+  Spinner,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { RepeatIcon, ScanSearchIcon } from 'lucide-react'
-import { useState } from 'react'
+import { Link } from '@tanstack/react-router'
+import { RepeatIcon, ScanSearchIcon, UploadIcon } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { RecurringItemDto } from '#/api/types.gen'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { plural } from '#/lib/plural'
 import { categoriesQuery } from '#/lib/queries'
+import { ROUTES } from '#/lib/routes'
 import { groupItems, todayInParis } from './format'
 import {
   afterRecurringChanged,
@@ -58,16 +56,21 @@ export function SubscriptionsPage() {
   const [editing, setEditing] = useState<RecurringItemDto | null>(null)
 
   const detect = useMutation({
-    mutationFn: detectRecurring,
-    onSuccess: async (result) => {
-      toast.success(
-        result.createdCount > 0
-          ? `${plural(result.createdCount, 'nouvelle suggestion', 'nouvelles suggestions')}`
-          : 'Analyse terminée : aucune nouvelle suggestion',
-      )
+    // `automatic`: run on its own when the page has nothing to show.
+    mutationFn: (_: { automatic: boolean }) => detectRecurring(),
+    onSuccess: async (result, { automatic }) => {
+      if (!automatic || result.createdCount > 0) {
+        toast.success(
+          result.createdCount > 0
+            ? `${plural(result.createdCount, 'nouvelle suggestion', 'nouvelles suggestions')}`
+            : 'Analyse terminée : aucune nouvelle suggestion',
+        )
+      }
       await afterRecurringChanged(queryClient)
     },
-    onError: (error) => toast.error(recurringErrorMessage(error)),
+    onError: (error, { automatic }) => {
+      if (!automatic) toast.error(recurringErrorMessage(error))
+    },
   })
 
   const groups = list.data ? groupItems(list.data) : null
@@ -80,11 +83,22 @@ export function SubscriptionsPage() {
   const empty =
     groups !== null && confirmedCount === 0 && groups.suggestions.length === 0
 
+  // Nothing found yet (history imported before the detection ran on
+  // imports, or never analysed): look once, without waiting for the button.
+  const autoDetected = useRef(false)
+  const mutateDetect = detect.mutate
+  useEffect(() => {
+    if (!empty || autoDetected.current) return
+    autoDetected.current = true
+    mutateDetect({ automatic: true })
+  }, [empty, mutateDetect])
+  const searching = empty && detect.isPending
+
   const analyse = (
     <Button
       iconStart={<ScanSearchIcon />}
       loading={detect.isPending}
-      onClick={() => detect.mutate()}
+      onClick={() => detect.mutate({ automatic: false })}
     >
       Analyser mes opérations
     </Button>
@@ -111,20 +125,39 @@ export function SubscriptionsPage() {
       )}
 
       {empty && (
-        <Empty className="border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <RepeatIcon />
-            </EmptyMedia>
-            <EmptyTitle>Aucune opération récurrente</EmptyTitle>
-            <EmptyDescription>
-              Lancez l’analyse : loyer, abonnements, assurances ou salaire
-              seront repérés dans vos opérations importées. Les virements entre
-              vos comptes et les opérations ponctuelles sont ignorés.
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>{analyse}</EmptyContent>
-        </Empty>
+        <EmptyState
+          icon={searching ? <Spinner /> : <RepeatIcon />}
+          title={
+            searching
+              ? 'Recherche des opérations récurrentes…'
+              : 'Aucune opération récurrente trouvée'
+          }
+          description={
+            searching
+              ? 'Loyer, abonnements, assurances ou salaire sont repérés dans vos opérations importées.'
+              : 'Il faut quelques mois d’opérations pour repérer loyer, abonnements ou salaire. L’analyse se relance à chaque import.'
+          }
+          actions={
+            searching ? undefined : (
+              <>
+                <Button asChild>
+                  <Link to={ROUTES.import}>
+                    <UploadIcon aria-hidden />
+                    Importer un relevé
+                  </Link>
+                </Button>
+                <Button
+                  outline
+                  variant="secondary"
+                  iconStart={<ScanSearchIcon />}
+                  onClick={() => detect.mutate({ automatic: false })}
+                >
+                  Relancer l’analyse
+                </Button>
+              </>
+            )
+          }
+        />
       )}
 
       {groups && !empty && (

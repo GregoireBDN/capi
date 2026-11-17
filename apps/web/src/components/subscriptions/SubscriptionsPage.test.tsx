@@ -323,17 +323,50 @@ describe('SubscriptionsPage', () => {
     )
   })
 
-  it('offers the analysis on an empty page', async () => {
+  it('looks for recurring series on its own when nothing is found yet', async () => {
+    let detected = false
+    api.recurringControllerList.mockImplementation(() =>
+      ok(detected ? items.filter((item) => item.id === 's1') : []),
+    )
+    api.recurringControllerSummary.mockImplementation(() =>
+      ok(recurringSummary()),
+    )
+    api.recurringControllerDetect.mockImplementation(() => {
+      detected = true
+      return ok({ createdCount: 1, updatedCount: 0, removedCount: 0 })
+    })
+    renderPage()
+
+    await waitFor(() =>
+      expect(api.recurringControllerDetect).toHaveBeenCalledTimes(1),
+    )
+    expect(await screen.findByText('Assureur Exemple')).toBeInTheDocument()
+    expect(toast.success).toHaveBeenCalledWith('1 nouvelle suggestion')
+  })
+
+  it('says what to do when the automatic analysis finds nothing', async () => {
     api.recurringControllerList.mockImplementation(() => ok([]))
     api.recurringControllerSummary.mockImplementation(() =>
       ok(recurringSummary()),
     )
+    api.recurringControllerDetect.mockImplementation(() =>
+      ok({ createdCount: 0, updatedCount: 0, removedCount: 0 }),
+    )
     renderPage()
+
     expect(
-      await screen.findByText('Aucune opération récurrente'),
+      await screen.findByText('Aucune opération récurrente trouvée'),
     ).toBeInTheDocument()
+    // Once, and quietly.
+    expect(api.recurringControllerDetect).toHaveBeenCalledTimes(1)
+    expect(toast.success).not.toHaveBeenCalledWith(
+      'Analyse terminée : aucune nouvelle suggestion',
+    )
     expect(
-      screen.getByRole('button', { name: 'Analyser mes opérations' }),
+      screen.getByRole('link', { name: 'Importer un relevé' }),
+    ).toHaveAttribute('href', expect.stringMatching(/^\/import/))
+    expect(
+      screen.getByRole('button', { name: 'Relancer l’analyse' }),
     ).toBeInTheDocument()
   })
 })

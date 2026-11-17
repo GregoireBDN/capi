@@ -8,10 +8,11 @@ import {
   cn,
   ProgressMeter,
   Skeleton,
+  EmptyState,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { PlusIcon } from 'lucide-react'
+import { PlusIcon, WalletCardsIcon } from 'lucide-react'
 import { useState } from 'react'
 import type { EnvelopeDto, EnvelopesDto } from '#/api/types.gen'
 import { formatBudgetAmount } from '#/components/budget/amount'
@@ -97,18 +98,17 @@ function EnvelopeList({
 }) {
   if (data.items.length === 0) {
     return (
-      <div className="space-y-2 text-sm">
-        <p className="text-muted-foreground">
-          Aucune enveloppe suivie. Sur la page Budget, activez « Suivre pendant
-          le mois » pour les catégories à surveiller, comme les sorties.
-        </p>
-        <Link
-          to={ROUTES.budget}
-          className="text-foreground relative inline-flex font-medium underline-offset-4 pointer-coarse:touch-hitbox hover:underline"
-        >
-          Choisir les enveloppes
-        </Link>
-      </div>
+      <EmptyState
+        variant="inline"
+        icon={<WalletCardsIcon />}
+        title="Aucune enveloppe suivie"
+        description="Sur la page Budget, activez « Suivre pendant le mois » pour les catégories à surveiller, comme les sorties."
+        actions={
+          <Button asChild size="sm" outline variant="secondary">
+            <Link to={ROUTES.budget}>Choisir les enveloppes</Link>
+          </Button>
+        }
+      />
     )
   }
   return (
