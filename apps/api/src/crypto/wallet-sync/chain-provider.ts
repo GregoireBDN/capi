@@ -164,11 +164,15 @@ export function jsonInteger(value: unknown): bigint | null {
   return /^\d+$/.test(literal) ? BigInt(literal) : null
 }
 
-/** Runs `task` on each item with at most `limit` running at once. */
+/**
+ * Runs `task` on each item with at most `limit` running at once. After a
+ * failure no item starts, and `stopped()` tells running tasks to give up
+ * before their request (e.g. one still waiting for its rate-limit slot).
+ */
 export async function mapLimited<T, R>(
   items: readonly T[],
   limit: number,
-  task: (item: T) => Promise<R>,
+  task: (item: T, stopped: () => boolean) => Promise<R>,
 ): Promise<R[]> {
   const results = new Array<R>(items.length)
   let next = 0
@@ -177,7 +181,7 @@ export async function mapLimited<T, R>(
     while (!failed && next < items.length) {
       const index = next++
       try {
-        results[index] = await task(items[index])
+        results[index] = await task(items[index], () => failed)
       } catch (error) {
         failed = true
         throw error

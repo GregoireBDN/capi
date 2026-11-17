@@ -71,23 +71,30 @@ export class EsploraProvider implements BitcoinChainProvider {
   }
 
   addressStates(addresses: readonly string[]): Promise<BitcoinAddressState[]> {
-    return mapLimited(addresses, this.concurrency, (address) =>
-      this.addressState(address),
+    return mapLimited(addresses, this.concurrency, (address, stopped) =>
+      this.addressState(address, stopped),
     )
   }
 
-  private async addressState(address: string): Promise<BitcoinAddressState> {
+  private async addressState(
+    address: string,
+    stopped: () => boolean,
+  ): Promise<BitcoinAddressState> {
     const url = new URL(`address/${encodeURIComponent(address)}`, this.baseUrl)
+    // Another request of the scan failed: this one is not sent at all.
+    const get = async () => {
+      await this.slot()
+      if (stopped()) throw new ChainProviderError('network')
+      return fetchJson(this.fetchFn, url, { timeoutMs: this.timeoutMs })
+    }
     let body: unknown
     try {
-      await this.slot()
-      body = await fetchJson(this.fetchFn, url, { timeoutMs: this.timeoutMs })
+      body = await get()
     } catch (error) {
       const wait = this.inlineWait(error)
-      if (wait === null) throw error
+      if (wait === null || stopped()) throw error
       this.pause(wait)
-      await this.slot()
-      body = await fetchJson(this.fetchFn, url, { timeoutMs: this.timeoutMs })
+      body = await get()
     }
     const parsed = addressSchema.safeParse(body)
     if (!parsed.success) throw new ChainProviderError('malformed')

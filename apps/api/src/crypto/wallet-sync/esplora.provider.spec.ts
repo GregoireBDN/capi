@@ -130,6 +130,24 @@ describe('EsploraProvider', () => {
     })
   })
 
+  it('sends no queued request once one is rate limited', async () => {
+    const asked: string[] = []
+    const client = new EsploraProvider({
+      baseUrl: 'https://esplora.test/api',
+      timeoutMs: 20,
+      concurrency: 2,
+      minIntervalMs: 30,
+      maxInlineWaitMs: 0,
+      fetch: vi.fn((url: URL) => {
+        asked.push(url.pathname)
+        return json('', 429, { 'Retry-After': '120' })
+      }) as unknown as typeof fetch,
+    })
+    await failure(client.addressStates([ADDRESS, `${ADDRESS}2`, `${ADDRESS}3`]))
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(asked).toHaveLength(1)
+  })
+
   it('gives up when the retry is rate limited too', async () => {
     let calls = 0
     const error = await failure(
