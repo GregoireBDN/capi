@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
-import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm'
 import { DatabaseService } from '#/database/database.service'
 import {
   accountsTable,
@@ -31,6 +31,7 @@ import {
   EVM_NATIVE_DECIMALS,
   NATIVE_ASSET_IDS,
 } from './chains'
+import { ProviderBackoff } from './provider-backoff'
 
 /** Nest token of the `WalletSyncOptions` object. */
 export const WALLET_SYNC_OPTIONS = Symbol('WALLET_SYNC_OPTIONS')
@@ -62,10 +63,27 @@ const h = cryptoHoldingsTable
 const k = cryptoWalletKeysTable
 const a = accountsTable
 
+export type SyncFailure = ChainProviderError['reason'] | 'tokens' | 'unexpected'
+
+/** A chain the latest sync could not read (its last lines are kept). */
+export interface ChainFailure {
+  chain: CryptoChain
+  reason: SyncFailure
+  /** End of the chain endpoint's rate-limit backoff, if one is running. */
+  retryAt: Date | null
+}
+
 export interface WalletSyncStatus {
   enabled: boolean
   syncedAt: Date | null
   failedAt: Date | null
+  /**
+   * Chains the latest sync since the server started could not read (empty
+   * when unknown, e.g. after a restart).
+   */
+  failedChains: ChainFailure[]
+  /** When every failed chain may be asked again (latest backoff end). */
+  retryAt: Date | null
 }
 
 interface Line {
@@ -76,18 +94,29 @@ interface Line {
   decimals: number
 }
 
-type SyncFailure = ChainProviderError['reason'] | 'tokens' | 'unexpected'
+/** What one sync read: lines of the chains read, failures of the others. */
+interface ChainsRead {
+  lines: Line[]
+  read: Set<CryptoChain>
+  failed: Map<CryptoChain, SyncFailure>
+}
 
 /**
  * Self-custody wallet sync: reads the balances of a wallet account's public
  * keys on their chains and replaces the account's `sync` holding lines (one
  * per asset and chain, the chain label as location). Manual lines are never
- * touched. A failed sync keeps the last synced lines and records the failure,
- * so they show as stale; it never fails the request.
+ * touched. Each chain is read on its own: a chain that fails keeps its last
+ * synced lines while the others are replaced, and the failure is recorded so
+ * they show as stale; it never fails the request.
+ *
+ * Rate limits (HTTP 429) start a backoff per endpoint (`ProviderBackoff`:
+ * `Retry-After`, else exponential, capped), during which that chain is not
+ * asked at all, whether the sync comes from a page load or "Synchroniser".
  *
  * Privacy: the endpoints receive public addresses (derived locally from the
- * extended keys) and token contracts, nothing else. Logs carry the failure
- * reason and line counts only: never a key, an address, a URL or a quantity.
+ * extended keys) and token contracts, nothing else. Logs carry the chain id,
+ * the failure reason and line counts only: never a key, an address, a URL or
+ * a quantity.
  */
 @Injectable()
 export class WalletSyncService {
@@ -96,6 +125,10 @@ export class WalletSyncService {
   /** Last attempt per account (epoch ms), successful or not. */
   private readonly attempts = new Map<string, number>()
   private readonly inFlight = new Map<string, Promise<void>>()
+  /** Rate-limit backoff per chain endpoint (Esplora, each EVM RPC). */
+  private readonly backoff = new ProviderBackoff<CryptoChain>()
+  /** Chains the latest sync of each account could not read. */
+  private readonly failures = new Map<string, Map<CryptoChain, SyncFailure>>()
   private readonly deployments = new Map<
     string,
     { at: number; byChain: Partial<Record<EvmChain, TokenDeployment>> }
@@ -164,6 +197,7 @@ export class WalletSyncService {
   /** Sync state of the wallet accounts among `accountIds`. */
   async statuses(
     accountIds: readonly string[],
+    now: Date = new Date(),
   ): Promise<Map<string, WalletSyncStatus>> {
     if (accountIds.length === 0) return new Map()
     const rows = await this.db
@@ -175,15 +209,37 @@ export class WalletSyncService {
       .from(a)
       .where(and(inArray(a.id, [...accountIds]), eq(a.cryptoSource, 'wallet')))
     return new Map(
-      rows.map((row) => [
-        row.id,
-        {
-          enabled: this.enabled,
-          syncedAt: row.syncedAt,
-          failedAt: row.failedAt,
-        },
-      ]),
+      rows.map((row) => {
+        const failedChains = this.failedChains(row.id, now)
+        const retryAt = failedChains.reduce<Date | null>(
+          (latest, failure) =>
+            failure.retryAt && (!latest || failure.retryAt > latest)
+              ? failure.retryAt
+              : latest,
+          null,
+        )
+        return [
+          row.id,
+          {
+            enabled: this.enabled,
+            syncedAt: row.syncedAt,
+            failedAt: row.failedAt,
+            // In memory only, and stale once a sync read every chain.
+            failedChains: row.failedAt ? failedChains : [],
+            retryAt: row.failedAt ? retryAt : null,
+          },
+        ]
+      }),
     )
+  }
+
+  private failedChains(accountId: string, now: Date): ChainFailure[] {
+    const failed = this.failures.get(accountId)
+    if (!failed) return []
+    return [...failed].map(([chain, reason]) => {
+      const until = this.backoff.until(chain, now.getTime())
+      return { chain, reason, retryAt: until === null ? null : new Date(until) }
+    })
   }
 
   /**
@@ -224,14 +280,9 @@ export class WalletSyncService {
       .select()
       .from(k)
       .where(eq(k.accountId, accountId))
-    let lines: Line[]
-    try {
-      lines = await this.readChains(accountId, keys)
-    } catch (error) {
-      const reason = failureReason(error)
-      this.logger.warn(
-        `Wallet sync failed (${reason}); keeping the last synced holdings`,
-      )
+    const { lines, read, failed } = await this.readChains(accountId, keys, now)
+    this.failures.set(accountId, failed)
+    if (failed.size > 0 && read.size === 0) {
       await this.db
         .update(a)
         .set({ cryptoSyncFailedAt: now, updatedAt: now })
@@ -239,10 +290,18 @@ export class WalletSyncService {
       return
     }
     const rows = mergeLines(lines)
+    // Lines of the chains that failed stay as last synced.
+    const kept = [...failed.keys()].map((chain) => CHAIN_LABELS[chain])
     await this.db.transaction(async (tx) => {
       await tx
         .delete(h)
-        .where(and(eq(h.accountId, accountId), eq(h.origin, 'sync')))
+        .where(
+          and(
+            eq(h.accountId, accountId),
+            eq(h.origin, 'sync'),
+            kept.length > 0 ? notInArray(h.location, kept) : undefined,
+          ),
+        )
       if (rows.length > 0) {
         await tx.insert(h).values(
           rows.map((row) => ({
@@ -258,43 +317,82 @@ export class WalletSyncService {
       }
       await tx
         .update(a)
-        .set({ cryptoSyncedAt: now, cryptoSyncFailedAt: null, updatedAt: now })
+        .set({
+          cryptoSyncedAt: now,
+          cryptoSyncFailedAt: failed.size > 0 ? now : null,
+          updatedAt: now,
+        })
         .where(eq(a.id, accountId))
     })
-    this.logger.log(`Wallet synced: ${rows.length} holding line(s)`)
+    this.logger.log(
+      `Wallet synced: ${rows.length} holding line(s)` +
+        (failed.size > 0
+          ? `, ${failed.size} chain(s) kept from the last sync`
+          : ''),
+    )
   }
 
-  /** Balances of every key on every chain; throws on the first failure. */
+  /**
+   * Balances of every key on every chain, chain by chain: a chain whose
+   * endpoint fails (or is backing off after a rate limit) is reported in
+   * `failed` and the others are still read.
+   */
   private async readChains(
     accountId: string,
     keys: SelectCryptoWalletKey[],
-  ): Promise<Line[]> {
-    const lines: Line[] = []
+    now: Date,
+  ): Promise<ChainsRead> {
+    const result: ChainsRead = { lines: [], read: new Set(), failed: new Map() }
     const bitcoin = this.options.bitcoin
-    if (bitcoin) {
-      for (const key of keys) {
-        if (key.family !== 'bitcoin' || !key.chains.includes('bitcoin'))
-          continue
-        lines.push({
-          asset: BITCOIN_ASSET,
-          chain: 'bitcoin',
-          units: await this.scanBitcoin(bitcoin, key.publicKey),
-          decimals: BITCOIN_DECIMALS,
-        })
-      }
+    const bitcoinKeys = keys.filter(
+      (key) => key.family === 'bitcoin' && key.chains.includes('bitcoin'),
+    )
+    if (bitcoin && bitcoinKeys.length > 0) {
+      await this.readChain(result, 'bitcoin', now, async () => {
+        const lines: Line[] = []
+        for (const key of bitcoinKeys) {
+          lines.push({
+            asset: BITCOIN_ASSET,
+            chain: 'bitcoin',
+            units: await this.scanBitcoin(bitcoin, key.publicKey),
+            decimals: BITCOIN_DECIMALS,
+          })
+        }
+        return lines
+      })
     }
 
     const evm = this.options.evm
     const evmKeys = keys.filter((key) => key.family === 'evm')
-    if (evm && evmKeys.length > 0) {
-      const tokens = await this.trackedTokens(accountId)
-      for (const key of evmKeys) {
-        for (const chain of key.chains) {
-          if (chain === 'bitcoin' || !evm.chains.includes(chain)) continue
-          const onChain = tokens.flatMap((token) => {
-            const deployment = token.deployments[chain]
-            return deployment ? [{ asset: token.asset, deployment }] : []
-          })
+    const evmChains = [
+      ...new Set(
+        evmKeys.flatMap((key) =>
+          key.chains.filter(
+            (chain): chain is EvmChain =>
+              chain !== 'bitcoin' && (evm?.chains.includes(chain) ?? false),
+          ),
+        ),
+      ),
+    ]
+    if (!evm || evmChains.length === 0) return result
+    let tokens: Awaited<ReturnType<WalletSyncService['trackedTokens']>>
+    try {
+      tokens = await this.trackedTokens(accountId)
+    } catch (error) {
+      // Which chains the tokens are on is unknown: none is replaced.
+      const reason = failureReason(error)
+      for (const chain of evmChains) this.chainFailed(result, chain, reason)
+      return result
+    }
+    for (const chain of evmChains) {
+      const onChain = tokens.flatMap((token) => {
+        const deployment = token.deployments[chain]
+        return deployment ? [{ asset: token.asset, deployment }] : []
+      })
+      await this.readChain(result, chain, now, async () => {
+        const lines: Line[] = []
+        for (const key of evmKeys) {
+          if (!key.chains.includes(chain)) continue
           const balances = await evm.balances(
             chain,
             key.publicKey,
@@ -315,9 +413,59 @@ export class WalletSyncService {
             }),
           )
         }
-      }
+        return lines
+      })
     }
-    return lines
+    return result
+  }
+
+  /**
+   * Reads one chain unless its endpoint is backing off; a rate limit starts
+   * (or lengthens) the backoff, a successful read ends it.
+   */
+  private async readChain(
+    result: ChainsRead,
+    chain: CryptoChain,
+    now: Date,
+    read: () => Promise<Line[]>,
+  ): Promise<void> {
+    const at = now.getTime()
+    const until = this.backoff.until(chain, at)
+    if (until !== null) {
+      this.logger.log(
+        `Wallet sync skipped ${chain}: rate limited, next attempt in ${seconds(until - at)} s`,
+      )
+      result.failed.set(chain, 'rate_limited')
+      return
+    }
+    try {
+      result.lines.push(...(await read()))
+      result.read.add(chain)
+      this.backoff.succeeded(chain)
+    } catch (error) {
+      const reason = failureReason(error)
+      const retryAt =
+        error instanceof ChainProviderError && reason === 'rate_limited'
+          ? this.backoff.rateLimited(chain, at, error.retryAfterMs)
+          : null
+      this.chainFailed(result, chain, reason, retryAt && retryAt - at)
+    }
+  }
+
+  private chainFailed(
+    result: ChainsRead,
+    chain: CryptoChain,
+    reason: SyncFailure,
+    backoffMs: number | null = null,
+  ): void {
+    result.failed.set(chain, reason)
+    this.logger.warn(
+      `Wallet sync failed on ${chain} (${reason})` +
+        (backoffMs === null
+          ? ''
+          : `, next attempt in ${seconds(backoffMs)} s`) +
+        '; keeping its last synced holdings',
+    )
   }
 
   /**
@@ -419,6 +567,10 @@ class TokenLookupError extends Error {
     super('Token lookup failed')
     this.name = 'TokenLookupError'
   }
+}
+
+function seconds(ms: number): number {
+  return Math.ceil(ms / 1000)
 }
 
 function failureReason(error: unknown): SyncFailure {

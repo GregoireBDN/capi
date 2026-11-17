@@ -268,6 +268,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
           enabled: true,
           syncedAt: NOW.toISOString(),
           failedAt: null,
+          failedChains: [],
+          retryAt: null,
         })
         // 0.00085 × 60 000 + 1.5 × 2 500 + 1 234.56789 × 0.9 + 2 × 150 €
         expect(result.snapshot).toMatchObject({
@@ -316,10 +318,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
-    it('keeps the last synced holdings, flagged stale, when a chain fails', async () => {
+    it('keeps the last synced holdings, flagged stale, when every chain fails', async () => {
       await inRollback(async ({ crypto, mocks, wallet }) => {
         const id = await wallet()
         const first = await crypto.sync(id, NOW)
+        mocks.bitcoin.addressStates.mockRejectedValue(
+          new ChainProviderError('network'),
+        )
         mocks.evm.balances.mockRejectedValue(new ChainProviderError('timeout'))
 
         const result = await crypto.sync(id, later(1))
@@ -328,6 +333,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
           enabled: true,
           syncedAt: NOW.toISOString(),
           failedAt: later(1).toISOString(),
+          failedChains: [
+            { chain: 'bitcoin', reason: 'network', retryAt: null },
+            { chain: 'ethereum', reason: 'timeout', retryAt: null },
+            { chain: 'bsc', reason: 'timeout', retryAt: null },
+          ],
+          retryAt: null,
         })
 
         mocks.evm.balances.mockRejectedValue(new TypeError('boom'))
@@ -335,12 +346,160 @@ describe.skipIf(!process.env.DATABASE_URL)(
           sync: { failedAt: later(2).toISOString() },
         })
 
+        mocks.bitcoin.addressStates.mockImplementation((addresses) =>
+          Promise.resolve(
+            addresses.map(() => ({ balanceSats: 0n, used: false })),
+          ),
+        )
         mocks.evm.balances.mockResolvedValue({ native: 0n, tokens: [] })
         const recovered = await crypto.sync(id, later(3))
         expect(recovered.sync).toMatchObject({
           syncedAt: later(3).toISOString(),
           failedAt: null,
+          failedChains: [],
         })
+      })
+    })
+
+    it('keeps the chains read when another one fails', async () => {
+      await inRollback(async ({ crypto, mocks, wallet, tx }) => {
+        const id = await wallet()
+        const first = await crypto.sync(id, NOW)
+        expect(lines(first.holdings)).toEqual([
+          'sync BTC Bitcoin 0.00085',
+          'sync ETH Ethereum 1.5',
+        ])
+        // Bitcoin emptied, Ethereum doubled, BNB Chain times out.
+        mocks.bitcoin.addressStates.mockImplementation((addresses) =>
+          Promise.resolve(
+            addresses.map(() => ({ balanceSats: 0n, used: false })),
+          ),
+        )
+        mocks.evm.balances.mockImplementation((chain, _address, tokens) =>
+          chain === 'bsc'
+            ? Promise.reject(new ChainProviderError('timeout'))
+            : Promise.resolve({
+                native: 3_000_000_000_000_000_000n,
+                tokens: tokens.map(() => 0n),
+              }),
+        )
+        await tx.insert(schema.cryptoHoldingsTable).values({
+          accountId: id,
+          assetId: 'binancecoin',
+          symbol: 'BNB',
+          name: 'BNB',
+          quantity: '4',
+          location: 'BNB Chain',
+          origin: 'sync',
+        })
+
+        const result = await crypto.sync(id, later(1))
+        expect(lines(result.holdings)).toEqual([
+          'sync BNB BNB Chain 4',
+          'sync ETH Ethereum 3',
+        ])
+        expect(result.sync).toEqual({
+          enabled: true,
+          syncedAt: later(1).toISOString(),
+          failedAt: later(1).toISOString(),
+          failedChains: [{ chain: 'bsc', reason: 'timeout', retryAt: null }],
+          retryAt: null,
+        })
+      })
+    })
+
+    it('backs off a rate-limited chain, honouring Retry-After, whoever asks', async () => {
+      await inRollback(async ({ crypto, mocks, wallet }) => {
+        const id = await wallet()
+        await crypto.sync(id, NOW)
+        const bitcoinCalls = () => mocks.bitcoin.addressStates.mock.calls.length
+        const evmCalls = () => mocks.evm.balances.mock.calls.length
+        mocks.bitcoin.addressStates.mockRejectedValue(
+          new ChainProviderError('rate_limited', 429, 30 * 60_000),
+        )
+
+        const limited = await crypto.sync(id, later(1))
+        const retryAt = later(31).toISOString()
+        expect(lines(limited.holdings)).toEqual([
+          'sync BTC Bitcoin 0.00085',
+          'sync ETH Ethereum 1.5',
+        ])
+        expect(limited.sync).toMatchObject({
+          syncedAt: later(1).toISOString(),
+          failedAt: later(1).toISOString(),
+          failedChains: [{ chain: 'bitcoin', reason: 'rate_limited', retryAt }],
+          retryAt,
+        })
+
+        // During the backoff, neither "Synchroniser" nor page loads (once
+        // the wallet is due again) ask the rate-limited endpoint.
+        const before = bitcoinCalls()
+        const evmBefore = evmCalls()
+        await crypto.sync(id, later(2))
+        await crypto.summary(later(13))
+        expect(bitcoinCalls()).toBe(before)
+        expect(evmCalls()).toBe(evmBefore + 4)
+        const waiting = await crypto.holdings(id, later(13))
+        expect(waiting.sync).toMatchObject({
+          failedChains: [{ chain: 'bitcoin', reason: 'rate_limited', retryAt }],
+          retryAt,
+        })
+
+        // After it, the chain is read again and the backoff ends.
+        mocks.bitcoin.addressStates.mockImplementation((addresses) =>
+          Promise.resolve(
+            addresses.map(
+              (address) =>
+                BITCOIN_STATES.get(address) ?? { balanceSats: 0n, used: false },
+            ),
+          ),
+        )
+        const recovered = await crypto.sync(id, later(31))
+        expect(bitcoinCalls()).toBeGreaterThan(before)
+        expect(recovered.sync).toMatchObject({
+          failedAt: null,
+          failedChains: [],
+          retryAt: null,
+        })
+      })
+    })
+
+    it('doubles the backoff on rate limits in a row, capped, and resets it after a read', async () => {
+      await inRollback(async ({ crypto, mocks, wallet }) => {
+        const id = await wallet()
+        mocks.evm.balances.mockRejectedValue(
+          new ChainProviderError('rate_limited', 429),
+        )
+        const first = await crypto.sync(id, NOW)
+        // No Retry-After: one minute, per chain endpoint.
+        expect(first.sync?.failedChains).toEqual([
+          {
+            chain: 'ethereum',
+            reason: 'rate_limited',
+            retryAt: later(1).toISOString(),
+          },
+          {
+            chain: 'bsc',
+            reason: 'rate_limited',
+            retryAt: later(1).toISOString(),
+          },
+        ])
+        const second = await crypto.sync(id, later(1))
+        expect(second.sync?.retryAt).toBe(later(3).toISOString())
+        // A Retry-After beyond the cap waits one hour at most.
+        mocks.evm.balances.mockRejectedValue(
+          new ChainProviderError('rate_limited', 429, 60 * 60_000),
+        )
+        const third = await crypto.sync(id, later(3))
+        expect(third.sync?.retryAt).toBe(later(63).toISOString())
+
+        mocks.evm.balances.mockResolvedValue({ native: 0n, tokens: [] })
+        await crypto.sync(id, later(63))
+        mocks.evm.balances.mockRejectedValue(
+          new ChainProviderError('rate_limited', 429),
+        )
+        const again = await crypto.sync(id, later(64))
+        expect(again.sync?.retryAt).toBe(later(65).toISOString())
       })
     })
 
@@ -362,7 +521,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
         await crypto.sync(id, later(1))
       })
       const text = JSON.stringify(logged)
-      expect(text).toContain('Wallet sync failed (rate_limited)')
+      expect(text).toContain(
+        'Wallet sync failed on bitcoin (rate_limited), next attempt in 60 s',
+      )
       for (const secret of [
         BIP84_ZPUB,
         EVM_ADDRESS,
@@ -405,6 +566,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
             enabled: false,
             syncedAt: null,
             failedAt: null,
+            failedChains: [],
+            retryAt: null,
           })
           await tokens.add(id, {
             assetId: 'usd-coin',

@@ -74,10 +74,37 @@ export class ChainProviderError extends Error {
   constructor(
     readonly reason: ChainProviderFailure,
     readonly status?: number,
+    /** A 429's `Retry-After`, in ms (capped), when the endpoint sent one. */
+    readonly retryAfterMs?: number,
   ) {
     super(`Chain provider failure: ${reason}${status ? ` (${status})` : ''}`)
     this.name = 'ChainProviderError'
   }
+}
+
+/** A `Retry-After` beyond this is read as this (a broken or hostile value). */
+export const MAX_RETRY_AFTER_MS = 60 * 60_000
+
+/**
+ * A `Retry-After` header (delay in seconds or HTTP date) in ms from `now`,
+ * capped to `MAX_RETRY_AFTER_MS`; undefined when missing or unreadable.
+ */
+export function parseRetryAfter(
+  header: string | null,
+  now: number = Date.now(),
+): number | undefined {
+  if (header === null) return undefined
+  const value = header.trim()
+  let ms: number
+  if (/^\d+$/.test(value)) {
+    ms = Number(value) * 1000
+  } else {
+    // An HTTP date names its day and month (`Wed, 21 Oct 2015 07:28:00 GMT`).
+    const at = /^[A-Za-z]{3}, /.test(value) ? Date.parse(value) : NaN
+    if (Number.isNaN(at)) return undefined
+    ms = at - now
+  }
+  return Math.min(Math.max(ms, 0), MAX_RETRY_AFTER_MS)
 }
 
 const MAX_BODY_LENGTH = 2_000_000
@@ -105,7 +132,11 @@ export async function fetchJson(
       signal: AbortSignal.timeout(init.timeoutMs),
     })
     if (response.status === 429) {
-      throw new ChainProviderError('rate_limited', 429)
+      throw new ChainProviderError(
+        'rate_limited',
+        429,
+        parseRetryAfter(response.headers.get('retry-after')),
+      )
     }
     if (!response.ok) throw new ChainProviderError('http', response.status)
     text = await response.text()
@@ -133,11 +164,15 @@ export function jsonInteger(value: unknown): bigint | null {
   return /^\d+$/.test(literal) ? BigInt(literal) : null
 }
 
-/** Runs `task` on each item with at most `limit` running at once. */
+/**
+ * Runs `task` on each item with at most `limit` running at once. After a
+ * failure no item starts, and `stopped()` tells running tasks to give up
+ * before their request (e.g. one still waiting for its rate-limit slot).
+ */
 export async function mapLimited<T, R>(
   items: readonly T[],
   limit: number,
-  task: (item: T) => Promise<R>,
+  task: (item: T, stopped: () => boolean) => Promise<R>,
 ): Promise<R[]> {
   const results = new Array<R>(items.length)
   let next = 0
@@ -146,7 +181,7 @@ export async function mapLimited<T, R>(
     while (!failed && next < items.length) {
       const index = next++
       try {
-        results[index] = await task(items[index])
+        results[index] = await task(items[index], () => failed)
       } catch (error) {
         failed = true
         throw error

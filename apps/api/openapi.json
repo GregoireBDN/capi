@@ -4765,7 +4765,7 @@
     },
     "/api/accounts/{id}/holdings/sync": {
       "post": {
-        "description": "Reads the balances of the wallet's public keys on their chains (Bitcoin through Esplora, EVM chains through JSON-RPC: only public addresses and token contracts are sent), replaces the account's synced holdings (manual lines are kept), then values the account. Asks the chains at most every 30 s per wallet. A failing chain endpoint never fails the request: the last synced holdings are kept and `sync.failedAt` is set. Session only.",
+        "description": "Reads the balances of the wallet's public keys on their chains (Bitcoin through Esplora, EVM chains through JSON-RPC: only public addresses and token contracts are sent), replaces the account's synced holdings (manual lines are kept), then values the account. Asks the chains at most every 30 s per wallet. A failing chain endpoint never fails the request: that chain keeps its last synced holdings, the others are updated, `sync.failedAt` is set and `sync.failedChains` names it. A rate-limited endpoint (HTTP 429) is not asked again before `sync.retryAt`. Session only.",
         "operationId": "AccountHoldingsController_sync",
         "parameters": [
           {
@@ -11670,6 +11670,52 @@
           "contributionsCents"
         ]
       },
+      "WalletSyncFailure": {
+        "type": "string",
+        "enum": [
+          "timeout",
+          "network",
+          "rate_limited",
+          "http",
+          "malformed",
+          "rpc",
+          "wrong_chain",
+          "tokens",
+          "unexpected"
+        ],
+        "description": "`rate_limited`: the endpoint refused too many requests (HTTP 429); `tokens`: the token contracts could not be looked up."
+      },
+      "WalletSyncChainFailureDto": {
+        "type": "object",
+        "properties": {
+          "chain": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoChain"
+              }
+            ]
+          },
+          "reason": {
+            "description": "`rate_limited`: the endpoint refused too many requests (HTTP 429); `tokens`: the token contracts could not be looked up.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WalletSyncFailure"
+              }
+            ]
+          },
+          "retryAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "End of the rate-limit backoff: the chain is not asked before (page loads and \"Synchroniser\" alike). Null when nothing waits."
+          }
+        },
+        "required": [
+          "chain",
+          "reason",
+          "retryAt"
+        ]
+      },
       "WalletSyncStatusDto": {
         "type": "object",
         "properties": {
@@ -11687,13 +11733,28 @@
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "When the last sync attempt failed: the synced holdings are those of `syncedAt` (stale). Null once a sync succeeds."
+            "description": "When the last sync attempt failed on at least one chain: the lines of the failed chains are those of an earlier sync (stale), the other chains were read at `syncedAt`. Null once a sync reads every chain."
+          },
+          "failedChains": {
+            "description": "Chains the last attempt could not read, while `failedAt` is set. Kept in memory: empty after a server restart until the next sync.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WalletSyncChainFailureDto"
+            }
+          },
+          "retryAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When every failed chain may be asked again (latest end of their rate-limit backoffs); null when nothing waits."
           }
         },
         "required": [
           "enabled",
           "syncedAt",
-          "failedAt"
+          "failedAt",
+          "failedChains",
+          "retryAt"
         ]
       },
       "AccountHoldingsDto": {

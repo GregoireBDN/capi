@@ -105,6 +105,28 @@ describe('EvmRpcProvider', () => {
     expect((error as ChainProviderError).reason).toBe('wrong_chain')
   })
 
+  it('reports a rate limit with its Retry-After', async () => {
+    const fetchFn = vi.fn(() =>
+      Promise.resolve(
+        new Response('', { status: 429, headers: { 'Retry-After': '90' } }),
+      ),
+    )
+    const client = new EvmRpcProvider({
+      urls: new Map<EvmChain, URL>([['ethereum', new URL('https://eth.test')]]),
+      timeoutMs: 20,
+      fetch: fetchFn as unknown as typeof fetch,
+    })
+    const error = await client
+      .balances('ethereum', ADDRESS, [])
+      .catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(ChainProviderError)
+    expect(error).toMatchObject({
+      reason: 'rate_limited',
+      retryAfterMs: 90_000,
+    })
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
   it('fails on RPC errors and malformed answers, never with the address', async () => {
     const cases: [ReturnType<typeof provider>, string][] = [
       [
