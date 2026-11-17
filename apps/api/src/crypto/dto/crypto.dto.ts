@@ -11,11 +11,27 @@ import {
   Min,
 } from 'class-validator'
 import {
+  CRYPTO_CHAINS,
   CRYPTO_HOLDING_ORIGINS,
   CRYPTO_PRICE_SOURCES,
+  type CryptoChain,
   type CryptoHoldingOrigin,
   type CryptoPriceSource,
 } from '#/database/schema/domain-enums'
+
+/** Why a wallet sync could not read a chain (#250). */
+export const WALLET_SYNC_FAILURES = [
+  'timeout',
+  'network',
+  'rate_limited',
+  'http',
+  'malformed',
+  'rpc',
+  'wrong_chain',
+  'tokens',
+  'unexpected',
+] as const
+export type WalletSyncFailure = (typeof WALLET_SYNC_FAILURES)[number]
 
 /** Provider asset ids: CoinGecko-style slugs (`bitcoin`, `avalanche-2`). */
 export const ASSET_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
@@ -220,6 +236,29 @@ export class ValuationSnapshotDto {
   contributionsCents!: number | null
 }
 
+/** A chain the latest wallet sync could not read (#250). */
+export class WalletSyncChainFailureDto {
+  @ApiProperty({ enum: CRYPTO_CHAINS, enumName: 'CryptoChain' })
+  chain!: CryptoChain
+
+  @ApiProperty({
+    enum: WALLET_SYNC_FAILURES,
+    enumName: 'WalletSyncFailure',
+    description:
+      '`rate_limited`: the endpoint refused too many requests (HTTP 429); `tokens`: the token contracts could not be looked up.',
+  })
+  reason!: WalletSyncFailure
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'End of the rate-limit backoff: the chain is not asked before (page loads and "Synchroniser" alike). Null when nothing waits.',
+  })
+  retryAt!: string | null
+}
+
 /** Sync state of a wallet account (#129). */
 export class WalletSyncStatusDto {
   @ApiProperty({
@@ -242,9 +281,25 @@ export class WalletSyncStatusDto {
     format: 'date-time',
     nullable: true,
     description:
-      'When the last sync attempt failed: the synced holdings are those of `syncedAt` (stale). Null once a sync succeeds.',
+      'When the last sync attempt failed on at least one chain: the lines of the failed chains are those of an earlier sync (stale), the other chains were read at `syncedAt`. Null once a sync reads every chain.',
   })
   failedAt!: string | null
+
+  @ApiProperty({
+    type: [WalletSyncChainFailureDto],
+    description:
+      'Chains the last attempt could not read, while `failedAt` is set. Kept in memory: empty after a server restart until the next sync.',
+  })
+  failedChains!: WalletSyncChainFailureDto[]
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'When every failed chain may be asked again (latest end of their rate-limit backoffs); null when nothing waits.',
+  })
+  retryAt!: string | null
 }
 
 export class AccountHoldingsDto {

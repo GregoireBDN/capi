@@ -126,7 +126,7 @@ export class AccountHoldingsController {
   @ApiOperation({
     summary: 'Sync a wallet account from its public keys ("Synchroniser")',
     description:
-      "Reads the balances of the wallet's public keys on their chains (Bitcoin through Esplora, EVM chains through JSON-RPC: only public addresses and token contracts are sent), replaces the account's synced holdings (manual lines are kept), then values the account. Asks the chains at most every 30 s per wallet. A failing chain endpoint never fails the request: the last synced holdings are kept and `sync.failedAt` is set. Session only.",
+      "Reads the balances of the wallet's public keys on their chains (Bitcoin through Esplora, EVM chains through JSON-RPC: only public addresses and token contracts are sent), replaces the account's synced holdings (manual lines are kept), then values the account. Asks the chains at most every 30 s per wallet. A failing chain endpoint never fails the request: that chain keeps its last synced holdings, the others are updated, `sync.failedAt` is set and `sync.failedChains` names it. A rate-limited endpoint (HTTP 429) is not asked again before `sync.retryAt`. Session only.",
   })
   @ApiParam(ID_PARAM)
   @ApiOkResponse({ type: AccountHoldingsDto })

@@ -9,9 +9,20 @@ import {
 } from './chain-provider'
 
 export const DEFAULT_ESPLORA_URL = 'https://mempool.space/api'
-/** Requests in flight at once, and minimum spacing between two starts. */
-const DEFAULT_CONCURRENCY = 3
-const DEFAULT_MIN_INTERVAL_MS = 150
+/**
+ * Requests in flight at once, and minimum spacing between two starts: about
+ * 4 requests per second, under what mempool.space's public API tolerates for
+ * a burst (an extended key's first sync asks 40 addresses or more).
+ */
+const DEFAULT_CONCURRENCY = 2
+const DEFAULT_MIN_INTERVAL_MS = 250
+/**
+ * A 429 asking to wait at most this long (or without `Retry-After`, after
+ * `DEFAULT_RATE_LIMIT_PAUSE_MS`) pauses every request and retries this one
+ * once; a longer wait fails the read and leaves it to the sync's backoff.
+ */
+const DEFAULT_MAX_INLINE_WAIT_MS = 10_000
+const DEFAULT_RATE_LIMIT_PAUSE_MS = 3_000
 
 const stats = z.looseObject({
   funded_txo_sum: z.unknown(),
@@ -28,6 +39,7 @@ interface EsploraOptions {
   timeoutMs: number
   concurrency?: number
   minIntervalMs?: number
+  maxInlineWaitMs?: number
   /** Injected in tests; the global `fetch` otherwise. */
   fetch?: typeof fetch
 }
@@ -35,7 +47,8 @@ interface EsploraOptions {
 /**
  * Key-less Esplora REST API (mempool.space by default, or a self-hosted
  * instance): `GET /address/:address`, one request per address, at most
- * `concurrency` at once and spaced by `minIntervalMs`. Only the address is
+ * `concurrency` at once and spaced by `minIntervalMs`; a short rate limit is
+ * waited out once (see `DEFAULT_MAX_INLINE_WAIT_MS`). Only the address is
  * sent.
  */
 export class EsploraProvider implements BitcoinChainProvider {
@@ -43,6 +56,7 @@ export class EsploraProvider implements BitcoinChainProvider {
   private readonly timeoutMs: number
   private readonly concurrency: number
   private readonly minIntervalMs: number
+  private readonly maxInlineWaitMs: number
   private readonly fetchFn: typeof fetch
   private nextStart = 0
 
@@ -52,6 +66,7 @@ export class EsploraProvider implements BitcoinChainProvider {
     this.timeoutMs = options.timeoutMs
     this.concurrency = options.concurrency ?? DEFAULT_CONCURRENCY
     this.minIntervalMs = options.minIntervalMs ?? DEFAULT_MIN_INTERVAL_MS
+    this.maxInlineWaitMs = options.maxInlineWaitMs ?? DEFAULT_MAX_INLINE_WAIT_MS
     this.fetchFn = options.fetch ?? fetch
   }
 
@@ -62,11 +77,18 @@ export class EsploraProvider implements BitcoinChainProvider {
   }
 
   private async addressState(address: string): Promise<BitcoinAddressState> {
-    await this.slot()
     const url = new URL(`address/${encodeURIComponent(address)}`, this.baseUrl)
-    const body = await fetchJson(this.fetchFn, url, {
-      timeoutMs: this.timeoutMs,
-    })
+    let body: unknown
+    try {
+      await this.slot()
+      body = await fetchJson(this.fetchFn, url, { timeoutMs: this.timeoutMs })
+    } catch (error) {
+      const wait = this.inlineWait(error)
+      if (wait === null) throw error
+      this.pause(wait)
+      await this.slot()
+      body = await fetchJson(this.fetchFn, url, { timeoutMs: this.timeoutMs })
+    }
     const parsed = addressSchema.safeParse(body)
     if (!parsed.success) throw new ChainProviderError('malformed')
     const chain = parsed.data.chain_stats
@@ -85,6 +107,19 @@ export class EsploraProvider implements BitcoinChainProvider {
       throw new ChainProviderError('malformed')
     }
     return { balanceSats: funded - spent, used: txs + pendingTxs > 0n }
+  }
+
+  /** How long to wait before retrying after `error`, or null to give up. */
+  private inlineWait(error: unknown): number | null {
+    if (!(error instanceof ChainProviderError)) return null
+    if (error.reason !== 'rate_limited') return null
+    const wait = error.retryAfterMs ?? DEFAULT_RATE_LIMIT_PAUSE_MS
+    return wait <= this.maxInlineWaitMs ? wait : null
+  }
+
+  /** No request starts before `ms` from now. */
+  private pause(ms: number): void {
+    this.nextStart = Math.max(this.nextStart, Date.now() + ms)
   }
 
   /** Waits for this request's turn so starts are `minIntervalMs` apart. */

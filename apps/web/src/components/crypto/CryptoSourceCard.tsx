@@ -66,6 +66,12 @@ import {
   WalletKeyFields,
 } from './WalletKeyFields'
 import type { WalletKeyValues } from './WalletKeyFields'
+import {
+  chainFailureText,
+  nextAttemptText,
+  partialSync,
+  syncFailedToast,
+} from './wallet-sync-status'
 
 const syncedAtFormat = new Intl.DateTimeFormat('fr-FR', {
   timeZone: 'Europe/Paris',
@@ -120,10 +126,8 @@ function useWalletSync(accountId: string) {
       )?.sync?.syncedAt ?? null,
     onSuccess: async (result, _variables, syncedBefore) => {
       queryClient.setQueryData(cryptoKeys.holdings(accountId), result)
-      if (syncFailed(result)) {
-        toast.error(
-          'Synchronisation impossible pour le moment : les derniers avoirs connus sont conservés.',
-        )
+      if (syncFailed(result) && result.sync) {
+        toast.error(syncFailedToast(result.sync))
       } else if (
         syncedBefore !== null &&
         result.sync?.syncedAt === syncedBefore
@@ -339,10 +343,25 @@ function WalletSyncSection({
       </p>
       {failed && sync?.failedAt && (
         <Alert variant="warning">
-          <AlertTitle>La dernière synchronisation a échoué</AlertTitle>
+          <AlertTitle>
+            {partialSync(sync) && sync.failedChains.length > 0
+              ? 'Certaines chaînes n’ont pas pu être lues'
+              : 'La dernière synchronisation a échoué'}
+          </AlertTitle>
           <AlertDescription>
-            Tentative du {syncedAtFormat.format(new Date(sync.failedAt))}. Les
-            avoirs affichés sont ceux de la dernière synchronisation réussie.
+            {sync.failedChains.length > 0 && (
+              <ul aria-label="Chaînes non lues" className="mb-2 list-disc pl-5">
+                {sync.failedChains.map((failure) => (
+                  <li key={failure.chain}>{chainFailureText(failure)}</li>
+                ))}
+              </ul>
+            )}
+            <p>
+              Tentative du {syncedAtFormat.format(new Date(sync.failedAt))}.{' '}
+              {sync.failedChains.length > 0 && partialSync(sync)
+                ? 'Les avoirs de ces chaînes sont ceux de leur dernière lecture réussie.'
+                : 'Les avoirs affichés sont ceux de la dernière synchronisation réussie.'}
+            </p>
           </AlertDescription>
         </Alert>
       )}
@@ -361,6 +380,11 @@ function WalletSyncSection({
             <span className="text-muted-foreground text-xs">
               Synchronisation désactivée sur ce serveur : ajoutez vos avoirs à
               la main.
+            </span>
+          )}
+          {enabled && failed && sync && nextAttemptText(sync) && (
+            <span className="text-muted-foreground text-xs">
+              {nextAttemptText(sync)}
             </span>
           )}
         </div>

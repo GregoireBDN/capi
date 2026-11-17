@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ChainProviderError } from './chain-provider'
+import {
+  ChainProviderError,
+  MAX_RETRY_AFTER_MS,
+  parseRetryAfter,
+} from './chain-provider'
 import { EsploraProvider } from './esplora.provider'
 
 /** Mocked HTTP only: these tests never reach the network. */
@@ -14,6 +18,7 @@ function provider(
     timeoutMs: 20,
     concurrency,
     minIntervalMs: 0,
+    maxInlineWaitMs: 0,
     fetch: vi.fn(fetchFn) as unknown as typeof fetch,
   })
 }
@@ -37,8 +42,8 @@ const stats = (funded: number, spent: number, txs: number, pending = 0) =>
     },
   })
 
-const json = (body: string, status = 200) =>
-  Promise.resolve(new Response(body, { status }))
+const json = (body: string, status = 200, headers?: Record<string, string>) =>
+  Promise.resolve(new Response(body, { status, headers }))
 
 async function failure(promise: Promise<unknown>) {
   const error = await promise.then(
@@ -99,6 +104,44 @@ describe('EsploraProvider', () => {
     expect(peak).toBe(2)
   })
 
+  it('waits out a short rate limit once, then retries', async () => {
+    let calls = 0
+    const states = await provider(() =>
+      ++calls === 1
+        ? json('', 429, { 'Retry-After': '0' })
+        : json(stats(1_000, 0, 1)),
+    ).addressStates([ADDRESS])
+    expect(calls).toBe(2)
+    expect(states).toEqual([{ balanceSats: 1_000n, used: true }])
+  })
+
+  it('leaves a long rate limit to the sync backoff, with its Retry-After', async () => {
+    let calls = 0
+    const error = await failure(
+      provider(() => {
+        calls++
+        return json('', 429, { 'Retry-After': '120' })
+      }).addressStates([ADDRESS]),
+    )
+    expect(calls).toBe(1)
+    expect(error).toMatchObject({
+      reason: 'rate_limited',
+      retryAfterMs: 120_000,
+    })
+  })
+
+  it('gives up when the retry is rate limited too', async () => {
+    let calls = 0
+    const error = await failure(
+      provider(() => {
+        calls++
+        return json('', 429, { 'Retry-After': '0' })
+      }).addressStates([ADDRESS]),
+    )
+    expect(calls).toBe(2)
+    expect(error.reason).toBe('rate_limited')
+  })
+
   it('reports failures without the address', async () => {
     expect(
       (await failure(provider(() => json('', 429)).addressStates([ADDRESS])))
@@ -145,5 +188,23 @@ describe('EsploraProvider', () => {
         )
       ).reason,
     ).toBe('timeout')
+  })
+})
+
+describe('parseRetryAfter', () => {
+  const now = Date.parse('2026-11-17T10:00:00Z')
+
+  it('reads seconds and HTTP dates, capped', () => {
+    expect(parseRetryAfter('30', now)).toBe(30_000)
+    expect(parseRetryAfter(' 0 ', now)).toBe(0)
+    expect(parseRetryAfter('Tue, 17 Nov 2026 10:02:00 GMT', now)).toBe(120_000)
+    expect(parseRetryAfter('Tue, 17 Nov 2026 09:00:00 GMT', now)).toBe(0)
+    expect(parseRetryAfter('86400', now)).toBe(MAX_RETRY_AFTER_MS)
+  })
+
+  it('ignores a missing or unreadable header', () => {
+    expect(parseRetryAfter(null, now)).toBeUndefined()
+    expect(parseRetryAfter('soon', now)).toBeUndefined()
+    expect(parseRetryAfter('-5', now)).toBeUndefined()
   })
 })

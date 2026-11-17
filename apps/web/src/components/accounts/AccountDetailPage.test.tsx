@@ -611,6 +611,8 @@ describe('AccountDetailPage', () => {
         enabled: false,
         syncedAt: '2026-11-05T09:30:00.000Z',
         failedAt: null,
+        failedChains: [],
+        retryAt: null,
       },
     )
     api.walletTokensControllerList.mockImplementation(() => ok([]))
@@ -748,12 +750,20 @@ describe('AccountDetailPage', () => {
 
   it('syncs a wallet account and shows the synced holdings', async () => {
     const user = userEvent.setup()
-    mockWallet({ enabled: true, syncedAt: null, failedAt: null })
+    mockWallet({
+      enabled: true,
+      syncedAt: null,
+      failedAt: null,
+      failedChains: [],
+      retryAt: null,
+    })
     const synced = walletHoldings(
       {
         enabled: true,
         syncedAt: '2026-11-06T09:59:00.000Z',
         failedAt: null,
+        failedChains: [],
+        retryAt: null,
       },
       [holding({ origin: 'sync', location: 'Bitcoin' })],
     )
@@ -788,10 +798,12 @@ describe('AccountDetailPage', () => {
 
   it('flags stale holdings when the last sync failed', async () => {
     const user = userEvent.setup()
-    const stale = {
+    const stale: WalletSyncStatusDto = {
       enabled: true,
       syncedAt: '2026-11-05T09:30:00.000Z',
       failedAt: '2026-11-06T09:00:00.000Z',
+      failedChains: [],
+      retryAt: null,
     }
     mockWallet(stale)
     api.accountHoldingsControllerSync.mockImplementation(() =>
@@ -818,9 +830,77 @@ describe('AccountDetailPage', () => {
     )
   })
 
+  it('names the chains a sync could not read and when it retries', async () => {
+    const user = userEvent.setup()
+    // Bitcoin rate limited until 11:30 (Paris), Ethereum read at 10:58.
+    const partial: WalletSyncStatusDto = {
+      enabled: true,
+      syncedAt: '2026-11-06T09:58:00.000Z',
+      failedAt: '2026-11-06T09:58:00.000Z',
+      failedChains: [
+        {
+          chain: 'bitcoin',
+          reason: 'rate_limited',
+          retryAt: '2026-11-06T10:30:00.000Z',
+        },
+      ],
+      retryAt: '2026-11-06T10:30:00.000Z',
+    }
+    mockWallet(partial)
+    api.accountHoldingsControllerSync.mockImplementation(() =>
+      ok(
+        walletHoldings({
+          ...partial,
+          syncedAt: '2026-11-06T09:59:30.000Z',
+          failedAt: '2026-11-06T09:59:30.000Z',
+        }),
+      ),
+    )
+    renderPage()
+
+    const source = await screen.findByRole('region', {
+      name: 'Source des avoirs',
+    })
+    expect(
+      await within(source).findByText(
+        'Certaines chaînes n’ont pas pu être lues',
+      ),
+    ).toBeInTheDocument()
+    const chains = within(source).getByRole('list', {
+      name: 'Chaînes non lues',
+    })
+    expect(text(chains.textContent)).toBe(
+      'Bitcoin : trop de requêtes, nouvel essai possible à 11:30',
+    )
+    expect(
+      within(source).getByText(
+        'Les avoirs de ces chaînes sont ceux de leur dernière lecture réussie.',
+        { exact: false },
+      ),
+    ).toBeInTheDocument()
+    expect(
+      within(source).getByText('Prochain essai possible à 11:30'),
+    ).toBeInTheDocument()
+
+    await user.click(
+      within(source).getByRole('button', { name: 'Synchroniser' }),
+    )
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Lecture impossible pour Bitcoin (nouvel essai possible à 11:30) : leurs derniers avoirs connus sont conservés, les autres chaînes sont à jour.',
+      ),
+    )
+  })
+
   it('adds a token to read and syncs the wallet again', async () => {
     const user = userEvent.setup()
-    const sync = { enabled: true, syncedAt: null, failedAt: null }
+    const sync: WalletSyncStatusDto = {
+      enabled: true,
+      syncedAt: null,
+      failedAt: null,
+      failedChains: [],
+      retryAt: null,
+    }
     mockWallet(sync)
     api.cryptoControllerSearch.mockImplementation(() =>
       ok([{ id: 'usd-coin', symbol: 'USDC', name: 'USDC', rank: 7 }]),

@@ -69,6 +69,12 @@ function syncStatusDto(
     enabled: status.enabled,
     syncedAt: status.syncedAt?.toISOString() ?? null,
     failedAt: status.failedAt?.toISOString() ?? null,
+    failedChains: status.failedChains.map((failure) => ({
+      chain: failure.chain,
+      reason: failure.reason,
+      retryAt: failure.retryAt?.toISOString() ?? null,
+    })),
+    retryAt: status.retryAt?.toISOString() ?? null,
   }
 }
 
@@ -357,7 +363,7 @@ export class CryptoService {
     const ids = accounts.map((account) => account.id)
     // A valuation that refreshes prices first reads the wallets due a sync.
     if (mode !== 'none') await this.walletSync.syncDue(ids, now)
-    const syncStatuses = await this.walletSync.statuses(ids)
+    const syncStatuses = await this.walletSync.statuses(ids, now)
     const rows =
       accounts.length === 0
         ? []
