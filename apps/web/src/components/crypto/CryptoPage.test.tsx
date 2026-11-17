@@ -293,7 +293,7 @@ describe('CryptoPage', () => {
     await user.click(sheet.getByRole('checkbox', { name: 'Base' }))
     // Sync is on here: nothing to warn about.
     expect(
-      sheet.queryByText('Synchronisation des wallets désactivée'),
+      sheet.queryByText(/^Synchronisation des wallets désactivée/),
     ).not.toBeInTheDocument()
     await user.click(sheet.getByRole('button', { name: 'Ajouter le wallet' }))
 
@@ -344,10 +344,12 @@ describe('CryptoPage', () => {
     )
     const sheet = within(screen.getByRole('dialog'))
     await user.click(sheet.getByRole('radio', { name: /^Wallet/ }))
+    // In the owner's terms, without the server setting's name (#249).
     expect(
-      await sheet.findByText('Synchronisation des wallets désactivée'),
+      await sheet.findByText(/^Synchronisation des wallets désactivée/),
     ).toBeInTheDocument()
-    expect(sheet.getByText(/WALLET_SYNC_ENABLED/)).toBeInTheDocument()
+    expect(sheet.getByText('En savoir plus')).toBeInTheDocument()
+    expect(sheet.queryByText(/WALLET_SYNC_ENABLED/)).not.toBeInTheDocument()
   })
 
   it('sets up an exchange and opens the import of its first export', async () => {

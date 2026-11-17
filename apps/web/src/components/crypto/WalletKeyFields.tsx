@@ -10,6 +10,7 @@ import {
   RadioGroupItem,
   Textarea,
 } from '@finances/ui'
+import type { ReactNode } from 'react'
 import type {
   CryptoChain,
   WalletKeyAddressTypeChoice,
@@ -200,6 +201,7 @@ export function WalletKeyFields({
   onChange,
   withLabel = false,
   label = 'Clé publique',
+  labelAction,
   provider,
 }: {
   id: string
@@ -211,6 +213,8 @@ export function WalletKeyFields({
   /** Errors to show (empty until the form is submitted). */
   errors: WalletKeyErrors
   onChange: (patch: Partial<WalletKeyValues>) => void
+  /** A control beside the key's label (e.g. its remove button). */
+  labelAction?: ReactNode
   /** Also ask for an optional label (e.g. "Épargne"). */
   withLabel?: boolean
 }) {
@@ -229,7 +233,14 @@ export function WalletKeyFields({
   return (
     <>
       <Field data-invalid={keyError !== undefined}>
-        <FieldLabel htmlFor={`${id}-public-key`}>{label}</FieldLabel>
+        {labelAction ? (
+          <div className="flex min-h-8 items-center justify-between gap-2">
+            <FieldLabel htmlFor={`${id}-public-key`}>{label}</FieldLabel>
+            {labelAction}
+          </div>
+        ) : (
+          <FieldLabel htmlFor={`${id}-public-key`}>{label}</FieldLabel>
+        )}
         <Textarea
           id={`${id}-public-key`}
           rows={3}

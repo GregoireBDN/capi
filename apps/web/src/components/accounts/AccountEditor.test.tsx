@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccountDto, CreateAccountDto } from '#/api/types.gen'
@@ -9,6 +9,7 @@ const api = vi.hoisted(() => ({
   accountsControllerCreate: vi.fn(),
   accountsControllerUpdate: vi.fn(),
   accountSnapshotsControllerUpsert: vi.fn(),
+  cryptoControllerSettings: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), {
@@ -84,7 +85,8 @@ describe('AccountEditor', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-11-06T10:00:00Z'))
     for (const fn of [...Object.values(api), navigate]) fn.mockReset()
-    for (const fn of [toast.success, toast.warning, toast.error]) fn.mockReset()
+    for (const fn of [toast, toast.success, toast.warning, toast.error])
+      fn.mockReset()
     api.accountsControllerCreate.mockImplementation(
       ({ body }: { body: CreateAccountDto }) =>
         ok(account({ ...body, institution: body.institution ?? null }), 201),
@@ -270,6 +272,70 @@ describe('AccountEditor', () => {
       expect.stringMatching(/faute de frappe/),
     )
     expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('removes a key from its card header and puts it back with « Annuler » (#249)', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    api.cryptoControllerSettings.mockImplementation(() =>
+      ok({ priceApiEnabled: true, walletSyncEnabled: false }),
+    )
+    renderWithClient(<NewAccountButton defaultType="crypto" />)
+
+    await user.click(screen.getByRole('button', { name: 'Nouveau compte' }))
+    await user.click(await screen.findByRole('radio', { name: /^Wallet/ }))
+    await user.click(screen.getByRole('radio', { name: 'Ledger' }))
+
+    // Sync off: a short notice in the owner's terms, details on demand.
+    expect(
+      await screen.findByText(
+        /^Synchronisation des wallets désactivée sur ce serveur/,
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('En savoir plus')).toBeInTheDocument()
+    expect(screen.queryByText(/WALLET_SYNC_ENABLED/)).not.toBeInTheDocument()
+
+    // A single empty key has nothing to remove.
+    expect(
+      screen.queryByRole('button', { name: /^Retirer la clé/ }),
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByLabelText('Clé publique'))
+    await user.paste(ADDRESS)
+    expect(
+      screen.getByRole('button', { name: 'Retirer la clé' }),
+    ).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Ajouter une autre clé' }),
+    )
+    await user.click(screen.getByLabelText('Clé publique 2'))
+    await user.paste(XPUB)
+
+    // The remove icon sits in each card's header; no confirmation.
+    await user.click(screen.getByRole('button', { name: 'Retirer la clé 1' }))
+    expect(screen.getByLabelText('Clé publique')).toHaveValue(XPUB)
+    expect(screen.queryByLabelText('Clé publique 2')).not.toBeInTheDocument()
+
+    // « Annuler » in the toast puts it back where it was.
+    const [message, options] = toast.mock.calls.at(-1) as [
+      string,
+      { action: { label: string; onClick: () => void } },
+    ]
+    expect(message).toBe('Clé retirée')
+    expect(options.action.label).toBe('Annuler')
+    act(() => options.action.onClick())
+    expect(screen.getByLabelText('Clé publique 1')).toHaveValue(ADDRESS)
+    expect(screen.getByLabelText('Clé publique 2')).toHaveValue(XPUB)
+
+    // Removing the only key empties it; « Annuler » brings it back.
+    await user.click(screen.getByRole('button', { name: 'Retirer la clé 2' }))
+    await user.click(screen.getByRole('button', { name: 'Retirer la clé' }))
+    expect(screen.getByLabelText('Clé publique')).toHaveValue('')
+    const [, last] = toast.mock.calls.at(-1) as [
+      string,
+      { action: { onClick: () => void } },
+    ]
+    act(() => last.action.onClick())
+    expect(screen.getByLabelText('Clé publique')).toHaveValue(ADDRESS)
   })
 
   it('creates an exchange crypto account with its provider', async () => {

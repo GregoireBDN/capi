@@ -189,12 +189,24 @@ function useKeyboardInset(node: HTMLElement | null, enabled: boolean) {
   }, [node, enabled])
 }
 
+/**
+ * Whether an event comes from a toast: its « Annuler » must work while a
+ * sheet is open (an undo of something done in the sheet), without closing it.
+ */
+function fromToast(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest('[data-sonner-toaster]') !== null
+  )
+}
+
 function SheetContent({
   className,
   children,
   side = 'right',
   showCloseButton = true,
   ref,
+  onInteractOutside,
   ...props
 }: SheetContentProps) {
   const [node, setNode] = React.useState<HTMLDivElement | null>(null)
@@ -305,6 +317,10 @@ function SheetContent({
           className,
         )}
         {...props}
+        onInteractOutside={(event) => {
+          if (fromToast(event.target)) event.preventDefault()
+          onInteractOutside?.(event)
+        }}
       >
         {children}
         {showCloseButton && (
