@@ -234,30 +234,32 @@ export function CryptoPage() {
 
   return (
     <div className="@container space-y-6">
-      <div className="flex flex-col gap-3 @2xl:flex-row @2xl:items-end @2xl:justify-between">
-        <PageHeader
-          title="Crypto"
-          description="Vos plateformes et wallets, valorisés au cours du jour."
-        />
-        {list.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {data?.priceApiEnabled && holdingCount > 0 && (
-              <Button
-                outline
-                variant="secondary"
-                iconStart={<RefreshCwIcon />}
-                loading={refresh.isPending}
-                onClick={() => refresh.mutate()}
-              >
-                Actualiser les cours
-              </Button>
-            )}
-            <Button iconStart={<PlusIcon />} onClick={() => openAdd()}>
-              Ajouter un avoir
-            </Button>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title="Crypto"
+        description="Vos plateformes et wallets, valorisés au cours du jour."
+        actions={
+          list.length === 0
+            ? []
+            : [
+                ...(data?.priceApiEnabled && holdingCount > 0
+                  ? [
+                      {
+                        label: 'Actualiser les cours',
+                        icon: <RefreshCwIcon />,
+                        loading: refresh.isPending,
+                        onSelect: () => refresh.mutate(),
+                      },
+                    ]
+                  : []),
+                {
+                  label: 'Ajouter un avoir',
+                  icon: <PlusIcon />,
+                  primary: true,
+                  onSelect: () => openAdd(),
+                },
+              ]
+        }
+      />
 
       {summary.isPending && (
         <div className="space-y-3" aria-busy="true" aria-label="Chargement">

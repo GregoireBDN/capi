@@ -6,7 +6,8 @@ import {
   createRoute,
   createRouter,
 } from '@tanstack/react-router'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { PlusIcon } from 'lucide-react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarInset, SidebarProvider } from '@finances/ui'
@@ -17,6 +18,9 @@ import { parseSidebarOpen } from '#/lib/sidebar-state'
 
 import { AppSidebar } from './AppSidebar'
 import { AppTopBar } from './AppTopBar'
+import { PageHeader } from './PageHeader'
+import { PageActionsSlotProvider } from './page-actions'
+import type { PageAction } from './page-actions'
 
 vi.mock('#/api', () => ({
   profileControllerUpdate: vi.fn(),
@@ -46,14 +50,16 @@ beforeEach(() => {
 afterEach(clearSidebarCookie)
 
 /** The authenticated shell as `routes/_app.tsx` builds it. */
-async function renderShell(defaultOpen: boolean) {
+async function renderShell(defaultOpen: boolean, actions: PageAction[] = []) {
   const rootRoute = createRootRoute({
     component: () => (
       <SidebarProvider defaultOpen={defaultOpen}>
         <AppSidebar user={user} />
         <SidebarInset>
-          <AppTopBar />
-          <Outlet />
+          <PageActionsSlotProvider>
+            <AppTopBar />
+            <Outlet />
+          </PageActionsSlotProvider>
         </SidebarInset>
       </SidebarProvider>
     ),
@@ -61,7 +67,7 @@ async function renderShell(defaultOpen: boolean) {
   const dashboard = createRoute({
     getParentRoute: () => rootRoute,
     path: '/dashboard',
-    component: () => <h1>Tableau de bord</h1>,
+    component: () => <PageHeader title="Tableau de bord" actions={actions} />,
   })
   const router = createRouter({
     routeTree: rootRoute.addChildren([dashboard]),
@@ -184,5 +190,24 @@ describe('App shell sidebar (< md)', () => {
     ).not.toBeInTheDocument()
     // The remembered desktop state is left alone.
     expect(document.cookie).not.toContain('sidebar_state')
+  })
+
+  it('hosts the page actions in the top bar', async () => {
+    const ue = userEvent.setup()
+    const onSelect = vi.fn()
+    await renderShell(false, [
+      { label: 'Ajouter une opération', icon: <PlusIcon />, onSelect },
+    ])
+
+    await ue.click(
+      await within(topBar() as HTMLElement).findByRole('button', {
+        name: 'Ajouter une opération',
+      }),
+    )
+    expect(onSelect).toHaveBeenCalledOnce()
+    // Not also beside the title.
+    expect(
+      screen.getAllByRole('button', { name: 'Ajouter une opération' }),
+    ).toHaveLength(1)
   })
 })

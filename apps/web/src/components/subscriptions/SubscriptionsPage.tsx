@@ -107,8 +107,8 @@ export function SubscriptionsPage() {
   return (
     <div className="@container space-y-6">
       <PageHeader
-        title="Abonnements & charges fixes"
-        description="Vos dépenses et revenus qui reviennent chaque semaine, mois ou année."
+        title="Abonnements"
+        description="Abonnements, charges fixes et revenus qui reviennent chaque semaine, mois ou année."
       />
 
       {list.isPending && <PageSkeleton />}

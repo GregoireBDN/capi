@@ -233,16 +233,18 @@ export function TransactionsPage({
   const filtered = activeFilterCount(search) > 0
   return (
     <div className="@container space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <PageHeader
-          title="Opérations"
-          description="Filtrez, recherchez et corrigez vos opérations."
-        />
-        <Button onClick={() => setAddOpen(true)}>
-          <PlusIcon />
-          Ajouter une opération
-        </Button>
-      </div>
+      <PageHeader
+        title="Opérations"
+        description="Filtrez, recherchez et corrigez vos opérations."
+        actions={[
+          {
+            label: 'Ajouter une opération',
+            icon: <PlusIcon />,
+            primary: true,
+            onSelect: () => setAddOpen(true),
+          },
+        ]}
+      />
       <ManualTransactionSheet open={addOpen} onOpenChange={setAddOpen} />
 
       {actions.offer && (

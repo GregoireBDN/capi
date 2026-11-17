@@ -43,17 +43,6 @@ import {
   dashboardReviewQuery,
 } from './queries'
 
-function ImportButton() {
-  return (
-    <Button asChild outline variant="secondary" size="sm">
-      <Link to={ROUTES.import}>
-        <UploadIcon aria-hidden />
-        Importer
-      </Link>
-    </Button>
-  )
-}
-
 function ReviewCallout({ count }: { count: number }) {
   return (
     <Alert>
@@ -165,13 +154,12 @@ export function DashboardPage({
 
   return (
     <div className="@container space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <PageHeader
-          title="Tableau de bord"
-          description="Votre patrimoine et le bilan du mois."
-        />
-        {data && !isEmpty && <ImportButton />}
-      </div>
+      {/* No « Importer » here: the accounts not updated link to the import,
+          as do the navigation and the month review. */}
+      <PageHeader
+        title="Tableau de bord"
+        description="Votre patrimoine et le bilan du mois."
+      />
 
       {banner}
 

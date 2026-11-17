@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import type { AccountDto, SnapshotDto } from '#/api/types.gen'
+import { PageHeader } from '#/components/app-shell/PageHeader'
 import { CryptoSourceCard } from '#/components/crypto/CryptoSourceCard'
 import { HoldingsPanel } from '#/components/crypto/HoldingsPanel'
 import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
@@ -70,34 +71,32 @@ function AccountHeader({ account }: { account: AccountDto }) {
     .filter(Boolean)
     .join(' · ')
   return (
-    <header className="space-y-1">
+    <div className="space-y-1">
       <BackLink />
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="min-w-0 text-2xl font-semibold tracking-tight break-words">
-          {account.name}
-        </h1>
-        {account.archivedAt && (
-          <Badge variant="secondary" outline>
-            Archivé
-          </Badge>
-        )}
-        <Button
-          size="sm"
-          outline
-          variant="secondary"
-          iconStart={<PencilIcon />}
-          onClick={() => setEditing(true)}
-        >
-          {account.archivedAt ? 'Réactiver…' : 'Modifier'}
-        </Button>
-      </div>
-      <p className="text-muted-foreground text-sm">{kind}</p>
+      <PageHeader
+        title={account.name}
+        titleAddon={
+          account.archivedAt && (
+            <Badge variant="secondary" outline>
+              Archivé
+            </Badge>
+          )
+        }
+        description={kind}
+        actions={[
+          {
+            label: account.archivedAt ? 'Réactiver…' : 'Modifier',
+            icon: <PencilIcon />,
+            onSelect: () => setEditing(true),
+          },
+        ]}
+      />
       <AccountEditor
         open={editing}
         onOpenChange={setEditing}
         account={account}
       />
-    </header>
+    </div>
   )
 }
 
