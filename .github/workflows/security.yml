@@ -1,6 +1,7 @@
 # Security checks (#101, SECURITY.md), in parallel with CI and with each other:
 # - dependency audit: `pnpm audit --prod`, fails on high/critical advisories
-#   that are not in .github/security/audit-allowlist.json;
+#   that are not in .github/security/audit-allowlist.json, and on a moving
+#   dist-tag (`latest`, nightly) in any package.json;
 # - SAST: Semgrep with the TypeScript, Node.js and React rule packs;
 # - secrets: gitleaks on the commits of the PR (the full history otherwise).
 # Also called by release.yml, and run weekly so that new advisories on an
@@ -47,6 +48,10 @@ jobs:
 
       - name: pnpm audit --prod (high/critical, allow-list)
         run: node scripts/audit-prod.mjs
+
+      # No `latest` / nightly dist-tag in any package.json (#243).
+      - name: no moving dependency specifiers
+        run: node scripts/check-specifiers.mjs
 
   semgrep:
     name: SAST (Semgrep)
