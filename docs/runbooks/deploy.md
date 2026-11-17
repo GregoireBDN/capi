@@ -102,11 +102,13 @@ Secrets (Settings › Secrets and variables › Actions):
 | `DEPLOY_SSH_KEY`     | secret, optional   | only for the OpenSSH fallback above                      |
 | `DEPLOY_HOST`        | variable, optional | server's tailnet name if not `vps` (MagicDNS name or IP) |
 
-The deploy job runs in the GitHub environment **`production`** (created automatically on the first run). What it can enforce depends on the plan, because the repository is **private**:
+The deploy job runs in the GitHub environment **`production`**. The repository is **public** (since 2026-11-17), so on GitHub Free the environment enforces:
 
-- **GitHub Free** (current plan): environments, environment secrets, deployment branch rules and required reviewers aren't available for private repositories. Store the secrets above as **repository** secrets; the environment is then only a label (deployment history, URL). The approval is the tag push itself, which only the owner can do.
-- **GitHub Pro**: store the secrets as **environment** secrets of `production` and restrict its deployment branches and tags to the tag pattern `v*.*.*` and the branch `main` (the manual redeploy runs from `main`). Required reviewers are still only available on public repositories (or Enterprise).
-- If **required reviewers** become available (public repository or Enterprise): add the owner as required reviewer and leave "Prevent self-review" **off** (single user, otherwise nobody can approve).
+- **Required reviewer**: the owner, "Prevent self-review" **off** (single user, otherwise nobody can approve) and admins can't bypass. Every deploy waits for the owner's approval in the Actions run (Review deployments).
+- **Deployment branches and tags**: the tag pattern `v*` and the branch `main` (the manual redeploy runs from `main`); nothing else can deploy.
+- **Secrets**: keep `TS_OAUTH_*` (and `DEPLOY_SSH_KEY` if used) as **environment** secrets of `production`, not repository secrets, so only the approved deploy job can read them.
+
+Fork pull requests from outside contributors need approval before their workflows run (Settings › Actions › "Require approval for all external contributors"); `pull_request` runs from forks never see secrets.
 
 The workflow reads `secrets.TS_OAUTH_*` the same way in every case: environment secrets win over repository secrets when both exist.
 
