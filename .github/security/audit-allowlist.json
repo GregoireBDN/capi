@@ -1,4 +1,13 @@
 {
   "$comment": "High/critical advisories accepted by scripts/audit-prod.mjs. Each entry needs a reason and the fix issue tracking it; remove it once the dependency is updated. See SECURITY.md.",
-  "advisories": []
+  "advisories": [
+    {
+      "id": "GHSA-fc5q-39xc-vjpf",
+      "package": "picomatch",
+      "severity": "high",
+      "via": "apps__web>@tanstack/react-start>@tanstack/router-utils>tinyglobby>picomatch",
+      "issue": "https://github.com/GregoireBDN/finances/issues/234",
+      "reason": "No patched picomatch release exists (<= 4.0.7 affected, 4.0.7 is the latest). Only TanStack's router tooling uses it, with glob patterns from the app's own configuration, never with request input, so the ReDoS can't be triggered by a client. Remove once a fixed version is out."
+    }
+  ]
 }
