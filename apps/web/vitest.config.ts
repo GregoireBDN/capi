@@ -12,14 +12,20 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: [
-      { find: /^@\//, replacement: path.resolve(import.meta.dirname, 'src') + '/' },
-      { find: /^#\//, replacement: path.resolve(import.meta.dirname, 'src') + '/' },
+      {
+        find: /^@\//,
+        replacement: path.resolve(import.meta.dirname, 'src') + '/',
+      },
+      {
+        find: /^#\//,
+        replacement: path.resolve(import.meta.dirname, 'src') + '/',
+      },
     ],
   },
   test: {
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'plugins/**/*.test.ts'],
   },
 })

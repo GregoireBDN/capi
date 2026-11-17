@@ -7,7 +7,7 @@
       "severity": "high",
       "via": "apps__web>@tanstack/react-start>@tanstack/router-utils>tinyglobby>picomatch",
       "issue": "https://github.com/GregoireBDN/finances/issues/234",
-      "reason": "No patched picomatch release exists (<= 4.0.7 affected, 4.0.7 is the latest). Only TanStack's router tooling uses it, with glob patterns from the app's own configuration, never with request input, so the ReDoS can't be triggered by a client. Remove once a fixed version is out."
+      "reason": "No patched picomatch release exists (<= 4.0.7 affected, 4.0.7 is the latest). Only TanStack's router tooling uses it, with glob patterns from the app's own configuration, never with request input, so the ReDoS can't be triggered by a client; it is not in the web image either (Nitro no longer traces the build tooling, #242). Remove once a fixed version is out."
     }
   ]
 }
