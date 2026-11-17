@@ -16,6 +16,7 @@ import {
   walletKeysControllerAdd,
   walletKeysControllerList,
   walletKeysControllerRemove,
+  walletKeysControllerUpdate,
   walletTokensControllerAdd,
   walletTokensControllerList,
   walletTokensControllerRemove,
@@ -24,6 +25,7 @@ import type {
   AddWalletTokenDto,
   ChangeCryptoSourceDto,
   SaveHoldingDto,
+  WalletKeyAddressTypeChoice,
   WalletKeyInputDto,
 } from '#/api/types.gen'
 import { afterSnapshotsChanged } from '#/components/accounts/queries'
@@ -180,6 +182,21 @@ export function addWalletKey(accountId: string, body: WalletKeyInputDto) {
     walletKeysControllerAdd({
       path: { id: accountId },
       body,
+      throwOnError: false,
+    }),
+  )
+}
+
+/** Sets the address type of an xpub (or asks to detect it). */
+export function updateWalletKeyAddressType(
+  accountId: string,
+  keyId: string,
+  addressType: WalletKeyAddressTypeChoice,
+) {
+  return unwrap(
+    walletKeysControllerUpdate({
+      path: { id: accountId, keyId },
+      body: { addressType },
       throwOnError: false,
     }),
   )

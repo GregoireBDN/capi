@@ -239,7 +239,10 @@ describe('AccountEditor', () => {
     await user.click(screen.getByLabelText('Clé publique'))
     await user.paste(XPUB)
     // A Bitcoin key is read on Bitcoin only: no chain to choose.
-    expect(screen.getByText('Réseau : Bitcoin.')).toBeInTheDocument()
+    // An xpub asks for its address type, Native SegWit by default (#248).
+    expect(
+      screen.getByRole('radio', { name: /^Native SegWit \(bc1q…\)/ }),
+    ).toBeChecked()
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
 
@@ -252,7 +255,14 @@ describe('AccountEditor', () => {
     expect(api.accountsControllerCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         body: expect.objectContaining({
-          walletKeys: [{ publicKey: XPUB, chains: ['bitcoin'], label: null }],
+          walletKeys: [
+            {
+              publicKey: XPUB,
+              chains: ['bitcoin'],
+              label: null,
+              addressType: 'native_segwit',
+            },
+          ],
         }) as CreateAccountDto,
       }),
     )

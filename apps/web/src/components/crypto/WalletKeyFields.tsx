@@ -6,10 +6,23 @@ import {
   FieldLabel,
   Input,
   Label,
+  RadioGroup,
+  RadioGroupItem,
   Textarea,
 } from '@finances/ui'
-import type { CryptoChain, WalletKeyInputDto } from '#/api/types.gen'
-import { CRYPTO_CHAIN_LABELS, EVM_CHAINS, publicKeyFormat } from './sources'
+import type {
+  CryptoChain,
+  WalletKeyAddressTypeChoice,
+  WalletKeyInputDto,
+} from '#/api/types.gen'
+import {
+  BITCOIN_ADDRESS_TYPE_LABELS,
+  CRYPTO_CHAIN_LABELS,
+  EVM_CHAINS,
+  publicKeyFormat,
+  WALLET_KEY_HELP,
+  XPUB_ADDRESS_TYPE_OPTIONS,
+} from './sources'
 
 const LABEL_MAX = 100
 
@@ -19,6 +32,8 @@ export interface WalletKeyValues {
   /** EVM chains ticked (a Bitcoin key is read on Bitcoin only). */
   chains: CryptoChain[]
   label: string
+  /** Address type of an `xpub` (Ledger exports `xpub` for every account). */
+  addressType: WalletKeyAddressTypeChoice
 }
 
 export interface WalletKeyErrors {
@@ -31,6 +46,7 @@ export const EMPTY_WALLET_KEY: WalletKeyValues = {
   publicKey: '',
   chains: ['ethereum'],
   label: '',
+  addressType: 'native_segwit',
 }
 
 export function validateWalletKey(values: WalletKeyValues): WalletKeyErrors {
@@ -47,18 +63,135 @@ export function validateWalletKey(values: WalletKeyValues): WalletKeyErrors {
 /** The key as sent to the API (validated again there, checksum included). */
 export function walletKeyBody(values: WalletKeyValues): WalletKeyInputDto {
   const publicKey = values.publicKey.trim()
-  const evm = publicKeyFormat(publicKey).family === 'evm'
+  const format = publicKeyFormat(publicKey)
   return {
     publicKey,
-    chains: evm ? values.chains : ['bitcoin'],
+    chains: format.family === 'evm' ? values.chains : ['bitcoin'],
     label: values.label.trim() || null,
+    ...(format.kind === 'xpub' && { addressType: values.addressType }),
   }
 }
 
+/** "Où trouver ma clé ?": where the chosen wallet shows its public keys. */
+export function WalletKeyHelp({ provider }: { provider?: string }) {
+  const steps = WALLET_KEY_HELP[provider ?? ''] ?? WALLET_KEY_HELP.default
+  return (
+    <details className="group text-sm">
+      <summary className="text-primary flex min-h-11 cursor-pointer items-center font-medium">
+        Où trouver ma clé ?
+      </summary>
+      <ul className="text-muted-foreground list-disc space-y-1 pb-2 pl-5">
+        {steps.map((step) => (
+          <li key={step}>{step}</li>
+        ))}
+      </ul>
+    </details>
+  )
+}
+
 /**
- * Public key of a self-custody wallet (xpub / ypub / zpub or 0x address) and,
- * for an EVM address, the chains to read. The key is checked as it is typed:
- * a private key or a recovery phrase is flagged at once.
+ * What a recognized Bitcoin key will read: the address type to derive an
+ * `xpub` as (Ledger Live exports `xpub` for every account type), the type of
+ * a ypub / zpub, or a single address (its own balance only).
+ */
+function BitcoinKeyType({
+  id,
+  values,
+  onChange,
+}: {
+  id: string
+  values: WalletKeyValues
+  onChange: (patch: Partial<WalletKeyValues>) => void
+}) {
+  const format = publicKeyFormat(values.publicKey)
+  if (format.family !== 'bitcoin') return null
+  if (format.kind === 'xpub') {
+    return (
+      <fieldset className="space-y-1">
+        <legend className="mb-1 text-sm font-medium">
+          Type d’adresses du compte
+        </legend>
+        <p className="text-muted-foreground text-xs">
+          Une xpub ne dit pas quel type d’adresses le compte utilise : Ledger
+          Live l’affiche pour tous ses comptes Bitcoin.
+        </p>
+        <XpubAddressTypeRadios
+          id={id}
+          value={values.addressType}
+          onChange={(addressType) => onChange({ addressType })}
+        />
+      </fieldset>
+    )
+  }
+  if (format.kind === 'address') {
+    return (
+      <p className="text-muted-foreground text-sm">
+        Adresse Bitcoin ·{' '}
+        {format.addressType && BITCOIN_ADDRESS_TYPE_LABELS[format.addressType]}.
+        Seul le solde de cette adresse est lu : la xpub du compte suit aussi ses
+        autres adresses (monnaie rendue).
+      </p>
+    )
+  }
+  return (
+    <p className="text-muted-foreground text-sm">
+      Bitcoin ·{' '}
+      {
+        BITCOIN_ADDRESS_TYPE_LABELS[
+          format.kind === 'ypub' ? 'nested_segwit' : 'native_segwit'
+        ]
+      }
+      .
+    </p>
+  )
+}
+
+/** The address types an `xpub` can be read as, and « Je ne sais pas ». */
+export function XpubAddressTypeRadios({
+  id,
+  value,
+  onChange,
+}: {
+  id: string
+  value: WalletKeyAddressTypeChoice
+  onChange: (value: WalletKeyAddressTypeChoice) => void
+}) {
+  return (
+    <RadioGroup
+      value={value}
+      onValueChange={(next) => onChange(next as WalletKeyAddressTypeChoice)}
+      className="gap-0"
+    >
+      {XPUB_ADDRESS_TYPE_OPTIONS.map((option) => (
+        <div
+          key={option.value}
+          className="flex min-h-11 items-start gap-2 py-1"
+        >
+          <RadioGroupItem
+            value={option.value}
+            id={`${id}-type-${option.value}`}
+            className="mt-0.5"
+          />
+          <Label
+            htmlFor={`${id}-type-${option.value}`}
+            className="flex flex-col items-start gap-0.5 font-normal"
+          >
+            <span className="font-medium">{option.label}</span>
+            <span className="text-muted-foreground text-xs">
+              {option.description}
+            </span>
+          </Label>
+        </div>
+      ))}
+    </RadioGroup>
+  )
+}
+
+/**
+ * Public key of a self-custody wallet (xpub / ypub / zpub, a Bitcoin address
+ * or a 0x address) with what it reads: an xpub's address type, an EVM
+ * address's chains. The key is checked as it is typed: a private key or a
+ * recovery phrase is flagged at once.
  */
 export function WalletKeyFields({
   id,
@@ -67,8 +200,11 @@ export function WalletKeyFields({
   onChange,
   withLabel = false,
   label = 'Clé publique',
+  provider,
 }: {
   id: string
+  /** The wallet chosen (Ledger, Trezor…), for « Où trouver ma clé ? ». */
+  provider?: string
   /** Label of the key field (numbered when several keys are typed). */
   label?: string
   values: WalletKeyValues
@@ -101,7 +237,7 @@ export function WalletKeyFields({
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
-          placeholder="xpub…, zpub… ou 0x…"
+          placeholder="xpub…, bc1… ou 0x…"
           className="font-mono text-sm break-all"
           value={values.publicKey}
           aria-invalid={keyError !== undefined}
@@ -111,15 +247,13 @@ export function WalletKeyFields({
           <FieldError>{keyError}</FieldError>
         ) : (
           <FieldDescription>
-            Bitcoin : xpub, ypub ou zpub. Ethereum et compatibles : adresse 0x.
-            Jamais la phrase de récupération ni une clé privée. La clé reste sur
-            votre serveur.
+            Bitcoin : xpub, ypub, zpub ou une adresse. Ethereum et compatibles :
+            adresse 0x. Jamais la phrase de récupération ni une clé privée.
           </FieldDescription>
         )}
+        <WalletKeyHelp provider={provider} />
       </Field>
-      {format.family === 'bitcoin' && (
-        <p className="text-muted-foreground text-sm">Réseau : Bitcoin.</p>
-      )}
+      <BitcoinKeyType id={id} values={values} onChange={onChange} />
       {format.family === 'evm' && (
         <fieldset
           className="space-y-2"

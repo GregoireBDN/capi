@@ -32,6 +32,7 @@ import { toast } from 'sonner'
 import type {
   AccountDto,
   AccountHoldingsDto,
+  WalletKeyAddressTypeChoice,
   WalletKeyDto,
   WalletTokenDto,
 } from '#/api/types.gen'
@@ -49,6 +50,7 @@ import {
   removeWalletKey,
   removeWalletToken,
   syncWallet,
+  updateWalletKeyAddressType,
   walletKeysQuery,
   walletTokensQuery,
 } from './queries'
@@ -58,12 +60,14 @@ import {
   CRYPTO_SOURCE_LABELS,
   maskPublicKey,
   walletKeyErrorMessage,
+  walletKeyTypeLabel,
 } from './sources'
 import {
   EMPTY_WALLET_KEY,
   validateWalletKey,
   walletKeyBody,
   WalletKeyFields,
+  XpubAddressTypeRadios,
 } from './WalletKeyFields'
 import type { WalletKeyValues } from './WalletKeyFields'
 import {
@@ -402,10 +406,13 @@ function AddWalletKeySheet({
   open,
   onOpenChange,
   accountId,
+  provider,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   accountId: string
+  /** The wallet (Ledger, Trezor…), for « Où trouver ma clé ? ». */
+  provider?: string
 }) {
   const isMobile = useIsMobile()
   const queryClient = useQueryClient()
@@ -472,6 +479,7 @@ function AddWalletKeySheet({
             values={values}
             errors={shown}
             withLabel
+            provider={provider}
             onChange={(patch) => {
               setServerError(undefined)
               setValues((current) => ({ ...current, ...patch }))
@@ -486,17 +494,100 @@ function AddWalletKeySheet({
   )
 }
 
+/**
+ * Changes the address type an `xpub` is read as (Ledger Live exports `xpub`
+ * for every account type), or asks to detect it on the next sync.
+ */
+function WalletKeyTypeSheet({
+  accountId,
+  walletKey,
+  onOpenChange,
+}: {
+  accountId: string
+  /** The key being changed; the sheet is closed without one. */
+  walletKey: WalletKeyDto | undefined
+  onOpenChange: (open: boolean) => void
+}) {
+  const isMobile = useIsMobile()
+  const queryClient = useQueryClient()
+  const id = useId()
+  const [value, setValue] =
+    useState<WalletKeyAddressTypeChoice>('native_segwit')
+
+  useEffect(() => {
+    if (!walletKey) return
+    const current = walletKey.addressTypes ?? []
+    setValue(
+      walletKey.detectingAddressType || current.length !== 1
+        ? 'detect'
+        : (current[0] as WalletKeyAddressTypeChoice),
+    )
+  }, [walletKey])
+
+  const save = useMutation({
+    mutationFn: (key: WalletKeyDto) =>
+      updateWalletKeyAddressType(accountId, key.id, value),
+    onSuccess: async () => {
+      toast.success('Type d’adresses enregistré')
+      onOpenChange(false)
+      await queryClient.invalidateQueries({
+        queryKey: cryptoKeys.walletKeys(accountId),
+      })
+    },
+    onError: (error) => toast.error(keyErrorMessage(error)),
+  })
+
+  return (
+    <Sheet open={walletKey !== undefined} onOpenChange={onOpenChange}>
+      <SheetContent
+        side={isMobile ? 'bottom' : 'right'}
+        className={
+          isMobile
+            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
+            : undefined
+        }
+      >
+        <SheetHeader className="pb-0">
+          <SheetTitle>Type d’adresses</SheetTitle>
+          <SheetDescription>
+            {walletKey && maskPublicKey(walletKey.publicKey)} · Ledger Live
+            affiche « xpub » pour tous ses comptes : le chemin du compte (84’,
+            49’ ou 44’) donne le type.
+          </SheetDescription>
+        </SheetHeader>
+        <form
+          noValidate
+          className="space-y-4 px-4 pb-6"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (walletKey) save.mutate(walletKey)
+          }}
+        >
+          <XpubAddressTypeRadios id={id} value={value} onChange={setValue} />
+          <Button type="submit" className="w-full" loading={save.isPending}>
+            Enregistrer
+          </Button>
+        </form>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
 function WalletKeyList({
   accountId,
   writable,
+  provider,
 }: {
   accountId: string
   writable: boolean
+  /** The wallet (Ledger, Trezor…), for « Où trouver ma clé ? ». */
+  provider?: string
 }) {
   const queryClient = useQueryClient()
   const keys = useQuery(walletKeysQuery(accountId))
   const [adding, setAdding] = useState(false)
   const [removing, setRemoving] = useState<WalletKeyDto>()
+  const [typing, setTyping] = useState<WalletKeyDto>()
 
   const remove = useMutation({
     mutationFn: (key: WalletKeyDto) => removeWalletKey(accountId, key.id),
@@ -542,6 +633,24 @@ function WalletKeyList({
                   .filter(Boolean)
                   .join(' · ')}
               </p>
+              {walletKeyTypeLabel(key) && (
+                <p className="text-muted-foreground text-xs">
+                  {walletKeyTypeLabel(key)}
+                  {writable && key.format === 'xpub' && (
+                    <>
+                      {' · '}
+                      <button
+                        type="button"
+                        className="text-primary touch-hitbox relative font-medium underline-offset-2 hover:underline"
+                        aria-label={`Changer le type d’adresses de ${maskPublicKey(key.publicKey)}`}
+                        onClick={() => setTyping(key)}
+                      >
+                        Changer
+                      </button>
+                    </>
+                  )}
+                </p>
+              )}
             </div>
             {writable && list.length > 1 && (
               <Button
@@ -574,6 +683,14 @@ function WalletKeyList({
           open={adding}
           onOpenChange={setAdding}
           accountId={accountId}
+          provider={provider}
+        />
+      )}
+      {writable && (
+        <WalletKeyTypeSheet
+          accountId={accountId}
+          walletKey={typing}
+          onOpenChange={(open) => !open && setTyping(undefined)}
         />
       )}
       <ConfirmDialog
@@ -738,7 +855,11 @@ function ExternalSourceCard({
         </CardHeader>
         {!exchange && (
           <CardContent className="space-y-6">
-            <WalletKeyList accountId={account.id} writable={writable} />
+            <WalletKeyList
+              accountId={account.id}
+              writable={writable}
+              provider={account.institution ?? undefined}
+            />
             <WalletTokenList
               accountId={account.id}
               writable={writable}

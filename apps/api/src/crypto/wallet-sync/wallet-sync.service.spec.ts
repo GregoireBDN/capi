@@ -22,7 +22,7 @@ import * as schema from '#/database/schema'
 import { CryptoPricesService } from '../crypto-prices.service'
 import { CryptoService } from '../crypto.service'
 import { BitcoinAddressDeriver } from './bitcoin-derivation'
-import { BIP84_ZPUB } from './test-vectors'
+import { BIP44_XPUB, BIP84_AS_XPUB, BIP84_ZPUB } from './test-vectors'
 import {
   type BitcoinAddressState,
   ChainProviderError,
@@ -51,8 +51,10 @@ const USDC_ETHEREUM = '0x1111111111111111111111111111111111111111'
 const USDC_BSC = '0x2222222222222222222222222222222222222222'
 
 const deriver = new BitcoinAddressDeriver()
-const RECEIVE = deriver.derive(BIP84_ZPUB, 0, 0, 60)
-const CHANGE = deriver.derive(BIP84_ZPUB, 1, 0, 30)
+const RECEIVE = deriver.derive(BIP84_ZPUB, 'native_segwit', 0, 0, 60)
+const CHANGE = deriver.derive(BIP84_ZPUB, 'native_segwit', 1, 0, 30)
+/** First BIP49 receive address of the test mnemonic, read as a single address. */
+const SINGLE_ADDRESS = '37VucYSaXLCAsxYyAPfbSi9eh4iEcbShgf'
 
 /**
  * Receive branch: used at 0 (emptied), 3 and 23 (19 unused between, within
@@ -65,6 +67,7 @@ const BITCOIN_STATES = new Map<string, BitcoinAddressState>([
   [RECEIVE[23], { balanceSats: 25_000n, used: true }],
   [RECEIVE[44], { balanceSats: 999_999n, used: true }],
   [CHANGE[0], { balanceSats: 10_000n, used: true }],
+  [SINGLE_ADDRESS, { balanceSats: 7_000n, used: true }],
 ])
 
 const PRICES: Record<string, string> = {
@@ -140,6 +143,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
     interface Fixture {
       tx: Db
+      accounts: AccountsService
       crypto: CryptoService
       walletSync: WalletSyncService
       tokens: WalletTokensService
@@ -200,6 +204,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             ).id
           await fn({
             tx: tx as unknown as Db,
+            accounts,
             crypto,
             walletSync,
             tokens,
@@ -281,6 +286,55 @@ describe.skipIf(!process.env.DATABASE_URL)(
           .where(eq(schema.accountsTable.id, id))
         expect(account.cryptoSyncedAt).toEqual(NOW)
         expect(account.cryptoSyncFailedAt).toBeNull()
+      })
+    })
+
+    it('reads single addresses as they are and detects the type of a Ledger xpub (#248)', async () => {
+      await inRollback(async ({ accounts, crypto, mocks, tx }) => {
+        const { id } = await accounts.create({
+          name: 'Ledger',
+          type: 'crypto',
+          cryptoSource: 'wallet',
+          walletKeys: [
+            // Native SegWit account exported as xpub: type to detect.
+            { publicKey: BIP84_AS_XPUB, addressType: 'detect' },
+            // Never used in any type: stays to detect.
+            { publicKey: BIP44_XPUB, addressType: 'detect' },
+            { publicKey: SINGLE_ADDRESS },
+          ],
+        })
+
+        const result = await crypto.sync(id, NOW)
+
+        // 85 000 sats on the derived bc1q… addresses + 7 000 on the address.
+        expect(lines(result.holdings)).toEqual(['sync BTC Bitcoin 0.00092'])
+        // Detection asks the first receive address of each type once; only
+        // the type found is scanned further.
+        const firstOf = (type: 'legacy' | 'nested_segwit') =>
+          deriver.derive(BIP84_AS_XPUB, type, 0, 0, 1)[0]
+        for (const address of [firstOf('legacy'), firstOf('nested_segwit')]) {
+          expect(mocks.asked.filter((a) => a === address)).toHaveLength(1)
+        }
+        expect(mocks.asked).toContain(RECEIVE[0])
+        expect(mocks.asked).toContain(CHANGE[20])
+        expect(mocks.asked).toContain(SINGLE_ADDRESS)
+
+        const keys = await tx
+          .select()
+          .from(schema.cryptoWalletKeysTable)
+          .where(eq(schema.cryptoWalletKeysTable.accountId, id))
+        const byKey = new Map(keys.map((key) => [key.publicKey, key]))
+        expect(byKey.get(BIP84_AS_XPUB)).toMatchObject({
+          addressTypes: ['native_segwit'],
+          detectAddressTypes: false,
+        })
+        expect(byKey.get(BIP44_XPUB)).toMatchObject({
+          addressTypes: null,
+          detectAddressTypes: true,
+        })
+        expect(byKey.get(SINGLE_ADDRESS)).toMatchObject({
+          addressTypes: ['nested_segwit'],
+        })
       })
     })
 

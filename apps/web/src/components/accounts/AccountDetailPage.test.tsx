@@ -24,6 +24,7 @@ const api = vi.hoisted(() => ({
   walletKeysControllerList: vi.fn(),
   walletKeysControllerAdd: vi.fn(),
   walletKeysControllerRemove: vi.fn(),
+  walletKeysControllerUpdate: vi.fn(),
   walletTokensControllerList: vi.fn(),
   walletTokensControllerAdd: vi.fn(),
   walletTokensControllerRemove: vi.fn(),
@@ -537,6 +538,9 @@ describe('AccountDetailPage', () => {
         'xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8',
       chains: ['bitcoin'],
       label: null,
+      format: 'xpub',
+      addressTypes: ['native_segwit'],
+      detectingAddressType: false,
       createdAt: '2026-11-01T10:00:00.000Z',
       ...overrides,
     }
@@ -624,8 +628,13 @@ describe('AccountDetailPage', () => {
           family: 'evm',
           publicKey: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
           chains: ['ethereum', 'base'],
+          format: null,
+          addressTypes: null,
         }),
       ]),
+    )
+    api.walletKeysControllerUpdate.mockImplementation(() =>
+      ok(walletKey({ addressTypes: ['legacy'] })),
     )
     api.walletKeysControllerAdd.mockImplementation(
       ({ body }: { body: { publicKey: string } }) =>
@@ -662,6 +671,38 @@ describe('AccountDetailPage', () => {
     expect(within(keys).getByText('Épargne · Bitcoin')).toBeInTheDocument()
     expect(within(keys).getByText('0x5aAeb6…1BeAed')).toBeInTheDocument()
     expect(within(keys).getByText('Ethereum, Base')).toBeInTheDocument()
+    // An xpub shows the address type it is read as, and can change it (#248).
+    expect(
+      within(keys).getByText(/^Native SegWit \(bc1q…\)/),
+    ).toBeInTheDocument()
+    await user.click(
+      within(keys).getByRole('button', {
+        name: 'Changer le type d’adresses de xpub661M…GMcet8',
+      }),
+    )
+    const typeSheet = await screen.findByRole('dialog', {
+      name: 'Type d’adresses',
+    })
+    await user.click(within(typeSheet).getByLabelText(/^Legacy/))
+    await user.click(
+      within(typeSheet).getByRole('button', { name: 'Enregistrer' }),
+    )
+    await waitFor(() =>
+      expect(api.walletKeysControllerUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: {
+            id: ACCOUNT_ID,
+            keyId: 'k0000000-0000-4000-8000-000000000001',
+          },
+          body: { addressType: 'legacy' },
+        }),
+      ),
+    )
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Type d’adresses' }),
+      ).not.toBeInTheDocument(),
+    )
     // The synced line is read-only.
     expect(screen.getByText('Synchronisé')).toBeInTheDocument()
     expect(

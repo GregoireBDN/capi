@@ -89,11 +89,34 @@ export const CRYPTO_EXCHANGE_PROVIDERS = [
 export type CryptoExchangeProvider = (typeof CRYPTO_EXCHANGE_PROVIDERS)[number]
 
 /**
- * Kind of public key of a wallet: a Bitcoin extended public key (xpub, ypub,
- * zpub) or an EVM address (`0x…`, the same on every EVM chain).
+ * Kind of public key of a wallet: Bitcoin (an extended public key xpub, ypub,
+ * zpub, or a single address) or an EVM address (`0x…`, the same on every EVM
+ * chain).
  */
 export const CRYPTO_KEY_FAMILIES = ['bitcoin', 'evm'] as const
 export type CryptoKeyFamily = (typeof CRYPTO_KEY_FAMILIES)[number]
+
+/**
+ * Bitcoin address types: legacy P2PKH (`1…`, BIP44), nested SegWit
+ * P2SH-P2WPKH (`3…`, BIP49), native SegWit P2WPKH (`bc1q…`, BIP84) and
+ * Taproot (`bc1p…`, single addresses only). An extended key derives one or
+ * more of the first three; a single address has its own.
+ */
+export const BITCOIN_ADDRESS_TYPES = [
+  'legacy',
+  'nested_segwit',
+  'native_segwit',
+  'taproot',
+] as const
+export type BitcoinAddressType = (typeof BITCOIN_ADDRESS_TYPES)[number]
+
+/** Address types an extended public key can be derived as. */
+export const DERIVABLE_ADDRESS_TYPES = [
+  'legacy',
+  'nested_segwit',
+  'native_segwit',
+] as const satisfies readonly BitcoinAddressType[]
+export type DerivableAddressType = (typeof DERIVABLE_ADDRESS_TYPES)[number]
 
 /** Chains a wallet key can be read on. */
 export const CRYPTO_CHAINS = [

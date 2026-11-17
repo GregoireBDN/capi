@@ -15,6 +15,7 @@ import {
   cryptoHoldingsTable,
   cryptoWalletKeysTable,
 } from '#/database/schema'
+import { BIP84_ZPUB } from '../wallet-sync/test-vectors'
 import { WalletKeysService } from './wallet-keys.service'
 
 /**
@@ -63,7 +64,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
         .transaction(async (tx) => {
           const database = { db: tx } as never
           const accounts = new AccountsService(database)
-          const keys = new WalletKeysService(database, accounts)
+          const keys = new WalletKeysService(database, accounts, {
+            invalidate: () => {},
+          })
           await fn({ tx: tx as unknown as Db, accounts, keys })
           throw ROLLBACK
         })
@@ -151,14 +154,77 @@ describe.skipIf(!process.env.DATABASE_URL)(
             publicKey: XPUB,
             chains: ['bitcoin'],
             label: 'Bitcoin',
+            format: 'xpub',
+            // An xpub without a choice is read as native SegWit (#248).
+            addressTypes: ['native_segwit'],
+            detectingAddressType: false,
           },
           {
             family: 'evm',
             publicKey: ADDRESS,
             chains: ['ethereum', 'arbitrum'],
             label: null,
+            format: null,
+            addressTypes: null,
+            detectingAddressType: false,
           },
         ])
+      })
+    })
+
+    it('saves single Bitcoin addresses and the address type of extended keys (#248)', async () => {
+      await inRollback(async ({ accounts, keys }) => {
+        const wallet = await accounts.create({
+          name: 'Ledger',
+          type: 'crypto',
+          cryptoSource: 'wallet',
+          walletKeys: [
+            { publicKey: XPUB, addressType: 'detect' },
+            // BIP173 example, stored in lower case.
+            { publicKey: 'BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4' },
+          ],
+        })
+        const saved = await keys.list(wallet.id)
+        const xpub = saved.find((key) => key.format === 'xpub')!
+        const address = saved.find((key) => key.format === 'address')!
+        expect(xpub).toMatchObject({
+          format: 'xpub',
+          addressTypes: null,
+          detectingAddressType: true,
+        })
+        expect(address).toMatchObject({
+          family: 'bitcoin',
+          format: 'address',
+          publicKey: 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
+          chains: ['bitcoin'],
+          addressTypes: ['native_segwit'],
+        })
+
+        expect(
+          await keys.update(wallet.id, xpub.id, { addressType: 'legacy' }),
+        ).toMatchObject({
+          addressTypes: ['legacy'],
+          detectingAddressType: false,
+        })
+        await expect(
+          keys.update(wallet.id, address.id, { addressType: 'legacy' }),
+        ).rejects.toThrow('Only the address type of an xpub')
+
+        await expect(
+          keys.add(wallet.id, { publicKey: BIP84_ZPUB, addressType: 'legacy' }),
+        ).rejects.toThrow('only derives its own address type')
+        expect(
+          await keys.add(wallet.id, {
+            publicKey: BIP84_ZPUB,
+            addressType: 'native_segwit',
+          }),
+        ).toMatchObject({ format: 'zpub', addressTypes: ['native_segwit'] })
+        await expect(
+          keys.add(wallet.id, {
+            publicKey: '1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA',
+            addressType: 'legacy',
+          }),
+        ).rejects.toThrow('only chosen for an extended public key')
       })
     })
 
@@ -169,7 +235,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           [`${XPUB.slice(0, 30)}a${XPUB.slice(31)}`, 'checksum is wrong'],
           ['0xFB6916095ca1df60bB79Ce92cE3Ea74c37c5d359', 'checksum is wrong'],
           [Array(12).fill('abandon').join(' '), 'recovery phrase'],
-          ['not a key', 'Not a Bitcoin xpub'],
+          ['not a key', 'Not a Bitcoin extended public key'],
         ]
         for (const [publicKey, message] of cases) {
           const attempt = accounts.create({

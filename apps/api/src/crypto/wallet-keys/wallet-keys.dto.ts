@@ -12,10 +12,13 @@ import {
   MinLength,
 } from 'class-validator'
 import {
+  BITCOIN_ADDRESS_TYPES,
+  type BitcoinAddressType,
   CRYPTO_CHAINS,
   CRYPTO_KEY_FAMILIES,
   type CryptoChain,
   type CryptoKeyFamily,
+  DERIVABLE_ADDRESS_TYPES,
 } from '#/database/schema/domain-enums'
 
 const LABEL_MAX = 100
@@ -28,13 +31,33 @@ const CHAINS_DOC = {
   isArray: true,
 } as const
 
+/**
+ * Address type of an `xpub` (Ledger exports `xpub` for every account type),
+ * or `detect` to find it on the first sync.
+ */
+export const WALLET_KEY_ADDRESS_TYPE_CHOICES = [
+  ...DERIVABLE_ADDRESS_TYPES,
+  'detect',
+] as const
+export type WalletKeyAddressTypeChoice =
+  (typeof WALLET_KEY_ADDRESS_TYPE_CHOICES)[number]
+
+const ADDRESS_TYPE_CHOICE_DOC = {
+  enum: WALLET_KEY_ADDRESS_TYPE_CHOICES,
+  enumName: 'WalletKeyAddressTypeChoice',
+} as const
+
+/** Kind of key as pasted: an extended public key, or a single address. */
+export const WALLET_KEY_FORMATS = ['xpub', 'ypub', 'zpub', 'address'] as const
+export type WalletKeyFormat = (typeof WALLET_KEY_FORMATS)[number]
+
 /** A public key to read a wallet from (validated and normalized by the API). */
 export class WalletKeyInputDto {
   @ApiProperty({
     type: String,
     maxLength: PUBLIC_KEY_INPUT_MAX,
     description:
-      'Bitcoin extended public key (xpub, ypub, zpub) or EVM address (0x…). Format and checksum are checked; private keys and recovery phrases are refused.',
+      'Bitcoin extended public key (xpub, ypub, zpub), Bitcoin mainnet address (1…, 3…, bc1q…, bc1p…) or EVM address (0x…). Format and checksum are checked; private keys and recovery phrases are refused.',
   })
   @IsString()
   @MinLength(1)
@@ -53,6 +76,15 @@ export class WalletKeyInputDto {
   @ArrayUnique()
   @IsIn(CRYPTO_CHAINS, { each: true })
   chains?: CryptoChain[]
+
+  @ApiPropertyOptional({
+    ...ADDRESS_TYPE_CHOICE_DOC,
+    description:
+      'Extended keys only. `xpub`: the address type to derive (default `native_segwit`) or `detect` (first sync). `ypub` / `zpub`: their own type only.',
+  })
+  @IsOptional()
+  @IsIn(WALLET_KEY_ADDRESS_TYPE_CHOICES)
+  addressType?: WalletKeyAddressTypeChoice
 
   @ApiPropertyOptional({
     type: String,
@@ -90,9 +122,42 @@ export class WalletKeyDto {
   @ApiProperty(CHAINS_DOC)
   chains!: CryptoChain[]
 
+  @ApiProperty({
+    enum: WALLET_KEY_FORMATS,
+    enumName: 'WalletKeyFormat',
+    nullable: true,
+    description:
+      'Bitcoin keys: extended key prefix or `address`. Null for EVM addresses.',
+  })
+  format!: WalletKeyFormat | null
+
+  @ApiProperty({
+    enum: BITCOIN_ADDRESS_TYPES,
+    enumName: 'BitcoinAddressType',
+    isArray: true,
+    nullable: true,
+    description:
+      'Bitcoin keys: address types read. Null for EVM addresses and while the type of an xpub is being detected.',
+  })
+  addressTypes!: BitcoinAddressType[] | null
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'The address type of this xpub is detected on the next sync (none with history found yet).',
+  })
+  detectingAddressType!: boolean
+
   @ApiProperty({ type: String, nullable: true })
   label!: string | null
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date
+}
+
+/** Changes the address type of an `xpub` key. */
+export class UpdateWalletKeyDto {
+  @ApiProperty(ADDRESS_TYPE_CHOICE_DOC)
+  @IsIn(WALLET_KEY_ADDRESS_TYPE_CHOICES)
+  addressType!: WalletKeyAddressTypeChoice
 }

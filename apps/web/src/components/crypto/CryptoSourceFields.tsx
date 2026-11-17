@@ -192,9 +192,12 @@ function NewWalletKeys({
   keys,
   errors,
   serverError,
+  provider,
   onChange,
 }: {
   id: string
+  /** The wallet chosen, for « Où trouver ma clé ? ». */
+  provider?: string
   keys: readonly WalletKeyValues[]
   errors: readonly WalletKeyErrors[] | undefined
   serverError: string | undefined
@@ -212,6 +215,7 @@ function NewWalletKeys({
             id={`${id}-key-${index}`}
             label={single ? undefined : `Clé publique ${index + 1}`}
             values={key}
+            provider={provider}
             errors={
               single && serverError && !keyErrors.publicKey
                 ? { ...keyErrors, publicKey: serverError }
@@ -255,7 +259,7 @@ function NewWalletKeys({
         </Button>
       )}
       <p className="text-muted-foreground text-xs">
-        Une clé par compte du wallet : par exemple la xpub ou zpub de Bitcoin et
+        Une clé par compte du wallet : par exemple la xpub du compte Bitcoin et
         l’adresse 0x d’Ethereum.
       </p>
     </div>
@@ -435,6 +439,7 @@ export function CryptoSourceFields({
             keys={values.walletKeys}
             errors={errors.walletKeys}
             serverError={errors.walletKeysError}
+            provider={values.provider}
             onChange={(walletKeys) => onChange({ walletKeys })}
           />
           <WalletSyncOffNotice />

@@ -2,14 +2,25 @@ import { BadRequestException, ConflictException } from '@nestjs/common'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type * as schema from '#/database/schema'
 import {
+  type BitcoinAddressType,
   CRYPTO_CHAINS_BY_FAMILY,
   type CryptoChain,
   type CryptoKeyFamily,
   cryptoWalletKeysTable,
   type SelectCryptoWalletKey,
 } from '#/database/schema'
-import { checkPublicKey, PUBLIC_KEY_ERROR_MESSAGES } from './public-key'
-import type { WalletKeyDto, WalletKeyInputDto } from './wallet-keys.dto'
+import {
+  type BitcoinKeyFormat,
+  checkPublicKey,
+  PREFIX_ADDRESS_TYPES,
+  PUBLIC_KEY_ERROR_MESSAGES,
+} from './public-key'
+import type {
+  WalletKeyAddressTypeChoice,
+  WalletKeyDto,
+  WalletKeyFormat,
+  WalletKeyInputDto,
+} from './wallet-keys.dto'
 
 type Db = PostgresJsDatabase<typeof schema>
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
@@ -20,6 +31,36 @@ export interface PreparedWalletKey {
   publicKey: string
   chains: CryptoChain[]
   label: string | null
+  addressTypes: BitcoinAddressType[] | null
+  detectAddressTypes: boolean
+}
+
+/** Default address type of an `xpub` without a choice (Ledger, Trezor…). */
+export const DEFAULT_XPUB_ADDRESS_TYPE = 'native_segwit'
+
+/**
+ * Address types stored for an extended key and an owner's choice: an `xpub`
+ * takes any type (or detection), a `ypub` / `zpub` only its own.
+ */
+export function extendedKeyAddressTypes(
+  format: BitcoinKeyFormat,
+  choice: WalletKeyAddressTypeChoice | undefined,
+): Pick<PreparedWalletKey, 'addressTypes' | 'detectAddressTypes'> {
+  const own = PREFIX_ADDRESS_TYPES[format]
+  if (format !== 'xpub') {
+    if (choice !== undefined && choice !== own) {
+      throw new BadRequestException(
+        `A ${format} key only derives its own address type (${own})`,
+      )
+    }
+    return { addressTypes: [own], detectAddressTypes: false }
+  }
+  if (choice === 'detect')
+    return { addressTypes: null, detectAddressTypes: true }
+  return {
+    addressTypes: [choice ?? DEFAULT_XPUB_ADDRESS_TYPE],
+    detectAddressTypes: false,
+  }
 }
 
 export const DUPLICATE_KEY_MESSAGE =
@@ -47,11 +88,26 @@ export function prepareWalletKeys(
           : 'An EVM address is read on EVM chains only',
       )
     }
+    let types: Pick<PreparedWalletKey, 'addressTypes' | 'detectAddressTypes'>
+    if (check.family === 'evm' || check.format === 'address') {
+      if (input.addressType !== undefined) {
+        throw new BadRequestException(
+          'An address type is only chosen for an extended public key',
+        )
+      }
+      types = {
+        addressTypes: check.family === 'evm' ? null : [check.addressType],
+        detectAddressTypes: false,
+      }
+    } else {
+      types = extendedKeyAddressTypes(check.format, input.addressType)
+    }
     return {
       family: check.family,
       publicKey: check.publicKey,
       chains: [...new Set(chains)],
       label: input.label ?? null,
+      ...types,
     }
   })
   const keys = prepared.map((key) => key.publicKey)
@@ -66,7 +122,43 @@ function isUniqueViolation(error: unknown): boolean {
   return e?.code === '23505' || e?.cause?.code === '23505'
 }
 
+/** Format of a stored key: its extended key prefix or `address`. */
+export function walletKeyFormat(
+  row: Pick<SelectCryptoWalletKey, 'family' | 'publicKey'>,
+): WalletKeyFormat | null {
+  if (row.family !== 'bitcoin') return null
+  const prefix = row.publicKey.slice(0, 4)
+  return prefix === 'xpub' || prefix === 'ypub' || prefix === 'zpub'
+    ? prefix
+    : 'address'
+}
+
+/**
+ * Address types a stored Bitcoin key is read as: the stored ones, else (a
+ * key saved before they were stored) the type of its prefix; null while
+ * detection is pending.
+ */
+export function effectiveAddressTypes(
+  row: Pick<
+    SelectCryptoWalletKey,
+    'family' | 'publicKey' | 'addressTypes' | 'detectAddressTypes'
+  >,
+): BitcoinAddressType[] | null {
+  if (row.family !== 'bitcoin') return null
+  if (row.addressTypes && row.addressTypes.length > 0) return row.addressTypes
+  if (row.detectAddressTypes) return null
+  const format = walletKeyFormat(row)
+  if (format === null || format === 'address') {
+    const check = checkPublicKey(row.publicKey)
+    return check.ok && check.family === 'bitcoin' && check.format === 'address'
+      ? [check.addressType]
+      : null
+  }
+  return [PREFIX_ADDRESS_TYPES[format]]
+}
+
 export function toWalletKeyDto(row: SelectCryptoWalletKey): WalletKeyDto {
+  const addressTypes = effectiveAddressTypes(row)
   return {
     id: row.id,
     accountId: row.accountId,
@@ -74,6 +166,9 @@ export function toWalletKeyDto(row: SelectCryptoWalletKey): WalletKeyDto {
     publicKey: row.publicKey,
     chains: row.chains,
     label: row.label,
+    format: walletKeyFormat(row),
+    addressTypes,
+    detectingAddressType: row.family === 'bitcoin' && addressTypes === null,
     createdAt: row.createdAt,
   }
 }

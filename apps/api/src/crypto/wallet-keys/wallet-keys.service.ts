@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
@@ -7,25 +8,36 @@ import { and, asc, eq } from 'drizzle-orm'
 import { AccountsService } from '#/accounts/accounts.service'
 import { DatabaseService } from '#/database/database.service'
 import { cryptoWalletKeysTable } from '#/database/schema'
-import type { WalletKeyDto, WalletKeyInputDto } from './wallet-keys.dto'
+import { WalletSyncService } from '../wallet-sync/wallet-sync.service'
+import type {
+  UpdateWalletKeyDto,
+  WalletKeyDto,
+  WalletKeyInputDto,
+} from './wallet-keys.dto'
 import {
+  extendedKeyAddressTypes,
   insertWalletKeys,
   prepareWalletKeys,
   toWalletKeyDto,
+  walletKeyFormat,
 } from './wallet-keys.repository'
 
 const k = cryptoWalletKeysTable
 
 /**
  * Public keys of wallet crypto accounts. A wallet account keeps at least one
- * key. Keys are never logged and, in this version, never sent anywhere: the
- * chain sync that reads them comes with #129.
+ * key. Keys are never logged; the wallet sync (when enabled) sends the
+ * addresses they stand for to the chain endpoints only.
  */
 @Injectable()
 export class WalletKeysService {
+  // Explicit tokens: the sync is typed as a narrow interface (specs pass a
+  // stub), and esbuild-based runners drop the reflected types next to it.
   constructor(
-    private readonly database: DatabaseService,
-    private readonly accounts: AccountsService,
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(AccountsService) private readonly accounts: AccountsService,
+    @Inject(WalletSyncService)
+    private readonly walletSync: Pick<WalletSyncService, 'invalidate'>,
   ) {}
 
   private get db() {
@@ -49,6 +61,40 @@ export class WalletKeysService {
       accountId,
       prepareWalletKeys([dto]),
     )
+    this.walletSync.invalidate(accountId)
+    return toWalletKeyDto(row)
+  }
+
+  /**
+   * Sets the address type of an `xpub` (or asks to detect it on the next
+   * sync). A `ypub` / `zpub` or an address keeps its own type.
+   */
+  async update(
+    accountId: string,
+    keyId: string,
+    dto: UpdateWalletKeyDto,
+  ): Promise<WalletKeyDto> {
+    await this.walletAccount(accountId, true)
+    const [key] = await this.db
+      .select()
+      .from(k)
+      .where(and(eq(k.id, keyId), eq(k.accountId, accountId)))
+    if (!key) throw new NotFoundException('Wallet key not found')
+    const format = walletKeyFormat(key)
+    if (format !== 'xpub') {
+      throw new BadRequestException(
+        'Only the address type of an xpub can be changed',
+      )
+    }
+    const [row] = await this.db
+      .update(k)
+      .set({
+        ...extendedKeyAddressTypes(format, dto.addressType),
+        updatedAt: new Date(),
+      })
+      .where(eq(k.id, keyId))
+      .returning()
+    this.walletSync.invalidate(accountId)
     return toWalletKeyDto(row)
   }
 
@@ -70,6 +116,7 @@ export class WalletKeysService {
       }
       await tx.delete(k).where(and(eq(k.id, keyId), eq(k.accountId, accountId)))
     })
+    this.walletSync.invalidate(accountId)
   }
 
   private async walletAccount(accountId: string, writable = false) {
