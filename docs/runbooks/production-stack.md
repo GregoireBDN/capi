@@ -158,11 +158,11 @@ SMTP is optional in production:
 
 Wallet crypto accounts can be read on chain from their public keys (#129). It is **off by default** (`WALLET_SYNC_ENABLED=false`): nothing is sent, wallet accounts are filled by hand. Read [ADR 0002](../adr/0002-wallet-sync-privacy.md) before turning it on: the chain endpoints then receive the wallet's addresses and can link them to the server's IP.
 
-| What is sent                                                                 | To                                                   | Setting                                 |
-| ---------------------------------------------------------------------------- | ---------------------------------------------------- | --------------------------------------- |
-| Bitcoin addresses derived on the server (never the xpub), one per request    | Esplora, `mempool.space/api` by default              | `ESPLORA_URL`                           |
-| EVM address + token contracts (`eth_chainId`, `eth_getBalance`, `balanceOf`) | publicnode.com JSON-RPC per chain by default         | `EVM_RPC_URLS` (JSON keyed by chain id) |
-| Token asset ids (contracts and decimals lookup, cached 24 h)                 | CoinGecko (only when `PRICE_API_ENABLED` is also on) | `PRICE_API_URL`                         |
+| What is sent                                                                                           | To                                                   | Setting                                 |
+| ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- | --------------------------------------- |
+| Bitcoin addresses derived on the server (never the xpub) or saved as single addresses, one per request | Esplora, `mempool.space/api` by default              | `ESPLORA_URL`                           |
+| EVM address + token contracts (`eth_chainId`, `eth_getBalance`, `balanceOf`)                           | publicnode.com JSON-RPC per chain by default         | `EVM_RPC_URLS` (JSON keyed by chain id) |
+| Token asset ids (contracts and decimals lookup, cached 24 h)                                           | CoinGecko (only when `PRICE_API_ENABLED` is also on) | `PRICE_API_URL`                         |
 
 - **While it is off**, setting up a wallet from `/crypto` or the accounts page says so before the account is created; the account keeps its keys and stays empty until sync is turned on (or holdings are typed on its page).
 - **Turn on**: set `WALLET_SYNC_ENABLED=true` in `.env`, then `dc up -d api`. Each wallet is synced before a valuation at most every `WALLET_SYNC_INTERVAL_SECONDS` (600) and with "Synchroniser" on its account page (at most every 30 s).

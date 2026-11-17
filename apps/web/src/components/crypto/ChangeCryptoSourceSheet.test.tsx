@@ -167,7 +167,12 @@ describe('ChangeCryptoSourceSheet', () => {
           body: {
             cryptoSource: 'wallet',
             walletKeys: [
-              { publicKey: XPUB, chains: ['bitcoin'], label: null },
+              {
+                publicKey: XPUB,
+                chains: ['bitcoin'],
+                label: null,
+                addressType: 'native_segwit',
+              },
               { publicKey: ADDRESS, chains: ['ethereum'], label: null },
             ],
           },

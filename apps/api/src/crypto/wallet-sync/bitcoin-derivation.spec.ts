@@ -3,57 +3,97 @@ import {
   BitcoinAddressDeriver,
   MAX_ADDRESSES_PER_BRANCH,
 } from './bitcoin-derivation'
-import { BIP44_XPUB, BIP49_YPUB, BIP84_ZPUB } from './test-vectors'
+import {
+  BIP44_XPUB,
+  BIP49_YPUB,
+  BIP84_AS_XPUB,
+  BIP84_ZPUB,
+} from './test-vectors'
 
 describe('BitcoinAddressDeriver', () => {
   it('derives BIP84 native SegWit receive and change addresses from a zpub', () => {
     const deriver = new BitcoinAddressDeriver()
-    expect(deriver.derive(BIP84_ZPUB, 0, 0, 2)).toEqual([
+    expect(deriver.derive(BIP84_ZPUB, 'native_segwit', 0, 0, 2)).toEqual([
       'bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu',
       'bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g',
     ])
-    expect(deriver.derive(BIP84_ZPUB, 1, 0, 1)).toEqual([
+    expect(deriver.derive(BIP84_ZPUB, 'native_segwit', 1, 0, 1)).toEqual([
       'bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el',
     ])
   })
 
   it('derives BIP49 nested SegWit addresses from a ypub', () => {
     const deriver = new BitcoinAddressDeriver()
-    expect(deriver.derive(BIP49_YPUB, 0, 0, 1)).toEqual([
+    expect(deriver.derive(BIP49_YPUB, 'nested_segwit', 0, 0, 1)).toEqual([
       '37VucYSaXLCAsxYyAPfbSi9eh4iEcbShgf',
     ])
   })
 
   it('derives BIP44 legacy addresses from an xpub', () => {
     const deriver = new BitcoinAddressDeriver()
-    expect(deriver.derive(BIP44_XPUB, 0, 0, 1)).toEqual([
+    expect(deriver.derive(BIP44_XPUB, 'legacy', 0, 0, 1)).toEqual([
       '1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA',
     ])
   })
 
+  it('derives the address type asked, whatever the prefix (Ledger xpub)', () => {
+    const deriver = new BitcoinAddressDeriver()
+    expect(deriver.derive(BIP84_AS_XPUB, 'native_segwit', 0, 0, 2)).toEqual(
+      deriver.derive(BIP84_ZPUB, 'native_segwit', 0, 0, 2),
+    )
+    expect(deriver.derive(BIP84_AS_XPUB, 'native_segwit', 0, 0, 1)).toEqual([
+      'bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu',
+    ])
+    // Same key, other types: other addresses, cached apart.
+    const legacy = deriver.derive(BIP84_AS_XPUB, 'legacy', 0, 0, 1)[0]
+    const nested = deriver.derive(BIP84_AS_XPUB, 'nested_segwit', 0, 0, 1)[0]
+    expect(legacy).toMatch(/^1/)
+    expect(nested).toMatch(/^3/)
+  })
+
+  it('refuses a single address', () => {
+    expect(() =>
+      new BitcoinAddressDeriver().derive(
+        'bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu',
+        'native_segwit',
+        0,
+        0,
+        1,
+      ),
+    ).toThrow('Not a Bitcoin extended public key')
+  })
+
   it('returns any window of a branch, the same from the cache', () => {
     const deriver = new BitcoinAddressDeriver()
-    const all = deriver.derive(BIP84_ZPUB, 0, 0, 25)
+    const all = deriver.derive(BIP84_ZPUB, 'native_segwit', 0, 0, 25)
     expect(new Set(all).size).toBe(25)
-    expect(deriver.derive(BIP84_ZPUB, 0, 20, 5)).toEqual(all.slice(20))
-    expect(new BitcoinAddressDeriver().derive(BIP84_ZPUB, 0, 1, 1)).toEqual([
-      all[1],
-    ])
+    expect(deriver.derive(BIP84_ZPUB, 'native_segwit', 0, 20, 5)).toEqual(
+      all.slice(20),
+    )
+    expect(
+      new BitcoinAddressDeriver().derive(BIP84_ZPUB, 'native_segwit', 0, 1, 1),
+    ).toEqual([all[1]])
   })
 
   it('refuses keys that are not extended public keys, without echoing them', () => {
     const deriver = new BitcoinAddressDeriver()
     const address = '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359'
-    expect(() => deriver.derive(address, 0, 0, 1)).toThrow(
+    expect(() => deriver.derive(address, 'legacy', 0, 0, 1)).toThrow(
       'Not a Bitcoin extended public key',
     )
     try {
-      deriver.derive(`${BIP84_ZPUB.slice(0, -1)}t`, 0, 0, 1)
+      deriver.derive(`${BIP84_ZPUB.slice(0, -1)}t`, 'native_segwit', 0, 0, 1)
     } catch (error) {
       expect((error as Error).message).not.toContain(BIP84_ZPUB.slice(0, 20))
     }
     expect(() =>
-      deriver.derive(BIP84_ZPUB, 0, MAX_ADDRESSES_PER_BRANCH, 1),
+      deriver.derive(
+        BIP84_ZPUB,
+        'native_segwit',
+        0,
+        MAX_ADDRESSES_PER_BRANCH,
+        1,
+      ),
     ).toThrow(RangeError)
   })
 })

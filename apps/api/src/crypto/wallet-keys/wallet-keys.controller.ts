@@ -6,6 +6,7 @@ import {
   HttpCode,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common'
@@ -25,7 +26,11 @@ import {
 } from '@nestjs/swagger'
 import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
-import { WalletKeyDto, WalletKeyInputDto } from './wallet-keys.dto'
+import {
+  UpdateWalletKeyDto,
+  WalletKeyDto,
+  WalletKeyInputDto,
+} from './wallet-keys.dto'
 import { WalletKeysService } from './wallet-keys.service'
 
 const ID_PARAM = { name: 'id', type: String, format: 'uuid' } as const
@@ -77,6 +82,28 @@ export class WalletKeysController {
     @Body() dto: WalletKeyInputDto,
   ): Promise<WalletKeyDto> {
     return this.walletKeys.add(id, dto)
+  }
+
+  @Patch(':keyId')
+  @ApiOperation({
+    summary: 'Change the address type of an xpub',
+    description:
+      'Ledger exports `xpub` for every account type: the owner sets the type to derive, or `detect` to find it on the next sync.',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiParam(KEY_PARAM)
+  @ApiBody({ type: UpdateWalletKeyDto })
+  @ApiOkResponse({ type: WalletKeyDto })
+  @ApiBadRequestResponse({
+    description: 'Not an xpub, not a wallet account, archived account.',
+  })
+  @ApiNotFoundResponse()
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('keyId', ParseUUIDPipe) keyId: string,
+    @Body() dto: UpdateWalletKeyDto,
+  ): Promise<WalletKeyDto> {
+    return this.walletKeys.update(id, keyId, dto)
   }
 
   @Delete(':keyId')

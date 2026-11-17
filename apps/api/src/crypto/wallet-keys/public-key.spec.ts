@@ -229,3 +229,121 @@ describe('checkPublicKey: other input', () => {
     }
   })
 })
+
+/**
+ * Bitcoin addresses from the published documents only: the first receive
+ * addresses of the BIP44 / BIP49 / BIP84 / BIP86 test mnemonic and the
+ * BIP173 / BIP350 examples.
+ */
+const BIP44_ADDRESS = '1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA'
+const BIP49_ADDRESS = '37VucYSaXLCAsxYyAPfbSi9eh4iEcbShgf'
+const BIP84_ADDRESS = 'bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu'
+const BIP86_ADDRESS =
+  'bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr'
+const BIP173_UPPER = 'BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4'
+const BIP173_P2WSH =
+  'bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3'
+
+describe('checkPublicKey: Bitcoin addresses', () => {
+  it('accepts mainnet addresses of each type', () => {
+    expect(checkPublicKey(BIP44_ADDRESS)).toEqual({
+      ok: true,
+      family: 'bitcoin',
+      format: 'address',
+      addressType: 'legacy',
+      publicKey: BIP44_ADDRESS,
+    })
+    expect(checkPublicKey(` ${BIP49_ADDRESS}\n`)).toMatchObject({
+      ok: true,
+      addressType: 'nested_segwit',
+      publicKey: BIP49_ADDRESS,
+    })
+    expect(checkPublicKey(BIP84_ADDRESS)).toMatchObject({
+      ok: true,
+      addressType: 'native_segwit',
+    })
+    expect(checkPublicKey(BIP173_P2WSH)).toMatchObject({
+      ok: true,
+      addressType: 'native_segwit',
+    })
+    expect(checkPublicKey(BIP86_ADDRESS)).toMatchObject({
+      ok: true,
+      addressType: 'taproot',
+    })
+  })
+
+  it('stores bech32 addresses in lower case and refuses mixed case', () => {
+    expect(checkPublicKey(BIP173_UPPER)).toMatchObject({
+      ok: true,
+      publicKey: BIP173_UPPER.toLowerCase(),
+    })
+    const mixed = `${BIP84_ADDRESS.slice(0, 10)}${BIP84_ADDRESS.slice(10).toUpperCase()}`
+    expect(checkPublicKey(mixed)).toEqual({ ok: false, error: 'format' })
+  })
+
+  it('refuses a typo through the checksum', () => {
+    for (const address of [
+      BIP44_ADDRESS,
+      BIP49_ADDRESS,
+      BIP84_ADDRESS,
+      BIP86_ADDRESS,
+    ]) {
+      const last = address.at(-1) === 'q' ? 'p' : 'q'
+      const typo = `${address.slice(0, -1)}${address.at(-1) === 'A' ? 'B' : last}`
+      expect(checkPublicKey(typo)).toEqual({ ok: false, error: 'checksum' })
+    }
+  })
+
+  it('refuses SegWit v0 in bech32m and Taproot in bech32 (BIP350)', () => {
+    // The BIP173 key hash with a bech32m checksum.
+    expect(
+      checkPublicKey('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kemeawh'),
+    ).toEqual({ ok: false, error: 'checksum' })
+    // A witness v1 program with a bech32 checksum.
+    expect(
+      checkPublicKey(
+        'bc1pqurswpc8qurswpc8qurswpc8qurswpc8qurswpc8qurswpc8qurs9s7tj7',
+      ),
+    ).toEqual({ ok: false, error: 'checksum' })
+  })
+
+  it('refuses testnet addresses and other networks', () => {
+    expect(
+      checkPublicKey('tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx'),
+    ).toEqual({ ok: false, error: 'testnet' })
+    expect(checkPublicKey('mipcBbFg9gMiCh81Kj8tqqdgoZub1ZJRfn')).toEqual({
+      ok: false,
+      error: 'testnet',
+    })
+    expect(
+      checkPublicKey('ltc1qw508d6qejxtdg4y5r3zarvary0c5xw7kgmn4n9'),
+    ).toEqual({ ok: false, error: 'format' })
+  })
+
+  it('refuses WIF private keys, even with a typo', () => {
+    // The WIF examples of the Bitcoin wiki (private key 0x0C28FCA3…).
+    const wif = '5HueCGU8rMjxEXxiPuD5BDku4MkFqeZyd4dZ1jvhTVqvbTLvyTJ'
+    expect(checkPublicKey(wif)).toEqual({ ok: false, error: 'private_key' })
+    expect(checkPublicKey(`${wif.slice(0, -1)}K`)).toEqual({
+      ok: false,
+      error: 'private_key',
+    })
+    expect(
+      checkPublicKey('KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn'),
+    ).toEqual({ ok: false, error: 'private_key' })
+  })
+
+  it('refuses output descriptors, with their own reason', () => {
+    expect(
+      checkPublicKey(`wpkh([d34db33f/84h/0h/0h]${BIP32_XPUB}/0/*)`),
+    ).toEqual({ ok: false, error: 'descriptor' })
+    expect(checkPublicKey(`sh(wpkh(${BIP32_XPUB}/0/*))`)).toEqual({
+      ok: false,
+      error: 'descriptor',
+    })
+    expect(checkPublicKey(`wpkh(${BIP32_XPRV}/0/*)`)).toEqual({
+      ok: false,
+      error: 'private_key',
+    })
+  })
+})

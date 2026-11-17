@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import {
   bigint,
+  boolean,
   check,
   index,
   numeric,
@@ -15,6 +16,7 @@ import {
 import { accountsTable } from '#/accounts/accounts.schema'
 import { coreColumns } from '#/database/schema/core.schema'
 import {
+  BITCOIN_ADDRESS_TYPES,
   CRYPTO_CHAINS,
   CRYPTO_HOLDING_ORIGINS,
   CRYPTO_KEY_FAMILIES,
@@ -34,6 +36,10 @@ export const cryptoKeyFamilyEnum = pgEnum(
   CRYPTO_KEY_FAMILIES,
 )
 export const cryptoChainEnum = pgEnum('crypto_chain', CRYPTO_CHAINS)
+export const bitcoinAddressTypeEnum = pgEnum(
+  'bitcoin_address_type',
+  BITCOIN_ADDRESS_TYPES,
+)
 
 /**
  * Quantity of one asset held in one place (a hardware wallet, an exchange)
@@ -95,6 +101,21 @@ export const cryptoWalletKeysTable = pgTable(
     publicKey: varchar('public_key', { length: 150 }).notNull().unique(),
     chains: cryptoChainEnum('chains').array().notNull(),
     label: varchar('label', { length: 100 }),
+    /**
+     * Bitcoin keys: the address types read. An extended key derives each of
+     * them (Ledger exports `xpub` for every account type, so it is chosen by
+     * the owner or detected); a single address has its own. Null for EVM
+     * addresses and for an extended key whose type is still to be detected.
+     */
+    addressTypes: bitcoinAddressTypeEnum('address_types').array(),
+    /**
+     * The owner asked to detect the extended key's address types: the next
+     * sync checks the first receive address of each type and keeps those with
+     * history.
+     */
+    detectAddressTypes: boolean('detect_address_types')
+      .notNull()
+      .default(false),
   },
   (t) => [
     index().on(t.accountId),

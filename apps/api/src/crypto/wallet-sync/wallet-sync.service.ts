@@ -8,8 +8,14 @@ import {
   cryptoWalletTokensTable,
   type SelectCryptoWalletKey,
 } from '#/database/schema'
-import type { CryptoChain } from '#/database/schema/domain-enums'
+import {
+  type CryptoChain,
+  DERIVABLE_ADDRESS_TYPES,
+  type DerivableAddressType,
+} from '#/database/schema/domain-enums'
 import { fitsNumeric, formatDecimal, rescale } from '../decimal'
+import { checkPublicKey } from '../wallet-keys/public-key'
+import { effectiveAddressTypes } from '../wallet-keys/wallet-keys.repository'
 import {
   BitcoinAddressDeriver,
   MAX_ADDRESSES_PER_BRANCH,
@@ -113,10 +119,11 @@ interface ChainsRead {
  * `Retry-After`, else exponential, capped), during which that chain is not
  * asked at all, whether the sync comes from a page load or "Synchroniser".
  *
- * Privacy: the endpoints receive public addresses (derived locally from the
- * extended keys) and token contracts, nothing else. Logs carry the chain id,
- * the failure reason and line counts only: never a key, an address, a URL or
- * a quantity.
+ * Privacy: the endpoints receive public addresses (the single addresses
+ * saved, and those derived locally from the extended keys: when the owner
+ * asks to detect an xpub's type, the first receive address of each type) and
+ * token contracts, nothing else. Logs carry the chain id, the failure reason
+ * and line counts only: never a key, an address, a URL or a quantity.
  */
 @Injectable()
 export class WalletSyncService {
@@ -354,7 +361,7 @@ export class WalletSyncService {
           lines.push({
             asset: BITCOIN_ASSET,
             chain: 'bitcoin',
-            units: await this.scanBitcoin(bitcoin, key.publicKey),
+            units: await this.readBitcoinKey(bitcoin, key),
             decimals: BITCOIN_DECIMALS,
           })
         }
@@ -469,12 +476,73 @@ export class WalletSyncService {
   }
 
   /**
-   * Sum of the confirmed balances of a key's receive and change addresses,
-   * each branch scanned until `gapLimit` consecutive unused addresses.
+   * Confirmed balance of a Bitcoin key: a single address is read as it is;
+   * an extended key is scanned in each of its address types (detected first
+   * when the owner asked for it).
+   */
+  private async readBitcoinKey(
+    provider: BitcoinChainProvider,
+    key: SelectCryptoWalletKey,
+  ): Promise<bigint> {
+    const check = checkPublicKey(key.publicKey)
+    if (!check.ok || check.family !== 'bitcoin') {
+      throw new ChainProviderError('malformed')
+    }
+    if (check.format === 'address') {
+      const [state] = await provider.addressStates([check.publicKey])
+      if (!state) throw new ChainProviderError('malformed')
+      return state.balanceSats
+    }
+    const types =
+      effectiveAddressTypes(key) ??
+      (await this.detectAddressTypes(provider, key))
+    let total = 0n
+    for (const type of types) {
+      if (type === 'taproot') continue
+      total += await this.scanBitcoin(provider, key.publicKey, type)
+    }
+    return total
+  }
+
+  /**
+   * Address types of an `xpub` whose owner asked to detect them: the types
+   * whose first receive address has history, stored on the key. None yet (an
+   * unused account): nothing is stored, the next sync tries again.
+   */
+  private async detectAddressTypes(
+    provider: BitcoinChainProvider,
+    key: SelectCryptoWalletKey,
+  ): Promise<DerivableAddressType[]> {
+    const addresses = DERIVABLE_ADDRESS_TYPES.map(
+      (type) => this.deriver.derive(key.publicKey, type, 0, 0, 1)[0],
+    )
+    const states = await provider.addressStates(addresses)
+    if (states.length !== addresses.length) {
+      throw new ChainProviderError('malformed')
+    }
+    const used = DERIVABLE_ADDRESS_TYPES.filter((_, i) => states[i].used)
+    if (used.length > 0) {
+      await this.db
+        .update(k)
+        .set({
+          addressTypes: used,
+          detectAddressTypes: false,
+          updatedAt: new Date(),
+        })
+        .where(eq(k.id, key.id))
+    }
+    return used
+  }
+
+  /**
+   * Sum of the confirmed balances of a key's receive and change addresses
+   * in one address type, each branch scanned until `gapLimit` consecutive
+   * unused addresses.
    */
   private async scanBitcoin(
     provider: BitcoinChainProvider,
     extendedKey: string,
+    type: DerivableAddressType,
   ): Promise<bigint> {
     let total = 0n
     for (const branch of [0, 1] as const) {
@@ -488,7 +556,13 @@ export class WalletSyncService {
           MAX_ADDRESSES_PER_BRANCH - start,
         )
         if (count <= 0) break
-        const addresses = this.deriver.derive(extendedKey, branch, start, count)
+        const addresses = this.deriver.derive(
+          extendedKey,
+          type,
+          branch,
+          start,
+          count,
+        )
         const states = await provider.addressStates(addresses)
         if (states.length !== addresses.length) {
           throw new ChainProviderError('malformed')

@@ -311,7 +311,12 @@ describe('CryptoPage', () => {
           institution: 'Ledger',
           cryptoSource: 'wallet',
           walletKeys: [
-            { publicKey: XPUB, chains: ['bitcoin'], label: null },
+            {
+              publicKey: XPUB,
+              chains: ['bitcoin'],
+              label: null,
+              addressType: 'native_segwit',
+            },
             {
               publicKey: ADDRESS,
               chains: ['ethereum', 'base'],

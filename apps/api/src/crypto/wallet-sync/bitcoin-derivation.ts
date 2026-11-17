@@ -2,15 +2,16 @@ import { ripemd160 } from '@noble/hashes/legacy'
 import { sha256 } from '@noble/hashes/sha2'
 import { bech32, createBase58check } from '@scure/base'
 import { HDKey } from '@scure/bip32'
+import type { DerivableAddressType } from '#/database/schema/domain-enums'
 import type { BitcoinKeyFormat } from '../wallet-keys/public-key'
 import { checkPublicKey } from '../wallet-keys/public-key'
 
 /**
  * Bitcoin addresses of an account-level extended public key (BIP32), derived
- * locally: nothing leaves the server here. `xpub` gives legacy P2PKH
- * addresses (BIP44), `ypub` nested SegWit P2SH-P2WPKH (BIP49) and `zpub`
- * native SegWit P2WPKH (BIP84). Branch 0 is the receive chain, 1 the change
- * chain.
+ * locally: nothing leaves the server here. The address type is chosen apart
+ * from the key's prefix, since Ledger Live exports `xpub` for every account:
+ * legacy P2PKH (BIP44), nested SegWit P2SH-P2WPKH (BIP49) or native SegWit
+ * P2WPKH (BIP84). Branch 0 is the receive chain, 1 the change chain.
  */
 
 export type BitcoinBranch = 0 | 1
@@ -39,19 +40,19 @@ function withVersion(version: number, payload: Uint8Array): Uint8Array {
   return out
 }
 
-/** Address of a compressed public key in the format's script type. */
+/** Address of a compressed public key in an address type. */
 export function addressOf(
-  format: BitcoinKeyFormat,
+  type: DerivableAddressType,
   publicKey: Uint8Array,
 ): string {
   const keyHash = hash160(publicKey)
-  if (format === 'xpub') {
+  if (type === 'legacy') {
     return base58check.encode(withVersion(P2PKH_VERSION, keyHash))
   }
-  if (format === 'zpub') {
+  if (type === 'native_segwit') {
     return bech32.encode('bc', [0, ...bech32.toWords(keyHash)])
   }
-  // ypub: P2SH wrapping the witness program OP_0 <20-byte key hash>.
+  // nested_segwit: P2SH wrapping the witness program OP_0 <20-byte key hash>.
   const redeemScript = new Uint8Array(22)
   redeemScript[0] = 0x00
   redeemScript[1] = 0x14
@@ -72,12 +73,13 @@ export class BitcoinAddressDeriver {
   private readonly addresses = new Map<string, string[]>()
 
   /**
-   * Addresses `start` to `start + count - 1` of a branch. Throws on a key
-   * that is not a valid mainnet xpub / ypub / zpub (never with the key in
-   * the message).
+   * Addresses `start` to `start + count - 1` of a branch, in an address
+   * type. Throws on a key that is not a valid mainnet xpub / ypub / zpub
+   * (never with the key in the message).
    */
   derive(
     extendedKey: string,
+    type: DerivableAddressType,
     branch: BitcoinBranch,
     start: number,
     count: number,
@@ -85,25 +87,22 @@ export class BitcoinAddressDeriver {
     if (start < 0 || count < 0 || start + count > MAX_ADDRESSES_PER_BRANCH) {
       throw new RangeError('Address index out of range')
     }
-    const cacheKey = `${branch}:${extendedKey}`
+    const cacheKey = `${type}:${branch}:${extendedKey}`
     const known = this.addresses.get(cacheKey) ?? []
     if (known.length < start + count) {
-      const { format, node } = this.branch(extendedKey, branch)
+      const node = this.branch(extendedKey, branch)
       for (let index = known.length; index < start + count; index++) {
         const child = node.deriveChild(index)
-        known.push(addressOf(format, child.publicKey!))
+        known.push(addressOf(type, child.publicKey!))
       }
       this.addresses.set(cacheKey, known)
     }
     return known.slice(start, start + count)
   }
 
-  private branch(
-    extendedKey: string,
-    branch: BitcoinBranch,
-  ): { format: BitcoinKeyFormat; node: HDKey } {
+  private branch(extendedKey: string, branch: BitcoinBranch): HDKey {
     const check = checkPublicKey(extendedKey)
-    if (!check.ok || check.family !== 'bitcoin') {
+    if (!check.ok || check.family !== 'bitcoin' || check.format === 'address') {
       throw new Error('Not a Bitcoin extended public key')
     }
     const cacheKey = `${branch}:${extendedKey}`
@@ -115,6 +114,6 @@ export class BitcoinAddressDeriver {
       ).deriveChild(branch)
       this.branches.set(cacheKey, node)
     }
-    return { format: check.format, node }
+    return node
   }
 }

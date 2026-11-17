@@ -5232,6 +5232,70 @@
       }
     },
     "/api/accounts/{id}/wallet-keys/{keyId}": {
+      "patch": {
+        "description": "Ledger exports `xpub` for every account type: the owner sets the type to derive, or `detect` to find it on the next sync.",
+        "operationId": "WalletKeysController_update",
+        "parameters": [
+          {
+            "name": "keyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWalletKeyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletKeyDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an xpub, not a wallet account, archived account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Change the address type of an xpub",
+        "tags": [
+          "Crypto"
+        ]
+      },
       "delete": {
         "description": "A wallet account keeps at least one key.",
         "operationId": "WalletKeysController_remove",
@@ -7755,13 +7819,23 @@
         ],
         "description": "Chains to read the key on. Bitcoin keys: `bitcoin` only (default). EVM addresses: one or more EVM chains (default `ethereum`)."
       },
+      "WalletKeyAddressTypeChoice": {
+        "type": "string",
+        "enum": [
+          "legacy",
+          "nested_segwit",
+          "native_segwit",
+          "detect"
+        ],
+        "description": "Extended keys only. `xpub`: the address type to derive (default `native_segwit`) or `detect` (first sync). `ypub` / `zpub`: their own type only."
+      },
       "WalletKeyInputDto": {
         "type": "object",
         "properties": {
           "publicKey": {
             "type": "string",
             "maxLength": 500,
-            "description": "Bitcoin extended public key (xpub, ypub, zpub) or EVM address (0x…). Format and checksum are checked; private keys and recovery phrases are refused."
+            "description": "Bitcoin extended public key (xpub, ypub, zpub), Bitcoin mainnet address (1…, 3…, bc1q…, bc1p…) or EVM address (0x…). Format and checksum are checked; private keys and recovery phrases are refused."
           },
           "chains": {
             "type": "array",
@@ -7769,6 +7843,14 @@
             "items": {
               "$ref": "#/components/schemas/CryptoChain"
             }
+          },
+          "addressType": {
+            "description": "Extended keys only. `xpub`: the address type to derive (default `native_segwit`) or `detect` (first sync). `ypub` / `zpub`: their own type only.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WalletKeyAddressTypeChoice"
+              }
+            ]
           },
           "label": {
             "type": "string",
@@ -12117,6 +12199,26 @@
           "evm"
         ]
       },
+      "WalletKeyFormat": {
+        "type": "string",
+        "enum": [
+          "xpub",
+          "ypub",
+          "zpub",
+          "address"
+        ],
+        "description": "Bitcoin keys: extended key prefix or `address`. Null for EVM addresses."
+      },
+      "BitcoinAddressType": {
+        "type": "string",
+        "enum": [
+          "legacy",
+          "nested_segwit",
+          "native_segwit",
+          "taproot"
+        ],
+        "description": "Bitcoin keys: address types read. Null for EVM addresses and while the type of an xpub is being detected."
+      },
       "WalletKeyDto": {
         "type": "object",
         "properties": {
@@ -12145,6 +12247,27 @@
               "$ref": "#/components/schemas/CryptoChain"
             }
           },
+          "format": {
+            "nullable": true,
+            "description": "Bitcoin keys: extended key prefix or `address`. Null for EVM addresses.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WalletKeyFormat"
+              }
+            ]
+          },
+          "addressTypes": {
+            "type": "array",
+            "nullable": true,
+            "description": "Bitcoin keys: address types read. Null for EVM addresses and while the type of an xpub is being detected.",
+            "items": {
+              "$ref": "#/components/schemas/BitcoinAddressType"
+            }
+          },
+          "detectingAddressType": {
+            "type": "boolean",
+            "description": "The address type of this xpub is detected on the next sync (none with history found yet)."
+          },
           "label": {
             "type": "string",
             "nullable": true
@@ -12160,8 +12283,26 @@
           "family",
           "publicKey",
           "chains",
+          "format",
+          "addressTypes",
+          "detectingAddressType",
           "label",
           "createdAt"
+        ]
+      },
+      "UpdateWalletKeyDto": {
+        "type": "object",
+        "properties": {
+          "addressType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WalletKeyAddressTypeChoice"
+              }
+            ]
+          }
+        },
+        "required": [
+          "addressType"
         ]
       },
       "WalletTokenDto": {
