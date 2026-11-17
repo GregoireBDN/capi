@@ -32,7 +32,9 @@ vi.mock('@tanstack/react-start/server', () => ({
   getRequest: () => ctx().request,
   getRequestHeader: (name: string) =>
     ctx().request.headers.get(name) ?? undefined,
-  getResponseHeaders: () => ctx().responseHeaders,
+  appendResponseHeader: (name: string, value: string | string[]) => {
+    for (const item of [value].flat()) ctx().responseHeaders.append(name, item)
+  },
 }))
 // Generated client (not needed by the SSR session path).
 vi.mock('#/api', () => ({}))
