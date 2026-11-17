@@ -1,7 +1,6 @@
 import {
   Alert,
   AlertDescription,
-  AlertTitle,
   Button,
   FieldError,
   FieldLabel,
@@ -11,6 +10,8 @@ import {
   RadioCardGroup,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import {
   Building2Icon,
   PencilLineIcon,
@@ -183,9 +184,18 @@ export function validateCryptoSource(
   return errors
 }
 
+/** How long « Annuler » stays offered after a key is removed. */
+const UNDO_TOAST_MS = 6_000
+
+/** Whether nothing was typed in a key block. */
+function isEmptyKey(key: WalletKeyValues): boolean {
+  return key.publicKey.trim() === '' && key.label.trim() === ''
+}
+
 /**
- * The wallet keys typed when a wallet is set up: one block per key, removable
- * while there are several, and "Ajouter une autre clé".
+ * The wallet keys typed when a wallet is set up: one card per key, removed
+ * with the icon in its header (« Annuler » in the toast puts it back), and
+ * « Ajouter une autre clé ».
  */
 function NewWalletKeys({
   id,
@@ -203,19 +213,63 @@ function NewWalletKeys({
   serverError: string | undefined
   onChange: (keys: WalletKeyValues[]) => void
 }) {
+  // The undo runs later: it restores into the keys as they are by then.
+  const latest = useRef(keys)
+  useEffect(() => {
+    latest.current = keys
+  }, [keys])
+
   const single = keys.length === 1
   const update = (index: number, patch: Partial<WalletKeyValues>) =>
     onChange(keys.map((key, i) => (i === index ? { ...key, ...patch } : key)))
+
+  const remove = (index: number) => {
+    const removed = keys[index]
+    onChange(single ? [EMPTY_WALLET_KEY] : keys.filter((_, i) => i !== index))
+    toast('Clé retirée', {
+      duration: UNDO_TOAST_MS,
+      action: {
+        label: 'Annuler',
+        onClick: () => {
+          const current = [...latest.current]
+          // The empty block left by removing the only key gives way to it.
+          if (current.length === 1 && isEmptyKey(current[0])) current.pop()
+          current.splice(Math.min(index, current.length), 0, removed)
+          onChange(current.slice(0, WALLET_KEYS_MAX))
+        },
+      },
+    })
+  }
+
   return (
     <div className="space-y-3">
       {keys.map((key, index) => {
         const keyErrors = errors?.[index] ?? {}
+        const label = single ? 'Clé publique' : `Clé publique ${index + 1}`
+        const removable = !single || !isEmptyKey(key)
         const fields = (
           <WalletKeyFields
             id={`${id}-key-${index}`}
-            label={single ? undefined : `Clé publique ${index + 1}`}
+            label={label}
             values={key}
             provider={provider}
+            labelAction={
+              removable && (
+                <Button
+                  type="button"
+                  size="sm"
+                  iconOnly
+                  variant="secondary"
+                  ghost
+                  aria-label={
+                    single ? 'Retirer la clé' : `Retirer la clé ${index + 1}`
+                  }
+                  onClick={() => remove(index)}
+                >
+                  <Trash2Icon />
+                </Button>
+              )
+            }
             errors={
               single && serverError && !keyErrors.publicKey
                 ? { ...keyErrors, publicKey: serverError }
@@ -231,17 +285,6 @@ function NewWalletKeys({
         ) : (
           <div key={index} className="space-y-4 rounded-lg border p-3">
             {fields}
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              ghost
-              iconStart={<Trash2Icon />}
-              aria-label={`Retirer la clé publique ${index + 1}`}
-              onClick={() => onChange(keys.filter((_, i) => i !== index))}
-            >
-              Retirer cette clé
-            </Button>
           </div>
         )
       })}
@@ -268,19 +311,32 @@ function NewWalletKeys({
 
 /**
  * Wallet sync is off on this server: a wallet account would stay empty until
- * it is turned on, so the form says so before anything is created.
+ * it is turned on, so the form says so, briefly and in the owner's terms
+ * (the setting itself is in the production runbook), before anything is
+ * created.
  */
 function WalletSyncOffNotice() {
   const settings = useQuery(cryptoSettingsQuery)
   if (settings.data?.walletSyncEnabled !== false) return null
   return (
     <Alert variant="warning">
-      <AlertTitle>Synchronisation des wallets désactivée</AlertTitle>
       <AlertDescription>
-        Ce serveur ne lit pas les blockchains : le wallet sera créé avec ses
-        clés, mais ses avoirs n’apparaîtront qu’une fois la synchronisation
-        activée (WALLET_SYNC_ENABLED). En attendant, ajoutez-les à la main
-        depuis sa page.
+        <p>
+          Synchronisation des wallets désactivée sur ce serveur : vous saisirez
+          les avoirs à la main.
+        </p>
+        <details className="mt-1">
+          <summary className="flex min-h-11 cursor-pointer items-center font-medium">
+            En savoir plus
+          </summary>
+          <p>
+            Le wallet est créé avec ses clés publiques. Tant que la
+            synchronisation reste désactivée, ses avoirs s’ajoutent depuis sa
+            page ; dès qu’elle est activée par l’administrateur du serveur, ils
+            sont lus sur la blockchain à partir de ces clés, sans rien saisir de
+            plus.
+          </p>
+        </details>
       </AlertDescription>
     </Alert>
   )

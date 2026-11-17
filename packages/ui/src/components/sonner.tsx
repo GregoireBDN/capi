@@ -57,6 +57,9 @@ function Toaster({ ...props }: ToasterComponentProps) {
           '--normal-text': 'var(--popover-foreground)',
           '--normal-border': 'var(--border)',
           '--border-radius': 'var(--radius)',
+          // A modal sheet or dialog sets `pointer-events: none` on the body:
+          // toasts stay clickable over it (« Annuler » of an edit made in it).
+          pointerEvents: 'auto',
         } as React.CSSProperties
       }
       // Edge-to-edge (viewport-fit=cover): clear of the notch and the home
