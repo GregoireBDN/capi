@@ -10,6 +10,7 @@ import { nitro } from 'nitro/vite'
 import { multipleSetCookieInDev } from './dev/multiple-set-cookie'
 import { offlinePageHeaders } from './plugins/offline-csp'
 import { serviceWorker } from './plugins/service-worker'
+import { assertServerTrace, serverTraceDeps } from './plugins/server-trace'
 
 const config = defineConfig({
   resolve: {
@@ -42,6 +43,11 @@ const config = defineConfig({
         '/manifest.json': { headers: { 'cache-control': 'no-cache' } },
         '/offline.html': { headers: offlinePageHeaders() },
       },
+      // Keep the workspace's build and test tooling out of the traced
+      // `.output/server/node_modules`, and fail the build if anything but
+      // the known runtime externals gets traced (#242).
+      traceDeps: serverTraceDeps(),
+      traceOpts: { hooks: { tracedPackages: assertServerTrace } },
     }),
     tailwindcss(),
     tanstackStart(),

@@ -18,12 +18,18 @@ on:
       - '.dockerignore'
       - '.trivyignore'
       - '.github/workflows/container-scan.yml'
+      # What Nitro traces into the web image's server/node_modules (#242).
+      - 'apps/web/vite.config.ts'
+      - 'apps/web/plugins/server-trace.ts'
   pull_request:
     paths:
       - 'apps/*/Dockerfile'
       - '.dockerignore'
       - '.trivyignore'
       - '.github/workflows/container-scan.yml'
+      # What Nitro traces into the web image's server/node_modules (#242).
+      - 'apps/web/vite.config.ts'
+      - 'apps/web/plugins/server-trace.ts'
   schedule:
     - cron: '37 6 * * 1'
   workflow_dispatch:
