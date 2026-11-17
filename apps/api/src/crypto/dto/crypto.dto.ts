@@ -313,6 +313,22 @@ export class CryptoSummaryDto {
   refreshFailed!: boolean
 }
 
+/** What this server reads by itself, for the forms that depend on it. */
+export class CryptoSettingsDto {
+  @ApiProperty({
+    type: Boolean,
+    description: 'Prices come from the price API (else typed by hand).',
+  })
+  priceApiEnabled!: boolean
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'Wallet accounts are read on chain from their public keys (`WALLET_SYNC_ENABLED`); off, they stay empty until holdings are typed by hand.',
+  })
+  walletSyncEnabled!: boolean
+}
+
 export class ManualPriceDto {
   @ApiProperty({
     type: String,

@@ -66,8 +66,11 @@ export function WalletKeyFields({
   errors,
   onChange,
   withLabel = false,
+  label = 'Clé publique',
 }: {
   id: string
+  /** Label of the key field (numbered when several keys are typed). */
+  label?: string
   values: WalletKeyValues
   /** Errors to show (empty until the form is submitted). */
   errors: WalletKeyErrors
@@ -90,7 +93,7 @@ export function WalletKeyFields({
   return (
     <>
       <Field data-invalid={keyError !== undefined}>
-        <FieldLabel htmlFor={`${id}-public-key`}>Clé publique</FieldLabel>
+        <FieldLabel htmlFor={`${id}-public-key`}>{label}</FieldLabel>
         <Textarea
           id={`${id}-public-key`}
           rows={3}

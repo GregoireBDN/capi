@@ -18,9 +18,8 @@ import type {
   UpdateMonthCloseDto,
 } from '#/api/types.gen'
 import { PageHeader } from '#/components/app-shell/PageHeader'
-import { MonthSwitcher } from '#/components/MonthSwitcher'
+import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { PeriodNote } from '#/components/PeriodNote'
-import { currentMonth } from '#/lib/calendar'
 import { MonthCloseSteps } from './MonthCloseSteps'
 import { MonthReport } from './MonthReport'
 import {
@@ -57,7 +56,6 @@ const cleanNotes = (notes: string) =>
  * progress, the month's report and "Clôturer le mois" (or "Rouvrir").
  */
 export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
-  const today = currentMonth()
   const queryClient = useQueryClient()
   const review = useQuery(monthCloseQuery(month))
   const [notesDraft, setNotesDraft] = useState('')
@@ -118,11 +116,7 @@ export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
         description="Les étapes pour boucler le mois, puis sa clôture."
       />
 
-      <MonthSwitcher
-        month={month}
-        today={today}
-        onMonthChange={onMonthChange}
-      />
+      <MonthNavigator month={month} onMonthChange={onMonthChange} />
 
       {data && <PeriodNote period={data.period} className="-mt-3" />}
 

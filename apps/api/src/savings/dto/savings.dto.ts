@@ -1,5 +1,6 @@
 import { applyDecorators } from '@nestjs/common'
 import { MonthPeriodDto } from '#/coverage/dto/period.dto'
+import { MONTH_PATTERN } from '#/dashboard/calendar'
 import { MonthFlowDto } from '#/dashboard/dto/dashboard.dto'
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger'
 import { Transform, Type } from 'class-transformer'
@@ -82,6 +83,17 @@ export class SavingsOverviewQueryDto {
   @Min(1)
   @Max(SAVINGS_MONTHS_MAX)
   months?: number
+
+  @ApiPropertyOptional({
+    type: String,
+    pattern: MONTH_PATTERN.source,
+    example: '2026-10',
+    description:
+      'Month of the headline figures (`period`, `current`, `previous`), YYYY-MM. Default: the current month in Europe/Paris when it has data, else the month the data stops in. `months` and the averages do not depend on it.',
+  })
+  @IsOptional()
+  @Matches(MONTH_PATTERN, { message: '$property must be YYYY-MM' })
+  month?: string
 }
 
 export class ListGoalsQueryDto {

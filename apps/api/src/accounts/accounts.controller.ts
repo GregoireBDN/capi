@@ -6,12 +6,14 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common'
 import {
   ApiBadRequestResponse,
   ApiBody,
+  ApiConflictResponse,
   ApiCookieAuth,
   ApiCreatedResponse,
   ApiNotFoundResponse,
@@ -22,10 +24,12 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
+import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import { AccountsService } from './accounts.service'
 import {
   AccountDto,
+  ChangeCryptoSourceDto,
   CreateAccountDto,
   ListAccountsQueryDto,
   UpdateAccountDto,
@@ -95,5 +99,28 @@ export class AccountsController {
     @Body() dto: UpdateAccountDto,
   ): Promise<AccountDto> {
     return this.accountsService.update(id, dto)
+  }
+
+  @Put(':id/crypto-source')
+  @TokenAccess('none')
+  @ApiOperation({
+    summary: 'Turn a manual crypto account into an exchange or a wallet',
+    description:
+      'Only a non-archived `manual` crypto account holding nothing changes source (409 otherwise). A wallet gets its public keys (validated, unique across accounts: 409 when one is already tracked). 0 € values recorded while the account held nothing are dropped when it never had another value. Session only.',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiBody({ type: ChangeCryptoSourceDto })
+  @ApiOkResponse({ type: AccountDto })
+  @ApiBadRequestResponse({ description: 'Invalid body or key.' })
+  @ApiNotFoundResponse()
+  @ApiConflictResponse({
+    description:
+      'Not a manual account, holdings typed by hand, or a key already tracked.',
+  })
+  changeCryptoSource(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ChangeCryptoSourceDto,
+  ): Promise<AccountDto> {
+    return this.accountsService.changeCryptoSource(id, dto)
   }
 }

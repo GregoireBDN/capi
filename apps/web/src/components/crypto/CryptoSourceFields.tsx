@@ -1,4 +1,8 @@
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
   FieldError,
   FieldLabel,
   Field,
@@ -6,8 +10,16 @@ import {
   RadioCard,
   RadioCardGroup,
 } from '@finances/ui'
-import { Building2Icon, PencilLineIcon, WalletIcon } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import {
+  Building2Icon,
+  PencilLineIcon,
+  PlusIcon,
+  Trash2Icon,
+  WalletIcon,
+} from 'lucide-react'
 import type { CreateAccountDto } from '#/api/types.gen'
+import { cryptoSettingsQuery } from './queries'
 import { exchangeProviderOf } from './sources'
 import {
   EMPTY_WALLET_KEY,
@@ -18,6 +30,8 @@ import {
 import type { WalletKeyErrors, WalletKeyValues } from './WalletKeyFields'
 
 const NAME_MAX = 100
+/** Keys typed when a wallet is set up (more can be added from its page). */
+export const WALLET_KEYS_MAX = 20
 
 /**
  * Where a crypto account's holdings come from: an exchange (its exports), a
@@ -58,7 +72,7 @@ const CRYPTO_KIND_TEXT: Record<
   wallet: {
     label: 'Wallet',
     description: 'Ledger, MetaMask…',
-    sourceDescription: 'Ledger, MetaMask… avoirs lus avec sa clé publique.',
+    sourceDescription: 'Ledger, MetaMask… avoirs lus avec ses clés publiques.',
     field: 'Wallet',
     other: 'Nom du wallet',
   },
@@ -78,23 +92,28 @@ export interface CryptoSourceValues {
   provider: string
   /** Name typed after "Autre…", or where manual holdings are (optional). */
   otherProvider: string
-  /** Wallet source: the public key to read it from. */
-  walletKey: WalletKeyValues
+  /**
+   * Wallet source: the public keys to read it from (a Ledger often has a
+   * Bitcoin xpub / zpub and an EVM address). Never empty.
+   */
+  walletKeys: WalletKeyValues[]
 }
 
 export interface CryptoSourceErrors {
   cryptoKind?: string
   provider?: string
   otherProvider?: string
-  publicKey?: string
-  chains?: string
+  /** Per key, in the order of `walletKeys`; set only when one has errors. */
+  walletKeys?: WalletKeyErrors[]
+  /** A key the API refused (it does not say which one). */
+  walletKeysError?: string
 }
 
 export const EMPTY_CRYPTO_SOURCE: CryptoSourceValues = {
   cryptoKind: '',
   provider: '',
   otherProvider: '',
-  walletKey: EMPTY_WALLET_KEY,
+  walletKeys: [EMPTY_WALLET_KEY],
 }
 
 /** The exchange or wallet chosen (or typed for manual holdings), or ''. */
@@ -105,9 +124,9 @@ export function cryptoProviderName(values: CryptoSourceValues): string {
 }
 
 /**
- * Source fields of the account to create: the source, the exchange provider
- * and the wallet key. Only for the account form (`withSource`); accounts set
- * up from the holding editor are `manual`.
+ * Source fields of the account to create (or of a manual account turned into
+ * an exchange or a wallet): the source, the exchange provider and the wallet
+ * keys. For forms where the choice sets the source (`withSource`).
  */
 export function cryptoSourceBody(
   values: CryptoSourceValues,
@@ -120,7 +139,7 @@ export function cryptoSourceBody(
   if (values.cryptoKind === 'wallet')
     return {
       cryptoSource: 'wallet',
-      walletKeys: [walletKeyBody(values.walletKey)],
+      walletKeys: values.walletKeys.map(walletKeyBody),
     }
   return { cryptoSource: 'manual' }
 }
@@ -149,11 +168,118 @@ export function validateCryptoSource(
       errors.otherProvider = '100 caractères maximum'
   }
   if (withSource && values.cryptoKind === 'wallet') {
-    const keyErrors: WalletKeyErrors = validateWalletKey(values.walletKey)
-    if (keyErrors.publicKey) errors.publicKey = keyErrors.publicKey
-    if (keyErrors.chains) errors.chains = keyErrors.chains
+    const seen = new Set<string>()
+    const keyErrors = values.walletKeys.map((key) => {
+      const keyError = validateWalletKey(key)
+      const text = key.publicKey.trim().toLowerCase()
+      if (!keyError.publicKey && seen.has(text))
+        keyError.publicKey = 'Cette clé est déjà saisie ci-dessus'
+      seen.add(text)
+      return keyError
+    })
+    if (keyErrors.some((keyError) => Object.keys(keyError).length > 0))
+      errors.walletKeys = keyErrors
   }
   return errors
+}
+
+/**
+ * The wallet keys typed when a wallet is set up: one block per key, removable
+ * while there are several, and "Ajouter une autre clé".
+ */
+function NewWalletKeys({
+  id,
+  keys,
+  errors,
+  serverError,
+  onChange,
+}: {
+  id: string
+  keys: readonly WalletKeyValues[]
+  errors: readonly WalletKeyErrors[] | undefined
+  serverError: string | undefined
+  onChange: (keys: WalletKeyValues[]) => void
+}) {
+  const single = keys.length === 1
+  const update = (index: number, patch: Partial<WalletKeyValues>) =>
+    onChange(keys.map((key, i) => (i === index ? { ...key, ...patch } : key)))
+  return (
+    <div className="space-y-3">
+      {keys.map((key, index) => {
+        const keyErrors = errors?.[index] ?? {}
+        const fields = (
+          <WalletKeyFields
+            id={`${id}-key-${index}`}
+            label={single ? undefined : `Clé publique ${index + 1}`}
+            values={key}
+            errors={
+              single && serverError && !keyErrors.publicKey
+                ? { ...keyErrors, publicKey: serverError }
+                : keyErrors
+            }
+            onChange={(patch) => update(index, patch)}
+          />
+        )
+        return single ? (
+          <div key={index} className="space-y-4">
+            {fields}
+          </div>
+        ) : (
+          <div key={index} className="space-y-4 rounded-lg border p-3">
+            {fields}
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              ghost
+              iconStart={<Trash2Icon />}
+              aria-label={`Retirer la clé publique ${index + 1}`}
+              onClick={() => onChange(keys.filter((_, i) => i !== index))}
+            >
+              Retirer cette clé
+            </Button>
+          </div>
+        )
+      })}
+      {!single && serverError && <FieldError>{serverError}</FieldError>}
+      {keys.length < WALLET_KEYS_MAX && (
+        <Button
+          type="button"
+          size="sm"
+          outline
+          variant="secondary"
+          iconStart={<PlusIcon />}
+          onClick={() => onChange([...keys, EMPTY_WALLET_KEY])}
+        >
+          Ajouter une autre clé
+        </Button>
+      )}
+      <p className="text-muted-foreground text-xs">
+        Une clé par compte du wallet : par exemple la xpub ou zpub de Bitcoin et
+        l’adresse 0x d’Ethereum.
+      </p>
+    </div>
+  )
+}
+
+/**
+ * Wallet sync is off on this server: a wallet account would stay empty until
+ * it is turned on, so the form says so before anything is created.
+ */
+function WalletSyncOffNotice() {
+  const settings = useQuery(cryptoSettingsQuery)
+  if (settings.data?.walletSyncEnabled !== false) return null
+  return (
+    <Alert variant="warning">
+      <AlertTitle>Synchronisation des wallets désactivée</AlertTitle>
+      <AlertDescription>
+        Ce serveur ne lit pas les blockchains : le wallet sera créé avec ses
+        clés, mais ses avoirs n’apparaîtront qu’une fois la synchronisation
+        activée (WALLET_SYNC_ENABLED). En attendant, ajoutez-les à la main
+        depuis sa page.
+      </AlertDescription>
+    </Alert>
+  )
 }
 
 const KIND_ICONS = {
@@ -165,9 +291,10 @@ const KIND_ICONS = {
 /**
  * "Où sont ces cryptos ?": an exchange or a wallet, then which one (or
  * "Autre…" and its name). Used to set up a new crypto account. With
- * `withSource` (the account form), the choice also sets how its holdings are
- * fed: exchange exports, the wallet's public key (asked here), or typed by
- * hand ("Saisie manuelle").
+ * `withSource`, the choice also sets how its holdings are fed: exchange
+ * exports, the wallet's public keys (asked here, several allowed), or typed
+ * by hand ("Saisie manuelle"); a wallet says so when this server does not
+ * sync wallets.
  */
 export function CryptoSourceFields({
   id,
@@ -175,6 +302,9 @@ export function CryptoSourceFields({
   errors,
   onChange,
   withSource = false,
+  kinds = withSource
+    ? ['exchange', 'wallet', 'manual']
+    : ['exchange', 'wallet'],
 }: {
   id: string
   values: CryptoSourceValues
@@ -182,10 +312,9 @@ export function CryptoSourceFields({
   errors: CryptoSourceErrors
   onChange: (patch: Partial<CryptoSourceValues>) => void
   withSource?: boolean
+  /** Sources offered (default: all of them with `withSource`). */
+  kinds?: readonly CryptoKind[]
 }) {
-  const kinds: readonly CryptoKind[] = withSource
-    ? ['exchange', 'wallet', 'manual']
-    : ['exchange', 'wallet']
   const kind = values.cryptoKind
   return (
     <>
@@ -196,14 +325,18 @@ export function CryptoSourceFields({
         <RadioCardGroup
           aria-labelledby={`${id}-kind-legend`}
           aria-describedby={errors.cryptoKind ? `${id}-kind-error` : undefined}
-          className={withSource ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}
+          className={
+            withSource && kinds.length > 2
+              ? 'grid-cols-1'
+              : 'grid-cols-1 sm:grid-cols-2'
+          }
           value={values.cryptoKind}
           onValueChange={(value) =>
             onChange({
               cryptoKind: value as CryptoKind,
               provider: '',
               otherProvider: '',
-              walletKey: EMPTY_WALLET_KEY,
+              walletKeys: [EMPTY_WALLET_KEY],
             })
           }
         >
@@ -296,14 +429,16 @@ export function CryptoSourceFields({
           </Field>
         )}
       {withSource && kind === 'wallet' && (
-        <WalletKeyFields
-          id={id}
-          values={values.walletKey}
-          errors={{ publicKey: errors.publicKey, chains: errors.chains }}
-          onChange={(patch) =>
-            onChange({ walletKey: { ...values.walletKey, ...patch } })
-          }
-        />
+        <>
+          <NewWalletKeys
+            id={id}
+            keys={values.walletKeys}
+            errors={errors.walletKeys}
+            serverError={errors.walletKeysError}
+            onChange={(walletKeys) => onChange({ walletKeys })}
+          />
+          <WalletSyncOffNotice />
+        </>
       )}
     </>
   )

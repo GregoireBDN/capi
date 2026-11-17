@@ -2350,6 +2350,66 @@
         ]
       }
     },
+    "/api/accounts/{id}/crypto-source": {
+      "put": {
+        "description": "Only a non-archived `manual` crypto account holding nothing changes source (409 otherwise). A wallet gets its public keys (validated, unique across accounts: 409 when one is already tracked). 0 € values recorded while the account held nothing are dropped when it never had another value. Session only.",
+        "operationId": "AccountsController_changeCryptoSource",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeCryptoSourceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body or key."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "Not a manual account, holdings typed by hand, or a key already tracked."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Turn a manual crypto account into an exchange or a wallet",
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
     "/api/imports/preview": {
       "post": {
         "description": "Parses the file, classifies every row (new / duplicate / conflict) against the account, proposes categories and checks the running balance. Stores a pending import; no transaction is written until `POST /imports/{id}/commit`. Pending previews older than 24 h are discarded when a new one is made.",
@@ -4868,6 +4928,37 @@
         ]
       }
     },
+    "/api/crypto/settings": {
+      "get": {
+        "description": "Whether prices come from the price API and whether wallet accounts are synced on chain. Nothing is valued or fetched.",
+        "operationId": "CryptoController_settings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CryptoSettingsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "What this server reads by itself",
+        "tags": [
+          "Crypto"
+        ]
+      }
+    },
     "/api/crypto/summary": {
       "get": {
         "description": "Non-archived crypto accounts, valued with one batched price request (refreshed when the last valuation is older than the TTL).",
@@ -5623,7 +5714,7 @@
     },
     "/api/savings/overview": {
       "get": {
-        "description": "Per calendar month (Europe/Paris): income, expenses, net savings and rate (transfers excluded, as the dashboard), one-off impact, amounts moved from checking to savings / investments, gap to the monthly target. Averages over the 3, 6 and 12 full months before the current one. Savings stock: savings accounts and investments (value, contributions, gain).",
+        "description": "Headline figures of `month` (default: the current month when it has data, else the month the data stops in). Per calendar month (Europe/Paris): income, expenses, net savings and rate (transfers excluded, as the dashboard), one-off impact, amounts moved from checking to savings / investments, gap to the monthly target. Averages over the 3, 6 and 12 full months before the current one. Savings stock: savings accounts and investments (value, contributions, gain).",
         "operationId": "SavingsController_overview",
         "parameters": [
           {
@@ -5636,6 +5727,17 @@
               "maximum": 60,
               "default": 12,
               "type": "integer"
+            }
+          },
+          {
+            "description": "Month of the headline figures (`period`, `current`, `previous`), YYYY-MM. Default: the current month in Europe/Paris when it has data, else the month the data stops in. `months` and the averages do not depend on it.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
             }
           }
         ],
@@ -6092,6 +6194,37 @@
         "summary": "Reopen a closed month",
         "tags": [
           "Month close"
+        ]
+      }
+    },
+    "/api/coverage": {
+      "get": {
+        "description": "The latest day with imported data, the month pages open on without a `month` parameter (the current month when it has data, else the month the data stops in) and the months that have transactions.",
+        "operationId": "CoverageController_coverage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "How far the data goes, for the month navigators",
+        "tags": [
+          "Coverage"
         ]
       }
     }
@@ -7671,7 +7804,7 @@
             "example": "CIC"
           },
           "cryptoSource": {
-            "description": "Crypto accounts only: where the holdings come from (default `manual`). Cannot change later.",
+            "description": "Crypto accounts only: where the holdings come from (default `manual`). A `manual` account can later become an exchange or a wallet (`PUT /accounts/:id/crypto-source`).",
             "allOf": [
               {
                 "$ref": "#/components/schemas/CryptoAccountSource"
@@ -7722,6 +7855,38 @@
             "description": "true archives the account (kept with its history), false restores it."
           }
         }
+      },
+      "ChangeCryptoSourceDto": {
+        "type": "object",
+        "properties": {
+          "cryptoSource": {
+            "type": "string",
+            "enum": [
+              "exchange",
+              "wallet"
+            ],
+            "description": "The new source: `exchange` or `wallet`."
+          },
+          "cryptoProvider": {
+            "description": "Required for `exchange`, refused for `wallet`.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoExchangeProvider"
+              }
+            ]
+          },
+          "walletKeys": {
+            "maxItems": 20,
+            "description": "At least one for `wallet`, refused for `exchange`. Validated (format and checksum) before anything is saved.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WalletKeyInputDto"
+            }
+          }
+        },
+        "required": [
+          "cryptoSource"
+        ]
       },
       "ImportUploadSource": {
         "type": "string",
@@ -11701,6 +11866,23 @@
           "origin"
         ]
       },
+      "CryptoSettingsDto": {
+        "type": "object",
+        "properties": {
+          "priceApiEnabled": {
+            "type": "boolean",
+            "description": "Prices come from the price API (else typed by hand)."
+          },
+          "walletSyncEnabled": {
+            "type": "boolean",
+            "description": "Wallet accounts are read on chain from their public keys (`WALLET_SYNC_ENABLED`); off, they stay empty until holdings are typed by hand."
+          }
+        },
+        "required": [
+          "priceApiEnabled",
+          "walletSyncEnabled"
+        ]
+      },
       "CryptoSummaryAccountDto": {
         "type": "object",
         "properties": {
@@ -13908,6 +14090,45 @@
             "description": "Notes saved with the close (kept as they are when absent)."
           }
         }
+      },
+      "CoverageDto": {
+        "type": "object",
+        "properties": {
+          "dataUntil": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "example": "2026-11-03",
+            "description": "Latest day with imported data (latest booked transaction or end of the latest committed import, every account), never after today in Europe/Paris. Null when nothing was imported. Transactions entered by hand do not count."
+          },
+          "currentMonth": {
+            "type": "string",
+            "example": "2026-11",
+            "description": "Current month in Europe/Paris (YYYY-MM)."
+          },
+          "defaultMonth": {
+            "type": "string",
+            "example": "2026-10",
+            "description": "Month shown when none is asked for: the current month when it has data, else the month the data stops in (YYYY-MM)."
+          },
+          "months": {
+            "example": [
+              "2026-09",
+              "2026-10"
+            ],
+            "description": "Months (YYYY-MM, oldest first) with at least one transaction, imported or entered by hand, up to the current month.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "dataUntil",
+          "currentMonth",
+          "defaultMonth",
+          "months"
+        ]
       }
     }
   }

@@ -16,6 +16,7 @@ const api = vi.hoisted(() => ({
   cryptoControllerValuate: vi.fn(),
   cryptoControllerSearch: vi.fn(),
   cryptoControllerSetPrice: vi.fn(),
+  cryptoControllerSettings: vi.fn(),
   accountsControllerList: vi.fn(),
   accountsControllerCreate: vi.fn(),
   accountHoldingsControllerCreate: vi.fn(),
@@ -26,9 +27,12 @@ const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 )
 
+const navigate = vi.hoisted(() => vi.fn())
+
 vi.mock('#/api', () => api)
 vi.mock('sonner', () => ({ toast }))
 vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigate,
   Link: ({
     to,
     params,
@@ -62,6 +66,11 @@ if (!('ResizeObserver' in globalThis)) {
 
 /** Testing Library collapses the narrow no-break spaces `Intl` emits. */
 const text = (value: string | null) => (value ?? '').replace(/\s/g, ' ')
+
+/** Public test vectors only (BIP32 test vector 1, EIP-55 example). */
+const XPUB =
+  'xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8'
+const ADDRESS = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed'
 
 /** Synthetic data only. */
 const LEDGER_ID = 'a0000000-0000-4000-8000-000000000011'
@@ -176,6 +185,7 @@ describe('CryptoPage', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(NOW)
     for (const fn of Object.values(api)) fn.mockReset()
+    navigate.mockReset()
     toast.success.mockReset()
     toast.error.mockReset()
     api.cryptoControllerSummary.mockImplementation(() => ok(summary()))
@@ -183,8 +193,17 @@ describe('CryptoPage', () => {
       ok([accountDto(LEDGER_ID, 'Ledger test')]),
     )
     api.accountsControllerCreate.mockImplementation(
-      ({ body }: { body: { name: string } }) =>
-        ok(accountDto(NEW_ID, body.name), 201),
+      ({ body }: { body: { name: string; cryptoSource?: string } }) =>
+        ok(
+          {
+            ...accountDto(NEW_ID, body.name),
+            cryptoSource: body.cryptoSource ?? 'manual',
+          },
+          201,
+        ),
+    )
+    api.cryptoControllerSettings.mockImplementation(() =>
+      ok({ priceApiEnabled: true, walletSyncEnabled: true }),
     )
     api.accountHoldingsControllerCreate.mockImplementation(
       ({
@@ -230,7 +249,137 @@ describe('CryptoPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('adds a first holding from an empty app, creating its wallet', async () => {
+  it('sets up a Ledger from its public keys, without any quantity (#207)', async () => {
+    const user = userEvent.setup()
+    api.cryptoControllerSummary.mockImplementation(() =>
+      ok(summary({ accounts: [], totals: EMPTY_TOTALS })),
+    )
+    renderPage()
+    await user.click(
+      await screen.findByRole('button', { name: 'Ajouter un wallet' }),
+    )
+    const sheet = within(screen.getByRole('dialog'))
+    // No account to pick from: straight to where the cryptos are.
+    expect(sheet.queryByText('Compte')).not.toBeInTheDocument()
+    // Nothing to type about a holding before knowing where it comes from.
+    expect(sheet.queryByLabelText('Actif')).not.toBeInTheDocument()
+    await user.click(sheet.getByRole('button', { name: 'Enregistrer' }))
+    expect(
+      sheet.getByText('Choisissez d’où viennent les avoirs'),
+    ).toBeInTheDocument()
+    expect(api.accountsControllerCreate).not.toHaveBeenCalled()
+
+    await user.click(sheet.getByRole('radio', { name: /^Wallet/ }))
+    expect(sheet.getByText('Nouveau wallet')).toBeInTheDocument()
+    // Its holdings are read from its keys: no asset, no quantity.
+    expect(sheet.queryByLabelText('Actif')).not.toBeInTheDocument()
+    expect(sheet.queryByLabelText('Quantité')).not.toBeInTheDocument()
+    await user.click(sheet.getByRole('radio', { name: 'Ledger' }))
+    await user.click(sheet.getByLabelText('Clé publique'))
+    await user.paste(XPUB)
+    await user.click(
+      sheet.getByRole('button', { name: 'Ajouter une autre clé' }),
+    )
+    await user.click(sheet.getByLabelText('Clé publique 2'))
+    await user.paste(XPUB)
+    await user.click(sheet.getByRole('button', { name: 'Ajouter le wallet' }))
+    // The same key twice is caught before anything is sent.
+    expect(
+      sheet.getByText('Cette clé est déjà saisie ci-dessus'),
+    ).toBeInTheDocument()
+    await user.clear(sheet.getByLabelText('Clé publique 2'))
+    await user.click(sheet.getByLabelText('Clé publique 2'))
+    await user.paste(ADDRESS)
+    await user.click(sheet.getByRole('checkbox', { name: 'Base' }))
+    // Sync is on here: nothing to warn about.
+    expect(
+      sheet.queryByText('Synchronisation des wallets désactivée'),
+    ).not.toBeInTheDocument()
+    await user.click(sheet.getByRole('button', { name: 'Ajouter le wallet' }))
+
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({
+        to: '/accounts/$accountId',
+        params: { accountId: NEW_ID },
+      }),
+    )
+    expect(api.accountsControllerCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: {
+          name: 'Ledger',
+          type: 'crypto',
+          institution: 'Ledger',
+          cryptoSource: 'wallet',
+          walletKeys: [
+            { publicKey: XPUB, chains: ['bitcoin'], label: null },
+            {
+              publicKey: ADDRESS,
+              chains: ['ethereum', 'base'],
+              label: null,
+            },
+          ],
+        },
+      }),
+    )
+    expect(api.accountHoldingsControllerCreate).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('Wallet « Ledger » ajouté')
+  })
+
+  it('says before creating a wallet that this server does not sync wallets', async () => {
+    const user = userEvent.setup()
+    api.cryptoControllerSettings.mockImplementation(() =>
+      ok({ priceApiEnabled: true, walletSyncEnabled: false }),
+    )
+    api.cryptoControllerSummary.mockImplementation(() =>
+      ok(summary({ accounts: [], totals: EMPTY_TOTALS })),
+    )
+    renderPage()
+    await user.click(
+      await screen.findByRole('button', { name: 'Ajouter un wallet' }),
+    )
+    const sheet = within(screen.getByRole('dialog'))
+    await user.click(sheet.getByRole('radio', { name: /^Wallet/ }))
+    expect(
+      await sheet.findByText('Synchronisation des wallets désactivée'),
+    ).toBeInTheDocument()
+    expect(sheet.getByText(/WALLET_SYNC_ENABLED/)).toBeInTheDocument()
+  })
+
+  it('sets up an exchange and opens the import of its first export', async () => {
+    const user = userEvent.setup()
+    api.cryptoControllerSummary.mockImplementation(() =>
+      ok(summary({ accounts: [], totals: EMPTY_TOTALS })),
+    )
+    renderPage()
+    await user.click(
+      await screen.findByRole('button', { name: 'Ajouter un wallet' }),
+    )
+    const sheet = within(screen.getByRole('dialog'))
+    await user.click(sheet.getByRole('radio', { name: /^Plateforme/ }))
+    expect(sheet.queryByLabelText('Quantité')).not.toBeInTheDocument()
+    await user.click(sheet.getByRole('radio', { name: 'Binance' }))
+    await user.click(
+      sheet.getByRole('button', { name: 'Ajouter et importer un export' }),
+    )
+    expect(
+      await screen.findByRole('heading', { name: 'Importer un export' }),
+    ).toBeInTheDocument()
+    expect(api.accountsControllerCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: {
+          name: 'Binance',
+          type: 'crypto',
+          institution: 'Binance',
+          cryptoSource: 'exchange',
+          cryptoProvider: 'binance',
+        },
+      }),
+    )
+    expect(api.accountHoldingsControllerCreate).not.toHaveBeenCalled()
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('adds a first holding typed by hand, creating its account', async () => {
     const user = userEvent.setup()
     api.cryptoControllerSummary.mockImplementation(() =>
       ok(summary({ accounts: [], totals: EMPTY_TOTALS })),
@@ -240,16 +389,7 @@ describe('CryptoPage', () => {
       await screen.findByRole('button', { name: 'Ajouter un wallet' }),
     )
     const sheet = within(screen.getByRole('dialog'))
-    // No account to pick from: straight to the exchange or wallet.
-    expect(sheet.queryByText('Compte')).not.toBeInTheDocument()
-    await user.click(sheet.getByRole('button', { name: 'Enregistrer' }))
-    expect(
-      sheet.getByText('Choisissez une plateforme ou un wallet'),
-    ).toBeInTheDocument()
-    expect(api.accountsControllerCreate).not.toHaveBeenCalled()
-
-    await user.click(sheet.getByRole('radio', { name: /^Wallet/ }))
-    await user.click(sheet.getByRole('radio', { name: 'Ledger' }))
+    await user.click(sheet.getByRole('radio', { name: /^Saisie manuelle/ }))
     await user.type(sheet.getByLabelText('Actif'), 'ether')
     await user.click(await sheet.findByRole('button', { name: /^ETH/ }))
     await user.type(sheet.getByLabelText('Quantité'), '2,5')
@@ -268,7 +408,12 @@ describe('CryptoPage', () => {
     )
     expect(api.accountsControllerCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        body: { name: 'Ledger', type: 'crypto', institution: 'Ledger' },
+        body: {
+          name: 'Crypto',
+          type: 'crypto',
+          institution: null,
+          cryptoSource: 'manual',
+        },
       }),
     )
     expect(toast.success).toHaveBeenCalledWith('ETH ajouté')
@@ -278,7 +423,7 @@ describe('CryptoPage', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['accounts'] })
   })
 
-  it('reuses the wallet it created when the holding failed', async () => {
+  it('reuses the account it created when the holding failed', async () => {
     const user = userEvent.setup()
     api.cryptoControllerSummary.mockImplementation(() =>
       ok(summary({ accounts: [], totals: EMPTY_TOTALS })),
@@ -294,9 +439,11 @@ describe('CryptoPage', () => {
       await screen.findByRole('button', { name: 'Ajouter un wallet' }),
     )
     const sheet = within(screen.getByRole('dialog'))
-    await user.click(sheet.getByRole('radio', { name: /^Plateforme/ }))
-    await user.click(sheet.getByRole('radio', { name: 'Autre…' }))
-    await user.type(sheet.getByLabelText('Nom de la plateforme'), 'Bourse test')
+    await user.click(sheet.getByRole('radio', { name: /^Saisie manuelle/ }))
+    await user.type(
+      sheet.getByLabelText('Plateforme ou wallet (facultatif)'),
+      'Bourse test',
+    )
     await user.type(sheet.getByLabelText('Actif'), 'ether')
     await user.click(await sheet.findByRole('button', { name: /^ETH/ }))
     await user.type(sheet.getByLabelText('Quantité'), '1')

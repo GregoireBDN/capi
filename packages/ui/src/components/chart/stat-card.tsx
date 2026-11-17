@@ -87,6 +87,23 @@ function describeDelta({
   return { direction, tone, text }
 }
 
+/**
+ * Average advance of a figure of the value line, in em: digits are ~0.58em
+ * (tabular), separators and narrow no-break spaces much less, so 0.55 keeps
+ * a margin for any amount or percentage.
+ */
+const VALUE_EM_PER_CHAR = 0.55
+
+/**
+ * Font size that fits `text` on one line in its container (`cqi`), between
+ * 0.75rem and 1.5rem: `-1 234 567,89 €` (15 characters) gets 12cqi,
+ * `1 183,67 €` 18cqi.
+ */
+function fittedFontSize(text: string) {
+  const cqi = 100 / (Math.max(text.length, 6) * VALUE_EM_PER_CHAR)
+  return `clamp(0.75rem, ${cqi.toFixed(1)}cqi, 1.5rem)`
+}
+
 const TONE_CLASSES: Record<DeltaTone, string> = {
   good: 'text-chart-delta-good',
   bad: 'text-chart-delta-bad',
@@ -154,6 +171,7 @@ function StatCard({
         : MinusIcon
 
   const hasTrend = trend !== undefined && trend.length > 1
+  const valueText = valueFormatter(value)
 
   return (
     <Card
@@ -190,10 +208,18 @@ function StatCard({
         </div>
 
         <div className="flex min-w-0 flex-col gap-2">
-          {/* Amounts never break (narrow no-break spaces): the size follows the
-              tile's width so "-12 345,67 €" fits two tiles abreast on a phone. */}
-          <div className="px-3 text-[clamp(0.75rem,13cqi,1.25rem)] leading-tight font-semibold tracking-tight break-words text-foreground tabular-nums sm:text-2xl">
-            {valueFormatter(value)}
+          {/* Amounts never break: the size follows the width left to the
+              figures (their own container, so a sparkline beside them is
+              accounted for) and the length of the text, so a long amount
+              shrinks to stay on one line and a short one stays large. */}
+          <div className="@container/stat-value min-w-0 px-3">
+            <div
+              data-slot="stat-card-value"
+              className="leading-tight font-semibold tracking-tight whitespace-nowrap text-foreground tabular-nums"
+              style={{ fontSize: fittedFontSize(valueText) }}
+            >
+              {valueText}
+            </div>
           </div>
 
           {delta ? (
