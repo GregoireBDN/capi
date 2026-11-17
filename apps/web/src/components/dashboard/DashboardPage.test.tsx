@@ -655,17 +655,18 @@ describe('DashboardPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('points to the review queue and to the import', async () => {
+  it('points to the review queue, without an import button beside the title', async () => {
     renderPage()
 
     expect(await screen.findByText('3 opérations à revoir')).toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: /Ouvrir la file de revue/ }),
     ).toHaveAttribute('href', '/review')
-    expect(screen.getByRole('link', { name: /Importer/ })).toHaveAttribute(
-      'href',
-      '/import',
-    )
+    // The accounts not updated link to the import (and so do the navigation
+    // and the month review): no page action on the dashboard (#246).
+    expect(
+      screen.queryByRole('link', { name: 'Importer' }),
+    ).not.toBeInTheDocument()
   })
 
   it('hides the review callout when nothing waits', async () => {

@@ -45,6 +45,29 @@ const clickFirst =
   async (page) => {
     await page.getByRole(role, { name }).first().click()
   }
+/**
+ * Runs a page action (`PageHeader`): a button beside the title or in the top
+ * bar, or an item of the top bar's « Plus d’actions » menu on phones.
+ */
+const pageAction =
+  (name: RegExp): Step =>
+  async (page) => {
+    const button = page.getByRole('button', { name }).first()
+    const more = page.getByRole('button', { name: 'Plus d’actions' })
+    // Phones: the actions reach the top bar once the page is hydrated.
+    await button.or(more).first().waitFor()
+    if (await button.isVisible()) return button.click()
+    await more.click()
+    await page.getByRole('menuitem', { name }).first().click()
+  }
+const openPageActions: Step = async (page) => {
+  const more = page.getByRole('button', { name: 'Plus d’actions' })
+  // ≥ md the actions sit beside the title: no menu.
+  if (await page.getByRole('button', { name: 'Ouvrir le menu' }).isHidden())
+    return
+  await more.click()
+  await page.getByRole('menu').waitFor()
+}
 
 async function openExpenseSheet(page: Page) {
   await page
@@ -117,7 +140,7 @@ const SCENARIOS: Array<Scenario> = [
     name: 'transactions-add',
     path: '/transactions?month=all',
     step: async (page) => {
-      await clickFirst(/^Ajouter une opération$/)(page)
+      await pageAction(/^Ajouter une opération$/)(page)
       await page.getByRole('dialog').waitFor()
     },
   },
@@ -156,7 +179,7 @@ const SCENARIOS: Array<Scenario> = [
     name: 'crypto-holding-editor',
     path: '/crypto',
     step: async (page) => {
-      await clickFirst(/^Ajouter un (avoir|wallet)$/)(page)
+      await pageAction(/^Ajouter un (avoir|wallet)$/)(page)
       await page.getByRole('dialog').waitFor()
     },
   },
@@ -173,6 +196,7 @@ const SCENARIOS: Array<Scenario> = [
     },
   },
   { name: 'accounts', path: '/accounts' },
+  { name: 'accounts-actions', path: '/accounts', step: openPageActions },
   { name: 'profile', path: '/profile' },
   ...['checking', 'brokerage', 'life_insurance', 'crypto'].map((type) => ({
     name: `account-${type}`,

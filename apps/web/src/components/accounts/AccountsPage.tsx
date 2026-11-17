@@ -16,7 +16,13 @@ import {
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ChevronRightIcon, LandmarkIcon, UploadIcon } from 'lucide-react'
+import {
+  ChevronRightIcon,
+  LandmarkIcon,
+  PlusIcon,
+  UploadIcon,
+} from 'lucide-react'
+import { useState } from 'react'
 import type {
   AccountDto,
   InvestmentAccountSummaryDto,
@@ -28,8 +34,8 @@ import { formatCalendarDate, formatCents } from '#/lib/money'
 import { plural } from '#/lib/plural'
 import { accountsQuery } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
-import { NewAccountButton } from './AccountEditor'
-import { AddInvestmentButton } from './AddInvestmentSheet'
+import { AccountEditor } from './AccountEditor'
+import { AddInvestmentSheet } from './AddInvestmentSheet'
 import { formatAge, isInvestmentType } from './labels'
 import { archivedAccountsQuery, investmentsSummaryQuery } from './queries'
 import { isValuedByHand, UpdateValueButton } from './UpdateValueButton'
@@ -125,6 +131,7 @@ export function AccountsPage() {
   const accounts = useQuery(accountsQuery)
   const summary = useQuery(investmentsSummaryQuery)
   const archived = useQuery(archivedAccountsQuery)
+  const [adding, setAdding] = useState<'investment' | 'account' | null>(null)
 
   const list = accounts.data ?? []
   const cash = list.filter((account) => !isInvestmentType(account.type))
@@ -135,16 +142,31 @@ export function AccountsPage() {
 
   return (
     <div className="@container space-y-6">
-      <div className="flex flex-col gap-3 @2xl:flex-row @2xl:items-end @2xl:justify-between">
-        <PageHeader
-          title="Comptes"
-          description="Vos comptes, leur valeur et la date de leur dernier relevé."
-        />
-        <div className="flex flex-wrap gap-2">
-          <AddInvestmentButton />
-          <NewAccountButton outline />
-        </div>
-      </div>
+      <PageHeader
+        title="Comptes"
+        description="Vos comptes, leur valeur et la date de leur dernier relevé."
+        actions={[
+          {
+            label: 'Ajouter un placement',
+            icon: <PlusIcon />,
+            primary: true,
+            onSelect: () => setAdding('investment'),
+          },
+          {
+            label: 'Nouveau compte',
+            icon: <LandmarkIcon />,
+            onSelect: () => setAdding('account'),
+          },
+        ]}
+      />
+      <AddInvestmentSheet
+        open={adding === 'investment'}
+        onOpenChange={(open) => setAdding(open ? 'investment' : null)}
+      />
+      <AccountEditor
+        open={adding === 'account'}
+        onOpenChange={(open) => setAdding(open ? 'account' : null)}
+      />
 
       {accounts.isPending && (
         <div className="space-y-3" aria-busy="true" aria-label="Chargement">
