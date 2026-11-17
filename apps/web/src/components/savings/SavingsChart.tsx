@@ -7,6 +7,7 @@ import {
   CardTitle,
   formatMonthLong,
   formatMonthShort,
+  formatWholeEuros,
   Label,
   Skeleton,
   Switch,
@@ -14,7 +15,6 @@ import {
 import type { ChartConfig } from '@finances/ui'
 import { useId, useState } from 'react'
 import type { SavingsMonthDto } from '#/api/types.gen'
-import { formatCents } from '#/lib/money'
 
 export const CHART_HEIGHT = 240
 
@@ -27,6 +27,9 @@ const WITH_MOVED_CONFIG = {
   ...NET_CONFIG,
   moved: { label: 'Versé sur l’épargne', color: 'var(--chart-other)' },
 } satisfies ChartConfig
+
+/** Shown in the tooltip and the data table, not drawn. */
+const ONE_OFF_DETAILS = { oneOff: 'Dont ponctuel' } as const
 
 function range(months: SavingsMonthDto[]): string {
   if (months.length === 0) return ''
@@ -51,8 +54,11 @@ export function SavingsChart({
     month: month.month,
     net: month.netCents,
     ...(showMoved ? { moved: month.movedCents } : {}),
+    oneOff: month.oneOffNetCents,
   }))
-  const oneOffMonths = months.filter((month) => month.oneOffNetCents !== 0)
+  const oneOffCount = months.filter(
+    (month) => month.oneOffNetCents !== 0,
+  ).length
 
   return (
     <Card className="min-w-0">
@@ -60,6 +66,8 @@ export function SavingsChart({
         <CardTitle>Épargne par mois</CardTitle>
         <CardDescription>
           Revenus moins dépenses, virements entre vos comptes exclus.
+          {target !== null &&
+            ` La ligne pointillée marque votre épargne cible (${formatWholeEuros(target)} par mois).`}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -72,8 +80,11 @@ export function SavingsChart({
           indexFormatter={formatMonthShort}
           tooltipIndexFormatter={formatMonthLong}
           referenceLines={
-            target === null ? undefined : [{ value: target, label: 'Cible' }]
+            target === null
+              ? undefined
+              : [{ value: target, label: `Cible ${formatWholeEuros(target)}` }]
           }
+          details={ONE_OFF_DETAILS}
           label={`Épargne nette par mois${showMoved ? ' et montants versés sur l’épargne' : ''}, ${range(months)}`}
           dataTable="details"
         />
@@ -93,16 +104,13 @@ export function SavingsChart({
             </p>
           </div>
         </div>
-        {oneOffMonths.length > 0 && (
+        {oneOffCount > 0 && (
           <p className="text-muted-foreground text-xs">
-            Dont ponctuel :{' '}
-            {oneOffMonths
-              .map(
-                (month) =>
-                  `${formatMonthShort(month.month)} ${formatCents(month.oneOffNetCents)}`,
-              )
-              .join(', ')}
-            .
+            {oneOffCount === 1
+              ? '1 mois compte'
+              : `${oneOffCount} mois comptent`}{' '}
+            des revenus ou dépenses ponctuels : touchez un mois ou ouvrez les
+            données pour voir leur montant.
           </p>
         )}
       </CardContent>

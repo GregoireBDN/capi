@@ -103,6 +103,12 @@ type CartesianChartProps<TDatum extends ChartDatum> = {
   dataTable?: ChartDataTableMode
   /** Horizontal reference lines (targets, averages). */
   referenceLines?: ReadonlyArray<ChartReferenceLine>
+  /**
+   * Extra values of each row, not drawn: field → label (e.g.
+   * `{ oneOff: 'Dont ponctuel' }`). Listed under the series in the tooltip
+   * when not zero, and as columns of the data table.
+   */
+  details?: Readonly<Record<string, string>>
   /** Content shown instead of the chart when `data` is empty. */
   emptyMessage?: React.ReactNode
   className?: string
@@ -171,6 +177,7 @@ function useCartesianDefaults<TDatum extends ChartDatum>(
     showLegend: props.showLegend ?? keys.length > 1,
     showGrid: props.showGrid ?? true,
     dataTable: props.dataTable ?? 'sr-only',
+    details: props.details,
   }
 }
 
@@ -185,6 +192,8 @@ function CartesianFooter({
   label,
   valueFormatter,
   tooltipIndexFormatter,
+  keys,
+  details,
 }: {
   showLegend: boolean
   marker: 'square' | 'line'
@@ -195,6 +204,10 @@ function CartesianFooter({
   label: string
   valueFormatter: ValueFormatter
   tooltipIndexFormatter: IndexFormatter
+  /** The plotted series, in order. */
+  keys: string[]
+  /** Extra columns of the data table (field → header). */
+  details?: Readonly<Record<string, string>>
 }) {
   return (
     <>
@@ -205,6 +218,8 @@ function CartesianFooter({
           index={index}
           indexLabel={indexLabel}
           caption={label}
+          keys={details ? [...keys, ...Object.keys(details)] : undefined}
+          columnLabels={details}
           valueFormatter={valueFormatter}
           indexFormatter={tooltipIndexFormatter}
           variant={dataTable}

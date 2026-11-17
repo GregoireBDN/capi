@@ -311,6 +311,11 @@ type ChartTooltipContentProps = Partial<
   indicator?: 'line' | 'square'
   /** When set, each row also shows its share of this total. */
   total?: number
+  /**
+   * Extra fields of the hovered row (field → label), listed after the series
+   * when not zero, without a colour key (e.g. `Dont ponctuel`).
+   */
+  details?: Readonly<Record<string, string>>
 }
 
 /**
@@ -328,6 +333,7 @@ function ChartTooltipContent({
   hideLabel = false,
   indicator = 'line',
   total,
+  details,
 }: ChartTooltipContentProps) {
   const { config } = useChart()
 
@@ -337,6 +343,14 @@ function ChartTooltipContent({
     (item) => item.type !== 'none' && typeof item.value === 'number',
   )
   if (!items.length) return null
+
+  const row = items[0]?.payload as Record<string, unknown> | undefined
+  const extras = Object.entries(details ?? {}).flatMap(([key, name]) => {
+    const value = row?.[key]
+    return typeof value === 'number' && value !== 0
+      ? [{ key, name, value }]
+      : []
+  })
 
   const heading =
     hideLabel || label === undefined || label === ''
@@ -392,6 +406,23 @@ function ChartTooltipContent({
             </div>
           )
         })}
+        {extras.map(({ key, name, value }) => (
+          <div
+            key={key}
+            data-slot="chart-tooltip-detail"
+            className="flex items-center gap-2"
+          >
+            {/* No colour key: a detail of the row, not a drawn series. */}
+            <span
+              aria-hidden
+              className={cn('shrink-0', indicator === 'line' ? 'w-3' : 'w-2.5')}
+            />
+            <span className="text-muted-foreground">{name}</span>
+            <span className="ml-auto pl-3 text-foreground tabular-nums">
+              {valueFormatter(value)}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   )

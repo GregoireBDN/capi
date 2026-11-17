@@ -8,17 +8,15 @@ import {
   Skeleton,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import { PlusIcon } from 'lucide-react'
 import { useState } from 'react'
-import type { CategoryDto } from '#/api/types.gen'
+import type { CategoryDto, TransactionKind } from '#/api/types.gen'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import {
   KIND_GROUP_LABELS,
   TRANSACTION_KINDS,
 } from '#/components/transactions/labels'
 import { categoriesQuery } from '#/lib/queries'
-import { ROUTES } from '#/lib/routes'
 import { AddCategorySheet } from './AddCategorySheet'
 import { CategoryRow } from './CategoryRow'
 import { DeleteCategoryDialog } from './DeleteCategoryDialog'
@@ -46,6 +44,73 @@ function CategoryList({
   )
 }
 
+/** The active categories of one kind (expenses, income or transfers). */
+function KindCard({
+  kind,
+  categories,
+  onDelete,
+}: {
+  kind: TransactionKind
+  categories: readonly CategoryDto[]
+  onDelete: (category: CategoryDto) => void
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          {KIND_GROUP_LABELS[kind]}{' '}
+          <span className="text-muted-foreground font-normal">
+            ({categories.length})
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {categories.length > 0 ? (
+          <CategoryList
+            label={KIND_GROUP_LABELS[kind]}
+            categories={categories}
+            onDelete={onDelete}
+          />
+        ) : (
+          <p className="text-muted-foreground text-sm">Aucune catégorie.</p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function ArchivedCard({
+  categories,
+  onDelete,
+}: {
+  categories: readonly CategoryDto[]
+  onDelete: (category: CategoryDto) => void
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          Archivées{' '}
+          <span className="text-muted-foreground font-normal">
+            ({categories.length})
+          </span>
+        </CardTitle>
+        <CardDescription>
+          Absentes des listes de choix ; leurs opérations, budgets et
+          statistiques restent visibles.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <CategoryList
+          label="Catégories archivées"
+          categories={categories}
+          onDelete={onDelete}
+        />
+      </CardContent>
+    </Card>
+  )
+}
+
 /**
  * Settings page of the categories: grouped by kind, renamed inline,
  * recoloured from the chart palette, added, archived and deleted (with
@@ -61,19 +126,11 @@ export function CategoriesPage() {
   const archived = all.filter((category) => category.archivedAt)
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 pb-24">
+    <div className="@container space-y-6 pb-24">
       <PageHeader
         title="Catégories"
         description="Touchez un nom pour le renommer, une pastille pour changer sa couleur. Une catégorie archivée n’est plus proposée mais garde son historique."
       />
-      <p className="text-sm">
-        <Link
-          to={ROUTES.rules}
-          className="text-primary underline-offset-4 hover:underline"
-        >
-          Règles de classement
-        </Link>
-      </p>
 
       {categories.isPending && (
         <div className="space-y-3">
@@ -87,58 +144,30 @@ export function CategoriesPage() {
         </p>
       )}
 
-      {categories.isSuccess &&
-        TRANSACTION_KINDS.map((kind) => {
-          const group = active.filter((category) => category.kind === kind)
-          return (
-            <Card key={kind}>
-              <CardHeader>
-                <CardTitle>
-                  {KIND_GROUP_LABELS[kind]}{' '}
-                  <span className="text-muted-foreground font-normal">
-                    ({group.length})
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {group.length > 0 ? (
-                  <CategoryList
-                    label={KIND_GROUP_LABELS[kind]}
-                    categories={group}
+      {/* Wide screens: the long expense list on the left, income,
+          transfers and archived categories stacked on the right. */}
+      {categories.isSuccess && (
+        <div className="grid items-start gap-6 @4xl:grid-cols-2">
+          {[TRANSACTION_KINDS.slice(0, 1), TRANSACTION_KINDS.slice(1)].map(
+            (kinds, column) => (
+              <div key={column} className="min-w-0 space-y-6">
+                {kinds.map((kind) => (
+                  <KindCard
+                    key={kind}
+                    kind={kind}
+                    categories={active.filter(
+                      (category) => category.kind === kind,
+                    )}
                     onDelete={setDeleting}
                   />
-                ) : (
-                  <p className="text-muted-foreground text-sm">
-                    Aucune catégorie.
-                  </p>
+                ))}
+                {column === 1 && archived.length > 0 && (
+                  <ArchivedCard categories={archived} onDelete={setDeleting} />
                 )}
-              </CardContent>
-            </Card>
-          )
-        })}
-
-      {archived.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              Archivées{' '}
-              <span className="text-muted-foreground font-normal">
-                ({archived.length})
-              </span>
-            </CardTitle>
-            <CardDescription>
-              Absentes des listes de choix ; leurs opérations, budgets et
-              statistiques restent visibles.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CategoryList
-              label="Catégories archivées"
-              categories={archived}
-              onDelete={setDeleting}
-            />
-          </CardContent>
-        </Card>
+              </div>
+            ),
+          )}
+        </div>
       )}
 
       <div className="sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex justify-end">

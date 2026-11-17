@@ -195,6 +195,8 @@ function BarChart<TDatum extends ChartDatum>(props: BarChartProps<TDatum>) {
           label={defaults.label}
           valueFormatter={defaults.valueFormatter}
           tooltipIndexFormatter={defaults.tooltipIndexFormatter}
+          keys={keys}
+          details={defaults.details}
         />
       }
     >
@@ -221,6 +223,7 @@ function BarChart<TDatum extends ChartDatum>(props: BarChartProps<TDatum>) {
           content={
             <ChartTooltipContent
               indicator="square"
+              details={defaults.details}
               valueFormatter={defaults.valueFormatter}
               labelFormatter={defaults.tooltipIndexFormatter}
             />
