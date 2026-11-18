@@ -11,8 +11,8 @@ import {
 } from './session-cookies'
 
 /**
- * Session cookie names (#217, ASVS 3.4.4): `__Host-` in production with a
- * one-release migration from the plain names, plain names over HTTP (dev).
+ * Session cookie names (#217, ASVS 3.4.4): `__Host-` only in production (the
+ * plain-name fallback was dropped by #226), plain names over HTTP (dev).
  * Driven through Fastify so the `Set-Cookie` headers are the real ones.
  */
 
@@ -118,13 +118,13 @@ describe('session cookies in production', () => {
     expect(current.json()).toMatchObject({ access: 'a1' })
   })
 
-  it('migrates: reads the unprefixed refresh cookie only when the prefixed one is missing', async () => {
+  it('reads the refresh token from the prefixed cookie only (#226)', async () => {
     const app = await server(production)
     const legacy = await app.inject({
       url: '/read',
       headers: { cookie: 'refresh_token=old' },
     })
-    expect(legacy.json()).toMatchObject({ refresh: 'old' })
+    expect(legacy.json()).toMatchObject({ refresh: null })
 
     const both = await app.inject({
       url: '/read',
