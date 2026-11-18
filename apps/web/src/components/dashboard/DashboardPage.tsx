@@ -30,7 +30,7 @@ import { plural } from '#/lib/plural'
 import { ROUTES } from '#/lib/routes'
 import { AccountsList } from './AccountsList'
 import { CashFlowChart, ChartCardSkeleton } from './DashboardCharts'
-import { ForecastTiles } from './ForecastCard'
+import { ForecastRow } from './ForecastCard'
 import { MonthEnvelopes } from './MonthEnvelopes'
 import { MonthReview } from './MonthReview'
 import {
@@ -216,7 +216,7 @@ export function DashboardPage({
               content out for its own width. */}
           <ReviewSection month={month} onMonthChange={onMonthChange} />
           {/* This month: how it will end, then the envelopes. */}
-          <MonthEnvelopes figures={<ForecastTiles />} />
+          <MonthEnvelopes figures={<ForecastRow />} />
           <AccountsList accounts={data.accounts} netWorth={data.netWorth} />
 
           {/* Net worth over time is on its page (« Évolution » in Comptes). */}

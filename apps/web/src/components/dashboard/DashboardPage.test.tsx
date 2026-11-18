@@ -709,16 +709,15 @@ describe('DashboardPage', () => {
     )
   })
 
-  it('sums up the end-of-month forecast at the top of « Ce mois-ci »', async () => {
+  it('sums up the end-of-month forecast as a row of « Ce mois-ci »', async () => {
     renderPage()
-    const tiles = await screen.findByRole('group', { name: 'Fin de mois' })
+    const row = await screen.findByRole('link', { name: /Fin de mois prévue/ })
     expect(screen.getByRole('region', { name: 'Ce mois-ci' })).toContainElement(
-      tiles,
+      row,
     )
-    expect(tiles).toHaveTextContent(euros(267_000))
-    const low = within(tiles).getByRole('link', { name: /Point bas/ })
-    expect(low).toHaveTextContent(`Point bas le dim. 29 nov.${euros(18_000)}`)
-    expect(low).toHaveAttribute('href', '/forecast')
+    expect(row).toHaveAttribute('href', '/forecast')
+    expect(row).toHaveTextContent(euros(267_000))
+    expect(row).toHaveTextContent(`Point bas ${euros(18_000)} le dim. 29 nov.`)
 
     api.forecastControllerForecast.mockImplementation(() =>
       ok(
@@ -729,9 +728,9 @@ describe('DashboardPage', () => {
       ),
     )
     renderPage()
-    const under = await screen.findByRole('link', { name: /^Sous/ })
-    expect(under).toHaveTextContent(`Sous ${euros(50_000)}dim. 29 nov.`)
-    expect(under).toHaveAttribute('href', '/forecast')
+    expect(
+      await screen.findByText(`Sous ${euros(50_000)} le dim. 29 nov.`),
+    ).toBeInTheDocument()
   })
 
   it('shows skeletons while loading', () => {
