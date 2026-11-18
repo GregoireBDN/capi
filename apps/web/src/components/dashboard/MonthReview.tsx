@@ -58,13 +58,13 @@ export function MonthReview({
   return (
     <section aria-label="Bilan du mois" className="min-w-0">
       <Card className="min-w-0">
-        {/* The navigator fills the row up to the status (`fill`). */}
+        {/* The navigator fills the row up to the status; its label grows
+            between the two arrows (#264). */}
         <CardHeader className="@container flex flex-row flex-wrap items-center gap-2">
           <MonthNavigator
             month={month}
             max={latest}
             onMonthChange={onMonthChange}
-            fill
             className="w-auto flex-auto"
           />
           {/* As tall as the navigator, mid-tone background, white text; an

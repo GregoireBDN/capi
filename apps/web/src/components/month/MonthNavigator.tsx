@@ -202,11 +202,6 @@ export interface MonthNavigatorProps {
   allDates?: { selected: boolean; onSelect: () => void }
   /** Whether ← / → move the month (one navigator per page). Default: on. */
   keyboard?: boolean
-  /**
-   * Fills its row: the two arrows keep their size, the month's name grows
-   * between them, centred, without the ⌄ (the dashboard review, #262).
-   */
-  fill?: boolean
   className?: string
 }
 
@@ -225,7 +220,6 @@ export function MonthNavigator({
   label,
   allDates,
   keyboard = true,
-  fill = false,
   className,
 }: MonthNavigatorProps) {
   const current = currentMonth()
@@ -275,7 +269,7 @@ export function MonthNavigator({
     <PeriodStepper
       data-slot="month-navigator"
       aria-label="Mois"
-      className={cn(fill && 'w-full', className)}
+      className={className}
       previous={{
         label: 'Mois précédent',
         keyShortcuts: keyboard ? 'ArrowLeft' : undefined,
@@ -297,7 +291,6 @@ export function MonthNavigator({
             shortText={label ?? formatShortMonth(month)}
             sizers={label === undefined ? fullSizers(month) : undefined}
             shortSizers={label === undefined ? shortSizers(month) : undefined}
-            className={cn(fill && 'flex-1 justify-center [&>svg]:hidden')}
           />
         </PopoverTrigger>
         <PopoverContent
