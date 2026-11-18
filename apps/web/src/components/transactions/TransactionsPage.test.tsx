@@ -217,7 +217,8 @@ function setup(initial: TransactionsSearch = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  const user = userEvent.setup()
+  // No delay between the events of an interaction: same events, less time.
+  const user = userEvent.setup({ delay: null })
   render(
     <QueryClientProvider client={queryClient}>
       <Harness initial={initial} onChange={onChange} />
@@ -239,6 +240,28 @@ function setup(initial: TransactionsSearch = {}) {
 async function waitForRows() {
   await screen.findByText(salaryRow.rawLabel)
   return screen.getByRole('button', { name: `Modifier ${salaryRow.rawLabel}` })
+}
+
+/**
+ * Queries scoped to the month bar: a role query over the whole page (bar,
+ * totals and rows) is slow enough to push long tests past Vitest's 5 s.
+ */
+function monthBar() {
+  const bar = document.querySelector<HTMLElement>('[data-slot=month-toolbar]')
+  if (!bar) throw new Error('No month bar')
+  return within(bar)
+}
+
+/** An open popover (portaled out of the bar), found by its label. */
+async function picker(label: string) {
+  const dialog = await waitFor(() => {
+    const found = document.querySelector<HTMLElement>(
+      `[role="dialog"][aria-label="${label}"]`,
+    )
+    if (!found) throw new Error(`No « ${label} » picker`)
+    return found
+  })
+  return within(dialog)
 }
 
 beforeEach(() => {
@@ -452,50 +475,42 @@ describe('TransactionsPage', () => {
     expect(screen.getByRole('list', { name: 'Opérations' })).toBeInTheDocument()
   })
 
-  it('writes filter changes to the URL and refetches', async () => {
+  it('writes the chips to the URL and refetches', async () => {
     const { user, onChange } = setup()
     await waitForRows()
+    const bar = monthBar()
 
     // No filter on: nothing to clear.
     expect(
-      screen.queryByRole('button', { name: 'Effacer' }),
+      bar.queryByRole('button', { name: 'Effacer' }),
     ).not.toBeInTheDocument()
 
     // Only transactional accounts are offered.
-    await user.click(screen.getByRole('button', { name: 'Compte, tous' }))
-    const accountPicker = await screen.findByRole('dialog', { name: 'Compte' })
+    await user.click(bar.getByRole('button', { name: 'Compte, tous' }))
+    const accounts = await picker('Compte')
     expect(
-      within(accountPicker).queryByRole('button', { name: 'PEA test' }),
+      accounts.queryByRole('button', { name: 'PEA test' }),
     ).not.toBeInTheDocument()
-    await user.click(
-      within(accountPicker).getByRole('button', { name: 'Compte test' }),
-    )
+    await user.click(accounts.getByRole('button', { name: 'Compte test' }))
     expect(onChange).toHaveBeenLastCalledWith(
       { account: ACCOUNT_ID },
       undefined,
     )
 
     // Categories can be searched.
-    await user.click(screen.getByRole('button', { name: 'Catégorie, tous' }))
-    const categoryPicker = await screen.findByRole('dialog', {
-      name: 'Catégorie',
-    })
-    await user.type(
-      within(categoryPicker).getByLabelText('Rechercher catégorie'),
-      'sans',
-    )
+    await user.click(bar.getByRole('button', { name: 'Catégorie, tous' }))
+    const categories = await picker('Catégorie')
+    await user.type(categories.getByLabelText('Rechercher catégorie'), 'sans')
+    await user.click(categories.getByRole('button', { name: 'Sans catégorie' }))
+
+    await user.click(bar.getByRole('button', { name: 'Type, tous' }))
     await user.click(
-      within(categoryPicker).getByRole('button', { name: 'Sans catégorie' }),
+      (await picker('Type')).getByRole('button', {
+        name: 'Mouvements internes',
+      }),
     )
-    await user.click(screen.getByRole('button', { name: 'Type, tous' }))
-    await user.click(
-      within(await screen.findByRole('dialog', { name: 'Type' })).getByRole(
-        'button',
-        { name: 'Mouvements internes' },
-      ),
-    )
-    await user.click(screen.getByRole('button', { name: 'À revoir' }))
-    await user.click(screen.getByRole('button', { name: 'Mois précédent' }))
+    await user.click(bar.getByRole('button', { name: 'À revoir' }))
+    await user.click(bar.getByRole('button', { name: 'Mois précédent' }))
 
     expect(onChange).toHaveBeenLastCalledWith(
       {
@@ -516,21 +531,26 @@ describe('TransactionsPage', () => {
         needsReview: true,
       }),
     )
-    expect(screen.getByText('Octobre 2026')).toBeInTheDocument()
+  })
+
+  it('moves back to the default month, then to the whole history', async () => {
+    const { user, onChange } = setup({ month: '2026-10' })
+    await waitForRows()
+    const bar = monthBar()
 
     // Back to the current month: the default, kept out of the URL.
-    await user.click(screen.getByRole('button', { name: 'Mois suivant' }))
+    await user.click(bar.getByRole('button', { name: 'Mois suivant' }))
     expect(onChange.mock.lastCall?.[0]).not.toHaveProperty('month')
-    expect(screen.getByRole('button', { name: 'Mois suivant' })).toBeDisabled()
+    expect(bar.getByRole('button', { name: 'Mois suivant' })).toBeDisabled()
 
     // The whole history, from the month picker: no month sent at all.
     await user.click(
-      screen.getByRole('button', { name: 'Novembre 2026, choisir un mois' }),
+      bar.getByRole('button', { name: 'Novembre 2026, choisir un mois' }),
     )
     await user.click(
-      within(
-        await screen.findByRole('dialog', { name: 'Choisir un mois' }),
-      ).getByRole('button', { name: 'Toutes les dates' }),
+      (await picker('Choisir un mois')).getByRole('button', {
+        name: 'Toutes les dates',
+      }),
     )
     expect(onChange.mock.lastCall?.[0]).toMatchObject({ month: 'all' })
     await waitFor(() =>
@@ -538,18 +558,30 @@ describe('TransactionsPage', () => {
         'month',
       ),
     )
+  })
 
-    // × clears one filter, « Effacer » all of them (the period stays).
+  it('clears one filter with ×, all of them with « Effacer », the period kept', async () => {
+    const { user, onChange } = setup({
+      month: 'all',
+      kind: 'transfer',
+      review: true,
+    })
+    await waitForRows()
+    const bar = monthBar()
+
     await user.click(
-      screen.getByRole('button', { name: 'Retirer le filtre Type' }),
+      bar.getByRole('button', { name: 'Retirer le filtre Type' }),
     )
-    expect(onChange.mock.lastCall?.[0]).not.toHaveProperty('kind')
-    await user.click(screen.getByRole('button', { name: 'Effacer' }))
+    expect(onChange).toHaveBeenLastCalledWith(
+      { month: 'all', review: true },
+      undefined,
+    )
+    await user.click(bar.getByRole('button', { name: 'Effacer' }))
     expect(onChange).toHaveBeenLastCalledWith({ month: 'all' }, undefined)
     await waitFor(() =>
       expect(lastQuery(api.transactionsControllerSummary)).toEqual({}),
     )
-  }, 15_000)
+  })
 
   it('debounces the search box into the URL (history replaced)', async () => {
     const { user, onChange } = setup()
