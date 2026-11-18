@@ -363,7 +363,7 @@ describe('DashboardPage', () => {
       'aria-valuenow',
       '184500',
     )
-    expect(card).toHaveTextContent(text('Reste 155 €'))
+    expect(card).toHaveTextContent(text('Reste155 €'))
     const drift = within(card).getByRole('list', { name: 'Écarts au budget' })
     const chips = within(drift).getAllByRole('link')
     expect(text(chips[0].getAttribute('aria-label') ?? '')).toBe(
@@ -525,9 +525,7 @@ describe('DashboardPage', () => {
     expect(legend).toHaveTextContent(text('Avec budget1 545 €'))
     expect(legend).toHaveTextContent(text('Sans budget300 €'))
     expect(legend).toHaveTextContent(text('Budget2 000 €'))
-    expect(card).toHaveTextContent(
-      text('Reste 455 € sur les catégories avec budget'),
-    )
+    expect(legend).toHaveTextContent(text('Reste455 €'))
     for (const amount of ['1 845 €', '1 545 €', '300 €', '2 000 €']) {
       expect(count(card, amount)).toBe(1)
     }

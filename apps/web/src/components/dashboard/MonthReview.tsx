@@ -186,7 +186,7 @@ const UNBUDGETED_FILL =
  * Spending against the budget as one stacked bar (owner's choice « Barre
  * empilée »): the month's expenses in the categories with a budget, then
  * those without one (hatched), the budget as a mark across the bar, a
- * legend naming each part and what's left; the categories that drifted
+ * legend naming each part and what's left (a list on a phone); the categories that drifted
  * most as badges. The total of the expenses is the « Dépenses » tile.
  */
 function BudgetSection({ review }: { review: MonthReviewDto }) {
@@ -235,8 +235,11 @@ function BudgetSection({ review }: { review: MonthReviewDto }) {
           style={{ left: share(budget.targetCents) }}
         />
       </div>
+      {/* Owner's « Tableau » on a phone: one line per part, the label left,
+          the amount right, what's left last under a rule. From 36rem the
+          same items on one line. */}
       <ul
-        className="flex flex-wrap gap-x-4 gap-y-1 text-xs"
+        className="grid gap-y-1 text-xs @[36rem]:flex @[36rem]:flex-wrap @[36rem]:gap-x-4"
         aria-label="Légende"
       >
         {/* The two parts only when both exist: otherwise « Avec budget »
@@ -260,18 +263,19 @@ function BudgetSection({ review }: { review: MonthReviewDto }) {
           label="Budget"
           value={formatWholeEuros(budget.targetCents)}
         />
+        <li
+          className={cn(
+            'border-border mt-0.5 flex items-baseline justify-between gap-1.5 border-t pt-1 font-medium',
+            '@[36rem]:mt-0 @[36rem]:border-0 @[36rem]:pt-0',
+            over && 'text-chart-delta-bad',
+          )}
+        >
+          <span>{over ? 'Dépassé de' : 'Reste'}</span>
+          <span className="font-semibold whitespace-nowrap tabular-nums">
+            {formatWholeEuros(Math.abs(budget.remainingCents))}
+          </span>
+        </li>
       </ul>
-      <p className="text-xs">
-        <span className={cn('font-medium', over && 'text-chart-delta-bad')}>
-          {over
-            ? `Dépassé de ${formatWholeEuros(-budget.remainingCents)}`
-            : `Reste ${formatWholeEuros(budget.remainingCents)}`}
-        </span>
-        <span className="text-muted-foreground">
-          {' '}
-          sur les catégories avec budget
-        </span>
-      </p>
       {drift.length > 0 && (
         <ul
           // 14px between rows: the 44px hit areas of the 32px pills never overlap.
@@ -303,7 +307,7 @@ function LegendItem({
         className={cn('h-2.5 w-2.5 shrink-0 rounded-sm', swatch)}
       />
       <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium whitespace-nowrap tabular-nums">
+      <span className="ml-auto font-medium whitespace-nowrap tabular-nums @[36rem]:ml-0">
         {value}
       </span>
     </li>
