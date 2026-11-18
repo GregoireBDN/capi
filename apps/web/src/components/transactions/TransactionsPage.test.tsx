@@ -582,10 +582,9 @@ describe('TransactionsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Modifier Fakemart' }))
     const editor = await screen.findByRole('dialog')
-    await user.selectOptions(
-      within(editor).getByLabelText('Catégorie de Fakemart'),
-      groceries.id,
-    )
+    // A settings list (#280): the category opens its own screen of chips.
+    await user.click(within(editor).getByRole('button', { name: /^Catégorie/ }))
+    await user.click(within(editor).getByRole('button', { name: 'Courses' }))
 
     expect(api.transactionsControllerUpdate).toHaveBeenCalledWith({
       path: { id: shopRow.id },
@@ -649,6 +648,48 @@ describe('TransactionsPage', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('edits from a settings list, one screen per choice (#280)', async () => {
+    const { user } = setup()
+    await waitForRows()
+    api.transactionsControllerUpdate.mockImplementation(
+      ({ body }: { body: object }) => ok({ ...shopRow, ...body }),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Modifier Fakemart' }))
+    const editor = await screen.findByRole('dialog')
+    // The list: frequent settings first, no select and no type field.
+    expect(within(editor).queryByRole('combobox')).not.toBeInTheDocument()
+    expect(
+      within(editor).getByRole('button', { name: /^Catégorie/ }),
+    ).toHaveTextContent('Choisir')
+
+    // The category screen searches without accents, « Retour » goes back.
+    await user.click(within(editor).getByRole('button', { name: /^Catégorie/ }))
+    await user.type(
+      within(editor).getByRole('searchbox', {
+        name: 'Rechercher une catégorie',
+      }),
+      'epar',
+    )
+    expect(
+      within(editor).getByRole('button', { name: 'Épargne' }),
+    ).toBeInTheDocument()
+    expect(
+      within(editor).queryByRole('button', { name: 'Courses' }),
+    ).not.toBeInTheDocument()
+    await user.click(within(editor).getByRole('button', { name: 'Retour' }))
+
+    // The type, an exception, on its own screen.
+    await user.click(within(editor).getByRole('button', { name: /^Type/ }))
+    await user.click(within(editor).getByRole('radio', { name: 'Revenu' }))
+    expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ body: { kind: 'income' } }),
+    )
+    expect(
+      within(editor).getByRole('button', { name: /^Type/ }),
+    ).toHaveTextContent('Revenu')
+  })
+
   it('rolls an edit back when the API refuses it', async () => {
     const { user } = setup()
     await waitForRows()
@@ -682,10 +723,15 @@ describe('TransactionsPage', () => {
       expect.objectContaining({ body: { needsReview: false } }),
     )
 
-    await user.type(within(editor).getByLabelText('Note'), 'Cadeau')
+    await user.click(within(editor).getByRole('button', { name: /^Note/ }))
+    await user.type(within(editor).getByLabelText('Note de Fakemart'), 'Cadeau')
     await user.click(
-      within(editor).getByRole('button', { name: 'Enregistrer la note' }),
+      within(editor).getByRole('button', { name: 'Enregistrer' }),
     )
+    // Back to the list, the note previewed in its row.
+    expect(
+      within(editor).getByRole('switch', { name: /Ponctuelle/ }),
+    ).toBeInTheDocument()
     expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
       expect.objectContaining({ body: { note: 'Cadeau' } }),
     )
@@ -1060,9 +1106,7 @@ describe('TransactionsPage', () => {
       )
       const editor = await screen.findByRole('dialog')
       await user.click(
-        within(editor).getByRole('button', {
-          name: 'Répartir entre plusieurs catégories',
-        }),
+        within(editor).getByRole('button', { name: /^Répartir/ }),
       )
       const form = within(editor).getByRole('form', {
         name: 'Répartir entre catégories',
@@ -1142,9 +1186,7 @@ describe('TransactionsPage', () => {
       )
       const editor = await screen.findByRole('dialog')
       await user.click(
-        within(editor).getByRole('button', {
-          name: 'Répartir entre plusieurs catégories',
-        }),
+        within(editor).getByRole('button', { name: /^Répartir/ }),
       )
       const form = within(editor).getByRole('form', {
         name: 'Répartir entre catégories',
@@ -1182,7 +1224,7 @@ describe('TransactionsPage', () => {
       const editor = await screen.findByRole('dialog')
       await user.click(
         within(editor).getByRole('button', {
-          name: 'Modifier une opération importée',
+          name: /^Corriger le montant ou la date/,
         }),
       )
       const amount = within(editor).getByLabelText('Montant corrigé')

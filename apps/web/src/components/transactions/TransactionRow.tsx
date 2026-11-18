@@ -4,9 +4,6 @@ import {
   InputGroupAddon,
   InputGroupInput,
   InputGroupText,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -171,7 +168,8 @@ function InlineAmount({
  * One transaction (#266): the category's icon (which selects the row), one
  * label, the category, the account when it helps, small flag icons and the
  * amount. Stacked on narrow pages, in columns on wide ones. Activating the
- * label opens its editor (popover on desktop, bottom sheet on phones); on
+ * label opens its editor (#280: a bottom sheet on phones, a right-hand panel
+ * on wide pages); on
  * wide pages the category is picked in the row, as is the amount of a
  * transaction entered by hand.
  */
@@ -329,36 +327,25 @@ export function TransactionRow({
           review={item.needsReview}
         />
       </button>
-      {isMobile ? (
-        <>
-          {triggerButton}
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetContent
-              side="bottom"
-              className="max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl"
-            >
-              <SheetHeader className="pb-0">
-                <SheetTitle>Modifier l’opération</SheetTitle>
-                <SheetDescription className="sr-only">
-                  Catégorie, type, indicateurs et note de {name}
-                </SheetDescription>
-              </SheetHeader>
-              <div className="px-4 pb-6">{editor}</div>
-            </SheetContent>
-          </Sheet>
-        </>
-      ) : (
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
-          <PopoverContent
-            align="end"
-            className="max-h-[min(36rem,var(--radix-popover-content-available-height))] w-80 overflow-y-auto"
-            aria-label={`Modifier ${name}`}
-          >
-            {editor}
-          </PopoverContent>
-        </Popover>
-      )}
+      {triggerButton}
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent
+          side={isMobile ? 'bottom' : 'right'}
+          className={cn(
+            'overflow-y-auto',
+            isMobile &&
+              'max-h-[calc(90svh-var(--keyboard-inset,0px))] rounded-t-xl',
+          )}
+        >
+          <SheetHeader className="pb-0">
+            <SheetTitle>Modifier l’opération</SheetTitle>
+            <SheetDescription className="sr-only">
+              Catégorie, note, indicateurs, répartition et correction de {name}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="px-4 pb-6">{editor}</div>
+        </SheetContent>
+      </Sheet>
 
       {/* Wide pages: the category, picked in place. */}
       <span className="hidden min-w-0 @xl:block">

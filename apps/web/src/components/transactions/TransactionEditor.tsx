@@ -1,21 +1,48 @@
-import { Button, Field, FieldLabel, Switch, Textarea } from '@finances/ui'
-import { useEffect, useId, useState } from 'react'
+import { Button, cn, Input, Switch, Textarea, useIsMobile } from '@finances/ui'
+import {
+  ArrowLeftRightIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CheckIcon,
+  FlagIcon,
+  PencilIcon,
+  SearchIcon,
+  SparkleIcon,
+  SplitIcon,
+  StickyNoteIcon,
+  TagIcon,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { useId, useState } from 'react'
+import type { ReactNode } from 'react'
 import type {
   CategoryDto,
   CorrectTransactionDto,
   TransactionDto,
+  TransactionKind,
 } from '#/api/types.gen'
+import {
+  CategoryAvatar,
+  categoryIconComponent,
+} from '#/components/categories/category-icons'
+import { pickableCategories } from '#/lib/categories'
 import { formatCalendarDate } from '#/lib/money'
 import { Amount } from './Amount'
-import { CategoryBadge } from './CategoryBadge'
-import { CategoryPicker } from './CategoryPicker'
 import type { TransactionChanges } from './changes'
 import { ImportedCorrection } from './ImportedCorrection'
-import { KindSelect } from './KindSelect'
-import { displayLabel } from './labels'
+import {
+  displayLabel,
+  KIND_GROUP_LABELS,
+  KIND_LABELS,
+  secondaryLabel,
+  TRANSACTION_KINDS,
+} from './labels'
 import { SplitEditor } from './SplitEditor'
 
 const NOTE_MAX = 2000
+
+/** Screens of the editor: the list of settings, then one per choice. */
+type Screen = 'list' | 'category' | 'note' | 'split' | 'correct' | 'kind'
 
 interface TransactionEditorProps {
   item: TransactionDto
@@ -23,7 +50,7 @@ interface TransactionEditorProps {
   onChange: (changes: TransactionChanges) => void
   /** Opens the editor of a transaction entered by hand (amount, date, ...). */
   onEditManual?: () => void
-  /** "Modifier une opération importée" (amount, date; bank values kept). */
+  /** "Corriger le montant ou la date" (bank values kept). */
   onCorrect?: (body: CorrectTransactionDto) => void
   onRestoreBank?: () => void
   /** Splits between categories (parts summing to the amount), or ends it. */
@@ -31,10 +58,263 @@ interface TransactionEditorProps {
   onUnsplit?: () => void
 }
 
+/** Lowercase, without accents, for the category search. */
+function searchable(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+}
+
+/** A row of the list that opens a screen: icon, name, value and ›. */
+function SettingButton({
+  icon: Icon,
+  label,
+  value,
+  onClick,
+  muted = false,
+}: {
+  icon: LucideIcon
+  label: string
+  value?: ReactNode
+  onClick: () => void
+  muted?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'hover:bg-muted/60 focus-visible:ring-ring/50 flex min-h-9 w-full items-center gap-3 rounded-lg px-2 text-left text-sm outline-none focus-visible:ring-[3px]',
+        muted && 'text-muted-foreground',
+      )}
+    >
+      <Icon
+        className="text-muted-foreground size-[0.8rem] shrink-0"
+        aria-hidden="true"
+      />
+      <span className="min-w-0 flex-1 py-2">{label}</span>
+      {value !== undefined && (
+        <span className="text-muted-foreground max-w-[55%] truncate text-right">
+          {value}
+        </span>
+      )}
+      <ChevronRightIcon
+        className="text-muted-foreground size-[0.7rem] shrink-0"
+        aria-hidden="true"
+      />
+    </button>
+  )
+}
+
+/** A row of the list with a switch, saved at once. */
+function SettingSwitch({
+  icon: Icon,
+  label,
+  checked,
+  onCheckedChange,
+}: {
+  icon: LucideIcon
+  label: string
+  checked: boolean
+  onCheckedChange: (checked: boolean) => void
+}) {
+  const id = useId()
+  return (
+    <div className="flex min-h-9 items-center gap-3 px-2 text-sm">
+      <Icon
+        className="text-muted-foreground size-[0.8rem] shrink-0"
+        aria-hidden="true"
+      />
+      <label htmlFor={id} className="flex-1 cursor-pointer py-2">
+        {label}
+      </label>
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
+  )
+}
+
+/** Title of a screen with « Retour » to the list. */
+function ScreenHeader({
+  title,
+  onBack,
+}: {
+  title: string
+  onBack: () => void
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <Button
+        type="button"
+        variant="secondary"
+        ghost
+        size="sm"
+        onClick={onBack}
+        className="-ml-2"
+      >
+        <ChevronLeftIcon />
+        Retour
+      </Button>
+      <h3 className="text-sm font-medium">{title}</h3>
+    </div>
+  )
+}
+
+/** The categories as chips with their icon, by kind, with a search (#280). */
+function CategoryScreen({
+  item,
+  categories,
+  onPick,
+}: {
+  item: TransactionDto
+  categories: readonly CategoryDto[]
+  onPick: (categoryId: string) => void
+}) {
+  // Phones: no keyboard over the chips until the search is tapped.
+  const isMobile = useIsMobile()
+  const [query, setQuery] = useState('')
+  const wanted = searchable(query.trim())
+  const shown = pickableCategories(categories, item.categoryId).filter(
+    (category) => wanted === '' || searchable(category.name).includes(wanted),
+  )
+  // The transaction's own kind first: what it most likely belongs to.
+  const kinds = [
+    item.kind,
+    ...TRANSACTION_KINDS.filter((kind) => kind !== item.kind),
+  ]
+  return (
+    <div className="space-y-3">
+      <div className="relative">
+        <SearchIcon
+          className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-[0.8rem] -translate-y-1/2"
+          aria-hidden="true"
+        />
+        <Input
+          type="search"
+          autoFocus={!isMobile}
+          aria-label="Rechercher une catégorie"
+          placeholder="Rechercher"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          className="pl-9"
+        />
+      </div>
+      {shown.length === 0 && (
+        <p className="text-muted-foreground text-sm">Aucune catégorie.</p>
+      )}
+      {kinds.map((kind) => {
+        const group = shown.filter((category) => category.kind === kind)
+        if (group.length === 0) return null
+        return (
+          <section key={kind} className="space-y-2">
+            <h4 className="text-muted-foreground text-xs font-medium">
+              {KIND_GROUP_LABELS[kind]}
+            </h4>
+            <div className="flex flex-wrap gap-1.5">
+              {group.map((category) => {
+                const Icon = categoryIconComponent(category.icon)
+                const current = category.id === item.categoryId
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    aria-pressed={current}
+                    onClick={() => onPick(category.id)}
+                    className={cn(
+                      'focus-visible:ring-ring/50 inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 text-sm outline-none focus-visible:ring-[3px]',
+                      current
+                        ? 'border-primary bg-primary/10 font-medium'
+                        : 'hover:bg-muted/60',
+                    )}
+                  >
+                    <Icon
+                      className="size-[0.75rem] shrink-0"
+                      style={{ color: category.color ?? undefined }}
+                      aria-hidden="true"
+                    />
+                    {category.name}
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+        )
+      })}
+    </div>
+  )
+}
+
+function NoteScreen({
+  item,
+  onSave,
+}: {
+  item: TransactionDto
+  onSave: (note: string) => void
+}) {
+  const [note, setNote] = useState(item.note ?? '')
+  return (
+    <form
+      className="grid gap-3"
+      onSubmit={(event) => {
+        event.preventDefault()
+        onSave(note.trim())
+      }}
+    >
+      <Textarea
+        autoFocus
+        aria-label={`Note de ${displayLabel(item)}`}
+        value={note}
+        maxLength={NOTE_MAX}
+        rows={4}
+        placeholder="Ajouter une note…"
+        onChange={(event) => setNote(event.target.value)}
+      />
+      <Button type="submit" className="justify-self-end">
+        Enregistrer
+      </Button>
+    </form>
+  )
+}
+
+function KindScreen({
+  value,
+  onPick,
+}: {
+  value: TransactionKind
+  onPick: (kind: TransactionKind) => void
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-muted-foreground text-xs">
+        La catégorie donne le type ; changez-le seulement pour une exception.
+      </p>
+      <div role="radiogroup" aria-label="Type" className="space-y-1">
+        {TRANSACTION_KINDS.map((kind) => (
+          <button
+            key={kind}
+            type="button"
+            role="radio"
+            aria-checked={kind === value}
+            onClick={() => onPick(kind)}
+            className="hover:bg-muted/60 focus-visible:ring-ring/50 flex min-h-9 w-full items-center justify-between rounded-lg px-2 text-left text-sm outline-none focus-visible:ring-[3px]"
+          >
+            {KIND_LABELS[kind]}
+            {kind === value && (
+              <CheckIcon className="size-[0.8rem]" aria-hidden="true" />
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /**
- * Corrections of one transaction (category, kind, one-off, review flag,
- * note), shown in a popover on desktop and a bottom sheet on phones. Every
- * change but the note applies at once; the note has its own save button.
+ * The editor of one transaction (#280), like a settings list: the frequent
+ * settings first (category, note, one-off, review), the rarer ones below
+ * (split, correction, type); each choice opens its own screen with
+ * « Retour ». Shown in a bottom sheet on phones and a right-hand panel on
+ * wide pages. Switches apply at once; the note has its own screen.
  */
 export function TransactionEditor({
   item,
@@ -46,212 +326,218 @@ export function TransactionEditor({
   onSplit,
   onUnsplit,
 }: TransactionEditorProps) {
-  const [splitting, setSplitting] = useState(false)
-  const oneOffId = useId()
-  const reviewId = useId()
-  const noteId = useId()
-  const [note, setNote] = useState(item.note ?? '')
+  const [screen, setScreen] = useState<Screen>('list')
   const name = displayLabel(item)
+  const raw = secondaryLabel(item)
+  const split = item.splits.length > 0
+  const back = () => setScreen('list')
 
-  // Follow the saved note (undo, refetch) unless the user is typing.
-  useEffect(() => setNote(item.note ?? ''), [item.note])
-
-  const noteChanged = note.trim() !== (item.note ?? '')
-
-  return (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <div className="flex items-start justify-between gap-3">
-          <p className="min-w-0 font-medium break-words">{name}</p>
-          <Amount
-            cents={item.amountCents}
-            transfer={item.kind === 'transfer'}
-          />
-        </div>
-        {item.merchant && (
-          <p className="text-muted-foreground text-xs break-words">
-            {item.rawLabel}
-          </p>
-        )}
-        <p className="text-muted-foreground text-xs">
-          <time dateTime={item.bookingDate}>
-            {formatCalendarDate(item.bookingDate)}
-          </time>
-          {' · '}
-          {item.accountName}
-        </p>
+  if (screen === 'category') {
+    return (
+      <div className="space-y-3">
+        <ScreenHeader title="Catégorie" onBack={back} />
+        <CategoryScreen
+          item={item}
+          categories={categories}
+          onPick={(categoryId) => {
+            back()
+            if (categoryId !== item.categoryId) onChange({ categoryId })
+          }}
+        />
       </div>
-
-      {item.manual && (
-        <div className="bg-muted/50 space-y-2 rounded-lg p-3 text-sm">
-          <p className="text-muted-foreground text-xs">
-            Saisie à la main : l’import du relevé la remplacera par l’opération
-            de la banque, en gardant sa catégorie, sa note et sa répartition.
-          </p>
-          {onEditManual && (
-            <Button
-              type="button"
-              size="sm"
-              outline
-              variant="secondary"
-              onClick={onEditManual}
-            >
-              Modifier ou supprimer l’opération
-            </Button>
-          )}
-        </div>
-      )}
-      {!item.manual && onCorrect && onRestoreBank && (
+    )
+  }
+  if (screen === 'note') {
+    return (
+      <div className="space-y-3">
+        <ScreenHeader title="Note" onBack={back} />
+        <NoteScreen
+          item={item}
+          onSave={(note) => {
+            back()
+            if (note !== (item.note ?? '')) onChange({ note })
+          }}
+        />
+      </div>
+    )
+  }
+  if (screen === 'split' && onSplit) {
+    return (
+      <div className="space-y-3">
+        <ScreenHeader title="Répartir" onBack={back} />
+        <SplitEditor
+          item={item}
+          categories={categories}
+          onCancel={back}
+          onSave={(parts) => {
+            back()
+            onSplit(parts)
+          }}
+        />
+        {split && onUnsplit && (
+          <Button
+            type="button"
+            size="sm"
+            ghost
+            variant="secondary"
+            onClick={() => {
+              back()
+              onUnsplit()
+            }}
+          >
+            Ne plus répartir
+          </Button>
+        )}
+      </div>
+    )
+  }
+  if (screen === 'correct' && onCorrect && onRestoreBank) {
+    return (
+      <div className="space-y-3">
+        <ScreenHeader title="Corriger le montant ou la date" onBack={back} />
+        <p className="text-muted-foreground text-xs">
+          Le solde du compte et les prochains imports gardent les valeurs de la
+          banque.
+        </p>
         <ImportedCorrection
           item={item}
-          onCorrect={onCorrect}
-          onRestore={onRestoreBank}
+          onCancel={back}
+          onCorrect={(body) => {
+            back()
+            onCorrect(body)
+          }}
+          onRestore={() => {
+            back()
+            onRestoreBank()
+          }}
         />
-      )}
+      </div>
+    )
+  }
+  if (screen === 'kind') {
+    return (
+      <div className="space-y-3">
+        <ScreenHeader title="Type" onBack={back} />
+        <KindScreen
+          value={item.kind}
+          onPick={(kind) => {
+            back()
+            if (kind !== item.kind) onChange({ kind })
+          }}
+        />
+      </div>
+    )
+  }
 
-      <div className="grid gap-3">
-        <Field>
-          <FieldLabel htmlFor={`${noteId}-category`}>
-            {item.splits.length > 0 ? 'Répartition' : 'Catégorie'}
-          </FieldLabel>
-          {splitting && onSplit ? (
-            <SplitEditor
-              item={item}
-              categories={categories}
-              onCancel={() => setSplitting(false)}
-              onSave={(parts) => {
-                setSplitting(false)
-                onSplit(parts)
-              }}
+  const categoryValue = split
+    ? [...new Set(item.splits.map((part) => part.category.name))].join(', ')
+    : (item.category?.name ?? 'Choisir')
+  const corrected =
+    item.originalAmountCents !== null || item.originalBookingDate !== null
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start gap-3 px-2">
+        <CategoryAvatar
+          category={
+            split
+              ? 'split'
+              : item.category && {
+                  color: item.category.color,
+                  icon: item.category.icon,
+                }
+          }
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <p className="min-w-0 font-medium break-words">{name}</p>
+            <Amount
+              cents={item.amountCents}
+              transfer={item.kind === 'transfer'}
             />
-          ) : item.splits.length > 0 ? (
-            <div className="space-y-2">
-              <ul className="space-y-1" aria-label="Parts">
-                {item.splits.map((part) => (
-                  <li
-                    key={part.id}
-                    className="flex items-center justify-between gap-2"
-                  >
-                    <CategoryBadge category={part.category} />
-                    <Amount cents={part.amountCents} className="text-sm" />
-                  </li>
-                ))}
-              </ul>
-              {onSplit && onUnsplit && (
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    outline
-                    variant="secondary"
-                    onClick={() => setSplitting(true)}
-                  >
-                    Modifier la répartition
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    ghost
-                    variant="secondary"
-                    onClick={onUnsplit}
-                  >
-                    Ne plus répartir
-                  </Button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <>
-              <CategoryPicker
-                id={`${noteId}-category`}
-                categories={categories}
-                value={item.categoryId}
-                onChange={(categoryId) => onChange({ categoryId })}
-                label={`Catégorie de ${name}`}
-                className="w-full"
-              />
-              {onSplit && (
-                <Button
-                  type="button"
-                  size="sm"
-                  ghost
-                  variant="secondary"
-                  className="justify-self-start"
-                  onClick={() => setSplitting(true)}
-                >
-                  Répartir entre plusieurs catégories
-                </Button>
-              )}
-            </>
+          </div>
+          <p className="text-muted-foreground text-xs">
+            <time dateTime={item.bookingDate}>
+              {formatCalendarDate(item.bookingDate)}
+            </time>
+            {' · '}
+            {item.accountName}
+          </p>
+          {raw && (
+            <p className="text-muted-foreground text-xs break-words">{raw}</p>
           )}
-        </Field>
-        <Field>
-          <FieldLabel htmlFor={`${noteId}-kind`}>Type</FieldLabel>
-          <KindSelect
-            id={`${noteId}-kind`}
-            value={item.kind}
-            onChange={(kind) => onChange({ kind })}
-            label={`Type de ${name}`}
-            className="w-full"
-          />
-        </Field>
-        <div className="flex items-center justify-between gap-3">
-          <label htmlFor={oneOffId} className="text-sm">
-            Ponctuelle
-            <span className="text-muted-foreground block text-xs">
-              Exclue des moyennes et des abonnements
-            </span>
-          </label>
-          <Switch
-            id={oneOffId}
-            checked={item.isOneOff}
-            onCheckedChange={(isOneOff) => onChange({ isOneOff })}
-          />
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <label htmlFor={reviewId} className="text-sm">
-            À revoir
-            <span className="text-muted-foreground block text-xs">
-              Désactivez pour la marquer comme revue
-            </span>
-          </label>
-          <Switch
-            id={reviewId}
-            checked={item.needsReview}
-            onCheckedChange={(needsReview) => onChange({ needsReview })}
-          />
         </div>
       </div>
 
-      <form
-        className="grid gap-2"
-        onSubmit={(event) => {
-          event.preventDefault()
-          if (noteChanged) onChange({ note: note.trim() })
-        }}
-      >
-        <Field>
-          <FieldLabel htmlFor={noteId}>Note</FieldLabel>
-          <Textarea
-            id={noteId}
-            value={note}
-            maxLength={NOTE_MAX}
-            rows={2}
-            placeholder="Ajouter une note…"
-            onChange={(event) => setNote(event.target.value)}
+      <div className="divide-y rounded-xl border">
+        <SettingButton
+          icon={split ? SplitIcon : TagIcon}
+          label={split ? 'Répartition' : 'Catégorie'}
+          value={categoryValue}
+          onClick={() => setScreen(split && onSplit ? 'split' : 'category')}
+        />
+        <SettingButton
+          icon={StickyNoteIcon}
+          label="Note"
+          value={item.note || 'Ajouter'}
+          onClick={() => setScreen('note')}
+        />
+        <SettingSwitch
+          icon={SparkleIcon}
+          label="Ponctuelle"
+          checked={item.isOneOff}
+          onCheckedChange={(isOneOff) => onChange({ isOneOff })}
+        />
+        <SettingSwitch
+          icon={FlagIcon}
+          label="À revoir"
+          checked={item.needsReview}
+          onCheckedChange={(needsReview) => onChange({ needsReview })}
+        />
+      </div>
+
+      <div className="divide-y rounded-xl border">
+        {onSplit && !split && (
+          <SettingButton
+            icon={SplitIcon}
+            label="Répartir"
+            onClick={() => setScreen('split')}
+            muted
           />
-        </Field>
-        <Button
-          type="submit"
-          size="sm"
-          outline
-          variant="secondary"
-          disabled={!noteChanged}
-          className="justify-self-end"
-        >
-          Enregistrer la note
-        </Button>
-      </form>
+        )}
+        {item.manual
+          ? onEditManual && (
+              <SettingButton
+                icon={PencilIcon}
+                label="Modifier ou supprimer"
+                onClick={onEditManual}
+                muted
+              />
+            )
+          : onCorrect &&
+            onRestoreBank && (
+              <SettingButton
+                icon={PencilIcon}
+                label="Corriger le montant ou la date"
+                value={corrected ? 'Corrigée' : undefined}
+                onClick={() => setScreen('correct')}
+                muted
+              />
+            )}
+        <SettingButton
+          icon={ArrowLeftRightIcon}
+          label="Type"
+          value={KIND_LABELS[item.kind]}
+          onClick={() => setScreen('kind')}
+          muted
+        />
+      </div>
+      {item.manual && (
+        <p className="text-muted-foreground px-2 text-xs">
+          Saisie à la main : l’import du relevé la remplacera par l’opération de
+          la banque, en gardant sa catégorie, sa note et sa répartition.
+        </p>
+      )}
     </div>
   )
 }
