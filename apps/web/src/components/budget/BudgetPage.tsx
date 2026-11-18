@@ -15,7 +15,6 @@ import { useQuery } from '@tanstack/react-query'
 import { PlusIcon, SparklesIcon, TargetIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { PageHeader } from '#/components/app-shell/PageHeader'
-import { PeriodNote } from '#/components/PeriodNote'
 import { currentMonth, formatMonth } from '#/lib/calendar'
 import { categoriesQuery } from '#/lib/queries'
 import { BudgetEditor } from './BudgetEditor'
@@ -24,6 +23,7 @@ import { BudgetHistory } from './BudgetHistory'
 import { BudgetList } from './BudgetList'
 import { BudgetSummary } from './BudgetSummary'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
+import { MonthToolbar } from '#/components/month/MonthToolbar'
 import { budgetHistoryQuery, budgetMonthQuery } from './queries'
 import { SuggestionsSheet } from './SuggestionsSheet'
 import { UnbudgetedCard } from './UnbudgetedCard'
@@ -96,32 +96,32 @@ export function BudgetPage({
         description="Vos dépenses du mois par rapport à vos objectifs."
       />
 
-      <div className="flex flex-col gap-3 @2xl:flex-row @2xl:items-center @2xl:justify-between">
-        <MonthNavigator month={month} onMonthChange={go} />
-        {budget.isSuccess && !empty && (
-          <div className="grid grid-cols-2 gap-2 @2xl:flex">
-            <Button
-              outline
-              variant="secondary"
-              iconStart={<SparklesIcon />}
-              onClick={() => setSuggestOpen(true)}
-            >
-              Proposer
-            </Button>
-            <Button
-              iconStart={<PlusIcon />}
-              disabled={available.length === 0}
-              onClick={() => setEditor({ open: true })}
-            >
-              Ajouter
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {budget.isSuccess && (
-        <PeriodNote period={budget.data.period} className="-mt-3" />
-      )}
+      <MonthToolbar
+        navigator={<MonthNavigator month={month} onMonthChange={go} />}
+        period={budget.data?.period}
+        actions={
+          budget.isSuccess &&
+          !empty && (
+            <div className="flex flex-wrap gap-2 *:grow @[672px]:*:grow-0">
+              <Button
+                outline
+                variant="secondary"
+                iconStart={<SparklesIcon />}
+                onClick={() => setSuggestOpen(true)}
+              >
+                Proposer
+              </Button>
+              <Button
+                iconStart={<PlusIcon />}
+                disabled={available.length === 0}
+                onClick={() => setEditor({ open: true })}
+              >
+                Ajouter
+              </Button>
+            </div>
+          )
+        }
+      />
 
       {budget.isPending && <PageSkeleton />}
 

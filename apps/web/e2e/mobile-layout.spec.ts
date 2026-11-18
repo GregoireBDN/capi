@@ -164,6 +164,7 @@ const SCENARIOS: Array<Scenario> = [
       await page.getByRole('dialog').waitFor()
     },
   },
+  { name: 'month-review', path: '/month-review' },
   { name: 'subscriptions', path: '/subscriptions' },
   { name: 'savings', path: '/savings' },
   {

@@ -1,7 +1,15 @@
-import { Label, NativeSelect, NativeSelectOption, Switch } from '@finances/ui'
+import {
+  cn,
+  Label,
+  NativeSelect,
+  NativeSelectOption,
+  Switch,
+} from '@finances/ui'
 import { useId } from 'react'
-import type { AccountDto } from '#/api/types.gen'
+import type { AccountDto, MonthPeriodDto } from '#/api/types.gen'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
+import { MonthToolbar } from '#/components/month/MonthToolbar'
+import type { MonthToolbarFiltersLayout } from '#/components/month/MonthToolbar'
 import {
   AVERAGE_PERIODS,
   compactSearch,
@@ -16,22 +24,102 @@ interface SpendingFiltersProps {
   month: string
   /** Month shown without a month in the URL (picked by the API). */
   defaultMonth: string
+  /** How far the month's figures go, once loaded. */
+  period?: MonthPeriodDto
   accounts: readonly AccountDto[]
 }
 
+interface ControlsProps {
+  search: SpendingSearch
+  set: <TKey extends keyof SpendingSearch>(
+    key: TKey,
+    value: SpendingSearch[TKey] | undefined,
+  ) => void
+  accounts: readonly AccountDto[]
+  layout: MonthToolbarFiltersLayout
+}
+
 /**
- * Month navigation, one-off toggle, account and average period. They only
- * read and write the URL search params.
+ * The account, the average period and the one-off switch: compact in the
+ * month bar (`inline`), one per row in the phone sheet (`sheet`).
+ */
+function SpendingFilterControls({
+  search,
+  set,
+  accounts,
+  layout,
+}: ControlsProps) {
+  const switchId = useId()
+  const inline = layout === 'inline'
+  return (
+    <div
+      className={cn(
+        inline
+          ? 'flex flex-wrap items-center gap-1.5 [&_select]:pr-7 [&_select]:pl-2.5 [&_select]:text-sm'
+          : 'grid gap-3',
+      )}
+    >
+      <NativeSelect
+        aria-label="Compte"
+        value={search.account ?? ''}
+        onChange={(event) => set('account', event.target.value || undefined)}
+        className={inline ? 'w-auto max-w-32' : 'w-full'}
+      >
+        <NativeSelectOption value="">Comptes</NativeSelectOption>
+        {accounts.map((account) => (
+          <NativeSelectOption key={account.id} value={account.id}>
+            {account.name}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+
+      <NativeSelect
+        aria-label="Période de la moyenne"
+        value={String(search.avg ?? DEFAULT_AVERAGE_PERIOD)}
+        onChange={(event) => {
+          const avg = Number(event.target.value)
+          set('avg', avg === 3 || avg === 12 ? avg : undefined)
+        }}
+        className={inline ? 'w-auto' : 'w-full'}
+      >
+        {AVERAGE_PERIODS.map((months) => (
+          <NativeSelectOption key={months} value={String(months)}>
+            Moy. {months} mois
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+
+      <div
+        className={cn('flex min-h-8 items-center', inline ? 'gap-2' : 'gap-3')}
+      >
+        <Switch
+          id={switchId}
+          aria-label="Inclure les dépenses ponctuelles"
+          checked={search.oneOffs === true}
+          onCheckedChange={(on) => set('oneOffs', on ? true : undefined)}
+        />
+        <Label htmlFor={switchId} className="text-sm font-normal">
+          {inline ? 'Ponctuelles' : 'Inclure les dépenses ponctuelles'}
+        </Label>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The month bar of Dépenses: the navigator (with how far the month goes),
+ * then the account, the average period and the one-off switch, behind a
+ * « Filtres » button on phones. They only read and write the URL search
+ * params.
  */
 export function SpendingFilters({
   search,
   onSearchChange,
   month,
   defaultMonth,
+  period,
   accounts,
 }: SpendingFiltersProps) {
-  const switchId = useId()
-
   function set<TKey extends keyof SpendingSearch>(
     key: TKey,
     value: SpendingSearch[TKey] | undefined,
@@ -43,52 +131,25 @@ export function SpendingFilters({
   const goTo = (target: string) =>
     set('month', target === defaultMonth ? undefined : target)
 
+  const activeFilters = [
+    search.account !== undefined,
+    search.avg !== undefined && search.avg !== DEFAULT_AVERAGE_PERIOD,
+    search.oneOffs === true,
+  ].filter(Boolean).length
+
   return (
-    <div className="space-y-3">
-      <MonthNavigator month={month} onMonthChange={goTo} />
-
-      <div className="grid grid-cols-2 gap-2 @2xl:flex @2xl:items-center [&_select]:pr-7 [&_select]:pl-2 [&_select]:text-xs [&_select]:tracking-tight @2xl:[&_select]:text-sm">
-        <NativeSelect
-          aria-label="Compte"
-          value={search.account ?? ''}
-          onChange={(event) => set('account', event.target.value || undefined)}
-          className="w-full @2xl:w-56"
-        >
-          <NativeSelectOption value="">Comptes</NativeSelectOption>
-          {accounts.map((account) => (
-            <NativeSelectOption key={account.id} value={account.id}>
-              {account.name}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-
-        <NativeSelect
-          aria-label="Période de la moyenne"
-          value={String(search.avg ?? DEFAULT_AVERAGE_PERIOD)}
-          onChange={(event) => {
-            const avg = Number(event.target.value)
-            set('avg', avg === 3 || avg === 12 ? avg : undefined)
-          }}
-          className="w-full @2xl:w-48"
-        >
-          {AVERAGE_PERIODS.map((period) => (
-            <NativeSelectOption key={period} value={String(period)}>
-              Moy. {period} mois
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-
-        <div className="col-span-2 flex items-center gap-3 @2xl:ml-auto">
-          <Switch
-            id={switchId}
-            checked={search.oneOffs === true}
-            onCheckedChange={(on) => set('oneOffs', on ? true : undefined)}
-          />
-          <Label htmlFor={switchId} className="text-sm font-normal">
-            Inclure les dépenses ponctuelles
-          </Label>
-        </div>
-      </div>
-    </div>
+    <MonthToolbar
+      navigator={<MonthNavigator month={month} onMonthChange={goTo} />}
+      period={period}
+      activeFilters={activeFilters}
+      filters={(layout) => (
+        <SpendingFilterControls
+          search={search}
+          set={set}
+          accounts={accounts}
+          layout={layout}
+        />
+      )}
+    />
   )
 }
