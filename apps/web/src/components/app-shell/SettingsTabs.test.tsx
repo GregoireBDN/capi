@@ -43,9 +43,9 @@ describe('SettingsTabs', () => {
         .getAllByRole('link')
         .map((link) => [link.textContent, link.getAttribute('href')]),
     ).toEqual([
+      ['Profil', '/profile'],
       ['Catégories', '/categories'],
       ['Règles', '/rules'],
-      ['Profil', '/profile'],
     ])
   })
 

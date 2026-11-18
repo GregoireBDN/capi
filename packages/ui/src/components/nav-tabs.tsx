@@ -23,9 +23,8 @@ type NavTabsLinkProps = React.ComponentProps<'a'> & {
  * Nav Tabs
  * Underlined tabs that switch between sibling pages, each with its own URL.
  * Links, not ARIA tabs (`role="tablist"` is for panels on one page): give
- * the `nav` an `aria-label`. Every tab has the width of the widest one; on
- * phones the row fills the width, from `sm` up it keeps to its tabs, over a
- * line that spans the whole width.
+ * the `nav` an `aria-label`. The row fills the width and every tab takes the
+ * same share of it, over a line that spans the whole width.
  */
 function NavTabs({ className, children, ...props }: NavTabsProps) {
   return (
@@ -34,7 +33,7 @@ function NavTabs({ className, children, ...props }: NavTabsProps) {
       className={cn('border-border w-full border-b', className)}
       {...props}
     >
-      <div className="-mb-px grid w-full auto-cols-fr grid-flow-col sm:inline-grid sm:w-auto">
+      <div className="-mb-px grid w-full auto-cols-fr grid-flow-col">
         {children}
       </div>
     </nav>

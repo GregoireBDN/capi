@@ -13,7 +13,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Underlined tabs between sibling pages, each with its own URL (the settings pages: Catégories, Règles, Profil). Links with `aria-current`, not ARIA tabs. Every tab is as wide as the widest; full width on phones, where icons are hidden. Pass a router `Link` with `asChild`.',
+          'Underlined tabs between sibling pages, each with its own URL (the settings pages: Profil, Catégories, Règles). Links with `aria-current`, not ARIA tabs. The row fills the width and every tab takes the same share of it; icons are hidden on phones. Pass a router `Link` with `asChild`.',
       },
     },
   },

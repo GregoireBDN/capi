@@ -48,8 +48,8 @@ interface UserMenuProps {
 
 /**
  * Sidebar footer: who is signed in, plus theme and logout. The settings pages
- * (Catégories, Règles, Profil) live in the « Réglages » group of the
- * navigation, not here (#261).
+ * (Profil, Catégories, Règles) are reached from the « Réglages »
+ * entry just above this menu, not from it (#261).
  */
 export function UserMenu({ user, onNavigate }: UserMenuProps) {
   const { logout } = useAuth()

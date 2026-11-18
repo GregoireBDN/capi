@@ -114,7 +114,6 @@ describe('AppSidebar', () => {
       ['Crypto', '/crypto'],
       ['Comptes', '/accounts'],
       ['Import', '/import'],
-      ['Réglages', '/categories'],
     ])
   })
 
@@ -128,7 +127,7 @@ describe('AppSidebar', () => {
     for (const { label } of [...NAV_ITEMS, SETTINGS_ITEM].filter(
       (item) => item.label !== 'Budget',
     )) {
-      const link = nav.getByRole('link', { name: label })
+      const link = screen.getByRole('link', { name: label })
       expect(link).not.toHaveAttribute('aria-current')
       expect(link).not.toHaveAttribute('data-active')
     }
@@ -194,18 +193,22 @@ describe('AppSidebar', () => {
     expect(screen.getByText('owner@example.test')).toBeInTheDocument()
   })
 
-  it('separates the settings from the pages with a rule', async () => {
+  it('puts « Réglages » at the bottom, above the account menu', async () => {
     const nav = await renderAt('/dashboard')
-    const separator = nav.getByTestId('nav-separator')
-    const importLink = nav.getByRole('link', { name: 'Import' })
-    const settingsLink = nav.getByRole('link', { name: 'Réglages' })
-    // The rule sits between « Import » and « Réglages ».
+    const settingsLink = screen.getByRole('link', { name: 'Réglages' })
+    const accountMenu = screen.getByRole('button', { name: 'Menu du compte' })
+
+    expect(settingsLink).toHaveAttribute('href', '/profile')
+    // Outside the list of pages, after it and before who is signed in.
+    expect(nav.queryByRole('link', { name: 'Réglages' })).toBeNull()
     expect(
-      importLink.compareDocumentPosition(separator) &
+      nav
+        .getByRole('link', { name: 'Import' })
+        .compareDocumentPosition(settingsLink) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
     expect(
-      separator.compareDocumentPosition(settingsLink) &
+      settingsLink.compareDocumentPosition(accountMenu) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
   })
@@ -213,12 +216,12 @@ describe('AppSidebar', () => {
   it.each(['/categories', '/rules', '/profile'])(
     'highlights « Réglages » on %s',
     async (path) => {
-      const nav = await renderAt(path)
-      expect(nav.getByRole('link', { name: 'Réglages' })).toHaveAttribute(
+      await renderAt(path)
+      expect(screen.getByRole('link', { name: 'Réglages' })).toHaveAttribute(
         'aria-current',
         'page',
       )
-      expect(nav.getAllByRole('link').filter(isCurrent)).toHaveLength(1)
+      expect(screen.getAllByRole('link').filter(isCurrent)).toHaveLength(1)
     },
   )
 
@@ -230,7 +233,7 @@ describe('AppSidebar', () => {
     await screen.findByRole('menu')
 
     // The open (modal) menu hides the rest of the page from the a11y tree.
-    expect(document.querySelectorAll('a[href="/categories"]')).toHaveLength(1)
+    expect(document.querySelectorAll('a[href="/profile"]')).toHaveLength(1)
     for (const { to } of SETTINGS_TABS.slice(1)) {
       expect(document.querySelectorAll(`a[href="${to}"]`)).toHaveLength(0)
     }

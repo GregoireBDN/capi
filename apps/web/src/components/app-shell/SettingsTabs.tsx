@@ -3,7 +3,7 @@ import { NavTabs, NavTabsLink } from '@finances/ui'
 import { SETTINGS_TABS, isNavItemActive } from './nav-items'
 
 /**
- * Tabs above every settings page (Catégories, Règles, Profil), reached from
+ * Tabs above every settings page (Profil, Catégories, Règles), reached from
  * the sidebar's one « Réglages » entry (#261): `NavTabs`, links with their
  * own URLs, all the same width.
  */

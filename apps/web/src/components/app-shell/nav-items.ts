@@ -94,14 +94,14 @@ export const NAV_ITEMS: readonly NavItem[] = [
  * settings page goes here and under `routes/_app/_settings/`.
  */
 export const SETTINGS_TABS: readonly NavItem[] = [
+  { label: 'Profil', to: ROUTES.profile, icon: UserIcon },
   { label: 'Catégories', to: ROUTES.categories, icon: TagsIcon },
   { label: 'Règles', to: ROUTES.rules, icon: ListFilterIcon },
-  { label: 'Profil', to: ROUTES.profile, icon: UserIcon },
 ]
 
 /**
- * The sidebar's one settings entry: opens the first settings page and stays
- * highlighted on all of them (#261).
+ * The sidebar's one settings entry, at the bottom above the account menu:
+ * opens the first settings page and stays highlighted on all of them (#261).
  */
 export const SETTINGS_ITEM: NavItem = {
   label: 'Réglages',
@@ -109,15 +109,6 @@ export const SETTINGS_ITEM: NavItem = {
   icon: SettingsIcon,
   alsoActiveOn: SETTINGS_TABS.slice(1).map((tab) => tab.to),
 }
-
-/**
- * Sidebar groups, in display order, with a separator between them: the
- * pages used every day, then the settings.
- */
-export const NAV_GROUPS: readonly (readonly NavItem[])[] = [
-  NAV_ITEMS,
-  [SETTINGS_ITEM],
-]
 
 /** A nav item is active on its own page and on any page nested below it. */
 export function isNavItemActive(pathname: string, to: string): boolean {
