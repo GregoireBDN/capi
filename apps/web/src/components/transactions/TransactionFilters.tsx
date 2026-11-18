@@ -201,7 +201,8 @@ function SheetFilters({
 
 /**
  * The month bar of Opérations (#264): the period (the shared navigator,
- * « Toutes les dates » in its picker), the search across the bar, then one
+ * « Toutes les dates » in its picker), the search filling the rest of its
+ * row (below it on phones), then one
  * row of filter chips with « Effacer » when one is on. On phones the chips
  * that are on stay in view (× clears them) and « Filtres » opens a sheet
  * with every filter. They only read and write the URL search params.
@@ -270,22 +271,23 @@ export function TransactionFilters({
       )}
       filtersInline={false}
       activeFilters={count}
+      search={
+        <InputGroup>
+          <InputGroupAddon>
+            <SearchIcon />
+          </InputGroupAddon>
+          <InputGroupInput
+            type="search"
+            aria-label="Rechercher une opération"
+            placeholder="Rechercher un libellé, un marchand…"
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            enterKeyHint="search"
+            autoComplete="off"
+          />
+        </InputGroup>
+      }
     >
-      <InputGroup>
-        <InputGroupAddon>
-          <SearchIcon />
-        </InputGroupAddon>
-        <InputGroupInput
-          type="search"
-          aria-label="Rechercher une opération"
-          placeholder="Rechercher un libellé, un marchand…"
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          enterKeyHint="search"
-          autoComplete="off"
-        />
-      </InputGroup>
-
       {/* Every chip from 672px; on phones only those that are on. */}
       <div
         data-slot="filter-chips"

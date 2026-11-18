@@ -67,6 +67,19 @@ describe('MonthToolbar', () => {
     expect(within(sheet).getByLabelText('Compte (sheet)')).toBeInTheDocument()
   })
 
+  it('puts the search in the navigator’s row', () => {
+    render(
+      <MonthToolbar
+        navigator={<div data-testid="navigator" />}
+        search={<input aria-label="Rechercher" />}
+      />,
+    )
+    const row = screen.getByTestId('navigator').parentElement!.parentElement!
+    expect(
+      row.querySelector('[data-slot=month-toolbar-search]'),
+    ).toContainElement(screen.getByLabelText('Rechercher'))
+  })
+
   it('puts the period note in the row when the page has nothing to set', () => {
     const { container } = render(
       <MonthToolbar
@@ -74,7 +87,7 @@ describe('MonthToolbar', () => {
         period={partial}
       />,
     )
-    const row = screen.getByTestId('navigator').parentElement!
+    const row = screen.getByTestId('navigator').parentElement!.parentElement!
     expect(row.querySelector('[data-slot=period-note]')).not.toBeNull()
     expect(toolbar(container)).toHaveClass('border')
   })

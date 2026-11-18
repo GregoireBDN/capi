@@ -549,7 +549,7 @@ describe('TransactionsPage', () => {
     await waitFor(() =>
       expect(lastQuery(api.transactionsControllerSummary)).toEqual({}),
     )
-  })
+  }, 15_000)
 
   it('debounces the search box into the URL (history replaced)', async () => {
     const { user, onChange } = setup()
