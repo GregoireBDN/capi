@@ -30,6 +30,8 @@ export const RECURRING_NAME_MAX = 255
 export const RECURRING_NOTES_MAX = 1000
 /** Latest occurrences returned with each item. */
 export const RECURRING_OCCURRENCES_SHOWN = 6
+/** Most runs of equal amounts returned with each item (#279). */
+export const RECURRING_AMOUNT_RUNS_SHOWN = 4
 /** Most items `POST /recurring/confirm` accepts at once. */
 export const RECURRING_CONFIRM_MAX_IDS = 200
 
@@ -180,6 +182,20 @@ export class RecurringOccurrenceDto {
   amountCents!: number
 }
 
+export class RecurringAmountRunDto {
+  @ApiProperty({ type: 'integer', description: 'Positive cents.' })
+  amountCents!: number
+
+  @ApiProperty({ ...DATE_DOC, description: 'First occurrence of the run.' })
+  from!: string
+
+  @ApiProperty({ ...DATE_DOC, description: 'Last occurrence of the run.' })
+  to!: string
+
+  @ApiProperty({ type: 'integer' })
+  count!: number
+}
+
 export class RecurringItemDto {
   @ApiProperty({ type: String, format: 'uuid' })
   id!: string
@@ -325,6 +341,12 @@ export class RecurringItemDto {
     description: `The ${RECURRING_OCCURRENCES_SHOWN} latest, newest first.`,
   })
   occurrences!: RecurringOccurrenceDto[]
+
+  @ApiProperty({
+    type: [RecurringAmountRunDto],
+    description: `Consecutive occurrences of the same amount over the whole history, newest first (at most ${RECURRING_AMOUNT_RUNS_SHOWN}): « 14,99 € d'août à novembre, 4 fois ».`,
+  })
+  amountRuns!: RecurringAmountRunDto[]
 
   @ApiProperty({ type: String, nullable: true })
   notes!: string | null

@@ -80,6 +80,10 @@ const items: RecurringItemDto[] = [
     yearlyCostCents: 15_588,
     monthlyEquivalentCents: 1_299,
     nextExpectedDate: '2026-11-11',
+    amountRuns: [
+      { amountCents: 1_299, from: '2026-03-12', to: '2026-10-12', count: 8 },
+      { amountCents: 1_099, from: '2025-11-12', to: '2026-02-12', count: 4 },
+    ],
   }),
   recurringItem({
     id: 'i2',
@@ -299,10 +303,22 @@ describe('SubscriptionsPage', () => {
     const name = within(dialog).getByLabelText('Nom')
     await user.clear(name)
     await user.type(name, 'Streamflix Premium')
-    await user.selectOptions(
-      within(dialog).getByLabelText('Fréquence'),
-      'yearly',
+    // A summary, and the prices grouped by run, not one line per charge.
+    expect(text(dialog.textContent)).toContain('12,99 € / mois')
+    const runs = within(dialog).getByRole('list', { name: 'Prix successifs' })
+    expect(text(runs.textContent)).toContain('mars → oct. · 8 fois12,99 €')
+    expect(text(runs.textContent)).toContain(
+      'nov. 2025 → févr. · 4 fois10,99 €',
     )
+    // Cadence and category as chips.
+    expect(within(dialog).getByText('Détectée : mensuel')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('radio', { name: 'Annuel' }))
+    expect(
+      within(dialog).getByText('Détectée : mensuel (vous l’avez changée)'),
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByRole('radio', { name: /Abonnements/ }),
+    ).toHaveAttribute('aria-checked', 'true')
     await user.click(within(dialog).getByRole('switch'))
     await user.type(within(dialog).getByLabelText('Notes'), 'Partagé')
     await user.click(
@@ -498,6 +514,45 @@ describe('SubscriptionsPage', () => {
         expect.objectContaining({ body: { endedOn: '2026-10-13' } }),
       )
     })
+  })
+
+  it('shows a variable amount as bars of its latest charges', async () => {
+    api.recurringControllerList.mockImplementation(() =>
+      ok([
+        recurringItem({
+          id: 'v1',
+          name: 'Énergie test',
+          amountType: 'variable',
+          typicalAmountCents: 6_095,
+          minAmountCents: 4_867,
+          maxAmountCents: 9_149,
+          nextExpectedDate: '2026-12-03',
+          occurrences: [
+            { transactionId: 'v1-3', date: '2026-11-03', amountCents: 8_337 },
+            { transactionId: 'v1-2', date: '2026-10-03', amountCents: 7_120 },
+            { transactionId: 'v1-1', date: '2026-09-03', amountCents: 5_580 },
+          ],
+        }),
+      ]),
+    )
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(
+      await screen.findByRole('button', { name: 'Modifier Énergie test' }),
+    )
+    const history = within(await screen.findByRole('dialog')).getByRole(
+      'region',
+      { name: 'Historique' },
+    )
+    expect(text(history.textContent)).toContain('83,37 € le 3 nov.dernier')
+    const bars = within(history).getByRole('list', {
+      name: '3 derniers prélèvements',
+    })
+    expect(within(bars).getAllByRole('listitem')).toHaveLength(3)
+    expect(text(bars.textContent)).toContain('3 sept. : 55,80 €')
+    expect(text(history.textContent)).toContain(
+      'D’habitude ~ 60,95 €, de 48,67 € à 91,49 €, le 3 du mois',
+    )
   })
 
   it('looks for recurring series on its own when nothing is found yet', async () => {

@@ -488,6 +488,7 @@ describe('subscriptions', () => {
     nextExpectedDate: '2026-12-05',
     occurrenceCount: 23,
     occurrences: [],
+    amountRuns: [],
     notes: null,
     endedOn: null,
     ended: false,

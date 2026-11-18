@@ -43,6 +43,9 @@ export function recurringItem(
       { transactionId: `${id}-t2`, date: '2026-10-10', amountCents: 1_000 },
       { transactionId: `${id}-t1`, date: '2026-09-10', amountCents: 1_000 },
     ],
+    amountRuns: [
+      { amountCents: 1_000, from: '2026-01-10', to: '2026-10-10', count: 10 },
+    ],
     notes: null,
     endedOn: null,
     ended: false,

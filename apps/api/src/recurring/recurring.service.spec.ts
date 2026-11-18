@@ -13,7 +13,7 @@ import {
   transactionsTable,
 } from '#/database/schema'
 import { addMonths } from './dates'
-import { RecurringService } from './recurring.service'
+import { amountRuns, RecurringService } from './recurring.service'
 
 /**
  * Integration checks against the migrated test database. Each test runs in a
@@ -219,6 +219,21 @@ describe.skipIf(!process.env.DATABASE_URL)(
           occurrenceCount: 10,
           searchText: 'Streamflix',
         })
+        // The price history in runs, newest first, over every occurrence.
+        expect(stream.amountRuns).toEqual([
+          {
+            amountCents: 1_299,
+            from: '2026-08-12',
+            to: '2026-10-12',
+            count: 3,
+          },
+          {
+            amountCents: 1_099,
+            from: '2026-01-12',
+            to: '2026-07-12',
+            count: 7,
+          },
+        ])
         expect(stream.occurrences).toHaveLength(6)
         expect(stream.occurrences[0].date).toBe('2026-10-12')
         const salary = items.find((i) => i.direction === 'credit')!
@@ -547,3 +562,27 @@ describe.skipIf(!process.env.DATABASE_URL)(
     })
   },
 )
+
+describe('amountRuns', () => {
+  const at = (date: string, amountCents: number) => ({ date, amountCents })
+
+  it('groups consecutive equal amounts, newest first, at most four runs', () => {
+    expect(amountRuns([])).toEqual([])
+    expect(
+      amountRuns([
+        at('2026-01-05', 100),
+        at('2026-02-05', 100),
+        at('2026-03-05', 120),
+        at('2026-04-05', 100),
+        at('2026-05-05', 130),
+        at('2026-06-05', 140),
+        at('2026-07-05', 140),
+      ]),
+    ).toEqual([
+      { amountCents: 140, from: '2026-06-05', to: '2026-07-05', count: 2 },
+      { amountCents: 130, from: '2026-05-05', to: '2026-05-05', count: 1 },
+      { amountCents: 100, from: '2026-04-05', to: '2026-04-05', count: 1 },
+      { amountCents: 120, from: '2026-03-05', to: '2026-03-05', count: 1 },
+    ])
+  })
+})

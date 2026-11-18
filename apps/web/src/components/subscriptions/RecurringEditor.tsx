@@ -9,8 +9,6 @@ import {
   FieldLabel,
   Input,
   Label,
-  NativeSelect,
-  NativeSelectOption,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -18,15 +16,16 @@ import {
   SheetTitle,
   Switch,
   Textarea,
+  ToggleGroup,
+  ToggleGroupItem,
+  cn,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import {
   BanIcon,
   CalendarIcon,
   CheckIcon,
-  ListIcon,
   RotateCcwIcon,
   TriangleAlertIcon,
   XIcon,
@@ -39,16 +38,21 @@ import type {
   RecurringItemDto,
   UpdateRecurringItemDto,
 } from '#/api/types.gen'
-import { formatCalendarDate, formatCents } from '#/lib/money'
+import {
+  CHIP_CLASS,
+  CHIP_ON,
+  CategoryChips,
+} from '#/components/expenses/manual-fields'
+import { formatCents } from '#/lib/money'
 import { pickableCategories } from '#/lib/categories'
-import { ALL_MONTHS } from '#/components/transactions/search'
-import { ROUTES } from '#/lib/routes'
 import {
   CADENCE_LABELS,
+  CADENCE_SHORT_LABELS,
   CADENCES,
+  formatAmountPerPeriod,
   formatChargedAfterEnd,
+  formatDayMonth,
   formatEnd,
-  formatPriceChange,
 } from './format'
 import {
   afterRecurringChanged,
@@ -56,9 +60,52 @@ import {
   undoableRecurringToast,
   updateRecurringItem,
 } from './queries'
+import { RecurringHistory } from './RecurringHistory'
 
 const NAME_MAX = 255
 const NOTES_MAX = 1000
+
+/** Categories offered first, before « Toutes les catégories » (#279). */
+const USUAL_SLUGS: Record<RecurringItemDto['direction'], readonly string[]> = {
+  debit: [
+    'subscriptions',
+    'rent',
+    'insurance',
+    'telecom',
+    'energy',
+    'transport',
+  ],
+  credit: ['salary', 'refunds'],
+}
+
+/**
+ * The category chips' list: the current category and the usual ones first,
+ * then (all = true) every other category of the item's kind by name.
+ */
+export function categoryChoices(
+  categories: readonly CategoryDto[],
+  direction: RecurringItemDto['direction'],
+  current: string,
+  all: boolean,
+): { shown: CategoryDto[]; hiddenCount: number } {
+  const kind = direction === 'debit' ? 'expense' : 'income'
+  const ofKind = pickableCategories(categories, current)
+    .filter((category) => category.kind === kind || category.id === current)
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+  const usual = USUAL_SLUGS[direction]
+  const first = [
+    ...ofKind.filter((category) => category.id === current),
+    ...usual.flatMap((slug) =>
+      ofKind.filter(
+        (category) => category.slug === slug && category.id !== current,
+      ),
+    ),
+  ]
+  const rest = ofKind.filter((category) => !first.includes(category))
+  return all
+    ? { shown: [...first, ...rest], hiddenCount: 0 }
+    : { shown: first, hiddenCount: rest.length }
+}
 
 interface RecurringEditorProps {
   item: RecurringItemDto | null
@@ -90,10 +137,12 @@ export function RecurringEditor({
   const [isFixedCost, setIsFixedCost] = useState(false)
   const [cadence, setCadence] = useState<RecurringCadence>('monthly')
   const [notes, setNotes] = useState('')
+  const [allCategories, setAllCategories] = useState(false)
 
   // Fresh form on every opening.
   useEffect(() => {
     if (!item) return
+    setAllCategories(false)
     setName(item.name)
     setCategoryId(item.categoryId ?? '')
     setIsFixedCost(item.isFixedCost)
@@ -154,10 +203,9 @@ export function RecurringEditor({
     save.mutate(fields())
   }
 
-  const sorted = pickableCategories(categories, categoryId).sort((a, b) =>
-    a.name.localeCompare(b.name, 'fr'),
-  )
-  const priceChange = item ? formatPriceChange(item, today) : null
+  const choices = item
+    ? categoryChoices(categories, item.direction, categoryId, allCategories)
+    : { shown: [], hiddenCount: 0 }
   const end = item ? formatEnd(item, today) : null
   const chargedAfterEnd = item ? formatChargedAfterEnd(item, today) : null
   // « Résilier » is for debits; credits would « Arrêter » (later).
@@ -170,6 +218,13 @@ export function RecurringEditor({
     <Sheet open={item !== null} onOpenChange={onOpenChange}>
       <SheetContent
         side={isMobile ? 'bottom' : 'right'}
+        onOpenAutoFocus={(event) => {
+          // On a phone, opening must not pop the keyboard up over the
+          // summary: focus the sheet, not the name field.
+          if (!isMobile) return
+          event.preventDefault()
+          ;(event.currentTarget as HTMLElement | null)?.focus()
+        }}
         className={
           isMobile
             ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
@@ -180,10 +235,17 @@ export function RecurringEditor({
           <>
             <SheetHeader className="pb-0">
               <SheetTitle>{item.name}</SheetTitle>
+              {/* The summary first (#279): how much, when next, per year. */}
+              <p className="text-2xl font-semibold tabular-nums">
+                {item.direction === 'credit' ? '+' : ''}
+                {formatAmountPerPeriod(item)}
+              </p>
               <SheetDescription>
-                {item.accountName} · {formatCents(item.typicalAmountCents)} ·{' '}
-                {formatCents(item.yearlyCostCents)} par an
-                {priceChange ? ` · ${priceChange}` : ''}
+                {item.nextExpectedDate &&
+                (item.endedOn === null || item.nextExpectedDate < item.endedOn)
+                  ? `Prochain le ${formatDayMonth(item.nextExpectedDate, today)} · `
+                  : `Dernier le ${formatDayMonth(item.lastSeenDate, today)} · `}
+                {formatCents(item.yearlyCostCents)} par an · {item.accountName}
               </SheetDescription>
             </SheetHeader>
             <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
@@ -238,42 +300,63 @@ export function RecurringEditor({
                 />
                 {nameError && <FieldError>{nameError}</FieldError>}
               </Field>
-              <Field>
-                <FieldLabel htmlFor={`${id}-category`}>Catégorie</FieldLabel>
-                <NativeSelect
-                  id={`${id}-category`}
-                  className="w-full"
-                  value={categoryId}
-                  onChange={(event) => setCategoryId(event.target.value)}
-                >
-                  <NativeSelectOption value="">
-                    Sans catégorie
-                  </NativeSelectOption>
-                  {sorted.map((category) => (
-                    <NativeSelectOption key={category.id} value={category.id}>
-                      {category.name}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor={`${id}-cadence`}>Fréquence</FieldLabel>
-                <NativeSelect
-                  id={`${id}-cadence`}
-                  className="w-full"
+              <div className="space-y-1.5">
+                <p id={`${id}-cadence`} className="text-sm font-medium">
+                  Fréquence
+                </p>
+                <ToggleGroup
+                  type="single"
+                  spacing={1.5}
+                  aria-labelledby={`${id}-cadence`}
+                  // Sized to their content, wrapping, start-aligned.
+                  className="flex-wrap justify-start"
                   value={cadence}
-                  onChange={(event) =>
-                    setCadence(event.target.value as RecurringCadence)
-                  }
+                  onValueChange={(next) => {
+                    if (next) setCadence(next as RecurringCadence)
+                  }}
                 >
                   {CADENCES.map((value) => (
-                    <NativeSelectOption key={value} value={value}>
-                      {CADENCE_LABELS[value]}
-                      {value === item.detectedCadence ? ' (détectée)' : ''}
-                    </NativeSelectOption>
+                    <ToggleGroupItem
+                      key={value}
+                      value={value}
+                      aria-label={CADENCE_LABELS[value]}
+                      className={cn(CHIP_CLASS, CHIP_ON)}
+                    >
+                      {CADENCE_SHORT_LABELS[value]}
+                    </ToggleGroupItem>
                   ))}
-                </NativeSelect>
-              </Field>
+                </ToggleGroup>
+                <p className="text-muted-foreground text-xs">
+                  Détectée :{' '}
+                  {CADENCE_LABELS[item.detectedCadence].toLowerCase()}
+                  {cadence !== item.detectedCadence
+                    ? ' (vous l’avez changée)'
+                    : ''}
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <p id={`${id}-category`} className="text-sm font-medium">
+                  Catégorie
+                </p>
+                <CategoryChips
+                  labelId={`${id}-category`}
+                  categories={choices.shown}
+                  value={categoryId}
+                  allowNone={allCategories || categoryId === ''}
+                  onChoose={setCategoryId}
+                />
+                {choices.hiddenCount > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    ghost
+                    variant="secondary"
+                    onClick={() => setAllCategories(true)}
+                  >
+                    Toutes les catégories ({choices.hiddenCount})
+                  </Button>
+                )}
+              </div>
               {item.direction === 'debit' && (
                 <div className="flex items-start gap-3">
                   <Switch
@@ -303,42 +386,7 @@ export function RecurringEditor({
                 <FieldDescription>Facultatives.</FieldDescription>
               </Field>
 
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center justify-between gap-x-2">
-                  <p className="text-sm font-medium">
-                    {item.occurrences.length > 0
-                      ? 'Dernières opérations'
-                      : 'Opérations'}
-                  </p>
-                  <Button size="sm" ghost variant="secondary" asChild>
-                    <Link
-                      to={ROUTES.transactions}
-                      search={{
-                        month: ALL_MONTHS,
-                        q: item.searchText,
-                        account: item.accountId,
-                      }}
-                    >
-                      <ListIcon className="size-4" />
-                      Voir les opérations
-                    </Link>
-                  </Button>
-                </div>
-                {item.occurrences.length > 0 && (
-                  <ol className="text-muted-foreground space-y-0.5 text-sm tabular-nums">
-                    {item.occurrences.map((occurrence) => (
-                      <li
-                        key={occurrence.transactionId}
-                        className="flex justify-between gap-2"
-                      >
-                        <span>{formatCalendarDate(occurrence.date)}</span>
-                        <span>{formatCents(occurrence.amountCents)}</span>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
-
+              <RecurringHistory item={item} today={today} />
               <div className="grid gap-2 pt-2">
                 <Button
                   type="submit"

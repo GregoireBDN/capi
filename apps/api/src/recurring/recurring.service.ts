@@ -32,7 +32,9 @@ import {
   yearlyCostCents,
 } from './detect'
 import {
+  RECURRING_AMOUNT_RUNS_SHOWN,
   RECURRING_OCCURRENCES_SHOWN,
+  type RecurringAmountRunDto,
   type RecurringConfirmResultDto,
   type RecurringDetectResultDto,
   type RecurringItemDto,
@@ -484,6 +486,7 @@ export class RecurringService {
           date: o.date,
           amountCents: o.amountCents,
         })),
+      amountRuns: amountRuns(stats?.occurrences ?? []),
       notes: item.notes,
       endedOn,
       ended: endedOn !== null && endedOn <= today,
@@ -511,4 +514,25 @@ export function chargedAfterEnd(
     if (date >= endedOn && (latest === null || date > latest)) latest = date
   }
   return latest
+}
+
+/**
+ * Consecutive occurrences of the same amount, newest first, at most
+ * `RECURRING_AMOUNT_RUNS_SHOWN` (#279): the price history of a fixed series
+ * in a few lines instead of one per charge. `occurrences` are oldest first.
+ */
+export function amountRuns(
+  occurrences: readonly { date: string; amountCents: number }[],
+): RecurringAmountRunDto[] {
+  const runs: RecurringAmountRunDto[] = []
+  for (const { date, amountCents } of occurrences) {
+    const last = runs.at(-1)
+    if (last && last.amountCents === amountCents) {
+      last.to = date
+      last.count++
+    } else {
+      runs.push({ amountCents, from: date, to: date, count: 1 })
+    }
+  }
+  return runs.reverse().slice(0, RECURRING_AMOUNT_RUNS_SHOWN)
 }
