@@ -407,7 +407,8 @@ function MissingAccounts({
       className="bg-warning/10 rounded-lg p-2"
     >
       <p className="text-warning-foreground dark:text-warning px-2 pt-1 text-sm font-medium">
-        À mettre à jour avant de clôturer
+        À mettre à jour
+        <span className="hidden @[36rem]:inline"> avant de clôturer</span>
       </p>
       <ItemList>
         <ItemListGroup>
