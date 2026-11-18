@@ -25,10 +25,13 @@ import { BitcoinAddressDeriver } from './bitcoin-derivation'
 import { BIP44_XPUB, BIP84_AS_XPUB, BIP84_ZPUB } from './test-vectors'
 import {
   type BitcoinAddressState,
+  type BitcoinChainProvider,
   ChainProviderError,
   type EvmChain,
   type EvmTokenContract,
 } from './chain-provider'
+import { EsploraProvider } from './esplora.provider'
+import { WalletKeysService } from '../wallet-keys/wallet-keys.service'
 import { mergeLines, WalletSyncService } from './wallet-sync.service'
 import { WalletTokensService } from './wallet-tokens.service'
 
@@ -141,19 +144,69 @@ describe.skipIf(!process.env.DATABASE_URL)(
       return { asked, bitcoin, evm, tokens }
     }
 
+    /**
+     * A real `EsploraProvider` over a mocked `fetch` (never the network):
+     * answers from `BITCOIN_STATES`, or with `respond`'s response when it
+     * gives one (e.g. a 429 after N requests).
+     */
+    function esplora(
+      respond: (request: number) => Response | null = () => null,
+    ) {
+      const asked: string[] = []
+      let requests = 0
+      const fetchFn = vi.fn((url: URL) => {
+        requests++
+        const special = respond(requests)
+        if (special) return Promise.resolve(special)
+        const address = decodeURIComponent(url.pathname.split('/').pop()!)
+        asked.push(address)
+        const state = BITCOIN_STATES.get(address)
+        const stats = (sats: bigint, txs: number) => ({
+          funded_txo_sum: Number(sats),
+          spent_txo_sum: 0,
+          tx_count: txs,
+        })
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              chain_stats: stats(state?.balanceSats ?? 0n, state?.used ? 1 : 0),
+              mempool_stats: stats(0n, 0),
+            }),
+          ),
+        )
+      })
+      const provider = new EsploraProvider({
+        baseUrl: 'https://esplora.test/api',
+        timeoutMs: 1000,
+        concurrency: 1,
+        minIntervalMs: 0,
+        fetch: fetchFn as unknown as typeof fetch,
+      })
+      return { provider, asked, requests: () => requests }
+    }
+
+    const rateLimited = (retryAfter: string) =>
+      new Response('', { status: 429, headers: { 'Retry-After': retryAfter } })
+
     interface Fixture {
       tx: Db
       accounts: AccountsService
       crypto: CryptoService
       walletSync: WalletSyncService
       tokens: WalletTokensService
+      keys: WalletKeysService
       mocks: ReturnType<typeof providers>
+      /** Inline waits asked by the sync (ms); resolved at once. */
+      sleeps: number[]
       wallet: () => Promise<string>
     }
 
     async function inRollback(
       fn: (f: Fixture) => Promise<void>,
-      { enabled = true }: { enabled?: boolean } = {},
+      {
+        enabled = true,
+        bitcoin,
+      }: { enabled?: boolean; bitcoin?: BitcoinChainProvider } = {},
     ) {
       await db
         .transaction(async (tx) => {
@@ -174,11 +227,16 @@ describe.skipIf(!process.env.DATABASE_URL)(
             ttlMs: TTL,
           })
           const mocks = providers()
+          const sleeps: number[] = []
           const walletSync = new WalletSyncService(database, {
-            bitcoin: enabled ? mocks.bitcoin : null,
+            bitcoin: enabled ? (bitcoin ?? mocks.bitcoin) : null,
             evm: enabled ? mocks.evm : null,
             tokens: enabled ? mocks.tokens : null,
             intervalMs: TTL,
+            sleep: (ms) => {
+              sleeps.push(ms)
+              return Promise.resolve()
+            },
           })
           const crypto = new CryptoService(
             database,
@@ -187,6 +245,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             walletSync,
           )
           const tokens = new WalletTokensService(database, accounts, walletSync)
+          const keys = new WalletKeysService(database, accounts, walletSync)
           const wallet = async () =>
             (
               await accounts.create({
@@ -208,7 +267,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
             crypto,
             walletSync,
             tokens,
+            keys,
             mocks,
+            sleeps,
             wallet,
           })
           throw ROLLBACK
@@ -554,6 +615,174 @@ describe.skipIf(!process.env.DATABASE_URL)(
         )
         const again = await crypto.sync(id, later(64))
         expect(again.sync?.retryAt).toBe(later(65).toISOString())
+      })
+    })
+
+    it('resumes a Bitcoin scan cut short by a rate limit where it stopped (#268)', async () => {
+      // mempool.space answers 30 requests, then 429 with a long Retry-After.
+      let limit = 30
+      const mock = esplora((n) => (n > limit ? rateLimited('120') : null))
+      await inRollback(
+        async ({ crypto, wallet, sleeps }) => {
+          const id = await wallet()
+          const first = await crypto.sync(id, NOW)
+          // Receive 0–29 read, then the rate limit: no inline wait (120 s).
+          expect(mock.asked).toEqual(RECEIVE.slice(0, 30))
+          expect(sleeps).toEqual([])
+          expect(first.sync?.failedChains).toEqual([
+            {
+              chain: 'bitcoin',
+              reason: 'rate_limited',
+              retryAt: new Date(NOW.getTime() + 120_000).toISOString(),
+            },
+          ])
+          // The chain stays failed: no Bitcoin line from a partial scan.
+          expect(lines(first.holdings)).toEqual(['sync ETH Ethereum 1.5'])
+
+          limit = Infinity
+          mock.asked.length = 0
+          const second = await crypto.sync(id, later(3))
+          // Only what the first attempt did not read.
+          expect(mock.asked).toEqual([
+            ...RECEIVE.slice(30, 44),
+            ...CHANGE.slice(0, 21),
+          ])
+          expect(lines(second.holdings)).toEqual([
+            'sync BTC Bitcoin 0.00085',
+            'sync ETH Ethereum 1.5',
+          ])
+          expect(second.sync).toMatchObject({
+            failedAt: null,
+            failedChains: [],
+          })
+        },
+        { bitcoin: mock.provider },
+      )
+    })
+
+    it('re-syncs a scanned key from its used addresses and gap windows, not from address 0', async () => {
+      await inRollback(async ({ crypto, mocks, wallet }) => {
+        const id = await wallet()
+        await crypto.sync(id, NOW)
+        expect(mocks.asked).toHaveLength(44 + 21)
+        mocks.asked.length = 0
+
+        const again = await crypto.sync(id, later(1))
+        // Used 0, 3 and 23 + the 20 after the last used one; change: 0 + 20.
+        expect(mocks.asked).toEqual([
+          RECEIVE[0],
+          RECEIVE[3],
+          ...RECEIVE.slice(23, 44),
+          ...CHANGE.slice(0, 21),
+        ])
+        expect(mocks.asked).toHaveLength(23 + 21)
+        expect(lines(again.holdings)).toContain('sync BTC Bitcoin 0.00085')
+      })
+    })
+
+    it('spares Bitcoin on page loads while its last complete scan is recent', async () => {
+      await inRollback(async ({ crypto, tokens, mocks, wallet }) => {
+        const id = await wallet()
+        await crypto.holdings(id, NOW)
+        const bitcoinCalls = () => mocks.bitcoin.addressStates.mock.calls.length
+        const evmCalls = () => mocks.evm.balances.mock.calls.length
+        const before = bitcoinCalls()
+        expect(before).toBeGreaterThan(0)
+
+        // A new token makes the wallet due at once ("Actualiser les cours"
+        // syncs what is due): EVM is read again, the Bitcoin key scanned at
+        // NOW is not, and its line stays.
+        await tokens.add(id, {
+          assetId: 'usd-coin',
+          symbol: 'USDC',
+          name: 'USDC',
+        })
+        const evmBefore = evmCalls()
+        const reloaded = await crypto.refresh(id, later(1))
+        expect(evmCalls()).toBeGreaterThan(evmBefore)
+        expect(bitcoinCalls()).toBe(before)
+        expect(lines(reloaded.holdings)).toContain('sync BTC Bitcoin 0.00085')
+
+        // "Synchroniser" scans it sooner.
+        await crypto.sync(id, later(2))
+        expect(bitcoinCalls()).toBeGreaterThan(before)
+
+        // Page loads scan it again once the interval has passed.
+        const afterSync = bitcoinCalls()
+        await crypto.summary(later(13))
+        expect(bitcoinCalls()).toBeGreaterThan(afterSync)
+      })
+    })
+
+    it('waits out a Retry-After up to 60 s once inside the scan, then fails the chain', async () => {
+      const mock = esplora((n) => (n === 5 ? rateLimited('45') : null))
+      await inRollback(
+        async ({ crypto, wallet, sleeps }) => {
+          const id = await wallet()
+          const result = await crypto.sync(id, NOW)
+          expect(sleeps).toEqual([45_000])
+          // The address refused is asked again after the pause.
+          expect(mock.asked).toEqual([
+            ...RECEIVE.slice(0, 44),
+            ...CHANGE.slice(0, 21),
+          ])
+          expect(mock.requests()).toBe(44 + 21 + 1)
+          expect(result.sync).toMatchObject({
+            failedAt: null,
+            failedChains: [],
+          })
+        },
+        { bitcoin: mock.provider },
+      )
+
+      const twice = esplora((n) =>
+        n === 5 || n === 9 ? rateLimited('45') : null,
+      )
+      await inRollback(
+        async ({ crypto, wallet, sleeps }) => {
+          const id = await wallet()
+          const result = await crypto.sync(id, NOW)
+          // One wait per sync: the second rate limit fails the chain; its
+          // backoff starts after the time spent waiting.
+          expect(sleeps).toEqual([45_000])
+          expect(result.sync?.failedChains).toEqual([
+            {
+              chain: 'bitcoin',
+              reason: 'rate_limited',
+              retryAt: new Date(NOW.getTime() + 45_000 + 60_000).toISOString(),
+            },
+          ])
+        },
+        { bitcoin: twice.provider },
+      )
+    })
+
+    it('tells how many addresses each key found in its type (#268)', async () => {
+      await inRollback(async ({ accounts, crypto, keys }) => {
+        const { id } = await accounts.create({
+          name: 'Ledger',
+          type: 'crypto',
+          cryptoSource: 'wallet',
+          walletKeys: [
+            { publicKey: BIP84_ZPUB },
+            // Never used in legacy (the mocked chain knows none of its
+            // addresses): the owner chose the wrong type.
+            { publicKey: BIP44_XPUB, addressType: 'legacy' },
+          ],
+        })
+        const before = await keys.list(id)
+        expect(before.map((key) => key.scans)).toEqual([[], []])
+
+        await crypto.sync(id, NOW)
+        const after = new Map(
+          (await keys.list(id)).map((key) => [key.publicKey, key.scans]),
+        )
+        expect(after.get(BIP84_ZPUB)).toEqual([
+          { addressType: 'native_segwit', usedAddresses: 4, completedAt: NOW },
+        ])
+        expect(after.get(BIP44_XPUB)).toEqual([
+          { addressType: 'legacy', usedAddresses: 0, completedAt: NOW },
+        ])
       })
     })
 

@@ -103,6 +103,22 @@ export class WalletKeyInputDto {
   label?: string | null
 }
 
+/** What the last complete scan of a Bitcoin key found in one type (#268). */
+export class WalletKeyScanDto {
+  @ApiProperty({ enum: BITCOIN_ADDRESS_TYPES, enumName: 'BitcoinAddressType' })
+  addressType!: BitcoinAddressType
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Addresses with history found in this type. 0 on an xpub: probably the wrong type.',
+  })
+  usedAddresses!: number
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  completedAt!: Date
+}
+
 export class WalletKeyDto {
   @ApiProperty({ type: String, format: 'uuid' })
   id!: string
@@ -147,6 +163,14 @@ export class WalletKeyDto {
       'The address type of this xpub is detected on the next sync (none with history found yet).',
   })
   detectingAddressType!: boolean
+
+  @ApiProperty({
+    type: WalletKeyScanDto,
+    isArray: true,
+    description:
+      'Bitcoin keys: the last complete scan of each address type read (empty until one completes, and for EVM addresses).',
+  })
+  scans!: WalletKeyScanDto[]
 
   @ApiProperty({ type: String, nullable: true })
   label!: string | null

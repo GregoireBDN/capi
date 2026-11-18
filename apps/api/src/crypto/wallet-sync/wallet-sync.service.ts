@@ -9,6 +9,7 @@ import {
   type SelectCryptoWalletKey,
 } from '#/database/schema'
 import {
+  type BitcoinAddressType,
   type CryptoChain,
   DERIVABLE_ADDRESS_TYPES,
   type DerivableAddressType,
@@ -16,11 +17,20 @@ import {
 import { fitsNumeric, formatDecimal, rescale } from '../decimal'
 import { checkPublicKey } from '../wallet-keys/public-key'
 import { effectiveAddressTypes } from '../wallet-keys/wallet-keys.repository'
+import { BitcoinAddressDeriver } from './bitcoin-derivation'
 import {
-  BitcoinAddressDeriver,
-  MAX_ADDRESSES_PER_BRANCH,
-} from './bitcoin-derivation'
+  type AddressRead,
+  BitcoinScanStore,
+  pendingIndices,
+  readInPass,
+  type ScanBranch,
+  type ScanState,
+  type ScanSummary,
+  scanTotal,
+  stateKey,
+} from './bitcoin-scan'
 import {
+  type BitcoinAddressState,
   type BitcoinChainProvider,
   ChainProviderError,
   type EvmChain,
@@ -55,6 +65,8 @@ export interface WalletSyncOptions {
   intervalMs: number
   /** Consecutive unused addresses that end a Bitcoin branch scan (BIP44). */
   gapLimit?: number
+  /** Injected in tests; a timer otherwise. */
+  sleep?: (ms: number) => Promise<void>
 }
 
 export const DEFAULT_GAP_LIMIT = 20
@@ -62,6 +74,22 @@ export const DEFAULT_GAP_LIMIT = 20
 export const FORCE_SYNC_MIN_INTERVAL_MS = 30_000
 /** Token deployments are looked up again after this long. */
 const TOKEN_CACHE_TTL_MS = 24 * 60 * 60_000
+/**
+ * A rate limit asking to wait at most this long pauses the Bitcoin scan and
+ * resumes it, once per sync (#268); without `Retry-After`, the pause is
+ * `DEFAULT_RATE_LIMIT_PAUSE_MS`. A second one, or a longer wait, fails the
+ * chain and starts the backoff.
+ */
+export const MAX_INLINE_WAIT_MS = 60_000
+const DEFAULT_RATE_LIMIT_PAUSE_MS = 10_000
+/** An unfinished Bitcoin pass older than this starts over. */
+export const PASS_MAX_AGE_MS = 6 * 60 * 60_000
+/**
+ * Page loads wait at most this long for the syncs they start; a longer one
+ * (a Bitcoin scan paced at one request per second) goes on in the
+ * background and its lines show on the next load.
+ */
+export const BACKGROUND_SYNC_WAIT_MS = 5_000
 const QUANTITY_SCALE = 18
 const QUANTITY_INTEGER_DIGITS = 20
 
@@ -100,6 +128,24 @@ interface Line {
   decimals: number
 }
 
+/**
+ * Who asked: a page load (valuation) spares the Bitcoin endpoint, the owner
+ * pressing "Synchroniser" does not.
+ */
+type SyncMode = 'background' | 'foreground'
+
+/** State of the Bitcoin read of one sync. */
+interface BitcoinRead {
+  /** Scans completed after this are not read again (null: all are). */
+  freshSince: Date | null
+  /** The one inline wait of the sync was spent. */
+  waited: boolean
+  /** Time spent waiting inline (the backoff starts after it). */
+  waitedMs: number
+  /** Addresses read (logged as a count). */
+  addresses: number
+}
+
 /** What one sync read: lines of the chains read, failures of the others. */
 interface ChainsRead {
   lines: Line[]
@@ -129,6 +175,7 @@ interface ChainsRead {
 export class WalletSyncService {
   private readonly logger = new Logger(WalletSyncService.name)
   private readonly deriver = new BitcoinAddressDeriver()
+  private readonly scans = new BitcoinScanStore(() => this.database.db)
   /** Last attempt per account (epoch ms), successful or not. */
   private readonly attempts = new Map<string, number>()
   private readonly inFlight = new Map<string, Promise<void>>()
@@ -181,7 +228,11 @@ export class WalletSyncService {
       const last = this.attempts.get(id)
       return last === undefined || at - last >= this.options.intervalMs
     })
-    for (const { id } of due) await this.run(id, now)
+    if (due.length === 0) return
+    const work = (async () => {
+      for (const { id } of due) await this.run(id, now, 'background')
+    })()
+    await waitAtMost(work, BACKGROUND_SYNC_WAIT_MS)
   }
 
   /**
@@ -198,7 +249,14 @@ export class WalletSyncService {
     ) {
       return
     }
-    await this.run(accountId, now)
+    await this.run(accountId, now, 'foreground')
+  }
+
+  /** Last complete Bitcoin scans of the keys (what each address type found). */
+  scanSummaries(
+    keyIds: readonly string[],
+  ): Promise<Map<string, ScanSummary[]>> {
+    return this.scans.summaries(keyIds)
   }
 
   /** Sync state of the wallet accounts among `accountIds`. */
@@ -270,24 +328,40 @@ export class WalletSyncService {
     }
   }
 
-  /** One sync per account at a time; a concurrent caller waits for it. */
-  private run(accountId: string, now: Date): Promise<void> {
+  /**
+   * One sync per account at a time; a concurrent caller waits for it. Never
+   * rejects: a background sync may outlive the request that started it.
+   */
+  private run(accountId: string, now: Date, mode: SyncMode): Promise<void> {
     const running = this.inFlight.get(accountId)
     if (running) return running
     this.attempts.set(accountId, now.getTime())
-    const run = this.sync(accountId, now).finally(() =>
-      this.inFlight.delete(accountId),
-    )
+    const run = this.sync(accountId, now, mode)
+      .catch((error: unknown) => {
+        // The error class only: a database error carries bound values.
+        const name = error instanceof Error ? error.name : 'unknown'
+        this.logger.error(`Wallet sync failed (${name})`)
+      })
+      .finally(() => this.inFlight.delete(accountId))
     this.inFlight.set(accountId, run)
     return run
   }
 
-  private async sync(accountId: string, now: Date): Promise<void> {
+  private async sync(
+    accountId: string,
+    now: Date,
+    mode: SyncMode,
+  ): Promise<void> {
     const keys = await this.db
       .select()
       .from(k)
       .where(eq(k.accountId, accountId))
-    const { lines, read, failed } = await this.readChains(accountId, keys, now)
+    const { lines, read, failed } = await this.readChains(
+      accountId,
+      keys,
+      now,
+      mode,
+    )
     this.failures.set(accountId, failed)
     if (failed.size > 0 && read.size === 0) {
       await this.db
@@ -348,6 +422,7 @@ export class WalletSyncService {
     accountId: string,
     keys: SelectCryptoWalletKey[],
     now: Date,
+    mode: SyncMode,
   ): Promise<ChainsRead> {
     const result: ChainsRead = { lines: [], read: new Set(), failed: new Map() }
     const bitcoin = this.options.bitcoin
@@ -355,18 +430,39 @@ export class WalletSyncService {
       (key) => key.family === 'bitcoin' && key.chains.includes('bitcoin'),
     )
     if (bitcoin && bitcoinKeys.length > 0) {
-      await this.readChain(result, 'bitcoin', now, async () => {
-        const lines: Line[] = []
-        for (const key of bitcoinKeys) {
-          lines.push({
-            asset: BITCOIN_ASSET,
-            chain: 'bitcoin',
-            units: await this.readBitcoinKey(bitcoin, key),
-            decimals: BITCOIN_DECIMALS,
-          })
-        }
-        return lines
-      })
+      const ctx: BitcoinRead = {
+        freshSince: this.freshSince(accountId, now, mode),
+        waited: false,
+        waitedMs: 0,
+        addresses: 0,
+      }
+      await this.readChain(
+        result,
+        'bitcoin',
+        now,
+        async () => {
+          const lines: Line[] = []
+          try {
+            for (const key of bitcoinKeys) {
+              lines.push({
+                asset: BITCOIN_ASSET,
+                chain: 'bitcoin',
+                units: await this.readBitcoinKey(bitcoin, key, now, ctx),
+                decimals: BITCOIN_DECIMALS,
+              })
+            }
+          } catch (error) {
+            if (ctx.addresses > 0) {
+              this.logger.log(
+                `Wallet sync kept ${ctx.addresses} Bitcoin address(es) read before failing; the next attempt resumes there`,
+              )
+            }
+            throw error
+          }
+          return lines
+        },
+        () => ctx.waitedMs,
+      )
     }
 
     const evm = this.options.evm
@@ -435,6 +531,8 @@ export class WalletSyncService {
     chain: CryptoChain,
     now: Date,
     read: () => Promise<Line[]>,
+    /** Time the read spent waiting inline, before the backoff starts. */
+    waitedMs: () => number = () => 0,
   ): Promise<void> {
     const at = now.getTime()
     const until = this.backoff.until(chain, at)
@@ -451,11 +549,12 @@ export class WalletSyncService {
       this.backoff.succeeded(chain)
     } catch (error) {
       const reason = failureReason(error)
+      const from = at + waitedMs()
       const retryAt =
         error instanceof ChainProviderError && reason === 'rate_limited'
-          ? this.backoff.rateLimited(chain, at, error.retryAfterMs)
+          ? this.backoff.rateLimited(chain, from, error.retryAfterMs)
           : null
-      this.chainFailed(result, chain, reason, retryAt && retryAt - at)
+      this.chainFailed(result, chain, reason, retryAt && retryAt - from)
     }
   }
 
@@ -476,30 +575,47 @@ export class WalletSyncService {
   }
 
   /**
-   * Confirmed balance of a Bitcoin key: a single address is read as it is;
-   * an extended key is scanned in each of its address types (detected first
-   * when the owner asked for it).
+   * Scans completed since this are reused as they are: on page loads, those
+   * under `intervalMs` old; on "Synchroniser", only while resuming a Bitcoin
+   * read that failed (a healthy one reads every key again).
+   */
+  private freshSince(
+    accountId: string,
+    now: Date,
+    mode: SyncMode,
+  ): Date | null {
+    const since = new Date(now.getTime() - this.options.intervalMs)
+    if (mode === 'background') return since
+    return this.failures.get(accountId)?.has('bitcoin') ? since : null
+  }
+
+  /**
+   * Confirmed balance of a Bitcoin key: a single address is a scan of one
+   * address; an extended key is scanned in each of its address types
+   * (detected first when the owner asked for it).
    */
   private async readBitcoinKey(
     provider: BitcoinChainProvider,
     key: SelectCryptoWalletKey,
+    now: Date,
+    ctx: BitcoinRead,
   ): Promise<bigint> {
     const check = checkPublicKey(key.publicKey)
     if (!check.ok || check.family !== 'bitcoin') {
       throw new ChainProviderError('malformed')
     }
     if (check.format === 'address') {
-      const [state] = await provider.addressStates([check.publicKey])
-      if (!state) throw new ChainProviderError('malformed')
-      return state.balanceSats
+      return this.scan(provider, key, check.addressType, now, ctx, () => [
+        check.publicKey,
+      ])
     }
     const types =
       effectiveAddressTypes(key) ??
-      (await this.detectAddressTypes(provider, key))
+      (await this.detectAddressTypes(provider, key, now, ctx))
     let total = 0n
     for (const type of types) {
       if (type === 'taproot') continue
-      total += await this.scanBitcoin(provider, key.publicKey, type)
+      total += await this.scan(provider, key, type, now, ctx)
     }
     return total
   }
@@ -507,18 +623,40 @@ export class WalletSyncService {
   /**
    * Address types of an `xpub` whose owner asked to detect them: the types
    * whose first receive address has history, stored on the key. None yet (an
-   * unused account): nothing is stored, the next sync tries again.
+   * unused account): nothing is stored, the next sync tries again. The
+   * addresses read count as the start of each type's scan.
    */
   private async detectAddressTypes(
     provider: BitcoinChainProvider,
     key: SelectCryptoWalletKey,
+    now: Date,
+    ctx: BitcoinRead,
   ): Promise<DerivableAddressType[]> {
     const addresses = DERIVABLE_ADDRESS_TYPES.map(
       (type) => this.deriver.derive(key.publicKey, type, 0, 0, 1)[0],
     )
-    const states = await provider.addressStates(addresses)
+    let states: BitcoinAddressState[]
+    for (;;) {
+      try {
+        states = await provider.addressStates(addresses)
+        break
+      } catch (error) {
+        await this.waitInline(error, ctx)
+      }
+    }
     if (states.length !== addresses.length) {
       throw new ChainProviderError('malformed')
+    }
+    ctx.addresses += addresses.length
+    for (const [i, type] of DERIVABLE_ADDRESS_TYPES.entries()) {
+      const scan = await this.scans.load(key.id, type)
+      const passStart = this.passStart(scan, now)
+      if (passStart !== scan.passStartedAt) {
+        await this.scans.startPass(scan.id, passStart)
+      }
+      await this.scans.save(scan.id, [
+        { branch: 0, index: 0, ...states[i], readAt: now },
+      ])
     }
     const used = DERIVABLE_ADDRESS_TYPES.filter((_, i) => states[i].used)
     if (used.length > 0) {
@@ -534,47 +672,130 @@ export class WalletSyncService {
     return used
   }
 
-  /**
-   * Sum of the confirmed balances of a key's receive and change addresses
-   * in one address type, each branch scanned until `gapLimit` consecutive
-   * unused addresses.
-   */
-  private async scanBitcoin(
-    provider: BitcoinChainProvider,
-    extendedKey: string,
-    type: DerivableAddressType,
-  ): Promise<bigint> {
-    let total = 0n
-    for (const branch of [0, 1] as const) {
-      let start = 0
-      let lastUsed = -1
-      // Strict gap limit: ask exactly the addresses needed to see
-      // `gapLimit` unused ones in a row after the last used one.
-      while (start - lastUsed - 1 < this.gapLimit) {
-        const count = Math.min(
-          this.gapLimit - (start - lastUsed - 1),
-          MAX_ADDRESSES_PER_BRANCH - start,
-        )
-        if (count <= 0) break
-        const addresses = this.deriver.derive(
-          extendedKey,
-          type,
-          branch,
-          start,
-          count,
-        )
-        const states = await provider.addressStates(addresses)
-        if (states.length !== addresses.length) {
-          throw new ChainProviderError('malformed')
-        }
-        states.forEach((state, i) => {
-          total += state.balanceSats
-          if (state.used) lastUsed = start + i
-        })
-        start += count
-      }
+  /** Start of the pass to continue, or `now` for a new one. */
+  private passStart(scan: ScanState, now: Date): Date {
+    const started = scan.passStartedAt
+    if (
+      started === null ||
+      started.getTime() > now.getTime() ||
+      now.getTime() - started.getTime() > PASS_MAX_AGE_MS
+    ) {
+      return now
     }
-    return total
+    return started
+  }
+
+  /**
+   * Balance of a key in one address type (#268), from its stored scan: a
+   * fresh complete scan is reused as it is; otherwise the pass (resumed, or
+   * new) reads, on each branch, the used addresses and the gap window after
+   * the last used one, skipping what it already read. Every address read is
+   * stored, also when the pass is cut short, so the next attempt resumes. A
+   * single address (`single`) is a pass over that one address.
+   */
+  private async scan(
+    provider: BitcoinChainProvider,
+    key: SelectCryptoWalletKey,
+    type: BitcoinAddressType,
+    now: Date,
+    ctx: BitcoinRead,
+    single?: () => string[],
+  ): Promise<bigint> {
+    const scan = await this.scans.load(key.id, type)
+    if (
+      ctx.freshSince !== null &&
+      scan.passStartedAt === null &&
+      scan.completedAt !== null &&
+      scan.completedAt.getTime() >= ctx.freshSince.getTime()
+    ) {
+      return scanTotal(scan)
+    }
+    const passStart = this.passStart(scan, now)
+    if (passStart !== scan.passStartedAt) {
+      await this.scans.startPass(scan.id, passStart)
+    }
+    const reads = new Map<string, AddressRead>()
+    const record = (
+      branch: ScanBranch,
+      index: number,
+      state: BitcoinAddressState,
+    ) => {
+      const at = stateKey(branch, index)
+      const read = { branch, index, ...state, readAt: now }
+      if (!reads.has(at)) ctx.addresses++
+      scan.states.set(at, read)
+      reads.set(at, read)
+    }
+    try {
+      for (const branch of single ? ([0] as const) : ([0, 1] as const)) {
+        for (;;) {
+          const todo = single
+            ? readInPass(scan.states.get(stateKey(0, 0)), passStart)
+              ? []
+              : [0]
+            : pendingIndices(scan.states, branch, passStart, this.gapLimit)
+          if (todo.length === 0) break
+          const addresses = single
+            ? single()
+            : this.addressesAt(key.publicKey, type, branch, todo)
+          try {
+            const states = await provider.addressStates(addresses, (i, state) =>
+              record(branch, todo[i], state),
+            )
+            if (states.length !== addresses.length) {
+              throw new ChainProviderError('malformed')
+            }
+            states.forEach((state, i) => record(branch, todo[i], state))
+          } catch (error) {
+            await this.waitInline(error, ctx)
+          }
+        }
+      }
+    } finally {
+      await this.scans.save(scan.id, [...reads.values()])
+    }
+    await this.scans.complete(scan.id, now)
+    return scanTotal(scan)
+  }
+
+  /** Derived addresses of a branch at the given indices (sorted). */
+  private addressesAt(
+    extendedKey: string,
+    type: DerivableAddressType | BitcoinAddressType,
+    branch: ScanBranch,
+    indices: readonly number[],
+  ): string[] {
+    if (type === 'taproot') throw new ChainProviderError('malformed')
+    const all = this.deriver.derive(
+      extendedKey,
+      type,
+      branch,
+      0,
+      indices[indices.length - 1] + 1,
+    )
+    return indices.map((index) => all[index])
+  }
+
+  /**
+   * After a failed read: waits out a rate limit once per sync when it asks
+   * for at most `MAX_INLINE_WAIT_MS` (the scan then resumes), else rethrows.
+   */
+  private async waitInline(error: unknown, ctx: BitcoinRead): Promise<void> {
+    if (
+      ctx.waited ||
+      !(error instanceof ChainProviderError) ||
+      error.reason !== 'rate_limited'
+    ) {
+      throw error
+    }
+    const wait = error.retryAfterMs ?? DEFAULT_RATE_LIMIT_PAUSE_MS
+    if (wait > MAX_INLINE_WAIT_MS) throw error
+    ctx.waited = true
+    this.logger.log(
+      `Wallet sync paused on bitcoin: rate limited, resuming in ${seconds(wait)} s`,
+    )
+    await (this.options.sleep ?? sleep)(wait)
+    ctx.waitedMs += wait
   }
 
   /**
@@ -641,6 +862,22 @@ class TokenLookupError extends Error {
     super('Token lookup failed')
     this.name = 'TokenLookupError'
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** Waits for `work`, or `ms` at most (the work goes on either way). */
+async function waitAtMost(work: Promise<void>, ms: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  await Promise.race([
+    work,
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, ms)
+    }),
+  ])
+  clearTimeout(timer)
 }
 
 function seconds(ms: number): number {

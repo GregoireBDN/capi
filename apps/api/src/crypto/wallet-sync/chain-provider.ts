@@ -20,8 +20,15 @@ export interface BitcoinAddressState {
 }
 
 export interface BitcoinChainProvider {
-  /** State of each address (same order); requests are rate-limited inside. */
-  addressStates(addresses: readonly string[]): Promise<BitcoinAddressState[]>
+  /**
+   * State of each address (same order); requests are rate-limited inside.
+   * `onState` is called as each address is read, so that a read cut short by
+   * a failure still reports the addresses it got (#268).
+   */
+  addressStates(
+    addresses: readonly string[],
+    onState?: (index: number, state: BitcoinAddressState) => void,
+  ): Promise<BitcoinAddressState[]>
 }
 
 export interface EvmTokenContract {
@@ -172,7 +179,7 @@ export function jsonInteger(value: unknown): bigint | null {
 export async function mapLimited<T, R>(
   items: readonly T[],
   limit: number,
-  task: (item: T, stopped: () => boolean) => Promise<R>,
+  task: (item: T, stopped: () => boolean, index: number) => Promise<R>,
 ): Promise<R[]> {
   const results = new Array<R>(items.length)
   let next = 0
@@ -181,7 +188,7 @@ export async function mapLimited<T, R>(
     while (!failed && next < items.length) {
       const index = next++
       try {
-        results[index] = await task(items[index], () => failed)
+        results[index] = await task(items[index], () => failed, index)
       } catch (error) {
         failed = true
         throw error
