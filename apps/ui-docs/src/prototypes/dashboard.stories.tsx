@@ -1918,3 +1918,220 @@ export const MonthProposals: StoryObj = {
     </AppScale>
   ),
 }
+
+/* ===========================================================================
+ * Budget bar on a phone (owner feedback on #262: « le graphe est bien mais
+ * en téléphone c'est un peu bizarre »: a legend on three lines, then « Reste
+ * 154 € sur les catégories avec budget » wrapping).
+ *
+ * Tél. 1. Tableau : the legend as a two-column list, label left, amount
+ *         right, what's left as its last line.
+ * Tél. 2. Sur la barre : the two amounts above the bar, over their part;
+ *         the budget and what's left under it, one line.
+ * Tél. 3. Deux phrases : « 2 071 € avec budget + 443 € sans budget », then
+ *         « Budget 2 225 € · reste 154 € », the swatches inline.
+ * Tél. 4. Tuiles : the budget in the heading, then three small tiles: avec
+ *         budget, sans budget, reste.
+ * ======================================================================== */
+
+const HATCH =
+  'bg-[repeating-linear-gradient(135deg,var(--muted-foreground)_0_3px,transparent_3px_6px)] opacity-60'
+
+function StackedBar() {
+  const total = BUDGET.spent + BUDGET.unbudgeted
+  const scale = Math.max(total, BUDGET.target)
+  const pct = (value: number) => `${(value / scale) * 100}%`
+  return (
+    <div className="relative">
+      <div className="bg-muted flex h-3 overflow-hidden rounded-full">
+        <div
+          className="bg-primary h-full"
+          style={{ width: pct(BUDGET.spent) }}
+        />
+        <div
+          className={cn('h-full', HATCH)}
+          style={{ width: pct(BUDGET.unbudgeted) }}
+        />
+      </div>
+      <div
+        aria-hidden
+        className="bg-foreground absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2 rounded"
+        style={{ left: pct(BUDGET.target) }}
+      />
+    </div>
+  )
+}
+
+function Swatch({ kind }: { kind: 'with' | 'without' | 'mark' }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'inline-block shrink-0 align-middle',
+        kind === 'with' && 'bg-primary size-2.5 rounded-sm',
+        kind === 'without' && cn('size-2.5 rounded-sm', HATCH),
+        kind === 'mark' && 'bg-foreground mx-1 h-3 w-0.5 rounded',
+      )}
+    />
+  )
+}
+
+const LEFT = BUDGET.target - BUDGET.spent
+
+/** 1. The legend as a two-column list. */
+function PhoneTable() {
+  return (
+    <div className="space-y-2 text-sm">
+      <p className="font-medium">Budget</p>
+      <StackedBar />
+      <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-xs">
+        <dt className="text-muted-foreground flex items-center gap-1.5">
+          <Swatch kind="with" /> Avec budget
+        </dt>
+        <dd className="text-right font-medium tabular-nums">
+          {euros(BUDGET.spent)}
+        </dd>
+        <dt className="text-muted-foreground flex items-center gap-1.5">
+          <Swatch kind="without" /> Sans budget
+        </dt>
+        <dd className="text-right font-medium tabular-nums">
+          {euros(BUDGET.unbudgeted)}
+        </dd>
+        <dt className="text-muted-foreground flex items-center gap-1.5">
+          <Swatch kind="mark" /> Budget
+        </dt>
+        <dd className="text-right font-medium tabular-nums">
+          {euros(BUDGET.target)}
+        </dd>
+        <div aria-hidden className="border-border col-span-2 my-0.5 border-t" />
+        <dt className="font-medium">Reste</dt>
+        <dd className="text-right font-semibold tabular-nums">{euros(LEFT)}</dd>
+      </dl>
+    </div>
+  )
+}
+
+/** 2. The amounts above their part of the bar. */
+function PhoneOnBar() {
+  const total = BUDGET.spent + BUDGET.unbudgeted
+  const scale = Math.max(total, BUDGET.target)
+  return (
+    <div className="space-y-1.5 text-sm">
+      <p className="font-medium">Budget</p>
+      <div className="flex text-xs tabular-nums">
+        <span
+          className="min-w-0"
+          style={{ width: `${(BUDGET.spent / scale) * 100}%` }}
+        >
+          <span className="font-medium">{euros(BUDGET.spent)}</span>{' '}
+          <span className="text-muted-foreground">avec budget</span>
+        </span>
+        <span className="flex-1 text-right whitespace-nowrap">
+          <span className="font-medium">{euros(BUDGET.unbudgeted)}</span>{' '}
+          <span className="text-muted-foreground">sans</span>
+        </span>
+      </div>
+      <StackedBar />
+      <p className="flex justify-between gap-x-3 text-xs">
+        <span className="text-muted-foreground">
+          <Swatch kind="mark" />
+          Budget {euros(BUDGET.target)}
+        </span>
+        <span className="font-medium">Reste {euros(LEFT)}</span>
+      </p>
+    </div>
+  )
+}
+
+/** 3. Two short sentences. */
+function PhoneSentences() {
+  return (
+    <div className="space-y-2 text-sm">
+      <p className="font-medium">Budget</p>
+      <StackedBar />
+      <p className="text-xs leading-relaxed">
+        <Swatch kind="with" />{' '}
+        <span className="font-medium tabular-nums">{euros(BUDGET.spent)}</span>{' '}
+        <span className="text-muted-foreground">avec budget</span>
+        {' + '}
+        <Swatch kind="without" />{' '}
+        <span className="font-medium tabular-nums">
+          {euros(BUDGET.unbudgeted)}
+        </span>{' '}
+        <span className="text-muted-foreground">sans budget</span>
+      </p>
+      <p className="text-xs">
+        <Swatch kind="mark" />
+        <span className="text-muted-foreground">Budget</span>{' '}
+        <span className="font-medium tabular-nums">{euros(BUDGET.target)}</span>
+        <span className="text-muted-foreground"> · </span>
+        <span className="font-medium">reste {euros(LEFT)}</span>
+      </p>
+    </div>
+  )
+}
+
+/** 4. The budget in the heading, three small tiles under the bar. */
+function PhoneTiles() {
+  const tiles: [ReactNode, string, string][] = [
+    [<Swatch key="w" kind="with" />, 'Avec', euros(BUDGET.spent)],
+    [<Swatch key="o" kind="without" />, 'Sans', euros(BUDGET.unbudgeted)],
+    [null, 'Reste', euros(LEFT)],
+  ]
+  return (
+    <div className="space-y-2 text-sm">
+      <p className="flex items-baseline justify-between">
+        <span className="font-medium">Budget</span>
+        <span className="text-muted-foreground text-xs tabular-nums">
+          <Swatch kind="mark" />
+          {euros(BUDGET.target)}
+        </span>
+      </p>
+      <StackedBar />
+      <div className="grid grid-cols-3 gap-1.5 pt-1">
+        {tiles.map(([swatch, label, value]) => (
+          <div
+            key={label}
+            className="bg-muted/50 min-w-0 rounded-lg px-2 py-1.5"
+          >
+            <p className="text-muted-foreground flex items-center gap-1 truncate text-[0.7rem]">
+              {swatch}
+              {label}
+            </p>
+            <p className="text-sm font-semibold whitespace-nowrap tabular-nums">
+              {value}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export const BudgetPhoneProposals: StoryObj = {
+  name: 'Budget téléphone : propositions',
+  parameters: { viewport: { defaultViewport: 'mobile' } },
+  render: () => (
+    <AppScale>
+      <div className="bg-background min-h-svh space-y-4 p-4">
+        {(
+          [
+            ['Tél. 1. Tableau', <PhoneTable key="1" />],
+            ['Tél. 2. Sur la barre', <PhoneOnBar key="2" />],
+            ['Tél. 3. Deux phrases', <PhoneSentences key="3" />],
+            ['Tél. 4. Tuiles', <PhoneTiles key="4" />],
+          ] as const
+        ).map(([title, body]) => (
+          <section key={title} className="mx-auto max-w-[24rem] space-y-1.5">
+            <h2 className="text-muted-foreground text-sm font-medium">
+              {title}
+            </h2>
+            <Card className="min-w-0">
+              <CardContent className="mb-0">{body}</CardContent>
+            </Card>
+          </section>
+        ))}
+      </div>
+    </AppScale>
+  ),
+}
