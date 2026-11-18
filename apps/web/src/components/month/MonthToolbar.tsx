@@ -153,7 +153,8 @@ export function MonthToolbar({
         {filters && (
           <div
             className={cn(
-              'ml-auto flex min-w-0 items-center gap-2',
+              // Right beside the navigator on phones, at the end of the row from 672px.
+              'flex min-w-0 items-center gap-2 @[672px]:ml-auto',
               search && '@max-[290px]:order-last',
             )}
           >
