@@ -15,7 +15,13 @@ import type { UserDto } from '#/api/types.gen'
 import { resetReviewCount, setReviewCount } from '#/lib/review-count'
 
 import { AppSidebar } from './AppSidebar'
-import { NAV_ITEMS, SETTINGS_ITEMS, isNavItemActive } from './nav-items'
+import {
+  NAV_ITEMS,
+  SETTINGS_ITEM,
+  SETTINGS_TABS,
+  isNavEntryActive,
+  isNavItemActive,
+} from './nav-items'
 
 vi.mock('#/api', () => ({
   profileControllerUpdate: vi.fn(),
@@ -108,9 +114,7 @@ describe('AppSidebar', () => {
       ['Crypto', '/crypto'],
       ['Comptes', '/accounts'],
       ['Import', '/import'],
-      ['Catégories', '/categories'],
-      ['Règles', '/rules'],
-      ['Profil', '/profile'],
+      ['Réglages', '/categories'],
     ])
   })
 
@@ -121,7 +125,7 @@ describe('AppSidebar', () => {
     expect(active).toHaveAttribute('aria-current', 'page')
     expect(active).toHaveAttribute('data-active', 'true')
 
-    for (const { label } of [...NAV_ITEMS, ...SETTINGS_ITEMS].filter(
+    for (const { label } of [...NAV_ITEMS, SETTINGS_ITEM].filter(
       (item) => item.label !== 'Budget',
     )) {
       const link = nav.getByRole('link', { name: label })
@@ -190,22 +194,57 @@ describe('AppSidebar', () => {
     expect(screen.getByText('owner@example.test')).toBeInTheDocument()
   })
 
-  it('lists each settings page once, under « Réglages », account menu open', async () => {
+  it('separates the settings from the pages with a rule', async () => {
     const nav = await renderAt('/dashboard')
+    const separator = nav.getByTestId('nav-separator')
+    const importLink = nav.getByRole('link', { name: 'Import' })
+    const settingsLink = nav.getByRole('link', { name: 'Réglages' })
+    // The rule sits between « Import » and « Réglages ».
+    expect(
+      importLink.compareDocumentPosition(separator) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      separator.compareDocumentPosition(settingsLink) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it.each(['/categories', '/rules', '/profile'])(
+    'highlights « Réglages » on %s',
+    async (path) => {
+      const nav = await renderAt(path)
+      expect(nav.getByRole('link', { name: 'Réglages' })).toHaveAttribute(
+        'aria-current',
+        'page',
+      )
+      expect(nav.getAllByRole('link').filter(isCurrent)).toHaveLength(1)
+    },
+  )
+
+  it('has one settings entry, account menu open (#261)', async () => {
+    await renderAt('/dashboard')
     await userEvent
       .setup()
       .click(screen.getByRole('button', { name: 'Menu du compte' }))
     await screen.findByRole('menu')
 
     // The open (modal) menu hides the rest of the page from the a11y tree.
-    for (const { label, to } of SETTINGS_ITEMS) {
+    expect(document.querySelectorAll('a[href="/categories"]')).toHaveLength(1)
+    for (const { to } of SETTINGS_TABS.slice(1)) {
+      expect(document.querySelectorAll(`a[href="${to}"]`)).toHaveLength(0)
+    }
+    for (const name of ['Catégories', 'Règles', 'Profil']) {
       expect(
-        screen.getAllByRole('link', { name: label, hidden: true }),
-      ).toEqual([nav.getByRole('link', { name: label, hidden: true })])
-      expect(document.querySelectorAll(`a[href="${to}"]`)).toHaveLength(1)
+        screen.queryByRole('link', { name, hidden: true }),
+      ).not.toBeInTheDocument()
     }
   })
 })
+
+function isCurrent(link: HTMLElement) {
+  return link.getAttribute('aria-current') === 'page'
+}
 
 describe('isNavItemActive', () => {
   it('matches the page itself and nested pages only', () => {
@@ -213,5 +252,13 @@ describe('isNavItemActive', () => {
     expect(isNavItemActive('/budget/2026-11', '/budget')).toBe(true)
     expect(isNavItemActive('/budgets', '/budget')).toBe(false)
     expect(isNavItemActive('/dashboard', '/budget')).toBe(false)
+  })
+})
+
+describe('isNavEntryActive', () => {
+  it('matches every settings page for « Réglages »', () => {
+    for (const { to } of SETTINGS_TABS)
+      expect(isNavEntryActive(to, SETTINGS_ITEM)).toBe(true)
+    expect(isNavEntryActive('/dashboard', SETTINGS_ITEM)).toBe(false)
   })
 })

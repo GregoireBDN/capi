@@ -14,23 +14,24 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
+import { Route as AppSettingsRouteImport } from './routes/_app/_settings'
 import { Route as AppBudgetRouteImport } from './routes/_app/budget'
-import { Route as AppCategoriesRouteImport } from './routes/_app/categories'
 import { Route as AppCryptoRouteImport } from './routes/_app/crypto'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppForecastRouteImport } from './routes/_app/forecast'
 import { Route as AppImportRouteImport } from './routes/_app/import'
 import { Route as AppMonthReviewRouteImport } from './routes/_app/month-review'
 import { Route as AppNetWorthRouteImport } from './routes/_app/net-worth'
-import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppReviewRouteImport } from './routes/_app/review'
-import { Route as AppRulesRouteImport } from './routes/_app/rules'
 import { Route as AppSavingsRouteImport } from './routes/_app/savings'
 import { Route as AppSpendingRouteImport } from './routes/_app/spending'
 import { Route as AppSubscriptionsRouteImport } from './routes/_app/subscriptions'
 import { Route as AppTransactionsRouteImport } from './routes/_app/transactions'
 import { Route as ApiSplatRouteImport } from './routes/api/$'
 import { Route as OauthAuthorizeRouteImport } from './routes/oauth.authorize'
+import { Route as AppSettingsCategoriesRouteImport } from './routes/_app/_settings/categories'
+import { Route as AppSettingsProfileRouteImport } from './routes/_app/_settings/profile'
+import { Route as AppSettingsRulesRouteImport } from './routes/_app/_settings/rules'
 import { Route as AppAccountsIndexRouteImport } from './routes/_app/accounts.index'
 import { Route as AppAccountsAccountIdRouteImport } from './routes/_app/accounts.$accountId'
 
@@ -58,14 +59,13 @@ const VerifyEmailRoute = VerifyEmailRouteImport.update({
   path: '/verify-email',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/_settings',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppBudgetRoute = AppBudgetRouteImport.update({
   id: '/budget',
   path: '/budget',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppCategoriesRoute = AppCategoriesRouteImport.update({
-  id: '/categories',
-  path: '/categories',
   getParentRoute: () => AppRoute,
 } as any)
 const AppCryptoRoute = AppCryptoRouteImport.update({
@@ -98,19 +98,9 @@ const AppNetWorthRoute = AppNetWorthRouteImport.update({
   path: '/net-worth',
   getParentRoute: () => AppRoute,
 } as any)
-const AppProfileRoute = AppProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppReviewRoute = AppReviewRouteImport.update({
   id: '/review',
   path: '/review',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppRulesRoute = AppRulesRouteImport.update({
-  id: '/rules',
-  path: '/rules',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSavingsRoute = AppSavingsRouteImport.update({
@@ -143,6 +133,21 @@ const OauthAuthorizeRoute = OauthAuthorizeRouteImport.update({
   path: '/oauth/authorize',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppSettingsCategoriesRoute = AppSettingsCategoriesRouteImport.update({
+  id: '/categories',
+  path: '/categories',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsProfileRoute = AppSettingsProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsRulesRoute = AppSettingsRulesRouteImport.update({
+  id: '/rules',
+  path: '/rules',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppAccountsIndexRoute = AppAccountsIndexRouteImport.update({
   id: '/accounts/',
   path: '/accounts/',
@@ -160,22 +165,22 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/budget': typeof AppBudgetRoute
-  '/categories': typeof AppCategoriesRoute
   '/crypto': typeof AppCryptoRoute
   '/dashboard': typeof AppDashboardRoute
   '/forecast': typeof AppForecastRoute
   '/import': typeof AppImportRoute
   '/month-review': typeof AppMonthReviewRoute
   '/net-worth': typeof AppNetWorthRoute
-  '/profile': typeof AppProfileRoute
   '/review': typeof AppReviewRoute
-  '/rules': typeof AppRulesRoute
   '/savings': typeof AppSavingsRoute
   '/spending': typeof AppSpendingRoute
   '/subscriptions': typeof AppSubscriptionsRoute
   '/transactions': typeof AppTransactionsRoute
   '/api/$': typeof ApiSplatRoute
   '/oauth/authorize': typeof OauthAuthorizeRoute
+  '/categories': typeof AppSettingsCategoriesRoute
+  '/profile': typeof AppSettingsProfileRoute
+  '/rules': typeof AppSettingsRulesRoute
   '/accounts/$accountId': typeof AppAccountsAccountIdRoute
   '/accounts/': typeof AppAccountsIndexRoute
 }
@@ -185,22 +190,22 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/budget': typeof AppBudgetRoute
-  '/categories': typeof AppCategoriesRoute
   '/crypto': typeof AppCryptoRoute
   '/dashboard': typeof AppDashboardRoute
   '/forecast': typeof AppForecastRoute
   '/import': typeof AppImportRoute
   '/month-review': typeof AppMonthReviewRoute
   '/net-worth': typeof AppNetWorthRoute
-  '/profile': typeof AppProfileRoute
   '/review': typeof AppReviewRoute
-  '/rules': typeof AppRulesRoute
   '/savings': typeof AppSavingsRoute
   '/spending': typeof AppSpendingRoute
   '/subscriptions': typeof AppSubscriptionsRoute
   '/transactions': typeof AppTransactionsRoute
   '/api/$': typeof ApiSplatRoute
   '/oauth/authorize': typeof OauthAuthorizeRoute
+  '/categories': typeof AppSettingsCategoriesRoute
+  '/profile': typeof AppSettingsProfileRoute
+  '/rules': typeof AppSettingsRulesRoute
   '/accounts/$accountId': typeof AppAccountsAccountIdRoute
   '/accounts': typeof AppAccountsIndexRoute
 }
@@ -211,23 +216,24 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/_app/_settings': typeof AppSettingsRouteWithChildren
   '/_app/budget': typeof AppBudgetRoute
-  '/_app/categories': typeof AppCategoriesRoute
   '/_app/crypto': typeof AppCryptoRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/forecast': typeof AppForecastRoute
   '/_app/import': typeof AppImportRoute
   '/_app/month-review': typeof AppMonthReviewRoute
   '/_app/net-worth': typeof AppNetWorthRoute
-  '/_app/profile': typeof AppProfileRoute
   '/_app/review': typeof AppReviewRoute
-  '/_app/rules': typeof AppRulesRoute
   '/_app/savings': typeof AppSavingsRoute
   '/_app/spending': typeof AppSpendingRoute
   '/_app/subscriptions': typeof AppSubscriptionsRoute
   '/_app/transactions': typeof AppTransactionsRoute
   '/api/$': typeof ApiSplatRoute
   '/oauth/authorize': typeof OauthAuthorizeRoute
+  '/_app/_settings/categories': typeof AppSettingsCategoriesRoute
+  '/_app/_settings/profile': typeof AppSettingsProfileRoute
+  '/_app/_settings/rules': typeof AppSettingsRulesRoute
   '/_app/accounts/$accountId': typeof AppAccountsAccountIdRoute
   '/_app/accounts/': typeof AppAccountsIndexRoute
 }
@@ -239,22 +245,22 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/verify-email'
     | '/budget'
-    | '/categories'
     | '/crypto'
     | '/dashboard'
     | '/forecast'
     | '/import'
     | '/month-review'
     | '/net-worth'
-    | '/profile'
     | '/review'
-    | '/rules'
     | '/savings'
     | '/spending'
     | '/subscriptions'
     | '/transactions'
     | '/api/$'
     | '/oauth/authorize'
+    | '/categories'
+    | '/profile'
+    | '/rules'
     | '/accounts/$accountId'
     | '/accounts/'
   fileRoutesByTo: FileRoutesByTo
@@ -264,22 +270,22 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/verify-email'
     | '/budget'
-    | '/categories'
     | '/crypto'
     | '/dashboard'
     | '/forecast'
     | '/import'
     | '/month-review'
     | '/net-worth'
-    | '/profile'
     | '/review'
-    | '/rules'
     | '/savings'
     | '/spending'
     | '/subscriptions'
     | '/transactions'
     | '/api/$'
     | '/oauth/authorize'
+    | '/categories'
+    | '/profile'
+    | '/rules'
     | '/accounts/$accountId'
     | '/accounts'
   id:
@@ -289,23 +295,24 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/verify-email'
+    | '/_app/_settings'
     | '/_app/budget'
-    | '/_app/categories'
     | '/_app/crypto'
     | '/_app/dashboard'
     | '/_app/forecast'
     | '/_app/import'
     | '/_app/month-review'
     | '/_app/net-worth'
-    | '/_app/profile'
     | '/_app/review'
-    | '/_app/rules'
     | '/_app/savings'
     | '/_app/spending'
     | '/_app/subscriptions'
     | '/_app/transactions'
     | '/api/$'
     | '/oauth/authorize'
+    | '/_app/_settings/categories'
+    | '/_app/_settings/profile'
+    | '/_app/_settings/rules'
     | '/_app/accounts/$accountId'
     | '/_app/accounts/'
   fileRoutesById: FileRoutesById
@@ -357,18 +364,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VerifyEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/_settings': {
+      id: '/_app/_settings'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/budget': {
       id: '/_app/budget'
       path: '/budget'
       fullPath: '/budget'
       preLoaderRoute: typeof AppBudgetRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/categories': {
-      id: '/_app/categories'
-      path: '/categories'
-      fullPath: '/categories'
-      preLoaderRoute: typeof AppCategoriesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/crypto': {
@@ -413,25 +420,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppNetWorthRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/profile': {
-      id: '/_app/profile'
-      path: '/profile'
-      fullPath: '/profile'
-      preLoaderRoute: typeof AppProfileRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/review': {
       id: '/_app/review'
       path: '/review'
       fullPath: '/review'
       preLoaderRoute: typeof AppReviewRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/rules': {
-      id: '/_app/rules'
-      path: '/rules'
-      fullPath: '/rules'
-      preLoaderRoute: typeof AppRulesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/savings': {
@@ -476,6 +469,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OauthAuthorizeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/_settings/categories': {
+      id: '/_app/_settings/categories'
+      path: '/categories'
+      fullPath: '/categories'
+      preLoaderRoute: typeof AppSettingsCategoriesRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/_settings/profile': {
+      id: '/_app/_settings/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AppSettingsProfileRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/_settings/rules': {
+      id: '/_app/_settings/rules'
+      path: '/rules'
+      fullPath: '/rules'
+      preLoaderRoute: typeof AppSettingsRulesRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/accounts/': {
       id: '/_app/accounts/'
       path: '/accounts'
@@ -493,18 +507,32 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppSettingsRouteChildren {
+  AppSettingsCategoriesRoute: typeof AppSettingsCategoriesRoute
+  AppSettingsProfileRoute: typeof AppSettingsProfileRoute
+  AppSettingsRulesRoute: typeof AppSettingsRulesRoute
+}
+
+const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsCategoriesRoute: AppSettingsCategoriesRoute,
+  AppSettingsProfileRoute: AppSettingsProfileRoute,
+  AppSettingsRulesRoute: AppSettingsRulesRoute,
+}
+
+const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
+  AppSettingsRouteChildren,
+)
+
 interface AppRouteChildren {
+  AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppBudgetRoute: typeof AppBudgetRoute
-  AppCategoriesRoute: typeof AppCategoriesRoute
   AppCryptoRoute: typeof AppCryptoRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppForecastRoute: typeof AppForecastRoute
   AppImportRoute: typeof AppImportRoute
   AppMonthReviewRoute: typeof AppMonthReviewRoute
   AppNetWorthRoute: typeof AppNetWorthRoute
-  AppProfileRoute: typeof AppProfileRoute
   AppReviewRoute: typeof AppReviewRoute
-  AppRulesRoute: typeof AppRulesRoute
   AppSavingsRoute: typeof AppSavingsRoute
   AppSpendingRoute: typeof AppSpendingRoute
   AppSubscriptionsRoute: typeof AppSubscriptionsRoute
@@ -514,17 +542,15 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppSettingsRoute: AppSettingsRouteWithChildren,
   AppBudgetRoute: AppBudgetRoute,
-  AppCategoriesRoute: AppCategoriesRoute,
   AppCryptoRoute: AppCryptoRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppForecastRoute: AppForecastRoute,
   AppImportRoute: AppImportRoute,
   AppMonthReviewRoute: AppMonthReviewRoute,
   AppNetWorthRoute: AppNetWorthRoute,
-  AppProfileRoute: AppProfileRoute,
   AppReviewRoute: AppReviewRoute,
-  AppRulesRoute: AppRulesRoute,
   AppSavingsRoute: AppSavingsRoute,
   AppSpendingRoute: AppSpendingRoute,
   AppSubscriptionsRoute: AppSubscriptionsRoute,

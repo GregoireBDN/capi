@@ -43,7 +43,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
-export const Route = createFileRoute('/_app/profile')({
+export const Route = createFileRoute('/_app/_settings/profile')({
   head: () => ({ meta: [{ title: 'Profil · Finances' }] }),
   component: ProfilePage,
 })
