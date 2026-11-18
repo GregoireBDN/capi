@@ -768,8 +768,10 @@ function SidebarSeparator({ className, ...props }: SidebarSeparatorProps) {
       data-sidebar="separator"
       className={cn(
         [
-          // Layout
-          'mx-2 w-auto',
+          // Layout: as wide as the menu buttons. `Separator` sets
+          // `data-[orientation=horizontal]:w-full`, which a plain `w-auto`
+          // doesn't beat: the line ran past the sidebar's edge.
+          'mx-2 data-[orientation=horizontal]:w-auto',
 
           // Styling
           'bg-sidebar-border',

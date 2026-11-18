@@ -130,7 +130,11 @@ export function AppSidebar({ user }: { user: UserDto }) {
                 {index > 0 && (
                   <SidebarSeparator
                     data-testid="nav-separator"
-                    className="bg-sidebar-foreground/15 my-1"
+                    className={cn(
+                      'bg-sidebar-foreground/15 my-1',
+                      // Folded: as wide as the icon buttons, centred.
+                      'group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:data-[orientation=horizontal]:w-(--rail-button)',
+                    )}
                   />
                 )}
                 <SidebarGroup>
