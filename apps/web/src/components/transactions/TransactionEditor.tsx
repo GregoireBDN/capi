@@ -58,6 +58,19 @@ interface TransactionEditorProps {
   onUnsplit?: () => void
 }
 
+/**
+ * A group of settings, iPhone style (#280): a tinted block without border,
+ * square rows, and straight hairlines between them that start after the
+ * icon (`ROW_INSET`).
+ */
+const GROUP =
+  "bg-muted/60 overflow-hidden rounded-xl [&>*+*]:relative [&>*+*]:before:pointer-events-none [&>*+*]:before:absolute [&>*+*]:before:top-0 [&>*+*]:before:right-0 [&>*+*]:before:left-[2.3rem] [&>*+*]:before:border-t [&>*+*]:before:border-border [&>*+*]:before:content-['']"
+/** Groups whose rows have no icon: hairlines from the row's padding. */
+const GROUP_NO_ICON = `${GROUP} [&>*+*]:before:left-3`
+/** A row of a group: square, hover and focus inside its block. */
+const ROW =
+  'hover:bg-muted focus-visible:ring-ring/50 flex min-h-9 w-full items-center gap-3 px-3 text-left text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-inset'
+
 /** Lowercase, without accents, for the category search. */
 function searchable(text: string): string {
   return text
@@ -72,23 +85,14 @@ function SettingButton({
   label,
   value,
   onClick,
-  muted = false,
 }: {
   icon: LucideIcon
   label: string
   value?: ReactNode
   onClick: () => void
-  muted?: boolean
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'hover:bg-muted/60 focus-visible:ring-ring/50 flex min-h-9 w-full items-center gap-3 rounded-lg px-2 text-left text-sm outline-none focus-visible:ring-[3px]',
-        muted && 'text-muted-foreground',
-      )}
-    >
+    <button type="button" onClick={onClick} className={ROW}>
       <Icon
         className="text-muted-foreground size-[0.8rem] shrink-0"
         aria-hidden="true"
@@ -121,7 +125,7 @@ function SettingSwitch({
 }) {
   const id = useId()
   return (
-    <div className="flex min-h-9 items-center gap-3 px-2 text-sm">
+    <div className="flex min-h-9 items-center gap-3 px-3 text-sm">
       <Icon
         className="text-muted-foreground size-[0.8rem] shrink-0"
         aria-hidden="true"
@@ -288,7 +292,7 @@ function KindScreen({
       <p className="text-muted-foreground text-xs">
         La catégorie donne le type ; changez-le seulement pour une exception.
       </p>
-      <div role="radiogroup" aria-label="Type" className="space-y-1">
+      <div role="radiogroup" aria-label="Type" className={GROUP_NO_ICON}>
         {TRANSACTION_KINDS.map((kind) => (
           <button
             key={kind}
@@ -296,7 +300,7 @@ function KindScreen({
             role="radio"
             aria-checked={kind === value}
             onClick={() => onPick(kind)}
-            className="hover:bg-muted/60 focus-visible:ring-ring/50 flex min-h-9 w-full items-center justify-between rounded-lg px-2 text-left text-sm outline-none focus-visible:ring-[3px]"
+            className={cn(ROW, 'justify-between')}
           >
             {KIND_LABELS[kind]}
             {kind === value && (
@@ -469,7 +473,7 @@ export function TransactionEditor({
         </div>
       </div>
 
-      <div className="divide-y rounded-xl border">
+      <div className={GROUP}>
         <SettingButton
           icon={split ? SplitIcon : TagIcon}
           label={split ? 'Répartition' : 'Catégorie'}
@@ -496,13 +500,12 @@ export function TransactionEditor({
         />
       </div>
 
-      <div className="divide-y rounded-xl border">
+      <div className={GROUP}>
         {onSplit && !split && (
           <SettingButton
             icon={SplitIcon}
             label="Répartir"
             onClick={() => setScreen('split')}
-            muted
           />
         )}
         {item.manual
@@ -511,17 +514,15 @@ export function TransactionEditor({
                 icon={PencilIcon}
                 label="Modifier ou supprimer"
                 onClick={onEditManual}
-                muted
               />
             )
           : onCorrect &&
             onRestoreBank && (
               <SettingButton
                 icon={PencilIcon}
-                label="Corriger le montant ou la date"
+                label="Corriger montant ou date"
                 value={corrected ? 'Corrigée' : undefined}
                 onClick={() => setScreen('correct')}
-                muted
               />
             )}
         <SettingButton
@@ -529,7 +530,6 @@ export function TransactionEditor({
           label="Type"
           value={KIND_LABELS[item.kind]}
           onClick={() => setScreen('kind')}
-          muted
         />
       </div>
       {item.manual && (

@@ -1224,7 +1224,7 @@ describe('TransactionsPage', () => {
       const editor = await screen.findByRole('dialog')
       await user.click(
         within(editor).getByRole('button', {
-          name: /^Corriger le montant ou la date/,
+          name: /^Corriger montant ou date/,
         }),
       )
       const amount = within(editor).getByLabelText('Montant corrigé')
