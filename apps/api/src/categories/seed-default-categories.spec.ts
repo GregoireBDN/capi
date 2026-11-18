@@ -66,6 +66,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             name: categoriesTable.name,
             kind: categoriesTable.kind,
             color: categoriesTable.color,
+            icon: categoriesTable.icon,
           })
           .from(categoriesTable)
         expect(rows).toEqual(expect.arrayContaining([...DEFAULT_CATEGORIES]))

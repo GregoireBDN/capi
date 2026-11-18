@@ -16,12 +16,14 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
-import type { TransactionKind } from '#/api/types.gen'
+import type { CategoryIcon, TransactionKind } from '#/api/types.gen'
 import {
   KIND_GROUP_LABELS,
   TRANSACTION_KINDS,
 } from '#/components/transactions/labels'
+import { DEFAULT_CATEGORY_ICON } from './category-icons'
 import { ColorPalette } from './ColorPalette'
+import { IconPicker } from './IconPicker'
 import { categoryErrorMessage } from './errors'
 import { DEFAULT_CATEGORY_COLOR } from './palette'
 import { afterCategoriesChanged, createCategory } from './queries'
@@ -44,6 +46,7 @@ export function AddCategorySheet({
   const [name, setName] = useState('')
   const [kind, setKind] = useState<TransactionKind>('expense')
   const [color, setColor] = useState<string>(DEFAULT_CATEGORY_COLOR)
+  const [icon, setIcon] = useState<CategoryIcon>(DEFAULT_CATEGORY_ICON)
   const [submitted, setSubmitted] = useState(false)
 
   // Fresh form on every opening.
@@ -52,13 +55,14 @@ export function AddCategorySheet({
     setName('')
     setKind('expense')
     setColor(DEFAULT_CATEGORY_COLOR)
+    setIcon(DEFAULT_CATEGORY_ICON)
     setSubmitted(false)
   }, [open])
 
   const nameError = name.trim() === '' ? 'Le nom est requis.' : null
 
   const create = useMutation({
-    mutationFn: () => createCategory({ name: name.trim(), kind, color }),
+    mutationFn: () => createCategory({ name: name.trim(), kind, color, icon }),
     onSuccess: async (created) => {
       toast.success(`Catégorie ${created.name} ajoutée`)
       onOpenChange(false)
@@ -128,6 +132,15 @@ export function AddCategorySheet({
               value={color}
               onChange={setColor}
               label="Couleur de la nouvelle catégorie"
+            />
+          </Field>
+          <Field>
+            <FieldLabel id={`${id}-icon`}>Icône</FieldLabel>
+            <IconPicker
+              value={icon}
+              onChange={setIcon}
+              color={color}
+              label="Icône de la nouvelle catégorie"
             />
           </Field>
           <Button

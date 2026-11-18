@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { TRANSACTION_KINDS } from '#/database/schema/domain-enums'
 import { insertCategorySchema } from './categories.schema'
+import { CATEGORY_ICONS } from './category-icons'
 import { DEFAULT_CATEGORIES } from './default-categories'
 
 describe('DEFAULT_CATEGORIES', () => {
@@ -18,6 +19,7 @@ describe('DEFAULT_CATEGORIES', () => {
     expect(category.slug).toMatch(/^[a-z][a-z0-9]*(_[a-z0-9]+)*$/)
     expect(TRANSACTION_KINDS).toContain(category.kind)
     expect(category.color).toMatch(/^#[0-9a-f]{6}$/)
+    expect(CATEGORY_ICONS).toContain(category.icon)
     expect(category.name.trim()).toBe(category.name)
     // Fits the column constraints (lengths, enum, not null).
     expect(() => insertCategorySchema.parse(category)).not.toThrow()

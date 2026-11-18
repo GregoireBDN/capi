@@ -28,3 +28,32 @@ export function displayLabel(transaction: {
 }): string {
   return transaction.merchant?.trim() || transaction.rawLabel
 }
+
+/** Lowercase, without accents, words separated by single spaces. */
+function normalizeWords(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+/**
+ * The raw bank label under the display label, only when it says more (#266):
+ * none when the row shows the raw label already, or when the raw label only
+ * wraps the display label in bank words (`VIR SEPA VERS PEA` under
+ * « Vers Pea », `PAIEMENT CB 2810 PARIS BIOCOOP` under « Biocoop »).
+ */
+export function secondaryLabel(transaction: {
+  rawLabel: string
+  merchant: string | null
+}): string | null {
+  const shown = displayLabel(transaction)
+  if (shown === transaction.rawLabel) return null
+  const label = normalizeWords(shown)
+  const raw = ` ${normalizeWords(transaction.rawLabel)} `
+  return label !== '' && raw.includes(` ${label} `)
+    ? null
+    : transaction.rawLabel
+}

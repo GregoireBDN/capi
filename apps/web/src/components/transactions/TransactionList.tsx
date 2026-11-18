@@ -1,10 +1,10 @@
-import { Button, cn } from '@finances/ui'
+import { Button } from '@finances/ui'
 import { useEffect, useRef } from 'react'
 import type { CategoryDto, TransactionDto } from '#/api/types.gen'
 import { formatDay } from '#/lib/calendar'
 import { formatCents } from '#/lib/money'
 import { groupByDay } from './changes'
-import { ROW_GRID, TransactionRow } from './TransactionRow'
+import { TransactionRow } from './TransactionRow'
 import type { TransactionRowActions } from './TransactionRow'
 
 interface TransactionListProps {
@@ -12,6 +12,8 @@ interface TransactionListProps {
   categories: readonly CategoryDto[]
   /** Group rows under day headers (date sorts only). */
   groupByDate: boolean
+  /** Show each row's account (several open accounts, not filtered to one). */
+  showAccount: boolean
   selected: ReadonlySet<string>
   onSelectedChange: (id: string, selected: boolean) => void
   /** Edits of one transaction (category, note, amount, split, ...). */
@@ -20,26 +22,6 @@ interface TransactionListProps {
   hasMore: boolean
   loadingMore: boolean
   onLoadMore: () => void
-}
-
-/** Desktop column titles, aligned with `ROW_GRID`. */
-function ColumnHeaders() {
-  return (
-    <div
-      aria-hidden="true"
-      className={cn(
-        'text-muted-foreground hidden px-1 text-xs @xl:grid',
-        ROW_GRID,
-      )}
-    >
-      <span />
-      <span className="px-2">Libellé</span>
-      <span>Catégorie</span>
-      <span>Compte</span>
-      <span />
-      <span className="text-right">Montant</span>
-    </div>
-  )
 }
 
 /**
@@ -52,6 +34,7 @@ export function TransactionList({
   items,
   categories,
   groupByDate,
+  showAccount,
   selected,
   onSelectedChange,
   actionsFor,
@@ -88,12 +71,12 @@ export function TransactionList({
       onSelectedChange={(on) => onSelectedChange(item.id, on)}
       {...actionsFor(item)}
       showDate={!groupByDate}
+      showAccount={showAccount}
     />
   )
 
   return (
     <div className="space-y-4">
-      <ColumnHeaders />
       {groupByDate ? (
         groupByDay(items).map((group) => {
           const heading = formatDay(group.date)

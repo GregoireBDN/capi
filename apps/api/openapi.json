@@ -7036,6 +7036,72 @@
         ],
         "description": "Category group: the kind given to its transactions."
       },
+      "CategoryIcon": {
+        "type": "string",
+        "enum": [
+          "house",
+          "key-round",
+          "sofa",
+          "wrench",
+          "hammer",
+          "zap",
+          "flame",
+          "droplet",
+          "wifi",
+          "smartphone",
+          "tv",
+          "shopping-cart",
+          "utensils",
+          "coffee",
+          "beer",
+          "car",
+          "fuel",
+          "bus",
+          "train-front",
+          "bike",
+          "plane",
+          "baggage-claim",
+          "repeat",
+          "shield",
+          "heart-pulse",
+          "pill",
+          "stethoscope",
+          "shopping-bag",
+          "shirt",
+          "scissors",
+          "sparkles",
+          "ticket",
+          "film",
+          "music",
+          "gamepad-2",
+          "dumbbell",
+          "book-open",
+          "graduation-cap",
+          "party-popper",
+          "baby",
+          "paw-print",
+          "flower-2",
+          "gift",
+          "users",
+          "heart-handshake",
+          "landmark",
+          "banknote",
+          "receipt",
+          "wallet",
+          "tag",
+          "briefcase",
+          "building-2",
+          "hand-heart",
+          "hand-coins",
+          "undo-2",
+          "coins",
+          "arrow-left-right",
+          "piggy-bank",
+          "trending-up",
+          "circle-help"
+        ],
+        "description": "Icon shown with the category (a Lucide icon name)."
+      },
       "CategoryDto": {
         "type": "object",
         "properties": {
@@ -7063,6 +7129,15 @@
             "nullable": true,
             "example": "#d97706"
           },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
           "archivedAt": {
             "type": "string",
             "format": "date-time",
@@ -7084,6 +7159,7 @@
           "name",
           "kind",
           "color",
+          "icon",
           "archivedAt",
           "createdAt",
           "updatedAt"
@@ -7111,6 +7187,15 @@
             "pattern": "^#[0-9a-f]{6}$",
             "example": "#2a78d6",
             "description": "Lowercase `#rrggbb` hex colour."
+          },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
           }
         },
         "required": [
@@ -7141,6 +7226,15 @@
             "pattern": "^#[0-9a-f]{6}$",
             "example": "#2a78d6",
             "description": "Lowercase `#rrggbb` hex colour."
+          },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name). `null` removes it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
           },
           "archived": {
             "type": "boolean",
@@ -9132,6 +9226,15 @@
             "nullable": true,
             "example": "#d97706"
           },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
           "kind": {
             "description": "Category group: the kind its transactions get by default.",
             "allOf": [
@@ -9146,6 +9249,7 @@
           "slug",
           "name",
           "color",
+          "icon",
           "kind"
         ]
       },

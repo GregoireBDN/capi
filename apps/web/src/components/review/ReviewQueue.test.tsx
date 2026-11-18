@@ -44,6 +44,7 @@ const categories: CategoryDto[] = [
     name: 'Courses',
     kind: 'expense',
     color: '#d97706',
+    icon: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     archivedAt: null,
@@ -54,6 +55,7 @@ const categories: CategoryDto[] = [
     name: 'Salaire',
     kind: 'income',
     color: '#16a34a',
+    icon: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     archivedAt: null,
@@ -64,6 +66,7 @@ const categories: CategoryDto[] = [
     name: 'Épargne',
     kind: 'transfer',
     color: '#0284c7',
+    icon: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     archivedAt: null,
@@ -117,6 +120,7 @@ const middle = transaction(2, {
     slug: groceries.slug,
     name: groceries.name,
     color: groceries.color,
+    icon: null,
     kind: groceries.kind,
   },
   ruleId: 'r0000000-0000-4000-8000-000000000001',
@@ -191,10 +195,13 @@ describe('ReviewQueue', () => {
     expect(item.getByText('Fakemart')).toBeInTheDocument()
     expect(item.getByText('2 oct. 2026')).toBeInTheDocument()
     expect(item.getByText(/Compte test/)).toBeInTheDocument()
-    expect(item.getByText(euros(-1_234))).toHaveClass('text-red-600')
+    // Money out in the text colour, money in green with a plus (#266).
+    expect(item.getByText(euros(-1_234))).not.toHaveClass(
+      'text-chart-delta-good',
+    )
     expect(item.getByText('Courses', { selector: 'span' })).toBeInTheDocument()
-    expect(within(itemFor(newest)).getByText(euros(250_000))).toHaveClass(
-      'text-green-700',
+    expect(within(itemFor(newest)).getByText(`+${euros(250_000)}`)).toHaveClass(
+      'text-chart-delta-good',
     )
     // The badge store follows the queue size.
     expect(getReviewCount()).toBe(3)

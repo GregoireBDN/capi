@@ -21,6 +21,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
+import type { CategoryIcon } from '#/categories/category-icons'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import {
@@ -79,6 +80,7 @@ const transactionColumns = {
   categorySlug: categoriesTable.slug,
   categoryName: categoriesTable.name,
   categoryColor: categoriesTable.color,
+  categoryIcon: categoriesTable.icon,
   categoryKind: categoriesTable.kind,
   ruleId: transactionsTable.ruleId,
   needsReview: transactionsTable.needsReview,
@@ -96,6 +98,7 @@ type TransactionRow = Omit<TransactionDto, 'category' | 'splits'> & {
   categorySlug: string | null
   categoryName: string | null
   categoryColor: string | null
+  categoryIcon: CategoryIcon | null
   categoryKind: TransactionDto['kind'] | null
 }
 
@@ -108,6 +111,7 @@ function toDto(
     categorySlug,
     categoryName,
     categoryColor,
+    categoryIcon,
     categoryKind,
     ...transaction
   } = row
@@ -121,6 +125,7 @@ function toDto(
             slug: categorySlug!,
             name: categoryName!,
             color: categoryColor,
+            icon: categoryIcon,
             kind: categoryKind!,
           },
     splits,
@@ -469,6 +474,7 @@ export class TransactionsService {
         slug: categoriesTable.slug,
         name: categoriesTable.name,
         color: categoriesTable.color,
+        icon: categoriesTable.icon,
         kind: categoriesTable.kind,
       })
       .from(s)
@@ -492,6 +498,7 @@ export class TransactionsService {
           slug: part.slug,
           name: part.name,
           color: part.color,
+          icon: part.icon,
           kind: part.kind,
         },
       })

@@ -88,6 +88,7 @@ function category(
     name,
     kind,
     color: '#d97706',
+    icon: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     archivedAt: null,
@@ -372,8 +373,17 @@ describe('TransactionsPage', () => {
     })
     expect(transfer).toHaveTextContent('Épargne')
     expect(transfer).toHaveTextContent('Ponctuelle')
-    expect(transfer).toHaveTextContent('Interne')
     expect(transfer).toHaveTextContent('Note : Épargne de précaution')
+    // The kind once (#266): no « Interne » badge, a ⇄ before the amount.
+    expect(transfer).not.toHaveTextContent('Interne')
+    expect(
+      within(transfer).getAllByLabelText('Virement interne').length,
+    ).toBeGreaterThan(0)
+    // Money in is green with a plus; money out keeps the text colour.
+    const income = screen.getByRole('listitem', {
+      name: salaryRow.rawLabel,
+    })
+    expect(income).toHaveTextContent(`+${euros(250_000)}`)
     expect(
       screen.getByRole('region', { name: 'Mercredi 4 novembre 2026' }),
     ).toBeInTheDocument()
@@ -896,7 +906,7 @@ describe('TransactionsPage', () => {
       ).not.toBeChecked()
     })
 
-    it('reaches the inline category with Tab, and its toast undoes', async () => {
+    it('picks the category from its name in the row, and its toast undoes', async () => {
       const { user } = setup()
       await waitForRows()
       api.transactionsControllerUpdate.mockReturnValueOnce(
@@ -908,11 +918,22 @@ describe('TransactionsPage', () => {
         }),
       )
 
+      // No select per row: the category is text that opens the list (#266).
+      expect(
+        within(screen.getByRole('listitem', { name: 'Fakemart' })).queryByRole(
+          'combobox',
+        ),
+      ).not.toBeInTheDocument()
       screen.getByRole('button', { name: 'Modifier Fakemart' }).focus()
       await user.tab()
-      const select = screen.getByLabelText('Catégorie de Fakemart')
-      expect(select).toHaveFocus()
-      await user.selectOptions(select, groceries.id)
+      const trigger = screen.getByRole('button', {
+        name: 'Catégorie de Fakemart',
+      })
+      expect(trigger).toHaveFocus()
+      await user.keyboard('{Enter}')
+      await user.click(
+        await screen.findByRole('menuitemradio', { name: 'Courses' }),
+      )
       expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith({
         path: { id: shopRow.id },
         body: { categoryId: groceries.id },
@@ -1088,7 +1109,7 @@ describe('TransactionsPage', () => {
       await waitFor(() =>
         expect(
           screen.getByRole('listitem', { name: 'Fakemart' }),
-        ).toHaveTextContent('Répartie (2)'),
+        ).toHaveTextContent('Courses, Épargne'),
       )
 
       // Undo: no split any more, and the row back as it was.
@@ -1183,7 +1204,7 @@ describe('TransactionsPage', () => {
       await waitFor(() =>
         expect(
           screen.getByRole('listitem', { name: 'Fakemart' }),
-        ).toHaveTextContent('Corrigée'),
+        ).toHaveTextContent('Montant ou date corrigé à la main'),
       )
 
       api.transactionsControllerRestoreBankValues.mockReturnValue(ok(shopRow))

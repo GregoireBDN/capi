@@ -129,7 +129,7 @@ export function CategoriesPage() {
     <div className="@container space-y-6 pb-24">
       <PageHeader
         title="Catégories"
-        description="Touchez un nom pour le renommer, une pastille pour changer sa couleur. Une catégorie archivée n’est plus proposée mais garde son historique."
+        description="Touchez un nom pour le renommer, son icône pour changer sa couleur et son icône. Une catégorie archivée n’est plus proposée mais garde son historique."
       />
 
       {categories.isPending && (

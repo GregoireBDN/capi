@@ -20,6 +20,7 @@ function category(
     name: id,
     kind,
     color: null,
+    icon: null,
     archivedAt: null,
     createdAt: EPOCH,
     updatedAt: EPOCH,

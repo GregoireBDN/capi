@@ -9,6 +9,7 @@ function category(id: string, archivedAt: string | null): CategoryDto {
     name: id,
     kind: 'expense',
     color: null,
+    icon: null,
     archivedAt,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',

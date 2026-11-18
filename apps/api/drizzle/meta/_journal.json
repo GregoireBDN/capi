@@ -190,6 +190,13 @@
       "when": 1795035206728,
       "tag": "0026_wallet_token_contracts",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1795039952180,
+      "tag": "0027_category_icons",
+      "breakpoints": true
     }
   ]
 }

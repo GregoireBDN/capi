@@ -1,1 +1,1 @@
-export { useIsMobile } from "@finances/ui"
+export { useIsMobile } from '@finances/ui'
