@@ -16,8 +16,13 @@ import {
   formatWholeEuros,
 } from '@finances/ui'
 import {
+  ArrowLeftRightIcon,
+  CalendarClockIcon,
   ChartCandlestickIcon,
   ChevronRightIcon,
+  ShoppingCartIcon,
+  TrainFrontIcon,
+  UtensilsIcon,
   ListChecksIcon,
   PiggyBankIcon,
   PlusIcon,
@@ -1540,6 +1545,369 @@ export const BudgetProposals: StoryObj = {
             </CardHeader>
             <CardContent>{body}</CardContent>
           </Card>
+        ))}
+      </div>
+    </AppScale>
+  ),
+}
+
+/* ===========================================================================
+ * « Ce mois-ci » proposals (owner feedback on #262): a tap on an envelope's
+ * bar opened its transactions (unexpected), the « + » of each envelope sat
+ * apart from it, the forecast tiles were links that looked like plain
+ * figures, and « Ajouter une dépense » did not take the card's width.
+ *
+ * Mois 1. Appuyer = ajouter : each envelope is one button that notes an
+ *         expense in it (its « + » inside, at the end); the forecast is one
+ *         row with a chevron, clearly a way to the forecast page.
+ * Mois 2. Appuyer = choisir : each envelope is one row with a chevron; a tap
+ *         opens a short menu « Ajouter une dépense » / « Voir les
+ *         opérations ». The figures are plain figures, not buttons.
+ * Mois 3. Saisie d'abord : the envelopes as tiles « Courses · reste 421 € »
+ *         with their bar inside and a « + », a tap notes an expense; the
+ *         forecast as a sentence; the transactions behind the header link.
+ * ======================================================================== */
+
+const MONTH_ENVELOPES = [
+  {
+    name: 'Courses',
+    icon: <ShoppingCartIcon />,
+    color: '#d97706',
+    spent: 7_889,
+    target: 50_000,
+    pace: 31_667,
+    manual: 2_640,
+  },
+  {
+    name: 'Restaurants & cafés',
+    icon: <UtensilsIcon />,
+    color: '#ca8a04',
+    spent: 2_767,
+    target: 18_000,
+    pace: 11_400,
+    manual: 0,
+  },
+  {
+    name: 'Transport',
+    icon: <TrainFrontIcon />,
+    color: '#0e7490',
+    spent: 0,
+    target: 15_000,
+    pace: 9_500,
+    manual: 0,
+  },
+]
+
+const cents = new Intl.NumberFormat('fr-FR', {
+  style: 'currency',
+  currency: 'EUR',
+})
+const money = (value: number) => cents.format(value / 100)
+
+/** A bar with the even-pace mark. */
+function PaceBar({
+  spent,
+  target,
+  pace,
+  className,
+}: {
+  spent: number
+  target: number
+  pace: number
+  className?: string
+}) {
+  const ratio = spent / target
+  return (
+    <span className={cn('bg-muted relative block h-2 rounded-full', className)}>
+      <span
+        className={cn(
+          'absolute inset-y-0 left-0 rounded-full',
+          ratio > 1
+            ? 'bg-chart-over'
+            : ratio >= 0.8
+              ? 'bg-chart-warning'
+              : 'bg-primary',
+        )}
+        style={{ width: `${Math.min(ratio, 1) * 100}%` }}
+      />
+      <span
+        aria-hidden
+        className="bg-foreground absolute -inset-y-1 w-0.5 rounded"
+        style={{ left: `${(pace / target) * 100}%` }}
+      />
+    </span>
+  )
+}
+
+function FullWidthAdd({ label = 'Ajouter une dépense' }: { label?: string }) {
+  return (
+    <Button iconStart={<PlusIcon />} className="w-full">
+      {label}
+    </Button>
+  )
+}
+
+function MonthHead() {
+  return (
+    <CardHead
+      title="Ce mois-ci"
+      status="Jour 19 sur 30 · le trait marque le rythme"
+      link="Budget"
+    />
+  )
+}
+
+/** 1. Each envelope is one button that notes an expense in it. */
+function MonthTapToAdd() {
+  const [noted, setNoted] = useState<string | null>(null)
+  return (
+    <Card className="@container min-w-0">
+      <MonthHead />
+      <CardContent className="mb-0 space-y-4">
+        {/* The forecast: a row with a chevron, plainly a way somewhere. */}
+        <a
+          href="#"
+          onClick={(event) => event.preventDefault()}
+          className="bg-muted/50 hover:bg-muted flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm"
+        >
+          <CalendarClockIcon
+            aria-hidden
+            className="text-muted-foreground size-4 shrink-0"
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block">
+              Fin de mois prévue{' '}
+              <span className="font-semibold whitespace-nowrap tabular-nums">
+                5 560,60 €
+              </span>
+            </span>
+            <span className="text-muted-foreground block text-xs">
+              Point bas 2 728,80 € le 26 nov. · indicatif, relevés au 8 nov.
+            </span>
+          </span>
+          <ChevronRightIcon
+            aria-hidden
+            className="text-muted-foreground size-4 shrink-0"
+          />
+        </a>
+        <ul className="space-y-1.5">
+          {MONTH_ENVELOPES.map((item) => (
+            <li key={item.name}>
+              <button
+                type="button"
+                onClick={() => setNoted(item.name)}
+                aria-label={`Ajouter une dépense ${item.name}`}
+                className="hover:bg-muted/60 border-border flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm"
+              >
+                <span className="min-w-0 flex-1 space-y-1.5">
+                  <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+                    <span className="font-medium">{item.name}</span>
+                    <span className="tabular-nums">
+                      <span className="font-semibold">{money(item.spent)}</span>
+                      <span className="text-muted-foreground">
+                        {' '}
+                        / {money(item.target)}
+                      </span>
+                    </span>
+                  </span>
+                  <PaceBar {...item} />
+                  <span className="text-muted-foreground block text-xs">
+                    Reste {money(item.target - item.spent)}
+                    {item.manual > 0 &&
+                      ` · dont ${money(item.manual)} noté à la main`}
+                  </span>
+                </span>
+                <span
+                  aria-hidden
+                  className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-full"
+                >
+                  <PlusIcon className="size-4" />
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        {noted && (
+          <p className="text-muted-foreground text-xs">
+            (Prototype) La saisie s’ouvrirait sur « {noted} », au montant.
+          </p>
+        )}
+        <FullWidthAdd label="Ajouter une autre dépense" />
+      </CardContent>
+    </Card>
+  )
+}
+
+/** 2. Each envelope is a row with a chevron; a tap offers the two actions. */
+function MonthTapToChoose() {
+  const [open, setOpen] = useState<string | null>(null)
+  return (
+    <Card className="@container min-w-0">
+      <MonthHead />
+      <CardContent className="mb-0 space-y-4">
+        {/* Plain figures, then one link to the page. */}
+        <div className="space-y-1">
+          <dl className="grid grid-cols-2 gap-2">
+            <div className="bg-muted/50 rounded-xl px-3 py-2.5">
+              <dt className="text-muted-foreground text-xs">
+                Solde prévu au 30 nov.
+              </dt>
+              <dd className="text-base font-semibold whitespace-nowrap tabular-nums">
+                5 560,60 €
+              </dd>
+            </div>
+            <div className="bg-muted/50 rounded-xl px-3 py-2.5">
+              <dt className="text-muted-foreground text-xs">
+                Point bas le 26 nov.
+              </dt>
+              <dd className="text-base font-semibold whitespace-nowrap tabular-nums">
+                2 728,80 €
+              </dd>
+            </div>
+          </dl>
+          <p className="flex flex-wrap items-center justify-between gap-x-3 text-xs">
+            <span className="text-muted-foreground">
+              Indicatif : relevés au 8 nov.
+            </span>
+            <SeeLink label="Prévision" />
+          </p>
+        </div>
+        <ul className="space-y-1">
+          {MONTH_ENVELOPES.map((item) => (
+            <li key={item.name} className="relative">
+              <button
+                type="button"
+                onClick={() => setOpen(open === item.name ? null : item.name)}
+                aria-expanded={open === item.name}
+                className="hover:bg-muted/60 -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-lg px-2 py-2 text-left text-sm"
+              >
+                <span
+                  aria-hidden
+                  className="flex size-[32px] shrink-0 items-center justify-center rounded-full text-white [&_svg]:size-[16px]"
+                  style={{ backgroundColor: item.color }}
+                >
+                  {item.icon}
+                </span>
+                <span className="min-w-0 flex-1 space-y-1">
+                  <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+                    <span className="font-medium">{item.name}</span>
+                    <span className="text-muted-foreground text-xs tabular-nums">
+                      reste {money(item.target - item.spent)}
+                    </span>
+                  </span>
+                  <PaceBar {...item} />
+                </span>
+                <ChevronRightIcon
+                  aria-hidden
+                  className="text-muted-foreground size-4 shrink-0"
+                />
+              </button>
+              {open === item.name && (
+                <div className="bg-popover text-popover-foreground border-border mt-1 grid gap-1 rounded-xl border p-1 shadow-md">
+                  <Button
+                    iconStart={<PlusIcon />}
+                    className="w-full justify-start"
+                    ghost
+                  >
+                    Ajouter une dépense {item.name}
+                  </Button>
+                  <Button
+                    iconStart={<ArrowLeftRightIcon />}
+                    className="w-full justify-start"
+                    ghost
+                    variant="secondary"
+                  >
+                    Voir les opérations ({money(item.spent)})
+                  </Button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+        <FullWidthAdd />
+      </CardContent>
+    </Card>
+  )
+}
+
+/** 3. Envelope tiles to tap to note an expense. */
+function MonthEntryFirst() {
+  return (
+    <Card className="@container min-w-0">
+      <CardHead title="Ce mois-ci" status="Jour 19 sur 30" link="Opérations" />
+      <CardContent className="mb-0 space-y-4">
+        <p className="text-sm">
+          Fin de mois prévue{' '}
+          <span className="font-semibold whitespace-nowrap tabular-nums">
+            5 560,60 €
+          </span>
+          <span className="text-muted-foreground">
+            {' '}
+            · point bas 2 728,80 € le 26 nov.
+          </span>
+        </p>
+        <p className="text-muted-foreground text-xs">
+          Noter une dépense dans une enveloppe :
+        </p>
+        <ul className="grid grid-cols-1 gap-2 @[28rem]:grid-cols-3">
+          {MONTH_ENVELOPES.map((item) => (
+            <li key={item.name}>
+              <button
+                type="button"
+                aria-label={`Ajouter une dépense ${item.name}`}
+                className="hover:brightness-95 flex w-full flex-col gap-2 rounded-xl px-3 py-2.5 text-left text-sm"
+                style={{
+                  backgroundColor: `color-mix(in srgb, ${item.color} 14%, transparent)`,
+                }}
+              >
+                <span className="flex items-center gap-2">
+                  <span
+                    aria-hidden
+                    className="flex size-[28px] shrink-0 items-center justify-center rounded-full text-white [&_svg]:size-[14px]"
+                    style={{ backgroundColor: item.color }}
+                  >
+                    {item.icon}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate font-medium">
+                    {item.name}
+                  </span>
+                  <PlusIcon aria-hidden className="size-4 shrink-0" />
+                </span>
+                <PaceBar {...item} className="bg-background/70" />
+                <span className="flex justify-between text-xs tabular-nums">
+                  <span>reste {money(item.target - item.spent)}</span>
+                  <span className="text-muted-foreground">
+                    / {money(item.target)}
+                  </span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <FullWidthAdd label="Ajouter une autre dépense" />
+      </CardContent>
+    </Card>
+  )
+}
+
+export const MonthProposals: StoryObj = {
+  name: 'Ce mois-ci : propositions',
+  render: () => (
+    <AppScale>
+      <div className="bg-background min-h-svh space-y-4 p-4">
+        {(
+          [
+            ['Mois 1. Appuyer = ajouter', <MonthTapToAdd key="1" />],
+            ['Mois 2. Appuyer = choisir', <MonthTapToChoose key="2" />],
+            ['Mois 3. Saisie d’abord', <MonthEntryFirst key="3" />],
+          ] as const
+        ).map(([title, body]) => (
+          <section key={title} className="mx-auto max-w-[46rem] space-y-1.5">
+            <h2 className="text-muted-foreground text-sm font-medium">
+              {title}
+            </h2>
+            {body}
+          </section>
         ))}
       </div>
     </AppScale>
