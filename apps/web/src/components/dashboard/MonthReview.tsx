@@ -80,8 +80,8 @@ export function MonthReview({
             // status colour, under white text.
             style={{
               backgroundColor: closed
-                ? 'color-mix(in oklch, var(--success) 45%, var(--success-foreground))'
-                : 'color-mix(in oklch, var(--warning) 45%, var(--warning-foreground))',
+                ? 'color-mix(in oklch, var(--success) 25%, var(--success-foreground))'
+                : 'color-mix(in oklch, var(--warning) 25%, var(--warning-foreground))',
             }}
           >
             {closed ? (
