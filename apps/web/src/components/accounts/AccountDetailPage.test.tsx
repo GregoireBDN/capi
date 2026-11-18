@@ -29,6 +29,8 @@ const api = vi.hoisted(() => ({
   walletTokensControllerAdd: vi.fn(),
   walletTokensControllerRemove: vi.fn(),
   accountHoldingsControllerSync: vi.fn(),
+  accountHoldingsControllerRemove: vi.fn(),
+  accountHoldingsControllerValuate: vi.fn(),
   cryptoControllerSearch: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
@@ -595,7 +597,7 @@ describe('AccountDetailPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('lists the public keys of a wallet account and adds one', async () => {
+  it('lists the public keys of a wallet account, what they found, and adds one', async () => {
     // Radix Checkbox measures itself; jsdom has no ResizeObserver (left
     // undefined elsewhere: the charts fall back without it).
     vi.stubGlobal(
@@ -613,7 +615,7 @@ describe('AccountDetailPage', () => {
         institution: 'Ledger',
         cryptoSyncedAt: '2026-11-05T09:30:00.000Z',
       },
-      [holding({ origin: 'sync' })],
+      [holding({ origin: 'sync', location: 'Bitcoin' })],
       {
         enabled: false,
         syncedAt: '2026-11-05T09:30:00.000Z',
@@ -625,7 +627,29 @@ describe('AccountDetailPage', () => {
     api.walletTokensControllerList.mockImplementation(() => ok([]))
     api.walletKeysControllerList.mockImplementation(() =>
       ok([
-        walletKey({ label: 'Épargne' }),
+        walletKey({
+          label: 'Épargne',
+          scans: [
+            {
+              addressType: 'native_segwit',
+              usedAddresses: 3,
+              completedAt: '2026-11-05T09:30:00.000Z',
+            },
+          ],
+        }),
+        walletKey({
+          id: 'k-legacy',
+          publicKey:
+            'xpub6D4BDPcP2GT577Vvch3R8wDkScZWzQzMMUm3PWbmWvVJrZwQY4VUNgqFJPMM3No2dFDFGTsxxpG5uJh7n7epu4trkrX7x7DogT5Uv6fcLW5',
+          addressTypes: ['legacy'],
+          scans: [
+            {
+              addressType: 'legacy',
+              usedAddresses: 0,
+              completedAt: '2026-11-05T09:30:00.000Z',
+            },
+          ],
+        }),
         walletKey({
           id: 'k-evm',
           family: 'evm',
@@ -651,32 +675,29 @@ describe('AccountDetailPage', () => {
     )
     renderPage()
 
-    const source = await screen.findByRole('region', {
-      name: 'Source des avoirs',
+    const status = await screen.findByRole('region', {
+      name: 'Valeur du wallet',
     })
-    expect(within(source).getByText('Wallet · Ledger')).toBeInTheDocument()
+    expect(within(status).getByText(/30\s000,00\s€/)).toBeInTheDocument()
+    // The server does not read chains: said once, in the header.
     expect(
-      text(within(source).getByText(/^Dernière synchronisation/).textContent),
-    ).toBe('Dernière synchronisation : 5 novembre 2026 à 10:30')
-    // The server does not read chains: synced by hand only.
-    expect(
-      await within(source).findByRole('button', { name: 'Synchroniser' }),
-    ).toBeDisabled()
-    expect(
-      within(source).getByText(/Synchronisation désactivée sur ce serveur/),
+      within(status).getByText(/^Synchronisation désactivée sur ce serveur/),
     ).toBeInTheDocument()
 
-    // Keys are shown masked, with their label and chains.
-    const keys = await within(source).findByRole('list', {
-      name: 'Clés publiques',
-    })
+    // Keys are shown masked, with their label, chains and what they found.
+    const keys = await screen.findByRole('list', { name: 'Clés publiques' })
     expect(within(keys).getByText('xpub661M…GMcet8')).toBeInTheDocument()
     expect(within(keys).getByText('Épargne · Bitcoin')).toBeInTheDocument()
     expect(within(keys).getByText('0x5aAeb6…1BeAed')).toBeInTheDocument()
     expect(within(keys).getByText('Ethereum, Base')).toBeInTheDocument()
-    // An xpub shows the address type it is read as, and can change it (#248).
     expect(
-      within(keys).getByText(/^Native SegWit \(bc1q…\)/),
+      within(keys).getByText(/^Native SegWit \(bc1q…\) · 3 adresses utilisées/),
+    ).toBeInTheDocument()
+    // An xpub that found nothing in its type says so, with « Changer » (#268).
+    expect(
+      within(keys).getByText(
+        /^Aucune adresse utilisée en Legacy \(1…\) : vérifiez le type/,
+      ),
     ).toBeInTheDocument()
     await user.click(
       within(keys).getByRole('button', {
@@ -706,15 +727,16 @@ describe('AccountDetailPage', () => {
         screen.queryByRole('dialog', { name: 'Type d’adresses' }),
       ).not.toBeInTheDocument(),
     )
-    // The synced line is read-only.
-    expect(screen.getByText('Synchronisé')).toBeInTheDocument()
+    // Every line is synced: no badge saying so, nothing to edit or add.
+    expect(screen.queryByText('Synchronisé')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /^Modifier BTC/ }),
     ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /Ajouter un avoir/ }),
+    ).not.toBeInTheDocument()
 
-    await user.click(
-      within(source).getByRole('button', { name: 'Ajouter une clé' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Ajouter une clé' }))
     const sheet = await screen.findByRole('dialog', {
       name: 'Ajouter une clé publique',
     })
@@ -763,7 +785,7 @@ describe('AccountDetailPage', () => {
       accountId: ACCOUNT_ID,
       holdings,
       totals: {
-        valueCents: 0,
+        valueCents: holdings.reduce((sum, h) => sum + (h.valueCents ?? 0), 0),
         investedCents: null,
         gainCents: null,
         missingPriceCount: 0,
@@ -778,21 +800,36 @@ describe('AccountDetailPage', () => {
     }
   }
 
-  function mockWallet(sync: WalletSyncStatusDto) {
+  function mockWallet(
+    sync: WalletSyncStatusDto,
+    holdings: ValuedHoldingDto[] = [],
+  ) {
     mockCrypto(
       {
         cryptoSource: 'wallet',
         institution: 'Ledger',
         cryptoSyncedAt: sync.syncedAt,
       },
-      [],
+      holdings,
       sync,
     )
-    api.walletKeysControllerList.mockImplementation(() => ok([walletKey({})]))
+    api.walletKeysControllerList.mockImplementation(() =>
+      ok([
+        walletKey({}),
+        walletKey({
+          id: 'k-evm',
+          family: 'evm',
+          publicKey: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
+          chains: ['ethereum', 'arbitrum'],
+          format: null,
+          addressTypes: null,
+        }),
+      ]),
+    )
     api.walletTokensControllerList.mockImplementation(() => ok([]))
   }
 
-  it('syncs a wallet account and shows the synced holdings', async () => {
+  it('refreshes a wallet with one « Actualiser »: chains then prices', async () => {
     const user = userEvent.setup()
     mockWallet({
       enabled: true,
@@ -818,15 +855,19 @@ describe('AccountDetailPage', () => {
     })
     renderPage()
 
-    const source = await screen.findByRole('region', {
-      name: 'Source des avoirs',
+    const status = await screen.findByRole('region', {
+      name: 'Valeur du wallet',
     })
+    expect(within(status).getByText(/^Jamais synchronisé/)).toBeInTheDocument()
+    // One refresh button on the page: no « Synchroniser » nor « Actualiser
+    // les cours » apart.
     expect(
-      within(source).getByText('Dernière synchronisation : jamais'),
-    ).toBeInTheDocument()
-    await user.click(
-      await within(source).findByRole('button', { name: 'Synchroniser' }),
-    )
+      screen.queryByRole('button', { name: 'Synchroniser' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Actualiser les cours' }),
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Actualiser' }))
     await waitFor(() =>
       expect(api.accountHoldingsControllerSync).toHaveBeenCalledWith(
         expect.objectContaining({ path: { id: ACCOUNT_ID } }),
@@ -836,8 +877,51 @@ describe('AccountDetailPage', () => {
       expect(toast.success).toHaveBeenCalledWith('Wallet synchronisé'),
     )
     expect(
-      text(within(source).getByText(/^Dernière synchronisation/).textContent),
-    ).toBe('Dernière synchronisation : 6 novembre 2026 à 10:59')
+      await within(status).findByText('Soldes lus il y a 1 min'),
+    ).toBeInTheDocument()
+  })
+
+  it('shows a wallet value once, without contribution tiles', async () => {
+    mockWallet(
+      {
+        enabled: true,
+        syncedAt: '2026-11-06T09:00:00.000Z',
+        failedAt: null,
+        failedChains: [],
+        retryAt: null,
+      },
+      [holding({ origin: 'sync', location: 'Bitcoin' })],
+    )
+    api.accountSnapshotsControllerPerformance.mockImplementation(() =>
+      ok(
+        performance({
+          type: 'crypto',
+          valueCents: 3_000_000,
+          contributionsCents: null,
+          contributionsDate: null,
+          gainCents: null,
+          returnRate: null,
+          sinceOneYear: null,
+        }),
+      ),
+    )
+    renderPage()
+
+    await screen.findByRole('region', { name: 'Valeur du wallet' })
+    expect(await screen.findAllByText(/30\s000,00\s€/)).toHaveLength(2) // header + its line
+    // No key figures left without a year of history: nothing but dashes.
+    expect(
+      screen.queryByRole('region', { name: 'Chiffres clés' }),
+    ).not.toBeInTheDocument()
+    for (const label of [
+      'Valeur des avoirs',
+      'Investi',
+      'Versements',
+      'Plus-value',
+      'Rendement',
+    ]) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument()
+    }
   })
 
   it('flags stale holdings when the last sync failed', async () => {
@@ -855,18 +939,15 @@ describe('AccountDetailPage', () => {
     )
     renderPage()
 
-    const source = await screen.findByRole('region', {
-      name: 'Source des avoirs',
+    const status = await screen.findByRole('region', {
+      name: 'Valeur du wallet',
     })
-    const alert = await within(source).findByText(
-      'La dernière synchronisation a échoué',
-    )
-    expect(text(alert.parentElement!.textContent)).toContain(
-      'Tentative du 6 novembre 2026 à 10:00',
-    )
-    await user.click(
-      within(source).getByRole('button', { name: 'Synchroniser' }),
-    )
+    expect(
+      await within(status).findByText(
+        'La dernière synchronisation a échoué : soldes de la précédente.',
+      ),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Actualiser' }))
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
         'Synchronisation impossible pour le moment : les derniers avoirs connus sont conservés.',
@@ -874,7 +955,7 @@ describe('AccountDetailPage', () => {
     )
   })
 
-  it('names the chains a sync could not read and when it retries', async () => {
+  it('names each chain a sync could not read once, with its retry time', async () => {
     const user = userEvent.setup()
     // Bitcoin rate limited until 11:30 (Paris), Ethereum read at 10:58.
     const partial: WalletSyncStatusDto = {
@@ -902,33 +983,19 @@ describe('AccountDetailPage', () => {
     )
     renderPage()
 
-    const source = await screen.findByRole('region', {
-      name: 'Source des avoirs',
+    const status = await screen.findByRole('region', {
+      name: 'Valeur du wallet',
     })
-    expect(
-      await within(source).findByText(
-        'Certaines chaînes n’ont pas pu être lues',
-      ),
-    ).toBeInTheDocument()
-    const chains = within(source).getByRole('list', {
+    const chains = await within(status).findByRole('list', {
       name: 'Chaînes non lues',
     })
     expect(text(chains.textContent)).toBe(
       'Bitcoin : trop de requêtes, nouvel essai possible à 11:30',
     )
-    expect(
-      within(source).getByText(
-        'Les avoirs de ces chaînes sont ceux de leur dernière lecture réussie.',
-        { exact: false },
-      ),
-    ).toBeInTheDocument()
-    expect(
-      within(source).getByText('Prochain essai possible à 11:30'),
-    ).toBeInTheDocument()
+    // Said once on the page.
+    expect(screen.getAllByText(/11:30/)).toHaveLength(1)
 
-    await user.click(
-      within(source).getByRole('button', { name: 'Synchroniser' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Actualiser' }))
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
         'Lecture impossible pour Bitcoin (nouvel essai possible à 11:30) : leurs derniers avoirs connus sont conservés, les autres chaînes sont à jour.',
@@ -936,7 +1003,7 @@ describe('AccountDetailPage', () => {
     )
   })
 
-  it('adds a token to read and syncs the wallet again', async () => {
+  it('adds a token by its name or its contract address, then refreshes', async () => {
     const user = userEvent.setup()
     const sync: WalletSyncStatusDto = {
       enabled: true,
@@ -949,37 +1016,48 @@ describe('AccountDetailPage', () => {
     api.cryptoControllerSearch.mockImplementation(() =>
       ok([{ id: 'usd-coin', symbol: 'USDC', name: 'USDC', rank: 7 }]),
     )
-    api.walletTokensControllerAdd.mockImplementation(() =>
-      ok(
-        {
-          id: 't-1',
-          accountId: ACCOUNT_ID,
-          assetId: 'usd-coin',
-          symbol: 'USDC',
-          name: 'USDC',
-        },
-        201,
-      ),
+    api.walletTokensControllerAdd.mockImplementation(
+      ({ body }: { body: { contract?: string } }) =>
+        ok(
+          body.contract
+            ? {
+                id: 't-2',
+                accountId: ACCOUNT_ID,
+                assetId: `erc20.42161.${body.contract.toLowerCase()}`,
+                symbol: 'TKN',
+                name: 'Test Token',
+                chain: 'arbitrum',
+                contract: body.contract,
+                priced: false,
+              }
+            : {
+                id: 't-1',
+                accountId: ACCOUNT_ID,
+                assetId: 'usd-coin',
+                symbol: 'USDC',
+                name: 'USDC',
+                chain: null,
+                contract: null,
+                priced: true,
+              },
+          201,
+        ),
     )
     api.accountHoldingsControllerSync.mockImplementation(() =>
       ok(walletHoldings(sync)),
     )
     renderPage()
 
-    const source = await screen.findByRole('region', {
-      name: 'Source des avoirs',
-    })
     expect(
-      await within(source).findByText(
-        'Monnaies natives et actifs déjà détenus uniquement.',
+      await screen.findByText(
+        'ETH, BNB et POL sont toujours lus. Ajoutez les jetons ERC-20 / BEP-20 de vos adresses.',
       ),
     ).toBeInTheDocument()
-    await user.click(
-      within(source).getByRole('button', { name: 'Ajouter un jeton' }),
-    )
-    const sheet = await screen.findByRole('dialog', {
-      name: 'Ajouter un jeton',
-    })
+    expect(
+      screen.queryByText(/actifs déjà détenus uniquement/),
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Ajouter un jeton' }))
+    let sheet = await screen.findByRole('dialog', { name: 'Ajouter un jeton' })
     await user.type(within(sheet).getByLabelText('Jeton'), 'usdc')
     await user.click(
       await within(sheet).findByRole(
@@ -997,7 +1075,117 @@ describe('AccountDetailPage', () => {
       ),
     )
     await waitFor(() =>
-      expect(api.accountHoldingsControllerSync).toHaveBeenCalled(),
+      expect(api.accountHoldingsControllerSync).toHaveBeenCalledTimes(1),
+    )
+
+    // By its contract, on one of the wallet's chains.
+    await user.click(screen.getByRole('button', { name: 'Ajouter un jeton' }))
+    sheet = await screen.findByRole('dialog', { name: 'Ajouter un jeton' })
+    await user.click(
+      within(sheet).getByRole('radio', { name: 'Par son adresse' }),
+    )
+    await user.click(
+      within(sheet).getByRole('button', { name: 'Ajouter le jeton' }),
+    )
+    expect(
+      within(sheet).getByText('Collez l’adresse du contrat du jeton.'),
+    ).toBeInTheDocument()
+    await user.click(within(sheet).getByLabelText('Adresse du contrat'))
+    await user.paste('0xab12ab12ab12ab12ab12ab12ab12ab12ab12ab12')
+    expect(within(sheet).getByLabelText('Chaîne')).toHaveValue('ethereum')
+    await user.selectOptions(within(sheet).getByLabelText('Chaîne'), 'arbitrum')
+    await user.click(
+      within(sheet).getByRole('button', { name: 'Ajouter le jeton' }),
+    )
+    await waitFor(() =>
+      expect(api.walletTokensControllerAdd).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          body: {
+            contract: '0xab12ab12ab12ab12ab12ab12ab12ab12ab12ab12',
+            chain: 'arbitrum',
+          },
+        }),
+      ),
+    )
+    await waitFor(() =>
+      expect(api.accountHoldingsControllerSync).toHaveBeenCalledTimes(2),
+    )
+  })
+
+  it('lets a manual line typed on a wallet be deleted, not edited, and badges mixed origins', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    )
+    mockWallet(
+      {
+        enabled: true,
+        syncedAt: '2026-11-06T09:00:00.000Z',
+        failedAt: null,
+        failedChains: [],
+        retryAt: null,
+      },
+      [
+        holding({
+          id: 'h-sync',
+          origin: 'sync',
+          assetId: 'ethereum',
+          symbol: 'ETH',
+          name: 'Ethereum',
+          location: 'Ethereum',
+        }),
+        holding({
+          id: 'h-arb',
+          origin: 'sync',
+          assetId: 'ethereum',
+          symbol: 'ETH',
+          name: 'Ethereum',
+          location: 'Arbitrum',
+        }),
+        holding({ id: 'h-manual', origin: 'manual', location: 'Papier' }),
+      ],
+    )
+    api.accountHoldingsControllerRemove.mockImplementation(() =>
+      ok(undefined, 204),
+    )
+    renderPage()
+
+    const list = await screen.findByRole('list', { name: 'Avoirs' })
+    // The place only when it is not the asset's name.
+    expect(
+      within(list).queryByText('Ethereum · Ethereum'),
+    ).not.toBeInTheDocument()
+    expect(within(list).getByText('Ethereum · Arbitrum')).toBeInTheDocument()
+    // Mixed origins: each line says where it comes from, next to its symbol.
+    const badges = within(list).getAllByText(/^(Synchronisé|Saisi à la main)$/)
+    expect(badges.map((badge) => badge.textContent)).toEqual([
+      'Synchronisé',
+      'Synchronisé',
+      'Saisi à la main',
+    ])
+    for (const badge of badges) {
+      expect(badge.parentElement?.firstElementChild?.textContent).toMatch(
+        /^(ETH|BTC)$/,
+      )
+    }
+    expect(
+      within(list).queryByRole('button', { name: /^Modifier/ }),
+    ).not.toBeInTheDocument()
+    await user.click(
+      within(list).getByRole('button', { name: 'Supprimer BTC · Papier' }),
+    )
+    await user.click(await screen.findByRole('button', { name: 'Supprimer' }))
+    await waitFor(() =>
+      expect(api.accountHoldingsControllerRemove).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { id: ACCOUNT_ID, holdingId: 'h-manual' },
+        }),
+      ),
     )
   })
 

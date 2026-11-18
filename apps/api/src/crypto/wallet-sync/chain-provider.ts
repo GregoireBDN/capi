@@ -43,9 +43,23 @@ export interface EvmBalances {
   tokens: bigint[]
 }
 
+/** What a token contract says of itself (`symbol()`, `name()`, `decimals()`). */
+export interface EvmTokenInfo {
+  /** Printable text, at most 20 characters; empty when unreadable. */
+  symbol: string
+  /** Printable text, at most 100 characters; empty when unreadable. */
+  name: string
+  decimals: number
+}
+
 export interface EvmChainProvider {
   /** Chains with an endpoint configured. */
   readonly chains: readonly EvmChain[]
+  /**
+   * Symbol, name and decimals of a token contract on one chain (#269); null
+   * when nothing answering `decimals()` is deployed at that address there.
+   */
+  tokenInfo(chain: EvmChain, contract: string): Promise<EvmTokenInfo | null>
   /** Native and token balances of one address on one chain. */
   balances(
     chain: EvmChain,

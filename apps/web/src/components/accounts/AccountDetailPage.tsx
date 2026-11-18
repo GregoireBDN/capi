@@ -22,12 +22,18 @@ import {
   PencilIcon,
   PencilLineIcon,
   PlusIcon,
+  RefreshCwIcon,
 } from 'lucide-react'
 import { useState } from 'react'
 import type { AccountDto, SnapshotDto } from '#/api/types.gen'
 import { PageHeader } from '#/components/app-shell/PageHeader'
+import type { PageAction } from '#/components/app-shell/page-actions'
 import { CryptoSourceCard } from '#/components/crypto/CryptoSourceCard'
 import { HoldingsPanel } from '#/components/crypto/HoldingsPanel'
+import {
+  useWalletRefresh,
+  WalletAccount,
+} from '#/components/crypto/WalletAccount'
 import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { formatCalendarDate } from '#/lib/money'
 import { ApiRequestError } from '#/lib/queries'
@@ -66,7 +72,14 @@ function BackLink() {
   )
 }
 
-function AccountHeader({ account }: { account: AccountDto }) {
+function AccountHeader({
+  account,
+  actions = [],
+}: {
+  account: AccountDto
+  /** Page actions before « Modifier » (a wallet's « Actualiser »). */
+  actions?: PageAction[]
+}) {
   const [editing, setEditing] = useState(false)
   const kind = [ACCOUNT_TYPE_LABELS[account.type], account.institution]
     .filter(Boolean)
@@ -85,6 +98,7 @@ function AccountHeader({ account }: { account: AccountDto }) {
         }
         description={kind}
         actions={[
+          ...actions,
           {
             label: account.archivedAt ? 'Réactiver…' : 'Modifier',
             icon: <PencilIcon />,
@@ -115,6 +129,7 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
   const [editor, setEditor] = useState<EditorState>({ open: false })
   const [pasteOpen, setPasteOpen] = useState(false)
   const today = todayInParis()
+  const walletRefresh = useWalletRefresh(accountId)
 
   if (account.isPending || performance.isPending) {
     return (
@@ -170,7 +185,22 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
   // Crypto accounts are valued from their holdings (one snapshot per day).
   const crypto = current.type === 'crypto'
   const writable = current.archivedAt === null
+  // A wallet: one value, one refresh, its keys and tokens (#269).
+  const wallet = crypto && current.cryptoSource === 'wallet'
   const openAdd = () => setEditor({ open: true })
+  const headerActions: PageAction[] =
+    wallet && writable
+      ? [
+          {
+            label: 'Actualiser',
+            icon: <RefreshCwIcon />,
+            primary: true,
+            loading: walletRefresh.isPending,
+            disabled: walletRefresh.disabled,
+            onSelect: walletRefresh.refresh,
+          },
+        ]
+      : []
 
   // Crypto: holdings are added in their own panel and today's value is
   // computed from them; only older values (before tracking) can be pasted.
@@ -211,11 +241,11 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
   return (
     <div className="@container space-y-6">
       <div className="flex flex-col gap-3 @2xl:flex-row @2xl:items-end @2xl:justify-between">
-        <AccountHeader account={current} />
-        {valueActions || actions}
+        <AccountHeader account={current} actions={headerActions} />
+        {valueActions || (!wallet && actions)}
       </div>
 
-      {investment && data.stale && data.valueDate && (
+      {investment && !wallet && data.stale && data.valueDate && (
         <Alert variant="warning">
           <ClockAlertIcon aria-hidden />
           <AlertTitle>
@@ -229,9 +259,19 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
         </Alert>
       )}
 
-      {crypto && <CryptoSourceCard account={current} writable={writable} />}
+      {wallet && (
+        <WalletAccount
+          account={current}
+          writable={writable}
+          onTokensChanged={walletRefresh.refresh}
+        />
+      )}
 
-      {crypto && (
+      {crypto && !wallet && (
+        <CryptoSourceCard account={current} writable={writable} />
+      )}
+
+      {crypto && !wallet && (
         <HoldingsPanel
           accountId={current.id}
           writable={writable}
@@ -261,12 +301,20 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
           )
         ) : (
           <>
-            {!data.stale && data.valueDate && data.daysSinceLatest !== null && (
-              <p className="text-muted-foreground -mt-3 text-sm">
-                {valueAgeText(data.valueDate, data.daysSinceLatest)}
-              </p>
-            )}
-            <PerformanceTiles performance={data} />
+            {!wallet &&
+              !data.stale &&
+              data.valueDate &&
+              data.daysSinceLatest !== null && (
+                <p className="text-muted-foreground -mt-3 text-sm">
+                  {valueAgeText(data.valueDate, data.daysSinceLatest)}
+                </p>
+              )}
+            {/* A wallet's value is in its header; it has no contributions. */}
+            <PerformanceTiles
+              performance={data}
+              withValue={!wallet}
+              withContributions={!wallet || data.contributionsCents !== null}
+            />
           </>
         )
       ) : (
@@ -297,14 +345,14 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
       {data.snapshots.length > 0 && (
         <ValueChart
           snapshots={data.snapshots}
-          withContributions={investment}
+          withContributions={investment && !wallet}
           onAdd={investment && writable && !crypto ? openAdd : undefined}
         />
       )}
 
       <SnapshotList
         snapshots={data.snapshots}
-        withContributions={investment}
+        withContributions={investment && !wallet}
         onEdit={
           writable
             ? (snapshot) => setEditor({ open: true, snapshot })
@@ -319,7 +367,7 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
             onOpenChange={(open) => !open && setEditor({ open: false })}
             accountId={current.id}
             today={today}
-            withContributions={investment}
+            withContributions={investment && !wallet}
             snapshot={editor.open ? editor.snapshot : undefined}
             defaultContributionsCents={data.contributionsCents}
           />

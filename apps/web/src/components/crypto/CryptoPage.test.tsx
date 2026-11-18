@@ -557,6 +557,40 @@ describe('CryptoPage', () => {
     )
   })
 
+  it('offers no « Ajouter un avoir » for a wallet, whose holdings come from the chain (#269)', async () => {
+    const user = userEvent.setup()
+    api.accountsControllerList.mockImplementation(() =>
+      ok([
+        { ...accountDto(LEDGER_ID, 'Ledger test'), cryptoSource: 'wallet' },
+        { ...accountDto(NEW_ID, 'Binance test'), cryptoSource: 'exchange' },
+      ]),
+    )
+    api.cryptoControllerSummary.mockImplementation(() =>
+      ok(
+        summary({
+          accounts: [
+            account({ holdings: [holding({ origin: 'sync' })] }),
+            account({ accountId: NEW_ID, name: 'Binance test' }),
+          ],
+        }),
+      ),
+    )
+    renderPage()
+    const wallet = await screen.findByRole('region', { name: 'Ledger test' })
+    await waitFor(() =>
+      expect(
+        within(wallet).queryByRole('button', { name: /Ajouter un avoir/ }),
+      ).not.toBeInTheDocument(),
+    )
+    expect(
+      screen.getByRole('button', { name: 'Ajouter un avoir à Binance test' }),
+    ).toBeInTheDocument()
+    // Nor can it be picked from the page action.
+    await user.click(screen.getByRole('button', { name: 'Ajouter un avoir' }))
+    const sheet = within(screen.getByRole('dialog'))
+    expect(sheet.queryByRole('radio', { name: 'Ledger test' })).toBeNull()
+  })
+
   it('edits a holding and sets its price by hand without the price API', async () => {
     const user = userEvent.setup()
     api.cryptoControllerSummary.mockImplementation(() =>

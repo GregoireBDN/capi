@@ -31,6 +31,7 @@ import {
   type EvmTokenContract,
 } from './chain-provider'
 import { EsploraProvider } from './esplora.provider'
+import { toChecksumAddress } from '../wallet-keys/public-key'
 import { WalletKeysService } from '../wallet-keys/wallet-keys.service'
 import { mergeLines, WalletSyncService } from './wallet-sync.service'
 import { WalletTokensService } from './wallet-tokens.service'
@@ -52,6 +53,12 @@ const later = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000)
 const EVM_ADDRESS = '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359'
 const USDC_ETHEREUM = '0x1111111111111111111111111111111111111111'
 const USDC_BSC = '0x2222222222222222222222222222222222222222'
+/** A made-up token contract, EIP-55 checksummed by the API when added. */
+const CONTRACT_TOKEN = toChecksumAddress(`0x${'ab12'.repeat(10)}`)
+/** The same address with one letter's case flipped: a typo. */
+const BAD_CHECKSUM = CONTRACT_TOKEN.replace(/(?<=^0x[0-9]*)[a-fA-F]/, (c) =>
+  c === c.toLowerCase() ? c.toUpperCase() : c.toLowerCase(),
+)
 
 const deriver = new BitcoinAddressDeriver()
 const RECEIVE = deriver.derive(BIP84_ZPUB, 'native_segwit', 0, 0, 60)
@@ -115,6 +122,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
       }
       const evm = {
         chains: ['ethereum', 'bsc'] as EvmChain[],
+        tokenInfo: vi.fn((_chain: EvmChain, contract: string) =>
+          Promise.resolve(
+            contract.toLowerCase() === CONTRACT_TOKEN.toLowerCase()
+              ? { symbol: 'TKN', name: 'Test Token', decimals: 8 }
+              : null,
+          ),
+        ),
         balances: vi.fn(
           (
             chain: EvmChain,
@@ -124,7 +138,11 @@ describe.skipIf(!process.env.DATABASE_URL)(
             Promise.resolve({
               native: chain === 'ethereum' ? 1_500_000_000_000_000_000n : 0n,
               tokens: tokens.map((token) =>
-                token.address === USDC_ETHEREUM ? 1_234_567_890n : 0n,
+                token.address === USDC_ETHEREUM
+                  ? 1_234_567_890n
+                  : token.address === CONTRACT_TOKEN
+                    ? 250_000_000n
+                    : 0n,
               ),
             }),
         ),
@@ -198,6 +216,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
       mocks: ReturnType<typeof providers>
       /** Inline waits asked by the sync (ms); resolved at once. */
       sleeps: number[]
+      /** Asset ids sent to the price API. */
+      priceAsks: string[]
       wallet: () => Promise<string>
     }
 
@@ -206,22 +226,30 @@ describe.skipIf(!process.env.DATABASE_URL)(
       {
         enabled = true,
         bitcoin,
-      }: { enabled?: boolean; bitcoin?: BitcoinChainProvider } = {},
+        backgroundWaitMs,
+      }: {
+        enabled?: boolean
+        bitcoin?: BitcoinChainProvider
+        backgroundWaitMs?: number
+      } = {},
     ) {
       await db
         .transaction(async (tx) => {
           const database = { db: tx } as never
           const accounts = new AccountsService(database)
+          const priceAsks: string[] = []
           const prices = new CryptoPricesService(database, {
             provider: {
-              fetchEurPrices: (ids: readonly string[]) =>
-                Promise.resolve(
+              fetchEurPrices: (ids: readonly string[]) => {
+                priceAsks.push(...ids)
+                return Promise.resolve(
                   new Map(
                     ids
                       .filter((id) => id in PRICES)
                       .map((id) => [id, PRICES[id]] as const),
                   ),
-                ),
+                )
+              },
               searchAssets: () => Promise.resolve([]),
             },
             ttlMs: TTL,
@@ -233,6 +261,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             evm: enabled ? mocks.evm : null,
             tokens: enabled ? mocks.tokens : null,
             intervalMs: TTL,
+            backgroundWaitMs,
             sleep: (ms) => {
               sleeps.push(ms)
               return Promise.resolve()
@@ -270,6 +299,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             keys,
             mocks,
             sleeps,
+            priceAsks,
             wallet,
           })
           throw ROLLBACK
@@ -277,6 +307,25 @@ describe.skipIf(!process.env.DATABASE_URL)(
         .catch((error: unknown) => {
           if (error !== ROLLBACK) throw error
         })
+    }
+
+    /** A line typed by hand on a wallet before #269 refused new ones. */
+    async function manualLine(
+      tx: Db,
+      accountId: string,
+      line: {
+        assetId: string
+        symbol: string
+        name: string
+        quantity: string
+        location: string
+      },
+    ) {
+      const [row] = await tx
+        .insert(schema.cryptoHoldingsTable)
+        .values({ accountId, ...line, origin: 'manual' })
+        .returning()
+      return row
     }
 
     const lines = (
@@ -299,17 +348,14 @@ describe.skipIf(!process.env.DATABASE_URL)(
           symbol: 'USDC',
           name: 'USDC',
         })
-        await crypto.create(
-          id,
-          {
-            assetId: 'solana',
-            symbol: 'SOL',
-            name: 'Solana',
-            quantity: '2',
-            location: 'Phantom',
-          },
-          NOW,
-        )
+        // A line typed by hand before #269 stays listed.
+        await manualLine(tx, id, {
+          assetId: 'solana',
+          symbol: 'SOL',
+          name: 'Solana',
+          quantity: '2',
+          location: 'Phantom',
+        })
 
         const result = await crypto.sync(id, NOW)
 
@@ -400,19 +446,15 @@ describe.skipIf(!process.env.DATABASE_URL)(
     })
 
     it('replaces the synced lines on the next sync and never touches manual ones', async () => {
-      await inRollback(async ({ crypto, mocks, wallet }) => {
+      await inRollback(async ({ crypto, mocks, wallet, tx }) => {
         const id = await wallet()
-        await crypto.create(
-          id,
-          {
-            assetId: 'ethereum',
-            symbol: 'ETH',
-            name: 'Ethereum',
-            quantity: '3',
-            location: 'Ethereum',
-          },
-          NOW,
-        )
+        await manualLine(tx, id, {
+          assetId: 'ethereum',
+          symbol: 'ETH',
+          name: 'Ethereum',
+          quantity: '3',
+          location: 'Ethereum',
+        })
         await crypto.sync(id, NOW)
         mocks.bitcoin.addressStates.mockImplementation((addresses) =>
           Promise.resolve(
@@ -784,6 +826,152 @@ describe.skipIf(!process.env.DATABASE_URL)(
           { addressType: 'legacy', usedAddresses: 0, completedAt: NOW },
         ])
       })
+    })
+
+    it('refuses new manual holdings on a wallet, and lets the old ones be deleted (#269)', async () => {
+      await inRollback(async ({ crypto, wallet, tx }) => {
+        const id = await wallet()
+        const line = {
+          assetId: 'solana',
+          symbol: 'SOL',
+          name: 'Solana',
+          quantity: '2',
+          location: 'Phantom',
+        }
+        await expect(crypto.create(id, line, NOW)).rejects.toThrow(
+          'Wallet holdings come from the chain',
+        )
+        const old = await manualLine(tx, id, line)
+        await expect(
+          crypto.update(id, old.id, { ...line, quantity: '3' }, NOW),
+        ).rejects.toBeInstanceOf(BadRequestException)
+        await crypto.remove(id, old.id, NOW)
+        const left = await crypto.holdings(id, later(1))
+        expect(left.holdings.map((h) => h.symbol)).not.toContain('SOL')
+      })
+    })
+
+    it('no longer reads the assets of manual lines: only added tokens (#269)', async () => {
+      await inRollback(async ({ crypto, mocks, wallet, tx }) => {
+        const id = await wallet()
+        await manualLine(tx, id, {
+          assetId: 'usd-coin',
+          symbol: 'USDC',
+          name: 'USDC',
+          quantity: '1',
+          location: 'Ledger',
+        })
+        const result = await crypto.sync(id, NOW)
+        expect(mocks.tokens.tokenDeployments).not.toHaveBeenCalled()
+        expect(lines(result.holdings)).not.toContain(
+          'sync USDC Ethereum 1234.56789',
+        )
+      })
+    })
+
+    it('adds a token by its contract address and reads it at the next sync (#269)', async () => {
+      await inRollback(async ({ crypto, tokens, mocks, wallet, priceAsks }) => {
+        const id = await wallet()
+        const added = await tokens.add(id, {
+          chain: 'ethereum',
+          contract: CONTRACT_TOKEN.toLowerCase(),
+        })
+        expect(added).toMatchObject({
+          assetId: `erc20.1.${CONTRACT_TOKEN.toLowerCase()}`,
+          symbol: 'TKN',
+          name: 'Test Token',
+          chain: 'ethereum',
+          contract: CONTRACT_TOKEN,
+          priced: false,
+        })
+        expect(mocks.evm.tokenInfo).toHaveBeenCalledWith(
+          'ethereum',
+          CONTRACT_TOKEN,
+        )
+        await expect(
+          tokens.add(id, { chain: 'ethereum', contract: CONTRACT_TOKEN }),
+        ).rejects.toBeInstanceOf(ConflictException)
+
+        const result = await crypto.sync(id, NOW)
+        // Read on its chain only, with its own decimals (8).
+        const tokenCalls = mocks.evm.balances.mock.calls.filter(([, , list]) =>
+          list.some((token) => token.address === CONTRACT_TOKEN),
+        )
+        expect(tokenCalls.map(([chain]) => chain)).toEqual(['ethereum'])
+        const line = result.holdings.find((h) => h.symbol === 'TKN')
+        expect(line).toMatchObject({
+          quantity: '2.5',
+          location: 'Ethereum',
+          origin: 'sync',
+          priceEur: null,
+          valueCents: null,
+        })
+        // Never sent to the price API (the id names the contract).
+        expect(priceAsks.length).toBeGreaterThan(0)
+        expect(priceAsks.some((asked) => asked.startsWith('erc20.'))).toBe(
+          false,
+        )
+        // No price to wait for: the account is still valued.
+        expect(result.complete).toBe(true)
+        expect(result.totals.missingPriceCount).toBe(0)
+        expect(result.snapshot).toMatchObject({ valueCents: 5_100 + 375_000 })
+      })
+    })
+
+    it('refuses a contract that is not a token, a bad checksum, or a chain not read', async () => {
+      await inRollback(async ({ tokens, wallet }) => {
+        const id = await wallet()
+        await expect(
+          tokens.add(id, {
+            chain: 'ethereum',
+            contract: '0x4444444444444444444444444444444444444444',
+          }),
+        ).rejects.toThrow('No token contract at this address')
+        await expect(
+          tokens.add(id, {
+            chain: 'ethereum',
+            contract: BAD_CHECKSUM,
+          }),
+        ).rejects.toThrow('checksum')
+        await expect(
+          tokens.add(id, { chain: 'base', contract: CONTRACT_TOKEN }),
+        ).rejects.toThrow('Wallet sync is disabled')
+      })
+    })
+
+    it('values a wallet again when its background sync ends after the page load (#269)', async () => {
+      // A Bitcoin scan slower than what a page load waits for.
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => (release = resolve))
+      const slow: BitcoinChainProvider = {
+        addressStates: async (addresses) => {
+          await gate
+          return addresses.map(
+            (address) =>
+              BITCOIN_STATES.get(address) ?? { balanceSats: 0n, used: false },
+          )
+        },
+      }
+      await inRollback(
+        async ({ crypto, wallet, tx }) => {
+          const id = await wallet()
+          const loaded = await crypto.holdings(id, NOW)
+          // The page did not wait: nothing synced yet, nothing valued.
+          expect(loaded.holdings).toEqual([])
+          expect(loaded.snapshot).toBeNull()
+
+          release()
+          await vi.waitFor(async () => {
+            const [snapshot] = await tx
+              .select()
+              .from(schema.balanceSnapshotsTable)
+              .where(eq(schema.balanceSnapshotsTable.accountId, id))
+            // Valued once the sync is done: 1.5 ETH and 0.00085 BTC.
+            expect(snapshot?.valueCents).toBe(375_000 + 5_100)
+          })
+        },
+        { bitcoin: slow, backgroundWaitMs: 20 },
+      )
     })
 
     it('never logs keys, addresses or quantities', async () => {

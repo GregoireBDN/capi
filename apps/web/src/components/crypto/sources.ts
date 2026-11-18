@@ -51,6 +51,11 @@ export const EVM_CHAINS: readonly CryptoChain[] = [
   'bsc',
 ]
 
+/** A token added by its contract (#269): no price provider id, no price. */
+export function isContractAsset(assetId: string): boolean {
+  return assetId.startsWith('erc20.')
+}
+
 /** Badge of a holding line computed from an import or a sync. */
 export const DERIVED_ORIGIN_LABELS: Record<
   Exclude<CryptoHoldingOrigin, 'manual'>,

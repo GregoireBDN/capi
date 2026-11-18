@@ -183,6 +183,13 @@
       "when": 1795034556241,
       "tag": "0025_bitcoin_scans",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795035206728,
+      "tag": "0026_wallet_token_contracts",
+      "breakpoints": true
     }
   ]
 }

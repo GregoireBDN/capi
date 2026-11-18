@@ -4,6 +4,7 @@ import { DatabaseService } from '#/database/database.service'
 import { cryptoPricesTable } from '#/database/schema'
 import type { CryptoPriceSource } from '#/database/schema/domain-enums'
 import { searchBuiltinAssets } from './builtin-assets'
+import { isContractAssetId } from './contract-assets'
 import { fitsNumeric, formatDecimal, parseDecimal, rescale } from './decimal'
 import type { CryptoPriceDto } from './dto/crypto.dto'
 import {
@@ -66,9 +67,13 @@ export class CryptoPricesService {
     now: Date = new Date(),
   ): Promise<{ quotes: Map<string, Quote>; refreshFailed: boolean }> {
     const ids = [...new Set(assetIds)]
+    // Tokens known by their contract only have no provider id (#269).
+    const priced = ids.filter((id) => !isContractAssetId(id))
     let refreshFailed = false
-    if (ids.length > 0 && mode !== 'none' && this.enabled) {
-      refreshFailed = await this.serialized(() => this.refresh(ids, mode, now))
+    if (priced.length > 0 && mode !== 'none' && this.enabled) {
+      refreshFailed = await this.serialized(() =>
+        this.refresh(priced, mode, now),
+      )
     }
     return { quotes: await this.load(ids), refreshFailed }
   }
@@ -147,9 +152,14 @@ export class CryptoPricesService {
     source: CryptoPriceSource,
     now: Date,
   ) {
+    // Rows in one order (by asset id), so that two concurrent upserts lock
+    // them in the same order and never deadlock.
+    const sorted = [...rows].sort((x, y) =>
+      x.assetId < y.assetId ? -1 : x.assetId > y.assetId ? 1 : 0,
+    )
     return this.database.db
       .insert(p)
-      .values(rows.map((row) => ({ ...row, source, fetchedAt: now })))
+      .values(sorted.map((row) => ({ ...row, source, fetchedAt: now })))
       .onConflictDoUpdate({
         target: p.assetId,
         set: {

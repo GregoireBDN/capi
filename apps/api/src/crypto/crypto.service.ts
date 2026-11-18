@@ -78,6 +78,18 @@ function syncStatusDto(
   }
 }
 
+export const WALLET_HOLDINGS_MESSAGE = 'Wallet holdings come from the chain'
+
+/**
+ * A wallet's holdings are read on chain (#269): no line is typed by hand
+ * there, and the ones typed before can only be deleted.
+ */
+function assertNotWallet(account: { cryptoSource: string | null }): void {
+  if (account.cryptoSource === 'wallet') {
+    throw new BadRequestException(WALLET_HOLDINGS_MESSAGE)
+  }
+}
+
 function isUniqueViolation(error: unknown): boolean {
   const e = error as { code?: string; cause?: { code?: string } } | null
   return e?.code === '23505' || e?.cause?.code === '23505'
@@ -152,7 +164,8 @@ export class CryptoService {
       throw new BadRequestException('Wallet sync is disabled on this server')
     }
     await this.walletSync.syncNow(account.id, now)
-    const [result] = await this.valuate([account], 'auto', true, now)
+    // « Actualiser » (#269): fresh balances, then fresh prices.
+    const [result] = await this.valuate([account], 'force', true, now)
     return result
   }
 
@@ -192,6 +205,7 @@ export class CryptoService {
     now: Date = new Date(),
   ): Promise<HoldingDto> {
     const account = await this.writableCryptoAccount(accountId)
+    assertNotWallet(account)
     const row = await this.unique(async () => {
       const [created] = await this.db
         .insert(h)
@@ -210,6 +224,7 @@ export class CryptoService {
     now: Date = new Date(),
   ): Promise<HoldingDto> {
     const account = await this.writableCryptoAccount(accountId)
+    assertNotWallet(account)
     await this.manualHolding(accountId, holdingId)
     const row = await this.unique(async () => {
       const [updated] = await this.db
@@ -361,8 +376,13 @@ export class CryptoService {
     now: Date,
   ): Promise<AccountHoldingsDto[]> {
     const ids = accounts.map((account) => account.id)
-    // A valuation that refreshes prices first reads the wallets due a sync.
-    if (mode !== 'none') await this.walletSync.syncDue(ids, now)
+    // A valuation that refreshes prices first reads the wallets due a sync;
+    // one that outlives the wait is valued again once done.
+    if (mode !== 'none') {
+      await this.walletSync.syncDue(ids, now, (late) =>
+        this.valueAfterSync(late, now),
+      )
+    }
     const syncStatuses = await this.walletSync.statuses(ids, now)
     const rows =
       accounts.length === 0
@@ -429,6 +449,18 @@ export class CryptoService {
       })
     }
     return results
+  }
+
+  /** Values wallets whose background sync ended after their valuation. */
+  private async valueAfterSync(accountIds: string[], now: Date): Promise<void> {
+    for (const id of accountIds) {
+      const account = await this.cryptoAccount(id)
+      // `auto`: prices of assets the sync just found are fetched too (the
+      // wallet itself was just tried, so it is not synced again).
+      if (account.archivedAt === null) {
+        await this.valuate([account], 'auto', true, now)
+      }
+    }
   }
 
   private async hasSnapshot(accountId: string): Promise<boolean> {

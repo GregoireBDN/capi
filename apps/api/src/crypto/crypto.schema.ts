@@ -203,15 +203,34 @@ export const cryptoWalletTokensTable = pgTable(
     accountId: uuid('account_id')
       .notNull()
       .references(() => accountsTable.id, { onDelete: 'cascade' }),
-    /** Price provider asset id (CoinGecko id, e.g. `usd-coin`). */
+    /**
+     * Price provider asset id (CoinGecko id, e.g. `usd-coin`), or for a
+     * token added by its contract `erc20.<chain id>.<contract>` (no price).
+     */
     assetId: varchar('asset_id', { length: 100 }).notNull(),
     symbol: varchar('symbol', { length: 20 }).notNull(),
     name: varchar('name', { length: 100 }).notNull(),
+    /**
+     * A token added by its contract address (#269): the chain it is read
+     * on, its contract (EIP-55) and decimals, read with `eth_call`. Null for
+     * a token found by name, whose contracts come from the price provider.
+     */
+    chain: cryptoChainEnum('chain'),
+    contract: varchar('contract', { length: 42 }),
+    decimals: smallint('decimals'),
   },
   (t) => [
     unique('crypto_wallet_tokens_account_asset_unique').on(
       t.accountId,
       t.assetId,
+    ),
+    check(
+      'crypto_wallet_tokens_contract_complete',
+      sql`(${t.chain} is null) = (${t.contract} is null) and (${t.contract} is null) = (${t.decimals} is null)`,
+    ),
+    check(
+      'crypto_wallet_tokens_decimals_range',
+      sql`${t.decimals} between 0 and 36`,
     ),
   ],
 )

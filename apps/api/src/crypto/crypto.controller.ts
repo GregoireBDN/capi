@@ -90,7 +90,8 @@ export class AccountHoldingsController {
   @ApiBody({ type: SaveHoldingDto })
   @ApiCreatedResponse({ type: HoldingDto })
   @ApiBadRequestResponse({
-    description: 'Invalid body, not a crypto account, archived account.',
+    description:
+      'Invalid body, not a crypto account, archived account, wallet account (its holdings come from the chain).',
   })
   @ApiConflictResponse({ description: 'Same asset and location already held.' })
   @ApiForbiddenResponse({ description: TOKEN_FORBIDDEN })
@@ -151,7 +152,8 @@ export class AccountHoldingsController {
   @ApiBody({ type: SaveHoldingDto })
   @ApiOkResponse({ type: HoldingDto })
   @ApiBadRequestResponse({
-    description: 'Invalid body, not a crypto account, archived account.',
+    description:
+      'Invalid body, not a crypto account, archived account, wallet account (its holdings come from the chain).',
   })
   @ApiConflictResponse({ description: 'Same asset and location already held.' })
   @ApiForbiddenResponse({ description: TOKEN_FORBIDDEN })
