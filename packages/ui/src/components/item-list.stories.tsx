@@ -34,8 +34,8 @@ type Story = StoryObj<typeof meta>
 
 const stale = (
   <span className="text-warning-foreground dark:text-warning inline-flex items-center gap-1 font-medium">
-    <span aria-hidden className="bg-warning size-1.5 rounded-full" />à mettre
-    à jour
+    <span aria-hidden className="bg-warning size-1.5 rounded-full" />à mettre à
+    jour
   </span>
 )
 
