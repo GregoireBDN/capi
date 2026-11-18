@@ -72,10 +72,11 @@ export function MonthReview({
             fill
             className="w-auto flex-auto"
           />
-          {/* Mid-tone background, white text; an icon on a phone, its word from
+          {/* As tall as the navigator, mid-tone background, white text; an
+              icon on a phone, its word from
               22rem of header. */}
           <Badge
-            className="h-8 shrink-0 gap-1 border-transparent px-2.5 text-white"
+            className="h-auto shrink-0 gap-1.5 self-stretch border-transparent px-3 text-white"
             // A mid tone between the theme's light and dark shades of the
             // status colour, under white text.
             style={{
@@ -84,11 +85,14 @@ export function MonthReview({
                 : 'color-mix(in oklch, var(--warning) 25%, var(--warning-foreground))',
             }}
           >
-            {closed ? (
-              <CircleCheckIcon aria-hidden className="size-4" />
-            ) : (
-              <ClockIcon aria-hidden className="size-4" />
-            )}
+            {/* Wrapped: the badge sizes its direct svg children to 12px. */}
+            <span aria-hidden className="flex">
+              {closed ? (
+                <CircleCheckIcon className="size-[22px]" />
+              ) : (
+                <ClockIcon className="size-[22px]" />
+              )}
+            </span>
             <span className="sr-only @[22rem]:not-sr-only">
               {closed ? 'Clôturé' : 'À clôturer'}
             </span>
