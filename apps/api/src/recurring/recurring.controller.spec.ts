@@ -15,7 +15,8 @@ import {
   it,
   vi,
 } from 'vitest'
-import { JWT_GUARD_TEST_PROVIDERS } from '#/auth/guards/jwt-guard.testing'
+import { AccessTokensService } from '#/auth/access-tokens/access-tokens.service'
+import { JwtGuard } from '#/auth/guards/jwt.guard'
 import { RecurringController } from './recurring.controller'
 import { RecurringService } from './recurring.service'
 
@@ -26,6 +27,8 @@ import { RecurringService } from './recurring.service'
 
 const ITEM_ID = '7f0c5a7e-2d1b-4c3a-9e8f-123456789abc'
 const CATEGORY_ID = '1f0c5a7e-2d1b-4c3a-9e8f-123456789abc'
+/** Synthetic personal access token, accepted by the mocked token service. */
+const WRITE_TOKEN = `fin_pat_${'a'.repeat(43)}`
 
 describe('RecurringController (HTTP)', () => {
   let app: NestFastifyApplication
@@ -43,7 +46,18 @@ describe('RecurringController (HTTP)', () => {
       imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [RecurringController],
       providers: [
-        ...JWT_GUARD_TEST_PROVIDERS,
+        JwtGuard,
+        {
+          provide: AccessTokensService,
+          useValue: {
+            authenticate: (token: string) =>
+              Promise.resolve(
+                token === WRITE_TOKEN
+                  ? { id: 'token-1', userId: 'user-1', scope: 'write' }
+                  : null,
+              ),
+          },
+        },
         { provide: RecurringService, useValue: service },
       ],
     }).compile()
@@ -193,6 +207,51 @@ describe('RecurringController (HTTP)', () => {
       const response = await request('PATCH', `/recurring/${ITEM_ID}`, body)
       expect(response.statusCode).toBe(400)
       expect(service.update).not.toHaveBeenCalled()
+    })
+
+    it.each([['2026-12-15'], [null]])(
+      'passes the end date %j',
+      async (endedOn) => {
+        const response = await request('PATCH', `/recurring/${ITEM_ID}`, {
+          endedOn,
+        })
+        expect(response.statusCode).toBe(200)
+        expect(service.update).toHaveBeenCalledWith(ITEM_ID, { endedOn })
+      },
+    )
+
+    it.each([
+      [{ endedOn: '2026-02-30' }],
+      [{ endedOn: '15/12/2026' }],
+      [{ endedOn: '2026-12-15T00:00:00Z' }],
+      [{ endedOn: 20261215 }],
+    ])('rejects %j', async (body) => {
+      const response = await request('PATCH', `/recurring/${ITEM_ID}`, body)
+      expect(response.statusCode).toBe(400)
+      expect(service.update).not.toHaveBeenCalled()
+    })
+
+    it('refuses a cancellation from an access token, not other edits', async () => {
+      const headers = { authorization: `Bearer ${WRITE_TOKEN}` }
+      for (const endedOn of ['2026-12-15', null]) {
+        const refused = await request(
+          'PATCH',
+          `/recurring/${ITEM_ID}`,
+          { endedOn },
+          headers,
+        )
+        expect(refused.statusCode).toBe(403)
+      }
+      expect(service.update).not.toHaveBeenCalled()
+
+      const allowed = await request(
+        'PATCH',
+        `/recurring/${ITEM_ID}`,
+        { notes: 'ok' },
+        headers,
+      )
+      expect(allowed.statusCode).toBe(200)
+      expect(service.update).toHaveBeenCalledWith(ITEM_ID, { notes: 'ok' })
     })
 
     it('rejects an invalid id', async () => {

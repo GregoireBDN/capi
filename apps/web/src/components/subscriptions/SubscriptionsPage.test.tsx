@@ -324,6 +324,182 @@ describe('SubscriptionsPage', () => {
     )
   })
 
+  describe('cancellation (« Résilier »)', () => {
+    /** Clicks the « Annuler » of the latest success toast. */
+    function undoLatestToast() {
+      const options = toast.success.mock.lastCall?.[1] as {
+        action: { label: string; onClick: () => void }
+      }
+      expect(options.action.label).toBe('Annuler')
+      options.action.onClick()
+    }
+
+    it('cancels after the next charge, then undoes it from the toast', async () => {
+      const user = userEvent.setup()
+      renderPage()
+      await user.click(
+        await screen.findByRole('button', { name: 'Modifier Streamflix' }),
+      )
+      await user.click(
+        within(await screen.findByRole('dialog')).getByRole('button', {
+          name: 'Résilier',
+        }),
+      )
+      const sheet = await screen.findByRole('dialog', {
+        name: 'Résilier Streamflix',
+      })
+      // Opens on the day after the next charge (November 11).
+      expect(within(sheet).getByLabelText('Date de fin')).toHaveValue(
+        '2026-11-12',
+      )
+      const afterNext = within(sheet).getByRole('radio', {
+        name: /Après la prochaine échéance \(11 nov\.\)/,
+      })
+      expect(afterNext).toHaveAttribute('data-state', 'on')
+      await user.type(within(sheet).getByLabelText('Note'), 'En ligne')
+      await user.click(within(sheet).getByRole('button', { name: 'Résilier' }))
+
+      await waitFor(() =>
+        expect(api.recurringControllerUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            path: { id: 'i1' },
+            body: { endedOn: '2026-11-12', notes: 'En ligne' },
+          }),
+        ),
+      )
+      expect(text(toast.success.mock.lastCall?.[0] as string)).toBe(
+        'Streamflix résilié · fin le 12 nov.',
+      )
+      undoLatestToast()
+      expect(api.recurringControllerUpdate).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          path: { id: 'i1' },
+          body: { endedOn: null, notes: null },
+        }),
+      )
+    })
+
+    it('takes today or a past date', async () => {
+      const user = userEvent.setup()
+      renderPage()
+      await user.click(
+        await screen.findByRole('button', { name: 'Modifier Streamflix' }),
+      )
+      await user.click(
+        within(await screen.findByRole('dialog')).getByRole('button', {
+          name: 'Résilier',
+        }),
+      )
+      const sheet = await screen.findByRole('dialog', {
+        name: 'Résilier Streamflix',
+      })
+      await user.click(
+        within(sheet).getByRole('radio', { name: 'Aujourd’hui' }),
+      )
+      expect(within(sheet).getByLabelText('Date de fin')).toHaveValue(
+        '2026-11-06',
+      )
+      const date = within(sheet).getByLabelText('Date de fin')
+      await user.clear(date)
+      await user.type(date, '2026-10-01')
+      expect(within(sheet).getByText(/dès maintenant/)).toBeInTheDocument()
+      await user.click(within(sheet).getByRole('button', { name: 'Résilier' }))
+      await waitFor(() =>
+        expect(api.recurringControllerUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            body: { endedOn: '2026-10-01', notes: null },
+          }),
+        ),
+      )
+    })
+
+    it('shows a future end in its section and the timeline', async () => {
+      api.recurringControllerList.mockImplementation(() =>
+        ok(
+          items.map((item) =>
+            item.id === 'i1' ? { ...item, endedOn: '2026-11-12' } : item,
+          ),
+        ),
+      )
+      renderPage()
+      const row = await screen.findByRole('button', {
+        name: 'Modifier Streamflix',
+      })
+      expect(text(row.textContent)).toContain('Résilié · fin le 12 nov.')
+      expect(text(row.textContent)).toContain(
+        'Prochain dans 5 jours · dernière échéance',
+      )
+      const timeline = screen.getByRole('list', {
+        name: 'Prochains prélèvements',
+      })
+      expect(timeline).toHaveTextContent('StreamflixDernière échéance')
+      expect(screen.queryByText('Abonnements résiliés')).toBeNull()
+    })
+
+    it('lists ended items apart, flags a charge after the end, reactivates', async () => {
+      const ended = {
+        endedOn: '2026-10-13',
+        ended: true,
+        chargedAfterEnd: '2026-11-04',
+        lastSeenDate: '2026-11-04',
+      }
+      api.recurringControllerList.mockImplementation(() =>
+        ok(
+          items.map((item) =>
+            item.id === 'i1' ? { ...item, ...ended } : item,
+          ),
+        ),
+      )
+      const user = userEvent.setup()
+      renderPage()
+      const section = (await screen.findByText('Abonnements résiliés')).closest(
+        'details',
+      )!
+      // Open by itself: a cancellation did not go through.
+      expect(section).toHaveAttribute('open')
+      expect(text(section.textContent)).toContain(
+        'Fin le 13 oct. · dernier prélèvement le 4 nov.',
+      )
+      expect(text(section.textContent)).toContain('155,88 € / an avant la fin')
+      expect(text(section.textContent)).toContain(
+        'Prélevé après la résiliation (4 nov.)',
+      )
+      // Out of its usual section and the timeline.
+      expect(
+        screen.getAllByRole('button', { name: 'Modifier Streamflix' }),
+      ).toHaveLength(1)
+      expect(screen.getByText(/Aucun prélèvement attendu/)).toBeInTheDocument()
+
+      await user.click(
+        within(section).getByRole('button', { name: 'Modifier Streamflix' }),
+      )
+      const dialog = await screen.findByRole('dialog')
+      expect(text(dialog.textContent)).toContain('Résilié · fin le 13 oct.')
+      expect(
+        within(dialog).queryByRole('button', { name: 'Résilier' }),
+      ).toBeNull()
+      await user.click(
+        within(dialog).getByRole('button', { name: 'Réactiver' }),
+      )
+      await waitFor(() =>
+        expect(api.recurringControllerUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            path: { id: 'i1' },
+            body: { endedOn: null },
+          }),
+        ),
+      )
+      expect(toast.success).toHaveBeenLastCalledWith(
+        'Streamflix réactivé',
+        expect.anything(),
+      )
+      undoLatestToast()
+      expect(api.recurringControllerUpdate).toHaveBeenLastCalledWith(
+        expect.objectContaining({ body: { endedOn: '2026-10-13' } }),
+      )
+    })
+  })
+
   it('looks for recurring series on its own when nothing is found yet', async () => {
     let detected = false
     api.recurringControllerList.mockImplementation(() =>

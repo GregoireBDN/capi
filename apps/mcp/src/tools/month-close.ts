@@ -79,6 +79,10 @@ export const monthCloseStatusTool = defineTool({
             `  - ${close.recurring.suggestedCount} abonnement(s) détecté(s) à confirmer ou ignorer dans l'application.`,
           ]
         : []),
+      ...close.recurring.chargedAfterEnd.map(
+        (c) =>
+          `  - ${c.name} : résilié à partir du ${frenchDate(c.endedOn)}, mais prélevé de ${euros(c.amountCents)} le ${frenchDate(c.chargedOn)} (résiliation à vérifier).`,
+      ),
       ...close.recurring.priceChanges.map(
         (p) =>
           `  - ${p.name} : ${p.previousAmountCents === null ? 'n/c' : euros(Math.abs(p.previousAmountCents))} → ${euros(Math.abs(p.latestAmountCents))} le ${frenchDate(p.priceChangedOn)}`,

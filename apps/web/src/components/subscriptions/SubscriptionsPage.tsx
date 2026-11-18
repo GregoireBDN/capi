@@ -25,6 +25,8 @@ import {
   recurringListQuery,
   recurringSummaryQuery,
 } from './queries'
+import { EndedSection } from './EndedSection'
+import { EndRecurringSheet } from './EndRecurringSheet'
 import { RecurringEditor } from './RecurringEditor'
 import { RecurringKpis } from './RecurringKpis'
 import { RecurringList } from './RecurringList'
@@ -54,6 +56,7 @@ export function SubscriptionsPage() {
   const summary = useQuery(recurringSummaryQuery)
   const categories = useQuery(categoriesQuery)
   const [editing, setEditing] = useState<RecurringItemDto | null>(null)
+  const [ending, setEnding] = useState<RecurringItemDto | null>(null)
 
   const detect = useMutation({
     // `automatic`: run on its own when the page has nothing to show.
@@ -81,7 +84,10 @@ export function SubscriptionsPage() {
       groups.incomes.length
     : 0
   const empty =
-    groups !== null && confirmedCount === 0 && groups.suggestions.length === 0
+    groups !== null &&
+    confirmedCount === 0 &&
+    groups.suggestions.length === 0 &&
+    groups.ended.length === 0
 
   // Nothing found yet (history imported before the detection ran on
   // imports, or never analysed): look once, without waiting for the button.
@@ -208,6 +214,12 @@ export function SubscriptionsPage() {
             </div>
           )}
 
+          <EndedSection
+            items={groups.ended}
+            today={today}
+            onEdit={setEditing}
+          />
+
           {groups.dismissed.length > 0 && (
             <details className="group">
               <summary className="text-muted-foreground cursor-pointer text-sm">
@@ -241,6 +253,17 @@ export function SubscriptionsPage() {
           if (!open) setEditing(null)
         }}
         categories={categories.data ?? []}
+        today={today}
+        onEnd={(item) => {
+          setEditing(null)
+          setEnding(item)
+        }}
+      />
+      <EndRecurringSheet
+        item={ending}
+        onOpenChange={(open) => {
+          if (!open) setEnding(null)
+        }}
         today={today}
       />
     </div>

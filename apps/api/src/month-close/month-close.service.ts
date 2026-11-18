@@ -200,11 +200,14 @@ export class MonthCloseService {
       executor,
     )
 
+    // A price change from the cancellation date on is a charge after the
+    // end, listed below instead.
     const priceChanges = confirmed.flatMap((item) =>
       item.priceChangedOn !== null &&
       item.priceChangeCents !== null &&
       item.priceChangedOn >= start &&
-      item.priceChangedOn <= end
+      item.priceChangedOn <= end &&
+      (item.endedOn === null || item.priceChangedOn < item.endedOn)
         ? [
             {
               id: item.id,
@@ -217,6 +220,26 @@ export class MonthCloseService {
           ]
         : [],
     )
+
+    const chargedAfterEnd = confirmed.flatMap((item) => {
+      const { endedOn } = item
+      if (endedOn === null) return []
+      // Occurrences are newest first.
+      const charge = item.occurrences.find(
+        (o) => o.date >= endedOn && o.date >= start && o.date <= end,
+      )
+      return charge
+        ? [
+            {
+              id: item.id,
+              name: item.name,
+              endedOn,
+              chargedOn: charge.date,
+              amountCents: charge.amountCents,
+            },
+          ]
+        : []
+    })
 
     const notes = row?.notes ?? null
     const report = await this.report(month, {
@@ -240,7 +263,9 @@ export class MonthCloseService {
       imports: importAccounts.every((a) => a.upToDate) && gaps.length === 0,
       review_queue: queue === 0,
       recurring:
-        suggested === 0 && (priceChanges.length === 0 || ack.has('recurring')),
+        suggested === 0 &&
+        ((priceChanges.length === 0 && chargedAfterEnd.length === 0) ||
+          ack.has('recurring')),
       budget: ack.has('budget'),
       savings: ack.has('savings'),
       investments: investments.length === 0,
@@ -263,7 +288,7 @@ export class MonthCloseService {
       })),
       imports: { accounts: importAccounts, gaps },
       reviewQueue: { count: queue },
-      recurring: { suggestedCount: suggested, priceChanges },
+      recurring: { suggestedCount: suggested, priceChanges, chargedAfterEnd },
       budget: review.budget,
       savings: {
         netCents: review.flow.netCents,

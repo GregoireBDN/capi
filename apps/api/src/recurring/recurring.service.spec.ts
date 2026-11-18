@@ -372,6 +372,155 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
+    describe('cancellation (endedOn)', () => {
+      /** Streaming (12.99 €, the 12th) and rent confirmed; salary too. */
+      async function confirmedHousehold(f: Fixture) {
+        await seedHousehold(f)
+        await f.service.detect(TODAY)
+        const items = await f.service.list()
+        await f.service.confirm(items.map((i) => i.id))
+        const stream = items.find((i) => i.merchantKey === 'STREAMFLIX')!
+        return stream.id
+      }
+
+      it('takes a past, today or future end date, and reactivates', async () => {
+        await withFixture(async (f) => {
+          const id = await confirmedHousehold(f)
+          const full = await f.service.summary(TODAY)
+          expect(full.debits.subscriptions.count).toBe(1)
+
+          // Future: cancelled after the November charge, still counted.
+          const future = await f.service.update(
+            id,
+            { endedOn: '2026-11-13' },
+            TODAY,
+          )
+          expect(future).toMatchObject({
+            endedOn: '2026-11-13',
+            ended: false,
+            chargedAfterEnd: null,
+          })
+          expect(await f.service.summary(TODAY)).toEqual(full)
+          // The day it ends, it leaves the totals.
+          const onEnd = await f.service.summary('2026-11-13')
+          expect(onEnd.debits.subscriptions.count).toBe(0)
+          expect(onEnd.endedCount).toBe(1)
+
+          // Today and past.
+          for (const endedOn of [TODAY, '2026-10-13']) {
+            const item = await f.service.update(id, { endedOn }, TODAY)
+            expect(item).toMatchObject({ endedOn, ended: true })
+            const summary = await f.service.summary(TODAY)
+            expect(summary.debits.subscriptions).toEqual({
+              monthlyCents: 0,
+              yearlyCents: 0,
+              count: 0,
+            })
+            expect(summary.debits.fixed.yearlyCents).toBe(
+              full.debits.fixed.yearlyCents - 15_588,
+            )
+            expect(summary.debits.yearlyCents).toBe(
+              full.debits.yearlyCents - 15_588,
+            )
+            expect(summary.endedCount).toBe(1)
+            expect(summary.inactiveCount).toBe(0)
+          }
+
+          // Reactivated: counted again.
+          const back = await f.service.update(id, { endedOn: null }, TODAY)
+          expect(back).toMatchObject({
+            endedOn: null,
+            ended: false,
+            chargedAfterEnd: null,
+          })
+          expect(await f.service.summary(TODAY)).toEqual(full)
+        })
+      })
+
+      it('flags a charge booked on or after the end date', async () => {
+        await withFixture(async (f) => {
+          const id = await confirmedHousehold(f)
+          // Cancelled from October 12: the October 12 charge went through.
+          const onDay = await f.service.update(id, { endedOn: '2026-10-12' })
+          expect(onDay.chargedAfterEnd).toBe('2026-10-12')
+          const before = await f.service.update(id, { endedOn: '2026-09-20' })
+          expect(before.chargedAfterEnd).toBe('2026-10-12')
+          const after = await f.service.update(id, { endedOn: '2026-10-13' })
+          expect(after.chargedAfterEnd).toBeNull()
+          // The November charge after the end, as the next import brings it.
+          await f.insert([
+            {
+              rawLabel: 'PRLV SEPA STREAMFLIX',
+              bookingDate: '2026-11-12',
+              amountCents: -1_299,
+              categoryId: f.subscriptions,
+            },
+          ])
+          const [charged] = await f.service
+            .list('confirmed', '2026-11-14')
+            .then((items) => items.filter((i) => i.id === id))
+          expect(charged).toMatchObject({
+            endedOn: '2026-10-13',
+            ended: true,
+            chargedAfterEnd: '2026-11-12',
+          })
+        })
+      })
+
+      it('is never changed by a detection run', async () => {
+        await withFixture(async (f) => {
+          const id = await confirmedHousehold(f)
+          await f.service.update(id, { endedOn: '2026-10-13' })
+          await f.insert([
+            {
+              rawLabel: 'PRLV SEPA STREAMFLIX',
+              bookingDate: '2026-11-12',
+              amountCents: -1_299,
+              categoryId: f.subscriptions,
+            },
+          ])
+          await f.service.detect('2026-11-14')
+          const [row] = await f.tx
+            .select()
+            .from(recurringItemsTable)
+            .where(eq(recurringItemsTable.id, id))
+          expect(row).toMatchObject({
+            status: 'confirmed',
+            endedOn: '2026-10-13',
+            lastSeenDate: '2026-11-12',
+          })
+        })
+      })
+
+      it('accepts an end date on confirmed items only', async () => {
+        await withFixture(async (f) => {
+          await seedHousehold(f)
+          await f.service.detect(TODAY)
+          const [item] = await f.service.list('suggested')
+          await expect(
+            f.service.update(item.id, { endedOn: '2026-11-13' }),
+          ).rejects.toBeInstanceOf(BadRequestException)
+          await f.service.update(item.id, { status: 'dismissed' })
+          await expect(
+            f.service.update(item.id, { endedOn: null }),
+          ).rejects.toBeInstanceOf(BadRequestException)
+          // Confirmed and cancelled in one request.
+          const confirmed = await f.service.update(item.id, {
+            status: 'confirmed',
+            endedOn: '2026-11-13',
+          })
+          expect(confirmed.endedOn).toBe('2026-11-13')
+          // Dismissing it is not a cancellation.
+          await expect(
+            f.service.update(item.id, {
+              status: 'dismissed',
+              endedOn: '2026-11-14',
+            }),
+          ).rejects.toBeInstanceOf(BadRequestException)
+        })
+      })
+    })
+
     it('marks a confirmed series inactive once it stops', async () => {
       await withFixture(async (f) => {
         await f.insert(

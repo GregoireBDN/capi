@@ -245,17 +245,25 @@ export class RecurringService {
     })
   }
 
-  /** Items with their stats, by name. */
-  list(status?: RecurringStatus): Promise<RecurringItemDto[]> {
+  /** Items with their stats, by name; `ended` is judged against `today`. */
+  list(
+    status?: RecurringStatus,
+    today: string = todayInParis(),
+  ): Promise<RecurringItemDto[]> {
     return this.items(
       status ? eq(recurringItemsTable.status, status) : undefined,
+      this.db,
+      today,
     )
   }
 
-  /** Totals of the confirmed, active items. */
-  async summary(): Promise<RecurringSummaryDto> {
+  /**
+   * Totals of the confirmed, active items not cancelled as of today (an item
+   * cancelled from a future date counts until then).
+   */
+  async summary(today: string = todayInParis()): Promise<RecurringSummaryDto> {
     const [items, [{ count: suggestedCount }]] = await Promise.all([
-      this.list('confirmed'),
+      this.list('confirmed', today),
       this.db
         .select({ count: sql<number>`count(*)::int` })
         .from(recurringItemsTable)
@@ -269,7 +277,12 @@ export class RecurringService {
     }
     const credits = emptyTotal()
     let inactiveCount = 0
+    let endedCount = 0
     for (const item of items) {
+      if (item.ended) {
+        endedCount++
+        continue
+      }
       if (!item.active) {
         inactiveCount++
         continue
@@ -285,19 +298,29 @@ export class RecurringService {
       )
       if (item.isSubscription) addTo(debits.subscriptions, item.yearlyCostCents)
     }
-    return { debits, credits, suggestedCount, inactiveCount }
+    return { debits, credits, suggestedCount, inactiveCount, endedCount }
   }
 
-  /** Confirm, dismiss, rename, recategorize, override the cadence, ... */
+  /**
+   * Confirm, dismiss, rename, recategorize, override the cadence, cancel
+   * (`endedOn`, confirmed items only: 400 otherwise), ...
+   */
   async update(
     id: string,
     dto: UpdateRecurringItemDto,
+    today: string = todayInParis(),
   ): Promise<RecurringItemDto> {
     const [item] = await this.db
       .select()
       .from(recurringItemsTable)
       .where(eq(recurringItemsTable.id, id))
     if (!item) throw new NotFoundException('Recurring item not found')
+    if (
+      dto.endedOn !== undefined &&
+      (dto.status ?? item.status) !== 'confirmed'
+    ) {
+      throw new BadRequestException('Only a confirmed item can be cancelled')
+    }
 
     if (dto.categoryId) {
       const [category] = await this.db
@@ -320,13 +343,18 @@ export class RecurringService {
         dto.cadence === item.cadence ? null : dto.cadence
     }
     if (dto.notes !== undefined) changes.notes = dto.notes
+    if (dto.endedOn !== undefined) changes.endedOn = dto.endedOn
     if (Object.keys(changes).length > 0) {
       await this.db
         .update(recurringItemsTable)
         .set(changes)
         .where(eq(recurringItemsTable.id, id))
     }
-    const [updated] = await this.items(eq(recurringItemsTable.id, id))
+    const [updated] = await this.items(
+      eq(recurringItemsTable.id, id),
+      this.db,
+      today,
+    )
     return updated
   }
 
@@ -350,6 +378,7 @@ export class RecurringService {
   private async items(
     where: SQL | undefined,
     executor: Executor = this.db,
+    today: string = todayInParis(),
   ): Promise<RecurringItemDto[]> {
     const rows = await executor
       .select(itemColumns)
@@ -371,7 +400,6 @@ export class RecurringService {
       .select(transactionColumns)
       .from(transactionsTable)
       .where(inArray(transactionsTable.accountId, accountIds))
-    const today = todayInParis()
     const groups = groupTransactions(transactions)
     const horizons = accountHorizons(transactions, today)
     return rows.map((row) =>
@@ -385,6 +413,7 @@ export class RecurringService {
           ),
         ),
         horizons.get(row.item.accountId) ?? today,
+        today,
       ),
     )
   }
@@ -393,6 +422,7 @@ export class RecurringService {
     row: ItemRow,
     group: TransactionGroup | undefined,
     asOf: string,
+    today: string,
   ): RecurringItemDto {
     const { item } = row
     const cadence = item.cadenceOverride ?? item.cadence
@@ -403,6 +433,7 @@ export class RecurringService {
       stats?.typicalAmountCents ?? item.typicalAmountCents
     const lastSeenDate = stats?.lastDate ?? item.lastSeenDate
     const yearly = yearlyCostCents(typicalAmountCents, cadence)
+    const { endedOn } = item
     return {
       id: item.id,
       accountId: item.accountId,
@@ -454,6 +485,30 @@ export class RecurringService {
           amountCents: o.amountCents,
         })),
       notes: item.notes,
+      endedOn,
+      ended: endedOn !== null && endedOn <= today,
+      chargedAfterEnd:
+        endedOn === null ? null : chargedAfterEnd(endedOn, stats, lastSeenDate),
     }
   }
+}
+
+/**
+ * Latest occurrence booked on or after the cancellation date `endedOn` (a
+ * cancellation the provider did not apply), else null. Without the series'
+ * transactions, the stored last seen date stands for them.
+ */
+export function chargedAfterEnd(
+  endedOn: string,
+  stats: Pick<SeriesStats, 'occurrences'> | null,
+  lastSeenDate: string,
+): string | null {
+  const dates = stats
+    ? stats.occurrences.map((occurrence) => occurrence.date)
+    : [lastSeenDate]
+  let latest: string | null = null
+  for (const date of dates) {
+    if (date >= endedOn && (latest === null || date > latest)) latest = date
+  }
+  return latest
 }

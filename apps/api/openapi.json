@@ -2805,7 +2805,7 @@
     },
     "/api/recurring/{id}": {
       "patch": {
-        "description": "Confirm or dismiss it, rename it, change its category, fixed-cost flag, cadence or notes. Omitted fields are kept.",
+        "description": "Confirm or dismiss it, rename it, change its category, fixed-cost flag, cadence or notes, cancel it from a date (`endedOn`, confirmed items only) or reactivate it (`endedOn: null`). Omitted fields are kept.",
         "operationId": "RecurringController_update",
         "parameters": [
           {
@@ -2840,10 +2840,13 @@
             }
           },
           "400": {
-            "description": "Invalid body or unknown category."
+            "description": "Invalid body, unknown category, or `endedOn` on an item that is not confirmed."
           },
           "401": {
             "description": ""
+          },
+          "403": {
+            "description": "Access token with `endedOn`: cancelling stays in the app (session only)."
           },
           "404": {
             "description": "Unknown item."
@@ -8984,6 +8987,24 @@
           "notes": {
             "type": "string",
             "nullable": true
+          },
+          "endedOn": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06",
+            "nullable": true,
+            "description": "Cancellation date: the first day no charge is expected any more. Null when the item is not cancelled."
+          },
+          "ended": {
+            "type": "boolean",
+            "description": "`endedOn` is today or earlier (Europe/Paris): out of the totals, the forecast and the upcoming debits."
+          },
+          "chargedAfterEnd": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06",
+            "nullable": true,
+            "description": "Latest occurrence booked on or after `endedOn` (a cancellation that did not go through); null otherwise."
           }
         },
         "required": [
@@ -9021,7 +9042,10 @@
           "nextExpectedDate",
           "occurrenceCount",
           "occurrences",
-          "notes"
+          "notes",
+          "endedOn",
+          "ended",
+          "chargedAfterEnd"
         ]
       },
       "RecurringTotalDto": {
@@ -9097,7 +9121,7 @@
         "type": "object",
         "properties": {
           "debits": {
-            "description": "Confirmed, active debits.",
+            "description": "Confirmed, active debits, not cancelled as of today.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/RecurringDebitsSummaryDto"
@@ -9105,7 +9129,7 @@
             ]
           },
           "credits": {
-            "description": "Confirmed, active credits (salary, benefits, ...).",
+            "description": "Confirmed, active credits (salary, benefits, ...), not ended as of today.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/RecurringTotalDto"
@@ -9118,14 +9142,19 @@
           },
           "inactiveCount": {
             "type": "integer",
-            "description": "Confirmed items that are inactive (left out of the totals)."
+            "description": "Confirmed items that are inactive and not cancelled (left out of the totals)."
+          },
+          "endedCount": {
+            "type": "integer",
+            "description": "Confirmed items cancelled as of today (`ended`, left out of the totals)."
           }
         },
         "required": [
           "debits",
           "credits",
           "suggestedCount",
-          "inactiveCount"
+          "inactiveCount",
+          "endedCount"
         ]
       },
       "ConfirmRecurringItemsDto": {
@@ -9195,6 +9224,13 @@
             "nullable": true,
             "maxLength": 1000,
             "description": "Null or empty removes the notes."
+          },
+          "endedOn": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06",
+            "nullable": true,
+            "description": "Cancellation (« Résilier »), confirmed items only: the first day no charge is expected any more (past, today or future). Null reactivates the item. Refused to access tokens."
           }
         }
       },
@@ -14018,6 +14054,39 @@
           "priceChangedOn"
         ]
       },
+      "CloseChargedAfterEndDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "endedOn": {
+            "type": "string",
+            "format": "date",
+            "description": "Cancellation date of the item."
+          },
+          "chargedOn": {
+            "type": "string",
+            "format": "date",
+            "description": "Latest charge of the month booked on or after `endedOn`."
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Positive cents."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "endedOn",
+          "chargedOn",
+          "amountCents"
+        ]
+      },
       "CloseRecurringDto": {
         "type": "object",
         "properties": {
@@ -14026,16 +14095,24 @@
             "description": "Detected recurring items still to confirm or dismiss."
           },
           "priceChanges": {
-            "description": "Confirmed items whose price changed during the month.",
+            "description": "Confirmed items whose price changed during the month, cancelled ones left out from their end date.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ClosePriceChangeDto"
+            }
+          },
+          "chargedAfterEnd": {
+            "description": "Cancelled items charged during the month on or after their end date (a cancellation that did not go through).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloseChargedAfterEndDto"
             }
           }
         },
         "required": [
           "suggestedCount",
-          "priceChanges"
+          "priceChanges",
+          "chargedAfterEnd"
         ]
       },
       "CloseGoalDto": {

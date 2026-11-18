@@ -170,6 +170,14 @@ describe.skipIf(!process.env.DATABASE_URL)(
         expect(recurring.find((r) => r.merchantKey === 'NETFLIX')?.status).toBe(
           'confirmed',
         )
+        // One cancellation over, one ending next month.
+        const ended = recurring
+          .filter((r) => r.endedOn !== null)
+          .map((r) => ({ key: r.merchantKey, status: r.status }))
+          .sort((a, b) => a.key.localeCompare(b.key))
+        expect(ended).toHaveLength(2)
+        expect(ended.every((r) => r.status === 'confirmed')).toBe(true)
+        expect(ended.map((r) => r.key).join(' ')).toMatch(/SPOTIFY.*VIDEOPASS/)
       })
     })
 

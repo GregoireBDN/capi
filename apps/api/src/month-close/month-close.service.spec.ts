@@ -19,6 +19,7 @@ import {
   recurringItemsTable,
   transactionsTable,
 } from '#/database/schema'
+import { normalizeLabel } from '#/imports/normalize/label'
 import { InvestmentsService } from '#/investments/investments.service'
 import { RecurringService } from '#/recurring/recurring.service'
 import { SavingsService } from '#/savings/savings.service'
@@ -270,6 +271,76 @@ describe.skipIf(!process.env.DATABASE_URL)(
           'savings',
           'investments',
         ])
+      })
+    })
+
+    it('lists a cancelled subscription charged after its end date', async () => {
+      await inRollback(async ({ tx, accounts, service }) => {
+        const checking = await accounts.create({
+          name: 'Test checking',
+          type: 'checking',
+        })
+        const label = 'PRLV SEPA STREAMFLIX EXEMPLE'
+        // Monthly on the 15th, May to October.
+        await tx.insert(transactionsTable).values(
+          ['05', '06', '07', '08', '09', '10'].map((month) =>
+            transaction(checking.id, {
+              bookingDate: `2026-${month}-15`,
+              amountCents: -1_299,
+              rawLabel: label,
+            }),
+          ),
+        )
+        const { merchantKey } = normalizeLabel(label, -1_299)
+        const [item] = await tx
+          .insert(recurringItemsTable)
+          .values({
+            accountId: checking.id,
+            merchantKey: merchantKey!,
+            direction: 'debit',
+            name: 'Test streaming',
+            status: 'confirmed',
+            isFixedCost: true,
+            cadence: 'monthly',
+            amountType: 'fixed',
+            typicalAmountCents: 1_299,
+            confidence: 0.9,
+            lastSeenDate: '2026-10-15',
+            // Cancelled from October 1: the October 15 charge went through.
+            endedOn: '2026-10-01',
+          })
+          .returning()
+
+        const october = await service.get('2026-10', { now: NOW })
+        expect(october.recurring.chargedAfterEnd).toEqual([
+          {
+            id: item.id,
+            name: 'Test streaming',
+            endedOn: '2026-10-01',
+            chargedOn: '2026-10-15',
+            amountCents: 1_299,
+          },
+        ])
+        expect(doneSteps(october)).not.toContain('recurring')
+        // September's charge came before the end: nothing to flag.
+        const september = await service.get('2026-09', { now: NOW })
+        expect(september.recurring.chargedAfterEnd).toEqual([])
+
+        // Seen: the tick closes the step.
+        const ticked = await service.update(
+          '2026-10',
+          { acknowledged: ['recurring'] },
+          { now: NOW },
+        )
+        expect(doneSteps(ticked)).toContain('recurring')
+
+        // Cancelled from November: October is a normal month again.
+        await tx
+          .update(recurringItemsTable)
+          .set({ endedOn: '2026-11-01' })
+          .where(eq(recurringItemsTable.id, item.id))
+        const after = await service.get('2026-10', { now: NOW })
+        expect(after.recurring.chargedAfterEnd).toEqual([])
       })
     })
 

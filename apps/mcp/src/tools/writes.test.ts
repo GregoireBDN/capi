@@ -683,7 +683,7 @@ describe('month-end review', () => {
         gaps: [],
       },
       reviewQueue: { count: 4 },
-      recurring: { suggestedCount: 0, priceChanges: [] },
+      recurring: { suggestedCount: 0, priceChanges: [], chargedAfterEnd: [] },
       budget: {
         budgetCount: 0,
         targetCents: 0,

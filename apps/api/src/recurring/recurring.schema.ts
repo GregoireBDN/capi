@@ -47,7 +47,7 @@ export const recurringStatusEnum = pgEnum(
  * The detection columns (`cadence`, amounts, dates, `confidence`) are a
  * snapshot refreshed by every detection run; the list endpoint recomputes
  * them from the transactions. The user's columns (`name`, `categoryId`,
- * `isFixedCost`, `cadenceOverride`, `notes`, `status`) are never overwritten
+ * `isFixedCost`, `cadenceOverride`, `notes`, `status`, `endedOn`) are never overwritten
  * by a detection run. `dismissed` items are never suggested again.
  */
 export const recurringItemsTable = pgTable(
@@ -82,6 +82,11 @@ export const recurringItemsTable = pgTable(
     lastSeenDate: date('last_seen_date', { mode: 'string' }).notNull(),
     nextExpectedDate: date('next_expected_date', { mode: 'string' }),
     notes: text('notes'),
+    /**
+     * The user's cancellation (« Résilier »): the first day no charge is
+     * expected any more (past, today or future). Never touched by detection.
+     */
+    endedOn: date('ended_on', { mode: 'string' }),
   },
   (t) => [
     unique('recurring_items_account_merchant_direction_unique').on(

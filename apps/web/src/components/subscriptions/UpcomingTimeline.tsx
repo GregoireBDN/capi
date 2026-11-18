@@ -17,7 +17,8 @@ import {
 
 /**
  * Expected debits of the confirmed items over the next 30 days, by date
- * (typical amounts: variable bills are an estimate).
+ * (typical amounts: variable bills are an estimate). A cancelled item stops
+ * before its end date, its last charge marked « dernière échéance ».
  */
 export function UpcomingTimeline({
   items,
@@ -65,11 +66,16 @@ export function UpcomingTimeline({
                   </span>
                 </p>
                 <ul className="mt-1 space-y-1">
-                  {entries.map(({ key, item }) => (
+                  {entries.map(({ key, item, last }) => (
                     <li key={key} className="flex items-center gap-2 text-sm">
                       <CategoryDot color={item.categoryColor} />
-                      <span className="min-w-0 flex-1 truncate">
-                        {item.name}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{item.name}</span>
+                        {last && (
+                          <span className="text-muted-foreground block text-xs">
+                            Dernière échéance
+                          </span>
+                        )}
                       </span>
                       <span className="shrink-0 tabular-nums">
                         {item.amountType === 'variable' ? '~ ' : ''}

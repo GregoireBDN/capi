@@ -109,6 +109,47 @@ const shortDay = new Intl.DateTimeFormat('fr-FR', {
   timeZone: 'UTC',
 })
 
+const dayMonth = new Intl.DateTimeFormat('fr-FR', {
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'UTC',
+})
+
+/**
+ * `2026-12-15` → "15 déc.", "15 déc. 2027" when it is not the year of
+ * `today`.
+ */
+export function formatDayMonth(date: string, today: string): string {
+  const formatted = dayMonth.format(new Date(toUtc(date)))
+  // "1er déc.", as French writes the first of the month.
+  const day = date.endsWith('-01')
+    ? formatted.replace(/^1(?=\s)/, '1er')
+    : formatted
+  return date.slice(0, 4) === today.slice(0, 4)
+    ? day
+    : `${day} ${date.slice(0, 4)}`
+}
+
+/** "Résilié · fin le 15 déc."; null when the item is not cancelled. */
+export function formatEnd(
+  item: Pick<RecurringItemDto, 'endedOn'>,
+  today: string,
+): string | null {
+  return item.endedOn
+    ? `Résilié · fin le ${formatDayMonth(item.endedOn, today)}`
+    : null
+}
+
+/** "Prélevé après la résiliation (12 déc.)"; null without such a charge. */
+export function formatChargedAfterEnd(
+  item: Pick<RecurringItemDto, 'chargedAfterEnd'>,
+  today: string,
+): string | null {
+  return item.chargedAfterEnd
+    ? `Prélevé après la résiliation (${formatDayMonth(item.chargedAfterEnd, today)})`
+    : null
+}
+
 /** `2026-11-09` → "lun. 9 nov.". */
 export function formatShortDay(date: string): string {
   return shortDay.format(new Date(toUtc(date)))
@@ -157,12 +198,15 @@ export interface UpcomingDebit {
   key: string
   date: string
   item: RecurringItemDto
+  /** The last one before the item's cancellation date (« dernière échéance »). */
+  last: boolean
 }
 
 /**
  * Expected debits of the confirmed, active items from `today` to
  * `today + days` included, by date. An expected date already past (not
  * imported yet) is carried forward period by period; weekly items repeat.
+ * A cancelled item stops before its end date (`endedOn`).
  */
 export function upcomingDebits(
   items: readonly RecurringItemDto[],
@@ -175,6 +219,7 @@ export function upcomingDebits(
     if (
       item.status !== 'confirmed' ||
       !item.active ||
+      item.ended ||
       item.direction !== 'debit' ||
       !item.nextExpectedDate
     ) {
@@ -185,9 +230,20 @@ export function upcomingDebits(
     for (let guard = 0; date < today && guard < 80; guard++) {
       date = nextPeriod(date, item.cadence)
     }
-    for (let guard = 0; date <= end && guard < 10; guard++) {
-      upcoming.push({ key: `${item.id}:${date}`, date, item })
-      date = nextPeriod(date, item.cadence)
+    const { endedOn } = item
+    for (
+      let guard = 0;
+      date <= end && (endedOn === null || date < endedOn) && guard < 10;
+      guard++
+    ) {
+      const next = nextPeriod(date, item.cadence)
+      upcoming.push({
+        key: `${item.id}:${date}`,
+        date,
+        item,
+        last: endedOn !== null && next >= endedOn,
+      })
+      date = next
     }
   }
   return upcoming.sort(
@@ -203,13 +259,17 @@ export interface RecurringGroups {
   fixed: RecurringItemDto[]
   variable: RecurringItemDto[]
   incomes: RecurringItemDto[]
+  /** Confirmed items cancelled as of today (« Abonnements résiliés »). */
+  ended: RecurringItemDto[]
   dismissed: RecurringItemDto[]
 }
 
 /**
  * Suggestions (most confident first), confirmed items split into
  * subscriptions (the `subscriptions` category), other fixed costs, other
- * debits and incomes (largest monthly cost first), and dismissed items.
+ * debits and incomes (largest monthly cost first), cancelled items (latest
+ * end first; one cancelled from a future date stays in its group until
+ * then) and dismissed items.
  */
 export function groupItems(
   items: readonly RecurringItemDto[],
@@ -220,11 +280,13 @@ export function groupItems(
     fixed: [],
     variable: [],
     incomes: [],
+    ended: [],
     dismissed: [],
   }
   for (const item of items) {
     if (item.status === 'suggested') groups.suggestions.push(item)
     else if (item.status === 'dismissed') groups.dismissed.push(item)
+    else if (item.ended) groups.ended.push(item)
     else if (item.direction === 'credit') groups.incomes.push(item)
     else if (item.isSubscription) groups.subscriptions.push(item)
     else if (item.isFixedCost) groups.fixed.push(item)
@@ -238,5 +300,10 @@ export function groupItems(
   groups.fixed.sort(byCost)
   groups.variable.sort(byCost)
   groups.incomes.sort(byCost)
+  groups.ended.sort(
+    (a, b) =>
+      (b.endedOn ?? '').localeCompare(a.endedOn ?? '') ||
+      a.name.localeCompare(b.name, 'fr'),
+  )
   return groups
 }

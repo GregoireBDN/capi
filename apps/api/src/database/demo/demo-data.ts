@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import * as bcrypt from 'bcryptjs'
-import { inArray, sql } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { BCRYPT_SALT_ROUNDS } from '#/auth/auth.constants'
 import { categorize } from '#/categories/rules/categorize'
@@ -192,6 +192,7 @@ const RULES: readonly RuleSpec[] = [
   { pattern: 'PICARD', slug: 'groceries' },
   { pattern: 'NETFLIX', slug: 'subscriptions' },
   { pattern: 'SPOTIFY', slug: 'subscriptions' },
+  { pattern: 'VIDEOPASS', slug: 'subscriptions' },
   { pattern: 'BASIC FIT', slug: 'leisure' },
   { pattern: 'FONCIA', slug: 'rent', merchant: 'Foncia' },
   { pattern: 'EDF', slug: 'energy' },
@@ -334,6 +335,15 @@ function checkingMonth(
     amountCents: -1_199,
     rawLabel: `PAIEMENT CB ${ddmm(spotifyDate)} SPOTIFY ${CARD}`,
   })
+  // Cancelled (« Résilier ») after last month's charge: none this month.
+  if (fromEnd >= 1) {
+    const videoDate = dayIn(month, 13)
+    rows.push({
+      bookingDate: videoDate,
+      amountCents: -999,
+      rawLabel: `PAIEMENT CB ${ddmm(videoDate)} PARIS VIDEOPASS ${CARD}`,
+    })
+  }
   rows.push({
     bookingDate: dayIn(month, 15),
     amountCents: -18_500,
@@ -1013,6 +1023,30 @@ export async function generateDemoData(
         confirmSlugs.map((slug) => category(slug).id),
       ),
     )
+  // Two cancellations (#270): one already over (the day after its last
+  // charge), one from after next month's charge (Spotify, the 12th).
+  const subscriptionItems = await db
+    .select({
+      id: recurringItemsTable.id,
+      merchantKey: recurringItemsTable.merchantKey,
+      lastSeenDate: recurringItemsTable.lastSeenDate,
+    })
+    .from(recurringItemsTable)
+    .where(
+      inArray(recurringItemsTable.categoryId, [category('subscriptions').id]),
+    )
+  for (const item of subscriptionItems) {
+    const endedOn = item.merchantKey.includes('VIDEOPASS')
+      ? addDays(item.lastSeenDate, 1)
+      : item.merchantKey.includes('SPOTIFY')
+        ? dayIn(addMonths(monthStart(today), 1), 13)
+        : null
+    if (endedOn === null) continue
+    await db
+      .update(recurringItemsTable)
+      .set({ endedOn })
+      .where(eq(recurringItemsTable.id, item.id))
+  }
   const [{ count: recurringItems }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(recurringItemsTable)

@@ -1,0 +1,1 @@
+ALTER TABLE "recurring_items" ADD COLUMN "ended_on" date;

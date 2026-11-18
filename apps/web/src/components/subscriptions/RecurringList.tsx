@@ -1,8 +1,10 @@
-import { Badge } from '@finances/ui'
+import { Badge, cn } from '@finances/ui'
 import {
+  BanIcon,
   ChevronRightIcon,
   TrendingDownIcon,
   TrendingUpIcon,
+  TriangleAlertIcon,
 } from 'lucide-react'
 import type { RecurringItemDto } from '#/api/types.gen'
 import { CategoryDot } from '#/components/budget/CategoryDot'
@@ -10,8 +12,11 @@ import { formatCents } from '#/lib/money'
 import {
   CADENCE_LABELS,
   formatAmountPerPeriod,
+  formatChargedAfterEnd,
+  formatEnd,
   formatPriceChange,
   formatRelativeDay,
+  nextPeriod,
 } from './format'
 
 interface RecurringListProps {
@@ -26,12 +31,42 @@ function NextDate({ item, today }: { item: RecurringItemDto; today: string }) {
   if (!item.active)
     return <>Dernière fois {formatRelativeDay(item.lastSeenDate, today)}</>
   if (!item.nextExpectedDate) return null
+  const { endedOn } = item
+  if (endedOn !== null && item.nextExpectedDate >= endedOn)
+    return <>Plus de prélèvement attendu</>
   const late = item.nextExpectedDate < today
+  const last =
+    endedOn !== null &&
+    nextPeriod(item.nextExpectedDate, item.cadence) >= endedOn
   return (
     <>
       {late ? 'Attendu ' : 'Prochain '}
       {formatRelativeDay(item.nextExpectedDate, today)}
+      {last ? ' · dernière échéance' : ''}
     </>
+  )
+}
+
+/** Warning badge of a charge booked on or after the end date. */
+export function ChargedAfterEndBadge({
+  item,
+  today,
+}: {
+  item: RecurringItemDto
+  today: string
+}) {
+  const label = formatChargedAfterEnd(item, today)
+  if (!label) return null
+  return (
+    <Badge
+      variant="warning"
+      outline
+      // Long: wraps on narrow phones rather than being clipped.
+      className="h-auto min-h-5 max-w-full shrink rounded-lg py-0.5 text-left whitespace-normal"
+    >
+      <TriangleAlertIcon aria-hidden="true" />
+      {label}
+    </Badge>
   )
 }
 
@@ -52,7 +87,7 @@ export function RecurringList({
   const headingId = `recurring-${title.replace(/\W+/g, '-').toLowerCase()}`
   const credit = items[0].direction === 'credit'
   const activeYearly = items
-    .filter((item) => item.active)
+    .filter((item) => item.active && !item.ended)
     .reduce((sum, item) => sum + item.yearlyCostCents, 0)
   return (
     <section aria-labelledby={headingId} className="space-y-2">
@@ -70,6 +105,7 @@ export function RecurringList({
       <ul className="bg-card divide-y rounded-xl border">
         {items.map((item) => {
           const priceChange = formatPriceChange(item, today)
+          const end = formatEnd(item, today)
           return (
             <li key={item.id}>
               <button
@@ -83,11 +119,13 @@ export function RecurringList({
                   <CategoryDot color={item.categoryColor} />
                 </span>
                 <span className="min-w-0 flex-1 space-y-0.5">
+                  {/* Each fact beside what it is about: the price change
+                      under the price, the end date under the next date. */}
                   <span className="flex flex-wrap items-baseline justify-between gap-x-2">
                     <span className="min-w-0 font-medium break-words">
                       {item.name}
                     </span>
-                    <span className="ml-auto max-w-full text-right font-semibold tabular-nums">
+                    <span className="ml-auto max-w-full text-right font-semibold whitespace-nowrap tabular-nums">
                       {credit ? '+' : ''}
                       {formatAmountPerPeriod(item)}
                     </span>
@@ -103,29 +141,44 @@ export function RecurringList({
                       </span>
                     )}
                   </span>
-                  <span className="text-muted-foreground block text-xs">
-                    <NextDate item={item} today={today} />
+                  <span className="flex flex-wrap justify-between gap-x-2 text-xs">
+                    <span className="text-muted-foreground">
+                      <NextDate item={item} today={today} />
+                    </span>
+                    {priceChange && (
+                      <span
+                        className={cn(
+                          'ml-auto flex shrink-0 items-center gap-1 font-medium whitespace-nowrap',
+                          (item.priceChangeCents ?? 0) > 0 === !credit
+                            ? 'text-warning-foreground dark:text-warning'
+                            : 'text-success-foreground dark:text-success',
+                        )}
+                      >
+                        {(item.priceChangeCents ?? 0) > 0 ? (
+                          <TrendingUpIcon
+                            aria-hidden="true"
+                            className="size-3.5"
+                          />
+                        ) : (
+                          <TrendingDownIcon
+                            aria-hidden="true"
+                            className="size-3.5"
+                          />
+                        )}
+                        {priceChange}
+                      </span>
+                    )}
                   </span>
-                  {(priceChange || !item.active) && (
+                  {end && (
+                    <span className="flex items-center gap-1 text-xs font-medium">
+                      <BanIcon aria-hidden="true" className="size-3.5" />
+                      {end}
+                    </span>
+                  )}
+                  {(item.chargedAfterEnd || (!item.active && !end)) && (
                     <span className="flex flex-wrap gap-1.5 pt-1">
-                      {priceChange && (
-                        <Badge
-                          variant={
-                            (item.priceChangeCents ?? 0) > 0 === !credit
-                              ? 'warning'
-                              : 'success'
-                          }
-                          outline
-                        >
-                          {(item.priceChangeCents ?? 0) > 0 ? (
-                            <TrendingUpIcon aria-hidden="true" />
-                          ) : (
-                            <TrendingDownIcon aria-hidden="true" />
-                          )}
-                          {priceChange}
-                        </Badge>
-                      )}
-                      {!item.active && (
+                      <ChargedAfterEndBadge item={item} today={today} />
+                      {!item.active && !end && (
                         <Badge variant="secondary" outline>
                           Inactif
                         </Badge>
