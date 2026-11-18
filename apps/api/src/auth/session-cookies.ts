@@ -39,14 +39,6 @@ export interface SessionCookieConfig {
    * redirect to the login page.
    */
   refresh: string
-  /**
-   * The unprefixed names the cookies had before `__Host-` (production only).
-   * One-release migration: a refresh still accepts the old refresh cookie when
-   * the prefixed one is missing, and every reply that sets or clears the
-   * session clears the old pair, so a signed-in owner moves to the new names
-   * at their next refresh without signing in again.
-   */
-  legacy: { access: string; refresh: string } | null
 }
 
 /**
@@ -60,17 +52,12 @@ export function sessionCookieConfig(secure: boolean): SessionCookieConfig {
       secure,
       access: UNPREFIXED_ACCESS_COOKIE,
       refresh: UNPREFIXED_REFRESH_COOKIE,
-      legacy: null,
     }
   }
   return {
     secure,
     access: `${HOST_COOKIE_PREFIX}${UNPREFIXED_ACCESS_COOKIE}`,
     refresh: `${HOST_COOKIE_PREFIX}${UNPREFIXED_REFRESH_COOKIE}`,
-    legacy: {
-      access: UNPREFIXED_ACCESS_COOKIE,
-      refresh: UNPREFIXED_REFRESH_COOKIE,
-    },
   }
 }
 
@@ -94,19 +81,21 @@ export function readAccessCookie(
 }
 
 /**
- * The refresh token presented by the browser: the current cookie, else (one
- * release, see `SessionCookieConfig.legacy`) the unprefixed one.
+ * The refresh token presented by the browser (current name only: the plain
+ * `refresh_token` fallback of the #217 migration is gone since #226).
  */
 export function readRefreshCookie(
   req: FastifyRequest,
   config: SessionCookieConfig = SESSION_COOKIES,
 ): string | undefined {
-  const current = req.cookies?.[config.refresh]
-  if (current) return current
-  return (config.legacy && req.cookies?.[config.legacy.refresh]) || undefined
+  return req.cookies?.[config.refresh] || undefined
 }
 
-/** Clears the cookies of older releases (legacy names and path). */
+/**
+ * Clears the cookies of older releases: the refresh cookie at its old path
+ * and, in production, the plain pair from before `__Host-` (never read any
+ * more, cleared so stragglers don't linger).
+ */
 function clearLegacyCookies(
   reply: FastifyReply,
   config: SessionCookieConfig,
@@ -116,10 +105,10 @@ function clearLegacyCookies(
     ...options,
     path: LEGACY_REFRESH_COOKIE_PATH,
   })
-  if (config.legacy) {
+  if (config.access !== UNPREFIXED_ACCESS_COOKIE) {
     reply
-      .clearCookie(config.legacy.access, options)
-      .clearCookie(config.legacy.refresh, options)
+      .clearCookie(UNPREFIXED_ACCESS_COOKIE, options)
+      .clearCookie(UNPREFIXED_REFRESH_COOKIE, options)
   }
   return reply
 }
