@@ -27,6 +27,14 @@ const WEB_PROXY = '172.18.0.3'
 /** Clients (documentation ranges, never private). */
 const CLIENT_A = '203.0.113.10'
 const CLIENT_B = '198.51.100.20'
+/**
+ * Tailnet devices as Caddy forwards them (#251): an IPv4 in 100.64/10, or an
+ * IPv6 in Tailscale's fd7a:115c:a1e0::/48, which is itself inside the private
+ * range the API trusts (uniquelocal). Synthetic host parts.
+ */
+const TAILNET_V4 = '100.101.102.103'
+const TAILNET_V6_A = 'fd7a:115c:a1e0::aaaa:1'
+const TAILNET_V6_B = 'fd7a:115c:a1e0::bbbb:2'
 
 @Controller()
 class ProbeController {
@@ -150,6 +158,19 @@ describe('trusted proxies (client IP behind the /api proxy)', () => {
       expect(res.json()).toEqual({ ip: CLIENT_A })
     })
 
+    it.each([TAILNET_V4, TAILNET_V6_A])(
+      'takes a tailnet client address (%s) forwarded by web',
+      async (client) => {
+        app = await createApp()
+        const res = await send(app, {
+          path: '/ip',
+          from: WEB_PROXY,
+          forwardedFor: client,
+        })
+        expect(res.json()).toEqual({ ip: client })
+      },
+    )
+
     it('trusts nobody with TRUSTED_PROXIES=none', async () => {
       app = await createApp('none')
       const res = await send(app, {
@@ -181,6 +202,25 @@ describe('trusted proxies (client IP behind the /api proxy)', () => {
         forwardedFor: CLIENT_B,
       })
       expect(clientB.statusCode).toBe(200)
+    })
+
+    it('gives two tailnet devices connecting over IPv6 their own buckets', async () => {
+      app = await createApp()
+      const limit = THROTTLE_LIMITS.login
+
+      const deviceA = await loginStatuses(app, limit + 1, () => ({
+        from: WEB_PROXY,
+        forwardedFor: TAILNET_V6_A,
+      }))
+      expect(deviceA[limit]).toBe(429)
+
+      const deviceB = await send(app, {
+        path: '/login',
+        method: 'POST',
+        from: WEB_PROXY,
+        forwardedFor: TAILNET_V6_B,
+      })
+      expect(deviceB.statusCode).toBe(200)
     })
 
     it('a client calling the API directly cannot bypass it with a spoofed X-Forwarded-For', async () => {

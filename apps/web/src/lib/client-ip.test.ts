@@ -98,6 +98,20 @@ describe('TrustedProxies (host names)', () => {
     expect(resolveClientIp(CADDY, CLIENT, proxies.trust)).toBe(CLIENT)
   })
 
+  it('trusts both addresses of a dual-stack Caddy and keeps tailnet IPv6 clients apart (#251)', async () => {
+    const caddyV6 = 'fd12:3456:789a:1::2'
+    const { proxies } = setup([[CADDY, caddyV6]])
+    await proxies.refresh()
+    const deviceA = 'fd7a:115c:a1e0::aaaa:1'
+    const deviceB = 'fd7a:115c:a1e0::bbbb:2'
+    expect(resolveClientIp(caddyV6, deviceA, proxies.trust)).toBe(deviceA)
+    expect(resolveClientIp(CADDY, deviceB, proxies.trust)).toBe(deviceB)
+    // Another container on the dual-stack network is still not trusted.
+    expect(resolveClientIp('fd12:3456:789a:1::9', deviceA, proxies.trust)).toBe(
+      'fd12:3456:789a:1::9',
+    )
+  })
+
   it('resolves again every 30 s and follows a restarted Caddy', async () => {
     vi.useFakeTimers()
     const { proxies, lookup } = setup([[CADDY], ['172.20.0.7']])
