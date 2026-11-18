@@ -75,7 +75,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'One box ‹ | period ⌄ | ›, 44px high, used by the month navigator of every month page (#263). It is laid out by its **container** (`@container`), never the viewport: under 320px the label takes its short text and drops the ⌄; up to 512px the box spans the container; beyond, it fits its content. `sizers` keep the label as wide as its widest value, so the arrows stay in place from one month to the next. The middle segment is a button, ready for `PopoverTrigger asChild`.',
+          'One box ‹ | period ⌄ | ›, 44px high, used by the month navigator of every month page (#263). It is laid out by its **container** (`@container`), never the viewport: under 320px the label takes its short text and drops the ⌄. The box is as wide as its content at every width. `sizers` keep the label as wide as its widest value, so the arrows stay in place from one month to the next. The middle segment is a button, ready for `PopoverTrigger asChild`.',
       },
     },
   },
@@ -100,8 +100,8 @@ export const Playground: Story = {
 
 const WIDTHS = [
   { width: 280, label: '< 320px : libellé court, sans ⌄' },
-  { width: 400, label: '320–512px : toute la largeur' },
-  { width: 640, label: '≥ 512px : à sa taille' },
+  { width: 400, label: '≥ 320px : libellé complet' },
+  { width: 640, label: 'Large : même taille' },
 ]
 
 function Widths() {

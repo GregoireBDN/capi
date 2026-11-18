@@ -199,8 +199,8 @@ export interface MonthNavigatorProps {
  * month's name opening a month picker (months with transactions marked,
  * months after `max` off, shortcuts to the current month and to the month
  * the data stops in), and ← / → on a keyboard. One box with 44px targets,
- * laid out by its container (`@container`): short label under 320px, full
- * width up to 512px, its own width beyond. Place it with `MonthToolbar`.
+ * as wide as its content; short label when its container (`@container`) is
+ * under 320px. Place it with `MonthToolbar`.
  */
 export function MonthNavigator({
   month,

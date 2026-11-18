@@ -87,11 +87,11 @@ function SizedText({
 }
 
 /**
- * One box ‹ | period | ›, 44px high, laid out by its container (put it in a
- * `@container`): it spans the container up to 512px (phones, narrow cards)
- * and fits its content beyond; `PeriodStepperLabel` switches to its short
- * text under 320px. Widths are in px: with the app's 22px root, a container
- * `rem` is about 1.4× the usual one.
+ * One box ‹ | period | ›, 44px high, as wide as its content at every width
+ * (never stretched across the row). `PeriodStepperLabel` switches to its
+ * short text when its container (put it in a `@container`) is under 320px;
+ * px rather than rem: with the app's 22px root, a container `rem` is about
+ * 1.4× the usual one.
  */
 function PeriodStepper({
   previous,
@@ -105,7 +105,7 @@ function PeriodStepper({
       data-slot="period-stepper"
       role="group"
       className={cn(
-        'bg-card flex w-full items-stretch rounded-lg border shadow-xs @[512px]:w-fit',
+        'bg-card flex w-fit max-w-full items-stretch rounded-lg border shadow-xs',
         className,
       )}
       {...props}
@@ -159,7 +159,7 @@ function PeriodStepperLabel({
       ghost
       className={cn(
         SEGMENT,
-        'border-border text-foreground min-w-0 flex-1 gap-1 border-x px-2.5 text-base font-semibold @[512px]:flex-none',
+        'border-border text-foreground min-w-0 gap-1 border-x px-2.5 text-base font-semibold',
         className,
       )}
       {...props}
