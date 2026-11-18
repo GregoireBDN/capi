@@ -482,16 +482,24 @@ export function ManualTransactionSheet({
 
   // Each step starts on its heading (read out by screen readers), the
   // amount field on a computer, so typing goes straight to it.
+  function focusStep() {
+    if (step === 'amount' && !keypad) {
+      amountRef.current?.focus({ preventScroll: true })
+    } else {
+      stepRef.current?.focus({ preventScroll: true })
+    }
+  }
+  // On a step change, right in the commit that shows it: a later frame
+  // could take the focus from a field the user already taps or types in.
+  // The opening is focused by the sheet or dialog (its content mounts a
+  // render later).
   useEffect(() => {
     if (!open) return
-    const frame = requestAnimationFrame(() => {
-      if (step === 'amount' && !keypad) {
-        amountRef.current?.focus({ preventScroll: true })
-      } else {
-        stepRef.current?.focus({ preventScroll: true })
-      }
-    })
-    return () => cancelAnimationFrame(frame)
+    if (step === 'amount' && !keypad) {
+      amountRef.current?.focus({ preventScroll: true })
+    } else {
+      stepRef.current?.focus({ preventScroll: true })
+    }
   }, [open, step, keypad])
 
   function press(key: AmountKey) {
@@ -940,9 +948,9 @@ export function ManualTransactionSheet({
             )}
             onKeyDown={onKeyDown}
             onOpenAutoFocus={(event) => {
-              // Never a field: no system keyboard (the step effect focuses
-              // the step's heading).
+              // The step's heading, never a field: no system keyboard.
               event.preventDefault()
+              focusStep()
             }}
           >
             {form}
@@ -953,7 +961,10 @@ export function ManualTransactionSheet({
           <DialogContent
             className="flex h-[min(30rem,calc(100svh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
             onKeyDown={onKeyDown}
-            onOpenAutoFocus={(event) => event.preventDefault()}
+            onOpenAutoFocus={(event) => {
+              event.preventDefault()
+              focusStep()
+            }}
           >
             {form}
           </DialogContent>
