@@ -301,18 +301,19 @@ describe('TransactionsPage', () => {
     expect(within(totals).getByText('Dépenses').nextSibling).toHaveTextContent(
       euros(-4_550),
     )
-    expect(within(totals).getByText('Solde').nextSibling).toHaveTextContent(
-      euros(245_450),
-    )
+    // « Net », not « Solde » (it isn't an account balance); only it is toned.
+    const net = within(totals).getByText('Net').nextSibling as HTMLElement
+    expect(net).toHaveTextContent(euros(245_450))
+    expect(net).toHaveClass('text-chart-delta-good')
     expect(
-      within(totals).getByText('Opérations').nextSibling,
-    ).toHaveTextContent('3')
-    expect(
-      within(totals).getByText(`dont ponctuelles ${euros(-1_000)}`),
-    ).toBeInTheDocument()
+      within(totals).getByText('Dépenses').nextSibling as HTMLElement,
+    ).not.toHaveClass('text-chart-delta-bad')
+    expect(within(totals).queryByText('Solde')).not.toBeInTheDocument()
     expect(totals).toHaveTextContent(
-      'Mouvements internes exclus des revenus et des dépenses (1 virement entre vos comptes).',
+      `Dont ponctuelles ${euros(-1_000)} · 1 virement interne exclu`,
     )
+    // The count heads the list.
+    expect(screen.getByText('3 opérations')).toBeInTheDocument()
   })
 
   it('opens on the month the data stops in while the current one is empty', async () => {
@@ -402,13 +403,39 @@ describe('TransactionsPage', () => {
       page: 1,
       limit: 50,
     })
+    // « Toutes les dates » is the navigator's label, arrows off.
     expect(
-      screen.getByRole('button', { name: 'Toutes les dates' }),
-    ).toHaveAttribute('aria-pressed', 'true')
+      screen.getByRole('button', { name: 'Toutes les dates, choisir un mois' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Mois précédent' }),
+    ).toBeDisabled()
     expect(screen.getByLabelText('Rechercher une opération')).toHaveValue(
       'fake',
     )
-    expect(screen.getByLabelText('Catégorie')).toHaveValue('none')
+    // Every filter shows its value on its chip.
+    expect(
+      screen.getByRole('button', { name: 'Compte : Compte test, changer' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', {
+        name: 'Catégorie : Sans catégorie, changer',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Type : Dépenses, changer' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'À revoir' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'Ponctuelles' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(
+      screen.getByRole('button', { name: 'Filtres, 5 actifs' }),
+    ).toBeInTheDocument()
     expect(screen.getByLabelText('Tri')).toHaveValue('amount_asc')
     // Sorted by amount: a flat list, dates in the rows.
     expect(screen.queryByRole('heading', { level: 2 })).not.toBeInTheDocument()
@@ -419,17 +446,44 @@ describe('TransactionsPage', () => {
     const { user, onChange } = setup()
     await waitForRows()
 
+    // No filter on: nothing to clear.
+    expect(
+      screen.queryByRole('button', { name: 'Effacer' }),
+    ).not.toBeInTheDocument()
+
     // Only transactional accounts are offered.
-    const account = screen.getByLabelText('Compte')
-    expect(within(account).queryByText('PEA test')).not.toBeInTheDocument()
-    await user.selectOptions(account, ACCOUNT_ID)
+    await user.click(screen.getByRole('button', { name: 'Compte, tous' }))
+    const accountPicker = await screen.findByRole('dialog', { name: 'Compte' })
+    expect(
+      within(accountPicker).queryByRole('button', { name: 'PEA test' }),
+    ).not.toBeInTheDocument()
+    await user.click(
+      within(accountPicker).getByRole('button', { name: 'Compte test' }),
+    )
     expect(onChange).toHaveBeenLastCalledWith(
       { account: ACCOUNT_ID },
       undefined,
     )
 
-    await user.selectOptions(screen.getByLabelText('Catégorie'), 'none')
-    await user.selectOptions(screen.getByLabelText('Type'), 'transfer')
+    // Categories can be searched.
+    await user.click(screen.getByRole('button', { name: 'Catégorie, tous' }))
+    const categoryPicker = await screen.findByRole('dialog', {
+      name: 'Catégorie',
+    })
+    await user.type(
+      within(categoryPicker).getByLabelText('Rechercher catégorie'),
+      'sans',
+    )
+    await user.click(
+      within(categoryPicker).getByRole('button', { name: 'Sans catégorie' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Type, tous' }))
+    await user.click(
+      within(await screen.findByRole('dialog', { name: 'Type' })).getByRole(
+        'button',
+        { name: 'Mouvements internes' },
+      ),
+    )
     await user.click(screen.getByRole('button', { name: 'À revoir' }))
     await user.click(screen.getByRole('button', { name: 'Mois précédent' }))
 
@@ -459,8 +513,15 @@ describe('TransactionsPage', () => {
     expect(onChange.mock.lastCall?.[0]).not.toHaveProperty('month')
     expect(screen.getByRole('button', { name: 'Mois suivant' })).toBeDisabled()
 
-    // The whole history: no month sent at all.
-    await user.click(screen.getByRole('button', { name: 'Toutes les dates' }))
+    // The whole history, from the month picker: no month sent at all.
+    await user.click(
+      screen.getByRole('button', { name: 'Novembre 2026, choisir un mois' }),
+    )
+    await user.click(
+      within(
+        await screen.findByRole('dialog', { name: 'Choisir un mois' }),
+      ).getByRole('button', { name: 'Toutes les dates' }),
+    )
     expect(onChange.mock.lastCall?.[0]).toMatchObject({ month: 'all' })
     await waitFor(() =>
       expect(lastQuery(api.transactionsControllerSummary)).not.toHaveProperty(
@@ -468,12 +529,15 @@ describe('TransactionsPage', () => {
       ),
     )
 
-    await user.click(screen.getByRole('button', { name: 'Réinitialiser' }))
-    expect(onChange).toHaveBeenLastCalledWith({}, undefined)
+    // × clears one filter, « Effacer » all of them (the period stays).
+    await user.click(
+      screen.getByRole('button', { name: 'Retirer le filtre Type' }),
+    )
+    expect(onChange.mock.lastCall?.[0]).not.toHaveProperty('kind')
+    await user.click(screen.getByRole('button', { name: 'Effacer' }))
+    expect(onChange).toHaveBeenLastCalledWith({ month: 'all' }, undefined)
     await waitFor(() =>
-      expect(lastQuery(api.transactionsControllerSummary)).toEqual({
-        month: '2026-11',
-      }),
+      expect(lastQuery(api.transactionsControllerSummary)).toEqual({}),
     )
   })
 

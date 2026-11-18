@@ -27,10 +27,18 @@ export interface MonthToolbarProps {
    * in the bottom sheet the « Filtres » button opens below it.
    */
   filters?: (layout: MonthToolbarFiltersLayout) => ReactNode
+  /**
+   * Whether `filters('inline')` goes in the navigator's row from 672px.
+   * Off when the page lays its wide filters out in `children` (Opérations'
+   * chips): `filters` then only feeds the phone sheet. Default: on.
+   */
+  filtersInline?: boolean
   /** Filters set (not at their default), counted on the « Filtres » button. */
   activeFilters?: number
   /** The page's actions: at the end of the row, on a row of their own below 672px. */
   actions?: ReactNode
+  /** Rows of their own under the navigator's row (search, filter chips). */
+  children?: ReactNode
   className?: string
 }
 
@@ -101,13 +109,15 @@ export function MonthToolbar({
   navigator,
   period,
   filters,
+  filtersInline = true,
   activeFilters = 0,
   actions,
+  children,
   className,
 }: MonthToolbarProps) {
   // Nothing to set on the page: the period note fills the row instead, so
   // the bar never holds a lone navigator and an empty stretch.
-  const bare = !filters && !actions
+  const bare = !filters && !actions && !children
   // Only the navigator: no empty bar around it (same tree, so the
   // navigator isn't remounted when the period arrives).
   const plain = bare && !period
@@ -124,12 +134,14 @@ export function MonthToolbar({
         {navigator}
         {filters && (
           <div className="ml-auto flex min-w-0 items-center gap-2">
-            <div
-              data-slot="month-toolbar-filters"
-              className="hidden flex-wrap items-center justify-end gap-2 @[672px]:flex"
-            >
-              {filters('inline')}
-            </div>
+            {filtersInline && (
+              <div
+                data-slot="month-toolbar-filters"
+                className="hidden flex-wrap items-center justify-end gap-2 @[672px]:flex"
+              >
+                {filters('inline')}
+              </div>
+            )}
             <FiltersButton count={activeFilters} filters={filters} />
           </div>
         )}
@@ -152,6 +164,7 @@ export function MonthToolbar({
           />
         )}
       </div>
+      {children}
       {!bare && period && (
         <PeriodNote period={period} className="border-t px-1 pt-2" />
       )}
