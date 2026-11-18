@@ -30,7 +30,7 @@ import { plural } from '#/lib/plural'
 import { ROUTES } from '#/lib/routes'
 import { AccountsList } from './AccountsList'
 import { CashFlowChart, ChartCardSkeleton } from './DashboardCharts'
-import { ForecastCard } from './ForecastCard'
+import { ForecastTiles } from './ForecastCard'
 import { MonthEnvelopes } from './MonthEnvelopes'
 import { MonthReview } from './MonthReview'
 import {
@@ -211,12 +211,12 @@ export function DashboardPage({
         <>
           {data.reviewCount > 0 && <ReviewCallout count={data.reviewCount} />}
 
-          {/* One card per row (owner's choice): last month, this month,
-              its end, where I stand, then the history. Each card lays its
+          {/* One card per row (owner's choice): last month, this month
+              and its end, where I stand, then the history. Each card lays its
               content out for its own width. */}
           <ReviewSection month={month} onMonthChange={onMonthChange} />
-          <MonthEnvelopes />
-          <ForecastCard />
+          {/* This month: how it will end, then the envelopes. */}
+          <MonthEnvelopes figures={<ForecastTiles />} />
           <AccountsList accounts={data.accounts} netWorth={data.netWorth} />
 
           {/* Net worth over time is on its page (« Évolution » in Comptes). */}

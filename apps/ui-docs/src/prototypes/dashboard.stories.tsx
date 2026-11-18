@@ -1326,3 +1326,222 @@ export const Large3_Colonne: StoryObj = {
     </WidePage>
   ),
 }
+
+/* ===========================================================================
+ * Budget graph proposals (owner feedback on #262: « on ne comprend pas très
+ * bien le hors budget, rends le graphe plus clair »)
+ *
+ * Same synthetic month: 2 071 € spent in the budgeted categories for a
+ * budget of 2 225 €, plus 443 € in categories without a target, 2 514 € of
+ * expenses in all.
+ *
+ * Budget 1. Barre empilée : one bar for all the month's expenses, the
+ *           budgeted part and the « hors budget » part in two colours, the
+ *           budget as a mark on it; a legend names each part.
+ * Budget 2. Deux barres : the budgeted categories against their budget,
+ *           then the categories without a budget on their own short line,
+ *           each said in words.
+ * Budget 3. Total vs budget : the month's whole expenses against the
+ *           budget, how much over or under, the « hors budget » part as a
+ *           plain sentence under it.
+ * ======================================================================== */
+
+const BUDGET = { spent: 207_100, target: 222_500, unbudgeted: 44_300 }
+
+function Legend({
+  swatch,
+  label,
+  value,
+}: {
+  swatch: string
+  label: string
+  value: string
+}) {
+  return (
+    <li className="flex items-center gap-1.5">
+      <span
+        aria-hidden
+        className={cn('size-2.5 shrink-0 rounded-sm', swatch)}
+      />
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium whitespace-nowrap tabular-nums">
+        {value}
+      </span>
+    </li>
+  )
+}
+
+/** 1. One stacked bar for every expense, the budget as a mark. */
+function BudgetStacked() {
+  const total = BUDGET.spent + BUDGET.unbudgeted
+  const scale = Math.max(total, BUDGET.target)
+  const pct = (cents: number) => `${(cents / scale) * 100}%`
+  const left = BUDGET.target - BUDGET.spent
+  return (
+    <div className="space-y-2 text-sm">
+      <p className="flex flex-wrap items-baseline justify-between gap-x-3">
+        <span className="font-medium">Dépenses du mois</span>
+        <span className="font-semibold tabular-nums">{euros(total)}</span>
+      </p>
+      <div className="relative">
+        <div className="bg-muted flex h-3 overflow-hidden rounded-full">
+          <div
+            className="bg-primary h-full"
+            style={{ width: pct(BUDGET.spent) }}
+          />
+          <div
+            className="h-full bg-[repeating-linear-gradient(135deg,var(--muted-foreground)_0_3px,transparent_3px_6px)] opacity-60"
+            style={{ width: pct(BUDGET.unbudgeted) }}
+          />
+        </div>
+        {/* The budget, as a mark on the bar. */}
+        <div
+          aria-hidden
+          className="bg-foreground absolute -top-1 -bottom-1 w-0.5 rounded"
+          style={{ left: pct(BUDGET.target) }}
+        />
+      </div>
+      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+        <Legend
+          swatch="bg-primary"
+          label="Avec budget"
+          value={euros(BUDGET.spent)}
+        />
+        <Legend
+          swatch="bg-[repeating-linear-gradient(135deg,var(--muted-foreground)_0_2px,transparent_2px_4px)]"
+          label="Sans budget"
+          value={euros(BUDGET.unbudgeted)}
+        />
+        <Legend
+          swatch="bg-foreground w-0.5"
+          label="Budget"
+          value={euros(BUDGET.target)}
+        />
+      </ul>
+      <p className="text-xs">
+        <span className="font-medium">Reste {euros(left)}</span>
+        <span className="text-muted-foreground">
+          {' '}
+          sur les catégories budgétées
+        </span>
+      </p>
+    </div>
+  )
+}
+
+/** 2. The budgeted categories, then those without a budget, apart. */
+function BudgetTwoBars() {
+  const left = BUDGET.target - BUDGET.spent
+  const ratio = BUDGET.spent / BUDGET.target
+  return (
+    <div className="space-y-3 text-sm">
+      <div className="space-y-1.5">
+        <p className="flex flex-wrap items-baseline justify-between gap-x-3">
+          <span className="font-medium">Catégories avec un budget</span>
+          <span className="tabular-nums">
+            <span className="font-semibold">{euros(BUDGET.spent)}</span>
+            <span className="text-muted-foreground">
+              {' '}
+              / {euros(BUDGET.target)}
+            </span>
+          </span>
+        </p>
+        <div className="bg-muted h-2.5 overflow-hidden rounded-full">
+          <div
+            className={cn(
+              'h-full rounded-full',
+              ratio >= 0.9 ? 'bg-chart-warning' : 'bg-primary',
+            )}
+            style={{ width: `${Math.min(ratio, 1) * 100}%` }}
+          />
+        </div>
+        <p className="text-xs font-medium">Reste {euros(left)}</p>
+      </div>
+      <div className="space-y-1.5">
+        <p className="flex flex-wrap items-baseline justify-between gap-x-3">
+          <span className="font-medium">Catégories sans budget</span>
+          <span className="font-semibold tabular-nums">
+            {euros(BUDGET.unbudgeted)}
+          </span>
+        </p>
+        <p className="text-muted-foreground text-xs">
+          Dépenses dans des catégories sans objectif ce mois-ci : à budgéter
+          pour le mois suivant ?
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/** 3. All the month's expenses against the budget. */
+function BudgetTotal() {
+  const total = BUDGET.spent + BUDGET.unbudgeted
+  const over = total - BUDGET.target
+  const scale = Math.max(total, BUDGET.target)
+  return (
+    <div className="space-y-2 text-sm">
+      <p className="flex flex-wrap items-baseline justify-between gap-x-3">
+        <span>
+          <span className="font-semibold tabular-nums">{euros(total)}</span>{' '}
+          <span className="text-muted-foreground">
+            dépensés pour un budget de {euros(BUDGET.target)}
+          </span>
+        </span>
+        <span
+          className={cn(
+            'font-medium whitespace-nowrap tabular-nums',
+            over > 0 ? 'text-chart-delta-bad' : 'text-chart-delta-good',
+          )}
+        >
+          {over > 0 ? `${euros(over)} au-dessus` : `${euros(-over)} en dessous`}
+        </span>
+      </p>
+      <div className="bg-muted relative flex h-3 overflow-hidden rounded-full">
+        <div
+          className="bg-primary h-full"
+          style={{
+            width: `${(Math.min(total, BUDGET.target) / scale) * 100}%`,
+          }}
+        />
+        {over > 0 && (
+          <div
+            className="bg-chart-over h-full"
+            style={{ width: `${(over / scale) * 100}%` }}
+          />
+        )}
+      </div>
+      <p className="text-muted-foreground text-xs">
+        Dont {euros(BUDGET.unbudgeted)} dans des catégories sans budget (hors
+        budget). Sans elles, il reste {euros(BUDGET.target - BUDGET.spent)}.
+      </p>
+    </div>
+  )
+}
+
+export const BudgetProposals: StoryObj = {
+  name: 'Budget : propositions',
+  render: () => (
+    <AppScale>
+      <div className="bg-background min-h-svh space-y-4 p-4">
+        <p className="text-muted-foreground text-xs">
+          Même mois : 2 071 € dépensés dans les catégories budgétées (budget 2
+          225 €) + 443 € dans des catégories sans budget = 2 514 € de dépenses.
+        </p>
+        {(
+          [
+            ['Budget 1. Barre empilée', <BudgetStacked key="1" />],
+            ['Budget 2. Deux barres', <BudgetTwoBars key="2" />],
+            ['Budget 3. Total vs budget', <BudgetTotal key="3" />],
+          ] as const
+        ).map(([title, body]) => (
+          <Card key={title} className="@container mx-auto max-w-[46rem]">
+            <CardHeader>
+              <CardTitle>{title}</CardTitle>
+            </CardHeader>
+            <CardContent>{body}</CardContent>
+          </Card>
+        ))}
+      </div>
+    </AppScale>
+  ),
+}

@@ -1,3 +1,4 @@
+import type { CategoryIcon } from '#/categories/category-icons'
 import {
   BadRequestException,
   Injectable,
@@ -48,6 +49,7 @@ interface CategoryInfo {
   slug: string
   name: string
   color: string | null
+  icon: CategoryIcon | null
   kind: 'expense' | 'income' | 'transfer'
   /** Archived categories get no suggestion unless they have a target. */
   archivedAt: Date | null
@@ -150,6 +152,7 @@ export class BudgetsService {
         slug: category.slug,
         name: category.name,
         color: category.color,
+        icon: category.icon,
         targetCents: target.monthlyTargetCents,
         effectiveFrom: toMonth(target.effectiveFrom),
         note: target.note,
@@ -267,6 +270,7 @@ export class BudgetsService {
         slug: category.slug,
         name: category.name,
         color: category.color,
+        icon: category.icon,
         targetCents: target.monthlyTargetCents,
         spentCents,
         manualCents: spentBy.get(categoryId)?.manualCents ?? 0,
@@ -320,6 +324,7 @@ export class BudgetsService {
         slug: category.slug,
         name: category.name,
         color: category.color,
+        icon: category.icon,
         months: months.map((month) => {
           const target =
             targetsByMonth.get(month)!.get(category.id)?.monthlyTargetCents ??
@@ -410,6 +415,7 @@ export class BudgetsService {
                 slug: category.slug,
                 name: category.name,
                 color: category.color,
+                icon: category.icon,
                 averageCents,
                 suggestedCents: roundToEuro(averageCents),
                 currentTargetCents:
@@ -579,6 +585,7 @@ export class BudgetsService {
         slug: categoriesTable.slug,
         name: categoriesTable.name,
         color: categoriesTable.color,
+        icon: categoriesTable.icon,
         kind: categoriesTable.kind,
         archivedAt: categoriesTable.archivedAt,
       })

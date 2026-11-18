@@ -4,6 +4,7 @@ import { AccountList } from '#/components/accounts/AccountList'
 import { formatCents } from '#/lib/money'
 import { ROUTES } from '#/lib/routes'
 import { DashboardCardHeader } from './DashboardCardHeader'
+import { FigureTile } from './FigureTile'
 
 const GROUPS = [
   {
@@ -39,20 +40,29 @@ export function AccountsList({
         link={{ label: 'Évolution', to: ROUTES.netWorth }}
       />
       <CardContent className="space-y-4">
-        {/* Today's net worth, once, with its date; the month-end one is in
-            the review card. */}
-        <div>
-          <p className="text-muted-foreground text-xs">Patrimoine à ce jour</p>
-          <p className="text-2xl font-semibold whitespace-nowrap tabular-nums">
-            {formatCents(netWorth.totalCents)}
-          </p>
+        {/* Today's net worth, once, with its date (the month-end one is
+            in the review card), then its two parts; the groups below
+            don't repeat their totals. */}
+        <div className="@container grid gap-2">
+          <FigureTile
+            label="Patrimoine à ce jour"
+            value={formatCents(netWorth.totalCents)}
+          />
+          <div className="grid gap-2 @[36rem]:grid-cols-2">
+            {GROUPS.map(({ group, title, total }) => (
+              <FigureTile
+                key={group}
+                label={title}
+                value={formatCents(total(netWorth))}
+              />
+            ))}
+          </div>
         </div>
         <AccountList
           primaryAction="account"
-          groups={GROUPS.map(({ group, title, total }) => ({
+          groups={GROUPS.map(({ group, title }) => ({
             id: group,
             title,
-            totalCents: total(netWorth),
             accounts: accounts
               .filter((account) => account.group === group)
               .map((account) => ({

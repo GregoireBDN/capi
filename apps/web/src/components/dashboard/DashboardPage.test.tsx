@@ -237,6 +237,7 @@ const review: MonthReviewDto = {
         slug: 'restaurants',
         name: 'Restaurants',
         color: '#dc2626',
+        icon: null,
         targetCents: 15_000,
         spentCents: 27_000,
         gapCents: 12_000,
@@ -248,6 +249,7 @@ const review: MonthReviewDto = {
         slug: 'groceries',
         name: 'Courses',
         color: '#d97706',
+        icon: null,
         targetCents: 40_000,
         spentCents: 34_000,
         gapCents: -6_000,
@@ -547,7 +549,10 @@ describe('DashboardPage', () => {
     renderPage()
 
     const cash = await screen.findByRole('region', { name: 'Liquidités' })
-    expect(cash).toHaveTextContent(euros(623_456))
+    // The group's total is a tile above the list, said once.
+    const card = cash.closest('[data-slot="card"]') as HTMLElement
+    expect(card).toHaveTextContent(`Liquidités${euros(623_456)}`)
+    expect(cash).not.toHaveTextContent(euros(623_456))
     const link = within(cash).getByRole('link', { name: /Compte test/ })
     expect(link).toHaveAttribute('href', `/transactions?account=${checking.id}`)
     expect(link).toHaveTextContent(euros(123_456))
@@ -677,16 +682,16 @@ describe('DashboardPage', () => {
     )
   })
 
-  it('sums up the end-of-month forecast', async () => {
+  it('sums up the end-of-month forecast at the top of « Ce mois-ci »', async () => {
     renderPage()
-    const card = (await screen.findByText('Fin de mois')).closest(
-      '[data-slot="card"]',
-    ) as HTMLElement
-    expect(card).toHaveTextContent(euros(267_000))
-    expect(card).toHaveTextContent(`Point bas ${euros(18_000)} le dim. 29 nov.`)
-    expect(
-      within(card).getByRole('link', { name: 'Prévision' }),
-    ).toHaveAttribute('href', '/forecast')
+    const tiles = await screen.findByRole('group', { name: 'Fin de mois' })
+    expect(screen.getByRole('region', { name: 'Ce mois-ci' })).toContainElement(
+      tiles,
+    )
+    expect(tiles).toHaveTextContent(euros(267_000))
+    const low = within(tiles).getByRole('link', { name: /Point bas/ })
+    expect(low).toHaveTextContent(`Point bas le dim. 29 nov.${euros(18_000)}`)
+    expect(low).toHaveAttribute('href', '/forecast')
 
     api.forecastControllerForecast.mockImplementation(() =>
       ok(
@@ -697,9 +702,9 @@ describe('DashboardPage', () => {
       ),
     )
     renderPage()
-    expect(
-      await screen.findByText(`Sous ${euros(50_000)} le dim. 29 nov.`),
-    ).toBeInTheDocument()
+    const under = await screen.findByRole('link', { name: /^Sous/ })
+    expect(under).toHaveTextContent(`Sous ${euros(50_000)}dim. 29 nov.`)
+    expect(under).toHaveAttribute('href', '/forecast')
   })
 
   it('shows skeletons while loading', () => {

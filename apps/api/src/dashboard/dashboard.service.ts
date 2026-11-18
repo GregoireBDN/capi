@@ -307,6 +307,7 @@ export class DashboardService {
       slug: item.slug,
       name: item.name,
       color: item.color,
+      icon: item.icon,
       targetCents: item.targetCents,
       spentCents: item.spentCents,
       gapCents: item.spentCents - item.targetCents,

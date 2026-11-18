@@ -18,10 +18,11 @@ import type {
   ReviewCategoryDto,
   ReviewMissingAccountDto,
 } from '#/api/types.gen'
+import { categoryIconComponent } from '#/components/categories/category-icons'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
-import { SeeLink } from './DashboardCardHeader'
+import { FigureTile } from './FigureTile'
 
 const signedWholeEuros = new Intl.NumberFormat('fr-FR', {
   style: 'currency',
@@ -75,11 +76,14 @@ export function MonthReview({
 
         <CardContent className="@container space-y-5">
           {missing.length > 0 && <MissingAccounts accounts={missing} />}
-          {/* The month's figures: three tiles and the net worth under them
-              on a phone, the four in one row on a wide card. */}
-          <div className="@container grid grid-cols-2 gap-x-6 gap-y-5 @[13rem]:grid-cols-3 @[36rem]:grid-cols-4">
-            <FlowFigures review={review} />
-            <NetWorthLine review={review} />
+          {/* The net worth at the month end on its own line, then the
+              month's income, expenses and savings: one per line on a
+              phone, the three side by side on a wide card. */}
+          <div className="@container grid gap-2">
+            <NetWorthTile review={review} />
+            <div className="grid gap-2 @[36rem]:grid-cols-3">
+              <FlowFigures review={review} />
+            </div>
           </div>
           <BudgetSection review={review} />
           <ReviewAction review={review} />
@@ -89,54 +93,31 @@ export function MonthReview({
   )
 }
 
-/** A figure with its label right above it, sized on its tile. */
-function Figure({
-  label,
-  value,
-  note,
-  tone,
-}: {
-  label: string
-  value: string
-  note?: string | null
-  tone?: 'good' | 'bad'
-}) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-muted-foreground text-xs">{label}</dt>
-      <dd
-        className={cn(
-          'text-[clamp(1rem,6cqi,1.3rem)] font-semibold whitespace-nowrap tabular-nums',
-          tone === 'good' && 'text-chart-delta-good',
-          tone === 'bad' && 'text-chart-delta-bad',
-        )}
-      >
-        {value}
-      </dd>
-      {note && (
-        <dd className="text-muted-foreground text-xs whitespace-nowrap">
-          {note}
-        </dd>
-      )}
-    </div>
-  )
-}
-
 /** Income, expenses and what was saved of them, read together. */
 function FlowFigures({ review }: { review: MonthReviewDto }) {
   const { flow } = review
   const saved = flow.netCents
   return (
-    // Its tiles are the cells of the figures' grid.
+    // Its tiles are cells of the figures' grid.
     <dl className="contents" aria-label="Flux du mois">
-      <Figure label="Revenus" value={formatWholeEuros(flow.incomeCents)} />
-      <Figure label="Dépenses" value={formatWholeEuros(-flow.expenseCents)} />
-      <Figure
+      <FigureTile
+        variant="dl"
+        label="Revenus"
+        value={formatWholeEuros(flow.incomeCents)}
+      />
+      <FigureTile
+        variant="dl"
+        label="Dépenses"
+        value={formatWholeEuros(-flow.expenseCents)}
+      />
+      <FigureTile
+        variant="dl"
         label="Épargné"
         value={formatSignedWhole(saved)}
-        note={
-          flow.savingsRate === null ? null : formatPercent(flow.savingsRate)
-        }
+        notes={[
+          flow.savingsRate !== null &&
+            `${formatPercent(flow.savingsRate)} des revenus`,
+        ]}
         tone={saved > 0 ? 'good' : saved < 0 ? 'bad' : undefined}
       />
     </dl>
@@ -145,9 +126,9 @@ function FlowFigures({ review }: { review: MonthReviewDto }) {
 
 /**
  * Net worth at the month end. Its change is shown only when investments
- * (or anything else) moved it: without them it equals « Épargné » above.
+ * (or anything else) moved it: without them it equals « Épargné ».
  */
-function NetWorthLine({ review }: { review: MonthReviewDto }) {
+function NetWorthTile({ review }: { review: MonthReviewDto }) {
   const { netWorth } = review
   const other =
     netWorth.changeCents !== null &&
@@ -156,32 +137,17 @@ function NetWorthLine({ review }: { review: MonthReviewDto }) {
       ? { change: netWorth.changeCents, other: netWorth.otherCents }
       : null
   return (
-    <section
-      aria-label="Patrimoine"
-      className="col-span-full @[36rem]:col-span-1"
-    >
-      <p className="text-muted-foreground text-xs">
-        Patrimoine au {formatShortDay(netWorth.date)}
-      </p>
-      <p className="flex flex-wrap items-baseline gap-x-2">
-        <span className="text-lg font-semibold whitespace-nowrap tabular-nums">
-          {netWorth.endCents === null
-            ? '—'
-            : formatWholeEuros(netWorth.endCents)}
-        </span>
-        {other && (
-          <span className="text-muted-foreground text-sm">
-            <span className="whitespace-nowrap">
-              {formatSignedWhole(other.change)} sur le mois
-            </span>
-            , dont{' '}
-            <span className="whitespace-nowrap">
-              {formatSignedWhole(other.other)}
-            </span>{' '}
-            de placements et autres
-          </span>
-        )}
-      </p>
+    <section aria-label="Patrimoine" className="grid">
+      <FigureTile
+        label={`Patrimoine au ${formatShortDay(netWorth.date)}`}
+        value={
+          netWorth.endCents === null ? '—' : formatWholeEuros(netWorth.endCents)
+        }
+        notes={[
+          other &&
+            `${formatSignedWhole(other.change)} sur le mois, dont ${formatSignedWhole(other.other)} de placements et autres`,
+        ]}
+      />
     </section>
   )
 }
@@ -235,7 +201,11 @@ function BudgetSection({ review }: { review: MonthReviewDto }) {
         </p>
       </div>
       {drift.length > 0 && (
-        <ul className="flex flex-wrap gap-1.5" aria-label="Écarts au budget">
+        <ul
+          // 14px between rows: the 44px hit areas of the 32px pills never overlap.
+          className="flex flex-wrap gap-x-1.5 gap-y-[14px] pt-1"
+          aria-label="Écarts au budget"
+        >
           {drift.map((item) => (
             <DriftChip key={item.categoryId} item={item} month={month} />
           ))}
@@ -284,7 +254,10 @@ function BudgetBar({
   )
 }
 
-/** A category above (+) or below (−) its target; opens its transactions. */
+/**
+ * A category above (+) or below (−) its target: a badge in its colour, its
+ * icon and text in white; opens its transactions.
+ */
 function DriftChip({
   item,
   month,
@@ -293,6 +266,7 @@ function DriftChip({
   month: string
 }) {
   const over = item.gapCents > 0
+  const Icon = categoryIconComponent(item.icon)
   return (
     <li className="max-w-full">
       <Link
@@ -303,21 +277,19 @@ function DriftChip({
             ? `${item.name} : ${formatWholeEuros(item.gapCents)} de trop`
             : `${item.name} : ${formatWholeEuros(-item.gapCents)} de marge`
         }
-        className="bg-muted/60 hover:bg-muted focus-visible:ring-ring inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full px-3 text-sm outline-none focus-visible:ring-2"
+        // The category's colour, darkened a little so white text stays
+        // readable on its lighter shades (yellow, orange).
+        className="focus-visible:ring-ring touch-hitbox relative inline-flex h-[32px] max-w-full items-center gap-1 rounded-full px-2.5 text-xs font-medium text-white outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-offset-2"
+        style={{
+          backgroundColor: `color-mix(in srgb, ${item.color ?? 'var(--chart-other)'} 78%, black)`,
+        }}
       >
-        <span
-          aria-hidden
-          className="size-2 shrink-0 rounded-full"
-          style={{ backgroundColor: item.color ?? 'var(--chart-other)' }}
-        />
+        <Icon aria-hidden className="size-[15px] shrink-0" />
         <span className="min-w-0 truncate">{item.name}</span>
         <span
           data-slot="review-gap"
           data-tone={over ? 'bad' : 'good'}
-          className={cn(
-            'shrink-0 font-medium whitespace-nowrap tabular-nums',
-            over ? 'text-chart-delta-bad' : 'text-chart-delta-good',
-          )}
+          className="shrink-0 font-semibold whitespace-nowrap tabular-nums"
         >
           {over
             ? `+${formatWholeEuros(item.gapCents)}`
@@ -331,7 +303,7 @@ function DriftChip({
 /**
  * The one action the month's state calls for, without naming the month
  * again: close it while it is open, then prepare the next month's budget
- * when it has none, else a quiet link back to the review.
+ * when it has none, else « Revoir le mois »; all at the card's full width.
  */
 function ReviewAction({ review }: { review: MonthReviewDto }) {
   if (review.closedAt === null) {
@@ -354,11 +326,12 @@ function ReviewAction({ review }: { review: MonthReviewDto }) {
     )
   }
   return (
-    <SeeLink
-      label="Revoir le mois"
-      to={ROUTES.monthReview}
-      search={{ month: review.month }}
-    />
+    <Button asChild outline variant="secondary" className="w-full">
+      <Link to={ROUTES.monthReview} search={{ month: review.month }}>
+        <ListChecksIcon aria-hidden />
+        Revoir le mois
+      </Link>
+    </Button>
   )
 }
 

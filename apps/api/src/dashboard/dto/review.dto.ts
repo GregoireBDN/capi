@@ -1,3 +1,7 @@
+import {
+  CATEGORY_ICON_DOC,
+  type CategoryIcon,
+} from '#/categories/category-icons'
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { IsOptional, Matches } from 'class-validator'
 import { MonthPeriodDto } from '#/coverage/dto/period.dto'
@@ -83,6 +87,9 @@ export class ReviewCategoryDto {
 
   @ApiProperty({ type: String, nullable: true })
   color!: string | null
+
+  @ApiProperty(CATEGORY_ICON_DOC)
+  icon!: CategoryIcon | null
 
   @ApiProperty({ type: 'integer', description: 'Monthly target in cents.' })
   targetCents!: number

@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { PlusIcon, WalletCardsIcon } from 'lucide-react'
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import type { EnvelopeDto, EnvelopesDto } from '#/api/types.gen'
 import { formatBudgetAmount } from '#/components/budget/amount'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
@@ -27,7 +28,12 @@ const WARNING_THRESHOLD = 0.8
  * imported and noted by hand, what is left, and a mark where an even pace
  * through the month would be today. Expenses are noted from here.
  */
-export function MonthEnvelopes() {
+export function MonthEnvelopes({
+  figures,
+}: {
+  /** Figures of the month shown above the envelopes (the forecast tiles). */
+  figures?: ReactNode
+} = {}) {
   const envelopes = useQuery(envelopesQuery)
   const [sheet, setSheet] = useState<{ open: boolean; categoryId?: string }>({
     open: false,
@@ -48,6 +54,7 @@ export function MonthEnvelopes() {
           link={{ label: 'Budget', to: ROUTES.budget }}
         />
         <CardContent className="@container space-y-4">
+          {figures}
           {data ? (
             <EnvelopeList
               data={data}

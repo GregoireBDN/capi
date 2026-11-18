@@ -9976,6 +9976,15 @@
             "nullable": true,
             "example": "#d97706"
           },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
           "targetCents": {
             "type": "integer",
             "description": "Monthly target in cents."
@@ -10025,6 +10034,7 @@
           "slug",
           "name",
           "color",
+          "icon",
           "targetCents",
           "effectiveFrom",
           "note",
@@ -10210,6 +10220,15 @@
             "nullable": true,
             "example": "#d97706"
           },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
           "targetCents": {
             "type": "integer",
             "description": "Monthly target in cents."
@@ -10248,6 +10267,7 @@
           "slug",
           "name",
           "color",
+          "icon",
           "targetCents",
           "spentCents",
           "manualCents",
@@ -10346,6 +10366,15 @@
             "nullable": true,
             "example": "#d97706"
           },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
           "months": {
             "description": "Oldest first.",
             "type": "array",
@@ -10359,6 +10388,7 @@
           "slug",
           "name",
           "color",
+          "icon",
           "months"
         ]
       },
@@ -10444,6 +10474,15 @@
             "nullable": true,
             "example": "#d97706"
           },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
           "suggestedCents": {
             "type": "integer",
             "description": "Average rounded to the euro, in cents."
@@ -10463,6 +10502,7 @@
           "slug",
           "name",
           "color",
+          "icon",
           "suggestedCents",
           "averageCents",
           "currentTargetCents"
@@ -10933,6 +10973,15 @@
             "type": "string",
             "nullable": true
           },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
           "targetCents": {
             "type": "integer",
             "description": "Monthly target in cents."
@@ -10951,6 +11000,7 @@
           "slug",
           "name",
           "color",
+          "icon",
           "targetCents",
           "spentCents",
           "gapCents"
