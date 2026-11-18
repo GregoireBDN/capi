@@ -711,13 +711,13 @@ describe('DashboardPage', () => {
 
   it('sums up the end-of-month forecast as a row of « Ce mois-ci »', async () => {
     renderPage()
-    const row = await screen.findByRole('link', { name: /Fin de mois prévue/ })
+    const row = await screen.findByRole('link', { name: /Fin de mois/ })
     expect(screen.getByRole('region', { name: 'Ce mois-ci' })).toContainElement(
       row,
     )
     expect(row).toHaveAttribute('href', '/forecast')
     expect(row).toHaveTextContent(euros(267_000))
-    expect(row).toHaveTextContent(`Point bas ${euros(18_000)} le dim. 29 nov.`)
+    expect(row).toHaveTextContent(`Point bas ${euros(18_000)} le 29 nov.`)
 
     api.forecastControllerForecast.mockImplementation(() =>
       ok(

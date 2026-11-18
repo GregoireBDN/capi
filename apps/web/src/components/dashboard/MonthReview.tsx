@@ -12,7 +12,7 @@ import {
   ItemListRow,
 } from '@finances/ui'
 import { Link } from '@tanstack/react-router'
-import { ListChecksIcon } from 'lucide-react'
+import { CircleCheckIcon, ClockIcon, ListChecksIcon } from 'lucide-react'
 import type {
   MonthReviewDto,
   ReviewCategoryDto,
@@ -63,14 +63,35 @@ export function MonthReview({
   return (
     <section aria-label="Bilan du mois" className="min-w-0">
       <Card className="min-w-0">
-        <CardHeader className="flex flex-row flex-wrap items-center gap-x-3 gap-y-2">
+        {/* The navigator fills the row up to the status (`fill`). */}
+        <CardHeader className="@container flex flex-row flex-wrap items-center gap-2">
           <MonthNavigator
             month={month}
             max={latest}
             onMonthChange={onMonthChange}
+            fill
+            className="w-auto flex-auto"
           />
-          <Badge variant={closed ? 'success' : 'warning'} outline>
-            {closed ? 'Clôturé' : 'À clôturer'}
+          {/* Mid-tone background, white text; an icon on a phone, its word from
+              22rem of header. */}
+          <Badge
+            className="h-8 shrink-0 gap-1 border-transparent px-2.5 text-white"
+            // A mid tone between the theme's light and dark shades of the
+            // status colour, under white text.
+            style={{
+              backgroundColor: closed
+                ? 'color-mix(in oklch, var(--success) 45%, var(--success-foreground))'
+                : 'color-mix(in oklch, var(--warning) 45%, var(--warning-foreground))',
+            }}
+          >
+            {closed ? (
+              <CircleCheckIcon aria-hidden className="size-4" />
+            ) : (
+              <ClockIcon aria-hidden className="size-4" />
+            )}
+            <span className="sr-only @[22rem]:not-sr-only">
+              {closed ? 'Clôturé' : 'À clôturer'}
+            </span>
           </Badge>
         </CardHeader>
 
