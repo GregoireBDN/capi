@@ -207,7 +207,8 @@ describe('MonthEnvelopes', () => {
     })
     expect(row).toContainElement(outings)
     expect(row).toHaveTextContent(text('Reste 60 € · en avance'))
-    expect(row).toHaveTextContent(text('dont 25 € noté à la main'))
+    // What was noted by hand is left to the budget page: no room here.
+    expect(row).not.toHaveTextContent('noté à la main')
     const shopping = within(card).getByRole('button', {
       name: 'Ajouter une dépense Shopping',
     })

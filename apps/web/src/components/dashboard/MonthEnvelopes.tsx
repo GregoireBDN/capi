@@ -25,7 +25,7 @@ const WARNING_THRESHOLD = 0.8
 /**
  * "Ce mois-ci": the envelopes followed during the current month (budget
  * lines flagged "suivre pendant le mois"), each with what was spent so far,
- * imported and noted by hand, what is left, and a mark where an even pace
+ * what is left, and a mark where an even pace
  * through the month would be today. Expenses are noted from here.
  */
 export function MonthEnvelopes({
@@ -214,14 +214,6 @@ function EnvelopeRow({
               {' '}
               / {formatBudgetAmount(item.targetCents)}
             </span>
-            {item.manualCents !== 0 && (
-              <span className="text-muted-foreground">
-                {' · '}
-                {item.manualCents === item.spentCents
-                  ? 'tout noté à la main'
-                  : `dont ${formatBudgetAmount(item.manualCents)} noté à la main`}
-              </span>
-            )}
           </span>
           <span
             className={cn(
