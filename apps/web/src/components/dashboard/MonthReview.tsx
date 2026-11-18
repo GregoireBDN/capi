@@ -73,16 +73,15 @@ export function MonthReview({
           </Badge>
         </CardHeader>
 
-        {/* A wide card puts the month's figures beside its budget. */}
         <CardContent className="@container space-y-5">
           {missing.length > 0 && <MissingAccounts accounts={missing} />}
-          <div className="grid gap-5 @[36rem]:grid-cols-2 @[36rem]:gap-x-10">
-            <div className="min-w-0 space-y-5">
-              <FlowFigures review={review} />
-              <NetWorthLine review={review} />
-            </div>
-            <BudgetSection review={review} />
+          {/* The month's figures: three tiles and the net worth under them
+              on a phone, the four in one row on a wide card. */}
+          <div className="@container grid grid-cols-2 gap-x-6 gap-y-5 @[13rem]:grid-cols-3 @[36rem]:grid-cols-4">
+            <FlowFigures review={review} />
+            <NetWorthLine review={review} />
           </div>
+          <BudgetSection review={review} />
           <ReviewAction review={review} />
         </CardContent>
       </Card>
@@ -128,10 +127,8 @@ function FlowFigures({ review }: { review: MonthReviewDto }) {
   const { flow } = review
   const saved = flow.netCents
   return (
-    <dl
-      className="@container grid grid-cols-2 gap-3 @[13rem]:grid-cols-3"
-      aria-label="Flux du mois"
-    >
+    // Its tiles are the cells of the figures' grid.
+    <dl className="contents" aria-label="Flux du mois">
       <Figure label="Revenus" value={formatWholeEuros(flow.incomeCents)} />
       <Figure label="Dépenses" value={formatWholeEuros(-flow.expenseCents)} />
       <Figure
@@ -159,7 +156,10 @@ function NetWorthLine({ review }: { review: MonthReviewDto }) {
       ? { change: netWorth.changeCents, other: netWorth.otherCents }
       : null
   return (
-    <section aria-label="Patrimoine">
+    <section
+      aria-label="Patrimoine"
+      className="col-span-full @[36rem]:col-span-1"
+    >
       <p className="text-muted-foreground text-xs">
         Patrimoine au {formatShortDay(netWorth.date)}
       </p>
@@ -201,30 +201,39 @@ function BudgetSection({ review }: { review: MonthReviewDto }) {
   const drift = [...budget.over.slice(0, 2), ...budget.under.slice(0, 1)]
   return (
     <section aria-label="Budget" className="space-y-2">
-      <BudgetBar
-        spentCents={budget.spentCents}
-        targetCents={budget.targetCents}
-      />
-      <p className="text-sm">
-        <span
-          className={cn(
-            'font-medium whitespace-nowrap',
-            budget.remainingCents < 0 && 'text-chart-delta-bad',
-          )}
-        >
-          {budget.remainingCents < 0
-            ? `Dépassé de ${formatWholeEuros(-budget.remainingCents)}`
-            : `Reste ${formatWholeEuros(budget.remainingCents)}`}
-        </span>
-        {budget.unbudgetedCents > 0 && (
-          <span className="text-muted-foreground">
-            {' · '}
-            <span className="whitespace-nowrap">
-              {formatWholeEuros(budget.unbudgetedCents)} hors budget
-            </span>
+      {/* One line on a wide card: the target, a long bar, what's left. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+        <p className="flex items-baseline gap-x-2">
+          <span className="font-medium">Budget</span>
+          <span className="text-muted-foreground whitespace-nowrap tabular-nums">
+            {formatWholeEuros(budget.targetCents)}
           </span>
-        )}
-      </p>
+        </p>
+        <BudgetBar
+          spentCents={budget.spentCents}
+          targetCents={budget.targetCents}
+        />
+        <p>
+          <span
+            className={cn(
+              'font-medium whitespace-nowrap',
+              budget.remainingCents < 0 && 'text-chart-delta-bad',
+            )}
+          >
+            {budget.remainingCents < 0
+              ? `Dépassé de ${formatWholeEuros(-budget.remainingCents)}`
+              : `Reste ${formatWholeEuros(budget.remainingCents)}`}
+          </span>
+          {budget.unbudgetedCents > 0 && (
+            <span className="text-muted-foreground">
+              {' · '}
+              <span className="whitespace-nowrap">
+                {formatWholeEuros(budget.unbudgetedCents)} hors budget
+              </span>
+            </span>
+          )}
+        </p>
+      </div>
       {drift.length > 0 && (
         <ul className="flex flex-wrap gap-1.5" aria-label="Écarts au budget">
           {drift.map((item) => (
@@ -237,9 +246,9 @@ function BudgetSection({ review }: { review: MonthReviewDto }) {
 }
 
 /**
- * The budget's target and how much of it was used, as a bar: the amount
- * spent is not printed again (it is « Dépenses » when everything spent was
- * budgeted), only read out by screen readers.
+ * How much of the budget was used, as a bar: the amount spent is not
+ * printed again (it is « Dépenses » when everything spent was budgeted),
+ * only read out by screen readers.
  */
 function BudgetBar({
   spentCents,
@@ -250,34 +259,27 @@ function BudgetBar({
 }) {
   const ratio = targetCents > 0 ? spentCents / targetCents : 0
   return (
-    <div className="space-y-1.5">
-      <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-        <span className="font-medium">Budget</span>
-        <span className="text-muted-foreground whitespace-nowrap tabular-nums">
-          {formatWholeEuros(targetCents)}
-        </span>
-      </p>
+    <div
+      role="meter"
+      aria-label="Budget"
+      aria-valuemin={0}
+      aria-valuemax={targetCents}
+      aria-valuenow={spentCents}
+      aria-valuetext={`${formatWholeEuros(spentCents)} dépensés sur ${formatWholeEuros(targetCents)}`}
+      // Its own line on a phone, the rest of the line on a wide card.
+      className="bg-muted h-2 flex-1 basis-full overflow-hidden rounded-full @[36rem]:basis-0"
+    >
       <div
-        role="meter"
-        aria-label="Budget"
-        aria-valuemin={0}
-        aria-valuemax={targetCents}
-        aria-valuenow={spentCents}
-        aria-valuetext={`${formatWholeEuros(spentCents)} dépensés sur ${formatWholeEuros(targetCents)}`}
-        className="bg-muted h-2 overflow-hidden rounded-full"
-      >
-        <div
-          className={cn(
-            'h-full rounded-full',
-            ratio > 1
-              ? 'bg-chart-over'
-              : ratio >= 0.9
-                ? 'bg-chart-warning'
-                : 'bg-primary',
-          )}
-          style={{ width: `${Math.min(ratio, 1) * 100}%` }}
-        />
-      </div>
+        className={cn(
+          'h-full rounded-full',
+          ratio > 1
+            ? 'bg-chart-over'
+            : ratio >= 0.9
+              ? 'bg-chart-warning'
+              : 'bg-primary',
+        )}
+        style={{ width: `${Math.min(ratio, 1) * 100}%` }}
+      />
     </div>
   )
 }

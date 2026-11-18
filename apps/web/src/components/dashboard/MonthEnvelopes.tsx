@@ -111,11 +111,7 @@ function EnvelopeList({
     )
   }
   return (
-    // Side by side in a wide card: two, then three per row.
-    <ul
-      className="grid gap-1 @[36rem]:grid-cols-2 @[36rem]:gap-x-8 @[60rem]:grid-cols-3"
-      aria-label="Enveloppes du mois"
-    >
+    <ul className="space-y-1" aria-label="Enveloppes du mois">
       {data.items.map((item) => (
         <EnvelopeRow
           key={item.categoryId}
@@ -147,9 +143,12 @@ function EnvelopeRow({
         to={ROUTES.transactions}
         search={{ month, category: item.categoryId, kind: 'expense' }}
         aria-label={`Opérations ${item.name} du mois`}
-        className="hover:bg-muted/50 focus-visible:ring-ring/50 -mx-2 min-w-0 flex-1 space-y-1.5 rounded-lg px-2 py-2 outline-none focus-visible:ring-[3px]"
+        // One envelope per line on a wide card: the long bar, then what's
+        // left at the end of the line; stacked on a phone.
+        className="hover:bg-muted/50 focus-visible:ring-ring/50 -mx-2 block min-w-0 flex-1 space-y-1.5 rounded-lg px-2 py-2 outline-none focus-visible:ring-[3px] @[36rem]:flex @[36rem]:items-end @[36rem]:gap-6 @[36rem]:space-y-0"
       >
         <ProgressMeter
+          className="min-w-0 flex-1"
           label={item.name}
           value={item.spentCents}
           target={item.targetCents}
@@ -161,7 +160,7 @@ function EnvelopeRow({
             label: `rythme du mois : ${formatBudgetAmount(item.paceCents)}`,
           }}
         />
-        <span className="flex flex-wrap justify-between gap-x-3 text-xs">
+        <span className="flex flex-wrap justify-between gap-x-3 text-xs @[36rem]:w-48 @[36rem]:shrink-0 @[36rem]:flex-col @[36rem]:items-end @[36rem]:text-right">
           <span
             className={cn(
               'whitespace-nowrap',
