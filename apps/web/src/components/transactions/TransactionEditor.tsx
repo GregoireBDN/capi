@@ -62,7 +62,7 @@ interface TransactionEditorProps {
  * A group of settings, iPhone style (#280): a tinted block without border,
  * square rows and straight full-width hairlines between them.
  */
-const GROUP = 'bg-muted/60 divide-border divide-y overflow-hidden rounded-xl'
+const GROUP = 'bg-muted/60 divide-border divide-y overflow-hidden rounded-md'
 /** A row of a group: square, hover and focus inside its block. */
 const ROW =
   'hover:bg-muted focus-visible:ring-ring/50 flex min-h-9 w-full items-center gap-3 px-3 text-left text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-inset'
