@@ -203,6 +203,8 @@ const SCENARIOS: Array<Scenario> = [
     path: '/accounts',
     account: type,
   })),
+  // A wallet crypto account has its own page body (#269).
+  { name: 'account-wallet', path: '/accounts', account: 'wallet' },
 ]
 
 type Issue = { tag: string; text: string; w: number; h: number }
@@ -400,8 +402,12 @@ test.describe('mobile layout', () => {
         if (s.account) {
           const accounts = JSON.parse(
             readFileSync(AUDIT_ACCOUNTS, 'utf8'),
-          ) as Array<{ id: string; type: string }>
-          const account = accounts.find((a) => a.type === s.account)
+          ) as Array<{ id: string; type: string; cryptoSource?: string }>
+          const account = accounts.find((a) =>
+            s.account === 'wallet'
+              ? a.cryptoSource === 'wallet'
+              : a.type === s.account,
+          )
           test.skip(!account, `No ${s.account} account`)
           target = `/accounts/${account!.id}`
         }

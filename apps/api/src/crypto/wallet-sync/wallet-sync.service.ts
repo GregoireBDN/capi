@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
-import { and, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull, notInArray } from 'drizzle-orm'
 import { DatabaseService } from '#/database/database.service'
 import {
   accountsTable,
@@ -35,6 +35,7 @@ import {
   ChainProviderError,
   type EvmChain,
   type EvmChainProvider,
+  type EvmTokenInfo,
   type TokenContractProvider,
   type TokenDeployment,
 } from './chain-provider'
@@ -67,6 +68,8 @@ export interface WalletSyncOptions {
   gapLimit?: number
   /** Injected in tests; a timer otherwise. */
   sleep?: (ms: number) => Promise<void>
+  /** Page loads wait this long for a sync (`BACKGROUND_SYNC_WAIT_MS`). */
+  backgroundWaitMs?: number
 }
 
 export const DEFAULT_GAP_LIMIT = 20
@@ -209,9 +212,15 @@ export class WalletSyncService {
 
   /**
    * Before a valuation: syncs the open wallet accounts among `accountIds`
-   * whose last attempt is older than the interval.
+   * whose last attempt is older than the interval. Syncs that outlive
+   * `BACKGROUND_SYNC_WAIT_MS` go on in the background and call `onLate` with
+   * their accounts once done, so their new lines get valued (#269).
    */
-  async syncDue(accountIds: readonly string[], now: Date): Promise<void> {
+  async syncDue(
+    accountIds: readonly string[],
+    now: Date,
+    onLate?: (accountIds: string[]) => Promise<void>,
+  ): Promise<void> {
     if (!this.enabled || accountIds.length === 0) return
     const wallets = await this.db
       .select({ id: a.id })
@@ -232,7 +241,20 @@ export class WalletSyncService {
     const work = (async () => {
       for (const { id } of due) await this.run(id, now, 'background')
     })()
-    await waitAtMost(work, BACKGROUND_SYNC_WAIT_MS)
+    const finished = await waitAtMost(
+      work,
+      this.options.backgroundWaitMs ?? BACKGROUND_SYNC_WAIT_MS,
+    )
+    if (!finished && onLate) {
+      void work
+        .then(() => onLate(due.map(({ id }) => id)))
+        .catch((error: unknown) => {
+          const name = error instanceof Error ? error.name : 'unknown'
+          this.logger.error(
+            `Valuation after a background sync failed (${name})`,
+          )
+        })
+    }
   }
 
   /**
@@ -313,6 +335,34 @@ export class WalletSyncService {
    */
   invalidate(accountId: string): void {
     this.attempts.delete(accountId)
+  }
+
+  /**
+   * What a token contract says of itself on a chain (#269): `disabled` when
+   * the server does not read that chain, `unavailable` when its endpoint
+   * fails or is backing off, null when no token is deployed there.
+   */
+  async tokenInfo(
+    chain: EvmChain,
+    contract: string,
+  ): Promise<EvmTokenInfo | null | 'disabled' | 'unavailable'> {
+    const evm = this.options.evm
+    if (!evm || !evm.chains.includes(chain)) return 'disabled'
+    if (this.backoff.until(chain, Date.now()) !== null) return 'unavailable'
+    try {
+      return await evm.tokenInfo(chain, contract)
+    } catch (error) {
+      if (
+        error instanceof ChainProviderError &&
+        error.reason === 'rate_limited'
+      ) {
+        this.backoff.rateLimited(chain, Date.now(), error.retryAfterMs)
+      }
+      this.logger.warn(
+        `Token lookup failed on ${chain} (${failureReason(error)})`,
+      )
+      return 'unavailable'
+    }
   }
 
   /**
@@ -799,8 +849,10 @@ export class WalletSyncService {
   }
 
   /**
-   * Tokens to read: those added with "Ajouter un jeton" and the other assets
-   * the account holds (manual lines), with their deployments per chain.
+   * Tokens to read: those added with "Ajouter un jeton" (#269: manual lines
+   * no longer make the sync read their asset), with their deployments per
+   * chain: stored for a token added by its contract, looked up from the
+   * price provider for one found by name.
    */
   private async trackedTokens(accountId: string): Promise<
     {
@@ -808,29 +860,35 @@ export class WalletSyncService {
       deployments: Partial<Record<EvmChain, TokenDeployment>>
     }[]
   > {
-    const [added, held] = await Promise.all([
-      this.db
-        .select({
-          id: cryptoWalletTokensTable.assetId,
-          symbol: cryptoWalletTokensTable.symbol,
-          name: cryptoWalletTokensTable.name,
-        })
-        .from(cryptoWalletTokensTable)
-        .where(eq(cryptoWalletTokensTable.accountId, accountId)),
-      this.db
-        .selectDistinct({ id: h.assetId, symbol: h.symbol, name: h.name })
-        .from(h)
-        .where(and(eq(h.accountId, accountId), ne(h.origin, 'sync'))),
-    ])
-    const assets = new Map<string, ChainAsset>()
-    for (const asset of [...added, ...held]) {
-      if (!NATIVE_ASSET_IDS.has(asset.id) && !assets.has(asset.id)) {
-        assets.set(asset.id, asset)
-      }
-    }
+    const added = await this.db
+      .select()
+      .from(cryptoWalletTokensTable)
+      .where(eq(cryptoWalletTokensTable.accountId, accountId))
     const result = []
-    for (const asset of assets.values()) {
-      const deployments = await this.tokenDeployments(asset.id)
+    const seen = new Set<string>()
+    for (const token of added) {
+      if (NATIVE_ASSET_IDS.has(token.assetId) || seen.has(token.assetId)) {
+        continue
+      }
+      seen.add(token.assetId)
+      const asset = {
+        id: token.assetId,
+        symbol: token.symbol,
+        name: token.name,
+      }
+      if (token.chain && token.chain !== 'bitcoin' && token.contract) {
+        result.push({
+          asset,
+          deployments: {
+            [token.chain]: {
+              address: token.contract,
+              decimals: token.decimals ?? 0,
+            },
+          },
+        })
+        continue
+      }
+      const deployments = await this.tokenDeployments(token.assetId)
       if (deployments) result.push({ asset, deployments })
     }
     return result
@@ -868,16 +926,20 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/** Waits for `work`, or `ms` at most (the work goes on either way). */
-async function waitAtMost(work: Promise<void>, ms: number): Promise<void> {
+/**
+ * Waits for `work`, or `ms` at most (the work goes on either way); whether
+ * it finished in time.
+ */
+async function waitAtMost(work: Promise<void>, ms: number): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined
-  await Promise.race([
-    work,
-    new Promise<void>((resolve) => {
-      timer = setTimeout(resolve, ms)
+  const finished = await Promise.race([
+    work.then(() => true),
+    new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => resolve(false), ms)
     }),
   ])
   clearTimeout(timer)
+  return finished
 }
 
 function seconds(ms: number): number {

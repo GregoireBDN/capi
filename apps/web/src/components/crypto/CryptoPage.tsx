@@ -84,7 +84,7 @@ function EmptyHoldings({
     source === 'exchange'
       ? 'Importez l’export « Transactions » de la plateforme depuis la page du compte : ses avoirs apparaîtront ici.'
       : source === 'wallet'
-        ? 'Synchronisez le portefeuille depuis la page du compte (clés publiques et jetons) : ses avoirs apparaîtront ici.'
+        ? 'Ses avoirs sont lus sur la blockchain avec ses clés publiques : actualisez-le depuis sa page.'
         : 'Ajoutez les quantités détenues : leur valeur est calculée avec le cours du jour.'
   return (
     <EmptyState
@@ -96,7 +96,9 @@ function EmptyHoldings({
         source === 'exchange' || source === 'wallet' ? (
           <Button asChild size="sm" variant="secondary" outline>
             <Link to={ROUTES.account} params={{ accountId }}>
-              {source === 'exchange' ? 'Importer un export' : 'Synchroniser'}
+              {source === 'exchange'
+                ? 'Importer un export'
+                : 'Ouvrir le wallet'}
             </Link>
           </Button>
         ) : undefined
@@ -119,8 +121,9 @@ function AccountCard({
   /** Date of the account's latest value, if any. */
   valuedOn: string | null
   now: Date
-  onAdd: () => void
-  onEdit: (holding: ValuedHoldingDto) => void
+  /** Absent on a wallet: its holdings come from the chain (#269). */
+  onAdd?: () => void
+  onEdit?: (holding: ValuedHoldingDto) => void
 }) {
   const where =
     account.institution && account.institution !== account.name
@@ -164,18 +167,20 @@ function AccountCard({
           />
         )}
       </CardContent>
-      <CardFooter>
-        <Button
-          size="sm"
-          outline
-          variant="secondary"
-          iconStart={<PlusIcon />}
-          aria-label={`Ajouter un avoir à ${account.name}`}
-          onClick={onAdd}
-        >
-          Ajouter un avoir
-        </Button>
-      </CardFooter>
+      {onAdd && (
+        <CardFooter>
+          <Button
+            size="sm"
+            outline
+            variant="secondary"
+            iconStart={<PlusIcon />}
+            aria-label={`Ajouter un avoir à ${account.name}`}
+            onClick={onAdd}
+          >
+            Ajouter un avoir
+          </Button>
+        </CardFooter>
+      )}
     </Card>
   )
 }
@@ -340,17 +345,25 @@ export function CryptoPage() {
           </p>
 
           <div className="grid grid-cols-1 items-start gap-4 @3xl:grid-cols-2">
-            {list.map((account) => (
-              <AccountCard
-                key={account.accountId}
-                account={account}
-                valuedOn={valuedOn.get(account.accountId) ?? null}
-                source={sources.get(account.accountId) ?? null}
-                now={now}
-                onAdd={() => openAdd(account.accountId)}
-                onEdit={(holding) => setEditor({ open: true, holding })}
-              />
-            ))}
+            {list.map((account) => {
+              const source = sources.get(account.accountId) ?? null
+              const wallet = source === 'wallet'
+              return (
+                <AccountCard
+                  key={account.accountId}
+                  account={account}
+                  valuedOn={valuedOn.get(account.accountId) ?? null}
+                  source={source}
+                  now={now}
+                  onAdd={wallet ? undefined : () => openAdd(account.accountId)}
+                  onEdit={
+                    wallet
+                      ? undefined
+                      : (holding) => setEditor({ open: true, holding })
+                  }
+                />
+              )
+            })}
           </div>
         </>
       )}
@@ -360,7 +373,10 @@ export function CryptoPage() {
           open={editor.open}
           onOpenChange={(open) => !open && setEditor({ open: false })}
           accountId={editor.open ? editor.accountId : undefined}
-          accounts={list.map((row) => ({ id: row.accountId, name: row.name }))}
+          accounts={list
+            // A wallet's holdings come from the chain (#269).
+            .filter((row) => sources.get(row.accountId) !== 'wallet')
+            .map((row) => ({ id: row.accountId, name: row.name }))}
           holding={editor.open ? editor.holding : undefined}
           priceApiEnabled={data.priceApiEnabled}
           onAccountCreated={(created) => {

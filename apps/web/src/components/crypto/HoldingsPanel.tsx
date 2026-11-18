@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
   cn,
+  ConfirmDialog,
   Empty,
   EmptyContent,
   EmptyDescription,
@@ -20,7 +21,13 @@ import {
   StatCard,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { PencilIcon, PlusIcon, RefreshCwIcon, WifiOffIcon } from 'lucide-react'
+import {
+  PencilIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  Trash2Icon,
+  WifiOffIcon,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import type {
@@ -33,8 +40,14 @@ import { formatCents } from '#/lib/money'
 import { holdingErrorMessage } from './errors'
 import { formatPrice, formatPriceAge, formatQuantity } from './format'
 import { HoldingEditor } from './HoldingEditor'
-import { cryptoKeys, holdingsQuery, refreshPrices } from './queries'
-import { DERIVED_ORIGIN_LABELS } from './sources'
+import {
+  afterHoldingsChanged,
+  cryptoKeys,
+  holdingsQuery,
+  refreshPrices,
+  removeHolding,
+} from './queries'
+import { DERIVED_ORIGIN_LABELS, isContractAsset } from './sources'
 
 const dash = () => '—'
 const signedWholeEuros = new Intl.NumberFormat('fr-FR', {
@@ -52,6 +65,10 @@ type EditorState = { open: false } | { open: true; holding?: ValuedHoldingDto }
 
 function PriceLine({ holding, now }: { holding: ValuedHoldingDto; now: Date }) {
   if (holding.priceEur === null || holding.priceFetchedAt === null) {
+    // A token added by its contract has no price to look up (#269).
+    if (isContractAsset(holding.assetId)) {
+      return <span className="text-muted-foreground text-xs">sans cours</span>
+    }
     return (
       <Badge variant="warning" outline>
         Cours inconnu
@@ -74,26 +91,32 @@ function PriceLine({ holding, now }: { holding: ValuedHoldingDto; now: Date }) {
   )
 }
 
-/** Imported or synced lines are read-only; manual ones are labeled next to them. */
-function OriginBadge({
-  holding,
-  mixed,
-}: {
-  holding: ValuedHoldingDto
-  mixed: boolean
-}) {
-  if (holding.origin !== 'manual') {
-    return (
-      <Badge variant="secondary" outline>
-        {DERIVED_ORIGIN_LABELS[holding.origin]}
-      </Badge>
-    )
-  }
-  return mixed ? (
-    <Badge variant="secondary" outline>
-      Saisi à la main
+/**
+ * Where a line comes from, shown only when the list mixes origins (#269):
+ * on an account whose lines all come from its sync or imports, it says
+ * nothing.
+ */
+function OriginBadge({ holding }: { holding: ValuedHoldingDto }) {
+  return (
+    <Badge variant="secondary" outline className="shrink-0">
+      {holding.origin === 'manual'
+        ? 'Saisi à la main'
+        : DERIVED_ORIGIN_LABELS[holding.origin]}
     </Badge>
-  ) : null
+  )
+}
+
+/**
+ * "Ethereum · Arbitrum": the asset's name when it is not its symbol, and the
+ * place when it is not the asset's name (« Ethereum · Ethereum » said it
+ * twice).
+ */
+export function holdingSubtitle(
+  holding: Pick<ValuedHoldingDto, 'symbol' | 'name' | 'location'>,
+): string {
+  const name = holding.name !== holding.symbol ? holding.name : ''
+  const where = holding.location !== holding.name ? holding.location : ''
+  return [name, where].filter(Boolean).join(' · ')
 }
 
 function HoldingRow({
@@ -110,17 +133,19 @@ function HoldingRow({
     // The amounts go under the asset when both don't fit side by side.
     <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-3 gap-y-1">
       <div className="min-w-[8rem] flex-1 space-y-0.5">
-        <p className="flex min-w-0 items-baseline gap-1.5">
+        <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
           <span className="shrink-0 font-medium">{holding.symbol}</span>
-          <span className="text-muted-foreground truncate text-xs">
-            {[holding.name, holding.location].filter(Boolean).join(' · ')}
-          </span>
+          {holdingSubtitle(holding) && (
+            <span className="text-muted-foreground min-w-0 truncate text-xs">
+              {holdingSubtitle(holding)}
+            </span>
+          )}
+          {mixed && <OriginBadge holding={holding} />}
         </p>
         <p className="text-sm tabular-nums">
           {formatQuantity(holding.quantity)} {holding.symbol}
         </p>
         <PriceLine holding={holding} now={now} />
-        <OriginBadge holding={holding} mixed={mixed} />
       </div>
       <div className="ml-auto space-y-0.5 text-right whitespace-nowrap">
         <p className="font-medium tabular-nums">
@@ -194,11 +219,14 @@ export function HoldingList({
   holdings,
   now,
   onEdit,
+  onDelete,
   label = 'Avoirs',
 }: {
   holdings: readonly ValuedHoldingDto[]
   now: Date
   onEdit?: (holding: ValuedHoldingDto) => void
+  /** Lines typed by hand that can only be deleted (on a wallet, #269). */
+  onDelete?: (holding: ValuedHoldingDto) => void
   label?: string
 }) {
   const mixed =
@@ -229,6 +257,20 @@ export function HoldingList({
                   className="text-muted-foreground mt-0.5 size-4 shrink-0"
                 />
               </button>
+            ) : onDelete && holding.origin === 'manual' ? (
+              <div className={row}>
+                <HoldingRow holding={holding} now={now} mixed={mixed} />
+                <Button
+                  size="sm"
+                  iconOnly
+                  variant="secondary"
+                  ghost
+                  aria-label={`Supprimer ${name}`}
+                  onClick={() => onDelete(holding)}
+                >
+                  <Trash2Icon />
+                </Button>
+              </div>
             ) : (
               <div className={row}>
                 <HoldingRow holding={holding} now={now} mixed={mixed} />
@@ -260,7 +302,10 @@ export function HoldingsPanel({
   const queryClient = useQueryClient()
   const holdings = useQuery(holdingsQuery(accountId))
   const [editor, setEditor] = useState<EditorState>({ open: false })
+  const [deleting, setDeleting] = useState<ValuedHoldingDto>()
   const now = new Date()
+  // A wallet's holdings come from the chain: nothing is typed there (#269).
+  const wallet = source === 'wallet'
 
   // A valuation wrote today's snapshot: balance, chart and net worth follow.
   const written = holdings.data?.snapshot
@@ -275,6 +320,17 @@ export function HoldingsPanel({
       if (result.refreshFailed) {
         toast.error('Cours non actualisés : le service ne répond pas.')
       } else toast.success('Cours actualisés')
+    },
+    onError: (error) => toast.error(holdingErrorMessage(error)),
+  })
+
+  const remove = useMutation({
+    mutationFn: (holding: ValuedHoldingDto) =>
+      removeHolding(accountId, holding.id),
+    onSuccess: async (_, holding) => {
+      toast.success(`${holding.symbol} supprimé`)
+      setDeleting(undefined)
+      await afterHoldingsChanged(queryClient)
     },
     onError: (error) => toast.error(holdingErrorMessage(error)),
   })
@@ -305,7 +361,7 @@ export function HoldingsPanel({
     <section aria-label="Avoirs crypto" className="space-y-3">
       <PriceAlerts refreshFailed={data.refreshFailed} totals={totals} />
 
-      {data.holdings.length > 0 && (
+      {!wallet && data.holdings.length > 0 && (
         <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @2xl:grid-cols-3">
           <StatCard
             className="@lg:col-span-2 @2xl:col-span-1"
@@ -333,11 +389,15 @@ export function HoldingsPanel({
         <CardHeader>
           <CardTitle>Avoirs</CardTitle>
           <CardDescription>
-            {data.priceApiEnabled
-              ? 'Cours en euros mis à jour automatiquement.'
-              : 'Cours automatiques désactivés : cours saisis à la main.'}
+            {wallet
+              ? data.priceApiEnabled
+                ? 'Lus sur la blockchain, au cours du jour.'
+                : 'Lus sur la blockchain. Cours automatiques désactivés : cours saisis à la main.'
+              : data.priceApiEnabled
+                ? 'Cours en euros mis à jour automatiquement.'
+                : 'Cours automatiques désactivés : cours saisis à la main.'}
           </CardDescription>
-          {writable && data.holdings.length > 0 && (
+          {writable && !wallet && data.holdings.length > 0 && (
             <div className="grid gap-2 pt-2 @md:grid-cols-2 @2xl:flex">
               {data.priceApiEnabled && (
                 <Button
@@ -358,7 +418,24 @@ export function HoldingsPanel({
           )}
         </CardHeader>
         <CardContent>
-          {data.holdings.length === 0 ? (
+          {data.holdings.length === 0 && wallet ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>
+                  {data.sync?.syncedAt
+                    ? 'Aucun solde trouvé'
+                    : 'Aucun avoir lu'}
+                </EmptyTitle>
+                <EmptyDescription>
+                  {!data.sync?.enabled
+                    ? 'La synchronisation est désactivée sur ce serveur : les soldes de ce wallet ne peuvent pas être lus.'
+                    : data.sync.syncedAt
+                      ? 'Les clés de ce wallet n’ont rien sur la blockchain : vérifiez le type d’adresses de chaque clé.'
+                      : 'Actualisez pour lire les soldes de vos clés publiques sur la blockchain.'}
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : data.holdings.length === 0 ? (
             <Empty>
               <EmptyHeader>
                 <EmptyTitle>Aucun avoir</EmptyTitle>
@@ -381,16 +458,28 @@ export function HoldingsPanel({
               holdings={data.holdings}
               now={now}
               onEdit={
-                writable
+                writable && !wallet
                   ? (holding) => setEditor({ open: true, holding })
                   : undefined
               }
+              onDelete={writable && wallet ? setDeleting : undefined}
             />
           )}
         </CardContent>
       </Card>
 
-      {writable && (
+      <ConfirmDialog
+        open={deleting !== undefined}
+        onOpenChange={(open) => !open && setDeleting(undefined)}
+        title={`Supprimer ${deleting?.symbol ?? 'cet avoir'} ?`}
+        description="Cette ligne a été saisie à la main : les avoirs d’un wallet sont lus sur la blockchain. Elle ne pourra pas être saisie à nouveau."
+        confirmLabel="Supprimer"
+        variant="danger"
+        loading={remove.isPending}
+        onConfirm={() => deleting && remove.mutate(deleting)}
+      />
+
+      {writable && !wallet && (
         <HoldingEditor
           open={editor.open}
           onOpenChange={(open) => !open && setEditor({ open: false })}

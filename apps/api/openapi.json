@@ -4690,7 +4690,7 @@
             }
           },
           "400": {
-            "description": "Invalid body, not a crypto account, archived account."
+            "description": "Invalid body, not a crypto account, archived account, wallet account (its holdings come from the chain)."
           },
           "401": {
             "description": ""
@@ -4856,7 +4856,7 @@
             }
           },
           "400": {
-            "description": "Invalid body, not a crypto account, archived account."
+            "description": "Invalid body, not a crypto account, archived account, wallet account (its holdings come from the chain)."
           },
           "401": {
             "description": ""
@@ -12351,7 +12351,8 @@
           },
           "assetId": {
             "type": "string",
-            "example": "usd-coin"
+            "example": "usd-coin",
+            "description": "Price provider id, or `erc20.<chain id>.<contract>` for a token added by its contract (no price)."
           },
           "symbol": {
             "type": "string",
@@ -12360,6 +12361,24 @@
           "name": {
             "type": "string",
             "example": "USDC"
+          },
+          "chain": {
+            "nullable": true,
+            "description": "Token added by its contract: the chain it is read on.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoChain"
+              }
+            ]
+          },
+          "contract": {
+            "type": "string",
+            "nullable": true,
+            "description": "Token added by its contract: its address (EIP-55)."
+          },
+          "priced": {
+            "type": "boolean",
+            "description": "The token has a price provider id (its value is known)."
           }
         },
         "required": [
@@ -12367,7 +12386,10 @@
           "accountId",
           "assetId",
           "symbol",
-          "name"
+          "name",
+          "chain",
+          "contract",
+          "priced"
         ]
       },
       "AddWalletTokenDto": {
@@ -12375,7 +12397,7 @@
         "properties": {
           "assetId": {
             "type": "string",
-            "description": "Price provider asset id (CoinGecko id) of the token.",
+            "description": "Price provider asset id (CoinGecko id) of the token. Required unless `contract` is given.",
             "example": "usd-coin"
           },
           "symbol": {
@@ -12387,13 +12409,21 @@
             "type": "string",
             "maxLength": 100,
             "example": "USDC"
+          },
+          "contract": {
+            "type": "string",
+            "description": "Contract address (`0x…`, EIP-55 checked when mixed case) of a token on `chain`. Only the address is sent to that chain’s RPC.",
+            "example": "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+          },
+          "chain": {
+            "description": "Chain of `contract`. Required with it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoChain"
+              }
+            ]
           }
-        },
-        "required": [
-          "assetId",
-          "symbol",
-          "name"
-        ]
+        }
       },
       "CryptoImportUploadDto": {
         "type": "object",

@@ -1,4 +1,5 @@
 import type { CryptoPriceSource } from '#/database/schema/domain-enums'
+import { isContractAssetId } from './contract-assets'
 import { valueInCents } from './decimal'
 
 /** Last known EUR price of an asset. */
@@ -81,7 +82,8 @@ export function valuateHoldings(
     if (holding.investedCents === null) withoutInvestedCount++
     else invested += BigInt(holding.investedCents)
     if (quote === null) {
-      missingPriceCount++
+      // A token known by its contract only has no price to wait for.
+      if (!isContractAssetId(holding.assetId)) missingPriceCount++
       return {
         holdingId: holding.id,
         quote,

@@ -179,3 +179,80 @@ describe('evmRpcUrls', () => {
     )
   })
 })
+
+describe('EvmRpcProvider.tokenInfo (#269)', () => {
+  const word = (n: bigint | number) => BigInt(n).toString(16).padStart(64, '0')
+  /** ABI-encoded `string`. */
+  const abiString = (text: string) => {
+    const bytes = Buffer.from(text, 'utf8')
+    const padded = bytes
+      .toString('hex')
+      .padEnd(Math.ceil(bytes.length / 32) * 64, '0')
+    return `0x${word(32)}${word(bytes.length)}${padded}`
+  }
+  const bytes32 = (text: string) =>
+    `0x${Buffer.from(text, 'utf8').toString('hex').padEnd(64, '0')}`
+
+  function tokenNode(chainId: number, results: Record<string, string>) {
+    return (calls: Call[]) =>
+      calls.map((call) => {
+        if (call.method === 'eth_chainId') {
+          return { jsonrpc: '2.0', id: call.id, result: hex(BigInt(chainId)) }
+        }
+        const data = (call.params[0] as { data: string }).data
+        return { jsonrpc: '2.0', id: call.id, result: results[data] ?? '0x' }
+      })
+  }
+
+  it('reads decimals, symbol and name in one checked batch, sending only the contract', async () => {
+    const { client, requests } = provider(
+      tokenNode(1, {
+        '0x313ce567': `0x${word(6)}`,
+        '0x95d89b41': abiString('USDT'),
+        '0x06fdde03': abiString('Tether USD'),
+      }),
+    )
+    await expect(client.tokenInfo('ethereum', TOKEN_A)).resolves.toEqual({
+      decimals: 6,
+      symbol: 'USDT',
+      name: 'Tether USD',
+    })
+    expect(requests).toHaveLength(1)
+    expect(JSON.stringify(requests[0].calls)).not.toContain(ADDRESS)
+    for (const call of requests[0].calls.slice(1)) {
+      expect(call.params[0]).toMatchObject({ to: TOKEN_A })
+    }
+  })
+
+  it('reads bytes32 symbols and strips what is not printable', async () => {
+    const { client } = provider(
+      tokenNode(1, {
+        '0x313ce567': `0x${word(18)}`,
+        '0x95d89b41': bytes32('MKR'),
+        '0x06fdde03': abiString('Spam\u0000\u0007 token\n visit'),
+      }),
+    )
+    await expect(client.tokenInfo('ethereum', TOKEN_A)).resolves.toEqual({
+      decimals: 18,
+      symbol: 'MKR',
+      name: 'Spam token visit',
+    })
+  })
+
+  it('says null when no token answers there, and checks the chain', async () => {
+    const empty = provider(tokenNode(1, {}))
+    await expect(
+      empty.client.tokenInfo('ethereum', TOKEN_B),
+    ).resolves.toBeNull()
+    const absurd = provider(tokenNode(1, { '0x313ce567': `0x${word(77)}` }))
+    await expect(
+      absurd.client.tokenInfo('ethereum', TOKEN_B),
+    ).resolves.toBeNull()
+    const wrong = provider(tokenNode(56, { '0x313ce567': `0x${word(6)}` }))
+    await expect(
+      wrong.client.tokenInfo('ethereum', TOKEN_B),
+    ).rejects.toMatchObject({
+      reason: 'wrong_chain',
+    })
+  })
+})
