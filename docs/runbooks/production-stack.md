@@ -142,7 +142,7 @@ dc exec db psql -U "$(grep ^POSTGRES_USER= .env | cut -d= -f2)" finances   # SQL
 ```
 
 - Logs are rotated by Docker (`json-file`, 5 × 10 MB per container).
-- The API logs no transaction labels, amounts or balances. It does log client IPs (as seen through Caddy, #49) and request paths. Still, never paste logs anywhere public.
+- The API logs no transaction labels, amounts or balances. It does log client IPs (the device's Tailscale address as seen by Caddy, #49, #251) and request paths. Still, never paste logs anywhere public.
 - `.env` changes take effect on `dc up -d` (the containers are recreated). A `restart` alone keeps the old environment.
 
 ## Email (SMTP)
@@ -179,10 +179,24 @@ Wallet crypto accounts can be read on chain from their public keys (#129). It is
 
 Caddy sets `X-Forwarded-For`. `web` believes it only from Caddy and forwards a clean header to `api`, which believes it only from `web` (#49):
 
+- **Caddy** (infra repo) must see the device itself: its `100.x` Tailscale IPv4 or its `fd7a:115c:a1e0::…` Tailscale IPv6 (both are published, with `A` and `AAAA` records). That needs the shared `proxy` network to be **dual-stack**: on an IPv4-only `proxy`, Docker relays the IPv6 connections through `docker-proxy` from the bridge gateway, so every device on IPv6 arrives as `172.18.0.1` and shares one rate-limit bucket (#251; the sign-in throttle of one device locks out the others). The infra repo's `bootstrap.sh` creates `proxy` with `--ipv6`, and `scripts/proxy-network-ipv6.sh` converts an existing one (infra runbook `caddy-portal.md`, Client IP). A device that uses both families counts as two clients, one per address.
 - **`web`** (`WEB_TRUSTED_PROXIES`, default `caddy`): Caddy's service name on the shared `proxy` network (`caddy` in the infra repo's `caddy/compose.yml`). `web` resolves it through Docker's DNS at start-up and every 30 s, so a restarted Caddy with a new IP is followed within 30 s. Any other container on `proxy` (the portal, another app) that calls `finances-web:3000` gets its own address as client IP, whatever header it sends (#183). While the name doesn't resolve (Caddy renamed or off `proxy`), `web` trusts nobody: the site still works, but every request counts against the address it comes from (Caddy's) for rate limits, and the `web` logs say `Trusted proxy "caddy" does not resolve` once.
 - **`api`** (`TRUSTED_PROXIES`, default `loopback,uniquelocal`): `web` on the project network, which only `web` and `db` join.
 
-Check what `web` resolves: `dc exec -T web node -e "require('dns').promises.lookup('caddy',{all:true}).then(r=>console.log(r))"` (it should be Caddy's address in `docker network inspect proxy`).
+Check what `web` resolves: `dc exec -T web node -e "require('dns').promises.lookup('caddy',{all:true}).then(r=>console.log(r))"` (it should be Caddy's addresses in `docker network inspect proxy`: an IPv4 and, on the dual-stack network, an IPv6).
+
+**End-to-end check** (after a change to Caddy, the `proxy` network or `TRUSTED_PROXIES`): from a device on the tailnet, call the site over each family, then read the client IPs the API logged.
+
+```bash
+curl -4 -s -o /dev/null https://finances.gbodin.cloud/api/health
+curl -6 -s -o /dev/null https://finances.gbodin.cloud/api/health
+```
+
+```bash
+ssh ops@vps 'docker logs --since 2m finances-api-1 2>&1' | grep -o '"remoteAddress":"[^"]*"' | sort | uniq -c
+```
+
+Expected: the device's own addresses (`tailscale ip -4` and `tailscale ip -6` on that device), never `172.x.y.z`. Health checks from inside the stack (`127.0.0.1` / `::1`) may show up too. A second device shows its own pair. `172.18.0.1` (the `proxy` gateway) on the IPv6 call means `proxy` is still IPv4-only (see Caddy above); Caddy's container address means `web` doesn't trust Caddy (the `caddy` name doesn't resolve, see below); `web`'s address means `api` doesn't trust `web` (`TRUSTED_PROXIES`).
 
 If Caddy's service is renamed, set `WEB_TRUSTED_PROXIES=<new name>` in `.env`, then `dc up -d web`. To fall back to the behaviour before #183 (trust every private address, so neighbours on `proxy` can choose their client IP), set `WEB_TRUSTED_PROXIES=uniquelocal`. Residual risk: a container given the network alias `caddy` on `proxy` would be trusted too, which takes access to the Docker daemon or a change to an app's compose file.
 
@@ -212,15 +226,16 @@ $c down -v                                         # removes the throwaway volum
 
 ## Troubleshooting
 
-| Symptom                                             | Check                                                                                                                           |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `required variable … is missing a value`            | `.env` is incomplete, or the command didn't run from `/srv/finances`.                                                           |
-| `network proxy declared as external, but not found` | The `infra` bootstrap hasn't created it: `docker network create proxy`.                                                         |
-| `pull access denied` / `unauthorized`               | GHCR login of `deploy` missing or expired ([deploy runbook](deploy.md)).                                                        |
-| `api` unhealthy                                     | `dc logs api`. Most often the database isn't ready or migrated, or SMTP is configured but unreachable.                          |
-| Caddy answers 502                                   | `web` isn't running or healthy (`dc ps`), or isn't on `proxy` (`docker network inspect proxy` should list `finances-web`).      |
-| Signed out on every request                         | `APP_URL` isn't the HTTPS origin, or the site is opened over plain HTTP (the cookies are `Secure`).                             |
-| Passkey sign-in or creation fails at once           | The page origin isn't `APP_URL` (or `WEBAUTHN_ORIGIN`), or `WEBAUTHN_RP_ID` doesn't match it. The password always works.        |
-| `api` or `web` restarts with exit code 137          | Out of memory (`docker inspect <container> --format '{{.State.OOMKilled}}'`): raise `APP_MEM_LIMIT` in `.env`, then `dc up -d`. |
-| `EROFS: read-only file system`                      | Something tries to write outside `/tmp` (the root filesystem is read-only, #183): fix the code, never drop `read_only`.         |
-| `password authentication failed`                    | `POSTGRES_PASSWORD` changed after the volume was created. Put the old one back, or `ALTER USER` inside `db`.                    |
+| Symptom                                             | Check                                                                                                                                                                                |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `required variable … is missing a value`            | `.env` is incomplete, or the command didn't run from `/srv/finances`.                                                                                                                |
+| `network proxy declared as external, but not found` | The `infra` bootstrap hasn't created it: `docker network create --ipv6 proxy`.                                                                                                       |
+| `pull access denied` / `unauthorized`               | GHCR login of `deploy` missing or expired ([deploy runbook](deploy.md)).                                                                                                             |
+| Sign-in rate limited on every device at once        | Every device has the same client IP: run the end-to-end check in [Client IPs and trusted proxies](#client-ips-and-trusted-proxies) (`172.18.0.1` = IPv4-only `proxy` network, #251). |
+| `api` unhealthy                                     | `dc logs api`. Most often the database isn't ready or migrated, or SMTP is configured but unreachable.                                                                               |
+| Caddy answers 502                                   | `web` isn't running or healthy (`dc ps`), or isn't on `proxy` (`docker network inspect proxy` should list `finances-web`).                                                           |
+| Signed out on every request                         | `APP_URL` isn't the HTTPS origin, or the site is opened over plain HTTP (the cookies are `Secure`).                                                                                  |
+| Passkey sign-in or creation fails at once           | The page origin isn't `APP_URL` (or `WEBAUTHN_ORIGIN`), or `WEBAUTHN_RP_ID` doesn't match it. The password always works.                                                             |
+| `api` or `web` restarts with exit code 137          | Out of memory (`docker inspect <container> --format '{{.State.OOMKilled}}'`): raise `APP_MEM_LIMIT` in `.env`, then `dc up -d`.                                                      |
+| `EROFS: read-only file system`                      | Something tries to write outside `/tmp` (the root filesystem is read-only, #183): fix the code, never drop `read_only`.                                                              |
+| `password authentication failed`                    | `POSTGRES_PASSWORD` changed after the volume was created. Put the old one back, or `ALTER USER` inside `db`.                                                                         |
