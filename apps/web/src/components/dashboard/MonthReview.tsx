@@ -74,7 +74,8 @@ export function MonthReview({
           </Badge>
         </CardHeader>
 
-        <CardContent className="@container space-y-5">
+        {/* mb-0: the card's own padding is enough at its end. */}
+        <CardContent className="@container mb-0 space-y-5">
           {missing.length > 0 && <MissingAccounts accounts={missing} />}
           {/* The net worth at the month end on its own line, then the
               month's income, expenses and savings: one per line on a

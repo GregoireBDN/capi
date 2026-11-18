@@ -37,7 +37,7 @@ function ChartCard({
   return (
     <Card className="min-w-0">
       <DashboardCardHeader title={title} status={description} />
-      <CardContent>{children}</CardContent>
+      <CardContent className="mb-0">{children}</CardContent>
     </Card>
   )
 }
