@@ -3,31 +3,22 @@ import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
+  Label,
   NativeSelect,
   NativeSelectOptGroup,
   NativeSelectOption,
-  Toggle,
+  Switch,
 } from '@finances/ui'
-import { RotateCcwIcon, SearchIcon } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import type {
-  AccountDto,
-  CategoryDto,
-  TransactionKind,
-  TransactionSort,
-} from '#/api/types.gen'
+import { SearchIcon } from 'lucide-react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import type { AccountDto, CategoryDto, TransactionKind } from '#/api/types.gen'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { MonthToolbar } from '#/components/month/MonthToolbar'
 import { currentMonth } from '#/lib/calendar'
+import { FilterChip, ToggleChip } from './FilterChip'
+import type { FilterChipOption } from './FilterChip'
 import { KIND_GROUP_LABELS, TRANSACTION_KINDS } from './labels'
-import {
-  ALL_MONTHS,
-  compactSearch,
-  isDefaultSearch,
-  SORT_LABELS,
-  SORTS,
-  UNCATEGORIZED,
-} from './search'
+import { ALL_MONTHS, compactSearch, UNCATEGORIZED } from './search'
 import type { TransactionsSearch } from './search'
 
 /** Delay between the last keystroke and the URL (and list) update. */
@@ -53,32 +44,167 @@ interface TransactionFiltersProps {
   defaultMonth?: string
 }
 
-/** The month navigator, or "Toutes les dates" while the toggle is on. */
-function MonthFilter({
-  month,
-  defaultMonth,
-  onMonthChange,
+/** Filters the chips and the sheet set (not the search, month or sort). */
+export function chipFilterCount(search: TransactionsSearch): number {
+  return [
+    search.account,
+    search.category,
+    search.kind,
+    search.review,
+    search.oneOff,
+    // An empty value (`?account=`) is no filter.
+  ].filter((value) => value !== undefined && value !== '').length
+}
+
+/** The search without the chips' filters (« Effacer »). */
+function withoutChipFilters(search: TransactionsSearch): TransactionsSearch {
+  return compactSearch({ month: search.month, q: search.q, sort: search.sort })
+}
+
+interface FilterOptions {
+  accounts: FilterChipOption[]
+  categories: FilterChipOption[]
+  kinds: FilterChipOption[]
+}
+
+function filterOptions(
+  accounts: readonly AccountDto[],
+  categories: readonly CategoryDto[],
+): FilterOptions {
+  return {
+    accounts: accounts.map((account) => ({
+      value: account.id,
+      label: account.name,
+    })),
+    categories: [
+      { value: UNCATEGORIZED, label: 'Sans catégorie' },
+      ...TRANSACTION_KINDS.flatMap((kind) =>
+        categories
+          .filter((category) => category.kind === kind)
+          .map((category) => ({
+            value: category.id,
+            label: category.archivedAt
+              ? `${category.name} (archivée)`
+              : category.name,
+            group: KIND_GROUP_LABELS[kind],
+          })),
+      ),
+    ],
+    kinds: TRANSACTION_KINDS.map((kind) => ({
+      value: kind,
+      label: KIND_GROUP_LABELS[kind],
+    })),
+  }
+}
+
+type Setter = <TKey extends keyof TransactionsSearch>(
+  key: TKey,
+  value: TransactionsSearch[TKey] | undefined,
+) => void
+
+/** The phone sheet behind « Filtres »: one native control per filter. */
+function SheetFilters({
+  search,
+  set,
+  options,
+  onClear,
 }: {
-  month: string | undefined
-  defaultMonth: string
-  onMonthChange: (month: string | undefined) => void
+  search: TransactionsSearch
+  set: Setter
+  options: FilterOptions
+  onClear: () => void
 }) {
-  const all = month === ALL_MONTHS
-  // The default month is kept out of the URL.
-  const go = (target: string) =>
-    onMonthChange(target === defaultMonth ? undefined : target)
+  const reviewId = useId()
+  const oneOffId = useId()
+  const groups = TRANSACTION_KINDS.map((kind) => ({
+    label: KIND_GROUP_LABELS[kind],
+    options: options.categories.filter(
+      (option) => option.group === KIND_GROUP_LABELS[kind],
+    ),
+  })).filter((group) => group.options.length > 0)
   return (
-    <MonthNavigator
-      month={all ? defaultMonth : (month ?? defaultMonth)}
-      label={all ? 'Toutes les dates' : undefined}
-      onMonthChange={go}
-    />
+    <div className="grid gap-3">
+      <NativeSelect
+        aria-label="Compte"
+        value={search.account ?? ''}
+        onChange={(event) => set('account', event.target.value)}
+        className="w-full"
+      >
+        <NativeSelectOption value="">Tous les comptes</NativeSelectOption>
+        {options.accounts.map((option) => (
+          <NativeSelectOption key={option.value} value={option.value}>
+            {option.label}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+      <NativeSelect
+        aria-label="Catégorie"
+        value={search.category ?? ''}
+        onChange={(event) => set('category', event.target.value)}
+        className="w-full"
+      >
+        <NativeSelectOption value="">Toutes les catégories</NativeSelectOption>
+        <NativeSelectOption value={UNCATEGORIZED}>
+          Sans catégorie
+        </NativeSelectOption>
+        {groups.map((group) => (
+          <NativeSelectOptGroup key={group.label} label={group.label}>
+            {group.options.map((option) => (
+              <NativeSelectOption key={option.value} value={option.value}>
+                {option.label}
+              </NativeSelectOption>
+            ))}
+          </NativeSelectOptGroup>
+        ))}
+      </NativeSelect>
+      <NativeSelect
+        aria-label="Type"
+        value={search.kind ?? ''}
+        onChange={(event) => set('kind', event.target.value as TransactionKind)}
+        className="w-full"
+      >
+        <NativeSelectOption value="">Tous les types</NativeSelectOption>
+        {options.kinds.map((option) => (
+          <NativeSelectOption key={option.value} value={option.value}>
+            {option.label}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+      <div className="flex min-h-11 items-center gap-3">
+        <Switch
+          id={reviewId}
+          checked={search.review === true}
+          onCheckedChange={(on) => set('review', on || undefined)}
+        />
+        <Label htmlFor={reviewId} className="text-sm font-normal">
+          À revoir
+        </Label>
+      </div>
+      <div className="flex min-h-11 items-center gap-3">
+        <Switch
+          id={oneOffId}
+          checked={search.oneOff === true}
+          onCheckedChange={(on) => set('oneOff', on || undefined)}
+        />
+        <Label htmlFor={oneOffId} className="text-sm font-normal">
+          Ponctuelles
+        </Label>
+      </div>
+      {chipFilterCount(search) > 0 && (
+        <Button outline variant="secondary" onClick={onClear}>
+          Effacer les filtres
+        </Button>
+      )}
+    </div>
   )
 }
 
 /**
- * Filters of the transactions page. They only read and write the URL search
- * params (`search`); the page derives the API queries from them.
+ * The month bar of Opérations (#264): the period (the shared navigator,
+ * « Toutes les dates » in its picker), the search across the bar, then one
+ * row of filter chips with « Effacer » when one is on. On phones the chips
+ * that are on stay in view (× clears them) and « Filtres » opens a sheet
+ * with every filter. They only read and write the URL search params.
  */
 export function TransactionFilters({
   search,
@@ -107,25 +233,44 @@ export function TransactionFilters({
     return () => clearTimeout(timer)
   }, [text])
 
-  function set<TKey extends keyof TransactionsSearch>(
-    key: TKey,
-    value: TransactionsSearch[TKey] | undefined,
-  ) {
+  const set: Setter = (key, value) =>
     onSearchChange(compactSearch({ ...search, [key]: value || undefined }))
-  }
+
+  const options = useMemo(
+    () => filterOptions(accounts, categories),
+    [accounts, categories],
+  )
+  const all = search.month === ALL_MONTHS
+  // The default month is kept out of the URL.
+  const goTo = (target: string) =>
+    set('month', target === defaultMonth ? undefined : target)
+  const count = chipFilterCount(search)
+  const clear = () => onSearchChange(withoutChipFilters(search))
 
   return (
-    <div className="space-y-3">
-      <MonthToolbar
-        navigator={
-          <MonthFilter
-            month={search.month}
-            defaultMonth={defaultMonth}
-            onMonthChange={(month) => set('month', month)}
-          />
-        }
-      />
-
+    <MonthToolbar
+      navigator={
+        <MonthNavigator
+          month={all ? defaultMonth : (search.month ?? defaultMonth)}
+          label={all ? 'Toutes les dates' : undefined}
+          allDates={{
+            selected: all,
+            onSelect: () => set('month', ALL_MONTHS),
+          }}
+          onMonthChange={goTo}
+        />
+      }
+      filters={() => (
+        <SheetFilters
+          search={search}
+          set={set}
+          options={options}
+          onClear={clear}
+        />
+      )}
+      filtersInline={false}
+      activeFilters={count}
+    >
       <InputGroup>
         <InputGroupAddon>
           <SearchIcon />
@@ -141,119 +286,55 @@ export function TransactionFilters({
         />
       </InputGroup>
 
-      <div className="grid grid-cols-2 gap-2 @2xl:grid-cols-4 [&_select]:pr-7 [&_select]:pl-2 [&_select]:text-xs [&_select]:tracking-tight @2xl:[&_select]:text-sm">
-        <NativeSelect
-          aria-label="Compte"
-          value={search.account ?? ''}
-          onChange={(event) => set('account', event.target.value)}
-          className="w-full"
-        >
-          <NativeSelectOption value="">Comptes</NativeSelectOption>
-          {accounts.map((account) => (
-            <NativeSelectOption key={account.id} value={account.id}>
-              {account.name}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-
-        <NativeSelect
-          aria-label="Catégorie"
-          value={search.category ?? ''}
-          onChange={(event) => set('category', event.target.value)}
-          className="w-full"
-        >
-          <NativeSelectOption value="">Catégories</NativeSelectOption>
-          <NativeSelectOption value={UNCATEGORIZED}>
-            Sans catégorie
-          </NativeSelectOption>
-          {TRANSACTION_KINDS.map((kind) => {
-            const group = categories.filter((c) => c.kind === kind)
-            if (group.length === 0) return null
-            return (
-              <NativeSelectOptGroup key={kind} label={KIND_GROUP_LABELS[kind]}>
-                {group.map((category) => (
-                  <NativeSelectOption key={category.id} value={category.id}>
-                    {category.archivedAt
-                      ? `${category.name} (archivée)`
-                      : category.name}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelectOptGroup>
-            )
-          })}
-        </NativeSelect>
-
-        <NativeSelect
-          aria-label="Type"
-          value={search.kind ?? ''}
-          onChange={(event) =>
-            set('kind', event.target.value as TransactionKind)
-          }
-          className="w-full"
-        >
-          <NativeSelectOption value="">Types</NativeSelectOption>
-          {TRANSACTION_KINDS.map((kind) => (
-            <NativeSelectOption key={kind} value={kind}>
-              {KIND_GROUP_LABELS[kind]}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-
-        <NativeSelect
-          aria-label="Tri"
-          value={search.sort ?? 'date_desc'}
-          onChange={(event) => {
-            const sort = event.target.value as TransactionSort
-            set('sort', sort === 'date_desc' ? undefined : sort)
-          }}
-          className="w-full"
-        >
-          {SORTS.map((sort) => (
-            <NativeSelectOption key={sort} value={sort}>
-              {SORT_LABELS[sort]}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Toggle
-          variant="outline"
-          size="sm"
-          pressed={search.month === ALL_MONTHS}
-          onPressedChange={(on) => set('month', on ? ALL_MONTHS : undefined)}
-        >
-          Toutes les dates
-        </Toggle>
-        <Toggle
-          variant="outline"
-          size="sm"
+      {/* Every chip from 672px; on phones only those that are on. */}
+      <div
+        data-slot="filter-chips"
+        className={
+          count === 0
+            ? 'hidden flex-wrap items-center gap-2 @[672px]:flex'
+            : 'flex flex-wrap items-center gap-2'
+        }
+      >
+        <FilterChip
+          label="Compte"
+          value={search.account}
+          options={options.accounts}
+          onChange={(value) => set('account', value)}
+          hideWhenUnset
+        />
+        <FilterChip
+          label="Catégorie"
+          value={search.category}
+          options={options.categories}
+          onChange={(value) => set('category', value)}
+          searchable
+          hideWhenUnset
+        />
+        <FilterChip
+          label="Type"
+          value={search.kind}
+          options={options.kinds}
+          onChange={(value) => set('kind', value as TransactionKind)}
+          hideWhenUnset
+        />
+        <ToggleChip
+          label="À revoir"
           pressed={search.review === true}
           onPressedChange={(on) => set('review', on || undefined)}
-        >
-          À revoir
-        </Toggle>
-        <Toggle
-          variant="outline"
-          size="sm"
+          hideWhenOff
+        />
+        <ToggleChip
+          label="Ponctuelles"
           pressed={search.oneOff === true}
           onPressedChange={(on) => set('oneOff', on || undefined)}
-        >
-          Ponctuelles
-        </Toggle>
-        {!isDefaultSearch(search) && (
-          <Button
-            size="sm"
-            variant="secondary"
-            ghost
-            iconStart={<RotateCcwIcon />}
-            className="ml-auto"
-            onClick={() => onSearchChange({})}
-          >
-            Réinitialiser
+          hideWhenOff
+        />
+        {count > 0 && (
+          <Button variant="secondary" ghost onClick={clear} className="text-sm">
+            Effacer
           </Button>
         )}
       </div>
-    </div>
+    </MonthToolbar>
   )
 }

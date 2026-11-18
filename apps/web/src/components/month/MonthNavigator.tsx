@@ -8,7 +8,12 @@ import {
   PopoverTrigger,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
+import {
+  CalendarIcon,
+  CalendarRangeIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import {
   currentMonth,
@@ -189,6 +194,12 @@ export interface MonthNavigatorProps {
    * are off, the picker still leads back to a month.
    */
   label?: string
+  /**
+   * A « Toutes les dates » entry in the picker, beside the shortcuts (the
+   * transactions page): `selected` while the whole history is shown (pass
+   * `label` too), `onSelect` when it is picked.
+   */
+  allDates?: { selected: boolean; onSelect: () => void }
   /** Whether ← / → move the month (one navigator per page). Default: on. */
   keyboard?: boolean
   className?: string
@@ -207,6 +218,7 @@ export function MonthNavigator({
   onMonthChange,
   max: maxProp,
   label,
+  allDates,
   keyboard = true,
   className,
 }: MonthNavigatorProps) {
@@ -307,6 +319,21 @@ export function MonthNavigator({
                 {shortcut.label}
               </Button>
             ))}
+            {allDates && (
+              <Button
+                outline
+                variant="secondary"
+                iconStart={<CalendarRangeIcon />}
+                aria-pressed={allDates.selected}
+                className="aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary"
+                onClick={() => {
+                  setOpen(false)
+                  if (!allDates.selected) allDates.onSelect()
+                }}
+              >
+                Toutes les dates
+              </Button>
+            )}
           </div>
           {monthsWithData.size > 0 && (
             <p className="text-muted-foreground flex items-center gap-1.5 text-xs">

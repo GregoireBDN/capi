@@ -217,6 +217,34 @@ describe('MonthNavigator', () => {
   })
 })
 
+describe('MonthNavigator « Toutes les dates »', () => {
+  it('offers the whole history in the picker', async () => {
+    const onSelect = vi.fn()
+    const user = userEvent.setup()
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MonthNavigator
+          month="2026-09"
+          onMonthChange={vi.fn()}
+          allDates={{ selected: false, onSelect }}
+        />
+      </QueryClientProvider>,
+    )
+    await user.click(trigger('Septembre 2026'))
+    const option = within(await screen.findByRole('dialog')).getByRole(
+      'button',
+      { name: 'Toutes les dates' },
+    )
+    expect(option).toHaveAttribute('aria-pressed', 'false')
+    await user.click(option)
+    expect(onSelect).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
+
 describe('monthShortcuts', () => {
   it('names the latest month and the month the data stops in', () => {
     expect(

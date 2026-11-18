@@ -5,6 +5,8 @@ import {
   Button,
   Checkbox,
   EmptyState,
+  NativeSelect,
+  NativeSelectOption,
   Skeleton,
 } from '@finances/ui'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
@@ -26,12 +28,20 @@ import type { BulkChanges } from './changes'
 import { transactionListQuery, transactionSummaryQuery } from './queries'
 import { RuleFromCorrectionDialog } from './RuleFromCorrectionDialog'
 import { RuleOfferBanner } from './RuleOfferBanner'
-import { activeFilterCount, ALL_MONTHS, toFilters } from './search'
+import {
+  activeFilterCount,
+  ALL_MONTHS,
+  compactSearch,
+  SORT_LABELS,
+  SORTS,
+  toFilters,
+} from './search'
 import {
   coverageQuery,
   nearestMonthWithData,
 } from '#/components/month/coverage'
-import type { CoverageDto } from '#/api/types.gen'
+import type { CoverageDto, TransactionSort } from '#/api/types.gen'
+import { plural } from '#/lib/plural'
 import { formatShortDay } from '#/lib/period'
 import type { TransactionsSearch } from './search'
 import { TransactionFilters } from './TransactionFilters'
@@ -286,32 +296,69 @@ export function TransactionsPage({
 
       {list.isSuccess && items.length > 0 && (
         <div className="space-y-2">
-          <div className="flex items-center gap-3 px-3">
-            <Checkbox
-              id="transactions-select-all"
-              checked={
-                allSelected
-                  ? true
-                  : selectedItems.length > 0
-                    ? 'indeterminate'
-                    : false
-              }
-              onCheckedChange={(checked) =>
-                setSelected(
-                  checked === true
-                    ? new Set(items.map((item) => item.id))
-                    : new Set(),
-                )
-              }
-            />
-            <label htmlFor="transactions-select-all" className="text-sm">
-              Tout sélectionner
-            </label>
+          {/* Count and sort on one row, « Tout sélectionner » under them on
+              phones; all three on one row from 672px. */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 @[672px]:gap-x-3 @[672px]:px-3">
+            <p className="text-sm font-medium" aria-live="polite">
+              {plural(total, 'opération')}
+            </p>
+            <span
+              aria-hidden
+              className="text-muted-foreground hidden @[672px]:inline"
+            >
+              ·
+            </span>
+            <div className="order-last flex w-full items-center gap-2 @[672px]:order-none @[672px]:w-auto">
+              <Checkbox
+                id="transactions-select-all"
+                checked={
+                  allSelected
+                    ? true
+                    : selectedItems.length > 0
+                      ? 'indeterminate'
+                      : false
+                }
+                onCheckedChange={(checked) =>
+                  setSelected(
+                    checked === true
+                      ? new Set(items.map((item) => item.id))
+                      : new Set(),
+                  )
+                }
+              />
+              <label
+                htmlFor="transactions-select-all"
+                className="flex min-h-11 items-center text-sm"
+              >
+                Tout sélectionner
+              </label>
+            </div>
             {list.isFetching && !list.isFetchingNextPage && (
-              <span className="text-muted-foreground ml-auto text-xs">
+              <span className="text-muted-foreground text-xs">
                 Mise à jour…
               </span>
             )}
+            <NativeSelect
+              aria-label="Tri"
+              size="sm"
+              value={sort}
+              onChange={(event) => {
+                const next = event.target.value as TransactionSort
+                onSearchChange(
+                  compactSearch({
+                    ...search,
+                    sort: next === 'date_desc' ? undefined : next,
+                  }),
+                )
+              }}
+              className="ml-auto w-auto"
+            >
+              {SORTS.map((option) => (
+                <NativeSelectOption key={option} value={option}>
+                  {SORT_LABELS[option]}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
           </div>
           <TransactionList
             items={items}
