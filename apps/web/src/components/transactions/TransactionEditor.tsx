@@ -60,13 +60,9 @@ interface TransactionEditorProps {
 
 /**
  * A group of settings, iPhone style (#280): a tinted block without border,
- * square rows, and straight hairlines between them that start after the
- * icon (`ROW_INSET`).
+ * square rows and straight full-width hairlines between them.
  */
-const GROUP =
-  "bg-muted/60 overflow-hidden rounded-xl [&>*+*]:relative [&>*+*]:before:pointer-events-none [&>*+*]:before:absolute [&>*+*]:before:top-0 [&>*+*]:before:right-0 [&>*+*]:before:left-[2.3rem] [&>*+*]:before:border-t [&>*+*]:before:border-border [&>*+*]:before:content-['']"
-/** Groups whose rows have no icon: hairlines from the row's padding. */
-const GROUP_NO_ICON = `${GROUP} [&>*+*]:before:left-3`
+const GROUP = 'bg-muted/60 divide-border divide-y overflow-hidden rounded-xl'
 /** A row of a group: square, hover and focus inside its block. */
 const ROW =
   'hover:bg-muted focus-visible:ring-ring/50 flex min-h-9 w-full items-center gap-3 px-3 text-left text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-inset'
@@ -292,7 +288,7 @@ function KindScreen({
       <p className="text-muted-foreground text-xs">
         La catégorie donne le type ; changez-le seulement pour une exception.
       </p>
-      <div role="radiogroup" aria-label="Type" className={GROUP_NO_ICON}>
+      <div role="radiogroup" aria-label="Type" className={GROUP}>
         {TRANSACTION_KINDS.map((kind) => (
           <button
             key={kind}
