@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MonthPeriodDto } from '#/api/types.gen'
 import { MonthToolbar } from './MonthToolbar'
@@ -22,33 +23,60 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+const toolbar = (container: HTMLElement) =>
+  container.querySelector<HTMLElement>('[data-slot=month-toolbar]')!
+
 describe('MonthToolbar', () => {
-  it('puts the period note under the navigator, then the page’s filters', () => {
+  it('holds the navigator, the actions and the period note in one bar', () => {
     const { container } = render(
       <MonthToolbar
         navigator={<div data-testid="navigator" />}
         period={partial}
-      >
-        <button type="button">Ajouter</button>
-      </MonthToolbar>,
+        actions={<button type="button">Ajouter</button>}
+      />,
     )
-    const toolbar = container.querySelector('[data-slot=month-toolbar]')!
-    const [start, end] = [...toolbar.children]
-    expect(start.firstElementChild).toBe(screen.getByTestId('navigator'))
-    expect(start.querySelector('[data-slot=period-note]')).toHaveTextContent(
+    const bar = toolbar(container)
+    expect(bar).toContainElement(screen.getByTestId('navigator'))
+    expect(
+      within(
+        bar.querySelector<HTMLElement>('[data-slot=month-toolbar-actions]')!,
+      ).getByRole('button', { name: 'Ajouter' }),
+    ).toBeInTheDocument()
+    expect(bar.querySelector('[data-slot=period-note]')).toHaveTextContent(
       /3 nov\./,
     )
-    expect(end).toContainElement(
-      screen.getByRole('button', { name: 'Ajouter' }),
-    )
+    // No filters, no « Filtres » button.
+    expect(screen.queryByRole('button', { name: /^Filtres/ })).toBeNull()
   })
 
-  it('renders only the navigator without a period or filters', () => {
+  it('shows the filters inline and, on phones, in a sheet with the count', async () => {
+    const user = userEvent.setup()
+    const filters = (layout: 'inline' | 'sheet') => (
+      <select aria-label={`Compte (${layout})`} />
+    )
+    const { container } = render(
+      <MonthToolbar navigator={<div />} filters={filters} activeFilters={2} />,
+    )
+    expect(
+      toolbar(container).querySelector('[data-slot=month-toolbar-filters]'),
+    ).toContainElement(screen.getByLabelText('Compte (inline)'))
+    expect(screen.queryByLabelText('Compte (sheet)')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Filtres, 2 actifs' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Filtres' })
+    expect(within(sheet).getByLabelText('Compte (sheet)')).toBeInTheDocument()
+  })
+
+  it('renders only the navigator without a period, filters or actions', () => {
     const { container } = render(
       <MonthToolbar navigator={<div data-testid="navigator" />} />,
     )
-    const toolbar = container.querySelector('[data-slot=month-toolbar]')!
-    expect(toolbar.children).toHaveLength(1)
     expect(container.querySelector('[data-slot=period-note]')).toBeNull()
+    expect(
+      container.querySelector('[data-slot=month-toolbar-actions]'),
+    ).toBeNull()
+    expect(
+      container.querySelector('[data-slot=month-toolbar-filters]'),
+    ).toBeNull()
   })
 })

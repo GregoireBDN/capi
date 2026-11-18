@@ -182,7 +182,7 @@ describe('MonthNavigator', () => {
   it('has a short label for narrow containers, both as wide as the widest month', () => {
     setup({ initial: '2026-05' })
     const button = trigger('Mai 2026')
-    // Both forms are rendered; container queries pick one (< 320px: short).
+    // Both forms are rendered; container queries pick one (< 420px: short).
     expect(within(button).getByText('Mai 2026')).toBeInTheDocument()
     expect(within(button).getByText('mai 2026')).toBeInTheDocument()
     // Every month of the year sizes the label, so the arrows never move.

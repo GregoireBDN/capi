@@ -200,7 +200,7 @@ export interface MonthNavigatorProps {
  * months after `max` off, shortcuts to the current month and to the month
  * the data stops in), and ← / → on a keyboard. One box with 44px targets,
  * as wide as its content; short label when its container (`@container`) is
- * under 320px. Place it with `MonthToolbar`.
+ * under 420px. Place it with `MonthToolbar`.
  */
 export function MonthNavigator({
   month,

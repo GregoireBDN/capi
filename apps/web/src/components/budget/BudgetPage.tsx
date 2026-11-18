@@ -99,27 +99,29 @@ export function BudgetPage({
       <MonthToolbar
         navigator={<MonthNavigator month={month} onMonthChange={go} />}
         period={budget.data?.period}
-      >
-        {budget.isSuccess && !empty && (
-          <div className="flex flex-wrap gap-2 *:grow @[672px]:*:grow-0">
-            <Button
-              outline
-              variant="secondary"
-              iconStart={<SparklesIcon />}
-              onClick={() => setSuggestOpen(true)}
-            >
-              Proposer
-            </Button>
-            <Button
-              iconStart={<PlusIcon />}
-              disabled={available.length === 0}
-              onClick={() => setEditor({ open: true })}
-            >
-              Ajouter
-            </Button>
-          </div>
-        )}
-      </MonthToolbar>
+        actions={
+          budget.isSuccess &&
+          !empty && (
+            <div className="flex flex-wrap gap-2 *:grow @[672px]:*:grow-0">
+              <Button
+                outline
+                variant="secondary"
+                iconStart={<SparklesIcon />}
+                onClick={() => setSuggestOpen(true)}
+              >
+                Proposer
+              </Button>
+              <Button
+                iconStart={<PlusIcon />}
+                disabled={available.length === 0}
+                onClick={() => setEditor({ open: true })}
+              >
+                Ajouter
+              </Button>
+            </div>
+          )
+        }
+      />
 
       {budget.isPending && <PageSkeleton />}
 

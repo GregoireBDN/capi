@@ -34,7 +34,7 @@ type PeriodStepperLabelProps = Omit<
 > & {
   /** The period shown ("Octobre 2026"). */
   text: string
-  /** Shown instead of `text` in containers under 320px ("oct. 2026"). */
+  /** Shown instead of `text` in containers under 420px ("oct. 2026"). */
   shortText?: string
   /**
    * Every value `text` can take (e.g. the twelve months of the year): the
@@ -89,7 +89,7 @@ function SizedText({
 /**
  * One box ‹ | period | ›, 44px high, as wide as its content at every width
  * (never stretched across the row). `PeriodStepperLabel` switches to its
- * short text when its container (put it in a `@container`) is under 320px;
+ * short text when its container (put it in a `@container`) is under 420px;
  * px rather than rem: with the app's 22px root, a container `rem` is about
  * 1.4× the usual one.
  */
@@ -141,7 +141,7 @@ function PeriodStepper({
 
 /**
  * The middle segment of a `PeriodStepper`: the period's name and a ⌄ (from
- * 320px), touching the arrows through the box's dividers. It is a button, so
+ * 420px), touching the arrows through the box's dividers. It is a button, so
  * it can open a picker (`PopoverTrigger asChild`).
  */
 function PeriodStepperLabel({
@@ -168,17 +168,17 @@ function PeriodStepperLabel({
         <SizedText
           text={text}
           sizers={sizers}
-          className="hidden @[320px]:grid"
+          className="hidden @[420px]:grid"
         />
         <SizedText
           text={shortText ?? text}
           sizers={shortText === undefined ? sizers : shortSizers}
-          className="grid @[320px]:hidden"
+          className="grid @[420px]:hidden"
         />
       </span>
       <ChevronDownIcon
         aria-hidden
-        className="hidden opacity-60 @[320px]:block"
+        className="hidden opacity-60 @[420px]:block"
       />
     </Button>
   )
