@@ -16,18 +16,14 @@ export interface FigureTileProps {
   className?: string
 }
 
-// On a phone (card under 36rem) one compact line: the label left, the
-// value right, no notes; from 36rem the label above the value and its notes.
-const TILE = cn(
-  'bg-muted/50 flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 rounded-xl px-3 py-2.5',
-  '@[36rem]:flex-col @[36rem]:flex-nowrap @[36rem]:items-start @[36rem]:justify-start',
-)
+// The label above the value at every width; the notes from 36rem of card.
+const TILE =
+  'bg-muted/50 flex min-w-0 flex-col items-start rounded-xl px-3 py-2.5'
 
 /**
  * A figure in a filled tile (#262). In a wide card: its label above, the
  * value, a short note or two under it; tiles in one grid row share their
- * height. On a phone: one line, label and value, without the notes (one
- * tile per line). Its size queries the nearest `@container` (the card's
+ * height. On a phone the same, without the notes (one tile per line). Its size queries the nearest `@container` (the card's
  * figures).
  */
 export function FigureTile({
