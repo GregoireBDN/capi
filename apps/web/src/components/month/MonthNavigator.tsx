@@ -1,19 +1,21 @@
 import {
   Button,
   cn,
+  PeriodStepper,
+  PeriodStepperLabel,
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
-import {
-  CalendarIcon,
-  ChevronDownIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-} from 'lucide-react'
+import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { currentMonth, formatMonth, shiftMonth } from '#/lib/calendar'
+import {
+  currentMonth,
+  formatMonth,
+  formatShortMonth,
+  shiftMonth,
+} from '#/lib/calendar'
 import { coverageQuery } from './coverage'
 import { isMonthKey } from './month-keys'
 
@@ -164,6 +166,18 @@ function MonthGrid({
   )
 }
 
+function monthsOfYear(month: string): string[] {
+  const year = month.slice(0, 4)
+  return Array.from(
+    { length: 12 },
+    (_, index) => `${year}-${String(index + 1).padStart(2, '0')}`,
+  )
+}
+
+/** Every month name of the year shown, so the label keeps the widest one's width. */
+const fullSizers = (month: string) => monthsOfYear(month).map(formatMonth)
+const shortSizers = (month: string) => monthsOfYear(month).map(formatShortMonth)
+
 export interface MonthNavigatorProps {
   /** Month shown (`YYYY-MM`). */
   month: string
@@ -184,7 +198,9 @@ export interface MonthNavigatorProps {
  * The month navigator of every month page: previous / next month, the
  * month's name opening a month picker (months with transactions marked,
  * months after `max` off, shortcuts to the current month and to the month
- * the data stops in), and ← / → on a keyboard. 44px targets on phones.
+ * the data stops in), and ← / → on a keyboard. One box with 44px targets,
+ * laid out by its container (`@container`): short label under 320px, full
+ * width up to 512px, its own width beyond. Place it with `MonthToolbar`.
  */
 export function MonthNavigator({
   month,
@@ -235,39 +251,35 @@ export function MonthNavigator({
     if (target !== month || !free) onMonthChange(target)
   }
 
+  const name = label ?? formatMonth(month)
+
   return (
-    <div
-      className={cn('flex w-full items-center sm:w-fit sm:gap-1', className)}
-      role="group"
+    <PeriodStepper
+      data-slot="month-navigator"
       aria-label="Mois"
+      className={className}
+      previous={{
+        label: 'Mois précédent',
+        keyShortcuts: keyboard ? 'ArrowLeft' : undefined,
+        disabled: !canGoBack,
+        onClick: () => onMonthChange(shiftMonth(month, -1)),
+      }}
+      next={{
+        label: 'Mois suivant',
+        keyShortcuts: keyboard ? 'ArrowRight' : undefined,
+        disabled: !canGoForward,
+        onClick: () => onMonthChange(shiftMonth(month, 1)),
+      }}
     >
-      <Button
-        variant="secondary"
-        ghost
-        iconOnly
-        aria-label="Mois précédent"
-        aria-keyshortcuts={keyboard ? 'ArrowLeft' : undefined}
-        disabled={!canGoBack}
-        onClick={() => onMonthChange(shiftMonth(month, -1))}
-      >
-        <ChevronLeftIcon />
-      </Button>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button
-            variant="secondary"
-            ghost
-            iconEnd={
-              // No room for it beside "Septembre 2026" on the narrowest phones.
-              <ChevronDownIcon className="opacity-60 max-[359px]:hidden" />
-            }
-            aria-label={`${label ?? formatMonth(month)}, choisir un mois`}
-            className="text-foreground min-w-0 flex-1 px-1.5 text-base font-semibold transition-colors max-[359px]:gap-0 max-[359px]:text-[0.95rem] sm:w-[10.5rem] sm:flex-none"
-          >
-            <span className="truncate" aria-live="polite">
-              {label ?? formatMonth(month)}
-            </span>
-          </Button>
+          <PeriodStepperLabel
+            aria-label={`${name}, choisir un mois`}
+            text={name}
+            shortText={label ?? formatShortMonth(month)}
+            sizers={label === undefined ? fullSizers(month) : undefined}
+            shortSizers={label === undefined ? shortSizers(month) : undefined}
+          />
         </PopoverTrigger>
         <PopoverContent
           align="center"
@@ -304,17 +316,6 @@ export function MonthNavigator({
           )}
         </PopoverContent>
       </Popover>
-      <Button
-        variant="secondary"
-        ghost
-        iconOnly
-        aria-label="Mois suivant"
-        aria-keyshortcuts={keyboard ? 'ArrowRight' : undefined}
-        disabled={!canGoForward}
-        onClick={() => onMonthChange(shiftMonth(month, 1))}
-      >
-        <ChevronRightIcon />
-      </Button>
-    </div>
+    </PeriodStepper>
   )
 }

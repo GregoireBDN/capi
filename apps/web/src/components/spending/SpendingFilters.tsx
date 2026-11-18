@@ -1,7 +1,8 @@
 import { Label, NativeSelect, NativeSelectOption, Switch } from '@finances/ui'
 import { useId } from 'react'
-import type { AccountDto } from '#/api/types.gen'
+import type { AccountDto, MonthPeriodDto } from '#/api/types.gen'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
+import { MonthToolbar } from '#/components/month/MonthToolbar'
 import {
   AVERAGE_PERIODS,
   compactSearch,
@@ -16,11 +17,14 @@ interface SpendingFiltersProps {
   month: string
   /** Month shown without a month in the URL (picked by the API). */
   defaultMonth: string
+  /** How far the month's figures go, once loaded. */
+  period?: MonthPeriodDto
   accounts: readonly AccountDto[]
 }
 
 /**
- * Month navigation, one-off toggle, account and average period. They only
+ * Month navigation (with how far the month goes), then the account, the
+ * average period and the one-off toggle beside it on wide pages. They only
  * read and write the URL search params.
  */
 export function SpendingFilters({
@@ -28,6 +32,7 @@ export function SpendingFilters({
   onSearchChange,
   month,
   defaultMonth,
+  period,
   accounts,
 }: SpendingFiltersProps) {
   const switchId = useId()
@@ -44,15 +49,16 @@ export function SpendingFilters({
     set('month', target === defaultMonth ? undefined : target)
 
   return (
-    <div className="space-y-3">
-      <MonthNavigator month={month} onMonthChange={goTo} />
-
-      <div className="grid grid-cols-2 gap-2 @2xl:flex @2xl:items-center [&_select]:pr-7 [&_select]:pl-2 [&_select]:text-xs [&_select]:tracking-tight @2xl:[&_select]:text-sm">
+    <MonthToolbar
+      navigator={<MonthNavigator month={month} onMonthChange={goTo} />}
+      period={period}
+    >
+      <div className="grid grid-cols-2 gap-2 @2xl:flex @2xl:flex-wrap @2xl:items-center [&_select]:pr-7 [&_select]:pl-2 [&_select]:text-xs [&_select]:tracking-tight @2xl:[&_select]:text-sm">
         <NativeSelect
           aria-label="Compte"
           value={search.account ?? ''}
           onChange={(event) => set('account', event.target.value || undefined)}
-          className="w-full @2xl:w-56"
+          className="w-full @2xl:w-auto @2xl:max-w-56"
         >
           <NativeSelectOption value="">Comptes</NativeSelectOption>
           {accounts.map((account) => (
@@ -69,16 +75,16 @@ export function SpendingFilters({
             const avg = Number(event.target.value)
             set('avg', avg === 3 || avg === 12 ? avg : undefined)
           }}
-          className="w-full @2xl:w-48"
+          className="w-full @2xl:w-auto"
         >
-          {AVERAGE_PERIODS.map((period) => (
-            <NativeSelectOption key={period} value={String(period)}>
-              Moy. {period} mois
+          {AVERAGE_PERIODS.map((months) => (
+            <NativeSelectOption key={months} value={String(months)}>
+              Moy. {months} mois
             </NativeSelectOption>
           ))}
         </NativeSelect>
 
-        <div className="col-span-2 flex items-center gap-3 @2xl:ml-auto">
+        <div className="col-span-2 flex min-h-8 items-center gap-3">
           <Switch
             id={switchId}
             checked={search.oneOffs === true}
@@ -89,6 +95,6 @@ export function SpendingFilters({
           </Label>
         </div>
       </div>
-    </div>
+    </MonthToolbar>
   )
 }

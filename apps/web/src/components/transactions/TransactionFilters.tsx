@@ -17,6 +17,7 @@ import type {
   TransactionSort,
 } from '#/api/types.gen'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
+import { MonthToolbar } from '#/components/month/MonthToolbar'
 import { currentMonth } from '#/lib/calendar'
 import { KIND_GROUP_LABELS, TRANSACTION_KINDS } from './labels'
 import {
@@ -115,10 +116,14 @@ export function TransactionFilters({
 
   return (
     <div className="space-y-3">
-      <MonthFilter
-        month={search.month}
-        defaultMonth={defaultMonth}
-        onMonthChange={(month) => set('month', month)}
+      <MonthToolbar
+        navigator={
+          <MonthFilter
+            month={search.month}
+            defaultMonth={defaultMonth}
+            onMonthChange={(month) => set('month', month)}
+          />
+        }
       />
 
       <InputGroup>

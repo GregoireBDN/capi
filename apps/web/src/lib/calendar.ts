@@ -63,6 +63,18 @@ export function formatMonth(month: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
+const shortMonthLabel = new Intl.DateTimeFormat('fr-FR', {
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
+
+/** `2026-10` → "oct. 2026" (narrow places: the month navigator under 20rem). */
+export function formatShortMonth(month: string): string {
+  const [year, monthNumber] = month.split('-').map(Number)
+  return shortMonthLabel.format(new Date(Date.UTC(year, monthNumber - 1, 1)))
+}
+
 const dayLabel = new Intl.DateTimeFormat('fr-FR', {
   weekday: 'long',
   day: 'numeric',

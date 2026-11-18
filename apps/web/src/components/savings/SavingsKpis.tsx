@@ -11,7 +11,6 @@ import type {
   SavingsOverviewDto,
 } from '#/api/types.gen'
 import { formatPoints, savingsRateNote } from '#/components/dashboard/labels'
-import { PeriodNote } from '#/components/PeriodNote'
 import { formatMonth } from '#/lib/calendar'
 import { comparisonLabel, isComparable } from '#/lib/period'
 
@@ -137,7 +136,6 @@ export function SavingsKpis({ overview }: { overview: SavingsOverviewDto }) {
           note={noStock ? 'Aucun livret ni placement' : 'Livrets et placements'}
         />
       </div>
-      <PeriodNote period={period} className="px-1" />
       <p className="text-muted-foreground px-1 text-xs">
         Virements entre vos comptes exclus.
       </p>

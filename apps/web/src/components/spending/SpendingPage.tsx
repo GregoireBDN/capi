@@ -20,7 +20,6 @@ import { ChartPieIcon, UploadIcon } from 'lucide-react'
 import { NearestMonthButton } from '#/components/month/NearestMonthButton'
 import { useMemo } from 'react'
 import { PageHeader } from '#/components/app-shell/PageHeader'
-import { PeriodNote } from '#/components/PeriodNote'
 import { currentMonth, formatMonth } from '#/lib/calendar'
 import { formatShortDay } from '#/lib/period'
 import { accountsQuery, categoriesQuery, isTransactional } from '#/lib/queries'
@@ -158,6 +157,7 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
         onSearchChange={onSearchChange}
         month={month}
         defaultMonth={data?.period.defaultMonth ?? today}
+        period={data?.period}
         accounts={(accounts.data ?? []).filter(isTransactional)}
       />
 
@@ -235,7 +235,6 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
         <>
           <div className="space-y-1.5">
             <SpendingKpis data={data} trend={totals.data?.totalsCents} />
-            <PeriodNote period={data.period} />
             <p className="text-muted-foreground text-xs">
               Virements entre vos comptes exclus.{' '}
               {data.oneOffCents > 0 &&

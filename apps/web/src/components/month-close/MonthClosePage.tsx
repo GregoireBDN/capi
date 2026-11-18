@@ -19,7 +19,7 @@ import type {
 } from '#/api/types.gen'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
-import { PeriodNote } from '#/components/PeriodNote'
+import { MonthToolbar } from '#/components/month/MonthToolbar'
 import { MonthCloseSteps } from './MonthCloseSteps'
 import { MonthReport } from './MonthReport'
 import {
@@ -116,9 +116,12 @@ export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
         description="Les étapes pour boucler le mois, puis sa clôture."
       />
 
-      <MonthNavigator month={month} onMonthChange={onMonthChange} />
-
-      {data && <PeriodNote period={data.period} className="-mt-3" />}
+      <MonthToolbar
+        navigator={
+          <MonthNavigator month={month} onMonthChange={onMonthChange} />
+        }
+        period={data?.period}
+      />
 
       {review.isPending && <PageSkeleton />}
 

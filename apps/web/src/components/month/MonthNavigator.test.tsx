@@ -179,6 +179,22 @@ describe('MonthNavigator', () => {
     expect(onChange).toHaveBeenCalledTimes(2)
   })
 
+  it('has a short label for narrow containers, both as wide as the widest month', () => {
+    setup({ initial: '2026-05' })
+    const button = trigger('Mai 2026')
+    // Both forms are rendered; container queries pick one (< 320px: short).
+    expect(within(button).getByText('Mai 2026')).toBeInTheDocument()
+    expect(within(button).getByText('mai 2026')).toBeInTheDocument()
+    // Every month of the year sizes the label, so the arrows never move.
+    const sizers = [...button.querySelectorAll('[data-sizer]')].map((sizer) =>
+      sizer.getAttribute('data-sizer'),
+    )
+    expect(sizers).toHaveLength(24)
+    expect(sizers).toEqual(
+      expect.arrayContaining(['Septembre 2026', 'sept. 2026', 'Mai 2026']),
+    )
+  })
+
   it('shows a label instead of the month, arrows off, the picker leading back to a month', async () => {
     const { user, onChange } = setup({
       initial: '2026-11',

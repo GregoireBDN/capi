@@ -3,6 +3,7 @@ import {
   currentMonth,
   formatDay,
   formatMonth,
+  formatShortMonth,
   isMonth,
   shiftMonth,
 } from './calendar'
@@ -35,5 +36,11 @@ describe('calendar', () => {
     expect(formatMonth('2027-01')).toBe('Janvier 2027')
     expect(formatDay('2026-11-03')).toBe('Mardi 3 novembre 2026')
     expect(formatDay('2026-03-01')).toBe('Dimanche 1 mars 2026')
+  })
+
+  it('formats a month in short form', () => {
+    expect(formatShortMonth('2026-10')).toBe('oct. 2026')
+    expect(formatShortMonth('2026-05')).toBe('mai 2026')
+    expect(formatShortMonth('2027-09')).toBe('sept. 2027')
   })
 })

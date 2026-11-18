@@ -18,6 +18,7 @@ import { AddInvestmentButton } from '#/components/accounts/AddInvestmentSheet'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import type { SavingsOverviewDto } from '#/api/types.gen'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
+import { MonthToolbar } from '#/components/month/MonthToolbar'
 import { ROUTES } from '#/lib/routes'
 import { GoalsSection } from './GoalsSection'
 import { SavingsChart, SavingsChartSkeleton } from './SavingsChart'
@@ -82,7 +83,10 @@ export function SavingsPage({
       />
 
       {month !== undefined && !isEmpty && (
-        <MonthNavigator month={month} onMonthChange={go} />
+        <MonthToolbar
+          navigator={<MonthNavigator month={month} onMonthChange={go} />}
+          period={data?.period}
+        />
       )}
 
       {overview.isPending && <OverviewSkeleton />}
