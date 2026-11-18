@@ -27,6 +27,7 @@ function category(
     name: slug,
     kind,
     color: null,
+    icon: null,
     archivedAt: null,
     createdAt: NOW,
     updatedAt: NOW,

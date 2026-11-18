@@ -1,4 +1,5 @@
 import type { TransactionKind } from '#/database/schema/domain-enums'
+import type { CategoryIcon } from './category-icons'
 
 export interface DefaultCategory {
   /** Stable English snake_case identifier, referenced by rules and imports. */
@@ -9,6 +10,8 @@ export interface DefaultCategory {
   kind: TransactionKind
   /** Lowercase `#rrggbb` hex; the user may change it. */
   color: string
+  /** Icon of the category's rows (#266); the user may change it. */
+  icon: CategoryIcon
 }
 
 /**
@@ -22,42 +25,118 @@ export interface DefaultCategory {
  */
 export const DEFAULT_CATEGORIES = [
   // Expenses
-  { slug: 'rent', name: 'Loyer', kind: 'expense', color: '#dc2626' },
-  { slug: 'energy', name: 'Énergie', kind: 'expense', color: '#ea580c' },
-  { slug: 'groceries', name: 'Courses', kind: 'expense', color: '#d97706' },
+  {
+    slug: 'rent',
+    name: 'Loyer',
+    kind: 'expense',
+    color: '#dc2626',
+    icon: 'house',
+  },
+  {
+    slug: 'energy',
+    name: 'Énergie',
+    kind: 'expense',
+    color: '#ea580c',
+    icon: 'zap',
+  },
+  {
+    slug: 'groceries',
+    name: 'Courses',
+    kind: 'expense',
+    color: '#d97706',
+    icon: 'shopping-cart',
+  },
   {
     slug: 'restaurants_cafes',
     name: 'Restaurants & cafés',
     kind: 'expense',
     color: '#ca8a04',
+    icon: 'utensils',
   },
-  { slug: 'transport', name: 'Transport', kind: 'expense', color: '#0891b2' },
+  {
+    slug: 'transport',
+    name: 'Transport',
+    kind: 'expense',
+    color: '#0891b2',
+    icon: 'train-front',
+  },
   {
     slug: 'subscriptions',
     name: 'Abonnements',
     kind: 'expense',
     color: '#7c3aed',
+    icon: 'repeat',
   },
-  { slug: 'insurance', name: 'Assurances', kind: 'expense', color: '#4f46e5' },
-  { slug: 'telecom', name: 'Télécom', kind: 'expense', color: '#2563eb' },
-  { slug: 'health', name: 'Santé', kind: 'expense', color: '#e11d48' },
-  { slug: 'shopping', name: 'Shopping', kind: 'expense', color: '#db2777' },
-  { slug: 'leisure', name: 'Loisirs', kind: 'expense', color: '#c026d3' },
-  { slug: 'travel', name: 'Voyages', kind: 'expense', color: '#0d9488' },
+  {
+    slug: 'insurance',
+    name: 'Assurances',
+    kind: 'expense',
+    color: '#4f46e5',
+    icon: 'shield',
+  },
+  {
+    slug: 'telecom',
+    name: 'Télécom',
+    kind: 'expense',
+    color: '#2563eb',
+    icon: 'smartphone',
+  },
+  {
+    slug: 'health',
+    name: 'Santé',
+    kind: 'expense',
+    color: '#e11d48',
+    icon: 'heart-pulse',
+  },
+  {
+    slug: 'shopping',
+    name: 'Shopping',
+    kind: 'expense',
+    color: '#db2777',
+    icon: 'shopping-bag',
+  },
+  {
+    slug: 'leisure',
+    name: 'Loisirs',
+    kind: 'expense',
+    color: '#c026d3',
+    icon: 'ticket',
+  },
+  {
+    slug: 'travel',
+    name: 'Voyages',
+    kind: 'expense',
+    color: '#0d9488',
+    icon: 'plane',
+  },
   {
     slug: 'bank_fees',
     name: 'Frais bancaires',
     kind: 'expense',
     color: '#57534e',
+    icon: 'landmark',
   },
   {
     slug: 'cash_withdrawal',
     name: "Retraits d'espèces",
     kind: 'expense',
     color: '#78716c',
+    icon: 'banknote',
   },
-  { slug: 'taxes', name: 'Impôts', kind: 'expense', color: '#9f1239' },
-  { slug: 'gifts', name: 'Cadeaux', kind: 'expense', color: '#be185d' },
+  {
+    slug: 'taxes',
+    name: 'Impôts',
+    kind: 'expense',
+    color: '#9f1239',
+    icon: 'receipt',
+  },
+  {
+    slug: 'gifts',
+    name: 'Cadeaux',
+    kind: 'expense',
+    color: '#be185d',
+    icon: 'gift',
+  },
   /**
    * Money exchanged with a partner to split household costs (paying back
    * their share, or receiving ours). Filed as `expense`, not `transfer`:
@@ -73,21 +152,30 @@ export const DEFAULT_CATEGORIES = [
     name: 'Dépenses partagées',
     kind: 'expense',
     color: '#a16207',
+    icon: 'users',
   },
   {
     slug: 'other_expenses',
     name: 'Autres dépenses',
     kind: 'expense',
     color: '#6b7280',
+    icon: 'tag',
   },
 
   // Income
-  { slug: 'salary', name: 'Salaire', kind: 'income', color: '#15803d' },
+  {
+    slug: 'salary',
+    name: 'Salaire',
+    kind: 'income',
+    color: '#15803d',
+    icon: 'briefcase',
+  },
   {
     slug: 'family_support',
     name: 'Aide familiale',
     kind: 'income',
     color: '#16a34a',
+    icon: 'hand-heart',
   },
   /** Public benefits, e.g. housing benefit (APL). */
   {
@@ -95,13 +183,21 @@ export const DEFAULT_CATEGORIES = [
     name: 'Aides & allocations',
     kind: 'income',
     color: '#65a30d',
+    icon: 'hand-coins',
   },
-  { slug: 'refunds', name: 'Remboursements', kind: 'income', color: '#059669' },
+  {
+    slug: 'refunds',
+    name: 'Remboursements',
+    kind: 'income',
+    color: '#059669',
+    icon: 'undo-2',
+  },
   {
     slug: 'other_income',
     name: 'Autres revenus',
     kind: 'income',
     color: '#4d7c0f',
+    icon: 'coins',
   },
 
   // Transfers between the user's own accounts (never counted in stats)
@@ -110,18 +206,21 @@ export const DEFAULT_CATEGORIES = [
     name: 'Virement interne',
     kind: 'transfer',
     color: '#64748b',
+    icon: 'arrow-left-right',
   },
   {
     slug: 'savings_transfer',
     name: 'Épargne',
     kind: 'transfer',
     color: '#0284c7',
+    icon: 'piggy-bank',
   },
   {
     slug: 'investment_transfer',
     name: 'Investissement',
     kind: 'transfer',
     color: '#0369a1',
+    icon: 'trending-up',
   },
 ] as const satisfies readonly DefaultCategory[]
 

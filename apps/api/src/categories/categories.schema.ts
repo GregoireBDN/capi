@@ -16,6 +16,7 @@ import {
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { accountsTable } from '#/accounts/accounts.schema'
 import { coreColumns } from '#/database/schema/core.schema'
+import type { CategoryIcon } from './category-icons'
 
 export const transactionKindEnum = pgEnum('transaction_kind', TRANSACTION_KINDS)
 export const ruleMatchTypeEnum = pgEnum('rule_match_type', RULE_MATCH_TYPES)
@@ -28,6 +29,8 @@ export const categoriesTable = pgTable('categories', {
   /** Category group: the kind given to transactions filed under this category. */
   kind: transactionKindEnum('kind').notNull(),
   color: varchar('color', { length: 16 }),
+  /** One of `CATEGORY_ICONS` (#266); null shows a generic tag. */
+  icon: varchar('icon', { length: 32 }).$type<CategoryIcon>(),
   /**
    * Set when the user archives the category: it leaves the pickers but keeps
    * its transactions, rules, budgets and its place in statistics.

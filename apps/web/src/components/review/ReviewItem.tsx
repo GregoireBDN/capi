@@ -70,6 +70,7 @@ export function ReviewItem({
             </div>
             <Amount
               cents={item.amountCents}
+              transfer={item.kind === 'transfer'}
               className="ml-auto pt-0.5 whitespace-nowrap"
             />
           </div>

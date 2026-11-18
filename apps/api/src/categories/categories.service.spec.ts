@@ -30,6 +30,7 @@ function category(kind: SelectCategory['kind'], name: string): SelectCategory {
     name,
     kind,
     color: null,
+    icon: null,
     archivedAt: null,
     createdAt: now,
     updatedAt: now,

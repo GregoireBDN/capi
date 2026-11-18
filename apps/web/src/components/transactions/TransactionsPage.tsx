@@ -364,6 +364,11 @@ export function TransactionsPage({
             items={items}
             categories={categoryList}
             groupByDate={sort === 'date_desc' || sort === 'date_asc'}
+            showAccount={
+              !search.account &&
+              visibleAccounts.filter((account) => account.archivedAt === null)
+                .length > 1
+            }
             selected={selected}
             onSelectedChange={toggle}
             actionsFor={(item) => ({

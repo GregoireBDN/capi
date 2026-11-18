@@ -20,10 +20,9 @@ import {
   approveAuthorization,
   authorizationDetailsQuery,
   authorizationErrorMessage,
-  
-  denyAuthorization
+  denyAuthorization,
 } from './queries'
-import type {AuthorizeParams} from './queries';
+import type { AuthorizeParams } from './queries'
 
 /** Sends the browser back to the client (claude.ai). Replaced in tests. */
 export const leavePage = {

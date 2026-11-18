@@ -23,7 +23,9 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { CategoryDto, UpdateCategoryDto } from '#/api/types.gen'
+import { CategoryAvatar } from './category-icons'
 import { ColorPalette } from './ColorPalette'
+import { IconPicker } from './IconPicker'
 import { categoryErrorMessage } from './errors'
 import { DEFAULT_CATEGORY_COLOR } from './palette'
 import { afterCategoriesChanged, updateCategory } from './queries'
@@ -36,8 +38,8 @@ interface CategoryRowProps {
 }
 
 /**
- * One category: colour swatch (opens the palette), name (renamed inline) and
- * a menu to rename, archive or restore, and delete.
+ * One category: its icon in its colour (opens the colour and icon choice),
+ * name (renamed inline) and a menu to rename, archive or restore, and delete.
  */
 export function CategoryRow({ category, onDelete }: CategoryRowProps) {
   const queryClient = useQueryClient()
@@ -93,30 +95,43 @@ export function CategoryRow({ category, onDelete }: CategoryRowProps) {
         <PopoverTrigger asChild>
           <button
             type="button"
-            aria-label={`Couleur de ${category.name}`}
+            aria-label={`Couleur et icône de ${category.name}`}
             disabled={archived}
             className="focus-visible:ring-ring flex size-8 shrink-0 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
           >
-            <span
-              aria-hidden="true"
-              className="size-5 rounded-full ring-1 ring-black/10"
-              style={{ backgroundColor: color }}
-            />
+            <CategoryAvatar category={{ color, icon: category.icon }} />
           </button>
         </PopoverTrigger>
         <PopoverContent
           align="start"
-          className="w-auto max-w-[min(20rem,calc(100vw-2rem))]"
+          className="max-h-[min(30rem,var(--radix-popover-content-available-height))] w-[min(20rem,calc(100vw-2rem))] space-y-3 overflow-y-auto"
         >
-          <ColorPalette
-            value={color}
-            label={`Couleur de ${category.name}`}
-            disabled={update.isPending}
-            onChange={(next) => {
-              setColorOpen(false)
-              if (next !== category.color) update.mutate({ color: next })
-            }}
-          />
+          <section className="space-y-2">
+            <h3 className="text-muted-foreground text-xs font-medium">
+              Couleur
+            </h3>
+            <ColorPalette
+              value={color}
+              label={`Couleur de ${category.name}`}
+              disabled={update.isPending}
+              onChange={(next) => {
+                if (next !== category.color) update.mutate({ color: next })
+              }}
+            />
+          </section>
+          <section className="space-y-2">
+            <h3 className="text-muted-foreground text-xs font-medium">Icône</h3>
+            <IconPicker
+              value={category.icon}
+              color={color}
+              label={`Icône de ${category.name}`}
+              disabled={update.isPending}
+              onChange={(next) => {
+                setColorOpen(false)
+                if (next !== category.icon) update.mutate({ icon: next })
+              }}
+            />
+          </section>
         </PopoverContent>
       </Popover>
 

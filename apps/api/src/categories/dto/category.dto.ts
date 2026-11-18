@@ -15,6 +15,11 @@ import {
   TRANSACTION_KINDS,
   type TransactionKind,
 } from '#/database/schema/domain-enums'
+import {
+  CATEGORY_ICON_DOC,
+  CATEGORY_ICONS,
+  type CategoryIcon,
+} from '../category-icons'
 
 const NAME_MAX = 100
 
@@ -76,6 +81,9 @@ export class CategoryDto {
   @ApiProperty({ type: String, nullable: true, example: '#d97706' })
   color!: string | null
 
+  @ApiProperty(CATEGORY_ICON_DOC)
+  icon!: CategoryIcon | null
+
   @ApiProperty({
     type: String,
     format: 'date-time',
@@ -109,6 +117,11 @@ export class CreateCategoryDto {
   @IsString()
   @Matches(COLOR_PATTERN)
   color!: string
+
+  @ApiPropertyOptional(CATEGORY_ICON_DOC)
+  @IsOptional()
+  @IsIn(CATEGORY_ICONS)
+  icon?: CategoryIcon | null
 }
 
 /** Partial update: omitted fields are left unchanged. */
@@ -136,6 +149,14 @@ export class UpdateCategoryDto {
   @IsString()
   @Matches(COLOR_PATTERN)
   color?: string
+
+  @ApiPropertyOptional({
+    ...CATEGORY_ICON_DOC,
+    description: `${CATEGORY_ICON_DOC.description} \`null\` removes it.`,
+  })
+  @IsOptional()
+  @IsIn(CATEGORY_ICONS)
+  icon?: CategoryIcon | null
 
   @ApiPropertyOptional({
     type: Boolean,

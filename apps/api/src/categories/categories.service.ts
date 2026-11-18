@@ -107,6 +107,7 @@ export class CategoriesService {
           name: dto.name,
           kind: dto.kind,
           color: dto.color,
+          icon: dto.icon ?? null,
         })
         .returning()
       return created
@@ -155,6 +156,7 @@ export class CategoriesService {
           name: dto.name,
           kind: dto.kind,
           color: dto.color,
+          icon: dto.icon,
           archivedAt,
         })
         .where(eq(categoriesTable.id, id))

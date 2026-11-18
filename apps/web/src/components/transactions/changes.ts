@@ -40,6 +40,7 @@ export function applyChanges(
             slug: category.slug,
             name: category.name,
             color: category.color,
+            icon: category.icon,
             kind: category.kind,
           }
         : null

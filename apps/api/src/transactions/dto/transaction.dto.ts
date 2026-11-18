@@ -2,6 +2,10 @@ import { applyDecorators } from '@nestjs/common'
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Transform, Type } from 'class-transformer'
 import {
+  CATEGORY_ICON_DOC,
+  type CategoryIcon,
+} from '#/categories/category-icons'
+import {
   ArrayMaxSize,
   ArrayMinSize,
   ArrayUnique,
@@ -76,6 +80,9 @@ export class TransactionCategoryDto {
 
   @ApiProperty({ type: String, nullable: true, example: '#d97706' })
   color!: string | null
+
+  @ApiProperty(CATEGORY_ICON_DOC)
+  icon!: CategoryIcon | null
 
   @ApiProperty({
     ...KIND_DOC,

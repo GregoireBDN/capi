@@ -42,6 +42,7 @@ function category(
     name,
     kind,
     color: '#2a78d6',
+    icon: 'shopping-cart',
     archivedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -142,7 +143,9 @@ describe('CategoriesPage', () => {
     renderPage()
 
     await user.click(
-      await screen.findByRole('button', { name: 'Couleur de Courses' }),
+      await screen.findByRole('button', {
+        name: 'Couleur et icône de Courses',
+      }),
     )
     await user.click(await screen.findByRole('radio', { name: 'Violet' }))
 
@@ -151,6 +154,31 @@ describe('CategoriesPage', () => {
         expect.objectContaining({
           path: { id: 'c1' },
           body: { color: '#6250d6' },
+        }),
+      ),
+    )
+  })
+
+  it('changes the icon (#266)', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Couleur et icône de Courses',
+      }),
+    )
+    const icons = await screen.findByRole('radiogroup', {
+      name: 'Icône de Courses',
+    })
+    expect(within(icons).getByRole('radio', { name: 'Caddie' })).toBeChecked()
+    await user.click(within(icons).getByRole('radio', { name: 'Café' }))
+
+    await waitFor(() =>
+      expect(api.categoriesControllerUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { id: 'c1' },
+          body: { icon: 'coffee' },
         }),
       ),
     )
@@ -175,7 +203,7 @@ describe('CategoriesPage', () => {
     )
   })
 
-  it('adds a category with a kind and a colour', async () => {
+  it('adds a category with a kind, a colour and an icon', async () => {
     const user = userEvent.setup()
     api.categoriesControllerCreate.mockImplementation(() =>
       ok(category('c9', 'Vélo', 'income'), 201),
@@ -190,12 +218,18 @@ describe('CategoriesPage', () => {
       'income',
     ])
     await user.click(screen.getByRole('radio', { name: 'Vert' }))
+    await user.click(screen.getByRole('radio', { name: 'Vélo' }))
     await user.click(screen.getByRole('button', { name: 'Ajouter' }))
 
     await waitFor(() =>
       expect(api.categoriesControllerCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          body: { name: 'Vélo', kind: 'income', color: '#008300' },
+          body: {
+            name: 'Vélo',
+            kind: 'income',
+            color: '#008300',
+            icon: 'bike',
+          },
         }),
       ),
     )

@@ -1,5 +1,4 @@
 import {
-  Checkbox,
   cn,
   InputGroup,
   InputGroupAddon,
@@ -15,7 +14,13 @@ import {
   SheetTitle,
   useIsMobile,
 } from '@finances/ui'
-import { SplitIcon, StickyNoteIcon } from 'lucide-react'
+import {
+  HandIcon,
+  PencilLineIcon,
+  SparkleIcon,
+  StickyNoteIcon,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type {
   CategoryDto,
@@ -24,25 +29,27 @@ import type {
   UpdateManualTransactionDto,
 } from '#/api/types.gen'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
+import { CategoryAvatar } from '#/components/categories/category-icons'
 import {
   expenseAmountError,
   ManualTransactionSheet,
 } from '#/components/expenses/ManualTransactionSheet'
 import { formatCalendarDate } from '#/lib/money'
 import { Amount } from './Amount'
-import { CategoryBadge } from './CategoryBadge'
-import { CategoryPicker } from './CategoryPicker'
+import { CategoryMenu } from './CategoryMenu'
 import type { TransactionChanges } from './changes'
-import { displayLabel } from './labels'
+import { displayLabel, secondaryLabel } from './labels'
 import { TransactionEditor } from './TransactionEditor'
 
 /**
- * Table-like columns once the page is ≥ 36rem wide (rems of the 22px root,
- * container query on the page), header included: selection, label,
- * category, account, flags, amount.
+ * Columns once the page is ≥ 36rem wide (rems of the 22px root, container
+ * query on the page): selection, label, category, amount; the account gets
+ * its own column from 42rem, when it is shown at all (#266).
  */
-export const ROW_GRID =
-  '@xl:grid @xl:grid-cols-[2.25rem_minmax(0,1fr)_8rem_5rem_4.5rem_5.5rem] @xl:items-center @xl:gap-2'
+const ROW_COLUMNS =
+  '@xl:grid @xl:grid-cols-[2rem_minmax(0,1fr)_11rem_7.5rem] @xl:items-center @xl:gap-3'
+const ROW_COLUMNS_WITH_ACCOUNT =
+  '@2xl:grid-cols-[2rem_minmax(0,1fr)_11rem_8rem_7.5rem]'
 
 export interface TransactionRowActions {
   onChange: (changes: TransactionChanges) => void
@@ -60,66 +67,46 @@ interface TransactionRowProps extends TransactionRowActions {
   onSelectedChange: (selected: boolean) => void
   /** Show the date in the row (lists not grouped by day). */
   showDate?: boolean
+  /** Show the account (more than one open account, list not filtered to one). */
+  showAccount?: boolean
 }
 
+/** Small flags of a row, as icons with an accessible name (#266). */
 function Flags({ item }: { item: TransactionDto }) {
   const corrected =
     item.originalAmountCents !== null || item.originalBookingDate !== null
-  return (
-    <span className="flex flex-wrap items-center gap-1">
-      {item.needsReview && (
-        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[0.7rem] font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
-          À revoir
-        </span>
-      )}
-      {item.manual && (
-        <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[0.7rem] font-medium text-violet-900 dark:bg-violet-900/40 dark:text-violet-200">
-          À la main
-        </span>
-      )}
-      {corrected && (
-        <span
-          className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[0.7rem] font-medium text-violet-900 dark:bg-violet-900/40 dark:text-violet-200"
-          title="Montant ou date corrigé à la main"
-        >
-          Corrigée
-        </span>
-      )}
-      {item.isOneOff && (
-        <span className="bg-muted rounded-full px-1.5 py-0.5 text-[0.7rem] font-medium">
-          Ponctuelle
-        </span>
-      )}
-      {item.kind === 'transfer' && (
-        <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[0.7rem] font-medium text-sky-900 dark:bg-sky-900/40 dark:text-sky-200">
-          Interne
-        </span>
-      )}
-      {item.note && (
-        <span title={item.note} className="text-muted-foreground">
-          <StickyNoteIcon className="size-3.5" aria-hidden="true" />
-          <span className="sr-only">Note : {item.note}</span>
-        </span>
-      )}
-    </span>
-  )
+  const flags: { on: boolean; icon: LucideIcon; label: string }[] = [
+    { on: item.isOneOff, icon: SparkleIcon, label: 'Ponctuelle' },
+    { on: item.manual, icon: HandIcon, label: 'Saisie à la main' },
+    {
+      on: corrected,
+      icon: PencilLineIcon,
+      label: 'Montant ou date corrigé à la main',
+    },
+    {
+      on: item.note !== null && item.note !== '',
+      icon: StickyNoteIcon,
+      label: `Note : ${item.note ?? ''}`,
+    },
+  ]
+  return flags
+    .filter((flag) => flag.on)
+    .map(({ icon: Icon, label }) => (
+      <span key={label} title={label} className="inline-flex">
+        <Icon className="size-[0.6rem]" aria-hidden="true" />
+        <span className="sr-only">{label}</span>
+      </span>
+    ))
 }
 
-/** Category of the row: its badge, or its split parts. */
-function CategoryLabel({ item }: { item: TransactionDto }) {
+/** Names of a split's categories, or the category of the row. */
+function categoryText(item: TransactionDto): string | null {
   if (item.splits.length > 0) {
-    return (
-      <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
-        <SplitIcon className="size-3.5" aria-hidden="true" />
-        Répartie ({item.splits.length})
-      </span>
+    return [...new Set(item.splits.map((part) => part.category.name))].join(
+      ', ',
     )
   }
-  return item.category ? (
-    <CategoryBadge category={item.category} />
-  ) : (
-    <span className="text-muted-foreground text-xs italic">Sans catégorie</span>
-  )
+  return item.category?.name ?? null
 }
 
 function InlineAmount({
@@ -181,11 +168,12 @@ function InlineAmount({
 }
 
 /**
- * One transaction: label, category, account, flags and amount, stacked on
- * narrow pages and in columns on wide ones (`ROW_GRID`). Activating the label
- * opens its editor (popover on desktop, bottom sheet on phones). On wide
- * pages the category is edited in the row, as is the amount of a transaction
- * entered by hand.
+ * One transaction (#266): the category's icon (which selects the row), one
+ * label, the category, the account when it helps, small flag icons and the
+ * amount. Stacked on narrow pages, in columns on wide ones. Activating the
+ * label opens its editor (popover on desktop, bottom sheet on phones); on
+ * wide pages the category is picked in the row, as is the amount of a
+ * transaction entered by hand.
  */
 export function TransactionRow({
   item,
@@ -199,6 +187,7 @@ export function TransactionRow({
   onSplit,
   onUnsplit,
   showDate = false,
+  showAccount = true,
 }: TransactionRowProps) {
   const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
@@ -206,6 +195,9 @@ export function TransactionRow({
   const [editingAmount, setEditingAmount] = useState(false)
   const amountButton = useRef<HTMLButtonElement>(null)
   const name = displayLabel(item)
+  const raw = secondaryLabel(item)
+  const category = categoryText(item)
+  const transfer = item.kind === 'transfer'
 
   // Leaving the amount edit hands the focus back to its button.
   const wasEditing = useRef(editingAmount)
@@ -225,33 +217,53 @@ export function TransactionRow({
       type="button"
       aria-label={`Modifier ${name}`}
       aria-haspopup="dialog"
-      className="hover:bg-muted/50 focus-visible:ring-ring/50 min-w-0 flex-1 rounded-lg px-2 py-2 text-left outline-none focus-visible:ring-[3px]"
+      className="hover:bg-muted/50 focus-visible:ring-ring/50 min-w-0 flex-1 rounded-lg px-1.5 py-1.5 text-left outline-none focus-visible:ring-[3px]"
       onClick={() => setOpen(true)}
     >
-      <span className="flex min-w-0 items-start justify-between gap-3 @xl:block">
-        <span className="min-w-0">
-          <span className="line-clamp-2 text-sm font-medium break-words @xl:line-clamp-1 @xl:break-all">
-            {name}
-          </span>
-          {(item.merchant || showDate) && (
-            <span className="text-muted-foreground block truncate text-xs">
-              {showDate && (
-                <time dateTime={item.bookingDate}>
-                  {formatCalendarDate(item.bookingDate)}
-                </time>
-              )}
-              {showDate && item.merchant && ' · '}
-              {item.merchant && item.rawLabel}
-            </span>
-          )}
+      <span className="flex min-w-0 items-start justify-between gap-3">
+        <span className="line-clamp-2 min-w-0 text-sm font-medium break-words @xl:line-clamp-1 @xl:break-all">
+          {name}
         </span>
-        <Amount cents={item.amountCents} className="text-sm @xl:hidden" />
+        <Amount
+          cents={item.amountCents}
+          transfer={transfer}
+          className="text-sm @xl:hidden"
+        />
       </span>
-      <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 @xl:hidden">
-        <CategoryLabel item={item} />
-        <span className="text-muted-foreground truncate text-xs">
-          {item.accountName}
+      <span className="text-muted-foreground mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs empty:hidden">
+        {showDate && (
+          <time dateTime={item.bookingDate} className="whitespace-nowrap">
+            {formatCalendarDate(item.bookingDate)}
+          </time>
+        )}
+        {/* Phones: the category and the account; wide pages have columns. */}
+        <span
+          className={cn(
+            'max-w-full truncate @xl:hidden',
+            category === null && 'italic',
+          )}
+        >
+          {category ?? 'Sans catégorie'}
         </span>
+        {showAccount && (
+          <span className="max-w-full truncate @xl:hidden">
+            <span aria-hidden="true">{'·\u00a0'}</span>
+            {item.accountName}
+          </span>
+        )}
+        {raw && (
+          <span className="hidden max-w-full truncate @xl:inline">{raw}</span>
+        )}
+        {showAccount && (
+          <span className="hidden whitespace-nowrap @xl:inline @2xl:hidden">
+            {item.accountName}
+          </span>
+        )}
+        {item.needsReview && (
+          <span className="bg-warning text-warning-foreground rounded-full px-1.5 text-[0.7rem] font-medium whitespace-nowrap">
+            À revoir
+          </span>
+        )}
         <Flags item={item} />
       </span>
     </button>
@@ -287,16 +299,36 @@ export function TransactionRow({
 
   return (
     <li
-      className={cn('flex flex-wrap items-center gap-1 px-1', ROW_GRID)}
+      className={cn(
+        'flex items-center gap-1 px-1 py-0.5',
+        ROW_COLUMNS,
+        showAccount && ROW_COLUMNS_WITH_ACCOUNT,
+      )}
       data-selected={selected || undefined}
       aria-label={name}
     >
-      <Checkbox
-        className="m-2"
-        checked={selected}
-        onCheckedChange={(checked) => onSelectedChange(checked === true)}
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={selected}
         aria-label={`Sélectionner ${name}`}
-      />
+        title={selected ? 'Désélectionner' : 'Sélectionner'}
+        onClick={() => onSelectedChange(!selected)}
+        className="focus-visible:ring-ring/50 relative flex size-8 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-[3px]"
+      >
+        <CategoryAvatar
+          category={
+            item.splits.length > 0
+              ? 'split'
+              : item.category && {
+                  color: item.category.color,
+                  icon: item.category.icon,
+                }
+          }
+          selected={selected}
+          review={item.needsReview}
+        />
+      </button>
       {isMobile ? (
         <>
           {triggerButton}
@@ -328,28 +360,32 @@ export function TransactionRow({
         </Popover>
       )}
 
-      {/* Wide pages: cells edited in place. */}
+      {/* Wide pages: the category, picked in place. */}
       <span className="hidden min-w-0 @xl:block">
         {item.splits.length > 0 ? (
-          <CategoryLabel item={item} />
+          <span
+            className="text-muted-foreground block truncate px-1.5 text-sm"
+            title={category ?? undefined}
+          >
+            {category}
+          </span>
         ) : (
-          <CategoryPicker
+          <CategoryMenu
             categories={categories}
             value={item.categoryId}
             onChange={(categoryId) => change({ categoryId })}
             label={`Catégorie de ${name}`}
-            placeholder="Sans catégorie"
-            size="sm"
-            className="w-full"
           />
         )}
       </span>
-      <span className="text-muted-foreground hidden truncate text-xs @xl:block">
-        {item.accountName}
-      </span>
-      <span className="hidden @xl:block">
-        <Flags item={item} />
-      </span>
+      {showAccount && (
+        <span
+          className="text-muted-foreground hidden truncate text-xs @2xl:block"
+          title={item.accountName}
+        >
+          {item.accountName}
+        </span>
+      )}
       <span className="hidden text-right text-sm @xl:block">
         {editingAmount && item.manual ? (
           <InlineAmount
@@ -366,10 +402,10 @@ export function TransactionRow({
             title="Modifier le montant"
             onClick={() => setEditingAmount(true)}
           >
-            <Amount cents={item.amountCents} />
+            <Amount cents={item.amountCents} transfer={transfer} />
           </button>
         ) : (
-          <Amount cents={item.amountCents} />
+          <Amount cents={item.amountCents} transfer={transfer} />
         )}
       </span>
 

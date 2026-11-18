@@ -63,7 +63,10 @@ export function TransactionEditor({
       <div className="space-y-1">
         <div className="flex items-start justify-between gap-3">
           <p className="min-w-0 font-medium break-words">{name}</p>
-          <Amount cents={item.amountCents} />
+          <Amount
+            cents={item.amountCents}
+            transfer={item.kind === 'transfer'}
+          />
         </div>
         {item.merchant && (
           <p className="text-muted-foreground text-xs break-words">
