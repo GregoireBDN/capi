@@ -1719,9 +1719,9 @@ function MonthTapToAdd() {
                 </span>
                 <span
                   aria-hidden
-                  className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-full"
+                  className="bg-primary text-primary-foreground flex size-[40px] shrink-0 items-center justify-center rounded-full"
                 >
-                  <PlusIcon className="size-4" />
+                  <PlusIcon className="size-[22px]" strokeWidth={2.5} />
                 </span>
               </button>
             </li>
@@ -1871,7 +1871,12 @@ function MonthEntryFirst() {
                   <span className="min-w-0 flex-1 truncate font-medium">
                     {item.name}
                   </span>
-                  <PlusIcon aria-hidden className="size-4 shrink-0" />
+                  <span
+                    aria-hidden
+                    className="bg-primary text-primary-foreground flex size-[40px] shrink-0 items-center justify-center rounded-full"
+                  >
+                    <PlusIcon className="size-[22px]" strokeWidth={2.5} />
+                  </span>
                 </span>
                 <PaceBar {...item} className="bg-background/70" />
                 <span className="flex justify-between text-xs tabular-nums">
