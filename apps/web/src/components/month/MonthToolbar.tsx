@@ -67,16 +67,15 @@ function FiltersButton({
             : 'Filtres'
         }
         onClick={() => setOpen(true)}
-        // A 44px square beside a short month name (phones), with its label
-        // from 420px of bar width.
-        className="min-w-8 gap-1.5 px-2 @[420px]:px-2.5 @[672px]:hidden"
+        // A 44px square, so it fits beside the month name in any bar
+        // narrower than 672px (its label is its accessible name).
+        className="min-w-8 px-2 @[672px]:hidden"
       >
         <SlidersHorizontalIcon aria-hidden />
-        <span className="hidden @[420px]:inline">Filtres</span>
         {count > 0 && (
           <Badge
             variant="info"
-            className="absolute -top-1.5 -right-1.5 min-w-5 justify-center px-1 @[420px]:static"
+            className="absolute -top-1.5 -right-1.5 min-w-5 justify-center px-1"
           >
             {count}
           </Badge>
