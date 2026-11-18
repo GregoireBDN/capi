@@ -1,22 +1,15 @@
 import {
-  AreaChart,
   BarChart,
-  Button,
   Card,
-  CardAction,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   formatMonthLong,
   formatMonthShort,
   Skeleton,
 } from '@finances/ui'
 import type { ChartConfig } from '@finances/ui'
-import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import type { HistoryMonthDto } from '#/api/types.gen'
-import { ROUTES } from '#/lib/routes'
+import { DashboardCardHeader } from './DashboardCardHeader'
 
 const CHART_HEIGHT = 240
 
@@ -27,10 +20,6 @@ const CASH_FLOW_CONFIG = {
   net: { label: 'Épargne nette', color: 'var(--chart-savings)' },
 } satisfies ChartConfig
 
-const NET_WORTH_CONFIG = {
-  netWorth: { label: 'Patrimoine net', color: 'var(--chart-savings)' },
-} satisfies ChartConfig
-
 function range(months: HistoryMonthDto[]): string {
   if (months.length === 0) return ''
   return `de ${formatMonthLong(months[0].month)} à ${formatMonthLong(months[months.length - 1].month)}`
@@ -39,21 +28,15 @@ function range(months: HistoryMonthDto[]): string {
 function ChartCard({
   title,
   description,
-  action,
   children,
 }: {
   title: string
   description: string
-  action?: ReactNode
   children: ReactNode
 }) {
   return (
     <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-        {action && <CardAction>{action}</CardAction>}
-      </CardHeader>
+      <DashboardCardHeader title={title} status={description} />
       <CardContent>{children}</CardContent>
     </Card>
   )
@@ -90,44 +73,10 @@ export function CashFlowChart({ months }: { months: HistoryMonthDto[] }) {
   )
 }
 
-/** Net worth at each month end, from the first month with a known balance. */
-export function NetWorthChart({ months }: { months: HistoryMonthDto[] }) {
-  const first = months.findIndex((month) => month.netWorthCents !== null)
-  const known = first === -1 ? [] : months.slice(first)
-  const data = known.map((month) => ({
-    month: month.month,
-    netWorth: month.netWorthCents,
-  }))
-  return (
-    <ChartCard
-      title="Patrimoine net"
-      description="Somme des soldes de vos comptes en fin de mois."
-      action={
-        <Button asChild outline variant="secondary" size="sm">
-          <Link to={ROUTES.netWorth}>Détail</Link>
-        </Button>
-      }
-    >
-      <AreaChart
-        data={data}
-        index="month"
-        indexLabel="Mois"
-        config={NET_WORTH_CONFIG}
-        height={CHART_HEIGHT}
-        indexFormatter={formatMonthShort}
-        tooltipIndexFormatter={formatMonthLong}
-        label={`Patrimoine net en fin de mois, ${range(known)}`}
-        dataTable="details"
-        emptyMessage="Pas encore de solde connu sur la période."
-      />
-    </ChartCard>
-  )
-}
-
 /** Placeholder of a chart card while the history loads. */
-export function ChartCardSkeleton({ title }: { title: string }) {
+export function ChartCardSkeleton() {
   return (
-    <ChartCard title={title} description="Chargement…">
+    <ChartCard title="Revenus et dépenses" description="Chargement…">
       <Skeleton
         className="w-full rounded-md"
         style={{ height: CHART_HEIGHT }}

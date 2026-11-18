@@ -53,7 +53,9 @@ function ItemListGroup({
         <div className="flex flex-wrap items-baseline gap-x-3 px-2">
           <h3
             id={id}
-            className="text-muted-foreground min-w-0 flex-1 text-sm font-medium"
+            // No min-w-0: a long word (« Investissements ») wraps the total
+            // to the next line instead of breaking.
+            className="text-muted-foreground flex-1 text-sm font-medium"
           >
             {title}
           </h3>

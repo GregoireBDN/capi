@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import {
@@ -204,6 +204,8 @@ const review: MonthReviewDto = {
     defaultMonth: '2026-11',
   },
   closed: true,
+  closedAt: null,
+  nextMonthBudgeted: true,
   netWorth: {
     date: '2026-10-31',
     endCents: 4_823_000,
@@ -322,40 +324,67 @@ afterEach(() => {
 })
 
 describe('DashboardPage', () => {
-  it('reviews the last month: net worth, what moved it, budget drift', async () => {
+  /** How many times `needle` appears in the element's text. */
+  const count = (element: HTMLElement, needle: string) =>
+    text(element.textContent).split(text(needle)).length - 1
+
+  it('reviews the last month: flow, net worth at its end, budget drift', async () => {
     renderPage()
 
-    const card = await screen.findByRole('region', { name: 'Bilan d’octobre' })
+    const card = await screen.findByRole('region', { name: 'Bilan du mois' })
     expect(api.dashboardControllerReview).toHaveBeenCalledWith({
       throwOnError: false,
     })
-    expect(within(card).getByText('Complet')).toBeInTheDocument()
-    expect(card).toHaveTextContent('Patrimoine au 31 oct.')
-    expect(card).toHaveTextContent(text('48 230 €'))
-    expect(card).toHaveTextContent(text('+1 120 €'))
-    expect(card).toHaveTextContent(text('Épargné+655 € · 26,2 %'))
-    expect(card).toHaveTextContent(text('Placements et autres+465 €'))
-    expect(
-      within(card).getByRole('meter', { name: 'Dépensé' }),
-    ).toHaveAttribute('aria-valuenow', '184500')
-    expect(card).toHaveTextContent(text('Reste 155 €'))
+    // Not closed in « Revue du mois » yet.
+    expect(within(card).getByText('À clôturer')).toBeInTheDocument()
+    // The month is named once, by the navigator.
+    expect(card.textContent.match(/octobre/gi)).toHaveLength(1)
 
+    const flow = within(card).getByLabelText('Flux du mois')
+    expect(flow).toHaveTextContent(text('Revenus2 500 €'))
+    expect(flow).toHaveTextContent(text('Dépenses1 845 €'))
+    expect(flow).toHaveTextContent(text('Épargné+655 €26,2 %'))
+
+    // Investments moved the net worth: its change, split once.
+    const netWorth = within(card).getByRole('region', { name: 'Patrimoine' })
+    expect(netWorth).toHaveTextContent(
+      text(
+        'Patrimoine au 31 oct.48 230 €+1 120 € sur le mois, dont +465 € de placements et autres',
+      ),
+    )
+    // Every amount once.
+    for (const amount of ['+655 €', '1 845 €', '2 500 €', '+1 120 €']) {
+      expect(count(card, amount)).toBe(1)
+    }
+
+    expect(within(card).getByRole('meter', { name: 'Budget' })).toHaveAttribute(
+      'aria-valuenow',
+      '184500',
+    )
+    expect(card).toHaveTextContent(text('Reste 155 €'))
     const drift = within(card).getByRole('list', { name: 'Écarts au budget' })
-    const rows = within(drift).getAllByRole('link')
-    expect(rows[0]).toHaveTextContent(text('Restaurants120 € de trop'))
-    expect(rows[0]).toHaveAttribute(
+    const chips = within(drift).getAllByRole('link')
+    expect(text(chips[0].getAttribute('aria-label') ?? '')).toBe(
+      'Restaurants : 120 € de trop',
+    )
+    expect(chips[0]).toHaveAttribute(
       'href',
       '/transactions?month=2026-10&category=c0000000-0000-4000-8000-000000000001&kind=expense',
     )
-    expect(rows[1]).toHaveTextContent(text('Courses60 € de marge'))
+    expect(text(chips[1].getAttribute('aria-label') ?? '')).toBe(
+      'Courses : 60 € de marge',
+    )
+
+    // One action, from the month's state: close it.
     expect(
-      within(card).getByRole('link', {
-        name: 'Préparer le budget de novembre',
-      }),
-    ).toHaveAttribute('href', '/budget?month=2026-11')
+      within(card).getByRole('link', { name: 'Revue et clôture' }),
+    ).toHaveAttribute('href', '/month-review?month=2026-10')
+    expect(
+      within(card).queryByRole('link', { name: /Préparer le budget/ }),
+    ).not.toBeInTheDocument()
   })
 
-  it('follows the current month under the review', async () => {
+  it('follows the current month beside the review', async () => {
     renderPage()
 
     const card = await screen.findByRole('region', { name: 'Ce mois-ci' })
@@ -364,18 +393,21 @@ describe('DashboardPage', () => {
         name: 'Choisir les enveloppes',
       }),
     ).toHaveAttribute('href', '/budget')
+    expect(within(card).getByRole('link', { name: 'Budget' })).toHaveAttribute(
+      'href',
+      '/budget',
+    )
     expect(
       within(card).getByRole('button', { name: 'Ajouter une dépense' }),
     ).toBeInTheDocument()
-    // Right after the review, before the accounts.
-    const reviewCard = screen.getByRole('region', { name: 'Bilan d’octobre' })
+    const reviewCard = screen.getByRole('region', { name: 'Bilan du mois' })
     expect(
       reviewCard.compareDocumentPosition(card) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
   })
 
-  it('leaves out « Placements et autres » when nothing but savings moved the net worth', async () => {
+  it('shows the change of net worth only when investments moved it', async () => {
     api.dashboardControllerReview.mockImplementation(() =>
       ok({
         ...review,
@@ -389,12 +421,51 @@ describe('DashboardPage', () => {
     )
     renderPage()
 
-    const card = await screen.findByRole('region', { name: 'Bilan d’octobre' })
-    expect(card).toHaveTextContent(text('Épargné+655 € · 26,2 %'))
-    expect(card).not.toHaveTextContent('Placements et autres')
+    const card = await screen.findByRole('region', { name: 'Bilan du mois' })
+    // The change is what was saved: said once, under « Épargné ».
+    expect(card).not.toHaveTextContent('sur le mois')
+    expect(card).not.toHaveTextContent('placements')
+    expect(count(card, '+655 €')).toBe(1)
   })
 
-  it('says which accounts to update while the month is incomplete', async () => {
+  it('offers to prepare the next budget once the month is closed', async () => {
+    api.dashboardControllerReview.mockImplementation(() =>
+      ok({
+        ...review,
+        closedAt: '2026-11-03T09:00:00.000Z',
+        nextMonthBudgeted: false,
+      }),
+    )
+    renderPage()
+
+    const card = await screen.findByRole('region', { name: 'Bilan du mois' })
+    expect(within(card).getByText('Clôturé')).toBeInTheDocument()
+    expect(
+      within(card).getByRole('link', {
+        name: 'Préparer le budget du mois suivant',
+      }),
+    ).toHaveAttribute('href', '/budget?month=2026-11')
+    expect(
+      within(card).queryByRole('link', { name: 'Revue et clôture' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('only links back to the review of a closed month whose next one has a budget', async () => {
+    api.dashboardControllerReview.mockImplementation(() =>
+      ok({ ...review, closedAt: '2026-11-03T09:00:00.000Z' }),
+    )
+    renderPage()
+
+    const card = await screen.findByRole('region', { name: 'Bilan du mois' })
+    expect(
+      within(card).getByRole('link', { name: 'Revoir le mois' }),
+    ).toHaveAttribute('href', '/month-review?month=2026-10')
+    expect(
+      within(card).queryByRole('link', { name: /Préparer|clôture/ }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('says which accounts to update, one target each', async () => {
     api.dashboardControllerReview.mockImplementation(() =>
       ok({
         ...review,
@@ -420,81 +491,20 @@ describe('DashboardPage', () => {
     )
     renderPage()
 
-    const card = await screen.findByRole('region', { name: 'Bilan d’octobre' })
-    expect(within(card).getByText('À compléter')).toBeInTheDocument()
+    const card = await screen.findByRole('region', { name: 'Bilan du mois' })
     const missing = within(card).getByRole('region', {
       name: 'Comptes à mettre à jour',
     })
-    expect(missing).toHaveTextContent('Compte testau 20 oct.')
-    expect(missing).toHaveTextContent('PEA testjamais')
-    expect(
-      within(missing).getByRole('link', { name: /Importer/ }),
-    ).toHaveAttribute('href', '/import')
-    expect(screen.queryByText(/-100/)).not.toBeInTheDocument()
+    const cash = within(missing).getByRole('link', { name: /Compte test/ })
+    expect(cash).toHaveAttribute('href', '/import')
+    expect(cash).toHaveTextContent('Au 20 oct. · importer')
+    const value = within(missing).getByRole('link', { name: /PEA test/ })
+    expect(value).toHaveAttribute('href', `/accounts/${pea.id}`)
+    expect(value).toHaveTextContent('Aucune donnée · mettre à jour')
+    expect(within(missing).queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('updates a missing investment value from the month review', async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-    api.accountSnapshotsControllerUpsert.mockImplementation(() =>
-      ok({ id: 's1', date: '2026-11-05', valueCents: 1_050_000, note: null }),
-    )
-    api.dashboardControllerReview.mockImplementation(() =>
-      ok({
-        ...review,
-        closed: false,
-        missing: [
-          {
-            id: pea.id,
-            name: 'PEA test',
-            type: 'brokerage',
-            group: 'investments',
-            lastDate: '2026-09-30',
-          },
-          {
-            id: crypto.id,
-            name: 'Crypto test',
-            type: 'crypto',
-            group: 'investments',
-            lastDate: null,
-          },
-        ],
-      }),
-    )
-    renderPage()
-
-    const card = await screen.findByRole('region', { name: 'Bilan d’octobre' })
-    const missing = within(card).getByRole('region', {
-      name: 'Comptes à mettre à jour',
-    })
-    // Nothing to import: only investment values are missing.
-    expect(
-      within(missing).queryByRole('link', { name: /Importer/ }),
-    ).not.toBeInTheDocument()
-    // Crypto values come from holdings, not typed by hand.
-    expect(
-      within(missing).queryByRole('button', {
-        name: 'Mettre à jour « Crypto test »',
-      }),
-    ).not.toBeInTheDocument()
-
-    await user.click(
-      within(missing).getByRole('button', {
-        name: 'Mettre à jour « PEA test »',
-      }),
-    )
-    await user.type(await screen.findByLabelText('Valeur'), '10 500')
-    await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
-
-    await waitFor(() =>
-      expect(api.accountSnapshotsControllerUpsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          path: { id: pea.id, date: '2026-11-05' },
-        }),
-      ),
-    )
-  })
-
-  it('shows the spending alone when no budget is set', async () => {
+  it('says when no budget is set, the expenses staying in the flow', async () => {
     api.dashboardControllerReview.mockImplementation(() =>
       ok({
         ...review,
@@ -511,21 +521,17 @@ describe('DashboardPage', () => {
     )
     renderPage()
 
-    const card = await screen.findByRole('region', { name: 'Bilan d’octobre' })
+    const card = await screen.findByRole('region', { name: 'Bilan du mois' })
     expect(within(card).queryByRole('meter')).not.toBeInTheDocument()
-    expect(card).toHaveTextContent(text('Dépensé, sans budget fixé1 845 €'))
-    expect(
-      within(card).getByRole('link', {
-        name: 'Préparer le budget de novembre',
-      }),
-    ).toHaveAttribute('href', '/budget?month=2026-11')
+    expect(card).toHaveTextContent('Pas de budget fixé pour ce mois.')
+    expect(count(card, '1 845 €')).toBe(1)
   })
 
   it('moves between months, the previous month kept out of the URL', async () => {
     const user = userEvent.setup()
     const onMonthChange = vi.fn()
     renderPage(undefined, { month: '2026-10', onMonthChange })
-    await screen.findByRole('region', { name: 'Bilan d’octobre' })
+    await screen.findByRole('region', { name: 'Bilan du mois' })
 
     // October is the latest month that can be reviewed in November.
     expect(screen.getByRole('button', { name: 'Mois suivant' })).toBeDisabled()
@@ -567,16 +573,18 @@ describe('DashboardPage', () => {
     expect(within(investments).queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('opens the net worth page from the accounts card and the chart', async () => {
+  it('shows today’s net worth once, in the accounts card, with the way to its page', async () => {
     renderPage()
 
-    const total = await screen.findByRole('link', { name: /Patrimoine net/ })
-    expect(total).toHaveAttribute('href', '/net-worth')
-    expect(total).toHaveTextContent(euros(1_623_456))
-    expect(await screen.findByRole('link', { name: 'Détail' })).toHaveAttribute(
-      'href',
-      '/net-worth',
-    )
+    const card = (await screen.findByText('Comptes')).closest(
+      '[data-slot="card"]',
+    ) as HTMLElement
+    expect(card).toHaveTextContent(`Patrimoine à ce jour${euros(1_623_456)}`)
+    expect(
+      within(card).getByRole('link', { name: 'Évolution' }),
+    ).toHaveAttribute('href', '/net-worth')
+    // No second « Patrimoine net » (chart or row) on the dashboard.
+    expect(screen.queryByText('Patrimoine net')).not.toBeInTheDocument()
   })
 
   it('flags an investment value older than a month', async () => {
@@ -629,7 +637,7 @@ describe('DashboardPage', () => {
 
     expect(await screen.findByText('3 opérations à revoir')).toBeInTheDocument()
     expect(
-      screen.getByRole('link', { name: /Ouvrir la file de revue/ }),
+      screen.getByRole('link', { name: /3 opérations à revoir/ }),
     ).toHaveAttribute('href', '/review')
     // The accounts not updated link to the import (and so do the navigation
     // and the month review): no page action on the dashboard (#246).
@@ -644,11 +652,11 @@ describe('DashboardPage', () => {
     )
     renderPage()
 
-    await screen.findByRole('region', { name: 'Bilan d’octobre' })
+    await screen.findByRole('region', { name: 'Bilan du mois' })
     expect(screen.queryByText(/à revoir/)).not.toBeInTheDocument()
   })
 
-  it('draws the history charts with French month names', async () => {
+  it('draws the income and expenses chart with French month names', async () => {
     renderPage()
 
     // Each chart has a data-table twin captioned with its summary.
@@ -664,14 +672,6 @@ describe('DashboardPage', () => {
     expect(october).toHaveTextContent(
       [euros(300_000), euros(200_000), euros(100_000)].join(''),
     )
-    // Months before any known balance are left out of the net worth chart.
-    const netWorth = screen.getByRole('table', {
-      name: /Patrimoine net en fin de mois, de octobre 2026 à novembre 2026/,
-      hidden: true,
-    })
-    expect(within(netWorth).getAllByRole('row', { hidden: true })).toHaveLength(
-      3,
-    )
     expect(api.dashboardControllerHistory).toHaveBeenCalledWith(
       expect.objectContaining({ query: { months: 12 } }),
     )
@@ -685,7 +685,7 @@ describe('DashboardPage', () => {
     expect(card).toHaveTextContent(euros(267_000))
     expect(card).toHaveTextContent(`Point bas ${euros(18_000)} le dim. 29 nov.`)
     expect(
-      within(card).getByRole('link', { name: /Voir la prévision/ }),
+      within(card).getByRole('link', { name: 'Prévision' }),
     ).toHaveAttribute('href', '/forecast')
 
     api.forecastControllerForecast.mockImplementation(() =>
@@ -753,7 +753,7 @@ describe('DashboardPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Réessayer' }))
     expect(
-      await screen.findByRole('region', { name: 'Bilan d’octobre' }),
+      await screen.findByRole('region', { name: 'Bilan du mois' }),
     ).toBeInTheDocument()
   })
 })

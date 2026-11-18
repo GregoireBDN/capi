@@ -1,18 +1,12 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@finances/ui'
+import { Card, CardContent } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { ArrowRightIcon, TriangleAlertIcon } from 'lucide-react'
+import { TriangleAlertIcon } from 'lucide-react'
 import { forecastQuery } from '#/components/forecast/queries'
 import { useForecastThreshold } from '#/components/forecast/threshold'
 import { formatShortDay } from '#/components/subscriptions/format'
 import { formatCents } from '#/lib/money'
 import { ROUTES } from '#/lib/routes'
+import { DashboardCardHeader } from './DashboardCardHeader'
 
 /**
  * "Fin de mois": projected end-of-month balance of the checking accounts
@@ -30,16 +24,14 @@ export function ForecastCard() {
 
   return (
     <Card size="sm">
-      <CardHeader>
-        <CardTitle>Fin de mois</CardTitle>
-        <CardDescription>
+      <DashboardCardHeader
+        title="Fin de mois"
+        link={{ label: 'Prévision', to: ROUTES.forecast }}
+      />
+      <CardContent className="space-y-1">
+        <p className="text-muted-foreground text-sm">
           Solde prévu au {formatShortDay(data.monthEnd)}
-          {data.stale && data.knownUntil
-            ? ` · indicatif, relevés au ${formatShortDay(data.knownUntil)}`
-            : ''}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-2">
+        </p>
         <p className="text-2xl font-semibold tabular-nums">
           {formatCents(data.endBalanceCents)}
         </p>
@@ -55,13 +47,11 @@ export function ForecastCard() {
             {formatShortDay(data.lowest.date)}
           </p>
         )}
-        <Link
-          to={ROUTES.forecast}
-          className="text-foreground relative inline-flex items-center gap-1 text-sm font-medium pointer-coarse:touch-hitbox underline-offset-4 hover:underline"
-        >
-          Voir la prévision
-          <ArrowRightIcon aria-hidden className="size-4" />
-        </Link>
+        {data.stale && data.knownUntil && (
+          <p className="text-muted-foreground text-xs">
+            Indicatif : relevés au {formatShortDay(data.knownUntil)}
+          </p>
+        )}
       </CardContent>
     </Card>
   )

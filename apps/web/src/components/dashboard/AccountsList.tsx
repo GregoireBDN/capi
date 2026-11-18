@@ -1,18 +1,9 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  ItemListGroup,
-  ItemListRow,
-} from '@finances/ui'
-import { Link } from '@tanstack/react-router'
-import { ChartLineIcon } from 'lucide-react'
+import { Card, CardContent } from '@finances/ui'
 import type { DashboardAccountDto, NetWorthDto } from '#/api/types.gen'
 import { AccountList } from '#/components/accounts/AccountList'
 import { formatCents } from '#/lib/money'
 import { ROUTES } from '#/lib/routes'
+import { DashboardCardHeader } from './DashboardCardHeader'
 
 const GROUPS = [
   {
@@ -43,26 +34,19 @@ export function AccountsList({
 }) {
   return (
     <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle>Comptes</CardTitle>
-        <CardDescription>
-          Solde de chaque compte à sa dernière date connue.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <ItemListGroup>
-          <ItemListRow
-            asChild
-            icon={<ChartLineIcon />}
-            iconClassName="bg-chart-savings/15 text-chart-savings"
-            title="Patrimoine net"
-            subtitle="Évolution et répartition"
-            value={formatCents(netWorth.totalCents)}
-            className="bg-muted/50 hover:bg-muted focus-visible:bg-muted"
-          >
-            <Link to={ROUTES.netWorth} />
-          </ItemListRow>
-        </ItemListGroup>
+      <DashboardCardHeader
+        title="Comptes"
+        link={{ label: 'Évolution', to: ROUTES.netWorth }}
+      />
+      <CardContent className="space-y-4">
+        {/* Today's net worth, once, with its date; the month-end one is in
+            the review card. */}
+        <div>
+          <p className="text-muted-foreground text-xs">Patrimoine à ce jour</p>
+          <p className="text-2xl font-semibold whitespace-nowrap tabular-nums">
+            {formatCents(netWorth.totalCents)}
+          </p>
+        </div>
         <AccountList
           primaryAction="account"
           groups={GROUPS.map(({ group, title, total }) => ({

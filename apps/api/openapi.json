@@ -11068,6 +11068,16 @@
             "type": "boolean",
             "description": "Every account is up to date for the month: data reaches the month end and no account is missing."
           },
+          "closedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the month was closed in « Revue du mois » (`POST /month-close/:month/close`); null while it is open."
+          },
+          "nextMonthBudgeted": {
+            "type": "boolean",
+            "description": "The next month has a budget line in effect (its own or carried over)."
+          },
           "netWorth": {
             "$ref": "#/components/schemas/ReviewNetWorthDto"
           },
@@ -11095,6 +11105,8 @@
           "nextMonth",
           "period",
           "closed",
+          "closedAt",
+          "nextMonthBudgeted",
           "netWorth",
           "flow",
           "budget",

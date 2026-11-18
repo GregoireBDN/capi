@@ -2,9 +2,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   cn,
   ProgressMeter,
   Skeleton,
@@ -19,6 +16,7 @@ import { formatBudgetAmount } from '#/components/budget/amount'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
 import { envelopesQuery } from '#/components/expenses/queries'
 import { ROUTES } from '#/lib/routes'
+import { DashboardCardHeader } from './DashboardCardHeader'
 
 /** Same warning level as the budget page (80 % of the target). */
 const WARNING_THRESHOLD = 0.8
@@ -39,15 +37,16 @@ export function MonthEnvelopes() {
   return (
     <section aria-labelledby="month-envelopes-title" className="min-w-0">
       <Card className="min-w-0">
-        <CardHeader>
-          <CardTitle id="month-envelopes-title">Ce mois-ci</CardTitle>
-          {data && data.items.length > 0 && (
-            <CardDescription>
-              Jour {data.dayOfMonth} sur {data.daysInMonth} · le trait marque le
-              rythme du mois
-            </CardDescription>
-          )}
-        </CardHeader>
+        <DashboardCardHeader
+          id="month-envelopes-title"
+          title="Ce mois-ci"
+          status={
+            data && data.items.length > 0
+              ? `Jour ${data.dayOfMonth} sur ${data.daysInMonth} · le trait marque le rythme`
+              : undefined
+          }
+          link={{ label: 'Budget', to: ROUTES.budget }}
+        />
         <CardContent className="space-y-4">
           {data ? (
             <EnvelopeList
@@ -73,7 +72,7 @@ export function MonthEnvelopes() {
               <Skeleton className="h-12 w-full" />
             </div>
           )}
-          <Button className="w-full" onClick={() => setSheet({ open: true })}>
+          <Button className="w-fit" onClick={() => setSheet({ open: true })}>
             <PlusIcon aria-hidden />
             Ajouter une dépense
           </Button>
@@ -176,7 +175,7 @@ function EnvelopeRow({
             )}
           </span>
           {item.manualCents !== 0 && (
-            <span className="text-muted-foreground whitespace-nowrap">
+            <span className="text-muted-foreground">
               {item.manualCents === item.spentCents
                 ? 'tout noté à la main'
                 : `dont ${formatBudgetAmount(item.manualCents)} noté à la main`}

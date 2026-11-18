@@ -108,6 +108,18 @@ export class BudgetsService {
   }
 
   /**
+   * Whether `month` has a budget line in effect, its own or carried over
+   * from an earlier month (the month review offers to prepare it otherwise).
+   */
+  async hasBudget(
+    month: string,
+    executor: Executor = this.db,
+  ): Promise<boolean> {
+    const rows = await this.budgetRows(executor, month)
+    return targetsInEffect(rows, month).size > 0
+  }
+
+  /**
    * Targets vs spending for one month, plus the unbudgeted spending. Without
    * `month`, the current month when it has data, else the month the data
    * stops in; `period` says how far the month's data goes.

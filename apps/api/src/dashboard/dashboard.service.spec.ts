@@ -7,6 +7,7 @@ import { AccountsService } from '#/accounts/accounts.service'
 import * as schema from '#/database/schema'
 import {
   balanceSnapshotsTable,
+  monthClosesTable,
   categoriesTable,
   importsTable,
   type InsertTransaction,
@@ -600,6 +601,31 @@ describe.skipIf(!process.env.DATABASE_URL)(
         return { groceries: rows[0].id, leisure: rows[1].id }
       }
 
+      it('says when the month was closed and whether the next month has a budget', async () => {
+        await inRollback(async ({ tx, dashboard }) => {
+          const { groceries } = await expenseCategories(tx)
+          const closedAt = new Date('2026-11-03T09:00:00Z')
+          await tx.insert(monthClosesTable).values({
+            month: '2026-10',
+            closedAt,
+            report: {} as never,
+          })
+          // A budget that starts after the reviewed month's next one.
+          const budgets = new BudgetsService({ db: tx } as never)
+          await budgets.upsert(groceries, '2026-12', {
+            monthlyTargetCents: 20_000,
+          })
+
+          const october = await dashboard.review('2026-10', { now: NOW })
+          expect(october.closedAt).toBe(closedAt.toISOString())
+          expect(october.nextMonthBudgeted).toBe(false)
+
+          const november = await dashboard.review('2026-11', { now: NOW })
+          expect(november.closedAt).toBeNull()
+          expect(november.nextMonthBudgeted).toBe(true)
+        })
+      })
+
       it('reviews a closed month against its budget, split into saved and the rest', async () => {
         await inRollback(async ({ tx, accounts, dashboard }) => {
           const { groceries, leisure } = await expenseCategories(tx)
@@ -670,6 +696,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
             month: '2026-10',
             nextMonth: '2026-11',
             closed: true,
+            // Not closed in « Revue du mois »; the budget carries over.
+            closedAt: null,
+            nextMonthBudgeted: true,
             missing: [],
           })
           expect(review.period.status).toBe('complete')

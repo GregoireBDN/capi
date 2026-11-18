@@ -681,6 +681,8 @@ describe('month_review', () => {
         dataUntil: '2026-11-10',
       }),
       closed: false,
+      closedAt: null,
+      nextMonthBudgeted: true,
       netWorth: {
         date: '2026-10-31',
         endCents: 1200000,

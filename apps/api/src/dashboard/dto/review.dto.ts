@@ -185,6 +185,22 @@ export class MonthReviewDto {
   })
   closed!: boolean
 
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'When the month was closed in « Revue du mois » (`POST /month-close/:month/close`); null while it is open.',
+  })
+  closedAt!: string | null
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'The next month has a budget line in effect (its own or carried over).',
+  })
+  nextMonthBudgeted!: boolean
+
   @ApiProperty({ type: ReviewNetWorthDto })
   netWorth!: ReviewNetWorthDto
 
