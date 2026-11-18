@@ -8818,6 +8818,36 @@
           "amountCents"
         ]
       },
+      "RecurringAmountRunDto": {
+        "type": "object",
+        "properties": {
+          "amountCents": {
+            "type": "integer",
+            "description": "Positive cents."
+          },
+          "from": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06",
+            "description": "First occurrence of the run."
+          },
+          "to": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06",
+            "description": "Last occurrence of the run."
+          },
+          "count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "amountCents",
+          "from",
+          "to",
+          "count"
+        ]
+      },
       "RecurringItemDto": {
         "type": "object",
         "properties": {
@@ -8984,6 +9014,13 @@
               "$ref": "#/components/schemas/RecurringOccurrenceDto"
             }
           },
+          "amountRuns": {
+            "description": "Consecutive occurrences of the same amount over the whole history, newest first (at most 4): « 14,99 € d'août à novembre, 4 fois ».",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecurringAmountRunDto"
+            }
+          },
           "notes": {
             "type": "string",
             "nullable": true
@@ -9042,6 +9079,7 @@
           "nextExpectedDate",
           "occurrenceCount",
           "occurrences",
+          "amountRuns",
           "notes",
           "endedOn",
           "ended",

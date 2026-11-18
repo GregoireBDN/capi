@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { RecurringItemDto } from '#/api/types.gen'
+import type { CategoryDto, RecurringItemDto } from '#/api/types.gen'
 import {
   addMonths,
+  formatChargeCount,
+  formatRunPeriod,
+  describeSchedule,
   formatChargedAfterEnd,
   formatEnd,
   formatPriceChange,
@@ -10,6 +13,7 @@ import {
   todayInParis,
   upcomingDebits,
 } from './format'
+import { categoryChoices } from './RecurringEditor'
 import { recurringItem } from './test-fixtures'
 
 /** Testing Library-style: `Intl` emits narrow no-break spaces. */
@@ -148,6 +152,67 @@ describe('subscriptions format helpers', () => {
     expect(formatChargedAfterEnd({ chargedAfterEnd: null }, today)).toBeNull()
   })
 
+  it('says when a series falls', () => {
+    const at = (cadence: RecurringItemDto['cadence'], date: string) =>
+      describeSchedule({
+        cadence,
+        nextExpectedDate: date,
+        lastSeenDate: '2026-10-01',
+      })
+    expect(at('monthly', '2026-12-07')).toBe('le 7 du mois')
+    expect(at('monthly', '2026-12-01')).toBe('le 1er du mois')
+    expect(at('monthly', '2026-11-30')).toBe('en fin de mois')
+    expect(at('weekly', '2026-11-09')).toBe('chaque lundi')
+    expect(at('quarterly', '2026-12-07')).toBe('tous les 3 mois')
+    expect(text(at('yearly', '2027-03-15'))).toBe('chaque année le 15 mars')
+  })
+
+  it('describes runs of equal amounts and the charge count', () => {
+    const today = '2026-11-06'
+    expect(
+      text(
+        formatRunPeriod(
+          { from: '2026-08-07', to: '2026-11-07', count: 4 },
+          today,
+        ),
+      ),
+    ).toBe('août → nov. · 4 fois')
+    expect(
+      text(
+        formatRunPeriod(
+          { from: '2025-09-07', to: '2026-07-07', count: 11 },
+          today,
+        ),
+      ),
+    ).toBe('sept. 2025 → juil. · 11 fois')
+    expect(
+      formatRunPeriod(
+        { from: '2026-11-03', to: '2026-11-03', count: 1 },
+        today,
+      ),
+    ).toBe('nov. · 1 fois')
+    expect(
+      formatChargeCount(
+        {
+          occurrenceCount: 15,
+          direction: 'debit',
+          firstSeenDate: '2025-09-07',
+        },
+        today,
+      ),
+    ).toBe('15 prélèvements depuis septembre 2025')
+    expect(
+      formatChargeCount(
+        {
+          occurrenceCount: 1,
+          direction: 'credit',
+          firstSeenDate: '2026-11-03',
+        },
+        today,
+      ),
+    ).toBe('1 versement depuis novembre')
+  })
+
   it('groups items by status and kind', () => {
     const groups = groupItems([
       recurringItem({ id: 's1', status: 'suggested', confidence: 0.5 }),
@@ -173,5 +238,48 @@ describe('subscriptions format helpers', () => {
     expect(groups.variable.map((i) => i.id)).toEqual(['var'])
     expect(groups.incomes.map((i) => i.id)).toEqual(['inc'])
     expect(groups.dismissed.map((i) => i.id)).toEqual(['dis'])
+  })
+})
+
+describe('categoryChoices', () => {
+  /** Synthetic categories only. */
+  const category = (slug: string, kind: CategoryDto['kind'] = 'expense') => ({
+    id: slug,
+    slug,
+    name: slug,
+    kind,
+    color: null,
+    icon: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    archivedAt: null,
+  })
+  const categories = [
+    category('groceries'),
+    category('subscriptions'),
+    category('leisure'),
+    category('rent'),
+    category('salary', 'income'),
+  ]
+
+  it('offers the current and usual categories first, the rest on demand', () => {
+    const few = categoryChoices(categories, 'debit', 'leisure', false)
+    expect(few.shown.map((c) => c.slug)).toEqual([
+      'leisure',
+      'subscriptions',
+      'rent',
+    ])
+    expect(few.hiddenCount).toBe(1)
+    const all = categoryChoices(categories, 'debit', 'leisure', true)
+    expect(all.shown.map((c) => c.slug)).toEqual([
+      'leisure',
+      'subscriptions',
+      'rent',
+      'groceries',
+    ])
+    // Credits get income categories.
+    expect(
+      categoryChoices(categories, 'credit', '', false).shown.map((c) => c.slug),
+    ).toEqual(['salary'])
   })
 })
