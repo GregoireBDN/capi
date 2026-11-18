@@ -24,6 +24,7 @@ function item(
     isFixedCost: true,
     typicalAmountCents: 1_299,
     nextExpectedDate: '2026-11-20',
+    endedOn: null,
     bookedDates: [],
     categoryName: null,
     categoryColor: null,
@@ -65,6 +66,65 @@ describe('expectedOccurrences', () => {
         '2026-11-05',
       )[0].amountCents,
     ).toBe(250_000)
+  })
+
+  describe('cancelled item (endedOn)', () => {
+    const weekly = {
+      cadence: 'weekly' as const,
+      nextExpectedDate: '2026-11-09',
+    }
+
+    it('projects the occurrences before a future end date only', () => {
+      expect(
+        dates(
+          expectedOccurrences(
+            item({ ...weekly, endedOn: '2026-11-23' }),
+            NOVEMBER,
+            '2026-11-05',
+          ),
+        ),
+      ).toEqual(['2026-11-09', '2026-11-16'])
+    })
+
+    it('expects nothing on the end date itself or after it', () => {
+      expect(
+        expectedOccurrences(
+          item({ endedOn: '2026-11-20' }),
+          NOVEMBER,
+          '2026-11-05',
+        ),
+      ).toEqual([])
+      expect(
+        expectedOccurrences(
+          item({ endedOn: '2026-10-15' }),
+          NOVEMBER,
+          '2026-11-05',
+        ),
+      ).toEqual([])
+    })
+
+    it('keeps an occurrence the day before the end', () => {
+      expect(
+        dates(
+          expectedOccurrences(
+            item({ endedOn: '2026-11-21' }),
+            NOVEMBER,
+            '2026-11-05',
+          ),
+        ),
+      ).toEqual(['2026-11-20'])
+    })
+
+    it('still applies a late occurrence expected before the end', () => {
+      // Expected October 30, data up to October 31, ended November 1.
+      expect(
+        expectedOccurrences(
+          item({ nextExpectedDate: '2026-10-30', endedOn: '2026-11-01' }),
+          LAGGING,
+          '2026-10-31',
+        ),
+      ).toMatchObject([{ date: '2026-11-01', expectedDate: '2026-10-30' }])
+    })
   })
 
   it('keeps month-end dates at month end, February included', () => {

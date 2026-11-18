@@ -1,5 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
   recurringControllerConfirm,
   recurringControllerDetect,
@@ -50,6 +51,36 @@ export function confirmRecurringItems(ids: string[]) {
 /** The list and the totals depend on every change: refetch both. */
 export function afterRecurringChanged(queryClient: QueryClient) {
   return queryClient.invalidateQueries({ queryKey: recurringKeys.all })
+}
+
+/** How long a toast offers « Annuler ». */
+export const UNDO_TOAST_MS = 8_000
+
+/**
+ * Success toast of a cancellation or reactivation whose « Annuler » puts
+ * back the item's previous end date and notes.
+ */
+export function undoableRecurringToast(
+  queryClient: QueryClient,
+  message: string,
+  id: string,
+  previous: { endedOn: string | null; notes?: string | null },
+) {
+  void afterRecurringChanged(queryClient)
+  let undone = false
+  toast.success(message, {
+    duration: UNDO_TOAST_MS,
+    action: {
+      label: 'Annuler',
+      onClick: () => {
+        if (undone) return
+        undone = true
+        void updateRecurringItem(id, previous)
+          .then(() => afterRecurringChanged(queryClient))
+          .catch(() => toast.error('Impossible d’annuler la modification.'))
+      },
+    },
+  })
 }
 
 /** French message for a failed request (API messages stay in logs). */

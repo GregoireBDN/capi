@@ -15,6 +15,7 @@ function series(overrides: Partial<ExpectedSeries> = {}): ExpectedSeries {
     isFixedCost: true,
     typicalAmountCents: 80_000,
     nextExpectedDate: '2026-11-05',
+    endedOn: null,
     categoryId: 'rent',
     categoryName: 'Test rent',
     categoryColor: null,
@@ -49,6 +50,25 @@ describe('expectedByCategory', () => {
         [null, 4_000],
       ]),
     )
+  })
+
+  it('stops at the cancellation date', () => {
+    const weekly = {
+      cadence: 'weekly' as const,
+      typicalAmountCents: 1_000,
+      nextExpectedDate: '2026-11-06',
+      occurrences: [{ date: '2026-10-30' }],
+    }
+    const result = expectedByCategory(
+      [
+        // The 6th and 13th, not the 20th (end date) or the 27th.
+        series({ ...weekly, id: 'weekly', endedOn: '2026-11-20' }),
+        series({ id: 'ended', endedOn: '2026-11-01' }),
+      ],
+      '2026-11',
+      HORIZONS,
+    )
+    expect(result).toEqual(new Map([['rent', 2_000]]))
   })
 
   it('leaves out credits, unconfirmed, inactive and booked series', () => {

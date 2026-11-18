@@ -489,6 +489,9 @@ describe('subscriptions', () => {
     occurrenceCount: 23,
     occurrences: [],
     notes: null,
+    endedOn: null,
+    ended: false,
+    chargedAfterEnd: null,
   }
   const total = { monthlyCents: 1399, yearlyCents: 16788, count: 1 }
   const summaryDto: RecurringSummaryDto = {
@@ -501,6 +504,7 @@ describe('subscriptions', () => {
     credits: { monthlyCents: 0, yearlyCents: 0, count: 0 },
     suggestedCount: 1,
     inactiveCount: 0,
+    endedCount: 1,
   }
 
   it('lists upcoming debits within the window from today in Paris', async () => {
@@ -528,6 +532,37 @@ describe('subscriptions', () => {
     expect(text).toContain('[détecté, non confirmé]')
     expect(text).not.toContain('Ancien abonnement')
     expect(text).toContain('[prix +2,00 € le 05/10/2026]')
+  })
+
+  it('lists cancelled subscriptions apart, with their end date', async () => {
+    const { call } = await connect({
+      '/api/recurring/summary': summaryDto,
+      '/api/recurring': [
+        // Cancelled from after its next charge: still upcoming.
+        { ...item, endedOn: '2026-12-06' },
+        {
+          ...item,
+          id: 'r2',
+          name: 'Vidéo résiliée',
+          nextExpectedDate: '2026-11-20',
+          endedOn: '2026-11-01',
+          ended: true,
+          chargedAfterEnd: '2026-11-05',
+        },
+      ],
+    })
+    const { text } = await call('subscriptions', { upcoming_days: 30 })
+    expect(text).toContain(
+      '- 05/12/2026 · Streamflix · 13,99 € · Compte courant',
+    )
+    expect(text).toContain(
+      '[résilié, plus de prélèvement à partir du 06/12/2026]',
+    )
+    expect(text).not.toMatch(/- 20\/11\/2026 · Vidéo résiliée/)
+    expect(text).toContain('Abonnements résiliés (hors totaux) :')
+    expect(text).toContain(
+      '- Vidéo résiliée : résilié, fin le 01/11/2026 · dernier prélèvement 05/11/2026 · 167,88 € / an avant la fin · prélevé après la résiliation le 05/11/2026, à vérifier',
+    )
   })
 })
 

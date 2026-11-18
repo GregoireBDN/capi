@@ -17,6 +17,7 @@ export type ExpectedSeries = Pick<
   | 'isFixedCost'
   | 'typicalAmountCents'
   | 'nextExpectedDate'
+  | 'endedOn'
   | 'categoryId'
   | 'categoryName'
   | 'categoryColor'
@@ -29,7 +30,8 @@ export type ExpectedSeries = Pick<
  * Only confirmed, active debits count, with the forecast's rules
  * (`expectedOccurrences`): an occurrence already booked, or missed (the
  * account's data goes past it by more than the cadence tolerance), is not
- * expected. `horizons` is the day each account's data goes up to. Late
+ * expected, nor any on or after its cancellation date. `horizons` is the
+ * day each account's data goes up to. Late
  * occurrences of the month before are left out: they belong to that month.
  *
  * Pure: no I/O, no logging (amounts are private).
@@ -56,6 +58,7 @@ export function expectedByCategory(
         isFixedCost: item.isFixedCost,
         typicalAmountCents: item.typicalAmountCents,
         nextExpectedDate: item.nextExpectedDate,
+        endedOn: item.endedOn,
         bookedDates: item.occurrences.map((o) => o.date),
         categoryName: item.categoryName,
         categoryColor: item.categoryColor,

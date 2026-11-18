@@ -6,9 +6,11 @@ import {
   IsArray,
   IsBoolean,
   IsIn,
+  IsISO8601,
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   MinLength,
   ValidateIf,
@@ -134,6 +136,19 @@ export class UpdateRecurringItemDto {
   @IsString()
   @MaxLength(RECURRING_NOTES_MAX)
   notes?: string | null
+
+  @ApiPropertyOptional({
+    ...DATE_DOC,
+    nullable: true,
+    description:
+      'Cancellation (« Résilier »), confirmed items only: the first day no charge is expected any more (past, today or future). Null reactivates the item. Refused to access tokens.',
+  })
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'endedOn must be a YYYY-MM-DD date',
+  })
+  @IsISO8601({ strict: true })
+  endedOn?: string | null
 }
 
 export class ConfirmRecurringItemsDto {
@@ -313,6 +328,29 @@ export class RecurringItemDto {
 
   @ApiProperty({ type: String, nullable: true })
   notes!: string | null
+
+  @ApiProperty({
+    ...DATE_DOC,
+    nullable: true,
+    description:
+      'Cancellation date: the first day no charge is expected any more. Null when the item is not cancelled.',
+  })
+  endedOn!: string | null
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      '`endedOn` is today or earlier (Europe/Paris): out of the totals, the forecast and the upcoming debits.',
+  })
+  ended!: boolean
+
+  @ApiProperty({
+    ...DATE_DOC,
+    nullable: true,
+    description:
+      'Latest occurrence booked on or after `endedOn` (a cancellation that did not go through); null otherwise.',
+  })
+  chargedAfterEnd!: string | null
 }
 
 export class RecurringDetectResultDto {
@@ -387,13 +425,14 @@ export class RecurringDebitsSummaryDto extends RecurringTotalDto {
 export class RecurringSummaryDto {
   @ApiProperty({
     type: RecurringDebitsSummaryDto,
-    description: 'Confirmed, active debits.',
+    description: 'Confirmed, active debits, not cancelled as of today.',
   })
   debits!: RecurringDebitsSummaryDto
 
   @ApiProperty({
     type: RecurringTotalDto,
-    description: 'Confirmed, active credits (salary, benefits, ...).',
+    description:
+      'Confirmed, active credits (salary, benefits, ...), not ended as of today.',
   })
   credits!: RecurringTotalDto
 
@@ -402,7 +441,15 @@ export class RecurringSummaryDto {
 
   @ApiProperty({
     type: 'integer',
-    description: 'Confirmed items that are inactive (left out of the totals).',
+    description:
+      'Confirmed items that are inactive and not cancelled (left out of the totals).',
   })
   inactiveCount!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Confirmed items cancelled as of today (`ended`, left out of the totals).',
+  })
+  endedCount!: number
 }

@@ -124,7 +124,7 @@ function review(overrides: Partial<MonthCloseDto> = {}): MonthCloseDto {
       ],
     },
     reviewQueue: { count: 0 },
-    recurring: { suggestedCount: 0, priceChanges: [] },
+    recurring: { suggestedCount: 0, priceChanges: [], chargedAfterEnd: [] },
     budget: {
       budgetCount: 1,
       targetCents: 35_000,
@@ -247,6 +247,41 @@ describe('MonthClosePage', () => {
       within(reportCard).getByRole('list', { name: 'Au-dessus du budget' }),
     ).toHaveTextContent(text('50 € de trop'))
     expect(screen.getByText('Encore 4 étapes.')).toBeInTheDocument()
+  })
+
+  it('lists a cancelled subscription charged after its end date', async () => {
+    api.monthCloseControllerGet.mockImplementation(() =>
+      ok(
+        review({
+          recurring: {
+            suggestedCount: 0,
+            priceChanges: [],
+            chargedAfterEnd: [
+              {
+                id: 'r1',
+                name: 'Vidéo test',
+                endedOn: '2026-10-01',
+                chargedOn: '2026-10-15',
+                amountCents: 999,
+              },
+            ],
+          },
+        }),
+      ),
+    )
+    renderPage()
+
+    await screen.findByText('Prélevés après la résiliation')
+    const recurring = step('recurring')
+    expect(recurring).toHaveTextContent('Prélevés après la résiliation')
+    expect(recurring).toHaveTextContent('Vidéo test')
+    expect(recurring).toHaveTextContent(text('9,99 €'))
+    expect(
+      within(recurring).getByRole('link', { name: /Voir les abonnements/ }),
+    ).toHaveAttribute('href', '/subscriptions')
+    expect(
+      within(recurring).getByRole('checkbox', { name: 'Prélèvements vus' }),
+    ).toBeInTheDocument()
   })
 
   it('saves a tick and the notes', async () => {

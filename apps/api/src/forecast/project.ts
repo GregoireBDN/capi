@@ -30,6 +30,11 @@ export interface ForecastRecurringItem {
   /** Positive cents. */
   typicalAmountCents: number
   nextExpectedDate: string | null
+  /**
+   * Cancellation date (« Résilier »): no occurrence is expected on or after
+   * it. Null when the item is not cancelled.
+   */
+  endedOn: string | null
   /** Dates of the latest booked occurrences of the series. */
   bookedDates: readonly string[]
   categoryName: string | null
@@ -92,7 +97,8 @@ export function projectionStart(
  * the series within the cadence tolerance of the expected date) or missed
  * (the data goes past the expected date by more than the tolerance without
  * it). A late one still within the tolerance is applied on the first
- * projected day.
+ * projected day. Nothing is expected on or after the item's cancellation
+ * date (`endedOn`).
  */
 export function expectedOccurrences(
   item: ForecastRecurringItem,
@@ -109,7 +115,7 @@ export function expectedOccurrences(
   const result: ExpectedItem[] = []
   for (
     let expected = item.nextExpectedDate;
-    expected <= monthEnd;
+    expected <= monthEnd && (item.endedOn === null || expected < item.endedOn);
     expected = nextExpectedDate(expected, item.cadence, anchor)
   ) {
     const missed =

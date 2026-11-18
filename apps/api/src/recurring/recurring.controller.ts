@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   Param,
@@ -8,12 +9,14 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common'
 import {
   ApiBadRequestResponse,
   ApiBody,
   ApiCookieAuth,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -22,7 +25,9 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
+import type { FastifyRequest } from 'fastify'
 import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
+import '#/auth/request-user'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import {
   ConfirmRecurringItemsDto,
@@ -103,17 +108,32 @@ export class RecurringController {
   @ApiOperation({
     summary: 'Edit a recurring item',
     description:
-      'Confirm or dismiss it, rename it, change its category, fixed-cost flag, cadence or notes. Omitted fields are kept.',
+      'Confirm or dismiss it, rename it, change its category, fixed-cost flag, cadence or notes, cancel it from a date (`endedOn`, confirmed items only) or reactivate it (`endedOn: null`). Omitted fields are kept.',
   })
   @ApiParam({ name: 'id', type: String, format: 'uuid' })
   @ApiBody({ type: UpdateRecurringItemDto })
   @ApiOkResponse({ type: RecurringItemDto })
-  @ApiBadRequestResponse({ description: 'Invalid body or unknown category.' })
+  @ApiBadRequestResponse({
+    description:
+      'Invalid body, unknown category, or `endedOn` on an item that is not confirmed.',
+  })
+  @ApiForbiddenResponse({
+    description:
+      'Access token with `endedOn`: cancelling stays in the app (session only).',
+  })
   @ApiNotFoundResponse({ description: 'Unknown item.' })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateRecurringItemDto,
+    @Req() req: FastifyRequest,
   ): Promise<RecurringItemDto> {
+    // The route is open to write tokens for the other fields; a
+    // cancellation is the owner's, in the app.
+    if (req.accessToken && dto.endedOn !== undefined) {
+      throw new ForbiddenException(
+        'Cancelling a recurring item needs a session',
+      )
+    }
     return this.recurringService.update(id, dto)
   }
 }

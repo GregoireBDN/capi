@@ -346,6 +346,31 @@ export class ClosePriceChangeDto {
   priceChangedOn!: string
 }
 
+export class CloseChargedAfterEndDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string
+
+  @ApiProperty({ type: String })
+  name!: string
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    description: 'Cancellation date of the item.',
+  })
+  endedOn!: string
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    description: 'Latest charge of the month booked on or after `endedOn`.',
+  })
+  chargedOn!: string
+
+  @ApiProperty({ type: 'integer', description: 'Positive cents.' })
+  amountCents!: number
+}
+
 export class CloseRecurringDto {
   @ApiProperty({
     type: 'integer',
@@ -355,9 +380,17 @@ export class CloseRecurringDto {
 
   @ApiProperty({
     type: [ClosePriceChangeDto],
-    description: 'Confirmed items whose price changed during the month.',
+    description:
+      'Confirmed items whose price changed during the month, cancelled ones left out from their end date.',
   })
   priceChanges!: ClosePriceChangeDto[]
+
+  @ApiProperty({
+    type: [CloseChargedAfterEndDto],
+    description:
+      'Cancelled items charged during the month on or after their end date (a cancellation that did not go through).',
+  })
+  chargedAfterEnd!: CloseChargedAfterEndDto[]
 }
 
 export class CloseGoalDto {

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { RecurringItemDto } from '#/api/types.gen'
 import {
   addMonths,
+  formatChargedAfterEnd,
+  formatEnd,
   formatPriceChange,
   formatRelativeDay,
   groupItems,
@@ -104,6 +106,48 @@ describe('subscriptions format helpers', () => {
     ])
   })
 
+  it('stops the upcoming debits of a cancelled item before its end', () => {
+    const upcoming = upcomingDebits(
+      [
+        recurringItem({
+          id: 'basket',
+          cadence: 'weekly',
+          nextExpectedDate: '2026-11-10',
+          endedOn: '2026-11-24',
+        }),
+        recurringItem({
+          id: 'gone',
+          nextExpectedDate: '2026-11-10',
+          endedOn: '2026-11-01',
+          ended: true,
+        }),
+      ],
+      '2026-11-06',
+    )
+    expect(upcoming.map((u) => [u.date, u.last])).toEqual([
+      ['2026-11-10', false],
+      ['2026-11-17', true],
+    ])
+  })
+
+  it('formats the end date and a charge after it', () => {
+    const today = '2026-11-06'
+    expect(text(formatEnd({ endedOn: '2026-12-15' }, today))).toBe(
+      'Résilié · fin le 15 déc.',
+    )
+    expect(text(formatEnd({ endedOn: '2027-01-02' }, today))).toBe(
+      'Résilié · fin le 2 janv. 2027',
+    )
+    expect(text(formatEnd({ endedOn: '2026-12-01' }, today))).toBe(
+      'Résilié · fin le 1er déc.',
+    )
+    expect(formatEnd({ endedOn: null }, today)).toBeNull()
+    expect(
+      text(formatChargedAfterEnd({ chargedAfterEnd: '2026-11-04' }, today)),
+    ).toBe('Prélevé après la résiliation (4 nov.)')
+    expect(formatChargedAfterEnd({ chargedAfterEnd: null }, today)).toBeNull()
+  })
+
   it('groups items by status and kind', () => {
     const groups = groupItems([
       recurringItem({ id: 's1', status: 'suggested', confidence: 0.5 }),
@@ -113,9 +157,18 @@ describe('subscriptions format helpers', () => {
       recurringItem({ id: 'var', isFixedCost: false }),
       recurringItem({ id: 'inc', direction: 'credit' }),
       recurringItem({ id: 'dis', status: 'dismissed' }),
+      // Cancelled: ended items apart, latest end first; a future end stays.
+      recurringItem({ id: 'end1', endedOn: '2026-09-01', ended: true }),
+      recurringItem({ id: 'end2', endedOn: '2026-10-01', ended: true }),
+      recurringItem({
+        id: 'soon',
+        isSubscription: true,
+        endedOn: '2026-12-01',
+      }),
     ])
     expect(groups.suggestions.map((i) => i.id)).toEqual(['s2', 's1'])
-    expect(groups.subscriptions.map((i) => i.id)).toEqual(['sub'])
+    expect(groups.subscriptions.map((i) => i.id)).toEqual(['sub', 'soon'])
+    expect(groups.ended.map((i) => i.id)).toEqual(['end2', 'end1'])
     expect(groups.fixed.map((i) => i.id)).toEqual(['fix'])
     expect(groups.variable.map((i) => i.id)).toEqual(['var'])
     expect(groups.incomes.map((i) => i.id)).toEqual(['inc'])

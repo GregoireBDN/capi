@@ -44,6 +44,9 @@ export function recurringItem(
       { transactionId: `${id}-t1`, date: '2026-09-10', amountCents: 1_000 },
     ],
     notes: null,
+    endedOn: null,
+    ended: false,
+    chargedAfterEnd: null,
     ...overrides,
   }
 }
@@ -63,6 +66,7 @@ export function recurringSummary(
     credits: { monthlyCents: 0, yearlyCents: 0, count: 0 },
     suggestedCount: 0,
     inactiveCount: 0,
+    endedCount: 0,
     ...overrides,
   }
 }

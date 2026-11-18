@@ -257,7 +257,8 @@ function ReviewQueueStep({ review }: { review: MonthCloseDto }) {
 }
 
 function RecurringStep(props: StepsProps) {
-  const { suggestedCount, priceChanges } = props.review.recurring
+  const { suggestedCount, priceChanges, chargedAfterEnd } =
+    props.review.recurring
   return (
     <>
       <p className={cn(suggestedCount === 0 && 'text-muted-foreground')}>
@@ -265,6 +266,39 @@ function RecurringStep(props: StepsProps) {
           ? 'Tous les prélèvements détectés sont confirmés ou écartés.'
           : `${plural(suggestedCount, 'prélèvement détecté', 'prélèvements détectés')} à confirmer.`}
       </p>
+      {chargedAfterEnd.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-warning-foreground dark:text-warning font-medium">
+            Prélevés après la résiliation
+          </p>
+          <ul className="space-y-1">
+            {chargedAfterEnd.map((charge) => (
+              <li
+                key={charge.id}
+                className="flex flex-wrap justify-between gap-x-3"
+              >
+                <span className="min-w-[7rem] flex-1 break-words">
+                  {charge.name}{' '}
+                  <span className="text-muted-foreground">
+                    le {formatShortDay(charge.chargedOn)}, résilié au{' '}
+                    {formatShortDay(charge.endedOn)}
+                  </span>
+                </span>
+                <span className="ml-auto whitespace-nowrap tabular-nums">
+                  {formatCents(charge.amountCents)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-muted-foreground">
+            Vérifiez la résiliation auprès du fournisseur, ou réactivez
+            l’abonnement s’il continue.
+          </p>
+          {suggestedCount === 0 && (
+            <FixLink to={ROUTES.subscriptions}>Voir les abonnements</FixLink>
+          )}
+        </div>
+      )}
       {priceChanges.length > 0 && (
         <div className="space-y-1">
           <p className="font-medium">Changements de prix</p>
@@ -288,12 +322,20 @@ function RecurringStep(props: StepsProps) {
               </li>
             ))}
           </ul>
-          <Acknowledge
-            {...props}
-            step="recurring"
-            label="Changements de prix vus"
-          />
         </div>
+      )}
+      {(priceChanges.length > 0 || chargedAfterEnd.length > 0) && (
+        <Acknowledge
+          {...props}
+          step="recurring"
+          label={
+            priceChanges.length > 0 && chargedAfterEnd.length > 0
+              ? 'Changements vus'
+              : priceChanges.length > 0
+                ? 'Changements de prix vus'
+                : 'Prélèvements vus'
+          }
+        />
       )}
       {suggestedCount > 0 && (
         <FixLink to={ROUTES.subscriptions}>Confirmer</FixLink>

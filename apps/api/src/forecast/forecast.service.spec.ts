@@ -1,4 +1,5 @@
 import '#/load-env'
+import { eq } from 'drizzle-orm'
 import { BadRequestException } from '@nestjs/common'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -273,6 +274,33 @@ describe.skipIf(!process.env.DATABASE_URL)('ForecastService (database)', () => {
         balanceCents: start - 1_399 - 889 * 18,
       })
       expect(forecast.belowThreshold).toBeNull()
+    }))
+
+  it('stops a cancelled subscription at its end date', () =>
+    withFixture(async (f) => {
+      await seedHousehold(f)
+      const names = async () =>
+        (await f.service.forecast({}, OCTOBER_15)).items.map((i) => i.name)
+      const cancel = (endedOn: string | null) =>
+        f.tx
+          .update(recurringItemsTable)
+          .set({ endedOn })
+          .where(eq(recurringItemsTable.name, STREAMING))
+
+      // Ends after its October 20 charge: still projected.
+      await cancel('2026-10-21')
+      expect(await names()).toEqual([STREAMING, SALARY])
+      // Ends on the 20th itself (future): no charge expected from then.
+      await cancel('2026-10-20')
+      expect(await names()).toEqual([SALARY])
+      const future = await f.service.forecast({}, OCTOBER_15)
+      expect(future.recurringItemCount).toBe(3)
+      expect(future.expectedDebitsCents).toBe(0)
+      // Already ended: out of the forecast and of the count.
+      await cancel('2026-10-01')
+      const past = await f.service.forecast({}, OCTOBER_15)
+      expect(past.items.map((i) => i.name)).toEqual([SALARY])
+      expect(past.recurringItemCount).toBe(2)
     }))
 
   it('reports the first day under the threshold', () =>

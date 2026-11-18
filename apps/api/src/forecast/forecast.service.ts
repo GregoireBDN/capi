@@ -118,9 +118,11 @@ export class ForecastService {
       null,
     )
 
-    const confirmed = (await this.recurringService.list('confirmed')).filter(
-      (item) => selected.has(item.accountId),
-    )
+    const confirmed = (
+      await this.recurringService.list('confirmed', today)
+    ).filter((item) => selected.has(item.accountId))
+    // A cancelled item still projects its occurrences expected before its
+    // end date (`expectedOccurrences`); one ended as of today is not counted.
     const active = confirmed.filter((item) => item.active)
     const items = active
       .flatMap((item) =>
@@ -135,6 +137,7 @@ export class ForecastService {
             isFixedCost: item.isFixedCost,
             typicalAmountCents: item.typicalAmountCents,
             nextExpectedDate: item.nextExpectedDate,
+            endedOn: item.endedOn,
             bookedDates: item.occurrences.map((o) => o.date),
             categoryName: item.categoryName,
             categoryColor: item.categoryColor,
@@ -206,7 +209,7 @@ export class ForecastService {
       stale,
       staleAfterDays: FORECAST_STALE_AFTER_DAYS,
       thresholdCents,
-      recurringItemCount: active.length,
+      recurringItemCount: active.filter((item) => !item.ended).length,
       items,
       expectedDebitsCents: items
         .filter((item) => item.amountCents < 0)
