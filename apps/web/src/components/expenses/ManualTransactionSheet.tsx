@@ -38,7 +38,7 @@ import type {
   TransactionKind,
 } from '#/api/types.gen'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
-import { isTextEntry } from '#/components/transactions/keyboard'
+import { isTextEntry } from '#/lib/text-entry'
 import {
   KIND_LABELS,
   TRANSACTION_KINDS,

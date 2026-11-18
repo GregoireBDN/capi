@@ -1,16 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { remainingCents, splitError } from './edits'
 import { parseSignedCents } from './ImportedCorrection'
-import { isUndoKey, rowShortcut } from './keyboard'
-
-const key = (k: string, mods: Partial<KeyboardEvent> = {}) => ({
-  key: k,
-  ctrlKey: false,
-  metaKey: false,
-  altKey: false,
-  shiftKey: false,
-  ...mods,
-})
 
 describe('split arithmetic', () => {
   it('tells what is left to allocate, in exact cents', () => {
@@ -55,36 +45,5 @@ describe('parseSignedCents', () => {
     expect(parseSignedCents('0')).toHaveProperty('error')
     expect(parseSignedCents('abc')).toHaveProperty('error')
     expect(parseSignedCents('')).toHaveProperty('error')
-  })
-})
-
-describe('row shortcuts', () => {
-  const button = document.createElement('button')
-  const input = document.createElement('input')
-  const select = document.createElement('select')
-
-  it('maps keys on a row, case-insensitively', () => {
-    expect(rowShortcut(key('ArrowDown'), button)).toBe('next')
-    expect(rowShortcut(key('K'), button)).toBe('previous')
-    expect(rowShortcut(key('c'), button)).toBe('category')
-    expect(rowShortcut(key('n'), button)).toBe('note')
-    expect(rowShortcut(key('m'), button)).toBe('amount')
-    expect(rowShortcut(key('o'), button)).toBe('oneOff')
-    expect(rowShortcut(key('x'), button)).toBe('select')
-    expect(rowShortcut(key('q'), button)).toBeNull()
-  })
-
-  it('never steals keys from a field or a shortcut with a modifier', () => {
-    expect(rowShortcut(key('n'), input)).toBeNull()
-    expect(rowShortcut(key('c', { metaKey: true }), button)).toBeNull()
-    expect(rowShortcut(key('ArrowDown'), select)).toBeNull()
-    expect(rowShortcut(key('Escape'), select)).toBe('leave')
-  })
-
-  it('recognizes undo, not redo', () => {
-    expect(isUndoKey(key('z', { metaKey: true }))).toBe(true)
-    expect(isUndoKey(key('Z', { ctrlKey: true }))).toBe(true)
-    expect(isUndoKey(key('z', { ctrlKey: true, shiftKey: true }))).toBe(false)
-    expect(isUndoKey(key('z'))).toBe(false)
   })
 })

@@ -22,7 +22,6 @@ import { currentMonth, formatMonth } from '#/lib/calendar'
 import { accountsQuery, categoriesQuery, isTransactional } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import { BulkActionsBar } from './BulkActionsBar'
-import { isTextEntry, isUndoKey } from './keyboard'
 import type { BulkChanges } from './changes'
 import { transactionListQuery, transactionSummaryQuery } from './queries'
 import { RuleFromCorrectionDialog } from './RuleFromCorrectionDialog'
@@ -188,18 +187,6 @@ export function TransactionsPage({
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
-
-  // Ctrl/⌘+Z undoes the latest edit still offering "Annuler", unless the
-  // focus is in a text field (its own undo).
-  const undoLast = actions.undoLast
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (!isUndoKey(event) || isTextEntry(document.activeElement)) return
-      if (undoLast()) event.preventDefault()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [undoLast])
 
   const items = useMemo(
     () => list.data?.pages.flatMap((page) => page.items) ?? [],

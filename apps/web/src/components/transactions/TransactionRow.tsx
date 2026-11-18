@@ -1,7 +1,6 @@
 import {
   Checkbox,
   cn,
-  Input,
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
@@ -37,8 +36,6 @@ import type { TransactionChanges } from './changes'
 import { displayLabel } from './labels'
 import { TransactionEditor } from './TransactionEditor'
 
-const NOTE_MAX = 2000
-
 /**
  * Table-like columns once the page is ≥ 36rem wide (rems of the 22px root,
  * container query on the page), header included: selection, label,
@@ -46,9 +43,6 @@ const NOTE_MAX = 2000
  */
 export const ROW_GRID =
   '@xl:grid @xl:grid-cols-[2.25rem_minmax(0,1fr)_8rem_5rem_4.5rem_5.5rem] @xl:items-center @xl:gap-2'
-
-/** A field being edited in the row itself (desktop keyboard, or a tap). */
-export type InlineField = 'note' | 'amount'
 
 export interface TransactionRowActions {
   onChange: (changes: TransactionChanges) => void
@@ -66,9 +60,6 @@ interface TransactionRowProps extends TransactionRowActions {
   onSelectedChange: (selected: boolean) => void
   /** Show the date in the row (lists not grouped by day). */
   showDate?: boolean
-  /** Field edited inline, if any (owned by the list for the keyboard). */
-  inline: InlineField | null
-  onInlineChange: (field: InlineField | null) => void
 }
 
 function Flags({ item }: { item: TransactionDto }) {
@@ -128,47 +119,6 @@ function CategoryLabel({ item }: { item: TransactionDto }) {
     <CategoryBadge category={item.category} />
   ) : (
     <span className="text-muted-foreground text-xs italic">Sans catégorie</span>
-  )
-}
-
-/** Inline text edit: Enter saves, Escape cancels; both hand focus back. */
-function InlineNote({
-  item,
-  onSave,
-  onDone,
-}: {
-  item: TransactionDto
-  onSave: (note: string) => void
-  onDone: () => void
-}) {
-  const [value, setValue] = useState(item.note ?? '')
-  const name = displayLabel(item)
-  return (
-    <form
-      className="basis-full px-2 pb-2 @xl:col-span-full @xl:col-start-2"
-      onSubmit={(event) => {
-        event.preventDefault()
-        if (value.trim() !== (item.note ?? '')) onSave(value.trim())
-        onDone()
-      }}
-    >
-      <Input
-        autoFocus
-        aria-label={`Note de ${name}`}
-        placeholder="Note… (Entrée pour enregistrer, Échap pour annuler)"
-        maxLength={NOTE_MAX}
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            event.preventDefault()
-            event.stopPropagation()
-            onDone()
-          }
-        }}
-        onBlur={onDone}
-      />
-    </form>
   )
 }
 
@@ -234,8 +184,8 @@ function InlineAmount({
  * One transaction: label, category, account, flags and amount, stacked on
  * narrow pages and in columns on wide ones (`ROW_GRID`). Activating the label
  * opens its editor (popover on desktop, bottom sheet on phones). On wide
- * pages the category is edited in the row, as are the note and the amount of
- * a transaction entered by hand (keyboard shortcuts, see `TransactionList`).
+ * pages the category is edited in the row, as is the amount of a transaction
+ * entered by hand.
  */
 export function TransactionRow({
   item,
@@ -249,21 +199,20 @@ export function TransactionRow({
   onSplit,
   onUnsplit,
   showDate = false,
-  inline,
-  onInlineChange,
 }: TransactionRowProps) {
   const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
   const [manualOpen, setManualOpen] = useState(false)
-  const trigger = useRef<HTMLButtonElement>(null)
+  const [editingAmount, setEditingAmount] = useState(false)
+  const amountButton = useRef<HTMLButtonElement>(null)
   const name = displayLabel(item)
 
-  // Leaving an inline edit hands the focus back to the row.
-  const wasInline = useRef(inline)
+  // Leaving the amount edit hands the focus back to its button.
+  const wasEditing = useRef(editingAmount)
   useEffect(() => {
-    if (wasInline.current && !inline) trigger.current?.focus()
-    wasInline.current = inline
-  }, [inline])
+    if (wasEditing.current && !editingAmount) amountButton.current?.focus()
+    wasEditing.current = editingAmount
+  }, [editingAmount])
 
   function change(changes: TransactionChanges) {
     // A new category offers a rule above the list: get out of the way.
@@ -273,9 +222,7 @@ export function TransactionRow({
 
   const triggerButton = (
     <button
-      ref={trigger}
       type="button"
-      data-row-trigger=""
       aria-label={`Modifier ${name}`}
       aria-haspopup="dialog"
       className="hover:bg-muted/50 focus-visible:ring-ring/50 min-w-0 flex-1 rounded-lg px-2 py-2 text-left outline-none focus-visible:ring-[3px]"
@@ -341,7 +288,6 @@ export function TransactionRow({
   return (
     <li
       className={cn('flex flex-wrap items-center gap-1 px-1', ROW_GRID)}
-      data-transaction-row={item.id}
       data-selected={selected || undefined}
       aria-label={name}
     >
@@ -383,7 +329,7 @@ export function TransactionRow({
       )}
 
       {/* Wide pages: cells edited in place. */}
-      <span className="hidden min-w-0 @xl:block" data-inline-category="">
+      <span className="hidden min-w-0 @xl:block">
         {item.splits.length > 0 ? (
           <CategoryLabel item={item} />
         ) : (
@@ -405,19 +351,20 @@ export function TransactionRow({
         <Flags item={item} />
       </span>
       <span className="hidden text-right text-sm @xl:block">
-        {inline === 'amount' && item.manual ? (
+        {editingAmount && item.manual ? (
           <InlineAmount
             item={item}
             onSave={(amountCents) => onUpdateManual({ amountCents })}
-            onDone={() => onInlineChange(null)}
+            onDone={() => setEditingAmount(false)}
           />
         ) : item.manual ? (
           <button
+            ref={amountButton}
             type="button"
             className="hover:bg-muted/50 rounded-md px-1 py-0.5"
             aria-label={`Modifier le montant de ${name}`}
-            title="Modifier le montant (M)"
-            onClick={() => onInlineChange('amount')}
+            title="Modifier le montant"
+            onClick={() => setEditingAmount(true)}
           >
             <Amount cents={item.amountCents} />
           </button>
@@ -425,14 +372,6 @@ export function TransactionRow({
           <Amount cents={item.amountCents} />
         )}
       </span>
-
-      {inline === 'note' && (
-        <InlineNote
-          item={item}
-          onSave={(note) => onChange({ note })}
-          onDone={() => onInlineChange(null)}
-        />
-      )}
 
       {item.manual && (
         <ManualTransactionSheet

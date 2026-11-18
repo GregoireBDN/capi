@@ -810,94 +810,70 @@ describe('TransactionsPage', () => {
       manual: true,
     })
 
-    it('moves between rows and edits them with the keyboard', async () => {
+    it('has no keyboard shortcuts: no hints, the keys do nothing (#265)', async () => {
       const { user } = setup()
       await waitForRows()
-      api.transactionsControllerUpdate.mockImplementation(
-        ({ body }: { body: object }) => ok({ ...transferRow, ...body }),
+
+      expect(screen.queryByText('naviguer')).not.toBeInTheDocument()
+      expect(screen.queryByText('sélectionner')).not.toBeInTheDocument()
+
+      const trigger = screen.getByRole('button', { name: 'Modifier Fakemart' })
+      trigger.focus()
+      await user.keyboard(
+        'cnomxjk{ArrowDown}{ArrowUp}{Control>}z{/Control}{Meta>}z{/Meta}',
       )
-
-      screen.getByRole('button', { name: 'Modifier Fakemart' }).focus()
-      await user.keyboard('{ArrowDown}')
+      expect(trigger).toHaveFocus()
+      expect(api.transactionsControllerUpdate).not.toHaveBeenCalled()
       expect(
-        screen.getByRole('button', {
-          name: `Modifier ${transferRow.rawLabel}`,
-        }),
-      ).toHaveFocus()
-      await user.keyboard('k')
+        screen.queryByLabelText('Note de Fakemart'),
+      ).not.toBeInTheDocument()
       expect(
-        screen.getByRole('button', { name: 'Modifier Fakemart' }),
-      ).toHaveFocus()
+        screen.getByRole('checkbox', { name: 'Sélectionner Fakemart' }),
+      ).not.toBeChecked()
+    })
 
-      // C: the category of the row, chosen in place.
-      await user.keyboard('c')
-      const select = screen.getByLabelText('Catégorie de Fakemart')
-      expect(select).toHaveFocus()
+    it('reaches the inline category with Tab, and its toast undoes', async () => {
+      const { user } = setup()
+      await waitForRows()
       api.transactionsControllerUpdate.mockReturnValueOnce(
         ok({
           ...shopRow,
           categoryId: groceries.id,
           category: { ...groceries },
+          needsReview: false,
         }),
       )
+
+      screen.getByRole('button', { name: 'Modifier Fakemart' }).focus()
+      await user.tab()
+      const select = screen.getByLabelText('Catégorie de Fakemart')
+      expect(select).toHaveFocus()
       await user.selectOptions(select, groceries.id)
       expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith({
         path: { id: shopRow.id },
         body: { categoryId: groceries.id },
         throwOnError: false,
       })
-      // Escape hands the focus back to the row.
-      await user.keyboard('{Escape}')
-      expect(
-        screen.getByRole('button', { name: 'Modifier Fakemart' }),
-      ).toHaveFocus()
-
-      // O toggles one-off, X the selection.
-      await user.keyboard('j')
-      await user.keyboard('o')
-      expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith({
-        path: { id: transferRow.id },
-        body: { isOneOff: false },
-        throwOnError: false,
-      })
-      await user.keyboard('x')
-      expect(
-        screen.getByRole('checkbox', {
-          name: `Sélectionner ${transferRow.rawLabel}`,
-        }),
-      ).toBeChecked()
-    })
-
-    it('edits a note in the row: N, Enter saves, Escape cancels', async () => {
-      const { user } = setup()
-      await waitForRows()
-      api.transactionsControllerUpdate.mockImplementation(
-        ({ body }: { body: object }) => ok({ ...shopRow, ...body }),
+      await waitFor(() =>
+        expect(toast.success).toHaveBeenCalledWith(
+          'Classée dans « Courses »',
+          expect.objectContaining({ description: 'Fakemart' }),
+        ),
       )
 
-      screen.getByRole('button', { name: 'Modifier Fakemart' }).focus()
-      await user.keyboard('n')
-      const note = screen.getByLabelText('Note de Fakemart')
-      expect(note).toHaveFocus()
-      await user.type(note, 'Cadeau{Enter}')
-      expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith({
-        path: { id: shopRow.id },
-        body: { note: 'Cadeau' },
-        throwOnError: false,
-      })
-      expect(
-        screen.queryByLabelText('Note de Fakemart'),
-      ).not.toBeInTheDocument()
-      expect(
-        screen.getByRole('button', { name: 'Modifier Fakemart' }),
-      ).toHaveFocus()
-
-      await user.keyboard('n')
-      await user.type(screen.getByLabelText('Note de Fakemart'), 'X{Escape}')
-      expect(api.transactionsControllerUpdate).toHaveBeenCalledTimes(1)
+      api.transactionsControllerUpdate.mockReturnValueOnce(ok(shopRow))
+      expect(lastToastAction().label).toBe('Annuler')
+      lastToastAction().onClick()
+      await waitFor(() =>
+        expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith({
+          path: { id: shopRow.id },
+          body: expect.objectContaining({ categoryId: null }),
+          throwOnError: false,
+        }),
+      )
     })
 
-    it('edits the amount of a manual row in place and undoes it with Ctrl+Z', async () => {
+    it('edits the amount of a manual row in place and undoes it from the toast', async () => {
       api.transactionsControllerList.mockReturnValue(
         listOf([...rows, manualRow]),
       )
@@ -908,8 +884,14 @@ describe('TransactionsPage', () => {
       const { user } = setup()
       await waitForRows()
 
+      // Tab from the row reaches its amount, Enter opens it.
       screen.getByRole('button', { name: 'Modifier Marché' }).focus()
-      await user.keyboard('m')
+      await user.tab()
+      await user.tab()
+      expect(
+        screen.getByRole('button', { name: 'Modifier le montant de Marché' }),
+      ).toHaveFocus()
+      await user.keyboard('{Enter}')
       const amount = screen.getByLabelText('Montant de Marché')
       expect(amount).toHaveValue('12,50')
       await user.clear(amount)
@@ -931,14 +913,18 @@ describe('TransactionsPage', () => {
         screen.getByRole('listitem', { name: 'Marché' }),
       ).toHaveTextContent(euros(-3_000))
 
-      // An imported row has no amount edit in place.
-      screen.getByRole('button', { name: 'Modifier Fakemart' }).focus()
-      await user.keyboard('m')
+      // Leaving the edit hands the focus back to the amount.
       expect(
-        screen.queryByLabelText('Montant de Fakemart'),
+        screen.getByRole('button', { name: 'Modifier le montant de Marché' }),
+      ).toHaveFocus()
+      // An imported row has no amount edit in place.
+      expect(
+        screen.queryByRole('button', {
+          name: 'Modifier le montant de Fakemart',
+        }),
       ).not.toBeInTheDocument()
 
-      await user.keyboard('{Control>}z{/Control}')
+      lastToastAction().onClick()
       await waitFor(() =>
         expect(api.transactionsControllerUpdateManual).toHaveBeenLastCalledWith(
           {
@@ -958,7 +944,6 @@ describe('TransactionsPage', () => {
           },
         ),
       )
-      expect(toast.dismiss).toHaveBeenCalled()
     })
 
     it('splits a transaction between categories and undoes it', async () => {
