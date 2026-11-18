@@ -932,3 +932,397 @@ export const C_TroisQuestions: StoryObj = {
     )
   },
 }
+
+/* ===========================================================================
+ * Wide layouts without two columns (owner feedback on A, #262)
+ *
+ * The owner kept « A. Tuiles » but not its two columns inside the cards on
+ * a wide screen (Bilan, Ce mois-ci, Comptes). Three ways to use the width
+ * without them, shown at a desktop width (the app's page beside the
+ * sidebar is about 1 000 px wide on a 1 440 px screen):
+ *
+ * Large 1. Bandeaux : every card reads top to bottom in full-width strips —
+ *          the month's four figures in one row, the budget as one long bar
+ *          with its figures on the same line, one envelope per line with a
+ *          long bar, the accounts as one list whose value sits right after
+ *          the name.
+ * Large 2. Tableau : the same strips for the review, the envelopes and the
+ *          accounts as aligned columns (name, date, value, gain), read
+ *          across like a statement.
+ * Large 3. Colonne : the dashboard keeps its phone layout in a centred
+ *          column about 700 px wide; the rest of the screen stays empty.
+ * ======================================================================== */
+
+const WIDE_GAINS: Record<string, string | undefined> = {
+  'Assurance vie': '+726 € · +9,7 %',
+}
+
+/** A desktop-wide page: about the app's page width beside the sidebar. */
+function WidePage({
+  title,
+  width = 'max-w-[46rem]',
+  children,
+}: {
+  title: string
+  width?: string
+  children: (review: Review) => ReactNode
+}) {
+  const [scenario, setScenario] = useScenario()
+  const review = SCENARIOS[scenario].review
+  return (
+    <Page title={title} scenario={scenario} onScenario={setScenario}>
+      <div className={cn('@container mx-auto space-y-4', width)}>
+        {children(review)}
+      </div>
+    </Page>
+  )
+}
+
+/** The month's four figures in one row (two on a narrow card). */
+function FigureStrip({ review }: { review: Review }) {
+  const rate = review.income > 0 ? saved(review) / review.income : null
+  return (
+    <div className="@container grid grid-cols-2 gap-x-6 gap-y-3 @[30rem]:grid-cols-4">
+      <Figure label="Revenus" value={euros(review.income)} />
+      <Figure label="Dépenses" value={euros(-review.expenses)} />
+      <Figure
+        label="Épargné"
+        value={signedEuros(saved(review))}
+        note={rate === null ? undefined : percent(rate)}
+        tone={saved(review) >= 0 ? 'good' : 'bad'}
+      />
+      <Figure
+        label={`Patrimoine au ${review.end}`}
+        value={euros(review.netWorthEnd)}
+        note={
+          review.other !== 0
+            ? `${signedEuros(change(review))}, dont ${signedEuros(review.other)} placements`
+            : undefined
+        }
+      />
+    </div>
+  )
+}
+
+/** The budget on one line: its target, a long bar, what's left. */
+function BudgetStrip({ review }: { review: Review }) {
+  const { budget } = review
+  if (!budget) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        Pas de budget fixé pour ce mois.
+      </p>
+    )
+  }
+  const left = budget.target - budget.spent
+  const ratio = budget.spent / budget.target
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+        <span className="font-medium">
+          Budget{' '}
+          <span className="text-muted-foreground font-normal tabular-nums">
+            {euros(budget.target)}
+          </span>
+        </span>
+        <div className="bg-muted h-2 min-w-[8rem] flex-1 overflow-hidden rounded-full">
+          <div
+            className={cn(
+              'h-full rounded-full',
+              ratio > 1
+                ? 'bg-chart-over'
+                : ratio >= 0.9
+                  ? 'bg-chart-warning'
+                  : 'bg-primary',
+            )}
+            style={{ width: `${Math.min(ratio, 1) * 100}%` }}
+          />
+        </div>
+        <span className="whitespace-nowrap">
+          <span
+            className={cn('font-medium', left < 0 && 'text-chart-delta-bad')}
+          >
+            {left < 0 ? `Dépassé de ${euros(-left)}` : `Reste ${euros(left)}`}
+          </span>
+          {budget.unbudgeted > 0 && (
+            <span className="text-muted-foreground">
+              {' '}
+              · {euros(budget.unbudgeted)} hors budget
+            </span>
+          )}
+        </span>
+      </div>
+      <ul className="flex flex-wrap gap-1.5" aria-label="Écarts au budget">
+        {budget.drift.map((item) => (
+          <li
+            key={item.name}
+            className="bg-muted/60 inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm"
+          >
+            <span
+              aria-hidden
+              className="size-2 rounded-full"
+              style={{ backgroundColor: item.color }}
+            />
+            {item.name}
+            <span
+              className={cn(
+                'font-medium tabular-nums',
+                item.gap > 0 ? 'text-chart-delta-bad' : 'text-chart-delta-good',
+              )}
+            >
+              {item.gap > 0 ? `+${euros(item.gap)}` : `−${euros(-item.gap)}`}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function ReviewStrips({ review }: { review: Review }) {
+  return (
+    <Card className="min-w-0">
+      <CardHeader>
+        <MonthHeader review={review} />
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <Missing review={review} />
+        <FigureStrip review={review} />
+        <BudgetStrip review={review} />
+        <ReviewAction review={review} />
+      </CardContent>
+    </Card>
+  )
+}
+
+/** One envelope per line: name, a long bar with the pace mark, figures. */
+function EnvelopeLines() {
+  return (
+    <Card className="min-w-0">
+      <CardHead title="Ce mois-ci" status="jour 18 sur 30" link="Budget" />
+      <CardContent className="space-y-3">
+        <ul className="space-y-1">
+          {ENVELOPES.map((item) => {
+            const ratio = item.spent / item.target
+            return (
+              <li key={item.name}>
+                <a
+                  href="#"
+                  onClick={(event) => event.preventDefault()}
+                  className="hover:bg-muted/60 -mx-2 flex min-h-11 flex-wrap items-center gap-x-4 gap-y-1 rounded-lg px-2 py-2 text-sm"
+                >
+                  <span className="w-40 font-medium">{item.name}</span>
+                  <span className="bg-muted relative h-2 min-w-[8rem] flex-1 rounded-full">
+                    <span
+                      className="bg-primary absolute inset-y-0 left-0 rounded-full"
+                      style={{ width: `${Math.min(ratio, 1) * 100}%` }}
+                    />
+                    <span
+                      aria-hidden
+                      className="bg-foreground absolute -inset-y-1 w-0.5 rounded"
+                      style={{ left: `${(item.pace / item.target) * 100}%` }}
+                    />
+                  </span>
+                  <span className="w-28 text-right whitespace-nowrap tabular-nums">
+                    <span className="font-medium">{euros(item.spent)}</span>
+                    <span className="text-muted-foreground">
+                      {' '}
+                      / {euros(item.target)}
+                    </span>
+                  </span>
+                  <span className="text-muted-foreground w-24 text-right whitespace-nowrap">
+                    reste {euros(item.target - item.spent)}
+                  </span>
+                </a>
+              </li>
+            )
+          })}
+        </ul>
+        <Button iconStart={<PlusIcon />} className="w-fit">
+          Ajouter une dépense
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+/** The accounts as one list, groups one under the other. */
+function AccountsOneList() {
+  return (
+    <Card className="min-w-0">
+      <CardHead title="Comptes" link="Évolution" />
+      <CardContent className="space-y-4">
+        <div>
+          <p className="text-muted-foreground text-xs">Patrimoine à ce jour</p>
+          <p className="text-2xl font-semibold tabular-nums">
+            {euros(TODAY_NET_WORTH)}
+          </p>
+        </div>
+        {/* A readable width: the value stays near the name. */}
+        <div className="max-w-[30rem]">
+          <AccountRows />
+        </div>
+        <AddButtons />
+      </CardContent>
+    </Card>
+  )
+}
+
+function AddButtons() {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button iconStart={<WalletIcon />}>Ajouter un compte</Button>
+      <Button outline variant="secondary" iconStart={<ChartCandlestickIcon />}>
+        Ajouter un placement
+      </Button>
+    </div>
+  )
+}
+
+/** The accounts as aligned columns: name, institution, date, value, gain. */
+function AccountsTable() {
+  return (
+    <Card className="min-w-0">
+      <CardHead title="Comptes" link="Évolution" />
+      <CardContent className="space-y-4">
+        <div>
+          <p className="text-muted-foreground text-xs">Patrimoine à ce jour</p>
+          <p className="text-2xl font-semibold tabular-nums">
+            {euros(TODAY_NET_WORTH)}
+          </p>
+        </div>
+        <div className="space-y-4 text-sm">
+          {ACCOUNTS.map((group) => (
+            <section key={group.group} className="space-y-1">
+              <div className="text-muted-foreground grid grid-cols-[minmax(10rem,1.5fr)_1fr_6rem_7rem_9rem_1rem] items-baseline gap-x-4 px-2 text-xs">
+                <span className="font-medium">{group.group}</span>
+                <span>Établissement</span>
+                <span>Valeur au</span>
+                <span className="text-foreground text-right text-sm font-semibold tabular-nums">
+                  {euros(group.total)}
+                </span>
+                <span className="text-right">Plus-value</span>
+                <span />
+              </div>
+              {group.rows.map((row) => {
+                const [institution, date] = row.sub.split(' · ')
+                const stale = 'stale' in row && row.stale
+                return (
+                  <a
+                    key={row.name}
+                    href="#"
+                    onClick={(event) => event.preventDefault()}
+                    className="hover:bg-muted/60 grid min-h-11 grid-cols-[minmax(10rem,1.5fr)_1fr_6rem_7rem_9rem_1rem] items-center gap-x-4 rounded-lg px-2 py-1.5"
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span
+                        aria-hidden
+                        className={cn(
+                          'flex size-[32px] shrink-0 items-center justify-center rounded-full [&_svg]:size-[16px]',
+                          row.tone,
+                        )}
+                      >
+                        {row.icon}
+                      </span>
+                      <span className="truncate font-medium">{row.name}</span>
+                    </span>
+                    <span className="text-muted-foreground truncate">
+                      {institution}
+                    </span>
+                    <span className="text-muted-foreground whitespace-nowrap">
+                      {date?.replace('au ', '')}
+                    </span>
+                    <span className="text-right font-medium whitespace-nowrap tabular-nums">
+                      {euros(row.value)}
+                    </span>
+                    <span className="text-right whitespace-nowrap tabular-nums">
+                      {stale ? (
+                        <span className="text-warning-foreground dark:text-warning font-medium">
+                          ● à mettre à jour
+                        </span>
+                      ) : (
+                        <span className="text-chart-delta-good">
+                          {WIDE_GAINS[row.name] ?? ''}
+                        </span>
+                      )}
+                    </span>
+                    <ChevronRightIcon
+                      aria-hidden
+                      className="text-muted-foreground size-4"
+                    />
+                  </a>
+                )
+              })}
+            </section>
+          ))}
+        </div>
+        <AddButtons />
+      </CardContent>
+    </Card>
+  )
+}
+
+export const Large1_Bandeaux: StoryObj = {
+  name: 'Large 1. Bandeaux',
+  parameters: { viewport: { defaultViewport: 'desktop' } },
+  render: () => (
+    <WidePage title="Large 1. Bandeaux">
+      {(review) => (
+        <>
+          <ReviewStrips review={review} />
+          <EnvelopeLines />
+          <ForecastCard />
+          <AccountsOneList />
+        </>
+      )}
+    </WidePage>
+  ),
+}
+
+export const Large2_Tableau: StoryObj = {
+  name: 'Large 2. Tableau',
+  parameters: { viewport: { defaultViewport: 'desktop' } },
+  render: () => (
+    <WidePage title="Large 2. Tableau">
+      {(review) => (
+        <>
+          <ReviewStrips review={review} />
+          <EnvelopeLines />
+          <ForecastCard />
+          <AccountsTable />
+        </>
+      )}
+    </WidePage>
+  ),
+}
+
+export const Large3_Colonne: StoryObj = {
+  name: 'Large 3. Colonne',
+  parameters: { viewport: { defaultViewport: 'desktop' } },
+  render: () => (
+    <WidePage title="Large 3. Colonne" width="max-w-[32rem]">
+      {(review) => (
+        <>
+          <ReviewTiles review={review} />
+          <EnvelopesCard />
+          <ForecastCard />
+          <Card className="min-w-0">
+            <CardHead title="Comptes" link="Évolution" />
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-muted-foreground text-xs">
+                  Patrimoine à ce jour
+                </p>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {euros(TODAY_NET_WORTH)}
+                </p>
+              </div>
+              <AccountRows />
+              <AddButtons />
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </WidePage>
+  ),
+}
