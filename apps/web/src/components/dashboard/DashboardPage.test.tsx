@@ -506,6 +506,33 @@ describe('DashboardPage', () => {
     expect(within(missing).queryByRole('button')).not.toBeInTheDocument()
   })
 
+  it('splits the month’s expenses into with and without a budget on one bar', async () => {
+    api.dashboardControllerReview.mockImplementation(() =>
+      ok({
+        ...review,
+        budget: {
+          ...review.budget,
+          spentCents: 154_500,
+          remainingCents: 45_500,
+          unbudgetedCents: 30_000,
+        },
+      }),
+    )
+    renderPage()
+
+    const card = await screen.findByRole('region', { name: 'Bilan du mois' })
+    const legend = within(card).getByRole('list', { name: 'Légende' })
+    expect(legend).toHaveTextContent(text('Avec budget1 545 €'))
+    expect(legend).toHaveTextContent(text('Sans budget300 €'))
+    expect(legend).toHaveTextContent(text('Budget2 000 €'))
+    expect(card).toHaveTextContent(
+      text('Reste 455 € sur les catégories avec budget'),
+    )
+    for (const amount of ['1 845 €', '1 545 €', '300 €', '2 000 €']) {
+      expect(count(card, amount)).toBe(1)
+    }
+  })
+
   it('says when no budget is set, the expenses staying in the flow', async () => {
     api.dashboardControllerReview.mockImplementation(() =>
       ok({

@@ -153,7 +153,17 @@ function NetWorthTile({ review }: { review: MonthReviewDto }) {
   )
 }
 
-/** Spending against the budget; the categories that drifted most as chips. */
+/** Hatching of the expenses in categories without a budget. */
+const UNBUDGETED_FILL =
+  'bg-[repeating-linear-gradient(135deg,var(--muted-foreground)_0_3px,transparent_3px_6px)] opacity-60'
+
+/**
+ * Spending against the budget as one stacked bar (owner's choice « Barre
+ * empilée »): the month's expenses in the categories with a budget, then
+ * those without one (hatched), the budget as a mark across the bar, a
+ * legend naming each part and what's left; the categories that drifted
+ * most as badges. The total of the expenses is the « Dépenses » tile.
+ */
 function BudgetSection({ review }: { review: MonthReviewDto }) {
   const { budget, month } = review
   if (budget.budgetCount === 0) {
@@ -163,44 +173,80 @@ function BudgetSection({ review }: { review: MonthReviewDto }) {
       </p>
     )
   }
+  const spent = Math.max(0, budget.spentCents)
+  const unbudgeted = Math.max(0, budget.unbudgetedCents)
+  const scale = Math.max(spent + unbudgeted, budget.targetCents, 1)
+  const share = (cents: number) => `${(cents / scale) * 100}%`
+  const over = budget.remainingCents < 0
   // The two furthest above their target and the one furthest below: the
   // budget page has the rest.
   const drift = [...budget.over.slice(0, 2), ...budget.under.slice(0, 1)]
   return (
-    <section aria-label="Budget" className="space-y-2">
-      {/* One line on a wide card: the target, a long bar, what's left. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
-        <p className="flex items-baseline gap-x-2">
-          <span className="font-medium">Budget</span>
-          <span className="text-muted-foreground whitespace-nowrap tabular-nums">
-            {formatWholeEuros(budget.targetCents)}
-          </span>
-        </p>
-        <BudgetBar
-          spentCents={budget.spentCents}
-          targetCents={budget.targetCents}
+    <section aria-label="Budget" className="space-y-2 text-sm">
+      <p className="font-medium">Budget</p>
+      <div
+        role="meter"
+        aria-label="Budget"
+        aria-valuemin={0}
+        aria-valuemax={budget.targetCents}
+        aria-valuenow={budget.spentCents}
+        aria-valuetext={`${formatWholeEuros(budget.spentCents)} dépensés dans les catégories avec budget sur ${formatWholeEuros(budget.targetCents)}, plus ${formatWholeEuros(unbudgeted)} sans budget`}
+        className="relative"
+      >
+        <div className="bg-muted flex h-3 overflow-hidden rounded-full">
+          <div
+            className={cn('h-full', over ? 'bg-chart-over' : 'bg-primary')}
+            style={{ width: share(spent) }}
+          />
+          <div
+            className={cn('h-full', UNBUDGETED_FILL)}
+            style={{ width: share(unbudgeted) }}
+          />
+        </div>
+        {/* The budget, as a mark across the bar. */}
+        <div
+          aria-hidden
+          className="bg-foreground absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2 rounded"
+          style={{ left: share(budget.targetCents) }}
         />
-        <p>
-          <span
-            className={cn(
-              'font-medium whitespace-nowrap',
-              budget.remainingCents < 0 && 'text-chart-delta-bad',
-            )}
-          >
-            {budget.remainingCents < 0
-              ? `Dépassé de ${formatWholeEuros(-budget.remainingCents)}`
-              : `Reste ${formatWholeEuros(budget.remainingCents)}`}
-          </span>
-          {budget.unbudgetedCents > 0 && (
-            <span className="text-muted-foreground">
-              {' · '}
-              <span className="whitespace-nowrap">
-                {formatWholeEuros(budget.unbudgetedCents)} hors budget
-              </span>
-            </span>
-          )}
-        </p>
       </div>
+      <ul
+        className="flex flex-wrap gap-x-4 gap-y-1 text-xs"
+        aria-label="Légende"
+      >
+        {/* The two parts only when both exist: otherwise « Avec budget »
+            would repeat « Dépenses ». */}
+        {unbudgeted > 0 && (
+          <>
+            <LegendItem
+              swatch={over ? 'bg-chart-over' : 'bg-primary'}
+              label="Avec budget"
+              value={formatWholeEuros(budget.spentCents)}
+            />
+            <LegendItem
+              swatch={UNBUDGETED_FILL}
+              label="Sans budget"
+              value={formatWholeEuros(unbudgeted)}
+            />
+          </>
+        )}
+        <LegendItem
+          swatch="bg-foreground mx-1 w-0.5"
+          label="Budget"
+          value={formatWholeEuros(budget.targetCents)}
+        />
+      </ul>
+      <p className="text-xs">
+        <span className={cn('font-medium', over && 'text-chart-delta-bad')}>
+          {over
+            ? `Dépassé de ${formatWholeEuros(-budget.remainingCents)}`
+            : `Reste ${formatWholeEuros(budget.remainingCents)}`}
+        </span>
+        <span className="text-muted-foreground">
+          {' '}
+          sur les catégories avec budget
+        </span>
+      </p>
       {drift.length > 0 && (
         <ul
           // 14px between rows: the 44px hit areas of the 32px pills never overlap.
@@ -216,42 +262,26 @@ function BudgetSection({ review }: { review: MonthReviewDto }) {
   )
 }
 
-/**
- * How much of the budget was used, as a bar: the amount spent is not
- * printed again (it is « Dépenses » when everything spent was budgeted),
- * only read out by screen readers.
- */
-function BudgetBar({
-  spentCents,
-  targetCents,
+function LegendItem({
+  swatch,
+  label,
+  value,
 }: {
-  spentCents: number
-  targetCents: number
+  swatch: string
+  label: string
+  value: string
 }) {
-  const ratio = targetCents > 0 ? spentCents / targetCents : 0
   return (
-    <div
-      role="meter"
-      aria-label="Budget"
-      aria-valuemin={0}
-      aria-valuemax={targetCents}
-      aria-valuenow={spentCents}
-      aria-valuetext={`${formatWholeEuros(spentCents)} dépensés sur ${formatWholeEuros(targetCents)}`}
-      // Its own line on a phone, the rest of the line on a wide card.
-      className="bg-muted h-2 flex-1 basis-full overflow-hidden rounded-full @[36rem]:basis-0"
-    >
-      <div
-        className={cn(
-          'h-full rounded-full',
-          ratio > 1
-            ? 'bg-chart-over'
-            : ratio >= 0.9
-              ? 'bg-chart-warning'
-              : 'bg-primary',
-        )}
-        style={{ width: `${Math.min(ratio, 1) * 100}%` }}
+    <li className="flex items-center gap-1.5">
+      <span
+        aria-hidden
+        className={cn('h-2.5 w-2.5 shrink-0 rounded-sm', swatch)}
       />
-    </div>
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium whitespace-nowrap tabular-nums">
+        {value}
+      </span>
+    </li>
   )
 }
 
