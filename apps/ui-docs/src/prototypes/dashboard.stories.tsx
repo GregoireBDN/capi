@@ -2135,3 +2135,221 @@ export const BudgetPhoneProposals: StoryObj = {
     </AppScale>
   ),
 }
+
+/* ===========================================================================
+ * Account rows on a phone (owner feedback on #262: « problème d'affichage
+ * dans les comptes en mode téléphone »: the amount drops to a third line,
+ * right-aligned under the date, far from the name).
+ *
+ * Comptes 1. Montant à droite du nom : name and amount on the first line
+ *            (the name cut with … when needed), institution · date and the
+ *            gain or « à mettre à jour » on the second.
+ * Comptes 2. Sans pastille : the same two lines, without the type badge on
+ *            a phone, so the name has room.
+ * Comptes 3. Montant sous le nom : name, then the amount in bold, then the
+ *            date; everything left-aligned, nothing far right but the ›.
+ * Comptes 4. Pastille + montant : the badge, the name with its date under
+ *            it, the amount on the right, centred on the two lines.
+ * ======================================================================== */
+
+const PHONE_ACCOUNTS = [
+  {
+    name: 'Compte courant',
+    meta: 'Banque A · au 8 nov.',
+    value: '3 442,29 €',
+    icon: <WalletIcon />,
+    tone: 'bg-chart-1/15 text-chart-1',
+  },
+  {
+    name: 'Livret A',
+    meta: 'Banque A · au 28 oct.',
+    value: '10 818,50 €',
+    icon: <PiggyBankIcon />,
+    tone: 'bg-chart-3/15 text-chart-3',
+  },
+  {
+    name: 'PEA',
+    meta: 'Courtier B · au 30 sept.',
+    value: '15 430,23 €',
+    detail: 'stale' as const,
+    icon: <ChartCandlestickIcon />,
+    tone: 'bg-chart-7/15 text-chart-7',
+  },
+  {
+    name: 'Assurance vie Horizon Patrimoine',
+    meta: 'Assureur C · au 31 oct.',
+    value: '8 226,65 €',
+    detail: '+726,65 € · +9,7 %',
+    icon: <UmbrellaIcon />,
+    tone: 'bg-chart-5/15 text-chart-5',
+  },
+]
+
+type PhoneAccount = (typeof PHONE_ACCOUNTS)[number]
+
+function AccountDetail({ account }: { account: PhoneAccount }) {
+  if (!('detail' in account) || !account.detail) return null
+  return account.detail === 'stale' ? (
+    <span className="text-warning-foreground dark:text-warning font-medium whitespace-nowrap">
+      ● à mettre à jour
+    </span>
+  ) : (
+    <span className="text-chart-delta-good whitespace-nowrap tabular-nums">
+      {account.detail}
+    </span>
+  )
+}
+
+function Badge32({ account }: { account: PhoneAccount }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'flex size-[32px] shrink-0 items-center justify-center rounded-full [&_svg]:size-[16px]',
+        account.tone,
+      )}
+    >
+      {account.icon}
+    </span>
+  )
+}
+
+function RowShell({ children }: { children: ReactNode }) {
+  return (
+    <a
+      href="#"
+      onClick={(event) => event.preventDefault()}
+      className="hover:bg-muted/60 flex min-h-11 items-center gap-3 rounded-lg px-2 py-2 text-sm"
+    >
+      {children}
+      <ChevronRightIcon
+        aria-hidden
+        className="text-muted-foreground size-4 shrink-0"
+      />
+    </a>
+  )
+}
+
+/** 1 & 2. Name and amount on one line, meta and detail on the next. */
+function RowsTwoLines({ badge }: { badge: boolean }) {
+  return (
+    <ul className="space-y-0.5">
+      {PHONE_ACCOUNTS.map((account) => (
+        <li key={account.name}>
+          <RowShell>
+            {badge && <Badge32 account={account} />}
+            <span className="min-w-0 flex-1">
+              <span className="flex items-baseline gap-3">
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {account.name}
+                </span>
+                <span className="font-medium whitespace-nowrap tabular-nums">
+                  {account.value}
+                </span>
+              </span>
+              <span className="flex items-baseline gap-3 text-xs">
+                <span className="text-muted-foreground min-w-0 flex-1 truncate">
+                  {account.meta}
+                </span>
+                <AccountDetail account={account} />
+              </span>
+            </span>
+          </RowShell>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** 3. Everything stacked on the left. */
+function RowsStacked() {
+  return (
+    <ul className="space-y-0.5">
+      {PHONE_ACCOUNTS.map((account) => (
+        <li key={account.name}>
+          <RowShell>
+            <Badge32 account={account} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium">{account.name}</span>
+              <span className="block font-semibold tabular-nums">
+                {account.value}
+              </span>
+              <span className="flex flex-wrap gap-x-2 text-xs">
+                <span className="text-muted-foreground">{account.meta}</span>
+                <AccountDetail account={account} />
+              </span>
+            </span>
+          </RowShell>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** 4. The amount on the right, centred on the name and its date. */
+function RowsAmountRight() {
+  return (
+    <ul className="space-y-0.5">
+      {PHONE_ACCOUNTS.map((account) => (
+        <li key={account.name}>
+          <RowShell>
+            <Badge32 account={account} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium">{account.name}</span>
+              <span className="text-muted-foreground block truncate text-xs">
+                {account.meta}
+              </span>
+            </span>
+            <span className="shrink-0 text-right">
+              <span className="block font-medium whitespace-nowrap tabular-nums">
+                {account.value}
+              </span>
+              <span className="block text-xs">
+                <AccountDetail account={account} />
+              </span>
+            </span>
+          </RowShell>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+export const AccountsPhoneProposals: StoryObj = {
+  name: 'Comptes téléphone : propositions',
+  parameters: { viewport: { defaultViewport: 'mobile' } },
+  render: () => (
+    <AppScale>
+      <div className="bg-background min-h-svh space-y-4 p-4">
+        {(
+          [
+            [
+              'Comptes 1. Montant à droite du nom',
+              <RowsTwoLines key="1" badge />,
+            ],
+            [
+              'Comptes 2. Sans pastille',
+              <RowsTwoLines key="2" badge={false} />,
+            ],
+            ['Comptes 3. Montant sous le nom', <RowsStacked key="3" />],
+            ['Comptes 4. Pastille + montant', <RowsAmountRight key="4" />],
+          ] as const
+        ).map(([title, body]) => (
+          <section key={title} className="mx-auto max-w-[24rem] space-y-1.5">
+            <h2 className="text-muted-foreground text-sm font-medium">
+              {title}
+            </h2>
+            <Card className="min-w-0">
+              <CardContent className="mb-0">
+                <p className="text-muted-foreground px-2 pb-1 text-sm font-medium">
+                  Liquidités · Placements
+                </p>
+                {body}
+              </CardContent>
+            </Card>
+          </section>
+        ))}
+      </div>
+    </AppScale>
+  ),
+}
