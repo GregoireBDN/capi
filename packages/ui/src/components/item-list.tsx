@@ -93,8 +93,9 @@ type ItemListRowProps = Omit<React.ComponentProps<'a'>, 'title'> & {
 }
 
 /**
- * One row, one target. The value and its detail go under the title when both
- * don't fit side by side.
+ * One row, one target (#262, owner's « Pastille + montant »): the badge, the
+ * title and its second line (cut with … when they don't fit), the value and
+ * its detail on the right, centred on the two lines, then the chevron.
  */
 function ItemListRow({
   asChild = false,
@@ -133,30 +134,30 @@ function ItemListRow({
             {icon}
           </span>
         )}
-        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
-          <span className="block min-w-[7rem] flex-1">
-            <span className="block font-medium break-words">{title}</span>
-            {subtitle && (
-              <span className="text-muted-foreground block text-xs break-words">
-                {subtitle}
-              </span>
-            )}
-          </span>
-          {(value != null || detail) && (
-            <span className="ml-auto block text-right">
-              {value != null && (
-                <span className="block font-medium whitespace-nowrap tabular-nums">
-                  {value}
-                </span>
-              )}
-              {detail && (
-                <span className="block text-xs whitespace-nowrap tabular-nums">
-                  {detail}
-                </span>
-              )}
+        {/* Name and its second line on the left, cut with … when they
+            don't fit; the value and its detail on the right, never cut. */}
+        <span className="block min-w-0 flex-1">
+          <span className="block truncate font-medium">{title}</span>
+          {subtitle && (
+            <span className="text-muted-foreground block truncate text-xs">
+              {subtitle}
             </span>
           )}
         </span>
+        {(value != null || detail) && (
+          <span className="block shrink-0 text-right">
+            {value != null && (
+              <span className="block font-medium whitespace-nowrap tabular-nums">
+                {value}
+              </span>
+            )}
+            {detail && (
+              <span className="block text-xs whitespace-nowrap tabular-nums">
+                {detail}
+              </span>
+            )}
+          </span>
+        )}
         <ChevronRightIcon
           aria-hidden
           className="text-muted-foreground size-4 shrink-0"

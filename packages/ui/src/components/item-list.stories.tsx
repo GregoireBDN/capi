@@ -21,7 +21,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'The account lists of Épargne, the dashboard and Comptes (#267): no rules, one target per row (the whole row, chevron always last), a 32px type badge, left the name and institution · date, right the value and the gain or « à mettre à jour ». Group headings in sentence case with their total on the same line. The values go under the name when both don’t fit.',
+          'The account lists of Épargne, the dashboard and Comptes (#267): no rules, one target per row (the whole row, chevron always last), a 32px type badge, left the name and institution · date, right the value and the gain or « à mettre à jour ». Group headings in sentence case with their total on the same line. The name and its second line are cut with … when they don’t fit; the value and its detail stay on the right, never cut (#262).',
       },
     },
   },
@@ -140,7 +140,7 @@ export const Savings: Story = {
   render: () => <SavingsCard width="w-[min(36rem,90vw)]" />,
 }
 
-/** At 320px the values go under the names; the badges and chevrons stay. */
+/** At 320px the names are cut with …; the values, badges and chevrons stay. */
 export const Narrow: Story = {
   render: () => <SavingsCard width="w-[320px]" />,
 }
