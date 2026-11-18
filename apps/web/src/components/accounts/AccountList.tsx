@@ -197,7 +197,7 @@ export function AccountList({
       key="investment"
       icon={<TrendingUpIcon />}
       outline={primaryAction !== 'investment'}
-      className="w-full"
+      className="w-full @[36rem]:w-auto"
     />
   )
   const account = (
@@ -206,14 +206,21 @@ export function AccountList({
       label="Ajouter un compte"
       icon={<LandmarkIcon />}
       outline={primaryAction !== 'account'}
-      className="w-full"
+      className="w-full @[36rem]:w-auto"
     />
   )
+  const shown = groups.filter((group) => group.accounts.length > 0)
   return (
-    <ItemList>
-      {groups
-        .filter((group) => group.accounts.length > 0)
-        .map((group) => (
+    // In a wide card the groups sit side by side and the add buttons in one
+    // row, each as wide as its label.
+    <div className="@container space-y-5">
+      <ItemList
+        className={cn(
+          shown.length > 1 &&
+            'grid gap-5 space-y-0 @[36rem]:grid-cols-2 @[36rem]:items-start',
+        )}
+      >
+        {shown.map((group) => (
           <ItemListGroup
             key={group.id}
             title={group.title}
@@ -232,14 +239,15 @@ export function AccountList({
             ))}
           </ItemListGroup>
         ))}
+      </ItemList>
       {primaryAction && (
-        <div className="grid gap-2">
+        <div className="grid gap-2 @[36rem]:flex @[36rem]:flex-wrap">
           {primaryAction === 'investment'
             ? [investment, account]
             : [account, investment]}
         </div>
       )}
-    </ItemList>
+    </div>
   )
 }
 

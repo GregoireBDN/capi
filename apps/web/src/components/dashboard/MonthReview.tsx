@@ -73,11 +73,16 @@ export function MonthReview({
           </Badge>
         </CardHeader>
 
-        <CardContent className="space-y-5">
+        {/* A wide card puts the month's figures beside its budget. */}
+        <CardContent className="@container space-y-5">
           {missing.length > 0 && <MissingAccounts accounts={missing} />}
-          <FlowFigures review={review} />
-          <NetWorthLine review={review} />
-          <BudgetSection review={review} />
+          <div className="grid gap-5 @[36rem]:grid-cols-2 @[36rem]:gap-x-10">
+            <div className="min-w-0 space-y-5">
+              <FlowFigures review={review} />
+              <NetWorthLine review={review} />
+            </div>
+            <BudgetSection review={review} />
+          </div>
           <ReviewAction review={review} />
         </CardContent>
       </Card>

@@ -211,18 +211,13 @@ export function DashboardPage({
         <>
           {data.reviewCount > 0 && <ReviewCallout count={data.reviewCount} />}
 
-          {/* The month review and the end of this month on one side, this
-              month's envelopes and the accounts on the other. */}
-          <div className="grid items-start gap-4 @[36rem]:grid-cols-2">
-            <div className="min-w-0 space-y-4">
-              <ReviewSection month={month} onMonthChange={onMonthChange} />
-              <ForecastCard />
-            </div>
-            <div className="min-w-0 space-y-4">
-              <MonthEnvelopes />
-              <AccountsList accounts={data.accounts} netWorth={data.netWorth} />
-            </div>
-          </div>
+          {/* One card per row (owner's choice): last month, this month,
+              its end, where I stand, then the history. Each card lays its
+              content out for its own width. */}
+          <ReviewSection month={month} onMonthChange={onMonthChange} />
+          <MonthEnvelopes />
+          <ForecastCard />
+          <AccountsList accounts={data.accounts} netWorth={data.netWorth} />
 
           {/* Net worth over time is on its page (« Évolution » in Comptes). */}
           {history.data ? (

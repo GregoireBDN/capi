@@ -28,30 +28,38 @@ export function ForecastCard() {
         title="Fin de mois"
         link={{ label: 'Prévision', to: ROUTES.forecast }}
       />
-      <CardContent className="space-y-1">
-        <p className="text-muted-foreground text-sm">
-          Solde prévu au {formatShortDay(data.monthEnd)}
-        </p>
-        <p className="text-2xl font-semibold tabular-nums">
-          {formatCents(data.endBalanceCents)}
-        </p>
-        {below ? (
-          <p className="text-warning-foreground dark:text-warning flex items-start gap-1.5 text-sm">
-            <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-            Sous {formatCents(data.thresholdCents)} le{' '}
-            {formatShortDay(below.date)}
-          </p>
-        ) : (
+      {/* The figure, then its low point: beside it in a wide card. */}
+      <CardContent className="flex flex-wrap items-end gap-x-10 gap-y-1">
+        <div>
           <p className="text-muted-foreground text-sm">
-            Point bas {formatCents(data.lowest.balanceCents)} le{' '}
-            {formatShortDay(data.lowest.date)}
+            Solde prévu au {formatShortDay(data.monthEnd)}
           </p>
-        )}
-        {data.stale && data.knownUntil && (
-          <p className="text-muted-foreground text-xs">
-            Indicatif : relevés au {formatShortDay(data.knownUntil)}
+          <p className="text-2xl font-semibold tabular-nums">
+            {formatCents(data.endBalanceCents)}
           </p>
-        )}
+        </div>
+        <div className="space-y-0.5 pb-1">
+          {below ? (
+            <p className="text-warning-foreground dark:text-warning flex items-start gap-1.5 text-sm">
+              <TriangleAlertIcon
+                aria-hidden
+                className="mt-0.5 size-4 shrink-0"
+              />
+              Sous {formatCents(data.thresholdCents)} le{' '}
+              {formatShortDay(below.date)}
+            </p>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              Point bas {formatCents(data.lowest.balanceCents)} le{' '}
+              {formatShortDay(data.lowest.date)}
+            </p>
+          )}
+          {data.stale && data.knownUntil && (
+            <p className="text-muted-foreground text-xs">
+              Indicatif : relevés au {formatShortDay(data.knownUntil)}
+            </p>
+          )}
+        </div>
       </CardContent>
     </Card>
   )

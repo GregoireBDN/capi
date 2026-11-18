@@ -47,7 +47,7 @@ export function MonthEnvelopes() {
           }
           link={{ label: 'Budget', to: ROUTES.budget }}
         />
-        <CardContent className="space-y-4">
+        <CardContent className="@container space-y-4">
           {data ? (
             <EnvelopeList
               data={data}
@@ -111,7 +111,11 @@ function EnvelopeList({
     )
   }
   return (
-    <ul className="space-y-1" aria-label="Enveloppes du mois">
+    // Side by side in a wide card: two, then three per row.
+    <ul
+      className="grid gap-1 @[36rem]:grid-cols-2 @[36rem]:gap-x-8 @[60rem]:grid-cols-3"
+      aria-label="Enveloppes du mois"
+    >
       {data.items.map((item) => (
         <EnvelopeRow
           key={item.categoryId}
