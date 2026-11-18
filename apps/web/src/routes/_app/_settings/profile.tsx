@@ -11,7 +11,7 @@ import { ROUTES } from '#/lib/routes'
 import type { ThemeMode as Theme } from '#/lib/use-theme'
 import { useThemePreference } from '#/lib/use-theme-preference'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import {
   Badge,
   Button,
@@ -27,14 +27,12 @@ import {
 } from '@finances/ui'
 import {
   BadgeCheckIcon,
-  ChevronRightIcon,
   CalendarDaysIcon,
   MailIcon,
   MonitorIcon,
   MoonIcon,
   ShieldAlertIcon,
   SunIcon,
-  TagsIcon,
   UserIcon,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -43,7 +41,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
-export const Route = createFileRoute('/_app/profile')({
+export const Route = createFileRoute('/_app/_settings/profile')({
   head: () => ({ meta: [{ title: 'Profil · Finances' }] }),
   component: ProfilePage,
 })
@@ -254,44 +252,6 @@ function ProfilePage() {
               )
             })}
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Categories */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TagsIcon className="size-4 text-muted-foreground" />
-            Catégories
-          </CardTitle>
-          <CardDescription>
-            Ajoutez, renommez, recolorez, archivez ou supprimez vos catégories,
-            et réglez les règles qui classent vos opérations.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2 sm:flex-row">
-          <Button
-            variant="secondary"
-            outline
-            className="w-full sm:w-auto"
-            asChild
-          >
-            <Link to={ROUTES.categories}>
-              Gérer les catégories
-              <ChevronRightIcon />
-            </Link>
-          </Button>
-          <Button
-            variant="secondary"
-            outline
-            className="w-full sm:w-auto"
-            asChild
-          >
-            <Link to={ROUTES.rules}>
-              Gérer les règles
-              <ChevronRightIcon />
-            </Link>
-          </Button>
         </CardContent>
       </Card>
 

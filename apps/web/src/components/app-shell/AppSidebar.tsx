@@ -6,7 +6,6 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuBadge,
@@ -22,7 +21,13 @@ import {
 import type { UserDto } from '#/api/types.gen'
 import { useReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
-import { carriedMonth, NAV_GROUPS, isNavItemActive } from './nav-items'
+import {
+  NAV_ITEMS,
+  SETTINGS_ITEM,
+  carriedMonth,
+  isNavEntryActive,
+} from './nav-items'
+import type { NavItem } from './nav-items'
 import { UserMenu } from './UserMenu'
 
 /**
@@ -77,6 +82,43 @@ export function AppSidebar({ user }: { user: UserDto }) {
     </>
   )
 
+  function renderItem(item: NavItem) {
+    const { label, to, icon: Icon, badge } = item
+    const active = isNavEntryActive(pathname, item)
+    const count = badge === 'reviewCount' ? reviewCount : null
+    return (
+      <SidebarMenuItem key={to}>
+        <SidebarMenuButton
+          asChild
+          isActive={active}
+          tooltip={label}
+          className={RAIL_BUTTON}
+        >
+          <Link
+            to={to}
+            search={monthSearch(carriedMonth(pathname, search, to))}
+            onClick={closeMobileSheet}
+            aria-current={active ? 'page' : undefined}
+          >
+            <Icon />
+            <span>{label}</span>
+          </Link>
+        </SidebarMenuButton>
+        {count !== null && count > 0 && (
+          <SidebarMenuBadge
+            data-testid={`nav-badge-${to}`}
+            className="bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-active/menu-button:text-primary-foreground rounded-full"
+          >
+            {count > 99 ? '99+' : count}
+            <span className="sr-only">
+              {count > 1 ? ' opérations à revoir' : ' opération à revoir'}
+            </span>
+          </SidebarMenuBadge>
+        )}
+      </SidebarMenuItem>
+    )
+  }
+
   return (
     <TooltipProvider delayDuration={300}>
       <Sidebar collapsible="icon">
@@ -123,60 +165,17 @@ export function AppSidebar({ user }: { user: UserDto }) {
 
         <SidebarContent>
           <nav aria-label="Navigation principale" className="contents">
-            {NAV_GROUPS.map((group) => (
-              <SidebarGroup key={group.label ?? 'main'}>
-                {group.label && (
-                  <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-                )}
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {group.items.map(({ label, to, icon: Icon, badge }) => {
-                      const active = isNavItemActive(pathname, to)
-                      const count = badge === 'reviewCount' ? reviewCount : null
-                      return (
-                        <SidebarMenuItem key={to}>
-                          <SidebarMenuButton
-                            asChild
-                            isActive={active}
-                            tooltip={label}
-                            className={RAIL_BUTTON}
-                          >
-                            <Link
-                              to={to}
-                              search={monthSearch(
-                                carriedMonth(pathname, search, to),
-                              )}
-                              onClick={closeMobileSheet}
-                              aria-current={active ? 'page' : undefined}
-                            >
-                              <Icon />
-                              <span>{label}</span>
-                            </Link>
-                          </SidebarMenuButton>
-                          {count !== null && count > 0 && (
-                            <SidebarMenuBadge
-                              data-testid={`nav-badge-${to}`}
-                              className="bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-active/menu-button:text-primary-foreground rounded-full"
-                            >
-                              {count > 99 ? '99+' : count}
-                              <span className="sr-only">
-                                {count > 1
-                                  ? ' opérations à revoir'
-                                  : ' opération à revoir'}
-                              </span>
-                            </SidebarMenuBadge>
-                          )}
-                        </SidebarMenuItem>
-                      )
-                    })}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            ))}
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu>{NAV_ITEMS.map(renderItem)}</SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
           </nav>
         </SidebarContent>
 
+        {/* Settings at the bottom, above who is signed in (#261). */}
         <SidebarFooter>
+          <SidebarMenu>{renderItem(SETTINGS_ITEM)}</SidebarMenu>
           <UserMenu user={user} onNavigate={closeMobileSheet} />
         </SidebarFooter>
       </Sidebar>

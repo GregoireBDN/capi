@@ -7,6 +7,7 @@ import {
   createRouter,
 } from '@tanstack/react-router'
 import { act, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarProvider } from '@finances/ui'
 import { transactionsControllerReviewCount } from '#/api'
@@ -14,7 +15,13 @@ import type { UserDto } from '#/api/types.gen'
 import { resetReviewCount, setReviewCount } from '#/lib/review-count'
 
 import { AppSidebar } from './AppSidebar'
-import { NAV_ITEMS, SETTINGS_ITEMS, isNavItemActive } from './nav-items'
+import {
+  NAV_ITEMS,
+  SETTINGS_ITEM,
+  SETTINGS_TABS,
+  isNavEntryActive,
+  isNavItemActive,
+} from './nav-items'
 
 vi.mock('#/api', () => ({
   profileControllerUpdate: vi.fn(),
@@ -107,9 +114,6 @@ describe('AppSidebar', () => {
       ['Crypto', '/crypto'],
       ['Comptes', '/accounts'],
       ['Import', '/import'],
-      ['Catégories', '/categories'],
-      ['Règles', '/rules'],
-      ['Profil', '/profile'],
     ])
   })
 
@@ -120,10 +124,10 @@ describe('AppSidebar', () => {
     expect(active).toHaveAttribute('aria-current', 'page')
     expect(active).toHaveAttribute('data-active', 'true')
 
-    for (const { label } of [...NAV_ITEMS, ...SETTINGS_ITEMS].filter(
+    for (const { label } of [...NAV_ITEMS, SETTINGS_ITEM].filter(
       (item) => item.label !== 'Budget',
     )) {
-      const link = nav.getByRole('link', { name: label })
+      const link = screen.getByRole('link', { name: label })
       expect(link).not.toHaveAttribute('aria-current')
       expect(link).not.toHaveAttribute('data-active')
     }
@@ -188,7 +192,62 @@ describe('AppSidebar', () => {
     expect(screen.getByText('Owner Test')).toBeInTheDocument()
     expect(screen.getByText('owner@example.test')).toBeInTheDocument()
   })
+
+  it('puts « Réglages » at the bottom, above the account menu', async () => {
+    const nav = await renderAt('/dashboard')
+    const settingsLink = screen.getByRole('link', { name: 'Réglages' })
+    const accountMenu = screen.getByRole('button', { name: 'Menu du compte' })
+
+    expect(settingsLink).toHaveAttribute('href', '/profile')
+    // Outside the list of pages, after it and before who is signed in.
+    expect(nav.queryByRole('link', { name: 'Réglages' })).toBeNull()
+    expect(
+      nav
+        .getByRole('link', { name: 'Import' })
+        .compareDocumentPosition(settingsLink) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      settingsLink.compareDocumentPosition(accountMenu) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it.each(['/categories', '/rules', '/profile'])(
+    'highlights « Réglages » on %s',
+    async (path) => {
+      await renderAt(path)
+      expect(screen.getByRole('link', { name: 'Réglages' })).toHaveAttribute(
+        'aria-current',
+        'page',
+      )
+      expect(screen.getAllByRole('link').filter(isCurrent)).toHaveLength(1)
+    },
+  )
+
+  it('has one settings entry, account menu open (#261)', async () => {
+    await renderAt('/dashboard')
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Menu du compte' }))
+    await screen.findByRole('menu')
+
+    // The open (modal) menu hides the rest of the page from the a11y tree.
+    expect(document.querySelectorAll('a[href="/profile"]')).toHaveLength(1)
+    for (const { to } of SETTINGS_TABS.slice(1)) {
+      expect(document.querySelectorAll(`a[href="${to}"]`)).toHaveLength(0)
+    }
+    for (const name of ['Catégories', 'Règles', 'Profil']) {
+      expect(
+        screen.queryByRole('link', { name, hidden: true }),
+      ).not.toBeInTheDocument()
+    }
+  })
 })
+
+function isCurrent(link: HTMLElement) {
+  return link.getAttribute('aria-current') === 'page'
+}
 
 describe('isNavItemActive', () => {
   it('matches the page itself and nested pages only', () => {
@@ -196,5 +255,13 @@ describe('isNavItemActive', () => {
     expect(isNavItemActive('/budget/2026-11', '/budget')).toBe(true)
     expect(isNavItemActive('/budgets', '/budget')).toBe(false)
     expect(isNavItemActive('/dashboard', '/budget')).toBe(false)
+  })
+})
+
+describe('isNavEntryActive', () => {
+  it('matches every settings page for « Réglages »', () => {
+    for (const { to } of SETTINGS_TABS)
+      expect(isNavEntryActive(to, SETTINGS_ITEM)).toBe(true)
+    expect(isNavEntryActive('/dashboard', SETTINGS_ITEM)).toBe(false)
   })
 })

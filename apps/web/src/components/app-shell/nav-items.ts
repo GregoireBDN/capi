@@ -8,6 +8,7 @@ import {
   ListFilterIcon,
   PiggyBankIcon,
   RepeatIcon,
+  SettingsIcon,
   TagsIcon,
   TargetIcon,
   UploadIcon,
@@ -36,6 +37,8 @@ export interface NavItem {
   icon: LucideIcon
   /** Counter shown next to the label: the review queue size. */
   badge?: 'reviewCount'
+  /** Other pages on which the item is shown as the current one. */
+  alsoActiveOn?: readonly string[]
 }
 
 /**
@@ -85,20 +88,36 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Import', to: ROUTES.import, icon: UploadIcon },
 ]
 
-/** Settings, below the main navigation under « Réglages ». */
-export const SETTINGS_ITEMS: readonly NavItem[] = [
+/**
+ * The settings pages, reached from the one « Réglages » entry of the sidebar
+ * and switched between with the tabs above them (`SettingsTabs`). A new
+ * settings page goes here and under `routes/_app/_settings/`.
+ */
+export const SETTINGS_TABS: readonly NavItem[] = [
+  { label: 'Profil', to: ROUTES.profile, icon: UserIcon },
   { label: 'Catégories', to: ROUTES.categories, icon: TagsIcon },
   { label: 'Règles', to: ROUTES.rules, icon: ListFilterIcon },
-  { label: 'Profil', to: ROUTES.profile, icon: UserIcon },
 ]
 
-/** Sidebar groups, in display order; the first one has no heading. */
-export const NAV_GROUPS: readonly {
-  label?: string
-  items: readonly NavItem[]
-}[] = [{ items: NAV_ITEMS }, { label: 'Réglages', items: SETTINGS_ITEMS }]
+/**
+ * The sidebar's one settings entry, at the bottom above the account menu:
+ * opens the first settings page and stays highlighted on all of them (#261).
+ */
+export const SETTINGS_ITEM: NavItem = {
+  label: 'Réglages',
+  to: SETTINGS_TABS[0].to,
+  icon: SettingsIcon,
+  alsoActiveOn: SETTINGS_TABS.slice(1).map((tab) => tab.to),
+}
 
 /** A nav item is active on its own page and on any page nested below it. */
 export function isNavItemActive(pathname: string, to: string): boolean {
   return pathname === to || pathname.startsWith(`${to}/`)
+}
+
+/** Whether `item` is the current entry: its page, a nested page or one of its other pages. */
+export function isNavEntryActive(pathname: string, item: NavItem): boolean {
+  return [item.to, ...(item.alsoActiveOn ?? [])].some((to) =>
+    isNavItemActive(pathname, to),
+  )
 }
