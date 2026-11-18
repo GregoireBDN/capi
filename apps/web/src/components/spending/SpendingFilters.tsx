@@ -55,7 +55,7 @@ function SpendingFilterControls({
     <div
       className={cn(
         inline
-          ? 'flex flex-wrap items-center gap-2 [&_select]:pr-7 [&_select]:pl-2'
+          ? 'flex flex-wrap items-center gap-1.5 [&_select]:pr-7 [&_select]:pl-2.5 [&_select]:text-sm'
           : 'grid gap-3',
       )}
     >
@@ -63,7 +63,7 @@ function SpendingFilterControls({
         aria-label="Compte"
         value={search.account ?? ''}
         onChange={(event) => set('account', event.target.value || undefined)}
-        className={inline ? 'w-auto max-w-56' : 'w-full'}
+        className={inline ? 'w-auto max-w-32' : 'w-full'}
       >
         <NativeSelectOption value="">Comptes</NativeSelectOption>
         {accounts.map((account) => (
@@ -89,7 +89,9 @@ function SpendingFilterControls({
         ))}
       </NativeSelect>
 
-      <div className="flex min-h-8 items-center gap-3">
+      <div
+        className={cn('flex min-h-8 items-center', inline ? 'gap-2' : 'gap-3')}
+      >
         <Switch
           id={switchId}
           aria-label="Inclure les dépenses ponctuelles"

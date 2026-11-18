@@ -93,7 +93,8 @@ function FiltersButton({
  * actions at the end of the row, and the `PeriodNote` at the bottom. The bar
  * is the navigator's container: below 672px of width (phones, narrow
  * cards) the filters fold behind a « Filtres » button (bottom sheet, with
- * the number of filters set) and the actions get a row of their own. Widths
+ * the number of filters set) and the actions get a row of their own. On a
+ * page with neither, the period note sits in the row, at its end. Widths
  * in px: with the 22px root, a container `rem` is ~1.4× the usual one.
  */
 export function MonthToolbar({
@@ -104,11 +105,18 @@ export function MonthToolbar({
   actions,
   className,
 }: MonthToolbarProps) {
+  // Nothing to set on the page: the period note fills the row instead, so
+  // the bar never holds a lone navigator and an empty stretch.
+  const bare = !filters && !actions
+  // Only the navigator: no empty bar around it (same tree, so the
+  // navigator isn't remounted when the period arrives).
+  const plain = bare && !period
   return (
     <div
       data-slot="month-toolbar"
       className={cn(
-        '@container bg-card space-y-2 rounded-xl border p-2 shadow-xs',
+        '@container',
+        !plain && 'bg-card space-y-2 rounded-xl border p-2 shadow-xs',
         className,
       )}
     >
@@ -137,8 +145,16 @@ export function MonthToolbar({
             {actions}
           </div>
         )}
+        {bare && period && (
+          <PeriodNote
+            period={period}
+            className="w-full px-1 @[672px]:w-auto @[672px]:min-w-0 @[672px]:flex-1 @[672px]:justify-end @[672px]:text-right"
+          />
+        )}
       </div>
-      {period && <PeriodNote period={period} className="border-t px-1 pt-2" />}
+      {!bare && period && (
+        <PeriodNote period={period} className="border-t px-1 pt-2" />
+      )}
     </div>
   )
 }

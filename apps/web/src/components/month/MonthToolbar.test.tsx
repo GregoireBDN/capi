@@ -67,6 +67,18 @@ describe('MonthToolbar', () => {
     expect(within(sheet).getByLabelText('Compte (sheet)')).toBeInTheDocument()
   })
 
+  it('puts the period note in the row when the page has nothing to set', () => {
+    const { container } = render(
+      <MonthToolbar
+        navigator={<div data-testid="navigator" />}
+        period={partial}
+      />,
+    )
+    const row = screen.getByTestId('navigator').parentElement!
+    expect(row.querySelector('[data-slot=period-note]')).not.toBeNull()
+    expect(toolbar(container)).toHaveClass('border')
+  })
+
   it('renders only the navigator without a period, filters or actions', () => {
     const { container } = render(
       <MonthToolbar navigator={<div data-testid="navigator" />} />,
@@ -78,5 +90,7 @@ describe('MonthToolbar', () => {
     expect(
       container.querySelector('[data-slot=month-toolbar-filters]'),
     ).toBeNull()
+    // No empty bar around a lone navigator.
+    expect(toolbar(container)).not.toHaveClass('border')
   })
 })
