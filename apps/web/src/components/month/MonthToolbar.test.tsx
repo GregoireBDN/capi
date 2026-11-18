@@ -74,7 +74,7 @@ describe('MonthToolbar', () => {
         search={<input aria-label="Rechercher" />}
       />,
     )
-    const row = screen.getByTestId('navigator').parentElement!
+    const row = screen.getByTestId('navigator').parentElement!.parentElement!
     expect(
       row.querySelector('[data-slot=month-toolbar-search]'),
     ).toContainElement(screen.getByLabelText('Rechercher'))
@@ -87,7 +87,7 @@ describe('MonthToolbar', () => {
         period={partial}
       />,
     )
-    const row = screen.getByTestId('navigator').parentElement!
+    const row = screen.getByTestId('navigator').parentElement!.parentElement!
     expect(row.querySelector('[data-slot=period-note]')).not.toBeNull()
     expect(toolbar(container)).toHaveClass('border')
   })

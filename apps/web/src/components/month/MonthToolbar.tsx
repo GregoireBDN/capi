@@ -51,9 +51,12 @@ export interface MonthToolbarProps {
 function FiltersButton({
   count,
   filters,
+  stretchWhenNarrow,
 }: {
   count: number
   filters: NonNullable<MonthToolbarProps['filters']>
+  /** Under 290px, a full-width labelled button on a row of its own. */
+  stretchWhenNarrow: boolean
 }) {
   const [open, setOpen] = useState(false)
   return (
@@ -69,9 +72,15 @@ function FiltersButton({
         onClick={() => setOpen(true)}
         // A 44px square, so it fits beside the month name in any bar
         // narrower than 672px (its label is its accessible name).
-        className="min-w-8 px-2 @[672px]:hidden"
+        className={cn(
+          'min-w-8 px-2 @[672px]:hidden',
+          stretchWhenNarrow && '@max-[290px]:flex-1',
+        )}
       >
         <SlidersHorizontalIcon aria-hidden />
+        {stretchWhenNarrow && (
+          <span className="hidden @max-[290px]:inline">Filtres</span>
+        )}
         {count > 0 && (
           <Badge
             variant="info"
@@ -136,7 +145,19 @@ export function MonthToolbar({
       )}
     >
       <div className="flex flex-wrap items-center gap-2">
-        {navigator}
+        <div
+          data-slot="month-toolbar-navigator"
+          className={cn(
+            // Below 672px the navigator fills its row up to « Filtres » (or
+            // the bar's edge): no empty stretch beside it. From 672px it keeps
+            // its own width and the search or the filters fill the row.
+            'flex min-w-0 flex-1 @max-[290px]:basis-full @[672px]:flex-none',
+            '*:data-[slot=month-navigator]:w-full @[672px]:*:data-[slot=month-navigator]:w-fit',
+            '**:data-[slot=period-stepper-label]:flex-1 @[672px]:**:data-[slot=period-stepper-label]:flex-none',
+          )}
+        >
+          {navigator}
+        </div>
         {search && (
           <div
             data-slot="month-toolbar-search"
@@ -155,7 +176,10 @@ export function MonthToolbar({
             className={cn(
               // Right beside the navigator on phones, at the end of the row from 672px.
               'flex min-w-0 items-center gap-2 @[672px]:ml-auto',
-              search && '@max-[290px]:order-last',
+              // Under 290px (320px phones) the month and « Filtres » don't
+              // fit on one row: the button joins the search's row, or fills
+              // a row of its own.
+              search ? '@max-[290px]:order-last' : '@max-[290px]:basis-full',
             )}
           >
             {filtersInline && (
@@ -166,7 +190,11 @@ export function MonthToolbar({
                 {filters('inline')}
               </div>
             )}
-            <FiltersButton count={activeFilters} filters={filters} />
+            <FiltersButton
+              count={activeFilters}
+              filters={filters}
+              stretchWhenNarrow={!search}
+            />
           </div>
         )}
         {actions && (
