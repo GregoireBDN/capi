@@ -249,7 +249,9 @@ describe('AccountDetailPage', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderPage()
 
-    await user.click(await screen.findByRole('button', { name: 'Ajouter' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Mettre à jour la valeur' }),
+    )
     const dialog = await screen.findByRole('dialog')
     const date = within(dialog).getByLabelText('Date')
     expect(date).toHaveValue('2026-11-06')
