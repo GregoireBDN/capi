@@ -7,6 +7,7 @@ import {
   createRouter,
 } from '@tanstack/react-router'
 import { act, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarProvider } from '@finances/ui'
 import { transactionsControllerReviewCount } from '#/api'
@@ -187,6 +188,22 @@ describe('AppSidebar', () => {
     await renderAt('/dashboard')
     expect(screen.getByText('Owner Test')).toBeInTheDocument()
     expect(screen.getByText('owner@example.test')).toBeInTheDocument()
+  })
+
+  it('lists each settings page once, under « Réglages », account menu open', async () => {
+    const nav = await renderAt('/dashboard')
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Menu du compte' }))
+    await screen.findByRole('menu')
+
+    // The open (modal) menu hides the rest of the page from the a11y tree.
+    for (const { label, to } of SETTINGS_ITEMS) {
+      expect(
+        screen.getAllByRole('link', { name: label, hidden: true }),
+      ).toEqual([nav.getByRole('link', { name: label, hidden: true })])
+      expect(document.querySelectorAll(`a[href="${to}"]`)).toHaveLength(1)
+    }
   })
 })
 

@@ -1,4 +1,4 @@
-import { Link, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,13 +14,10 @@ import {
 } from '@finances/ui'
 import {
   ChevronsUpDownIcon,
-  ListOrderedIcon,
   LogOutIcon,
   MonitorIcon,
   MoonIcon,
   SunIcon,
-  TagsIcon,
-  UserIcon,
 } from 'lucide-react'
 import type { UserDto } from '#/api/types.gen'
 import { useAuth } from '#/lib/auth-context'
@@ -49,7 +46,11 @@ interface UserMenuProps {
   onNavigate?: () => void
 }
 
-/** Sidebar footer: who is signed in, plus profile, theme and logout. */
+/**
+ * Sidebar footer: who is signed in, plus theme and logout. The settings pages
+ * (Catégories, Règles, Profil) live in the « Réglages » group of the
+ * navigation, not here (#261).
+ */
 export function UserMenu({ user, onNavigate }: UserMenuProps) {
   const { logout } = useAuth()
   const navigate = useNavigate()
@@ -92,26 +93,6 @@ export function UserMenu({ user, onNavigate }: UserMenuProps) {
             align="start"
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56"
           >
-            <DropdownMenuItem asChild>
-              <Link to={ROUTES.profile} onClick={onNavigate}>
-                <UserIcon />
-                Profil
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to={ROUTES.categories} onClick={onNavigate}>
-                <TagsIcon />
-                Catégories
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to={ROUTES.rules} onClick={onNavigate}>
-                <ListOrderedIcon />
-                Règles
-              </Link>
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
             <DropdownMenuLabel>Thème</DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={mode}
