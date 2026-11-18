@@ -545,8 +545,12 @@ describe('DashboardPage', () => {
     const link = within(cash).getByRole('link', { name: /Compte test/ })
     expect(link).toHaveAttribute('href', `/transactions?account=${checking.id}`)
     expect(link).toHaveTextContent(euros(123_456))
-    expect(link).toHaveTextContent('Compte courant · Banque test')
-    expect(link).toHaveTextContent('au 3 nov. 2026')
+    // Left: type (the name doesn't say it) · institution · date this year.
+    expect(link).toHaveTextContent('Compte courant · Banque test · au 3 nov.')
+    // The name already says it is a livret: no type repeated.
+    expect(
+      within(cash).getByRole('link', { name: /Livret test/ }),
+    ).toHaveTextContent(/^Livret testau 31 oct\./)
 
     const investments = screen.getByRole('region', { name: 'Investissements' })
     expect(investments).toHaveTextContent(euros(1_000_000))
@@ -554,8 +558,13 @@ describe('DashboardPage', () => {
     expect(
       within(investments).getByRole('link', { name: /PEA test/ }),
     ).toHaveAttribute('href', `/accounts/${pea.id}`)
-    expect(investments).toHaveTextContent('PEA / compte-titres')
-    expect(investments).toHaveTextContent('Solde inconnu')
+    expect(investments).not.toHaveTextContent('PEA / compte-titres')
+    expect(
+      within(investments).getByRole('link', { name: /Crypto test/ }),
+    ).toHaveTextContent('aucune valeur')
+    // One target per row: no edit button in the list.
+    expect(within(cash).queryByRole('button')).not.toBeInTheDocument()
+    expect(within(investments).queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('opens the net worth page from the accounts card and the chart', async () => {
@@ -568,52 +577,6 @@ describe('DashboardPage', () => {
       'href',
       '/net-worth',
     )
-  })
-
-  it('updates an investment value in three taps from the accounts list', async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-    api.accountSnapshotsControllerUpsert.mockImplementation(() =>
-      ok({ id: 's1', date: '2026-11-05', valueCents: 1_050_000, note: null }),
-    )
-    renderPage()
-
-    const investments = await screen.findByRole('region', {
-      name: 'Investissements',
-    })
-    // Tap 1: the row's action, no detour through the account page.
-    await user.click(
-      within(investments).getByRole('button', {
-        name: 'Mettre à jour « PEA test »',
-      }),
-    )
-    const sheet = await screen.findByRole('dialog', {
-      name: 'Mettre à jour « PEA test »',
-    })
-    // Dated today in Paris, the value field ready to type in (tap 2).
-    expect(within(sheet).getByLabelText('Date')).toHaveValue('2026-11-05')
-    expect(within(sheet).getByLabelText('Valeur')).toHaveFocus()
-    await user.keyboard('10 500')
-    // Tap 3.
-    await user.click(within(sheet).getByRole('button', { name: 'Enregistrer' }))
-
-    await waitFor(() =>
-      expect(api.accountSnapshotsControllerUpsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          path: { id: pea.id, date: '2026-11-05' },
-          body: { valueCents: 1_050_000, contributionsCents: null, note: null },
-        }),
-      ),
-    )
-    // The overview (net worth, balances) is fetched again.
-    await waitFor(() =>
-      expect(api.dashboardControllerOverview).toHaveBeenCalledTimes(2),
-    )
-    // Crypto values come from holdings: no quick update.
-    expect(
-      within(investments).queryByRole('button', {
-        name: 'Mettre à jour « Crypto test »',
-      }),
-    ).not.toBeInTheDocument()
   })
 
   it('flags an investment value older than a month', async () => {
@@ -634,7 +597,7 @@ describe('DashboardPage', () => {
     })
     expect(
       within(investments).getByRole('link', { name: /PEA test/ }),
-    ).toHaveTextContent('au 30 sept. 2026 · à mettre à jour')
+    ).toHaveTextContent(`PEA testau 30 sept.${euros(1_000_000)}à mettre à jour`)
     expect(
       within(screen.getByRole('region', { name: 'Liquidités' })).queryByText(
         /à mettre à jour/,
@@ -647,6 +610,12 @@ describe('DashboardPage', () => {
     renderPage()
 
     await screen.findByRole('region', { name: 'Investissements' })
+    // « Ajouter un compte » is the usual action here, first and solid.
+    const [first, second] = screen.getAllByRole('button', {
+      name: /^Ajouter un (compte|placement)$/,
+    })
+    expect(first).toHaveAccessibleName('Ajouter un compte')
+    expect(second).toHaveAccessibleName('Ajouter un placement')
     await user.click(
       screen.getByRole('button', { name: 'Ajouter un placement' }),
     )

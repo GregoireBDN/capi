@@ -23,6 +23,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { PlusIcon } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
+import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 import type { AccountDto, AccountType } from '#/api/types.gen'
 import {
@@ -579,17 +580,23 @@ export function NewAccountButton({
   defaultType,
   size,
   outline,
+  icon = <PlusIcon />,
+  className,
 }: {
   label?: string
   defaultType?: AccountType
   size?: 'sm'
   outline?: boolean
+  /** Defaults to « + ». */
+  icon?: ReactNode
+  className?: string
 }) {
   const [open, setOpen] = useState(false)
   return (
     <>
       <Button
-        iconStart={<PlusIcon />}
+        iconStart={icon}
+        className={className}
         size={size}
         outline={outline}
         variant={outline ? 'secondary' : undefined}

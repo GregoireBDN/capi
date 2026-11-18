@@ -311,27 +311,27 @@ describe('SavingsPage', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('1 mois sur 2')).toBeInTheDocument()
 
-    // Savings stock links to the account pages.
-    const livret = screen.getByRole('link', { name: /Livret test/ })
+    // Savings stock: the total and the gain as figures in the header.
+    const stock = screen
+      .getByRole('heading', { name: 'Épargne disponible' })
+      .closest('[data-slot="card"]') as HTMLElement
+    expect(stock).toHaveTextContent(text('4 800,00 €+300,00 € de plus-value'))
+    // Rows link to the account pages, sentence-case group headings.
+    const livret = within(stock).getByRole('link', { name: /Livret test/ })
     expect(livret).toHaveAttribute('href', `/accounts/${LIVRET_ID}`)
-    expect(screen.getByRole('link', { name: /PEA test/ })).toHaveTextContent(
-      text('+300,00 € (+15 %)'),
-    )
-    // Investments valued by hand update their value from the list; cash
-    // accounts are fed by imports.
+    // Left: institution · date (the group already says « épargne »).
+    expect(livret).toHaveTextContent(/Banque test · au /)
+    expect(livret).not.toHaveTextContent('Livret d’épargne')
     expect(
-      screen.getByRole('button', {
-        name: 'Mettre à jour « PEA test »',
-      }),
-    ).toBeInTheDocument()
+      within(stock).getByRole('link', { name: /PEA test/ }),
+    ).toHaveTextContent(text('+300,00 € · +15 %'))
+    // One target per row: the only buttons are the two add buttons, the
+    // usual one (« Ajouter un placement ») first.
     expect(
-      screen.queryByRole('button', {
-        name: 'Mettre à jour « Livret test »',
-      }),
-    ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Ajouter un placement' }),
-    ).toBeInTheDocument()
+      within(stock)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Ajouter un placement', 'Ajouter un compte'])
 
     // Goal: monthly effort and a late projection.
     expect(

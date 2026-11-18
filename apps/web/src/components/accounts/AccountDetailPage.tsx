@@ -20,6 +20,7 @@ import {
   ClipboardPasteIcon,
   ClockAlertIcon,
   PencilIcon,
+  PencilLineIcon,
   PlusIcon,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -185,9 +186,17 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
   )
   const valueActions = writable && !crypto && (
     <div className="grid grid-cols-2 gap-2 @2xl:flex">
-      <Button iconStart={<PlusIcon />} onClick={openAdd}>
-        Ajouter
-      </Button>
+      {/* PEA, life insurance, employee savings: the value is typed by hand
+          from each statement, so updating it is the page's main action. */}
+      {investment ? (
+        <Button iconStart={<PencilLineIcon />} onClick={openAdd}>
+          Mettre à jour la valeur
+        </Button>
+      ) : (
+        <Button iconStart={<PlusIcon />} onClick={openAdd}>
+          Ajouter
+        </Button>
+      )}
       <Button
         outline
         variant="secondary"

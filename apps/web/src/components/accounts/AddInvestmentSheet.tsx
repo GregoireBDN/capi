@@ -21,6 +21,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { PlusIcon } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 import type { AccountDto } from '#/api/types.gen'
 import { parseAmountToCents } from './amount'
@@ -393,16 +394,22 @@ export function AddInvestmentButton({
   label = 'Ajouter un placement',
   size,
   outline,
+  icon = <PlusIcon />,
+  className,
 }: {
   label?: string
   size?: 'sm'
   outline?: boolean
+  /** Defaults to « + ». */
+  icon?: ReactNode
+  className?: string
 }) {
   const [open, setOpen] = useState(false)
   return (
     <>
       <Button
-        iconStart={<PlusIcon />}
+        iconStart={icon}
+        className={className}
         size={size}
         outline={outline}
         variant={outline ? 'secondary' : undefined}
