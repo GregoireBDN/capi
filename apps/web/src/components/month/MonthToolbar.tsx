@@ -37,7 +37,12 @@ export interface MonthToolbarProps {
   activeFilters?: number
   /** The page's actions: at the end of the row, on a row of their own below 672px. */
   actions?: ReactNode
-  /** Rows of their own under the navigator's row (search, filter chips). */
+  /**
+   * A search field filling the rest of the navigator's row from 672px, on a
+   * row of its own below it on phones (Opérations).
+   */
+  search?: ReactNode
+  /** Rows of their own under the navigator's row (filter chips). */
   children?: ReactNode
   className?: string
 }
@@ -112,12 +117,13 @@ export function MonthToolbar({
   filtersInline = true,
   activeFilters = 0,
   actions,
+  search,
   children,
   className,
 }: MonthToolbarProps) {
   // Nothing to set on the page: the period note fills the row instead, so
   // the bar never holds a lone navigator and an empty stretch.
-  const bare = !filters && !actions && !children
+  const bare = !filters && !actions && !search && !children
   // Only the navigator: no empty bar around it (same tree, so the
   // navigator isn't remounted when the period arrives).
   const plain = bare && !period
@@ -132,8 +138,26 @@ export function MonthToolbar({
     >
       <div className="flex flex-wrap items-center gap-2">
         {navigator}
+        {search && (
+          <div
+            data-slot="month-toolbar-search"
+            className={cn(
+              'order-last w-full min-w-0 @[672px]:order-none @[672px]:w-auto @[672px]:flex-1',
+              // Too narrow for the month and « Filtres » on one row (320px
+              // phones): the button joins the search's row instead.
+              '@max-[290px]:w-auto @max-[290px]:flex-1 @max-[290px]:basis-[140px]',
+            )}
+          >
+            {search}
+          </div>
+        )}
         {filters && (
-          <div className="ml-auto flex min-w-0 items-center gap-2">
+          <div
+            className={cn(
+              'ml-auto flex min-w-0 items-center gap-2',
+              search && '@max-[290px]:order-last',
+            )}
+          >
             {filtersInline && (
               <div
                 data-slot="month-toolbar-filters"
