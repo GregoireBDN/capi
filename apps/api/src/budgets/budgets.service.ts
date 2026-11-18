@@ -1,3 +1,4 @@
+import type { CategoryIcon } from '#/categories/category-icons'
 import {
   BadRequestException,
   Injectable,
@@ -48,6 +49,7 @@ interface CategoryInfo {
   slug: string
   name: string
   color: string | null
+  icon: CategoryIcon | null
   kind: 'expense' | 'income' | 'transfer'
   /** Archived categories get no suggestion unless they have a target. */
   archivedAt: Date | null
@@ -108,6 +110,18 @@ export class BudgetsService {
   }
 
   /**
+   * Whether `month` has a budget line in effect, its own or carried over
+   * from an earlier month (the month review offers to prepare it otherwise).
+   */
+  async hasBudget(
+    month: string,
+    executor: Executor = this.db,
+  ): Promise<boolean> {
+    const rows = await this.budgetRows(executor, month)
+    return targetsInEffect(rows, month).size > 0
+  }
+
+  /**
    * Targets vs spending for one month, plus the unbudgeted spending. Without
    * `month`, the current month when it has data, else the month the data
    * stops in; `period` says how far the month's data goes.
@@ -138,6 +152,7 @@ export class BudgetsService {
         slug: category.slug,
         name: category.name,
         color: category.color,
+        icon: category.icon,
         targetCents: target.monthlyTargetCents,
         effectiveFrom: toMonth(target.effectiveFrom),
         note: target.note,
@@ -255,6 +270,7 @@ export class BudgetsService {
         slug: category.slug,
         name: category.name,
         color: category.color,
+        icon: category.icon,
         targetCents: target.monthlyTargetCents,
         spentCents,
         manualCents: spentBy.get(categoryId)?.manualCents ?? 0,
@@ -308,6 +324,7 @@ export class BudgetsService {
         slug: category.slug,
         name: category.name,
         color: category.color,
+        icon: category.icon,
         months: months.map((month) => {
           const target =
             targetsByMonth.get(month)!.get(category.id)?.monthlyTargetCents ??
@@ -398,6 +415,7 @@ export class BudgetsService {
                 slug: category.slug,
                 name: category.name,
                 color: category.color,
+                icon: category.icon,
                 averageCents,
                 suggestedCents: roundToEuro(averageCents),
                 currentTargetCents:
@@ -567,6 +585,7 @@ export class BudgetsService {
         slug: categoriesTable.slug,
         name: categoriesTable.name,
         color: categoriesTable.color,
+        icon: categoriesTable.icon,
         kind: categoriesTable.kind,
         archivedAt: categoriesTable.archivedAt,
       })

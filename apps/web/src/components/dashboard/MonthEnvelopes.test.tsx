@@ -133,6 +133,7 @@ const envelopes: EnvelopesDto = {
       slug: 'shopping',
       name: 'Shopping',
       color: null,
+      icon: null,
       targetCents: 10_000,
       spentCents: 2_000,
       manualCents: 0,
@@ -146,6 +147,7 @@ const envelopes: EnvelopesDto = {
       slug: 'sorties',
       name: 'Sorties',
       color: null,
+      icon: null,
       targetCents: 15_000,
       spentCents: 9_000,
       manualCents: 2_500,
@@ -199,20 +201,23 @@ describe('MonthEnvelopes', () => {
     expect(text(outings.getAttribute('aria-valuetext')!)).toContain(
       'rythme du mois : 65 €',
     )
-    const link = within(card).getByRole('link', {
-      name: 'Opérations Sorties du mois',
+    // One target per envelope: the whole row notes an expense in it.
+    const row = within(card).getByRole('button', {
+      name: 'Ajouter une dépense Sorties',
     })
-    expect(link).toHaveAttribute(
-      'href',
-      `/transactions?month=2026-11&category=${OUTINGS}&kind=expense`,
-    )
-    expect(link).toHaveTextContent(text('Reste 60 € · en avance'))
-    expect(link).toHaveTextContent(text('dont 25 € noté à la main'))
-    const shopping = within(card).getByRole('link', {
-      name: 'Opérations Shopping du mois',
+    expect(row).toContainElement(outings)
+    expect(row).toHaveTextContent(text('Reste 60 € · en avance'))
+    // What was noted by hand isn't repeated in the row (owner: too much room).
+    expect(row).not.toHaveTextContent('noté à la main')
+    const shopping = within(card).getByRole('button', {
+      name: 'Ajouter une dépense Shopping',
     })
     expect(shopping).toHaveTextContent(text('Reste 80 €'))
     expect(shopping).not.toHaveTextContent('en avance')
+    // No link to the transactions from the rows any more.
+    expect(
+      within(card).queryByRole('link', { name: /Opérations/ }),
+    ).not.toBeInTheDocument()
   })
 
   it('notes an expense in an envelope, step by step, today in Paris on the checking account', async () => {

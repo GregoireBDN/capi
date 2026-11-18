@@ -4,27 +4,20 @@ import {
   Card,
   CardContent,
   CardHeader,
-  CardTitle,
   cn,
   formatPercent,
   formatWholeEuros,
-  ProgressMeter,
+  ItemList,
+  ItemListGroup,
+  ItemListRow,
 } from '@finances/ui'
 import { Link } from '@tanstack/react-router'
-import { ChevronRightIcon, ListChecksIcon, UploadIcon } from 'lucide-react'
-import type {
-  MonthReviewDto,
-  ReviewCategoryDto,
-  ReviewMissingAccountDto,
-} from '#/api/types.gen'
-import {
-  isValuedByHand,
-  UpdateValueButton,
-} from '#/components/accounts/UpdateValueButton'
+import { CircleCheckIcon, ClockIcon, ListChecksIcon } from 'lucide-react'
+import type { MonthReviewDto, ReviewMissingAccountDto } from '#/api/types.gen'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
-import { ofMonth } from '#/lib/calendar'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
+import { FigureTile } from './FigureTile'
 
 const signedWholeEuros = new Intl.NumberFormat('fr-FR', {
   style: 'currency',
@@ -46,299 +39,344 @@ interface MonthReviewProps {
 }
 
 /**
- * Review of a closed month: where the net worth ended and what moved it
- * (saved from the month's income and expenses vs investments and the rest),
- * spending against the budget with the categories that drifted most, and
- * what is missing while the month isn't fully imported.
+ * Review of a past month (#262, the owner's direction « A. Tuiles »): the
+ * month navigator heads the card with the month's close status, then the
+ * accounts left to update, the month's income, expenses and savings as
+ * three figures, the net worth at the month end (its change only when
+ * investments moved it, otherwise it is what was saved), spending against
+ * the budget and the one action the month's state calls for. Every amount
+ * is shown once and the month is named once, by the navigator.
  */
 export function MonthReview({
   review,
   latest,
   onMonthChange,
 }: MonthReviewProps) {
-  const { month, budget, flow, missing, closed } = review
+  const { month, missing } = review
+  const closed = review.closedAt !== null
 
   return (
-    <section aria-labelledby="month-review-title" className="min-w-0">
+    <section aria-label="Bilan du mois" className="min-w-0">
       <Card className="min-w-0">
-        <CardHeader className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-            <CardTitle id="month-review-title">
-              Bilan {ofMonth(month)}
-            </CardTitle>
-            <Badge variant={closed ? 'success' : 'warning'}>
-              {closed ? 'Complet' : 'À compléter'}
-            </Badge>
-          </div>
+        {/* The navigator fills the row up to the status; its label grows
+            between the two arrows (#264). */}
+        <CardHeader className="@container flex flex-row flex-wrap items-center gap-2">
           <MonthNavigator
             month={month}
             max={latest}
             onMonthChange={onMonthChange}
+            className="w-auto flex-auto"
           />
+          {/* As tall as the navigator, mid-tone background, white text; an
+              icon on a phone, its word from
+              22rem of header. */}
+          <Badge
+            className="h-auto shrink-0 gap-1.5 self-stretch border-transparent px-3 text-white"
+            // A mid tone between the theme's light and dark shades of the
+            // status colour, under white text.
+            style={{
+              backgroundColor: closed
+                ? 'color-mix(in oklch, var(--success) 25%, var(--success-foreground))'
+                : 'color-mix(in oklch, var(--warning) 25%, var(--warning-foreground))',
+            }}
+          >
+            {/* Wrapped: the badge sizes its direct svg children to 12px. */}
+            <span aria-hidden className="flex">
+              {closed ? (
+                <CircleCheckIcon className="size-[22px]" />
+              ) : (
+                <ClockIcon className="size-[22px]" />
+              )}
+            </span>
+            <span className="sr-only @[22rem]:not-sr-only">
+              {closed ? 'Clôturé' : 'À clôturer'}
+            </span>
+          </Badge>
         </CardHeader>
 
-        <CardContent className="space-y-5">
+        {/* mb-0: the card's own padding is enough at its end. */}
+        <CardContent className="@container mb-0 space-y-5">
           {missing.length > 0 && <MissingAccounts accounts={missing} />}
-
-          <NetWorthSection review={review} />
-
-          <section aria-label="Budget" className="space-y-3">
-            {budget.budgetCount > 0 ? (
-              <>
-                <ProgressMeter
-                  label="Dépensé"
-                  value={budget.spentCents}
-                  target={budget.targetCents}
-                  valueFormatter={formatWholeEuros}
-                  hideStatus
-                />
-                <p className="flex flex-wrap justify-between gap-x-3 text-sm">
-                  <span
-                    className={cn(
-                      'font-medium whitespace-nowrap',
-                      budget.remainingCents < 0 && 'text-chart-delta-bad',
-                    )}
-                  >
-                    {budget.remainingCents < 0
-                      ? `Dépassé de ${formatWholeEuros(-budget.remainingCents)}`
-                      : `Reste ${formatWholeEuros(budget.remainingCents)}`}
-                  </span>
-                  {budget.unbudgetedCents > 0 && (
-                    <span className="text-muted-foreground whitespace-nowrap">
-                      + {formatWholeEuros(budget.unbudgetedCents)} hors budget
-                    </span>
-                  )}
-                </p>
-                <Drift month={month} over={budget.over} under={budget.under} />
-              </>
-            ) : (
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <p className="text-muted-foreground text-sm">
-                  Dépensé, sans budget fixé
-                </p>
-                <p className="text-lg font-semibold whitespace-nowrap tabular-nums">
-                  {formatWholeEuros(-flow.expenseCents)}
-                </p>
-              </div>
-            )}
-          </section>
-
-          <div className="grid gap-2">
-            <Button asChild className="w-full">
-              <Link to={ROUTES.budget} search={{ month: review.nextMonth }}>
-                Préparer le budget {ofMonth(review.nextMonth)}
-              </Link>
-            </Button>
-            <Button asChild outline variant="secondary" className="w-full">
-              <Link to={ROUTES.monthReview} search={{ month }}>
-                <ListChecksIcon aria-hidden />
-                Revue et clôture {ofMonth(month)}
-              </Link>
-            </Button>
+          {/* The net worth at the month end on its own line, then the
+              month's income, expenses and savings: one per line on a
+              phone, the three side by side on a wide card. */}
+          <div className="@container grid gap-2">
+            <NetWorthTile review={review} />
+            <div className="grid gap-2 @[36rem]:grid-cols-3">
+              <FlowFigures review={review} />
+            </div>
           </div>
+          <BudgetSection review={review} />
+          <ReviewAction review={review} />
         </CardContent>
       </Card>
     </section>
   )
 }
 
-/** Net worth at the month end, its change and where it came from. */
-function NetWorthSection({ review }: { review: MonthReviewDto }) {
-  const { netWorth, flow } = review
-  const { changeCents, savedCents, otherCents } = netWorth
-  // The split bar only reads well when both parts add up (both positive).
-  const showBar =
-    changeCents !== null &&
-    otherCents !== null &&
-    savedCents >= 0 &&
-    otherCents >= 0 &&
-    changeCents > 0
-  const savedShare = showBar ? savedCents / changeCents : 0
-  // Without investments (or anything else) the rest rounds to 0 €: no line.
-  const other =
-    otherCents !== null && Math.round(otherCents / 100) !== 0
-      ? otherCents
-      : null
-
+/** Income, expenses and what was saved of them, read together. */
+function FlowFigures({ review }: { review: MonthReviewDto }) {
+  const { flow } = review
+  const saved = flow.netCents
   return (
-    <section aria-label="Patrimoine" className="space-y-2">
-      <p className="text-muted-foreground text-sm">
-        Patrimoine au {formatShortDay(netWorth.date)}
-      </p>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <p className="text-[clamp(1.1rem,8cqi,1.6rem)] font-semibold whitespace-nowrap tabular-nums">
-          {netWorth.endCents === null
-            ? '—'
-            : formatWholeEuros(netWorth.endCents)}
-        </p>
-        {changeCents !== null && (
-          <p
-            className={cn(
-              'font-medium whitespace-nowrap tabular-nums',
-              changeCents > 0 && 'text-chart-delta-good',
-              changeCents < 0 && 'text-chart-delta-bad',
-            )}
-          >
-            {formatSignedWhole(changeCents)}
-          </p>
-        )}
-      </div>
-      {showBar && other !== null && (
-        <div
-          aria-hidden
-          className="bg-muted flex h-1.5 overflow-hidden rounded-full"
-        >
-          <div
-            className="bg-chart-delta-good h-full"
-            style={{ width: `${savedShare * 100}%` }}
-          />
-          <div className="bg-chart-1 h-full flex-1" />
-        </div>
-      )}
-      <dl className="grid grid-cols-2 gap-x-3 text-sm">
-        <div className="min-w-0">
-          <dt className="text-muted-foreground flex items-center gap-1.5 text-xs">
-            <span
-              aria-hidden
-              className="bg-chart-delta-good size-2 shrink-0 rounded-full"
-            />
-            Épargné
-          </dt>
-          <dd className="flex flex-wrap gap-x-1 font-medium tabular-nums">
-            <span className="whitespace-nowrap">
-              {formatSignedWhole(savedCents)}
-            </span>
-            {flow.savingsRate !== null && (
-              <span className="text-muted-foreground font-normal whitespace-nowrap">
-                {' '}
-                · {formatPercent(flow.savingsRate)}
-              </span>
-            )}
-          </dd>
-        </div>
-        {other !== null && (
-          <div className="min-w-0">
-            <dt className="text-muted-foreground flex items-center gap-1.5 text-xs">
-              <span
-                aria-hidden
-                className="bg-chart-1 size-2 shrink-0 rounded-full"
-              />
-              Placements et autres
-            </dt>
-            <dd className="font-medium whitespace-nowrap tabular-nums">
-              {formatSignedWhole(other)}
-            </dd>
-          </div>
-        )}
-      </dl>
-    </section>
-  )
-}
-
-/** Categories furthest above and below their target. */
-function Drift({
-  month,
-  over,
-  under,
-}: {
-  month: string
-  over: ReviewCategoryDto[]
-  under: ReviewCategoryDto[]
-}) {
-  const rows = [
-    ...over.map((item) => ({ item, kind: 'over' as const })),
-    ...under.map((item) => ({ item, kind: 'under' as const })),
-  ]
-  if (rows.length === 0) return null
-  return (
-    <ul className="divide-y" aria-label="Écarts au budget">
-      {rows.map(({ item, kind }) => (
-        <li key={item.categoryId}>
-          <Link
-            to={ROUTES.transactions}
-            search={{ month, category: item.categoryId, kind: 'expense' }}
-            className="hover:bg-muted/60 focus-visible:outline-ring -mx-2 flex min-h-11 items-center gap-2 rounded-md px-2 py-2 text-sm focus-visible:outline-2"
-          >
-            <span
-              aria-hidden
-              className="size-2.5 shrink-0 rounded-[3px]"
-              style={{ backgroundColor: item.color ?? 'var(--chart-other)' }}
-            />
-            <span className="min-w-0 flex-1 truncate">{item.name}</span>
-            <span
-              data-slot="review-gap"
-              data-tone={kind === 'over' ? 'bad' : 'good'}
-              className={cn(
-                'font-medium whitespace-nowrap tabular-nums',
-                kind === 'over'
-                  ? 'text-chart-delta-bad'
-                  : 'text-chart-delta-good',
-              )}
-            >
-              {kind === 'over'
-                ? `${formatWholeEuros(item.gapCents)} de trop`
-                : `${formatWholeEuros(-item.gapCents)} de marge`}
-            </span>
-            <ChevronRightIcon
-              aria-hidden
-              className="text-muted-foreground size-4 shrink-0"
-            />
-          </Link>
-        </li>
-      ))}
-    </ul>
+    // Its tiles are cells of the figures' grid.
+    <dl className="contents" aria-label="Flux du mois">
+      <FigureTile
+        variant="dl"
+        label="Revenus"
+        value={formatWholeEuros(flow.incomeCents)}
+      />
+      <FigureTile
+        variant="dl"
+        label="Dépenses"
+        value={formatWholeEuros(-flow.expenseCents)}
+      />
+      <FigureTile
+        variant="dl"
+        label="Épargné"
+        value={formatSignedWhole(saved)}
+        notes={[
+          flow.savingsRate !== null &&
+            `${formatPercent(flow.savingsRate)} des revenus`,
+        ]}
+        tone={saved > 0 ? 'good' : saved < 0 ? 'bad' : undefined}
+      />
+    </dl>
   )
 }
 
 /**
- * What is missing before the month can be read as final: cash accounts are
- * imported, investment values valued by hand are updated in place.
+ * Net worth at the month end. Its change is shown only when investments
+ * (or anything else) moved it: without them it equals « Épargné ».
+ */
+function NetWorthTile({ review }: { review: MonthReviewDto }) {
+  const { netWorth } = review
+  const other =
+    netWorth.changeCents !== null &&
+    netWorth.otherCents !== null &&
+    Math.round(netWorth.otherCents / 100) !== 0
+      ? { change: netWorth.changeCents, other: netWorth.otherCents }
+      : null
+  return (
+    <section aria-label="Patrimoine" className="grid">
+      <FigureTile
+        label={`Patrimoine au ${formatShortDay(netWorth.date)}`}
+        value={
+          netWorth.endCents === null ? '—' : formatWholeEuros(netWorth.endCents)
+        }
+        notes={[
+          other &&
+            `${formatSignedWhole(other.change)} sur le mois, dont ${formatSignedWhole(other.other)} de placements et autres`,
+        ]}
+      />
+    </section>
+  )
+}
+
+/** Hatching of the expenses in categories without a budget. */
+const UNBUDGETED_FILL =
+  'bg-[repeating-linear-gradient(135deg,var(--muted-foreground)_0_3px,transparent_3px_6px)] opacity-60'
+
+/**
+ * Spending against the budget as one stacked bar (owner's choice « Barre
+ * empilée »): the month's expenses in the categories with a budget, then
+ * those without one (hatched), the budget as a mark across the bar, a
+ * legend naming each part and what's left (a list on a phone). The total of the expenses is the « Dépenses » tile.
+ */
+function BudgetSection({ review }: { review: MonthReviewDto }) {
+  const { budget } = review
+  if (budget.budgetCount === 0) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        Pas de budget fixé pour ce mois.
+      </p>
+    )
+  }
+  const spent = Math.max(0, budget.spentCents)
+  const unbudgeted = Math.max(0, budget.unbudgetedCents)
+  const scale = Math.max(spent + unbudgeted, budget.targetCents, 1)
+  const share = (cents: number) => `${(cents / scale) * 100}%`
+  const over = budget.remainingCents < 0
+  return (
+    <section aria-label="Budget" className="space-y-2 text-sm">
+      <p className="font-medium">Budget</p>
+      <div
+        role="meter"
+        aria-label="Budget"
+        aria-valuemin={0}
+        aria-valuemax={budget.targetCents}
+        aria-valuenow={budget.spentCents}
+        aria-valuetext={`${formatWholeEuros(budget.spentCents)} dépensés dans les catégories avec budget sur ${formatWholeEuros(budget.targetCents)}, plus ${formatWholeEuros(unbudgeted)} sans budget`}
+        className="relative"
+      >
+        <div className="bg-muted flex h-3 overflow-hidden rounded-full">
+          <div
+            className={cn('h-full', over ? 'bg-chart-over' : 'bg-primary')}
+            style={{ width: share(spent) }}
+          />
+          <div
+            className={cn('h-full', UNBUDGETED_FILL)}
+            style={{ width: share(unbudgeted) }}
+          />
+        </div>
+        {/* The budget, as a mark across the bar. */}
+        <div
+          aria-hidden
+          className="bg-foreground absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2 rounded"
+          style={{ left: share(budget.targetCents) }}
+        />
+      </div>
+      {/* Owner's « Tableau » on a phone: one line per part, the label left,
+          the amount right, what's left last under a rule. From 36rem the
+          same items on one line. */}
+      <ul
+        className="grid gap-y-1 text-xs @[36rem]:flex @[36rem]:flex-wrap @[36rem]:gap-x-4"
+        aria-label="Légende"
+      >
+        {/* The two parts only when both exist: otherwise « Avec budget »
+            would repeat « Dépenses ». */}
+        {unbudgeted > 0 && (
+          <>
+            <LegendItem
+              swatch={over ? 'bg-chart-over' : 'bg-primary'}
+              label="Avec budget"
+              value={formatWholeEuros(budget.spentCents)}
+            />
+            <LegendItem
+              swatch={UNBUDGETED_FILL}
+              label="Sans budget"
+              value={formatWholeEuros(unbudgeted)}
+            />
+          </>
+        )}
+        <LegendItem
+          swatch="bg-foreground mx-1 w-0.5"
+          label="Budget"
+          value={formatWholeEuros(budget.targetCents)}
+        />
+        <li
+          className={cn(
+            'border-border mt-0.5 flex items-baseline justify-between gap-1.5 border-t pt-1 font-medium',
+            '@[36rem]:mt-0 @[36rem]:border-0 @[36rem]:pt-0',
+            over && 'text-chart-delta-bad',
+          )}
+        >
+          <span>{over ? 'Dépassé de' : 'Reste'}</span>
+          <span className="font-semibold whitespace-nowrap tabular-nums">
+            {formatWholeEuros(Math.abs(budget.remainingCents))}
+          </span>
+        </li>
+      </ul>
+    </section>
+  )
+}
+
+function LegendItem({
+  swatch,
+  label,
+  value,
+}: {
+  swatch: string
+  label: string
+  value: string
+}) {
+  return (
+    <li className="flex items-center gap-1.5">
+      <span
+        aria-hidden
+        className={cn('h-2.5 w-2.5 shrink-0 rounded-sm', swatch)}
+      />
+      <span className="text-muted-foreground">{label}</span>
+      <span className="ml-auto font-medium whitespace-nowrap tabular-nums @[36rem]:ml-0">
+        {value}
+      </span>
+    </li>
+  )
+}
+
+/**
+ * The one action the month's state calls for, without naming the month
+ * again: close it while it is open, then prepare the next month's budget
+ * when it has none, else « Revoir le mois »; all at the card's full width.
+ */
+function ReviewAction({ review }: { review: MonthReviewDto }) {
+  if (review.closedAt === null) {
+    return (
+      <Button asChild className="w-full">
+        <Link to={ROUTES.monthReview} search={{ month: review.month }}>
+          <ListChecksIcon aria-hidden />
+          Revue et clôture
+        </Link>
+      </Button>
+    )
+  }
+  if (!review.nextMonthBudgeted) {
+    return (
+      <Button asChild outline variant="secondary" className="w-full">
+        <Link to={ROUTES.budget} search={{ month: review.nextMonth }}>
+          Préparer le budget du mois suivant
+        </Link>
+      </Button>
+    )
+  }
+  return (
+    <Button asChild outline variant="secondary" className="w-full">
+      <Link to={ROUTES.monthReview} search={{ month: review.month }}>
+        <ListChecksIcon aria-hidden />
+        Revoir le mois
+      </Link>
+    </Button>
+  )
+}
+
+/**
+ * What is missing before the month can be read as final, one target per
+ * account: a cash account opens the import, an investment its page, where
+ * updating the value is the main action.
  */
 function MissingAccounts({
   accounts,
 }: {
   accounts: ReviewMissingAccountDto[]
 }) {
-  const needsImport = accounts.some((account) => account.group === 'cash')
-  // Rows keep one height when some carry the 44px update button.
-  const withActions = accounts.some((account) => isValuedByHand(account.type))
   return (
     <section
       aria-label="Comptes à mettre à jour"
-      className="bg-muted/50 space-y-2 rounded-lg p-3"
+      className="bg-warning/10 rounded-lg p-2"
     >
-      <p className="text-sm font-medium">À mettre à jour</p>
-      <ul className="space-y-1 text-sm">
-        {accounts.map((account) => (
-          <li
-            key={account.id}
-            className={cn(
-              'flex items-center gap-x-2',
-              withActions && 'min-h-11',
-            )}
-          >
-            <span className="flex min-w-0 flex-1 flex-wrap justify-between gap-x-3">
-              <span className="min-w-0 truncate">{account.name}</span>
-              <span className="text-muted-foreground whitespace-nowrap">
-                {account.lastDate === null
-                  ? 'jamais'
-                  : `au ${formatShortDay(account.lastDate)}`}
-              </span>
-            </span>
-            {isValuedByHand(account.type) && (
-              <UpdateValueButton account={account} />
-            )}
-          </li>
-        ))}
-      </ul>
-      {needsImport && (
-        <Button asChild outline variant="secondary" size="sm">
-          <Link to={ROUTES.import}>
-            <UploadIcon aria-hidden />
-            Importer
-          </Link>
-        </Button>
-      )}
+      <p className="text-warning-foreground dark:text-warning px-2 pt-1 text-sm font-medium">
+        À mettre à jour
+        <span className="hidden @[36rem]:inline"> avant de clôturer</span>
+      </p>
+      <ItemList>
+        <ItemListGroup>
+          {accounts.map((account) => {
+            const cash = account.group === 'cash'
+            const subtitle = `${
+              account.lastDate === null
+                ? 'Aucune donnée'
+                : `Au ${formatShortDay(account.lastDate)}`
+            } · ${cash ? 'importer' : 'mettre à jour'}`
+            return (
+              <ItemListRow
+                key={account.id}
+                asChild
+                title={account.name}
+                subtitle={subtitle}
+              >
+                {cash ? (
+                  <Link to={ROUTES.import} />
+                ) : (
+                  <Link
+                    to={ROUTES.account}
+                    params={{ accountId: account.id }}
+                  />
+                )}
+              </ItemListRow>
+            )
+          })}
+        </ItemListGroup>
+      </ItemList>
     </section>
   )
 }

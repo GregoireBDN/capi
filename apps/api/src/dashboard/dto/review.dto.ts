@@ -1,3 +1,7 @@
+import {
+  CATEGORY_ICON_DOC,
+  type CategoryIcon,
+} from '#/categories/category-icons'
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { IsOptional, Matches } from 'class-validator'
 import { MonthPeriodDto } from '#/coverage/dto/period.dto'
@@ -83,6 +87,9 @@ export class ReviewCategoryDto {
 
   @ApiProperty({ type: String, nullable: true })
   color!: string | null
+
+  @ApiProperty(CATEGORY_ICON_DOC)
+  icon!: CategoryIcon | null
 
   @ApiProperty({ type: 'integer', description: 'Monthly target in cents.' })
   targetCents!: number
@@ -184,6 +191,22 @@ export class MonthReviewDto {
       'Every account is up to date for the month: data reaches the month end and no account is missing.',
   })
   closed!: boolean
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'When the month was closed in « Revue du mois » (`POST /month-close/:month/close`); null while it is open.',
+  })
+  closedAt!: string | null
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'The next month has a budget line in effect (its own or carried over).',
+  })
+  nextMonthBudgeted!: boolean
 
   @ApiProperty({ type: ReviewNetWorthDto })
   netWorth!: ReviewNetWorthDto

@@ -1,18 +1,10 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  ItemListGroup,
-  ItemListRow,
-} from '@finances/ui'
-import { Link } from '@tanstack/react-router'
-import { ChartLineIcon } from 'lucide-react'
+import { Card, CardContent } from '@finances/ui'
 import type { DashboardAccountDto, NetWorthDto } from '#/api/types.gen'
 import { AccountList } from '#/components/accounts/AccountList'
 import { formatCents } from '#/lib/money'
 import { ROUTES } from '#/lib/routes'
+import { DashboardCardHeader } from './DashboardCardHeader'
+import { FigureTile } from './FigureTile'
 
 const GROUPS = [
   {
@@ -43,32 +35,34 @@ export function AccountsList({
 }) {
   return (
     <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle>Comptes</CardTitle>
-        <CardDescription>
-          Solde de chaque compte à sa dernière date connue.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <ItemListGroup>
-          <ItemListRow
-            asChild
-            icon={<ChartLineIcon />}
-            iconClassName="bg-chart-savings/15 text-chart-savings"
-            title="Patrimoine net"
-            subtitle="Évolution et répartition"
+      <DashboardCardHeader
+        title="Comptes"
+        link={{ label: 'Évolution', to: ROUTES.netWorth }}
+      />
+      <CardContent className="mb-0 space-y-4">
+        {/* Today's net worth, once, with its date (the month-end one is
+            in the review card), then its two parts; the groups below
+            don't repeat their totals. */}
+        <div className="@container grid gap-2">
+          <FigureTile
+            label="Patrimoine à ce jour"
             value={formatCents(netWorth.totalCents)}
-            className="bg-muted/50 hover:bg-muted focus-visible:bg-muted"
-          >
-            <Link to={ROUTES.netWorth} />
-          </ItemListRow>
-        </ItemListGroup>
+          />
+          <div className="grid gap-2 @[36rem]:grid-cols-2">
+            {GROUPS.map(({ group, title, total }) => (
+              <FigureTile
+                key={group}
+                label={title}
+                value={formatCents(total(netWorth))}
+              />
+            ))}
+          </div>
+        </div>
         <AccountList
           primaryAction="account"
-          groups={GROUPS.map(({ group, title, total }) => ({
+          groups={GROUPS.map(({ group, title }) => ({
             id: group,
             title,
-            totalCents: total(netWorth),
             accounts: accounts
               .filter((account) => account.group === group)
               .map((account) => ({

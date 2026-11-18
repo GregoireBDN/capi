@@ -137,6 +137,7 @@ function review(overrides: Partial<MonthCloseDto> = {}): MonthCloseDto {
           slug: 'groceries',
           name: 'Courses test',
           color: null,
+          icon: null,
           targetCents: 35_000,
           spentCents: 40_000,
           gapCents: 5_000,

@@ -7,7 +7,6 @@ import {
 } from '@finances/ui'
 import { Link } from '@tanstack/react-router'
 import { LandmarkIcon, TrendingUpIcon } from 'lucide-react'
-import { Fragment } from 'react'
 import type { ReactNode } from 'react'
 import type { AccountType } from '#/api/types.gen'
 import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
@@ -145,13 +144,8 @@ export function AccountListRow({
       ? 'aucune valeur'
       : valueDateText(account.valueDate),
   ].filter((part): part is string => Boolean(part))
-  // Wraps between the parts only: « au 30 sept. » stays in one piece.
-  const subtitle = parts.map((part, index) => (
-    <Fragment key={index}>
-      {index > 0 && ' · '}
-      <span className="whitespace-nowrap">{part}</span>
-    </Fragment>
-  ))
+  // One string: the row cuts it with … at its end when it doesn't fit.
+  const subtitle = parts.join(' · ')
   const row = {
     icon: <Icon />,
     iconClassName,

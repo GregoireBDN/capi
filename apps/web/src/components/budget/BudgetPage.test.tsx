@@ -80,6 +80,7 @@ function line(
     slug: c.slug,
     name: c.name,
     color: c.color,
+    icon: null,
     targetCents,
     effectiveFrom: '2026-09',
     note: null,
@@ -166,6 +167,7 @@ const history: BudgetHistoryDto = {
       slug: leisure.slug,
       name: leisure.name,
       color: leisure.color,
+      icon: null,
       months: [
         {
           month: '2026-09',
@@ -208,6 +210,7 @@ const suggestions: BudgetSuggestionsDto = {
       slug: groceries.slug,
       name: groceries.name,
       color: groceries.color,
+      icon: null,
       averageCents: 31_183,
       suggestedCents: 31_200,
       currentTargetCents: null,
@@ -217,6 +220,7 @@ const suggestions: BudgetSuggestionsDto = {
       slug: leisure.slug,
       name: leisure.name,
       color: leisure.color,
+      icon: null,
       averageCents: 9_950,
       suggestedCents: 10_000,
       currentTargetCents: 12_000,

@@ -11,6 +11,10 @@ import {
   MaxLength,
   Min,
 } from 'class-validator'
+import {
+  CATEGORY_ICON_DOC,
+  type CategoryIcon,
+} from '#/categories/category-icons'
 import { MonthPeriodDto } from '#/coverage/dto/period.dto'
 import { MONTH_PATTERN } from '../months'
 
@@ -214,6 +218,9 @@ class BudgetCategoryFields {
 
   @ApiProperty({ type: String, nullable: true, example: '#d97706' })
   color!: string | null
+
+  @ApiProperty(CATEGORY_ICON_DOC)
+  icon!: CategoryIcon | null
 }
 
 export class BudgetLineDto extends BudgetCategoryFields {

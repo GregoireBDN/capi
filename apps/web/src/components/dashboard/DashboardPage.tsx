@@ -17,7 +17,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
-  ArrowRightIcon,
+  ChevronRightIcon,
   InboxIcon,
   LayoutDashboardIcon,
   UploadIcon,
@@ -29,12 +29,8 @@ import { currentMonth, shiftMonth } from '#/lib/calendar'
 import { plural } from '#/lib/plural'
 import { ROUTES } from '#/lib/routes'
 import { AccountsList } from './AccountsList'
-import {
-  CashFlowChart,
-  ChartCardSkeleton,
-  NetWorthChart,
-} from './DashboardCharts'
-import { ForecastCard } from './ForecastCard'
+import { CashFlowChart, ChartCardSkeleton } from './DashboardCharts'
+import { ForecastRow } from './ForecastCard'
 import { MonthEnvelopes } from './MonthEnvelopes'
 import { MonthReview } from './MonthReview'
 import {
@@ -43,22 +39,25 @@ import {
   dashboardReviewQuery,
 } from './queries'
 
+/** One line: how many transactions wait, and the way to them. */
 function ReviewCallout({ count }: { count: number }) {
   return (
-    <Alert>
-      <InboxIcon aria-hidden />
-      <AlertTitle>{plural(count, 'opération')} à revoir</AlertTitle>
-      <AlertDescription>
-        <p>Non catégorisées ou signalées lors d’un import.</p>
-        <Link
-          to={ROUTES.review}
-          className="text-foreground relative inline-flex items-center gap-1 font-medium pointer-coarse:touch-hitbox underline-offset-4 hover:underline"
-        >
-          Ouvrir la file de revue
-          <ArrowRightIcon aria-hidden className="size-4" />
-        </Link>
-      </AlertDescription>
-    </Alert>
+    <Link
+      to={ROUTES.review}
+      className="bg-card hover:bg-muted/60 focus-visible:ring-ring flex min-h-11 items-center gap-3 rounded-xl border px-4 py-2 text-sm outline-none focus-visible:ring-2"
+    >
+      <InboxIcon
+        aria-hidden
+        className="text-muted-foreground size-4 shrink-0"
+      />
+      <span className="min-w-0 flex-1 font-medium">
+        {plural(count, 'opération')} à revoir
+      </span>
+      <ChevronRightIcon
+        aria-hidden
+        className="text-muted-foreground size-4 shrink-0"
+      />
+    </Link>
   )
 }
 
@@ -70,7 +69,7 @@ function OverviewSkeleton() {
         <CardHeader>
           <Skeleton className="h-5 w-32" />
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="mb-0 space-y-3">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-10 w-full" />
           ))}
@@ -136,11 +135,13 @@ interface DashboardPageProps {
 }
 
 /**
- * The financial situation at a glance, read once a month: the review of the
- * last month (net worth and what moved it, spending against the budget,
- * accounts left to update) and, under it, the envelopes followed during the
- * current month ("Ce mois-ci"); then the end-of-month forecast, the history
- * charts and the accounts with their balances.
+ * The financial situation at a glance, read once a month (#262): the review
+ * of the last month (income, expenses, saved, net worth at its end, spending
+ * against the budget, accounts left to update, the one action its state
+ * calls for) and the end-of-month forecast; the envelopes followed during
+ * the current month (« Ce mois-ci ») and the accounts with today's net
+ * worth; then the monthly income and expenses. Every card has the same
+ * header (`DashboardCardHeader`).
  */
 export function DashboardPage({
   month,
@@ -210,36 +211,27 @@ export function DashboardPage({
         <>
           {data.reviewCount > 0 && <ReviewCallout count={data.reviewCount} />}
 
-          <div className="grid items-start gap-4 @4xl:grid-cols-2">
-            <div className="min-w-0 space-y-4">
-              <ReviewSection month={month} onMonthChange={onMonthChange} />
-              <MonthEnvelopes />
-            </div>
-            <AccountsList accounts={data.accounts} netWorth={data.netWorth} />
-          </div>
+          {/* One card per row (owner's choice): last month, this month
+              and its end, where I stand, then the history. Each card lays its
+              content out for its own width. */}
+          <ReviewSection month={month} onMonthChange={onMonthChange} />
+          {/* This month: how it will end, then the envelopes. */}
+          <MonthEnvelopes figures={<ForecastRow />} />
+          <AccountsList accounts={data.accounts} netWorth={data.netWorth} />
 
-          <ForecastCard />
-
-          <div className="grid gap-4 @4xl:grid-cols-2">
-            {history.data ? (
-              <>
-                <NetWorthChart months={history.data.months} />
-                <CashFlowChart months={history.data.months} />
-              </>
-            ) : history.isError ? (
-              <Alert className="@4xl:col-span-2">
-                <AlertTitle>Historique indisponible.</AlertTitle>
-                <AlertDescription>
-                  Les graphiques n’ont pas pu être chargés.
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <>
-                <ChartCardSkeleton title="Patrimoine net" />
-                <ChartCardSkeleton title="Revenus et dépenses" />
-              </>
-            )}
-          </div>
+          {/* Net worth over time is on its page (« Évolution » in Comptes). */}
+          {history.data ? (
+            <CashFlowChart months={history.data.months} />
+          ) : history.isError ? (
+            <Alert>
+              <AlertTitle>Historique indisponible.</AlertTitle>
+              <AlertDescription>
+                Le graphique n’a pas pu être chargé.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <ChartCardSkeleton />
+          )}
         </>
       )}
     </div>

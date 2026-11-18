@@ -2,11 +2,7 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   cn,
-  ProgressMeter,
   Skeleton,
   EmptyState,
 } from '@finances/ui'
@@ -14,11 +10,14 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { PlusIcon, WalletCardsIcon } from 'lucide-react'
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import type { EnvelopeDto, EnvelopesDto } from '#/api/types.gen'
 import { formatBudgetAmount } from '#/components/budget/amount'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
 import { envelopesQuery } from '#/components/expenses/queries'
 import { ROUTES } from '#/lib/routes'
+import { categoryIconComponent } from '#/components/categories/category-icons'
+import { DashboardCardHeader } from './DashboardCardHeader'
 
 /** Same warning level as the budget page (80 % of the target). */
 const WARNING_THRESHOLD = 0.8
@@ -26,10 +25,15 @@ const WARNING_THRESHOLD = 0.8
 /**
  * "Ce mois-ci": the envelopes followed during the current month (budget
  * lines flagged "suivre pendant le mois"), each with what was spent so far,
- * imported and noted by hand, what is left, and a mark where an even pace
+ * what is left, and a mark where an even pace
  * through the month would be today. Expenses are noted from here.
  */
-export function MonthEnvelopes() {
+export function MonthEnvelopes({
+  figures,
+}: {
+  /** Figures of the month shown above the envelopes (the forecast tiles). */
+  figures?: ReactNode
+} = {}) {
   const envelopes = useQuery(envelopesQuery)
   const [sheet, setSheet] = useState<{ open: boolean; categoryId?: string }>({
     open: false,
@@ -39,16 +43,18 @@ export function MonthEnvelopes() {
   return (
     <section aria-labelledby="month-envelopes-title" className="min-w-0">
       <Card className="min-w-0">
-        <CardHeader>
-          <CardTitle id="month-envelopes-title">Ce mois-ci</CardTitle>
-          {data && data.items.length > 0 && (
-            <CardDescription>
-              Jour {data.dayOfMonth} sur {data.daysInMonth} · le trait marque le
-              rythme du mois
-            </CardDescription>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <DashboardCardHeader
+          id="month-envelopes-title"
+          title="Ce mois-ci"
+          status={
+            data && data.items.length > 0
+              ? `Jour ${data.dayOfMonth} sur ${data.daysInMonth} · le trait marque le rythme`
+              : undefined
+          }
+          link={{ label: 'Budget', to: ROUTES.budget }}
+        />
+        <CardContent className="@container mb-0 space-y-4">
+          {figures}
           {data ? (
             <EnvelopeList
               data={data}
@@ -112,12 +118,11 @@ function EnvelopeList({
     )
   }
   return (
-    <ul className="space-y-1" aria-label="Enveloppes du mois">
+    <ul className="space-y-2" aria-label="Enveloppes du mois">
       {data.items.map((item) => (
         <EnvelopeRow
           key={item.categoryId}
           item={item}
-          month={data.month}
           onAdd={() => onAdd(item.categoryId)}
         />
       ))}
@@ -125,44 +130,95 @@ function EnvelopeList({
   )
 }
 
+/**
+ * One envelope, one target (#262, owner's « Appuyer = ajouter »): the whole
+ * row notes an expense in it (the sheet opens at the amount). Its category
+ * icon on its colour, the spent amount against the target with the pace
+ * mark, what's left, and a « + » that says what a tap does.
+ */
 function EnvelopeRow({
   item,
-  month,
   onAdd,
 }: {
   item: EnvelopeDto
-  month: string
   onAdd: () => void
 }) {
   const over = item.remainingCents < 0
+  const Icon = categoryIconComponent(item.icon)
+  const color = item.color ?? 'var(--chart-other)'
+  const ratio = item.targetCents > 0 ? item.spentCents / item.targetCents : 0
+  const pace =
+    item.targetCents > 0 ? Math.min(item.paceCents / item.targetCents, 1) : 0
   return (
-    <li
-      data-ahead={item.aheadOfPace || undefined}
-      className="flex items-start gap-1"
-    >
-      <Link
-        to={ROUTES.transactions}
-        search={{ month, category: item.categoryId, kind: 'expense' }}
-        aria-label={`Opérations ${item.name} du mois`}
-        className="hover:bg-muted/50 focus-visible:ring-ring/50 -mx-2 min-w-0 flex-1 space-y-1.5 rounded-lg px-2 py-2 outline-none focus-visible:ring-[3px]"
+    <li data-ahead={item.aheadOfPace || undefined}>
+      <button
+        type="button"
+        aria-label={`Ajouter une dépense ${item.name}`}
+        onClick={onAdd}
+        className="border-border hover:bg-muted/50 focus-visible:ring-ring/50 block w-full space-y-2 rounded-xl border px-3 py-2.5 text-left text-sm outline-none focus-visible:ring-[3px]"
       >
-        <ProgressMeter
-          label={item.name}
-          value={item.spentCents}
-          target={item.targetCents}
-          valueFormatter={formatBudgetAmount}
-          warningThreshold={WARNING_THRESHOLD}
-          hideStatus
-          marker={{
-            value: item.paceCents,
-            label: `rythme du mois : ${formatBudgetAmount(item.paceCents)}`,
-          }}
-        />
-        <span className="flex flex-wrap justify-between gap-x-3 text-xs">
+        {/* Its category, and what a tap does. */}
+        <span className="flex items-center gap-2.5">
+          <span
+            aria-hidden
+            className="flex size-[28px] shrink-0 items-center justify-center rounded-full text-white [&_svg]:size-[14px]"
+            style={{
+              backgroundColor: `color-mix(in srgb, ${color} 78%, black)`,
+            }}
+          >
+            <Icon />
+          </span>
+          <span className="min-w-0 flex-1 truncate font-medium">
+            {item.name}
+          </span>
+          <span
+            aria-hidden
+            className="bg-primary text-primary-foreground flex size-[40px] shrink-0 items-center justify-center rounded-full"
+          >
+            <PlusIcon className="size-[22px]" strokeWidth={2.5} />
+          </span>
+        </span>
+        <span
+          role="meter"
+          aria-label={item.name}
+          aria-valuemin={0}
+          aria-valuemax={item.targetCents}
+          aria-valuenow={item.spentCents}
+          aria-valuetext={`${formatBudgetAmount(item.spentCents)} sur ${formatBudgetAmount(item.targetCents)}, rythme du mois : ${formatBudgetAmount(item.paceCents)}`}
+          className="bg-muted relative block h-2 rounded-full"
+        >
           <span
             className={cn(
-              'whitespace-nowrap',
-              over ? 'text-chart-delta-bad font-medium' : 'font-medium',
+              'absolute inset-y-0 left-0 rounded-full',
+              ratio > 1
+                ? 'bg-chart-over'
+                : ratio >= WARNING_THRESHOLD
+                  ? 'bg-chart-warning'
+                  : 'bg-primary',
+            )}
+            style={{ width: `${Math.min(ratio, 1) * 100}%` }}
+          />
+          {/* Where an even pace through the month would be today. */}
+          <span
+            aria-hidden
+            className="bg-foreground absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded"
+            style={{ left: `${pace * 100}%` }}
+          />
+        </span>
+        <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs">
+          <span className="tabular-nums">
+            <span className="font-medium">
+              {formatBudgetAmount(item.spentCents)}
+            </span>
+            <span className="text-muted-foreground">
+              {' '}
+              / {formatBudgetAmount(item.targetCents)}
+            </span>
+          </span>
+          <span
+            className={cn(
+              'ml-auto font-medium whitespace-nowrap',
+              over && 'text-chart-delta-bad',
             )}
           >
             {over
@@ -175,25 +231,8 @@ function EnvelopeRow({
               </span>
             )}
           </span>
-          {item.manualCents !== 0 && (
-            <span className="text-muted-foreground whitespace-nowrap">
-              {item.manualCents === item.spentCents
-                ? 'tout noté à la main'
-                : `dont ${formatBudgetAmount(item.manualCents)} noté à la main`}
-            </span>
-          )}
         </span>
-      </Link>
-      <Button
-        variant="secondary"
-        ghost
-        iconOnly
-        className="mt-1"
-        aria-label={`Ajouter une dépense ${item.name}`}
-        onClick={onAdd}
-      >
-        <PlusIcon />
-      </Button>
+      </button>
     </li>
   )
 }

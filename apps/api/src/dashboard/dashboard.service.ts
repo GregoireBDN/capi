@@ -255,6 +255,8 @@ export class DashboardService {
       coverage,
       imports,
       latest,
+      nextMonthBudgeted,
+      monthClose,
     ] = await Promise.all([
       resolvePeriod(executor, shown, { now }),
       this.accounts.list({ asOf: end }, executor),
@@ -264,6 +266,12 @@ export class DashboardService {
       dataUntilByAccount(executor, now),
       lastImportDayByAccount(executor),
       this.accounts.list({}, executor),
+      this.budgets.hasBudget(shiftMonth(shown, 1), executor),
+      executor
+        .select({ closedAt: schema.monthClosesTable.closedAt })
+        .from(schema.monthClosesTable)
+        .where(eq(schema.monthClosesTable.month, shown))
+        .limit(1),
     ])
 
     const endCents = sumBalances(endAccounts)
@@ -299,6 +307,7 @@ export class DashboardService {
       slug: item.slug,
       name: item.name,
       color: item.color,
+      icon: item.icon,
       targetCents: item.targetCents,
       spentCents: item.spentCents,
       gapCents: item.spentCents - item.targetCents,
@@ -309,6 +318,8 @@ export class DashboardService {
       nextMonth: shiftMonth(shown, 1),
       period,
       closed: period.status === 'complete' && missing.length === 0,
+      closedAt: monthClose[0]?.closedAt?.toISOString() ?? null,
+      nextMonthBudgeted,
       netWorth: {
         date: end,
         endCents,

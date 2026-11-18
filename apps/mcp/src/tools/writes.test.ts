@@ -467,6 +467,7 @@ describe('set_budget_targets', () => {
         slug: 'groceries',
         name: 'Courses',
         color: null,
+        icon: null,
         targetCents: 40000,
         effectiveFrom: '2026-09',
         note: null,
