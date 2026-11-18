@@ -330,7 +330,7 @@ describe('DashboardPage', () => {
   const count = (element: HTMLElement, needle: string) =>
     text(element.textContent).split(text(needle)).length - 1
 
-  it('reviews the last month: flow, net worth at its end, budget drift', async () => {
+  it('reviews the last month: flow, net worth at its end, budget', async () => {
     renderPage()
 
     const card = await screen.findByRole('region', { name: 'Bilan du mois' })
@@ -364,18 +364,11 @@ describe('DashboardPage', () => {
       '184500',
     )
     expect(card).toHaveTextContent(text('Reste155 €'))
-    const drift = within(card).getByRole('list', { name: 'Écarts au budget' })
-    const chips = within(drift).getAllByRole('link')
-    expect(text(chips[0].getAttribute('aria-label') ?? '')).toBe(
-      'Restaurants : 120 € de trop',
-    )
-    expect(chips[0]).toHaveAttribute(
-      'href',
-      '/transactions?month=2026-10&category=c0000000-0000-4000-8000-000000000001&kind=expense',
-    )
-    expect(text(chips[1].getAttribute('aria-label') ?? '')).toBe(
-      'Courses : 60 € de marge',
-    )
+    // No per-category gaps in the review (owner: unclear; the envelopes
+    // of « Ce mois-ci » show each category against its budget).
+    expect(
+      within(card).queryByRole('list', { name: 'Écarts au budget' }),
+    ).not.toBeInTheDocument()
 
     // One action, from the month's state: close it.
     expect(

@@ -13,12 +13,7 @@ import {
 } from '@finances/ui'
 import { Link } from '@tanstack/react-router'
 import { CircleCheckIcon, ClockIcon, ListChecksIcon } from 'lucide-react'
-import type {
-  MonthReviewDto,
-  ReviewCategoryDto,
-  ReviewMissingAccountDto,
-} from '#/api/types.gen'
-import { categoryIconComponent } from '#/components/categories/category-icons'
+import type { MonthReviewDto, ReviewMissingAccountDto } from '#/api/types.gen'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
@@ -186,11 +181,10 @@ const UNBUDGETED_FILL =
  * Spending against the budget as one stacked bar (owner's choice « Barre
  * empilée »): the month's expenses in the categories with a budget, then
  * those without one (hatched), the budget as a mark across the bar, a
- * legend naming each part and what's left (a list on a phone); the categories that drifted
- * most as badges. The total of the expenses is the « Dépenses » tile.
+ * legend naming each part and what's left (a list on a phone). The total of the expenses is the « Dépenses » tile.
  */
 function BudgetSection({ review }: { review: MonthReviewDto }) {
-  const { budget, month } = review
+  const { budget } = review
   if (budget.budgetCount === 0) {
     return (
       <p className="text-muted-foreground text-sm">
@@ -203,9 +197,6 @@ function BudgetSection({ review }: { review: MonthReviewDto }) {
   const scale = Math.max(spent + unbudgeted, budget.targetCents, 1)
   const share = (cents: number) => `${(cents / scale) * 100}%`
   const over = budget.remainingCents < 0
-  // The two furthest above their target and the one furthest below: the
-  // budget page has the rest.
-  const drift = [...budget.over.slice(0, 2), ...budget.under.slice(0, 1)]
   return (
     <section aria-label="Budget" className="space-y-2 text-sm">
       <p className="font-medium">Budget</p>
@@ -276,17 +267,6 @@ function BudgetSection({ review }: { review: MonthReviewDto }) {
           </span>
         </li>
       </ul>
-      {drift.length > 0 && (
-        <ul
-          // 14px between rows: the 44px hit areas of the 32px pills never overlap.
-          className="flex flex-wrap gap-x-1.5 gap-y-[14px] pt-1"
-          aria-label="Écarts au budget"
-        >
-          {drift.map((item) => (
-            <DriftChip key={item.categoryId} item={item} month={month} />
-          ))}
-        </ul>
-      )}
     </section>
   )
 }
@@ -310,52 +290,6 @@ function LegendItem({
       <span className="ml-auto font-medium whitespace-nowrap tabular-nums @[36rem]:ml-0">
         {value}
       </span>
-    </li>
-  )
-}
-
-/**
- * A category above (+) or below (−) its target: a badge in its colour, its
- * icon and text in white; opens its transactions.
- */
-function DriftChip({
-  item,
-  month,
-}: {
-  item: ReviewCategoryDto
-  month: string
-}) {
-  const over = item.gapCents > 0
-  const Icon = categoryIconComponent(item.icon)
-  return (
-    <li className="max-w-full">
-      <Link
-        to={ROUTES.transactions}
-        search={{ month, category: item.categoryId, kind: 'expense' }}
-        aria-label={
-          over
-            ? `${item.name} : ${formatWholeEuros(item.gapCents)} de trop`
-            : `${item.name} : ${formatWholeEuros(-item.gapCents)} de marge`
-        }
-        // The category's colour, darkened a little so white text stays
-        // readable on its lighter shades (yellow, orange).
-        className="focus-visible:ring-ring touch-hitbox relative inline-flex h-[32px] max-w-full items-center gap-1 rounded-full px-2.5 text-xs font-medium text-white outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-offset-2"
-        style={{
-          backgroundColor: `color-mix(in srgb, ${item.color ?? 'var(--chart-other)'} 78%, black)`,
-        }}
-      >
-        <Icon aria-hidden className="size-[15px] shrink-0" />
-        <span className="min-w-0 truncate">{item.name}</span>
-        <span
-          data-slot="review-gap"
-          data-tone={over ? 'bad' : 'good'}
-          className="shrink-0 font-semibold whitespace-nowrap tabular-nums"
-        >
-          {over
-            ? `+${formatWholeEuros(item.gapCents)}`
-            : `−${formatWholeEuros(-item.gapCents)}`}
-        </span>
-      </Link>
     </li>
   )
 }
