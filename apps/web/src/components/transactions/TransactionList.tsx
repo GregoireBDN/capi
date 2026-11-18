@@ -1,12 +1,11 @@
-import { Button, cn, Kbd } from '@finances/ui'
-import { useEffect, useRef, useState } from 'react'
+import { Button, cn } from '@finances/ui'
+import { useEffect, useRef } from 'react'
 import type { CategoryDto, TransactionDto } from '#/api/types.gen'
 import { formatDay } from '#/lib/calendar'
 import { formatCents } from '#/lib/money'
 import { groupByDay } from './changes'
-import { rowShortcut } from './keyboard'
 import { ROW_GRID, TransactionRow } from './TransactionRow'
-import type { InlineField, TransactionRowActions } from './TransactionRow'
+import type { TransactionRowActions } from './TransactionRow'
 
 interface TransactionListProps {
   items: readonly TransactionDto[]
@@ -43,37 +42,11 @@ function ColumnHeaders() {
   )
 }
 
-/** Keyboard shortcuts of the list, shown on wide pages. */
-function ShortcutHint() {
-  const shortcuts: [keys: string[], label: string][] = [
-    [['↑', '↓'], 'naviguer'],
-    [['Entrée'], 'modifier'],
-    [['C'], 'catégorie'],
-    [['N'], 'note'],
-    [['O'], 'ponctuelle'],
-    [['M'], 'montant (saisie à la main)'],
-    [['X'], 'sélectionner'],
-    [['⌘/Ctrl', 'Z'], 'annuler'],
-  ]
-  return (
-    <p className="text-muted-foreground hidden flex-wrap gap-x-3 gap-y-1 px-3 text-xs @xl:flex">
-      {shortcuts.map(([keys, label]) => (
-        <span key={label} className="inline-flex items-center gap-1">
-          {keys.map((key) => (
-            <Kbd key={key}>{key}</Kbd>
-          ))}
-          {label}
-        </span>
-      ))}
-    </p>
-  )
-}
-
 /**
  * The loaded transactions, grouped by day with the day's net (transfers
  * excluded) when sorted by date. More pages load when the end of the list
  * scrolls into view, or with "Charger plus". On wide pages the rows are
- * edited in place and with the keyboard (`rowShortcut`).
+ * edited in place.
  */
 export function TransactionList({
   items,
@@ -88,13 +61,8 @@ export function TransactionList({
   onLoadMore,
 }: TransactionListProps) {
   const sentinel = useRef<HTMLDivElement>(null)
-  const container = useRef<HTMLDivElement>(null)
   const loadMore = useRef(onLoadMore)
   loadMore.current = onLoadMore
-  const [inline, setInline] = useState<{
-    id: string
-    field: InlineField
-  } | null>(null)
 
   useEffect(() => {
     const element = sentinel.current
@@ -111,56 +79,6 @@ export function TransactionList({
     return () => observer.disconnect()
   }, [hasMore])
 
-  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    const target = event.target as HTMLElement
-    const rowElement = target.closest<HTMLElement>('[data-transaction-row]')
-    if (!rowElement) return
-    const action = rowShortcut(event, target)
-    if (!action) return
-    const id = rowElement.dataset.transactionRow!
-    const item = items.find((candidate) => candidate.id === id)
-    if (!item) return
-    event.preventDefault()
-
-    const rows = [
-      ...(container.current?.querySelectorAll<HTMLElement>(
-        '[data-transaction-row]',
-      ) ?? []),
-    ]
-    const index = rows.indexOf(rowElement)
-    const focusRow = (row: HTMLElement | undefined) =>
-      row?.querySelector<HTMLElement>('[data-row-trigger]')?.focus()
-
-    switch (action) {
-      case 'next':
-        focusRow(rows[index + 1])
-        break
-      case 'previous':
-        focusRow(rows[index - 1])
-        break
-      case 'category':
-        rowElement
-          .querySelector<HTMLElement>('[data-inline-category] select')
-          ?.focus()
-        break
-      case 'note':
-        setInline({ id, field: 'note' })
-        break
-      case 'amount':
-        if (item.manual) setInline({ id, field: 'amount' })
-        break
-      case 'oneOff':
-        actionsFor(item).onChange({ isOneOff: !item.isOneOff })
-        break
-      case 'select':
-        onSelectedChange(id, !selected.has(id))
-        break
-      case 'leave':
-        focusRow(rowElement)
-        break
-    }
-  }
-
   const row = (item: TransactionDto) => (
     <TransactionRow
       key={item.id}
@@ -170,17 +88,11 @@ export function TransactionList({
       onSelectedChange={(on) => onSelectedChange(item.id, on)}
       {...actionsFor(item)}
       showDate={!groupByDate}
-      inline={inline?.id === item.id ? inline.field : null}
-      onInlineChange={(field) =>
-        setInline(field === null ? null : { id: item.id, field })
-      }
     />
   )
 
   return (
-    // Keyboard shortcuts bubble up from the focused row.
-    <div ref={container} className="space-y-4" onKeyDown={onKeyDown}>
-      <ShortcutHint />
+    <div className="space-y-4">
       <ColumnHeaders />
       {groupByDate ? (
         groupByDay(items).map((group) => {

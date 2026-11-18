@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
   transactionsControllerBulkUpdate,
@@ -89,10 +89,6 @@ function describeBulkChange(
 export function useTransactionActions(categories: readonly CategoryDto[]) {
   const queryClient = useQueryClient()
   const [offer, setOffer] = useState<RuleOffer | null>(null)
-  /** Undo of the latest edit, for Ctrl/⌘+Z (`undoLast`). */
-  const lastUndo = useRef<{ toastId: string | number; run: () => void } | null>(
-    null,
-  )
   const categoriesById = useMemo(
     () => new Map(categories.map((category) => [category.id, category])),
     [categories],
@@ -144,37 +140,17 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     )
   }
 
-  /** "Annuler" button of a toast, also reachable with Ctrl/⌘+Z. */
-  function undoAction(run: () => void) {
-    const once = () => {
-      lastUndo.current = null
-      run()
-    }
-    return {
-      duration: UNDO_TOAST_MS,
-      action: { label: 'Annuler', onClick: once },
-      run: once,
-    }
-  }
-
   /** Shows a success toast whose "Annuler" runs `run`. */
   function toastUndoable(
     message: string,
     description: string | undefined,
     run: () => void,
   ) {
-    const { run: once, ...options } = undoAction(run)
-    const toastId = toast.success(message, { description, ...options })
-    lastUndo.current = { toastId, run: once }
-  }
-
-  /** Undoes the latest edit still offering "Annuler" (Ctrl/⌘+Z). */
-  function undoLast(): boolean {
-    const last = lastUndo.current
-    if (!last) return false
-    toast.dismiss(last.toastId)
-    last.run()
-    return true
+    toast.success(message, {
+      description,
+      duration: UNDO_TOAST_MS,
+      action: { label: 'Annuler', onClick: run },
+    })
   }
 
   /**
@@ -366,7 +342,6 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     restoreBank,
     split,
     unsplit,
-    undoLast,
     offer,
     setOffer,
     onRuleCreated,
