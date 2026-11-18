@@ -336,7 +336,7 @@ function DriftChip({
 function ReviewAction({ review }: { review: MonthReviewDto }) {
   if (review.closedAt === null) {
     return (
-      <Button asChild className="w-fit">
+      <Button asChild className="w-full">
         <Link to={ROUTES.monthReview} search={{ month: review.month }}>
           <ListChecksIcon aria-hidden />
           Revue et clôture
@@ -346,7 +346,7 @@ function ReviewAction({ review }: { review: MonthReviewDto }) {
   }
   if (!review.nextMonthBudgeted) {
     return (
-      <Button asChild outline variant="secondary" className="w-fit">
+      <Button asChild outline variant="secondary" className="w-full">
         <Link to={ROUTES.budget} search={{ month: review.nextMonth }}>
           Préparer le budget du mois suivant
         </Link>
