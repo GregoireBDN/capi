@@ -159,7 +159,9 @@ function PeriodStepperLabel({
       ghost
       className={cn(
         SEGMENT,
-        'border-border text-foreground min-w-0 gap-1 border-x px-2.5 text-base font-semibold',
+        // Grows when the box is stretched (`w-full`), so the arrows keep their
+        // 44px and the period is centred in the rest.
+        'border-border text-foreground min-w-0 grow gap-1 border-x px-2.5 text-base font-semibold',
         className,
       )}
       {...props}

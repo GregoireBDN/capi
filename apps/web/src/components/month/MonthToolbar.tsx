@@ -153,7 +153,6 @@ export function MonthToolbar({
             // its own width and the search or the filters fill the row.
             'flex min-w-0 flex-1 @max-[290px]:basis-full @[672px]:flex-none',
             '*:data-[slot=month-navigator]:w-full @[672px]:*:data-[slot=month-navigator]:w-fit',
-            '**:data-[slot=period-stepper-label]:flex-1 @[672px]:**:data-[slot=period-stepper-label]:flex-none',
           )}
         >
           {navigator}
