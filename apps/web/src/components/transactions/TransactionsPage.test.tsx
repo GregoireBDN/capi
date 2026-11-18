@@ -487,11 +487,11 @@ describe('TransactionsPage', () => {
 
     // Only transactional accounts are offered.
     await user.click(bar.getByRole('button', { name: 'Compte, tous' }))
-    const accounts = await picker('Compte')
+    const accountPicker = await picker('Compte')
     expect(
-      accounts.queryByRole('button', { name: 'PEA test' }),
+      accountPicker.queryByRole('button', { name: 'PEA test' }),
     ).not.toBeInTheDocument()
-    await user.click(accounts.getByRole('button', { name: 'Compte test' }))
+    await user.click(accountPicker.getByRole('button', { name: 'Compte test' }))
     expect(onChange).toHaveBeenLastCalledWith(
       { account: ACCOUNT_ID },
       undefined,
@@ -499,9 +499,14 @@ describe('TransactionsPage', () => {
 
     // Categories can be searched.
     await user.click(bar.getByRole('button', { name: 'Catégorie, tous' }))
-    const categories = await picker('Catégorie')
-    await user.type(categories.getByLabelText('Rechercher catégorie'), 'sans')
-    await user.click(categories.getByRole('button', { name: 'Sans catégorie' }))
+    const categoryPicker = await picker('Catégorie')
+    await user.type(
+      categoryPicker.getByLabelText('Rechercher catégorie'),
+      'sans',
+    )
+    await user.click(
+      categoryPicker.getByRole('button', { name: 'Sans catégorie' }),
+    )
 
     await user.click(bar.getByRole('button', { name: 'Type, tous' }))
     await user.click(
