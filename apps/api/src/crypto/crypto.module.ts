@@ -49,7 +49,11 @@ import { WalletTokensService } from './wallet-sync/wallet-tokens.service'
         const enabled = env.WALLET_SYNC_ENABLED
         return {
           bitcoin: enabled
-            ? new EsploraProvider({ baseUrl: env.ESPLORA_URL, timeoutMs })
+            ? new EsploraProvider({
+                baseUrl: env.ESPLORA_URL,
+                timeoutMs,
+                minIntervalMs: env.ESPLORA_MIN_INTERVAL_MS,
+              })
             : null,
           evm: enabled
             ? new EvmRpcProvider({ urls: env.evmRpcUrls, timeoutMs })

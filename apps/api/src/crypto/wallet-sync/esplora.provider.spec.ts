@@ -18,7 +18,6 @@ function provider(
     timeoutMs: 20,
     concurrency,
     minIntervalMs: 0,
-    maxInlineWaitMs: 0,
     fetch: vi.fn(fetchFn) as unknown as typeof fetch,
   })
 }
@@ -104,18 +103,33 @@ describe('EsploraProvider', () => {
     expect(peak).toBe(2)
   })
 
-  it('waits out a short rate limit once, then retries', async () => {
+  it('reports each address as it is read, also when a later one fails', async () => {
     let calls = 0
-    const states = await provider(() =>
-      ++calls === 1
-        ? json('', 429, { 'Retry-After': '0' })
-        : json(stats(1_000, 0, 1)),
-    ).addressStates([ADDRESS])
-    expect(calls).toBe(2)
-    expect(states).toEqual([{ balanceSats: 1_000n, used: true }])
+    const reported: [number, boolean][] = []
+    const error = await failure(
+      provider(
+        () =>
+          ++calls <= 2
+            ? json(stats(1_000, 0, 1))
+            : json('', 429, { 'Retry-After': '30' }),
+        1,
+      ).addressStates(['a0', 'a1', 'a2', 'a3'], (index, state) =>
+        reported.push([index, state.used]),
+      ),
+    )
+    expect(error).toMatchObject({
+      reason: 'rate_limited',
+      retryAfterMs: 30_000,
+    })
+    expect(reported).toEqual([
+      [0, true],
+      [1, true],
+    ])
+    // Nothing is retried here: the sync decides (one inline wait per scan).
+    expect(calls).toBe(3)
   })
 
-  it('leaves a long rate limit to the sync backoff, with its Retry-After', async () => {
+  it('fails a rate-limited read at once, with its Retry-After', async () => {
     let calls = 0
     const error = await failure(
       provider(() => {
@@ -137,7 +151,6 @@ describe('EsploraProvider', () => {
       timeoutMs: 20,
       concurrency: 2,
       minIntervalMs: 30,
-      maxInlineWaitMs: 0,
       fetch: vi.fn((url: URL) => {
         asked.push(url.pathname)
         return json('', 429, { 'Retry-After': '120' })
@@ -146,18 +159,6 @@ describe('EsploraProvider', () => {
     await failure(client.addressStates([ADDRESS, `${ADDRESS}2`, `${ADDRESS}3`]))
     await new Promise((resolve) => setTimeout(resolve, 100))
     expect(asked).toHaveLength(1)
-  })
-
-  it('gives up when the retry is rate limited too', async () => {
-    let calls = 0
-    const error = await failure(
-      provider(() => {
-        calls++
-        return json('', 429, { 'Retry-After': '0' })
-      }).addressStates([ADDRESS]),
-    )
-    expect(calls).toBe(2)
-    expect(error.reason).toBe('rate_limited')
   })
 
   it('reports failures without the address', async () => {

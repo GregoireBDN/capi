@@ -138,6 +138,17 @@ const envSchema = z.object({
   /** Esplora REST API (mempool.space, or a self-hosted instance). */
   ESPLORA_URL: z.url().default('https://mempool.space/api'),
   /**
+   * Minimum spacing between two Esplora requests (#268): one per second by
+   * default, which mempool.space's public API keeps answering; lower it for a
+   * self-hosted instance.
+   */
+  ESPLORA_MIN_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(60_000)
+    .default(1000),
+  /**
    * JSON object of EVM JSON-RPC URLs keyed by chain id, overriding the
    * public defaults (`{"1":"https://my-node/rpc"}`; `""` turns a chain off).
    */

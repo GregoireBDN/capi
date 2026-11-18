@@ -12219,6 +12219,31 @@
         ],
         "description": "Bitcoin keys: address types read. Null for EVM addresses and while the type of an xpub is being detected."
       },
+      "WalletKeyScanDto": {
+        "type": "object",
+        "properties": {
+          "addressType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BitcoinAddressType"
+              }
+            ]
+          },
+          "usedAddresses": {
+            "type": "integer",
+            "description": "Addresses with history found in this type. 0 on an xpub: probably the wrong type."
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "addressType",
+          "usedAddresses",
+          "completedAt"
+        ]
+      },
       "WalletKeyDto": {
         "type": "object",
         "properties": {
@@ -12268,6 +12293,13 @@
             "type": "boolean",
             "description": "The address type of this xpub is detected on the next sync (none with history found yet)."
           },
+          "scans": {
+            "description": "Bitcoin keys: the last complete scan of each address type read (empty until one completes, and for EVM addresses).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WalletKeyScanDto"
+            }
+          },
           "label": {
             "type": "string",
             "nullable": true
@@ -12286,6 +12318,7 @@
           "format",
           "addressTypes",
           "detectingAddressType",
+          "scans",
           "label",
           "createdAt"
         ]

@@ -66,6 +66,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           const accounts = new AccountsService(database)
           const keys = new WalletKeysService(database, accounts, {
             invalidate: () => {},
+            scanSummaries: () => Promise.resolve(new Map()),
           })
           await fn({ tx: tx as unknown as Db, accounts, keys })
           throw ROLLBACK

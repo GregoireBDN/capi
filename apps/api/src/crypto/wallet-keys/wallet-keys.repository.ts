@@ -15,6 +15,7 @@ import {
   PREFIX_ADDRESS_TYPES,
   PUBLIC_KEY_ERROR_MESSAGES,
 } from './public-key'
+import type { ScanSummary } from '../wallet-sync/bitcoin-scan'
 import type {
   WalletKeyAddressTypeChoice,
   WalletKeyDto,
@@ -157,7 +158,10 @@ export function effectiveAddressTypes(
   return [PREFIX_ADDRESS_TYPES[format]]
 }
 
-export function toWalletKeyDto(row: SelectCryptoWalletKey): WalletKeyDto {
+export function toWalletKeyDto(
+  row: SelectCryptoWalletKey,
+  scans: readonly ScanSummary[] = [],
+): WalletKeyDto {
   const addressTypes = effectiveAddressTypes(row)
   return {
     id: row.id,
@@ -169,6 +173,9 @@ export function toWalletKeyDto(row: SelectCryptoWalletKey): WalletKeyDto {
     format: walletKeyFormat(row),
     addressTypes,
     detectingAddressType: row.family === 'bitcoin' && addressTypes === null,
+    scans: scans
+      .filter((scan) => addressTypes?.includes(scan.addressType))
+      .map((scan) => ({ ...scan })),
     createdAt: row.createdAt,
   }
 }

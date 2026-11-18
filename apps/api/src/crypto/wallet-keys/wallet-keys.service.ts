@@ -37,7 +37,10 @@ export class WalletKeysService {
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(AccountsService) private readonly accounts: AccountsService,
     @Inject(WalletSyncService)
-    private readonly walletSync: Pick<WalletSyncService, 'invalidate'>,
+    private readonly walletSync: Pick<
+      WalletSyncService,
+      'invalidate' | 'scanSummaries'
+    >,
   ) {}
 
   private get db() {
@@ -51,7 +54,8 @@ export class WalletKeysService {
       .from(k)
       .where(eq(k.accountId, accountId))
       .orderBy(asc(k.createdAt), asc(k.family), asc(k.publicKey))
-    return rows.map(toWalletKeyDto)
+    const scans = await this.walletSync.scanSummaries(rows.map((row) => row.id))
+    return rows.map((row) => toWalletKeyDto(row, scans.get(row.id)))
   }
 
   async add(accountId: string, dto: WalletKeyInputDto): Promise<WalletKeyDto> {
@@ -95,7 +99,8 @@ export class WalletKeysService {
       .where(eq(k.id, keyId))
       .returning()
     this.walletSync.invalidate(accountId)
-    return toWalletKeyDto(row)
+    const scans = await this.walletSync.scanSummaries([row.id])
+    return toWalletKeyDto(row, scans.get(row.id))
   }
 
   async remove(accountId: string, keyId: string): Promise<void> {

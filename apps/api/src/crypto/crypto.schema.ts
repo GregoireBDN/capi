@@ -4,9 +4,11 @@ import {
   boolean,
   check,
   index,
+  integer,
   numeric,
   pgEnum,
   pgTable,
+  smallint,
   text,
   timestamp,
   unique,
@@ -127,6 +129,69 @@ export const cryptoWalletKeysTable = pgTable(
 )
 
 /**
+ * Resumable scan of a Bitcoin key in one address type (#268): an extended key
+ * is read address by address on a rate-limited public endpoint, so what each
+ * pass read is kept (`crypto_bitcoin_scan_addresses`) and a pass interrupted
+ * by a rate limit resumes where it stopped. A single address is a scan of one
+ * address (branch 0, index 0). `passStartedAt` is set while a pass runs (the
+ * addresses read since belong to it); `completedAt` is the end of the last
+ * complete pass.
+ */
+export const cryptoBitcoinScansTable = pgTable(
+  'crypto_bitcoin_scans',
+  {
+    ...coreColumns,
+    keyId: uuid('key_id')
+      .notNull()
+      .references(() => cryptoWalletKeysTable.id, { onDelete: 'cascade' }),
+    addressType: bitcoinAddressTypeEnum('address_type').notNull(),
+    passStartedAt: timestamp('pass_started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (t) => [
+    unique('crypto_bitcoin_scans_key_type_unique').on(t.keyId, t.addressType),
+  ],
+)
+
+/**
+ * Last read state of one derived address of a scan, by branch (0 receive, 1
+ * change) and index: the address itself is derived again from the key, never
+ * stored.
+ */
+export const cryptoBitcoinScanAddressesTable = pgTable(
+  'crypto_bitcoin_scan_addresses',
+  {
+    ...coreColumns,
+    scanId: uuid('scan_id')
+      .notNull()
+      .references(() => cryptoBitcoinScansTable.id, { onDelete: 'cascade' }),
+    branch: smallint('branch').notNull(),
+    addressIndex: integer('address_index').notNull(),
+    /** The address appeared in a transaction (mempool included). */
+    used: boolean('used').notNull(),
+    /** Confirmed balance in satoshis when read. */
+    balanceSats: bigint('balance_sats', { mode: 'bigint' }).notNull(),
+    readAt: timestamp('read_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    unique('crypto_bitcoin_scan_addresses_unique').on(
+      t.scanId,
+      t.branch,
+      t.addressIndex,
+    ),
+    check('crypto_bitcoin_scan_addresses_branch', sql`${t.branch} in (0, 1)`),
+    check(
+      'crypto_bitcoin_scan_addresses_index_non_negative',
+      sql`${t.addressIndex} >= 0`,
+    ),
+    check(
+      'crypto_bitcoin_scan_addresses_balance_non_negative',
+      sql`${t.balanceSats} >= 0`,
+    ),
+  ],
+)
+
+/**
  * Tokens a wallet account reads on its EVM chains ("Ajouter un jeton"), on
  * top of the native coins and the assets it already holds. Their contracts
  * are looked up from the price provider by asset id.
@@ -169,4 +234,6 @@ export type InsertCryptoHolding = typeof cryptoHoldingsTable.$inferInsert
 export type SelectCryptoWalletKey = typeof cryptoWalletKeysTable.$inferSelect
 export type SelectCryptoWalletToken =
   typeof cryptoWalletTokensTable.$inferSelect
+export type SelectCryptoBitcoinScan =
+  typeof cryptoBitcoinScansTable.$inferSelect
 export type SelectCryptoPrice = typeof cryptoPricesTable.$inferSelect
