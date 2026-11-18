@@ -8,7 +8,7 @@ export interface MonthToolbarProps {
   navigator: ReactNode
   /** How far the month's figures go, stated right under the navigator. */
   period?: MonthPeriodDto
-  /** The page's own filters or actions, beside the navigator from `@2xl`. */
+  /** The page's own filters or actions, beside the navigator from 672px. */
   children?: ReactNode
   className?: string
 }
@@ -16,7 +16,8 @@ export interface MonthToolbarProps {
 /**
  * The first row under `PageHeader` on every month page: the month navigator
  * with its `PeriodNote` below it, then the page's filters or actions. They
- * share the row from `@2xl` (container width) and stack below it. The
+ * share the row from 672px of container width (`@2xl` in 16px rem; px
+ * because of the 22px root) and stack below it. The
  * toolbar is the navigator's container, so the navigator is laid out by the
  * room the toolbar has, wherever it sits.
  */
@@ -30,7 +31,7 @@ export function MonthToolbar({
     <div
       data-slot="month-toolbar"
       className={cn(
-        '@container flex flex-col gap-3 @2xl:flex-row @2xl:flex-wrap @2xl:items-start @2xl:justify-between',
+        '@container flex flex-col gap-3 @[672px]:flex-row @[672px]:flex-wrap @[672px]:items-start @[672px]:justify-between',
         className,
       )}
     >

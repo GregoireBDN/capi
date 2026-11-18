@@ -53,12 +53,12 @@ export function SpendingFilters({
       navigator={<MonthNavigator month={month} onMonthChange={goTo} />}
       period={period}
     >
-      <div className="grid grid-cols-2 gap-2 @2xl:flex @2xl:flex-wrap @2xl:items-center [&_select]:pr-7 [&_select]:pl-2 [&_select]:text-xs [&_select]:tracking-tight @2xl:[&_select]:text-sm">
+      <div className="grid grid-cols-2 gap-2 @[672px]:flex @[672px]:flex-wrap @[672px]:items-center [&_select]:pr-7 [&_select]:pl-2 [&_select]:text-xs [&_select]:tracking-tight @[672px]:[&_select]:text-sm">
         <NativeSelect
           aria-label="Compte"
           value={search.account ?? ''}
           onChange={(event) => set('account', event.target.value || undefined)}
-          className="w-full @2xl:w-auto @2xl:max-w-56"
+          className="w-full @[672px]:w-auto @[672px]:max-w-56"
         >
           <NativeSelectOption value="">Comptes</NativeSelectOption>
           {accounts.map((account) => (
@@ -75,7 +75,7 @@ export function SpendingFilters({
             const avg = Number(event.target.value)
             set('avg', avg === 3 || avg === 12 ? avg : undefined)
           }}
-          className="w-full @2xl:w-auto"
+          className="w-full @[672px]:w-auto"
         >
           {AVERAGE_PERIODS.map((months) => (
             <NativeSelectOption key={months} value={String(months)}>

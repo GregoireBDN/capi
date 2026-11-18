@@ -101,7 +101,7 @@ export function BudgetPage({
         period={budget.data?.period}
       >
         {budget.isSuccess && !empty && (
-          <div className="flex flex-wrap gap-2 *:grow @2xl:*:grow-0">
+          <div className="flex flex-wrap gap-2 *:grow @[672px]:*:grow-0">
             <Button
               outline
               variant="secondary"
