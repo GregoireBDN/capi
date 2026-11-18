@@ -1,8 +1,4 @@
-import {
-  ChevronDownIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-} from 'lucide-react'
+import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import * as React from 'react'
 
 import { Button } from './button'
@@ -140,9 +136,9 @@ function PeriodStepper({
 }
 
 /**
- * The middle segment of a `PeriodStepper`: the period's name and a ⌄ (from
- * 420px), touching the arrows through the box's dividers. It is a button, so
- * it can open a picker (`PopoverTrigger asChild`).
+ * The middle segment of a `PeriodStepper`: the period's name (no ⌄, the
+ * owner's choice), touching the arrows through the box's dividers. It is a
+ * button, so it can open a picker (`PopoverTrigger asChild`).
  */
 function PeriodStepperLabel({
   text,
@@ -178,10 +174,6 @@ function PeriodStepperLabel({
           className="grid @[420px]:hidden"
         />
       </span>
-      <ChevronDownIcon
-        aria-hidden
-        className="hidden opacity-60 @[420px]:block"
-      />
     </Button>
   )
 }
