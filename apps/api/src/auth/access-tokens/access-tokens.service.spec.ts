@@ -205,6 +205,61 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
+    it('renames a token, never one of another user or a revoked one', async () => {
+      await inRollback(async ({ tx, tokens, userId }) => {
+        const [other] = await tx
+          .insert(usersTable)
+          .values({ email: 'other@example.test', name: 'Other' })
+          .returning()
+        const { id } = await tokens.create(
+          userId,
+          { name: 'Claude', scope: 'read' },
+          NOW,
+        )
+
+        const renamed = await tokens.rename(
+          userId,
+          id,
+          { name: '  Claude Desktop  ' },
+          NOW,
+        )
+        expect(renamed).toMatchObject({ id, name: 'Claude Desktop' })
+        await expect(
+          tokens.rename(userId, id, { name: '   ' }, NOW),
+        ).rejects.toThrow(BadRequestException)
+        await expect(
+          tokens.rename(other.id, id, { name: 'Mine now' }, NOW),
+        ).rejects.toThrow(NotFoundException)
+
+        await tokens.revoke(userId, id, NOW)
+        await expect(
+          tokens.rename(userId, id, { name: 'Gone' }, NOW),
+        ).rejects.toThrow(NotFoundException)
+      })
+    })
+
+    it('filters the audit trail by token', async () => {
+      await inRollback(async ({ tokens, userId }) => {
+        const first = await tokens.create(
+          userId,
+          { name: 'First', scope: 'read' },
+          NOW,
+        )
+        const second = await tokens.create(
+          userId,
+          { name: 'Second', scope: 'read' },
+          NOW,
+        )
+        const use = { method: 'GET', route: '/api/accounts', statusCode: 200 }
+        await tokens.recordUse({ ...use, tokenId: first.id }, NOW)
+        await tokens.recordUse({ ...use, tokenId: second.id }, later(1000))
+
+        const audit = await tokens.audit(userId, 10, first.id)
+        expect(audit.map((entry) => entry.tokenName)).toEqual(['First'])
+        await expect(tokens.audit(userId, 10)).resolves.toHaveLength(2)
+      })
+    })
+
     it('keeps an audit trail and prunes entries past the retention period', async () => {
       await inRollback(async ({ tx, tokens, userId }) => {
         const { id } = await tokens.create(

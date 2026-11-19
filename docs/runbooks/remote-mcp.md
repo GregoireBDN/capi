@@ -27,7 +27,7 @@ The same as a personal access token of the same scope (deny-by-default, `@TokenA
 - **Lecture et écriture** (tick "Autoriser les modifications" on the consent page): also the write tools (each one previews first and needs `confirm: true` after you agree), and the bank import preview / commit with the CSV **text** (the remote server never reads a file path).
 - Never: delete anything, manage tokens, passkeys, connections or the account, close a month, create accounts.
 
-Tokens: access 15 minutes, refresh 30 days rotated on each use (a reused refresh token cuts the connection), connection at most 90 days. Every API call made by a connection is in the profile's "Applications connectées → Derniers appels" (method, route, status; 90 days).
+Tokens: access 15 minutes, refresh 30 days rotated on each use (a reused refresh token cuts the connection), connection at most 90 days. Every API call made by a connection is in its detail under Réglages › Claude et accès › Accès actifs, told in plain words (from the method, route and status; 90 days).
 
 ## Enabling (after #102)
 
@@ -104,13 +104,13 @@ curl -s https://finances-mcp.<domain>/.well-known/oauth-authorization-server
 curl -si https://finances-mcp.<domain>/api/health | head -1         # 404: the API is not public
 ```
 
-From a machine **outside** the tailnet, the app's own host name must still not answer. The profile page shows the connection under "Applications connectées".
+From a machine **outside** the tailnet, the app's own host name must still not answer. Réglages › Claude et accès shows the connection under « Accès actifs ».
 
 ## Disconnecting, kill switch
 
-- **One connection**: Profil → Applications connectées → **Déconnecter** (immediate: its access and refresh tokens are revoked).
+- **One connection**: Réglages → Claude et accès → its row in « Accès actifs » → **Déconnecter** (immediate: its access and refresh tokens are revoked).
 - **Everything, now**: set `REMOTE_MCP_ENABLED=false` (API and adapter) and restart them, or stop the `finances-mcp` service. Grants are kept but refused; turning it back on restores them unless revoked.
-- **Suspected leak**: disconnect every application, then look at the "Derniers appels" list. The adapter logs carry only method, route label and status (`docker compose logs finances-mcp`).
+- **Suspected leak**: disconnect every application, then look at what each one did in its detail. The adapter logs carry only method, route label and status (`docker compose logs finances-mcp`).
 
 ## Local test (no internet exposure)
 

@@ -28,6 +28,7 @@ import type {
   AccessTokenDto,
   CreateAccessTokenDto,
   CreatedAccessTokenDto,
+  UpdateAccessTokenDto,
 } from '#/auth/access-tokens/dto/access-token.dto'
 import { DatabaseService } from '#/database/database.service'
 
@@ -137,6 +138,30 @@ export class AccessTokensService {
     return rows.map((row) => AccessTokensService.toDto(row, now))
   }
 
+  /** Renames a token that is not revoked (an expired one too). */
+  async rename(
+    userId: string,
+    id: string,
+    input: UpdateAccessTokenDto,
+    now = new Date(),
+  ): Promise<AccessTokenDto> {
+    const name = input.name.trim()
+    if (name === '') throw new BadRequestException('Name is required')
+    const [row] = await this.db
+      .update(personalAccessTokensTable)
+      .set({ name })
+      .where(
+        and(
+          eq(personalAccessTokensTable.id, id),
+          eq(personalAccessTokensTable.userId, userId),
+          isNull(personalAccessTokensTable.revokedAt),
+        ),
+      )
+      .returning()
+    if (!row) throw new NotFoundException(ACCESS_TOKEN_ERRORS.NOT_FOUND)
+    return AccessTokensService.toDto(row, now)
+  }
+
   async revoke(userId: string, id: string, now = new Date()): Promise<void> {
     const [row] = await this.db
       .update(personalAccessTokensTable)
@@ -223,6 +248,7 @@ export class AccessTokensService {
   async audit(
     userId: string,
     limit: number,
+    tokenId?: string,
   ): Promise<AccessTokenAuditEntryDto[]> {
     const rows = await this.db
       .select({
@@ -239,7 +265,14 @@ export class AccessTokensService {
         personalAccessTokensTable,
         eq(personalAccessTokensTable.id, accessTokenAuditTable.tokenId),
       )
-      .where(eq(personalAccessTokensTable.userId, userId))
+      .where(
+        and(
+          eq(personalAccessTokensTable.userId, userId),
+          tokenId === undefined
+            ? undefined
+            : eq(accessTokenAuditTable.tokenId, tokenId),
+        ),
+      )
       .orderBy(
         desc(accessTokenAuditTable.createdAt),
         desc(accessTokenAuditTable.id),

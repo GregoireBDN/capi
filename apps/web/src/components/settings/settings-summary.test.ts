@@ -26,13 +26,14 @@ describe('securitySummary', () => {
 })
 
 describe('accessSummary', () => {
-  it('counts the tokens and the connected apps', () => {
-    expect(accessSummary(1, 0)).toBe('1 jeton, aucune app connectée')
-    expect(accessSummary(2, 1)).toBe('2 jetons, 1 app connectée')
-    expect(accessSummary(0, 3)).toBe('Aucun jeton, 3 apps connectées')
+  it('counts the tokens and the connected apps together', () => {
+    expect(accessSummary(1, 0)).toBe('1 accès actif')
+    expect(accessSummary(2, 1)).toBe('3 accès actifs')
+    expect(accessSummary(0, 0)).toBe('Aucun accès')
   })
 
-  it('leaves the apps out while remote access is off', () => {
-    expect(accessSummary(0, null)).toBe('Aucun jeton')
+  it('counts the tokens alone while remote access is off', () => {
+    expect(accessSummary(0, null)).toBe('Aucun accès')
+    expect(accessSummary(2, null)).toBe('2 accès actifs')
   })
 })

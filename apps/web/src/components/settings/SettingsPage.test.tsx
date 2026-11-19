@@ -137,18 +137,16 @@ describe('SettingsPage', () => {
     ).toBeInTheDocument()
     expect(within(link('Règles')).getByText('57 règles')).toBeInTheDocument()
     expect(
-      within(link('Claude et accès')).getByText(
-        '1 jeton, aucune app connectée',
-      ),
+      within(link('Claude et accès')).getByText('1 accès actif'),
     ).toBeInTheDocument()
     expect(link('Zone dangereuse')).toHaveTextContent('Supprimer le compte')
   })
 
-  it('leaves the connected apps out while remote access is off', async () => {
+  it('counts the tokens alone while remote access is off', async () => {
     api.oAuthConsentControllerGrants.mockImplementation(() => failure(404))
     await renderPage()
 
-    expect(await screen.findByText('1 jeton')).toBeInTheDocument()
+    expect(await screen.findByText('1 accès actif')).toBeInTheDocument()
   })
 
   it('opens a section', async () => {

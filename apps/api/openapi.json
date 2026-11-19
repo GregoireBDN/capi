@@ -502,6 +502,16 @@
         "operationId": "AccessTokensController_audit",
         "parameters": [
           {
+            "name": "tokenId",
+            "required": false,
+            "in": "query",
+            "description": "Only the calls of this token.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "required": false,
             "in": "query",
@@ -544,6 +554,63 @@
       }
     },
     "/api/access-tokens/{id}": {
+      "patch": {
+        "operationId": "AccessTokensController_rename",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccessTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTokenDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "403": {
+            "description": "Called with an access token."
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Rename a personal access token",
+        "tags": [
+          "Access tokens"
+        ]
+      },
       "delete": {
         "operationId": "AccessTokensController_revoke",
         "parameters": [
@@ -7239,6 +7306,19 @@
           "route",
           "statusCode",
           "createdAt"
+        ]
+      },
+      "UpdateAccessTokenDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "name"
         ]
       },
       "AuthenticatePasskeyDto": {
