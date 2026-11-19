@@ -54,6 +54,8 @@ export interface RuleForm {
   kind: TransactionKind | ''
   merchant: string
   enabled: boolean
+  /** Destination of the transfers it files (#296); '' = none. */
+  counterpartAccountId: string
 }
 
 type FormErrors = Partial<
@@ -73,6 +75,7 @@ export function formFromRule(rule: CategorizationRuleDto | null): RuleForm {
     kind: rule?.kind ?? '',
     merchant: rule?.merchant ?? '',
     enabled: rule?.enabled ?? true,
+    counterpartAccountId: rule?.counterpartAccountId ?? '',
   }
 }
 
@@ -82,6 +85,8 @@ export function formFromRule(rule: CategorizationRuleDto | null): RuleForm {
  */
 export function bodyFromForm(
   form: RuleForm,
+  /** Kind of the chosen category: a destination only goes with transfers. */
+  categoryKind?: TransactionKind,
 ): { body: Required<CreateCategorizationRuleDto> } | { errors: FormErrors } {
   const errors: FormErrors = {}
   const labelPattern = form.labelPattern.trim()
@@ -117,6 +122,11 @@ export function bodyFromForm(
       categoryId: form.categoryId,
       kind: form.kind || null,
       merchant: form.merchant.trim() || null,
+      counterpartAccountId:
+        (form.kind || categoryKind) === 'transfer' &&
+        form.counterpartAccountId !== form.accountId
+          ? form.counterpartAccountId || null
+          : null,
     },
   }
 }
@@ -173,7 +183,7 @@ export function RuleEditorSheet({
   }
 
   function validBody() {
-    const result = bodyFromForm(form)
+    const result = bodyFromForm(form, category?.kind)
     if ('errors' in result) {
       setErrors(result.errors)
       return null
@@ -206,6 +216,12 @@ export function RuleEditorSheet({
       (isTransactional(account) && !account.archivedAt),
   )
   const category = categories.find((c) => c.id === form.categoryId)
+  const filesTransfers = (form.kind || category?.kind) === 'transfer'
+  const destinationChoices = accounts.filter(
+    (account) =>
+      account.id === form.counterpartAccountId ||
+      (!account.archivedAt && account.id !== form.accountId),
+  )
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -319,6 +335,33 @@ export function RuleEditorSheet({
               ))}
             </NativeSelect>
           </Field>
+
+          {filesTransfers && (
+            <Field>
+              <FieldLabel htmlFor={`${id}-destination`}>
+                Compte de destination
+              </FieldLabel>
+              <NativeSelect
+                id={`${id}-destination`}
+                className="w-full"
+                value={form.counterpartAccountId}
+                onChange={(event) =>
+                  change({ counterpartAccountId: event.target.value })
+                }
+              >
+                <NativeSelectOption value="">Aucun</NativeSelectOption>
+                {destinationChoices.map((account) => (
+                  <NativeSelectOption key={account.id} value={account.id}>
+                    {account.name}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+              <FieldDescription>
+                Les virements classés par cette règle sont liés à ce compte :
+                ceux vers un placement font ses versements.
+              </FieldDescription>
+            </Field>
+          )}
 
           <Field>
             <FieldLabel htmlFor={`${id}-account`}>Compte</FieldLabel>

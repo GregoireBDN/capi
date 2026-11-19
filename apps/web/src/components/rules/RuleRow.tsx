@@ -87,6 +87,10 @@ export function RuleRow({
     describeAmount(rule),
   ].filter(Boolean)
   const name = `« ${rule.labelPattern} »`
+  const destination =
+    rule.counterpartAccountId === null
+      ? null
+      : (accounts.find((a) => a.id === rule.counterpartAccountId)?.name ?? null)
 
   return (
     <li
@@ -177,6 +181,11 @@ export function RuleRow({
             {rule.merchant && (
               <span className="text-muted-foreground break-words">
                 marchand « {rule.merchant} »
+              </span>
+            )}
+            {destination && (
+              <span className="text-muted-foreground break-words">
+                vers {destination}
               </span>
             )}
           </span>

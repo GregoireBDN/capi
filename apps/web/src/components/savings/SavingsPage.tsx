@@ -23,6 +23,7 @@ import { ROUTES } from '#/lib/routes'
 import { GoalsSection } from './GoalsSection'
 import { SavingsChart, SavingsChartSkeleton } from './SavingsChart'
 import { SavingsKpis } from './SavingsKpis'
+import { InvestmentsRecap } from './InvestmentsRecap'
 import { SavingsStock } from './SavingsStock'
 import { TargetCard } from './TargetCard'
 import { savingsOverviewQuery } from './queries'
@@ -154,6 +155,8 @@ export function SavingsPage({
           {!isEmpty && <SavingsStock stock={data.stock} />}
         </div>
       )}
+
+      {data && !isEmpty && <InvestmentsRecap />}
     </div>
   )
 }

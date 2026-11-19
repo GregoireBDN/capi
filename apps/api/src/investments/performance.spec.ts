@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { daysBetween, oneYearBefore, parisToday } from './days'
 import {
   computePerformance,
+  linkedContributions,
   simpleReturn,
   type SnapshotPoint,
 } from './performance'
@@ -160,12 +161,98 @@ describe('computePerformance', () => {
       expect(computePerformance(snapshots, type, '2026-11-13').stale).toBe(
         false,
       )
-      expect(computePerformance(snapshots, type, '2026-11-14')).toMatchObject(
-        { daysSinceLatest: 32, stale: true },
-      )
+      expect(computePerformance(snapshots, type, '2026-11-14')).toMatchObject({
+        daysSinceLatest: 32,
+        stale: true,
+      })
     }
     expect(computePerformance(snapshots, 'crypto', '2026-11-14').stale).toBe(
       false,
     )
+  })
+})
+
+describe('contributions from linked transfers (#296)', () => {
+  const flow = (date: string, amountCents: number) => ({ date, amountCents })
+
+  it('replaces the typed contributions with the linked transfers', () => {
+    const snapshots = [
+      point('2026-01-31', 1_000_00, 900_00),
+      point('2026-03-31', 2_100_00, 2_500_00),
+    ]
+    const flows = [
+      flow('2026-02-10', 500_00),
+      flow('2026-03-10', 600_00),
+      flow('2026-03-20', -100_00),
+    ]
+    const result = computePerformance(
+      snapshots,
+      'brokerage',
+      '2026-04-05',
+      flows,
+    )
+    // 900 typed before the first transfer + 500 + 600 − 100.
+    expect(result.contributionsCents).toBe(1_900_00)
+    expect(result.contributionsSource).toBe('links')
+    expect(result.gainCents).toBe(200_00)
+    expect(result.typedContributionsCents).toBe(2_500_00)
+    expect(result.linkedTransfersCount).toBe(3)
+    expect(result.linkedAfterValueCents).toBe(0)
+    // Contributions between the two snapshots come from the transfers too.
+    expect(result.sincePrevious?.contributionsChangeCents).toBe(1_000_00)
+  })
+
+  it('starts from 0 without typed contributions and keeps later transfers apart', () => {
+    const snapshots = [point('2026-03-31', 1_050_00)]
+    const flows = [flow('2026-03-01', 1_000_00), flow('2026-04-02', 300_00)]
+    const result = computePerformance(
+      snapshots,
+      'life_insurance',
+      '2026-04-05',
+      flows,
+    )
+    expect(result.contributionsCents).toBe(1_000_00)
+    expect(result.gainCents).toBe(50_00)
+    expect(result.typedContributionsCents).toBeNull()
+    expect(result.linkedAfterValueCents).toBe(300_00)
+  })
+
+  it('keeps the typed contributions without links', () => {
+    const snapshots = [point('2026-03-31', 1_200_00, 1_000_00)]
+    const typed = computePerformance(snapshots, 'brokerage', '2026-04-05')
+    expect(typed.contributionsSource).toBe('typed')
+    expect(typed.contributionsCents).toBe(1_000_00)
+    expect(typed.linkedTransfersCount).toBe(0)
+  })
+
+  it('gives a wallet the cost of the coins withdrawn to it, with no typed base', () => {
+    // The holdings' invested amounts (1 000) are not dated: ignored.
+    const snapshots = [
+      point('2026-02-28', 900_00, 1_000_00),
+      point('2026-03-31', 1_200_00, 1_000_00),
+    ]
+    const wallet = computePerformance(snapshots, 'crypto', '2026-04-05', [
+      flow('2026-01-20', 600_00),
+      flow('2026-03-20', 400_00),
+    ])
+    expect(wallet.contributionsCents).toBe(1_000_00)
+    expect(wallet.contributionsSource).toBe('links')
+    expect(wallet.gainCents).toBe(200_00)
+    expect(
+      linkedContributions(
+        snapshots,
+        [flow('2026-01-20', 600_00)],
+        'crypto',
+      )?.map((p) => p.contributionsCents),
+    ).toEqual([600_00, 600_00])
+  })
+
+  it('leaves the snapshots before the first transfer as typed', () => {
+    const history = linkedContributions(
+      [point('2025-12-31', 800_00, 750_00), point('2026-02-28', 900_00)],
+      [flow('2026-02-01', 100_00)],
+      'brokerage',
+    )
+    expect(history?.map((p) => p.contributionsCents)).toEqual([750_00, 850_00])
   })
 })

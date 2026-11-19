@@ -40,7 +40,9 @@ import { AccountEditor } from './AccountEditor'
 import { CashAccount } from './CashAccount'
 import { todayInParis } from './dates'
 import { isInvestmentType, valueAgeText } from './labels'
+import { LinkedTransfers } from './LinkedTransfers'
 import { MealVoucherAccount } from './MealVoucherAccount'
+import { MovementsCard } from './Movements'
 import { PasteHistorySheet } from './PasteHistorySheet'
 import { PerformanceTiles } from './PerformanceTiles'
 import { accountQuery, performanceQuery } from './queries'
@@ -186,6 +188,13 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
   // A meal-voucher card: entered by hand, its entries first (#298).
   const mealVoucher = current.type === 'meal_voucher'
   const openAdd = () => setEditor({ open: true })
+  // The chart's contributions: from the linked transfers when they make them.
+  const chartSnapshots = data.snapshots.map((snapshot, i) => ({
+    ...snapshot,
+    contributionsCents:
+      data.contributionsHistory[i]?.contributionsCents ??
+      snapshot.contributionsCents,
+  }))
   const openImport = () =>
     void navigate({ to: ROUTES.import, search: { account: current.id } })
   const paste = (label: string): PageAction => ({
@@ -347,9 +356,15 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
         />
       )}
 
+      {investment && !crypto && (
+        <LinkedTransfers accountId={current.id} performance={data} />
+      )}
+      {/* Bank → exchange → Ledger, with the cost the coins left with. */}
+      {crypto && <MovementsCard accountId={current.id} />}
+
       {investment && data.snapshots.length > 0 && (
         <ValueChart
-          snapshots={data.snapshots}
+          snapshots={chartSnapshots}
           withContributions
           onAdd={writable && !crypto ? openAdd : undefined}
         />
@@ -359,6 +374,17 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
         <SnapshotList
           snapshots={data.snapshots}
           withContributions
+          linkedSource={crypto ? 'retraits' : 'virements'}
+          linkedContributions={
+            data.contributionsSource === 'links'
+              ? new Map(
+                  data.contributionsHistory.map((p) => [
+                    p.date,
+                    p.contributionsCents,
+                  ]),
+                )
+              : undefined
+          }
           onEdit={
             writable
               ? (snapshot) => setEditor({ open: true, snapshot })

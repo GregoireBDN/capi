@@ -98,6 +98,8 @@ function transaction(
     manual: false,
     originalAmountCents: null,
     originalBookingDate: null,
+    counterpartAccountId: null,
+    counterpartAccountName: null,
     splits: [],
     createdAt: '2026-10-01T00:00:00.000Z',
     updatedAt: '2026-10-01T00:00:00.000Z',

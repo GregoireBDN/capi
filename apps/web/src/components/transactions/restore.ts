@@ -17,6 +17,11 @@ export function restoreBody(item: TransactionDto): UpdateTransactionDto {
     kind: item.kind,
     isOneOff: item.isOneOff,
     needsReview: item.needsReview,
+    // A transfer's link (#296), taken one transaction at a time; any other
+    // kind has none.
+    ...(item.kind === 'transfer'
+      ? { counterpartAccountId: item.counterpartAccountId }
+      : {}),
   }
 }
 
@@ -39,17 +44,24 @@ export async function restoreTransactions(
     groups.set(key, group)
   }
   const results = await Promise.all(
-    [...groups.values()].map(({ body, ids }) =>
-      ids.length === 1
-        ? transactionsControllerUpdate({
-            path: { id: ids[0] },
-            body,
-            throwOnError: false,
-          })
-        : transactionsControllerBulkUpdate({
+    [...groups.values()].flatMap(
+      ({ body, ids }): Promise<{ data?: unknown }>[] => {
+        if (ids.length === 1 || body.counterpartAccountId !== undefined) {
+          return ids.map((id) =>
+            transactionsControllerUpdate({
+              path: { id },
+              body,
+              throwOnError: false,
+            }),
+          )
+        }
+        return [
+          transactionsControllerBulkUpdate({
             body: { ...body, ids },
             throwOnError: false,
           }),
+        ]
+      },
     ),
   )
   return results.every((result) => result.data !== undefined)

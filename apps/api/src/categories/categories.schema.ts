@@ -75,6 +75,14 @@ export const categorizationRulesTable = pgTable(
     /** Overrides the category's kind when set (e.g. an internal transfer filed under savings). */
     kind: transactionKindEnum('kind'),
     merchant: varchar('merchant', { length: 255 }),
+    /**
+     * Destination account of the transfers the rule files (#296): set as
+     * their counterpart when they have none. Only used on transfers.
+     */
+    counterpartAccountId: uuid('counterpart_account_id').references(
+      () => accountsTable.id,
+      { onDelete: 'set null' },
+    ),
   },
   (t) => [index().on(t.position)],
 )

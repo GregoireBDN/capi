@@ -180,6 +180,14 @@ export class ValueChangeDto {
 
 const TYPE_DOC = { enum: ACCOUNT_TYPES, enumName: 'AccountType' } as const
 
+export class ContributionPointDto {
+  @ApiProperty({ type: String, format: 'date' })
+  date!: string
+
+  @ApiProperty({ type: 'integer', nullable: true })
+  contributionsCents!: number | null
+}
+
 /** Performance figures shared by the account detail and the summary rows. */
 class PerformanceFiguresDto {
   @ApiProperty({
@@ -208,6 +216,37 @@ class PerformanceFiguresDto {
       'Snapshot the contributions come from; earlier than `valueDate` when the latest snapshot has no contributions.',
   })
   contributionsDate!: string | null
+
+  @ApiProperty({
+    enum: ['links', 'typed'],
+    enumName: 'ContributionsSource',
+    nullable: true,
+    description:
+      '`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings).',
+  })
+  contributionsSource!: 'links' | 'typed' | null
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Latest contributions typed on a snapshot when the linked transfers replace them and differ from them; null otherwise.',
+  })
+  typedContributionsCents!: number | null
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Transfers linked to the account (0 for crypto, whose contributions come from its holdings).',
+  })
+  linkedTransfersCount!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Net amount of the linked transfers booked after the latest value (not in it yet; left out of the gain).',
+  })
+  linkedAfterValueCents!: number
 
   @ApiProperty({
     type: 'integer',
@@ -269,9 +308,16 @@ export class AccountPerformanceDto extends PerformanceFiguresDto {
   @ApiProperty({
     type: [SnapshotDto],
     description:
-      'Every snapshot, oldest first (value and contributions series).',
+      'Every snapshot, oldest first, with the contributions typed on it.',
   })
   snapshots!: SnapshotDto[]
+
+  @ApiProperty({
+    type: [ContributionPointDto],
+    description:
+      'Net contributions at each snapshot (same order as `snapshots`): from the linked transfers when `contributionsSource` is `links`, else as typed.',
+  })
+  contributionsHistory!: ContributionPointDto[]
 }
 
 export class InvestmentAccountSummaryDto extends PerformanceFiguresDto {
@@ -336,4 +382,101 @@ export class InvestmentsSummaryDto {
     description: 'Non-archived investment accounts, by display order.',
   })
   accounts!: InvestmentAccountSummaryDto[]
+}
+
+export class InvestmentFlowAccountDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  accountId!: string
+
+  @ApiProperty({ type: String })
+  name!: string
+
+  @ApiProperty(TYPE_DOC)
+  type!: AccountType
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Paid in (transfers to the account), positive cents.',
+  })
+  depositsCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Taken out (transfers from the account), positive cents.',
+  })
+  withdrawalsCents!: number
+
+  @ApiProperty({ type: 'integer', description: 'Deposits minus withdrawals.' })
+  netCents!: number
+
+  @ApiProperty({ type: 'integer' })
+  count!: number
+}
+
+export class InvestmentFlowMonthAccountDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  accountId!: string
+
+  @ApiProperty({ type: 'integer' })
+  netCents!: number
+}
+
+export class InvestmentFlowMonthDto {
+  @ApiProperty({ type: String, example: '2026-10' })
+  month!: string
+
+  @ApiProperty({ type: 'integer' })
+  netCents!: number
+
+  @ApiProperty({
+    type: [InvestmentFlowMonthAccountDto],
+    description: 'Accounts that received or gave money that month.',
+  })
+  accounts!: InvestmentFlowMonthAccountDto[]
+}
+
+export class InvestmentFlowsDto {
+  @ApiProperty({ type: String, format: 'date' })
+  from!: string
+
+  @ApiProperty({ type: String, format: 'date' })
+  to!: string
+
+  @ApiProperty({ type: 'integer' })
+  depositsCents!: number
+
+  @ApiProperty({ type: 'integer' })
+  withdrawalsCents!: number
+
+  @ApiProperty({ type: 'integer' })
+  netCents!: number
+
+  @ApiProperty({
+    type: [InvestmentFlowAccountDto],
+    description:
+      'Investment accounts with linked transfers in the period, most paid in first.',
+  })
+  accounts!: InvestmentFlowAccountDto[]
+
+  @ApiProperty({
+    type: [InvestmentFlowMonthDto],
+    description: 'Months of the period with linked transfers, newest first.',
+  })
+  months!: InvestmentFlowMonthDto[]
+}
+
+export class InvestmentFlowsQueryDto {
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: 120,
+    default: 12,
+    description: 'Calendar months covered, the current one included.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  months?: number
 }

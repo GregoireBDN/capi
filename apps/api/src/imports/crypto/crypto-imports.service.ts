@@ -37,6 +37,7 @@ import type {
   DeleteCryptoImportResultDto,
 } from './dto/crypto-import.dto'
 import { computeHoldings, type HoldingMovement } from './holdings'
+import { linkNewCryptoTransfers, storeWithdrawalCosts } from './movement-links'
 import {
   parseCryptoExport,
   UnsupportedCryptoExportError,
@@ -241,6 +242,7 @@ export class CryptoImportsService {
 
       const fresh = preview.rows.filter((row) => row.status === 'new')
       let inserted = 0
+      const insertedIds: string[] = []
       for (let i = 0; i < fresh.length; i += CHUNK_SIZE) {
         const written = await tx
           .insert(m)
@@ -262,13 +264,16 @@ export class CryptoImportsService {
           .onConflictDoNothing({ target: [m.accountId, m.dedupeHash] })
           .returning({ id: m.id })
         inserted += written.length
+        insertedIds.push(...written.map((row) => row.id))
       }
 
-      const { holdings, unmapped } = await this.recomputeHoldings(
+      const { holdings, unmapped, mappings } = await this.recomputeHoldings(
         tx,
         current.accountId,
         now,
       )
+      // Withdrawals to the Ledger, deposits from it (#296).
+      await linkNewCryptoTransfers(tx, current.accountId, insertedIds, mappings)
       await tx
         .update(accountsTable)
         .set({ cryptoSyncedAt: now, updatedAt: now })
@@ -343,8 +348,15 @@ export class CryptoImportsService {
       (ticker) => !FIAT_TICKERS.has(ticker),
     )
     const mappings = await this.knownMappings(tx, tickers)
-    const holdings = computeHoldings(movements, resolverOf(mappings))
+    const outflowCosts = new Map<string, number | null>()
+    const holdings = computeHoldings(
+      movements,
+      resolverOf(mappings),
+      outflowCosts,
+    )
     const kept = holdings.filter((holding) => holding.status === 'ok')
+    // What each withdrawal took out, for the wallet it went to (#296).
+    await storeWithdrawalCosts(tx, outflowCosts)
 
     await tx.delete(h).where(
       and(
@@ -384,6 +396,7 @@ export class CryptoImportsService {
     }
     return {
       holdings,
+      mappings,
       unmapped: tickers.filter((ticker) => !mappings.has(ticker)).sort(),
     }
   }
@@ -405,6 +418,7 @@ export class CryptoImportsService {
   ): Promise<HoldingMovement[]> {
     const rows = await executor
       .select({
+        id: m.id,
         occurredAt: m.occurredAt,
         kind: m.kind,
         asset: m.asset,

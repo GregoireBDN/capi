@@ -212,6 +212,11 @@ export function formatSummary(
     )
   }
   lines.push(`  ${result.needsReview} inserted rows flagged for review`)
+  if (result.transfersLinked > 0) {
+    lines.push(
+      `  ${result.transfersLinked} transfers between cash accounts linked (both sides)`,
+    )
+  }
 
   lines.push('')
   lines.push('Category mapping (sheet slug → category, kind: rows):')

@@ -130,6 +130,10 @@ function performance(
     valueDate: '2026-09-30',
     contributionsCents: 1_020_000,
     contributionsDate: '2026-09-30',
+    contributionsSource: 'typed',
+    typedContributionsCents: null,
+    linkedTransfersCount: 0,
+    linkedAfterValueCents: 0,
     gainCents: 230_000,
     returnRate: 230_000 / 1_020_000,
     sincePrevious: {
@@ -150,6 +154,10 @@ function performance(
     staleAfterDays: 100,
     stale: false,
     snapshots,
+    contributionsHistory: snapshots.map((s) => ({
+      date: s.date,
+      contributionsCents: s.contributionsCents,
+    })),
     ...overrides,
   }
 }
@@ -441,6 +449,8 @@ describe('AccountDetailPage', () => {
         manual: false,
         originalAmountCents: null,
         originalBookingDate: null,
+        counterpartAccountId: null,
+        counterpartAccountName: null,
         splits: [],
         createdAt: '2026-11-05T00:00:00.000Z',
         updatedAt: '2026-11-05T00:00:00.000Z',
@@ -1365,6 +1375,38 @@ describe('AccountDetailPage', () => {
       'Évolution',
       'Clés et jetons',
     ])
+  })
+
+  it('states what the coins sent to a wallet cost, when the movements say (#296)', async () => {
+    mockWallet(
+      {
+        enabled: true,
+        syncedAt: '2026-11-06T09:00:00.000Z',
+        failedAt: null,
+        failedChains: [],
+        retryAt: null,
+      },
+      [holding({ origin: 'sync', location: 'Bitcoin' })],
+    )
+    api.accountSnapshotsControllerPerformance.mockImplementation(() =>
+      ok(
+        performance({
+          type: 'crypto',
+          valueCents: 3_000_000,
+          contributionsCents: 2_400_000,
+          gainCents: 600_000,
+          returnRate: 0.25,
+        }),
+      ),
+    )
+    renderPage()
+
+    const summary = await screen.findByRole('region', {
+      name: 'Valeur du wallet',
+    })
+    expect(text(summary.textContent)).toContain(
+      'Investi 24 000,00 € · +6 000,00 € (+25',
+    )
   })
 
   it('flags stale holdings when the last sync failed', async () => {

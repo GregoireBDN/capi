@@ -20,6 +20,7 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type { CategoryIcon } from '#/categories/category-icons'
 import { DatabaseService } from '#/database/database.service'
@@ -52,16 +53,21 @@ type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
 /** The database or an open transaction. */
 type Executor = Db | Tx
 
-type TransactionChanges = Omit<UpdateTransactionDto, 'note'> & {
+type TransactionChanges = Omit<
+  UpdateTransactionDto,
+  'note' | 'counterpartAccountId'
+> & {
   note?: string | null
 }
 
 /** Column values of an `UPDATE transactions SET ...`. */
 type TransactionSet = Partial<{
   [K in keyof typeof transactionsTable.$inferInsert]:
-    | (typeof transactionsTable.$inferInsert)[K]
-    | SQL
+    (typeof transactionsTable.$inferInsert)[K] | SQL
 }>
+
+/** The account a transfer is linked to (#296). */
+const counterpartAccounts = alias(accountsTable, 'counterpart_accounts')
 
 /** Columns of a transaction as the API returns it (account name, category). */
 const transactionColumns = {
@@ -75,6 +81,8 @@ const transactionColumns = {
   rawLabel: transactionsTable.rawLabel,
   merchant: transactionsTable.merchant,
   kind: transactionsTable.kind,
+  counterpartAccountId: transactionsTable.counterpartAccountId,
+  counterpartAccountName: counterpartAccounts.name,
   categoryId: transactionsTable.categoryId,
   categoryKey: categoriesTable.id,
   categorySlug: categoriesTable.slug,
@@ -510,8 +518,13 @@ export class TransactionsService {
   /** Partial update of one transaction; returns it as listed. */
   update(id: string, dto: UpdateTransactionDto): Promise<TransactionDto> {
     return this.db.transaction(async (tx) => {
-      await this.findOne(id, tx)
-      const set = await this.resolveChanges(tx, dto)
+      const current = await this.findOne(id, tx)
+      const { counterpartAccountId, ...changes } = dto
+      const set = await this.resolveChanges(tx, changes)
+      if (counterpartAccountId !== undefined) {
+        await this.assertCounterpart(tx, current, set, counterpartAccountId)
+        set.counterpartAccountId = counterpartAccountId
+      }
       if (Object.keys(set).length > 0) {
         await tx
           .update(transactionsTable)
@@ -551,6 +564,40 @@ export class TransactionsService {
     })
   }
 
+  /**
+   * A counterpart is the owner's other account of a transfer (#296): only on
+   * a transaction that is (or becomes) a transfer, never its own account.
+   */
+  private async assertCounterpart(
+    executor: Executor,
+    current: Pick<TransactionDto, 'accountId' | 'kind'>,
+    set: TransactionSet,
+    counterpartAccountId: string | null,
+  ) {
+    if (counterpartAccountId === null) return
+    const kind = typeof set.kind === 'string' ? set.kind : current.kind
+    if (kind !== 'transfer') {
+      throw new BadRequestException(
+        'Only a transfer can be linked to another account',
+      )
+    }
+    if (counterpartAccountId === current.accountId) {
+      throw new BadRequestException(
+        'counterpartAccountId must be another account than the transaction’s',
+      )
+    }
+    const [account] = await executor
+      .select({ id: accountsTable.id })
+      .from(accountsTable)
+      .where(eq(accountsTable.id, counterpartAccountId))
+      .limit(1)
+    if (!account) {
+      throw new BadRequestException(
+        'counterpartAccountId does not match any account',
+      )
+    }
+  }
+
   /** A category chosen for the whole transaction ends its split. */
   private async dropSplits(executor: Executor, ids: string[]) {
     if (ids.length === 0) return
@@ -570,6 +617,10 @@ export class TransactionsService {
       .leftJoin(
         categoriesTable,
         eq(categoriesTable.id, transactionsTable.categoryId),
+      )
+      .leftJoin(
+        counterpartAccounts,
+        eq(counterpartAccounts.id, transactionsTable.counterpartAccountId),
       )
   }
 
@@ -618,6 +669,16 @@ export class TransactionsService {
               ownCategory,
               sql`exists (select 1 from ${transactionSplitsTable} where ${transactionSplitsTable.transactionId} = ${transactionsTable.id} and ${transactionSplitsTable.categoryId} = ${query.categoryId})`,
             ),
+      )
+    }
+    if (query.counterpartAccountId !== undefined) {
+      // The lines view has no counterpart: the transaction table does.
+      const table = schema.transactionsTable
+      const linked = eq(table.counterpartAccountId, query.counterpartAccountId)
+      conditions.push(
+        source === transactionLinesView
+          ? sql`${source.id} in (select ${table.id} from ${table} where ${linked})`
+          : linked,
       )
     }
     if (query.uncategorized !== undefined) {
@@ -723,6 +784,10 @@ export class TransactionsService {
 
     if (dto.isOneOff !== undefined) set.isOneOff = dto.isOneOff
     if (dto.note !== undefined) set.note = dto.note
+    // Only transfers are linked to another account (#296).
+    if (set.kind !== undefined && set.kind !== 'transfer') {
+      set.counterpartAccountId = null
+    }
     return set
   }
 }

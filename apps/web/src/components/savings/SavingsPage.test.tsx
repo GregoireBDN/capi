@@ -20,6 +20,8 @@ const api = vi.hoisted(() => ({
   savingsControllerUpdateGoal: vi.fn(),
   savingsControllerRemoveGoal: vi.fn(),
   accountsControllerList: vi.fn(),
+  investmentsControllerSummary: vi.fn(),
+  investmentsControllerFlows: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
@@ -165,6 +167,10 @@ function overview(
             valueDate: '2026-10-31',
             contributionsCents: 200_000,
             contributionsDate: '2026-10-31',
+            contributionsSource: 'typed',
+            typedContributionsCents: null,
+            linkedTransfersCount: 0,
+            linkedAfterValueCents: 0,
             gainCents: 30_000,
             returnRate: 0.15,
             daysSinceLatest: 6,
@@ -277,6 +283,20 @@ beforeEach(() => {
       account({ id: PEA_ID, name: 'PEA test', type: 'brokerage' }),
     ]),
   )
+  api.investmentsControllerSummary.mockImplementation(() =>
+    ok(overview().stock.investments),
+  )
+  api.investmentsControllerFlows.mockImplementation(() =>
+    ok({
+      from: '2025-12-01',
+      to: '2026-11-05',
+      depositsCents: 0,
+      withdrawalsCents: 0,
+      netCents: 0,
+      accounts: [],
+      months: [],
+    }),
+  )
   api.savingsControllerSetTarget.mockImplementation(
     ({ body }: { body: { monthlyTargetCents: number | null } }) => ok(body),
   )
@@ -289,6 +309,64 @@ beforeEach(() => {
 })
 
 describe('SavingsPage', () => {
+  it('recaps the investments and where the money went (#296)', async () => {
+    const investments = overview().stock.investments
+    api.investmentsControllerSummary.mockImplementation(() =>
+      ok({
+        ...investments,
+        accounts: [
+          {
+            ...investments.accounts[0],
+            contributionsSource: 'links',
+            linkedTransfersCount: 4,
+          },
+        ],
+      }),
+    )
+    api.investmentsControllerFlows.mockImplementation(() =>
+      ok({
+        from: '2025-12-01',
+        to: '2026-11-05',
+        depositsCents: 90_000,
+        withdrawalsCents: 10_000,
+        netCents: 80_000,
+        accounts: [
+          {
+            accountId: PEA_ID,
+            name: 'PEA test',
+            type: 'brokerage',
+            depositsCents: 90_000,
+            withdrawalsCents: 10_000,
+            netCents: 80_000,
+            count: 4,
+          },
+        ],
+        months: [
+          {
+            month: '2026-10',
+            netCents: 80_000,
+            accounts: [{ accountId: PEA_ID, netCents: 80_000 }],
+          },
+        ],
+      }),
+    )
+    renderPage()
+
+    const recap = await screen.findByText('Investissements')
+    const card = within(recap.closest('[data-slot=card]') as HTMLElement)
+    expect(
+      card.getByText(text('Versé 2 000,00 € · 4 virements')),
+    ).toBeInTheDocument()
+    const flows = await card.findByRole('region', {
+      name: 'Où est allé l’argent, sur 12 mois',
+    })
+    expect(flows).toHaveTextContent(text('+800,00 €'))
+    expect(flows).toHaveTextContent(text('dont 100,00 € retirés'))
+    expect(card.getByRole('group', { name: 'Par mois' })).toHaveTextContent(
+      'oct. 2026',
+    )
+  })
+
   it('shows the month, the averages, the target, the stock and the goals', async () => {
     renderPage()
 

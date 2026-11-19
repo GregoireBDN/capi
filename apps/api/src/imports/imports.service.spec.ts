@@ -396,6 +396,72 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
       })
     })
 
+    it('links transfers through a rule’s destination and to their other side (#296)', async () => {
+      await withFixture(async ({ tx, service, preview, accountId }) => {
+        const [livret, pea] = await tx
+          .insert(accountsTable)
+          .values([
+            { name: 'Test livret', type: 'savings' },
+            { name: 'Test PEA', type: 'brokerage' },
+          ])
+          .returning()
+        const [moves] = await tx
+          .insert(categoriesTable)
+          .values({
+            slug: 'import_test_moves',
+            name: 'Import test moves',
+            kind: 'transfer',
+          })
+          .returning()
+        await tx.insert(categorizationRulesTable).values([
+          {
+            position: 2,
+            labelPattern: 'courtier test',
+            categoryId: moves.id,
+            counterpartAccountId: pea.id,
+          },
+          { position: 3, labelPattern: 'vir livret', categoryId: moves.id },
+        ])
+        // The other side, already on the savings account.
+        const [arrival] = await tx
+          .insert(transactionsTable)
+          .values({
+            accountId: livret.id,
+            bookingDate: '2026-10-03',
+            amountCents: 20_000,
+            rawLabel: 'VIR DEPUIS COMPTE COURANT',
+            kind: 'transfer',
+            dedupeHash: 'test-livret-arrival',
+          })
+          .returning()
+
+        const file = cicCsv(
+          withBalances(OPENING, [
+            {
+              date: '2026-10-01',
+              amountCents: -50_000,
+              label: 'VIR COURTIER TEST PEA',
+            },
+            { date: '2026-10-02', amountCents: -20_000, label: 'VIR LIVRET A' },
+          ]),
+        )
+        await service.commit((await preview(file)).id, {})
+
+        const stored = await storedTransactions(tx, accountId)
+        expect(
+          stored.map((t) => [t.rawLabel, t.kind, t.counterpartAccountId]),
+        ).toEqual([
+          ['VIR COURTIER TEST PEA', 'transfer', pea.id],
+          ['VIR LIVRET A', 'transfer', livret.id],
+        ])
+        const [other] = await tx
+          .select()
+          .from(transactionsTable)
+          .where(eq(transactionsTable.id, arrival.id))
+        expect(other.counterpartAccountId).toBe(accountId)
+      })
+    })
+
     it('refuses to commit twice', async () => {
       await withFixture(async ({ service, preview }) => {
         const { id } = await preview(FILE_A)

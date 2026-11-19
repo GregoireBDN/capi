@@ -71,6 +71,7 @@ function rule(
     categoryId: 'restaurants',
     kind: null,
     merchant: null,
+    counterpartAccountId: null,
     ...overrides,
   }
 }

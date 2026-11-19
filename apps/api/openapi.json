@@ -3103,6 +3103,16 @@
             }
           },
           {
+            "description": "Only the transfers linked to this account (#296): money sent to it or received from it.",
+            "required": false,
+            "name": "counterpartAccountId",
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
             "description": "true: only transactions without a category; false: only categorized ones.",
             "required": false,
             "name": "uncategorized",
@@ -3275,6 +3285,16 @@
             "description": "Cannot be combined with `uncategorized`.",
             "required": false,
             "name": "categoryId",
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only the transfers linked to this account (#296): money sent to it or received from it.",
+            "required": false,
+            "name": "counterpartAccountId",
             "in": "query",
             "schema": {
               "format": "uuid",
@@ -4769,7 +4789,7 @@
     },
     "/api/investments/summary": {
       "get": {
-        "description": "Non-archived brokerage, life insurance, employee savings and crypto accounts, from their latest snapshots. The gain only covers accounts whose contributions are known.",
+        "description": "Non-archived brokerage, life insurance, employee savings and crypto accounts, from their latest snapshots. Contributions come from the transfers linked to an account when it has some (`contributionsSource`), else from the snapshots. The gain only covers accounts whose contributions are known.",
         "operationId": "InvestmentsController_summary",
         "parameters": [],
         "responses": {
@@ -4793,6 +4813,155 @@
           }
         ],
         "summary": "Value, contributions and gain of the investment accounts",
+        "tags": [
+          "Investments"
+        ]
+      }
+    },
+    "/api/investments/flows": {
+      "get": {
+        "description": "Transfers linked to investment accounts (#296) over the last `months` calendar months, the current one (Europe/Paris) included: per account and per month. Transfers stay transfers: never income or expense.",
+        "operationId": "InvestmentsController_flows",
+        "parameters": [
+          {
+            "name": "months",
+            "required": false,
+            "in": "query",
+            "description": "Calendar months covered, the current one included (1–120, default 12).",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestmentFlowsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Where the invested money went",
+        "tags": [
+          "Investments"
+        ]
+      }
+    },
+    "/api/investments/movements": {
+      "get": {
+        "description": "Bank transfers linked to investment accounts and coins moved between an exchange and the owner’s other crypto accounts (#296), over the last `months` calendar months, newest first; with `accountId`, only those of that account.",
+        "operationId": "InvestmentsController_listMovements",
+        "parameters": [
+          {
+            "name": "accountId",
+            "required": false,
+            "in": "query",
+            "description": "Only the movements of this account.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "months",
+            "required": false,
+            "in": "query",
+            "description": "Calendar months covered, the current one included (1–120, default 12).",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestmentMovementsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Movements towards the investments",
+        "tags": [
+          "Investments"
+        ]
+      }
+    },
+    "/api/crypto-movements/{id}": {
+      "patch": {
+        "description": "The Ledger the coins went to or came from (#296); `null` unlinks it. A wallet’s contributions are the cost of the coins withdrawn to it. Session only.",
+        "operationId": "CryptoMovementsController_link",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCryptoMovementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestmentMovementDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Link an exchange withdrawal or deposit to another crypto account",
         "tags": [
           "Investments"
         ]
@@ -7531,6 +7700,12 @@
             "nullable": true,
             "description": "Merchant name given to matching transactions, when set."
           },
+          "counterpartAccountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Destination account of the transfers the rule files (#296), set as their counterpart when they have none. Only on a rule whose outcome is a `transfer`."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -7552,6 +7727,7 @@
           "categoryId",
           "kind",
           "merchant",
+          "counterpartAccountId",
           "createdAt",
           "updatedAt"
         ]
@@ -7607,6 +7783,12 @@
             "type": "string",
             "nullable": true,
             "maxLength": 255
+          },
+          "counterpartAccountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Destination account of the transfers the rule files (#296), set as their counterpart when they have none. Only on a rule whose outcome is a `transfer`."
           }
         },
         "required": [
@@ -7776,6 +7958,12 @@
             "type": "string",
             "nullable": true,
             "maxLength": 255
+          },
+          "counterpartAccountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Destination account of the transfers the rule files (#296), set as their counterpart when they have none. Only on a rule whose outcome is a `transfer`."
           },
           "ruleId": {
             "type": "string",
@@ -7970,6 +8158,12 @@
             "type": "string",
             "nullable": true,
             "maxLength": 255
+          },
+          "counterpartAccountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Destination account of the transfers the rule files (#296), set as their counterpart when they have none. Only on a rule whose outcome is a `transfer`."
           }
         }
       },
@@ -9888,6 +10082,16 @@
               }
             ]
           },
+          "counterpartAccountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Transfers only (#296): the owner’s other account the money goes to (amount < 0) or comes from (amount > 0)."
+          },
+          "counterpartAccountName": {
+            "type": "string",
+            "nullable": true
+          },
           "categoryId": {
             "type": "string",
             "format": "uuid",
@@ -9961,6 +10165,8 @@
           "rawLabel",
           "merchant",
           "kind",
+          "counterpartAccountId",
+          "counterpartAccountName",
           "categoryId",
           "category",
           "ruleId",
@@ -10367,6 +10573,12 @@
             "nullable": true,
             "maxLength": 2000,
             "description": "Free text; an empty string clears it."
+          },
+          "counterpartAccountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Links a transfer to the owner’s other account it goes to or comes from (#296); `null` unlinks it. Only on a transfer (or with `kind: transfer`), never the transaction’s own account. A kind other than `transfer` unlinks it."
           }
         }
       },
@@ -11996,6 +12208,14 @@
           "updated"
         ]
       },
+      "ContributionsSource": {
+        "type": "string",
+        "enum": [
+          "links",
+          "typed"
+        ],
+        "description": "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings)."
+      },
       "ValueChangeDto": {
         "type": "object",
         "properties": {
@@ -12029,6 +12249,23 @@
           "contributionsChangeCents"
         ]
       },
+      "ContributionPointDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "contributionsCents": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "date",
+          "contributionsCents"
+        ]
+      },
       "AccountPerformanceDto": {
         "type": "object",
         "properties": {
@@ -12052,6 +12289,28 @@
             "format": "date",
             "nullable": true,
             "description": "Snapshot the contributions come from; earlier than `valueDate` when the latest snapshot has no contributions."
+          },
+          "contributionsSource": {
+            "nullable": true,
+            "description": "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContributionsSource"
+              }
+            ]
+          },
+          "typedContributionsCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Latest contributions typed on a snapshot when the linked transfers replace them and differ from them; null otherwise."
+          },
+          "linkedTransfersCount": {
+            "type": "integer",
+            "description": "Transfers linked to the account (0 for crypto, whose contributions come from its holdings)."
+          },
+          "linkedAfterValueCents": {
+            "type": "integer",
+            "description": "Net amount of the linked transfers booked after the latest value (not in it yet; left out of the gain)."
           },
           "gainCents": {
             "type": "integer",
@@ -12108,10 +12367,17 @@
             ]
           },
           "snapshots": {
-            "description": "Every snapshot, oldest first (value and contributions series).",
+            "description": "Every snapshot, oldest first, with the contributions typed on it.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SnapshotDto"
+            }
+          },
+          "contributionsHistory": {
+            "description": "Net contributions at each snapshot (same order as `snapshots`): from the linked transfers when `contributionsSource` is `links`, else as typed.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContributionPointDto"
             }
           }
         },
@@ -12120,6 +12386,10 @@
           "valueDate",
           "contributionsCents",
           "contributionsDate",
+          "contributionsSource",
+          "typedContributionsCents",
+          "linkedTransfersCount",
+          "linkedAfterValueCents",
           "gainCents",
           "returnRate",
           "daysSinceLatest",
@@ -12129,7 +12399,8 @@
           "type",
           "sincePrevious",
           "sinceOneYear",
-          "snapshots"
+          "snapshots",
+          "contributionsHistory"
         ]
       },
       "InvestmentsTotalsDto": {
@@ -12199,6 +12470,28 @@
             "nullable": true,
             "description": "Snapshot the contributions come from; earlier than `valueDate` when the latest snapshot has no contributions."
           },
+          "contributionsSource": {
+            "nullable": true,
+            "description": "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContributionsSource"
+              }
+            ]
+          },
+          "typedContributionsCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Latest contributions typed on a snapshot when the linked transfers replace them and differ from them; null otherwise."
+          },
+          "linkedTransfersCount": {
+            "type": "integer",
+            "description": "Transfers linked to the account (0 for crypto, whose contributions come from its holdings)."
+          },
+          "linkedAfterValueCents": {
+            "type": "integer",
+            "description": "Net amount of the linked transfers booked after the latest value (not in it yet; left out of the gain)."
+          },
           "gainCents": {
             "type": "integer",
             "nullable": true,
@@ -12246,6 +12539,10 @@
           "valueDate",
           "contributionsCents",
           "contributionsDate",
+          "contributionsSource",
+          "typedContributionsCents",
+          "linkedTransfersCount",
+          "linkedAfterValueCents",
           "gainCents",
           "returnRate",
           "daysSinceLatest",
@@ -12274,6 +12571,297 @@
         "required": [
           "totals",
           "accounts"
+        ]
+      },
+      "InvestmentFlowAccountDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountType"
+              }
+            ]
+          },
+          "depositsCents": {
+            "type": "integer",
+            "description": "Paid in (transfers to the account), positive cents."
+          },
+          "withdrawalsCents": {
+            "type": "integer",
+            "description": "Taken out (transfers from the account), positive cents."
+          },
+          "netCents": {
+            "type": "integer",
+            "description": "Deposits minus withdrawals."
+          },
+          "count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accountId",
+          "name",
+          "type",
+          "depositsCents",
+          "withdrawalsCents",
+          "netCents",
+          "count"
+        ]
+      },
+      "InvestmentFlowMonthAccountDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "netCents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accountId",
+          "netCents"
+        ]
+      },
+      "InvestmentFlowMonthDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "netCents": {
+            "type": "integer"
+          },
+          "accounts": {
+            "description": "Accounts that received or gave money that month.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvestmentFlowMonthAccountDto"
+            }
+          }
+        },
+        "required": [
+          "month",
+          "netCents",
+          "accounts"
+        ]
+      },
+      "InvestmentFlowsDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "depositsCents": {
+            "type": "integer"
+          },
+          "withdrawalsCents": {
+            "type": "integer"
+          },
+          "netCents": {
+            "type": "integer"
+          },
+          "accounts": {
+            "description": "Investment accounts with linked transfers in the period, most paid in first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvestmentFlowAccountDto"
+            }
+          },
+          "months": {
+            "description": "Months of the period with linked transfers, newest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvestmentFlowMonthDto"
+            }
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "depositsCents",
+          "withdrawalsCents",
+          "netCents",
+          "accounts",
+          "months"
+        ]
+      },
+      "InvestmentMovementSource": {
+        "type": "string",
+        "enum": [
+          "bank",
+          "crypto"
+        ],
+        "description": "`bank`: a transfer from a bank account linked to an investment account (euros); `crypto`: coins withdrawn from or deposited to an exchange."
+      },
+      "MovementAccountDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountType"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type"
+        ]
+      },
+      "CryptoTransferKind": {
+        "type": "string",
+        "enum": [
+          "withdrawal",
+          "deposit"
+        ],
+        "description": "Crypto movements: coins leaving the exchange (`from` = the exchange) or reaching it (`to` = the exchange)."
+      },
+      "InvestmentMovementDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The transaction (`bank`) or crypto movement (`crypto`)."
+          },
+          "source": {
+            "description": "`bank`: a transfer from a bank account linked to an investment account (euros); `crypto`: coins withdrawn from or deposited to an exchange.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InvestmentMovementSource"
+              }
+            ]
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Booking day; Europe/Paris day of a crypto movement."
+          },
+          "from": {
+            "nullable": true,
+            "description": "Where it left from; null when not linked.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MovementAccountDto"
+              }
+            ]
+          },
+          "to": {
+            "nullable": true,
+            "description": "Where it went; null when not linked.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MovementAccountDto"
+              }
+            ]
+          },
+          "amountCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Euros moved (`bank`, positive), or the cost of the coins withdrawn (`crypto`, average cost; null when unknown or for a deposit)."
+          },
+          "asset": {
+            "type": "string",
+            "nullable": true,
+            "example": "BTC"
+          },
+          "quantity": {
+            "type": "string",
+            "nullable": true,
+            "description": "Exact quantity moved (positive), crypto movements only.",
+            "example": "0.0125"
+          },
+          "cryptoKind": {
+            "nullable": true,
+            "description": "Crypto movements: coins leaving the exchange (`from` = the exchange) or reaching it (`to` = the exchange).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoTransferKind"
+              }
+            ]
+          },
+          "linkable": {
+            "type": "boolean",
+            "description": "A crypto movement whose other account can be set (`PATCH /crypto-movements/{id}`)."
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "date",
+          "from",
+          "to",
+          "amountCents",
+          "asset",
+          "quantity",
+          "cryptoKind",
+          "linkable"
+        ]
+      },
+      "InvestmentMovementsDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "items": {
+            "description": "Newest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvestmentMovementDto"
+            }
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "items"
+        ]
+      },
+      "LinkCryptoMovementDto": {
+        "type": "object",
+        "properties": {
+          "counterpartAccountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The owner’s other crypto account the coins went to (withdrawal) or came from (deposit); null unlinks it."
+          }
+        },
+        "required": [
+          "counterpartAccountId"
         ]
       },
       "CryptoHoldingOrigin": {

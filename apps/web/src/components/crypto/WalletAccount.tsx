@@ -48,6 +48,7 @@ import type {
   ValuedHoldingDto,
   WalletKeyDto,
 } from '#/api/types.gen'
+import { MovementsCard } from '#/components/accounts/Movements'
 import { afterSnapshotsChanged } from '#/components/accounts/queries'
 import { DashboardCardHeader } from '#/components/dashboard/DashboardCardHeader'
 import { formatCalendarDate, formatCents } from '#/lib/money'
@@ -319,6 +320,30 @@ function ChangeLine({
 }
 
 /**
+ * « Investi 6 200,00 € · +1 571,12 € (+25 %) »: the cost of the coins sent
+ * to the wallet (#296), only when it is known.
+ */
+function InvestedLine({ performance }: { performance: AccountPerformanceDto }) {
+  const { contributionsCents, gainCents, returnRate } = performance
+  if (contributionsCents === null || gainCents === null) return null
+  return (
+    <p className="text-muted-foreground text-sm tabular-nums">
+      Investi {formatCents(contributionsCents)} ·{' '}
+      <span
+        className={cn(
+          gainCents > 0 && 'text-chart-delta-good',
+          gainCents < 0 && 'text-chart-delta-bad',
+        )}
+      >
+        {gainCents > 0 ? '+' : ''}
+        {formatCents(gainCents)}
+        {returnRate !== null && ` (${formatSignedPercent(returnRate)})`}
+      </span>
+    </p>
+  )
+}
+
+/**
  * Top of a wallet account (#294): what it is worth (once on the page), its
  * change since the previous value, how fresh the balances are, and the
  * split by asset. « Actualiser » is the page action.
@@ -355,6 +380,7 @@ function WalletSummary({
           {!nothingRead && performance.sincePrevious && (
             <ChangeLine change={performance.sincePrevious} year={year} />
           )}
+          {!nothingRead && <InvestedLine performance={performance} />}
         </div>
         <WalletStatusLines data={data} refreshing={refreshing} now={now} />
         {parts.length > 1 && total > 0 && (
@@ -677,6 +703,11 @@ const chartConfig = {
   value: { label: 'Valeur', color: 'var(--chart-1)' },
 } satisfies ChartConfig
 
+const investedChartConfig = {
+  ...chartConfig,
+  contributions: { label: 'Investi', color: 'var(--chart-2)' },
+} satisfies ChartConfig
+
 /**
  * The wallet's value over time (one value per day it was valued), its
  * change over one year, and the values themselves, folded.
@@ -707,6 +738,16 @@ function WalletHistory({
         ? monthsBefore(today, 12)
         : ''
   const shown = snapshots.filter((snapshot) => snapshot.date >= from)
+  // The coins' cost at each value (#296), from the linked movements.
+  const invested = new Map(
+    performance.contributionsHistory.map((point) => [
+      point.date,
+      point.contributionsCents,
+    ]),
+  )
+  const withInvested =
+    performance.contributionsCents !== null &&
+    [...invested.values()].some((cents) => cents !== null)
 
   const status = sinceOneYear && (
     <>
@@ -757,9 +798,12 @@ function WalletHistory({
               data={shown.map((snapshot) => ({
                 date: snapshot.date,
                 value: snapshot.valueCents,
+                ...(withInvested && {
+                  contributions: invested.get(snapshot.date) ?? null,
+                }),
               }))}
               index="date"
-              config={chartConfig}
+              config={withInvested ? investedChartConfig : chartConfig}
               indexScale="time"
               tooltipIndexFormatter={formatCalendarDate}
               indexLabel="Date"
@@ -1270,6 +1314,8 @@ export function WalletAccount({
           onEditSnapshot={onEditSnapshot}
         />
       )}
+      {/* Bank → exchange → Ledger, with the cost the coins left with (#296). */}
+      <MovementsCard accountId={account.id} />
       <WalletSettings
         account={account}
         writable={writable}
