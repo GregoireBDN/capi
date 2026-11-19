@@ -22,12 +22,13 @@ import { useMemo } from 'react'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { currentMonth, formatMonth } from '#/lib/calendar'
 import { formatShortDay } from '#/lib/period'
-import { accountsQuery, categoriesQuery, isTransactional } from '#/lib/queries'
+import { accountsQuery, isTransactional } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import { CategoryRanking } from './CategoryRanking'
-import { monthName } from './labels'
+import { monthName, seriesLabel } from './labels'
 import { spendingByCategoryQuery, spendingTrendQuery } from './queries'
 import type { ByCategoryFilters, TrendFilters } from './queries'
+import type { SpendingTrendSeriesDto } from '#/api/types.gen'
 import { comparedWithText, comparisonCaption } from './rows'
 import type { Comparison } from './rows'
 import { compactSearch, DEFAULT_AVERAGE_PERIOD, UNCATEGORIZED } from './search'
@@ -36,7 +37,7 @@ import { SpendingDonut } from './SpendingDonut'
 import { SpendingFilters } from './SpendingFilters'
 import { SpendingKpis, SpendingKpisSkeleton } from './SpendingKpis'
 import { SpendingTrend } from './SpendingTrend'
-import type { TrendCategoryOption } from './SpendingTrend'
+import type { TrendChip } from './SpendingTrend'
 
 /**
  * Comparison segments: both labels fit a 320px phone, sized on the row
@@ -115,25 +116,37 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
   }, [trendBase, search.trend])
 
   const accounts = useQuery(accountsQuery)
-  const categories = useQuery(categoriesQuery)
   const byCategory = useQuery(spendingByCategoryQuery(filters))
   // Unfiltered trend for the KPI sparkline; the same query as the chart's
   // when no category is selected.
   const totals = useQuery(spendingTrendQuery(trendBase))
   const trend = useQuery(spendingTrendQuery(trendFilters))
 
-  const trendCategories = useMemo<TrendCategoryOption[]>(() => {
-    const options = new Map<string, string>()
-    for (const category of categories.data ?? []) {
-      if (category.kind === 'expense') options.set(category.id, category.name)
+  // The chips: the categories that weigh most over the months shown, then
+  // the one in the URL when it is not among them.
+  const trendChips = useMemo<TrendChip[]>(() => {
+    const chips: TrendChip[] = []
+    const add = (series: SpendingTrendSeriesDto) => {
+      const value = series.categoryId ?? UNCATEGORIZED
+      if (chips.some((chip) => chip.value === value)) return
+      chips.push({
+        value,
+        name: seriesLabel(series),
+        categoryId: series.categoryId,
+        icon: series.icon,
+        color: series.color,
+      })
     }
-    for (const item of byCategory.data?.categories ?? []) {
-      if (item.categoryId && item.name) options.set(item.categoryId, item.name)
+    for (const series of totals.data?.series ?? []) {
+      if (series.type !== 'other') add(series)
     }
-    return [...options]
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
-  }, [categories.data, byCategory.data])
+    const alone = trend.data?.series.at(0)
+    if (search.trend && alone && alone.type !== 'other') {
+      const value = alone.categoryId ?? UNCATEGORIZED
+      if (value === search.trend) add(alone)
+    }
+    return chips
+  }, [totals.data, trend.data, search.trend])
 
   const set = (patch: Partial<SpendingSearch>) => {
     onSearchChange(compactSearch({ ...search, ...patch }))
@@ -318,7 +331,18 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
               data={trend.data}
               selected={search.trend}
               onSelectedChange={(next) => set({ trend: next })}
-              categories={trendCategories}
+              chips={trendChips}
+              month={month}
+              onOpenMonth={(target) => {
+                set({
+                  month:
+                    target === (data?.period.defaultMonth ?? today)
+                      ? undefined
+                      : target,
+                })
+                // The month's figures are at the top of the page.
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+              }}
             />
           ) : (
             <Skeleton

@@ -25,7 +25,9 @@ import {
   type SpendingByCategoryQueryDto,
   type SpendingTrendDto,
   type SpendingTrendQueryDto,
+  type SpendingTrendMonthDto,
   type SpendingTrendSeriesDto,
+  TREND_MONTH_TOP_CATEGORIES,
   TREND_MONTHS_DEFAULT,
   TREND_TOP_CATEGORIES,
 } from './dto/spending.dto'
@@ -280,9 +282,22 @@ export class SpendingService {
         keys.reduce((sum, key) => sum + (spent.get(key)?.get(month) ?? 0), 0),
       )
 
+    const single =
+      query.categoryId !== undefined || query.uncategorized === true
+    const filterKey = query.categoryId ?? UNCATEGORIZED
+
+    // Each month's largest categories, whatever the filter.
+    const monthTops = months.map((month) =>
+      [...spent.keys()]
+        .map((key) => ({ key, cents: spent.get(key)?.get(month) ?? 0 }))
+        .filter((entry) => entry.cents > 0)
+        .sort((a, b) => b.cents - a.cents)
+        .slice(0, TREND_MONTH_TOP_CATEGORIES),
+    )
+
     let series: SpendingTrendSeriesDto[]
-    if (query.categoryId !== undefined || query.uncategorized === true) {
-      const key = query.categoryId ?? UNCATEGORIZED
+    if (single) {
+      const key = filterKey
       const info = await this.categories([key])
       if (query.categoryId !== undefined && !info.has(key)) {
         throw new NotFoundException('Category not found')
@@ -333,6 +348,55 @@ export class SpendingService {
       complete.length,
     )
 
+    const periods = months.map((month) =>
+      monthPeriod(month, period.dataUntil, today),
+    )
+    // A partial month is compared like for like: the same complete months,
+    // their first days only.
+    const throughDay =
+      periods.find((p) => p.status === 'partial')?.throughDay ?? null
+    let sameDaysAverageCents: number | null = null
+    if (throughDay !== null && complete.length > 0) {
+      const sameDays = await this.monthly(
+        complete[0].month,
+        complete.at(-1)!.month,
+        query.accountId,
+        throughDay,
+      )
+      const counted = new Set(complete.map(({ month }) => month))
+      const sum = sameDays
+        .filter((row) => counted.has(row.month))
+        .filter((row) => !single || row.key === filterKey)
+        .reduce(
+          (total, row) =>
+            total +
+            (includeOneOffs
+              ? row.spentCents
+              : row.spentCents - row.oneOffCents),
+          0,
+        )
+      sameDaysAverageCents = average(sum, complete.length)
+    }
+
+    const topInfo = await this.categories([
+      ...new Set(monthTops.flat().map((entry) => entry.key)),
+    ])
+    const details: SpendingTrendMonthDto[] = months.map((month, index) => ({
+      month,
+      status: periods[index].status,
+      throughDay: periods[index].throughDay,
+      topCategories: monthTops[index].map(({ key, cents }) => {
+        const info = topInfo.get(key)
+        return {
+          categoryId: info?.id ?? null,
+          name: info?.name ?? null,
+          color: info?.color ?? null,
+          icon: info?.icon ?? null,
+          spentCents: cents,
+        }
+      }),
+    }))
+
     return {
       months,
       includeOneOffs,
@@ -340,6 +404,8 @@ export class SpendingService {
       totalsCents,
       averageCents,
       averageMonths: complete.length,
+      details,
+      sameDaysAverageCents,
     }
   }
 

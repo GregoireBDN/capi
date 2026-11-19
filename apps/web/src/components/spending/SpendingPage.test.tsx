@@ -10,6 +10,7 @@ import type {
   CategorySpendingDto,
   SpendingByCategoryDto,
   SpendingTrendDto,
+  SpendingTrendSeriesDto,
 } from '#/api/types.gen'
 import { formatCents } from '#/lib/money'
 import type { SpendingSearch } from './search'
@@ -165,26 +166,59 @@ const october: SpendingByCategoryDto = {
   ],
 }
 
+const RENT_SERIES: SpendingTrendSeriesDto = {
+  key: RENT,
+  type: 'category',
+  categoryId: RENT,
+  slug: 'rent',
+  name: 'Loyer',
+  color: '#dc2626',
+  icon: 'house',
+  valuesCents: [70_000, 70_000, 70_000],
+  totalCents: 210_000,
+}
+const GROCERIES_SERIES: SpendingTrendSeriesDto = {
+  key: GROCERIES,
+  type: 'category',
+  categoryId: GROCERIES,
+  slug: 'groceries',
+  name: 'Courses',
+  color: '#d97706',
+  icon: 'shopping-cart',
+  valuesCents: [20_000, 25_000, 30_000],
+  totalCents: 75_000,
+}
+
 function trend(overrides: Partial<SpendingTrendDto> = {}): SpendingTrendDto {
   return {
     months: ['2026-08', '2026-09', '2026-10'],
     includeOneOffs: false,
-    series: [
-      {
-        key: RENT,
-        type: 'category',
-        categoryId: RENT,
-        slug: 'rent',
-        name: 'Loyer',
-        color: '#dc2626',
-        icon: 'house',
-        valuesCents: [70_000, 70_000, 70_000],
-        totalCents: 210_000,
-      },
-    ],
-    totalsCents: [70_000, 70_000, 70_000],
-    averageCents: 70_000,
+    series: [RENT_SERIES, GROCERIES_SERIES],
+    totalsCents: [90_000, 95_000, 100_000],
+    averageCents: 95_000,
     averageMonths: 3,
+    details: ['2026-08', '2026-09', '2026-10'].map((month, index) => ({
+      month,
+      status: 'complete',
+      throughDay: null,
+      topCategories: [
+        {
+          categoryId: RENT,
+          name: 'Loyer',
+          color: '#dc2626',
+          icon: 'house',
+          spentCents: 70_000,
+        },
+        {
+          categoryId: GROCERIES,
+          name: 'Courses',
+          color: '#d97706',
+          icon: 'shopping-cart',
+          spentCents: GROCERIES_SERIES.valuesCents[index],
+        },
+      ],
+    })),
+    sameDaysAverageCents: null,
     ...overrides,
   }
 }
@@ -431,51 +465,279 @@ describe('SpendingPage', () => {
     )
   })
 
-  it('shows one category alone in the trend', async () => {
+  it('shows the total per month, then one category with the chips', async () => {
     const user = userEvent.setup()
+    api.spendingControllerTrend.mockImplementation(
+      ({
+        query,
+      }: {
+        query: { categoryId?: string; uncategorized?: boolean }
+      }) =>
+        ok(
+          query.categoryId === GROCERIES
+            ? trend({
+                series: [GROCERIES_SERIES],
+                totalsCents: GROCERIES_SERIES.valuesCents,
+                averageCents: 25_000,
+              })
+            : query.uncategorized
+              ? trend({
+                  series: [
+                    {
+                      ...GROCERIES_SERIES,
+                      key: 'uncategorized',
+                      type: 'uncategorized',
+                      categoryId: null,
+                      name: null,
+                      icon: null,
+                      color: null,
+                    },
+                  ],
+                })
+              : trend(),
+        ),
+    )
     const { changes } = renderPage()
-    const select = await screen.findByRole('combobox', {
+
+    const chips = await screen.findByRole('group', {
       name: 'Catégorie de la tendance',
     })
-    // Expense categories only, plus the uncategorized bucket.
+    // « Tout », then the categories that weigh most over the months.
+    await waitFor(() =>
+      expect(
+        within(chips)
+          .getAllByRole('button')
+          .map((chip) => chip.textContent),
+      ).toEqual(['Tout', 'Loyer', 'Courses']),
+    )
     expect(
-      within(select)
-        .getAllByRole('option')
-        .map((o) => o.textContent),
-    ).toEqual([
-      'Principales catégories',
-      'Courses',
-      'Loisirs',
-      'Loyer',
-      'Non catégorisé',
-    ])
+      within(chips).getByRole('button', { name: 'Tout', pressed: true }),
+    ).toBeInTheDocument()
+    // One series: the total, with its average beside the axis.
+    expect(
+      screen.getAllByText(
+        (_, element) =>
+          element?.getAttribute('data-slot') === 'trend-average-label' &&
+          element.textContent.replace(/\s/g, ' ') === 'Moy.950 €',
+      ),
+    ).toHaveLength(1)
+    expect(document.querySelectorAll('[data-slot="trend-bar"]')).toHaveLength(3)
 
-    await user.selectOptions(select, LEISURE)
-    expect(changes.at(-1)).toEqual({ month: '2026-10', trend: LEISURE })
+    await user.click(within(chips).getByRole('button', { name: 'Courses' }))
+    expect(changes.at(-1)).toEqual({ month: '2026-10', trend: GROCERIES })
     await waitFor(() =>
       expect(api.spendingControllerTrend).toHaveBeenCalledWith({
         query: {
           month: '2026-10',
           months: 12,
           includeOneOffs: false,
-          categoryId: LEISURE,
+          categoryId: GROCERIES,
         },
         throwOnError: false,
       }),
     )
+    // The category alone, with its own average.
+    expect(
+      await screen.findByText(
+        (_, element) =>
+          element?.getAttribute('data-slot') === 'trend-average-label' &&
+          element.textContent.replace(/\s/g, ' ') === 'Moy.250 €',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      within(chips).getByRole('button', { name: 'Courses', pressed: true }),
+    ).toBeInTheDocument()
 
-    await user.selectOptions(select, 'none')
-    await waitFor(() =>
-      expect(api.spendingControllerTrend).toHaveBeenCalledWith({
-        query: {
-          month: '2026-10',
-          months: 12,
-          includeOneOffs: false,
-          uncategorized: true,
+    // Tapping it again goes back to the total.
+    await user.click(within(chips).getByRole('button', { name: 'Courses' }))
+    expect(changes.at(-1)).toEqual({ month: '2026-10' })
+  })
+
+  it('offers the category of the URL even outside the main ones', async () => {
+    api.spendingControllerTrend.mockImplementation(
+      ({ query }: { query: { uncategorized?: boolean } }) =>
+        ok(
+          query.uncategorized
+            ? trend({
+                series: [
+                  {
+                    ...GROCERIES_SERIES,
+                    key: 'uncategorized',
+                    type: 'uncategorized',
+                    categoryId: null,
+                    name: null,
+                    icon: null,
+                    color: null,
+                  },
+                ],
+              })
+            : trend(),
+        ),
+    )
+    renderPage({ month: '2026-10', trend: 'none' })
+
+    const chips = await screen.findByRole('group', {
+      name: 'Catégorie de la tendance',
+    })
+    expect(
+      await within(chips).findByRole('button', {
+        name: 'Non catégorisé',
+        pressed: true,
+      }),
+    ).toBeInTheDocument()
+    expect(api.spendingControllerTrend).toHaveBeenCalledWith({
+      query: {
+        month: '2026-10',
+        months: 12,
+        includeOneOffs: false,
+        uncategorized: true,
+      },
+      throwOnError: false,
+    })
+  })
+
+  it('marks the page month and labels a partial month', async () => {
+    api.spendingControllerByCategory.mockReturnValue(
+      ok({
+        ...october,
+        month: '2026-11',
+        previousMonth: '2026-10',
+        period: {
+          ...october.period,
+          month: '2026-11',
+          status: 'partial',
+          throughDay: 3,
+          previousMonth: '2026-10',
+          previousUntil: '2026-10-03',
         },
-        throwOnError: false,
       }),
     )
+    const base = trend()
+    api.spendingControllerTrend.mockReturnValue(
+      ok(
+        trend({
+          months: ['2026-09', '2026-10', '2026-11'],
+          totalsCents: [95_000, 100_000, 12_000],
+          details: base.details.map((detail, index) => ({
+            ...detail,
+            month: ['2026-09', '2026-10', '2026-11'][index],
+            ...(index === 2 ? { status: 'partial', throughDay: 3 } : {}),
+          })),
+          averageMonths: 2,
+          averageCents: 97_500,
+          sameDaysAverageCents: 15_000,
+        }),
+      ),
+    )
+    const user = userEvent.setup()
+    renderPage({})
+
+    await screen.findByRole('group', { name: 'Catégorie de la tendance' })
+    const november = await waitFor(() => {
+      const column = document.querySelector<HTMLElement>(
+        '[data-slot="trend-month"][data-month="2026-11"]',
+      )
+      expect(column).not.toBeNull()
+      return column!
+    })
+    expect(november).toHaveAttribute('data-selected', 'true')
+    expect(november).toHaveAttribute('data-status', 'partial')
+    expect(
+      document.querySelectorAll('[data-slot="trend-month"][data-selected]'),
+    ).toHaveLength(1)
+    expect(
+      document.querySelector('[data-slot="trend-partial-label"]'),
+    ).toHaveTextContent('au 3')
+    // The highlighted month's value above its bar.
+    expect(within(november).getByText('120 €')).toBeInTheDocument()
+
+    // Its detail compares it with the same first days of the other months.
+    await user.click(november)
+    const detail = document.querySelector<HTMLElement>(
+      '[data-slot="trend-detail"]',
+    )!
+    expect(detail).toHaveTextContent(/novembre 2026 · au 3 nov\./)
+    expect(within(detail).getByText('Moyenne au 3')).toBeInTheDocument()
+    expect(within(detail).getByText(euros(15_000))).toBeInTheDocument()
+    // Already the page's month: nothing to open.
+    expect(
+      within(detail).queryByRole('button', { name: /Voir ce mois/ }),
+    ).toBeNull()
+
+    // The table keeps every figure, the partial month dated.
+    const table = within(
+      document.querySelector<HTMLElement>('[data-slot="trend-table"]')!,
+    )
+    expect(table.getByText('Voir le tableau')).toBeInTheDocument()
+    expect(
+      table.getByRole('rowheader', { name: 'novembre 2026 (au 3 nov.)' }),
+    ).toBeInTheDocument()
+    expect(
+      table.getByRole('rowheader', { name: 'Moyenne (2 mois complets)' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/Ligne pointillée/)).toBeNull()
+  })
+
+  it('opens a month from the chart', async () => {
+    const user = userEvent.setup()
+    const { changes } = renderPage({ month: '2026-10', trend: GROCERIES })
+
+    await screen.findByRole('group', { name: 'Catégorie de la tendance' })
+    const august = await waitFor(() => {
+      const column = document.querySelector<HTMLElement>(
+        '[data-slot="trend-month"][data-month="2026-08"]',
+      )
+      expect(column).not.toBeNull()
+      return column!
+    })
+    await user.click(august)
+
+    const detail = document.querySelector<HTMLElement>(
+      '[data-slot="trend-detail"]',
+    )!
+    expect(detail).toHaveTextContent('août 2026')
+    expect(august).toHaveAttribute('data-active', 'true')
+    await user.click(
+      within(detail).getByRole('button', { name: 'Voir ce mois' }),
+    )
+    expect(changes.at(-1)).toEqual({ month: '2026-08', trend: GROCERIES })
+    expect(window.scrollTo).toHaveBeenCalledWith({
+      top: 0,
+      behavior: 'smooth',
+    })
+  })
+
+  it('names the largest categories of a month, by keyboard too', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    const chart = await screen.findByRole('group', {
+      name: /^Dépenses par mois, total, de août 2026 à octobre 2026/,
+    })
+    chart.focus()
+    // From the page's month, one step back.
+    await user.keyboard('{ArrowLeft}')
+    const detail = document.querySelector<HTMLElement>(
+      '[data-slot="trend-detail"]',
+    )!
+    expect(detail).toHaveTextContent('septembre 2026')
+    const top = within(detail).getByRole('list', {
+      name: 'Principales catégories',
+    })
+    expect(
+      within(top)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent.replace(/\s/g, ' ')),
+    ).toEqual(['Loyer700 €', 'Courses250 €'])
+
+    await user.keyboard('{Escape}')
+    expect(document.querySelector('[data-slot="trend-detail"]')).toBeNull()
+
+    // A tap elsewhere on the page closes it too.
+    await user.keyboard('{ArrowLeft}')
+    expect(document.querySelector('[data-slot="trend-detail"]')).not.toBeNull()
+    await user.click(screen.getByRole('heading', { name: 'Dépenses' }))
+    expect(document.querySelector('[data-slot="trend-detail"]')).toBeNull()
   })
 
   it('compares a month in progress with the same days, rent not paid yet', async () => {
