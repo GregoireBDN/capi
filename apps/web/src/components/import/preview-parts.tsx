@@ -4,8 +4,8 @@ import {
   NativeSelect,
   NativeSelectOptGroup,
   NativeSelectOption,
-  ToggleGroup,
-  ToggleGroupItem,
+  SegmentedControl,
+  SegmentedControlItem,
 } from '@finances/ui'
 import type {
   CategoryDto,
@@ -146,10 +146,6 @@ export function CategorySelect({
   )
 }
 
-/** A clearer "on" state than the outline toggle's default muted fill. */
-export const SELECTED =
-  'data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary'
-
 interface ConflictToggleProps {
   row: ImportPreviewRowDto
   value: ConflictAction
@@ -158,23 +154,14 @@ interface ConflictToggleProps {
 
 export function ConflictToggle({ row, value, onChange }: ConflictToggleProps) {
   return (
-    <ToggleGroup
-      type="single"
-      variant="outline"
-      size="sm"
+    <SegmentedControl
       value={value}
       aria-label={`Décision pour « ${row.rawLabel} »`}
-      onValueChange={(next) => {
-        if (next === 'import' || next === 'skip') onChange(next)
-      }}
+      onValueChange={onChange}
     >
-      <ToggleGroupItem value="import" className={SELECTED}>
-        Importer
-      </ToggleGroupItem>
-      <ToggleGroupItem value="skip" className={SELECTED}>
-        Ignorer
-      </ToggleGroupItem>
-    </ToggleGroup>
+      <SegmentedControlItem value="import">Importer</SegmentedControlItem>
+      <SegmentedControlItem value="skip">Ignorer</SegmentedControlItem>
+    </SegmentedControl>
   )
 }
 

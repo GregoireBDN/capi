@@ -20,9 +20,9 @@ import {
   formatPercent,
   formatWholeEuros,
   LineChart,
+  SegmentedControl,
+  SegmentedControlItem,
   Skeleton,
-  ToggleGroup,
-  ToggleGroupItem,
 } from '@finances/ui'
 import type { ChartConfig } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
@@ -72,9 +72,6 @@ const CHART_HEIGHT = 240
 const CONFIG = {
   netWorthCents: { label: 'Patrimoine net', color: 'var(--chart-savings)' },
 } satisfies ChartConfig
-
-const SELECTED =
-  'data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary'
 
 const shortMonthYear = new Intl.DateTimeFormat('fr-FR', {
   month: 'short',
@@ -400,22 +397,18 @@ function HistoryCard({
             Données jusqu’au {formatShortDay(coverage.dataUntil)}
           </p>
         )}
-        <ToggleGroup
-          type="single"
-          variant="outline"
-          size="sm"
+        <SegmentedControl
+          fullWidth
           aria-label="Période du graphique"
           value={period}
-          onValueChange={(next) => {
-            if (next) onPeriodChange(next as NetWorthPeriod)
-          }}
+          onValueChange={onPeriodChange}
         >
           {NET_WORTH_PERIODS.map((item) => (
-            <ToggleGroupItem key={item} value={item} className={SELECTED}>
+            <SegmentedControlItem key={item} value={item}>
               {NET_WORTH_PERIOD_LABELS[item]}
-            </ToggleGroupItem>
+            </SegmentedControlItem>
           ))}
-        </ToggleGroup>
+        </SegmentedControl>
         {series.length < 2 ? (
           <EmptyState
             variant="inline"

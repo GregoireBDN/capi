@@ -12,14 +12,14 @@ import {
   Input,
   NativeSelect,
   NativeSelectOption,
+  SegmentedControl,
+  SegmentedControlItem,
   Sheet,
   SheetContent,
   SheetDescription,
   SheetTitle,
   Switch,
   Textarea,
-  ToggleGroup,
-  ToggleGroupItem,
   cn,
   useIsMobile,
 } from '@finances/ui'
@@ -621,47 +621,36 @@ export function ManualTransactionSheet({
       {step === 'category' && (
         <>
           <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4">
+            {/* Three labels on a 320px phone: sized on the row's width. */}
             <div className="@container">
-              <ToggleGroup
-                type="single"
-                variant="outline"
+              <SegmentedControl
+                fullWidth
                 aria-label="Type"
-                className="w-full"
                 value={kind}
-                onValueChange={(value) => {
-                  if (value) changeKind(value as TransactionKind)
-                }}
+                onValueChange={changeKind}
               >
                 {TRANSACTION_KINDS.map((option) => (
-                  <ToggleGroupItem
+                  <SegmentedControlItem
                     key={option}
                     value={option}
-                    className="min-w-0 flex-1 px-1 text-[min(0.875rem,4.5cqi)]"
+                    className="px-1 text-[min(0.875rem,4.5cqi)]"
                   >
                     {option === 'transfer' ? 'Virement' : KIND_LABELS[option]}
-                  </ToggleGroupItem>
+                  </SegmentedControlItem>
                 ))}
-              </ToggleGroup>
+              </SegmentedControl>
             </div>
 
             {kind === 'transfer' && (
-              <ToggleGroup
-                type="single"
-                variant="outline"
+              <SegmentedControl
+                fullWidth
                 aria-label="Sens"
-                className="w-full"
                 value={direction}
-                onValueChange={(value) => {
-                  if (value) setDirection(value as MoneyDirection)
-                }}
+                onValueChange={setDirection}
               >
-                <ToggleGroupItem value="out" className="flex-1">
-                  Sortie
-                </ToggleGroupItem>
-                <ToggleGroupItem value="in" className="flex-1">
-                  Entrée
-                </ToggleGroupItem>
-              </ToggleGroup>
+                <SegmentedControlItem value="out">Sortie</SegmentedControlItem>
+                <SegmentedControlItem value="in">Entrée</SegmentedControlItem>
+              </SegmentedControl>
             )}
 
             {(suggestions.data?.items.length ?? 0) > 0 && (

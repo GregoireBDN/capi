@@ -8,8 +8,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  ToggleGroup,
-  ToggleGroupItem,
+  SegmentedControl,
+  SegmentedControlItem,
 } from '@finances/ui'
 import { Fragment, useEffect, useState } from 'react'
 import type { CategoryDto, ConflictAction, ImportPreviewRowDto } from '#/api'
@@ -28,7 +28,6 @@ import {
   ManualMatchNote,
   RowLabel,
   RowStatusBadge,
-  SELECTED,
 } from './preview-parts'
 
 /**
@@ -86,27 +85,21 @@ export function PreviewRows(props: PreviewRowsProps) {
 
   return (
     <section aria-label="Opérations du fichier" className="space-y-3">
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        size="sm"
-        spacing={1}
-        className="flex-wrap"
+      <SegmentedControl
+        fullWidth
         aria-label="Filtrer les opérations"
         value={filter}
-        onValueChange={(next) => {
-          if (next) setFilter(next as RowFilter)
-        }}
+        onValueChange={setFilter}
       >
         {FILTERS.map(({ value, label }) => (
-          <ToggleGroupItem key={value} value={value} className={SELECTED}>
+          <SegmentedControlItem key={value} value={value}>
             {label}
             <span className="text-muted-foreground tabular-nums">
               {rows.filter((row) => matches(row, value)).length}
             </span>
-          </ToggleGroupItem>
+          </SegmentedControlItem>
         ))}
-      </ToggleGroup>
+      </SegmentedControl>
 
       {visible.length === 0 ? (
         <Card size="sm">

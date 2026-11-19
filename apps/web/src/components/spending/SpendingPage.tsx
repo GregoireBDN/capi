@@ -10,9 +10,9 @@ import {
   cn,
   EmptyState,
   formatEuros,
+  SegmentedControl,
+  SegmentedControlItem,
   Skeleton,
-  ToggleGroup,
-  ToggleGroupItem,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -37,10 +37,6 @@ import { SpendingFilters } from './SpendingFilters'
 import { SpendingKpis, SpendingKpisSkeleton } from './SpendingKpis'
 import { SpendingTrend } from './SpendingTrend'
 import type { TrendCategoryOption } from './SpendingTrend'
-
-/** Selected state of a segmented control item. */
-const SELECTED =
-  'data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary'
 
 /** Months shown by the trend, ending with the selected month. */
 export const TREND_MONTHS = 12
@@ -253,39 +249,38 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
             <Section title="Répartition" className="@3xl:sticky @3xl:top-4">
               <SpendingDonut data={data} monthLabel={monthLabel} />
             </Section>
-            <Section
-              title="Par catégorie"
-              action={
-                <ToggleGroup
-                  type="single"
-                  variant="outline"
-                  size="sm"
-                  aria-label="Comparer chaque catégorie avec"
-                  value={comparison}
-                  onValueChange={(next) => {
-                    if (next)
+            <Section title="Par catégorie">
+              {/* The comparison read first: the control, then what it
+                  compares with. Under the title on phones, full width. */}
+              <div className="@container mb-2">
+                <div className="flex flex-col gap-1.5 @sm:flex-row @sm:items-center @sm:gap-3">
+                  <SegmentedControl
+                    aria-label="Comparer chaque catégorie avec"
+                    className="@sm:w-fit"
+                    fullWidth
+                    value={comparison}
+                    onValueChange={(next) =>
                       set({ cmp: next === 'average' ? 'avg' : undefined })
-                  }}
-                >
-                  <ToggleGroupItem value="previous" className={SELECTED}>
-                    Mois précédent
-                  </ToggleGroupItem>
-                  <ToggleGroupItem
-                    value="average"
-                    className={SELECTED}
-                    disabled={data.averageMonths === 0}
+                    }
                   >
-                    Moyenne
-                  </ToggleGroupItem>
-                </ToggleGroup>
-              }
-            >
-              <p
-                data-slot="comparison-caption"
-                className="text-muted-foreground mb-1 text-xs"
-              >
-                {caption}
-              </p>
+                    <SegmentedControlItem value="previous">
+                      Mois précédent
+                    </SegmentedControlItem>
+                    <SegmentedControlItem
+                      value="average"
+                      disabled={data.averageMonths === 0}
+                    >
+                      Moyenne
+                    </SegmentedControlItem>
+                  </SegmentedControl>
+                  <p
+                    data-slot="comparison-caption"
+                    className="text-muted-foreground text-xs"
+                  >
+                    {caption}
+                  </p>
+                </div>
+              </div>
               <CategoryRanking
                 categories={data.categories}
                 month={month}

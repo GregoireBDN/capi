@@ -13,14 +13,14 @@ import {
   Input,
   NativeSelect,
   NativeSelectOption,
+  SegmentedControl,
+  SegmentedControlItem,
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
   Skeleton,
-  ToggleGroup,
-  ToggleGroupItem,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -271,23 +271,19 @@ function AddWalletTokenSheet({
           </SheetDescription>
         </SheetHeader>
         <div className="space-y-4 px-4 pb-6">
-          <ToggleGroup
-            type="single"
-            variant="outline"
+          <SegmentedControl
+            fullWidth
             aria-label="Trouver le jeton"
-            className="w-full"
             value={mode}
-            onValueChange={(value) => {
-              if (value) setMode(value as 'name' | 'contract')
-            }}
+            onValueChange={setMode}
           >
-            <ToggleGroupItem value="name" className="min-w-0 flex-1">
+            <SegmentedControlItem value="name">
               Par son nom
-            </ToggleGroupItem>
-            <ToggleGroupItem value="contract" className="min-w-0 flex-1">
+            </SegmentedControlItem>
+            <SegmentedControlItem value="contract">
               Par son adresse
-            </ToggleGroupItem>
-          </ToggleGroup>
+            </SegmentedControlItem>
+          </SegmentedControl>
           {mode === 'name' ? (
             <div className="space-y-2">
               <label htmlFor={id} className="text-sm font-medium">
