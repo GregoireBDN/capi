@@ -256,13 +256,12 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
               <SpendingDonut data={data} monthLabel={monthLabel} />
             </Section>
             <Section title="Par catégorie">
-              {/* The comparison read first: the control, then what it
-                  compares with. Under the title on phones, full width. */}
+              {/* The comparison read first: the control across the card
+                  (owner's choice), then what it compares with. */}
               <div className="@container mb-2">
-                <div className="flex flex-col gap-1.5 @sm:flex-row @sm:items-center @sm:gap-3">
+                <div className="flex flex-col gap-1.5">
                   <SegmentedControl
                     aria-label="Comparer chaque catégorie avec"
-                    className="@sm:w-fit"
                     fullWidth
                     value={comparison}
                     onValueChange={(next) =>

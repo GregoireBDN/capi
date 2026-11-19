@@ -109,11 +109,9 @@ function SegmentedControl<T extends string>({
       }}
       className={cn(
         [
-          // Grouping
-          'group/segmented',
-
-          // Layout: as wide as its segments, or the whole row
-          'flex max-w-full items-stretch gap-0.5',
+          // Layout: equal segments (columns as wide as the widest label),
+          // as wide as them or the whole row
+          'grid max-w-full auto-cols-fr grid-flow-col items-stretch gap-0.5',
           fullWidth ? 'w-full' : 'w-fit',
 
           // Track: 44px high with the padding, which also leaves room for
@@ -166,12 +164,8 @@ function SegmentedControlItem({
       }}
       className={cn(
         [
-          // Layout: never narrower than its label; full width, the segments
-          // share the row equally while their labels fit
-          'relative inline-flex shrink-0 items-center justify-center gap-1.5',
-          'group-data-[full-width]/segmented:min-w-fit',
-          'group-data-[full-width]/segmented:grow',
-          'group-data-[full-width]/segmented:basis-0',
+          // Layout: a column of the track, never narrower than its label
+          'relative inline-flex items-center justify-center gap-1.5',
           'min-h-[calc(2rem-6px)] min-w-[calc(2rem-6px)] px-3',
 
           // Touch screens: 44px hit area, inside the track's padding
