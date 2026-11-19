@@ -324,6 +324,69 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
+    it('keeps a meal-voucher card: credits income, payments expenses, balance from them (#298)', async () => {
+      await withFixture(async ({ tx, service, groceries, checking }) => {
+        const [card] = await tx
+          .insert(accountsTable)
+          .values({ name: 'Titres-restaurant', type: 'meal_voucher' })
+          .returning()
+        const [vouchers] = await tx
+          .insert(categoriesTable)
+          .values({
+            slug: 'manual_test_meal_vouchers',
+            name: 'Titres-restaurant test',
+            kind: 'income',
+          })
+          .returning()
+        const credit = await service.create(
+          {
+            amountCents: 18_900,
+            kind: 'income',
+            categoryId: vouchers.id,
+            accountId: card.id,
+            bookingDate: '2026-10-02',
+            label: 'Crédit titres-restaurant',
+          },
+          NOW,
+        )
+        const payment = await service.create(
+          {
+            amountCents: 2_340,
+            categoryId: groceries,
+            accountId: card.id,
+            bookingDate: '2026-10-12',
+          },
+          NOW,
+        )
+        expect([credit.amountCents, credit.kind]).toEqual([18_900, 'income'])
+        expect([payment.amountCents, payment.kind]).toEqual([-2_340, 'expense'])
+
+        const accounts = new AccountsService({ db: tx } as never)
+        expect(await accounts.findOne(card.id)).toMatchObject({
+          balanceCents: 16_560,
+          balanceDate: '2026-10-12',
+        })
+
+        // Both sides count, at their real amounts, never as a transfer.
+        const summary = await new TransactionsService({
+          db: tx,
+        } as never).summary({ accountId: card.id, month: '2026-10' })
+        expect(summary).toMatchObject({
+          count: 2,
+          incomeCents: 18_900,
+          expenseCents: -2_340,
+          transferCount: 0,
+        })
+
+        // The default account stays the checking one.
+        const noted = await service.create(
+          { amountCents: 500, categoryId: groceries },
+          NOW,
+        )
+        expect(noted.accountId).toBe(checking)
+      })
+    })
+
     it('enters income and transfers with the sign of their direction', async () => {
       await withFixture(async ({ tx, service, salary }) => {
         const income = await service.create(

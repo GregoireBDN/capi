@@ -18,7 +18,7 @@ import {
 } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { createHash } from 'node:crypto'
-import { isTransactionalAccount } from '#/accounts/accounts.service'
+import { isBankAccount } from '#/accounts/accounts.service'
 import { CategorizationRulesService } from '#/categories/categorization-rules.service'
 import { defaultKind } from '#/categories/rules/categorize'
 import { DatabaseService } from '#/database/database.service'
@@ -383,7 +383,7 @@ export class ImportsService {
     if (!account) {
       throw new BadRequestException('accountId does not match any account')
     }
-    if (!isTransactionalAccount(account)) {
+    if (!isBankAccount(account)) {
       throw new BadRequestException(
         'Bank exports can only be imported into a checking or savings account',
       )

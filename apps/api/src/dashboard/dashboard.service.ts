@@ -4,6 +4,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import {
   type AccountWithBalance,
   AccountsService,
+  isBankAccount,
   isTransactionalAccount,
 } from '#/accounts/accounts.service'
 import { BudgetsService } from '#/budgets/budgets.service'
@@ -281,7 +282,9 @@ export class DashboardService {
         ? null
         : endCents - previousEndCents
 
+    // A meal-voucher card is entered by hand: nothing to import (#298).
     const missing: ReviewMissingAccountDto[] = latest.flatMap((account) => {
+      if (isTransactionalAccount(account) && !isBankAccount(account)) return []
       const cash = isTransactionalAccount(account)
       const lastDate = cash
         ? (coverage.get(account.id) ?? null)

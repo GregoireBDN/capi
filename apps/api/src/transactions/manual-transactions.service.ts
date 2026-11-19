@@ -364,7 +364,7 @@ export class ManualTransactionsService {
     }
     if (!isTransactionalAccount(account) || account.archivedAt) {
       throw new BadRequestException(
-        'accountId must be an open checking or savings account',
+        'accountId must be an open checking, savings or meal voucher account',
       )
     }
     return account.id

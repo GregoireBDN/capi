@@ -755,6 +755,11 @@ describe.skipIf(!process.env.DATABASE_URL)(
             name: 'Test PEA',
             type: 'brokerage',
           })
+          // Entered by hand, nothing to import: never listed (#298).
+          await accounts.create({
+            name: 'Test titres-restaurant',
+            type: 'meal_voucher',
+          })
           await tx
             .insert(transactionsTable)
             .values([transaction(checking.id, { bookingDate: '2026-10-20' })])

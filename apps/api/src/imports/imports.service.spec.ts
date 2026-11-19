@@ -269,15 +269,20 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
 
     it('only imports into existing, active checking or savings accounts', async () => {
       await withFixture(async ({ tx, preview }) => {
-        const [pea, archived] = await tx
+        const [pea, archived, card] = await tx
           .insert(accountsTable)
           .values([
             { name: 'Test PEA', type: 'brokerage' },
             { name: 'Closed', type: 'savings', archivedAt: new Date() },
+            { name: 'Titres-restaurant', type: 'meal_voucher' },
           ])
           .returning()
 
         await expect(preview(FILE_A, pea.id)).rejects.toThrow(
+          'checking or savings',
+        )
+        // The meal-voucher card is entered by hand (#298).
+        await expect(preview(FILE_A, card.id)).rejects.toThrow(
           'checking or savings',
         )
         await expect(preview(FILE_A, archived.id)).rejects.toThrow('archived')
