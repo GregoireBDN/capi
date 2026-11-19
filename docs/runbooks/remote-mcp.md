@@ -41,9 +41,11 @@ A release from #328 onwards builds, scans and pushes `ghcr.io/gregoirebdn/financ
 ssh vps 'sudo -iu deploy docker pull ghcr.io/gregoirebdn/finances-mcp:vX.Y.Z'
 ```
 
-### 2. Public host name (DNS)
+### 2. Public host name (DNS) and listener
 
-A dedicated name, e.g. `finances-mcp.gbodin.cloud`, with **public** `A` (and `AAAA` if the VPS has public IPv6) records to the VPS's **public** address. The app's tailnet name (`finances.gbodin.cloud`) stays as it is: nothing else gets a public record. Caddy gets its certificate for the new name by the HTTP-01 / TLS-ALPN challenge, which needs ports 80 / 443 open to the internet on the public address for that host (infra repo: `ufw` and Caddy's listeners).
+A dedicated name, e.g. `finances-mcp.gbodin.cloud`: an `A` record (and `AAAA` if the VPS has a public IPv6) to the VPS's **public** address, **DNS only** in Cloudflare (grey cloud): a proxied record would put Cloudflare's addresses in front of Caddy and break the `remote_ip` allow-list. The app's tailnet name (`finances.gbodin.cloud`) stays as it is: nothing else gets a public record.
+
+Caddy publishes 80 / 443 on the Tailscale IP only today. The infra change adds a listener on the public address for this site only (`bind <public IPv4>` in the site block, the port published on that address), opens `443/tcp` in `ufw` (ideally from `160.79.104.0/21` only), and gets the certificate the way the other sites do (DNS challenge with the zone's Cloudflare token; otherwise TLS-ALPN on 443).
 
 ### 3. Caddy site (infra repo, own PR)
 
@@ -51,6 +53,8 @@ Only the adapter's paths, only from Anthropic's outbound range, no buffering, a 
 
 ```caddyfile
 finances-mcp.gbodin.cloud {
+	# The public address only (the other sites stay on the Tailscale IP).
+	bind <public IPv4>
 	@anthropic remote_ip 160.79.104.0/21
 	@allowed path /mcp /.well-known/oauth-protected-resource /.well-known/oauth-protected-resource/mcp /.well-known/oauth-authorization-server /oauth/register /oauth/token /oauth/revoke
 
