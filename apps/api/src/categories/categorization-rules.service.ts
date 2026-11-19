@@ -270,9 +270,11 @@ export class CategorizationRulesService {
 
   /**
    * Makes rule `id` win the transactions it shares with `overRuleId`
-   * (« faire gagner cette règle », #299): when it comes after it in the
-   * evaluation order, its priority becomes one more than the other's. A rule
-   * already first is left as it is.
+   * (« faire gagner cette règle », #299). A rule already first is left as it
+   * is. When the other one only wins through a higher priority and this one
+   * is more specific, the other's priority comes back down to this one's
+   * (so making them win in turn never climbs); otherwise this one's priority
+   * becomes one more than the other's.
    */
   prefer(id: string, overRuleId: string): Promise<RankedRule> {
     return this.db.transaction(async (tx) => {
@@ -289,6 +291,18 @@ export class CategorizationRulesService {
         throw new BadRequestException('overRuleId does not match any rule')
       }
       if (compareRules(rule, other) < 0) return this.ranked(tx, rule)
+      // The other rule was raised above this one: putting it back level is
+      // enough when this one is the more specific (no priority race).
+      if (
+        other.priority > rule.priority &&
+        compareRules(rule, { ...other, priority: rule.priority }) < 0
+      ) {
+        await tx
+          .update(categorizationRulesTable)
+          .set({ priority: rule.priority })
+          .where(eq(categorizationRulesTable.id, overRuleId))
+        return this.ranked(tx, rule)
+      }
       const [updated] = await tx
         .update(categorizationRulesTable)
         .set({ priority: other.priority + 1 })

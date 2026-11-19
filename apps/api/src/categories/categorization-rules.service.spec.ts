@@ -320,6 +320,32 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
+    describe('prefer back and forth', () => {
+      it('lowers the other rule back instead of climbing', async () => {
+        await withFixture(async ({ service, groceries, salary }) => {
+          const specific = await service.create({
+            labelPattern: 'FAKEMART EXPRESS',
+            categoryId: salary,
+          })
+          const broad = await service.create({
+            labelPattern: 'FAKEMART',
+            categoryId: groceries,
+          })
+
+          await service.prefer(broad.id, specific.id)
+          expect(await service.findOne(broad.id)).toMatchObject({
+            priority: 1,
+          })
+          // Back: the broad rule's raise is undone, nothing climbs.
+          const back = await service.prefer(specific.id, broad.id)
+          expect(back).toMatchObject({ priority: 0, rank: 0 })
+          expect(await service.findOne(broad.id)).toMatchObject({
+            priority: 0,
+          })
+        })
+      })
+    })
+
     describe('insights', () => {
       const NOW = new Date('2026-06-15T10:00:00Z')
 

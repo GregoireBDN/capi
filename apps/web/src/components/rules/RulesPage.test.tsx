@@ -312,6 +312,12 @@ describe('RulesPage', () => {
         }),
       ),
     )
+    expect(api.categorizationRulesControllerUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: { id: EXPRESS.id },
+        body: { priority: 0 },
+      }),
+    )
     await waitFor(() =>
       expect(api.categorizationRulesControllerApply).toHaveBeenCalledTimes(2),
     )
@@ -618,26 +624,30 @@ describe('RulesPage', () => {
     )
   })
 
-  it('keeps the evaluation order and re-applying under « Avancé »', async () => {
+  it('lists the evaluation order under « Avancé », each rule opening its editor', async () => {
     const user = userEvent.setup()
     renderPage()
 
     const order = await screen.findByRole('list', {
       name: 'Ordre d’évaluation',
     })
-    expect(
-      within(order)
-        .getAllByRole('listitem')
-        .map((item) => item.textContent),
-    ).toEqual(
-      [
-        '1.Libellé contient « FAKEMART EXPRESS » → Cafés',
-        '2.Libellé contient « FAKEMART » → Courses',
-        '3.Libellé contient « FLEUR TEST » → Ancienne · désactivée',
-        '4.Libellé contient « SALAIRE TEST » → Salaire',
-      ].map(nbsp),
-    )
-    await user.click(screen.getByText('Avancé'))
+    const rows = within(order).getAllByRole('button')
+    expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([
+      '1. Libellé contient « FAKEMART EXPRESS » → Cafés',
+      '2. Libellé contient « FAKEMART » → Courses',
+      '3. Libellé contient « FLEUR TEST » → Ancienne',
+      '4. Libellé contient « SALAIRE TEST » → Salaire',
+    ])
+    expect(rows[2].textContent).toContain('Désactivée')
+    expect(rows[0].textContent).not.toContain('priorité')
+
+    await user.click(screen.getByText('Ordre d’évaluation'))
+    await user.click(rows[1])
+    const sheet = await screen.findByRole('dialog')
+    expect(stepHeading(sheet)).toBe('Vérifier3/3')
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
     await user.click(
       screen.getByRole('button', { name: 'Réappliquer toutes les règles' }),
     )

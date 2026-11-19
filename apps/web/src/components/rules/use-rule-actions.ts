@@ -103,7 +103,11 @@ export function useRuleActions() {
       await preferRule(rule.id, over.id)
       await announce(
         `« ${rule.labelPattern} » passe avant « ${over.labelPattern} »`,
-        () => updateRule(rule.id, { priority: rule.priority }),
+        // Either priority may have moved: both are put back.
+        async () => {
+          await updateRule(rule.id, { priority: rule.priority })
+          await updateRule(over.id, { priority: over.priority })
+        },
       )
     },
     onError: (error) => toast.error(ruleErrorMessage(error)),

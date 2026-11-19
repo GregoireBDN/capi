@@ -2,19 +2,13 @@ import {
   Badge,
   Button,
   Card,
-  CardContent,
   CategoryIcon,
   ConfirmDialog,
   EmptyState,
   Skeleton,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  ChevronDownIcon,
-  ChevronRightIcon,
-  PlusIcon,
-  WandSparklesIcon,
-} from 'lucide-react'
+import { PlusIcon, WandSparklesIcon } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import type {
@@ -26,7 +20,6 @@ import { PageHeader } from '#/components/app-shell/PageHeader'
 import { TRANSACTION_KINDS } from '#/components/transactions/labels'
 import { plural } from '#/lib/plural'
 import { accountsQuery, categoriesQuery } from '#/lib/queries'
-import { MATCH_TYPE_LABELS, ruleName } from './describe'
 import { ruleErrorMessage } from './errors'
 import {
   afterTransactionsChanged,
@@ -34,6 +27,7 @@ import {
   rulesInsightsQuery,
   rulesQuery,
 } from './queries'
+import { EvaluationOrder } from './EvaluationOrder'
 import { RuleConflicts } from './RuleConflicts'
 import { RuleEditorSheet } from './RuleEditorSheet'
 import { RuleRow } from './RuleRow'
@@ -248,6 +242,7 @@ export function RulesPage() {
             categories={allCategories}
             applying={apply.isPending}
             onApply={() => setConfirmApply(true)}
+            onEdit={(rule) => setEditing({ rule })}
           />
         </>
       )}
@@ -293,87 +288,5 @@ export function RulesPage() {
         onConfirm={() => apply.mutate()}
       />
     </div>
-  )
-}
-
-/**
- * « Avancé », folded: the rules in evaluation order, numbered, for checking
- * which one wins; the order is changed through a rule's priority (in its
- * editor), and the rules can be re-applied by hand.
- */
-function EvaluationOrder({
-  rules,
-  categories,
-  applying,
-  onApply,
-}: {
-  rules: readonly CategorizationRuleDto[]
-  categories: readonly CategoryDto[]
-  applying: boolean
-  onApply: () => void
-}) {
-  return (
-    <Card size="sm" className="min-w-0">
-      <details className="group space-y-3">
-        <summary className="focus-visible:ring-ring/50 flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 outline-none focus-visible:ring-[3px] [&::-webkit-details-marker]:hidden">
-          <ChevronRightIcon
-            aria-hidden
-            className="text-muted-foreground size-4 shrink-0 group-open:hidden"
-          />
-          <ChevronDownIcon
-            aria-hidden
-            className="text-muted-foreground hidden size-4 shrink-0 group-open:block"
-          />
-          <h2 className="min-w-0 flex-1 font-semibold">Avancé</h2>
-          <span className="text-muted-foreground shrink-0 text-sm">
-            ordre d’évaluation
-          </span>
-        </summary>
-        <CardContent className="space-y-3">
-          <p className="text-muted-foreground text-sm">
-            Une opération est classée par la première règle qui la reconnaît,
-            dans cet ordre : la priorité d’abord, puis la règle la plus précise
-            (expression régulière, texte plus long, compte ou montant), puis la
-            plus ancienne. Pour faire passer une règle avant, ouvrez-la et
-            montez sa priorité dans « Avancé ».
-          </p>
-          <ol aria-label="Ordre d’évaluation" className="space-y-1 text-sm">
-            {rules.map((rule) => (
-              <li key={rule.id} className="flex items-baseline gap-2">
-                <span className="text-muted-foreground w-6 shrink-0 text-right tabular-nums">
-                  {rule.rank + 1}.
-                </span>
-                <span className="min-w-0 flex-1 break-words">
-                  <span className="text-muted-foreground">
-                    {MATCH_TYPE_LABELS[rule.matchType]}{' '}
-                  </span>
-                  {ruleName(rule, categories)}
-                  {rule.priority !== 0 && (
-                    <span className="text-muted-foreground">
-                      {' '}
-                      · priorité {rule.priority > 0 ? '+' : ''}
-                      {rule.priority}
-                    </span>
-                  )}
-                  {!rule.enabled && (
-                    <span className="text-muted-foreground"> · désactivée</span>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ol>
-          <Button
-            variant="secondary"
-            outline
-            className="w-full"
-            loading={applying}
-            iconStart={<WandSparklesIcon />}
-            onClick={onApply}
-          >
-            Réappliquer toutes les règles
-          </Button>
-        </CardContent>
-      </details>
-    </Card>
   )
 }
