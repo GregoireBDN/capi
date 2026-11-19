@@ -371,7 +371,8 @@ describe('SavingsPage', () => {
     renderPage()
 
     expect(await screen.findByText('Épargne du mois')).toBeInTheDocument()
-    expect(screen.getByText('Novembre 2026')).toBeInTheDocument()
+    // The month is named by the navigator and by the target's row.
+    expect(screen.getAllByText('Novembre 2026')).not.toHaveLength(0)
     // One average on the tiles, named and dated.
     const average = screen
       .getByText('Épargne moyenne')
@@ -383,11 +384,21 @@ describe('SavingsPage', () => {
     const kpis = screen.getByRole('region', { name: 'Chiffres clés' })
     expect(kpis).not.toHaveTextContent(/Moy\. 6 mois|ponctuel/)
 
-    // Target vs actual: 400 € saved so far, 460 € to go.
+    // Target vs actual, one row like a goal: 400 € saved so far, 460 € to
+    // go; the last full months as dots.
     expect(
-      screen.getByText(text('Reste 460,00 € à épargner ce mois-ci')),
+      screen.getByRole('button', {
+        name: (name) =>
+          text(name) ===
+          'Modifier l’épargne cible : Novembre 2026, En cours, 400 € sur 860 €, reste 460 €',
+      }),
     ).toBeInTheDocument()
     expect(screen.getByText('1 mois sur 2')).toBeInTheDocument()
+    expect(
+      within(
+        screen.getByRole('list', { name: 'Derniers mois complets' }),
+      ).getAllByRole('listitem'),
+    ).toHaveLength(2)
 
     // Savings stock: the total and the gain as figures in the header.
     const stock = screen
@@ -496,9 +507,12 @@ describe('SavingsPage', () => {
     expect(tile).toHaveTextContent('vs 1–20 sept.')
     // The target follows the page's month, known until the 20th.
     expect(
-      screen.getByRole('meter', { name: 'Octobre 2026 (jusqu’au 20 oct.)' }),
+      screen.getByRole('button', {
+        name: (name) =>
+          text(name) ===
+          'Modifier l’épargne cible : Octobre 2026 · jusqu’au 20 oct., Sous la cible, 400 € sur 860 €, −460 €',
+      }),
     ).toBeInTheDocument()
-    expect(screen.getByText(text('460,00 € sous la cible'))).toBeInTheDocument()
   })
 
   it('names the month a complete month is compared with', async () => {
@@ -524,7 +538,9 @@ describe('SavingsPage', () => {
     ) as HTMLElement
     expect(tile).toHaveTextContent('vs septembre')
     expect(
-      screen.getByRole('meter', { name: 'Octobre 2026' }),
+      screen.getByRole('button', {
+        name: /^Modifier l’épargne cible : Octobre 2026,/,
+      }),
     ).toBeInTheDocument()
   })
 
@@ -685,7 +701,7 @@ describe('SavingsPage', () => {
     const user = userEvent.setup()
     renderPage()
     await user.click(
-      await screen.findByRole('button', { name: 'Modifier l’épargne cible' }),
+      await screen.findByRole('button', { name: /^Modifier l’épargne cible/ }),
     )
     const input = screen.getByLabelText('Épargne cible par mois')
     await user.clear(input)

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { SavingsGoalDto } from '#/api/types.gen'
 import { deadlineHelp } from './GoalEditor'
 import { goalStatus, goalWhen } from './GoalsSection'
+import { targetMonthStatus } from './TargetCard'
 
 /** Synthetic goal: 2 500 € saved of 10 000 €, due in March 2027. */
 function goal(overrides: Partial<SavingsGoalDto> = {}): SavingsGoalDto {
@@ -96,5 +97,21 @@ describe('deadlineHelp', () => {
     expect(deadlineHelp(goal({ targetDatePassed: true }), '2027-03-31')).toBe(
       'Échéance passée.',
     )
+  })
+})
+
+describe('targetMonthStatus', () => {
+  const clean = (value: string) => value.replace(/\s/g, ' ')
+  it('words the month against the target like a goal', () => {
+    const running = targetMonthStatus(40_000, 86_000, true)
+    expect(running.label).toBe('En cours')
+    expect(clean(running.gap)).toBe('reste 460 €')
+    const past = targetMonthStatus(40_000, 86_000, false)
+    expect(past).toMatchObject({ label: 'Sous la cible', tone: 'bad' })
+    expect(clean(past.gap)).toBe('−460 €')
+    const above = targetMonthStatus(98_000, 86_000, false)
+    expect(above).toMatchObject({ label: 'Atteinte', tone: 'good' })
+    expect(clean(above.gap)).toBe('+120 €')
+    expect(targetMonthStatus(86_000, 86_000, true).gap).toBe('')
   })
 })
