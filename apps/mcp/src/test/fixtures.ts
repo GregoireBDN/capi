@@ -41,6 +41,15 @@ export const pea: AccountDto = {
   position: 2,
 }
 
+export const mealVoucher: AccountDto = {
+  ...checking,
+  id: '00000000-0000-4000-8000-000000000004',
+  name: 'Titres-restaurant',
+  type: 'meal_voucher',
+  institution: null,
+  position: 3,
+}
+
 export const groceries: CategoryDto = {
   id: '00000000-0000-4000-8000-0000000000c1',
   slug: 'groceries',

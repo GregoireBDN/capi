@@ -85,7 +85,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         )
 
         const counts = result.counts
-        expect(counts.accounts).toBe(6)
+        expect(counts.accounts).toBe(7)
         expect(counts.transactions).toBeGreaterThan(400)
         expect(counts.reviewQueue).toBeGreaterThan(0)
         expect(counts.splits).toBe(1)
@@ -178,6 +178,43 @@ describe.skipIf(!process.env.DATABASE_URL)(
         expect(ended).toHaveLength(2)
         expect(ended.every((r) => r.status === 'confirmed')).toBe(true)
         expect(ended.map((r) => r.key).join(' ')).toMatch(/SPOTIFY.*VIDEOPASS/)
+
+        // The meal-voucher card (#298): entered by hand, credits are income
+        // (a confirmed monthly credit), payments expenses, never below zero.
+        const voucher = accounts.find((a) => a.type === 'meal_voucher')!
+        const voucherRows = await tx
+          .select()
+          .from(transactionsTable)
+          .where(eq(transactionsTable.accountId, voucher.id))
+          .orderBy(asc(transactionsTable.bookingDate))
+        expect(voucherRows.length).toBeGreaterThan(100)
+        expect(voucherRows.every((r) => r.manual)).toBe(true)
+        expect(
+          voucherRows.every((r) =>
+            r.amountCents > 0 ? r.kind === 'income' : r.kind === 'expense',
+          ),
+        ).toBe(true)
+        let voucherBalance = 0
+        for (const row of voucherRows) {
+          voucherBalance += row.amountCents
+          if (row.amountCents < 0)
+            expect(voucherBalance).toBeGreaterThanOrEqual(0)
+        }
+        expect(voucherRows.at(-1)!.bookingDate < TODAY).toBe(true)
+        // Never more than 25 € of payments a day.
+        const paidByDay = new Map<string, number>()
+        for (const row of voucherRows.filter((r) => r.amountCents < 0)) {
+          paidByDay.set(
+            row.bookingDate,
+            (paidByDay.get(row.bookingDate) ?? 0) - row.amountCents,
+          )
+        }
+        expect(Math.max(...paidByDay.values())).toBeLessThanOrEqual(2_500)
+        const credit = recurring.find(
+          (r) => r.accountId === voucher.id && r.direction === 'credit',
+        )
+        expect(credit?.status).toBe('confirmed')
+        expect(credit?.cadence).toBe('monthly')
       })
     })
 

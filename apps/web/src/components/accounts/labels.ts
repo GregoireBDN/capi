@@ -4,15 +4,19 @@ import {
   ChartCandlestickIcon,
   PiggyBankIcon,
   UmbrellaIcon,
+  UtensilsIcon,
   WalletIcon,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { AccountType } from '#/api/types.gen'
 import { formatCalendarDate } from '#/lib/money'
 
-/** Checking and savings accounts are fed by imports; the rest by snapshots. */
+/**
+ * Checking and savings accounts are fed by imports, the meal-voucher card by
+ * hand (all three by transactions); the rest by snapshots.
+ */
 export function isInvestmentType(type: AccountType): boolean {
-  return type !== 'checking' && type !== 'savings'
+  return type !== 'checking' && type !== 'savings' && type !== 'meal_voucher'
 }
 
 /** `il y a 92 jours`, `hier`, `aujourd’hui`. */
@@ -50,4 +54,8 @@ export const ACCOUNT_TYPE_ICONS: Record<
     className: 'bg-chart-4/15 text-chart-4',
   },
   crypto: { icon: BitcoinIcon, className: 'bg-chart-2/15 text-chart-2' },
+  meal_voucher: {
+    icon: UtensilsIcon,
+    className: 'bg-chart-6/15 text-chart-6',
+  },
 }

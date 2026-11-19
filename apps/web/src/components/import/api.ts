@@ -6,7 +6,7 @@ export {
   accountsQuery,
   ApiRequestError,
   categoriesQuery,
-  isTransactional,
+  isBankAccount,
   unwrap,
 } from '#/lib/queries'
 

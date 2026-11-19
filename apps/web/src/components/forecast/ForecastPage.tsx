@@ -29,7 +29,7 @@ import { PageHeader } from '#/components/app-shell/PageHeader'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
 import { formatShortDay } from '#/components/subscriptions/format'
 import { formatCents } from '#/lib/money'
-import { accountsQuery, isTransactional } from '#/lib/queries'
+import { accountsQuery, isBankAccount } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import { ForecastChart } from './ForecastChart'
 import { ForecastItems } from './ForecastItems'
@@ -227,7 +227,7 @@ export function ForecastPage() {
   )
   const data = forecast.data
   const choices = (accounts.data ?? []).filter(
-    (account) => isTransactional(account) && account.archivedAt === null,
+    (account) => isBankAccount(account) && account.archivedAt === null,
   )
 
   return (

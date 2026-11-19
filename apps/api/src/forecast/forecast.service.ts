@@ -3,7 +3,7 @@ import { and, eq, gt, gte, inArray, lte, min } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import {
   AccountsService,
-  isTransactionalAccount,
+  isBankAccount,
 } from '#/accounts/accounts.service'
 import { dataUntilByAccount } from '#/coverage/coverage'
 import { monthEnd, shiftMonth } from '#/dashboard/calendar'
@@ -227,8 +227,9 @@ export class ForecastService {
   }
 
   /**
-   * The requested checking / savings accounts (400 for an unknown or
-   * investment account), or every non-archived checking account.
+   * The requested checking / savings accounts (400 for an unknown,
+   * investment or meal-voucher account: the forecast is the bank's), or
+   * every non-archived checking account.
    */
   private async selectAccounts(accountIds: readonly string[] | undefined) {
     const accounts = await this.accountsService.list({ includeArchived: true })
@@ -241,7 +242,7 @@ export class ForecastService {
     const found = accounts.filter((account) => wanted.has(account.id))
     if (
       found.length !== wanted.size ||
-      found.some((account) => !isTransactionalAccount(account))
+      found.some((account) => !isBankAccount(account))
     ) {
       throw new BadRequestException(
         'accountIds must be checking or savings accounts',

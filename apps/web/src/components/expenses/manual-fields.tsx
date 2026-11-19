@@ -5,7 +5,7 @@ import {
   ChevronRightIcon,
   DeleteIcon,
 } from 'lucide-react'
-import type { ManualSuggestionDto } from '#/api/types.gen'
+import type { AccountDto, ManualSuggestionDto } from '#/api/types.gen'
 import type { AmountKey } from './amount-entry'
 
 /**
@@ -366,3 +366,102 @@ export function AmountKeypad({
     </div>
   )
 }
+
+/**
+ * The account as chips (#298): « Payé avec » the bank account or the
+ * meal-voucher card, one tap, for the categories the card pays.
+ */
+export function AccountChips({
+  labelId,
+  accounts,
+  value,
+  onChange,
+}: {
+  labelId: string
+  accounts: readonly Pick<AccountDto, 'id' | 'name'>[]
+  value: string
+  onChange: (accountId: string) => void
+}) {
+  return (
+    <ToggleGroup
+      type="single"
+      spacing={1.5}
+      aria-labelledby={labelId}
+      className="flex-wrap"
+      value={value}
+      onValueChange={(next) => {
+        if (next) onChange(next)
+      }}
+    >
+      {accounts.map((account) => (
+        <ToggleGroupItem
+          key={account.id}
+          value={account.id}
+          className={cn(CHIP_CLASS, CHIP_ON, 'max-w-full')}
+        >
+          <span className="truncate">{account.name}</span>
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+  )
+}
+
+/**
+ * The meal-voucher card's day (#298): a bar of the 25 € cap with what is
+ * already paid that day, then this payment (red when it goes over), and
+ * what is left after it, or the most the card can still pay.
+ */
+export function VoucherDayGauge({
+  capCents,
+  paidCents,
+  amountCents,
+  when,
+}: {
+  capCents: number
+  paidCents: number
+  amountCents: number
+  /** « aujourd’hui », « hier », « le 12 nov. 2026 ». */
+  when: string
+}) {
+  const left = Math.max(0, capCents - paidCents)
+  const over = amountCents > left
+  const share = (cents: number) =>
+    `${(Math.min(Math.max(cents, 0), capCents) / capCents) * 100}%`
+  const euros = (cents: number) =>
+    euroFormat.format(cents / 100).replace(/[,.]00(?=\s?€)/, '')
+  return (
+    <div className="w-full space-y-1 text-xs">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-muted-foreground truncate">
+          Plafond {euros(capCents)} · {when}
+        </span>
+        <span
+          className={cn(
+            'shrink-0 font-medium tabular-nums',
+            over && 'text-destructive',
+          )}
+        >
+          {over ? `${euros(left)} max` : `Reste ${euros(left - amountCents)}`}
+        </span>
+      </div>
+      <div
+        aria-hidden
+        className="bg-muted flex h-2 w-full overflow-hidden rounded-full"
+      >
+        <div
+          className="bg-muted-foreground/40"
+          style={{ width: share(paidCents) }}
+        />
+        <div
+          className={over ? 'bg-destructive' : 'bg-primary'}
+          style={{ width: share(over ? left : amountCents) }}
+        />
+      </div>
+    </div>
+  )
+}
+
+const euroFormat = new Intl.NumberFormat('fr-FR', {
+  style: 'currency',
+  currency: 'EUR',
+})

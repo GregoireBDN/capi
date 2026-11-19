@@ -12,6 +12,7 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   life_insurance: 'assurance vie',
   employee_savings: 'épargne salariale',
   crypto: 'crypto',
+  meal_voucher: 'titres-restaurant',
 }
 
 export const KIND_LABELS: Record<TransactionKind, string> = {

@@ -21,6 +21,7 @@ export const STALE_AFTER_DAYS: Record<AccountType, number> = {
   life_insurance: 31,
   employee_savings: 31,
   crypto: 35,
+  meal_voucher: 45,
 }
 
 export interface ValueChange {

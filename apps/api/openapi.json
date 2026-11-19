@@ -7876,9 +7876,10 @@
           "brokerage",
           "life_insurance",
           "employee_savings",
-          "crypto"
+          "crypto",
+          "meal_voucher"
         ],
-        "description": "`checking` and `savings` are transactional (fed by imports, balance from transactions); the others are investment accounts (balance from dated value snapshots)."
+        "description": "`checking` and `savings` are bank accounts (fed by imports, balance from transactions); `meal_voucher` is the meal-voucher card (titres-restaurant): its transactions are entered by hand, its balance comes from them and it never takes an import; the others are investment accounts (balance from dated value snapshots)."
       },
       "CryptoAccountSource": {
         "type": "string",
@@ -7911,7 +7912,7 @@
             "type": "string"
           },
           "type": {
-            "description": "`checking` and `savings` are transactional (fed by imports, balance from transactions); the others are investment accounts (balance from dated value snapshots).",
+            "description": "`checking` and `savings` are bank accounts (fed by imports, balance from transactions); `meal_voucher` is the meal-voucher card (titres-restaurant): its transactions are entered by hand, its balance comes from them and it never takes an import; the others are investment accounts (balance from dated value snapshots).",
             "allOf": [
               {
                 "$ref": "#/components/schemas/AccountType"
@@ -8058,7 +8059,7 @@
             "maxLength": 100
           },
           "type": {
-            "description": "`checking` and `savings` are transactional (fed by imports, balance from transactions); the others are investment accounts (balance from dated value snapshots).",
+            "description": "`checking` and `savings` are bank accounts (fed by imports, balance from transactions); `meal_voucher` is the meal-voucher card (titres-restaurant): its transactions are entered by hand, its balance comes from them and it never takes an import; the others are investment accounts (balance from dated value snapshots).",
             "allOf": [
               {
                 "$ref": "#/components/schemas/AccountType"

@@ -25,6 +25,7 @@ import {
   accountsTable,
   balanceSnapshotsTable,
   cryptoHoldingsTable,
+  BANK_ACCOUNT_TYPES,
   type InsertAccount,
   INVESTMENT_ACCOUNT_TYPES,
   type SelectAccount,
@@ -85,6 +86,11 @@ export function isTransactionalAccount(account: Pick<SelectAccount, 'type'>) {
   return (TRANSACTIONAL_ACCOUNT_TYPES as readonly string[]).includes(
     account.type,
   )
+}
+
+/** Checking and savings: fed by statement imports (not a meal-voucher card). */
+export function isBankAccount(account: Pick<SelectAccount, 'type'>) {
+  return (BANK_ACCOUNT_TYPES as readonly string[]).includes(account.type)
 }
 
 /**

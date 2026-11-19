@@ -46,7 +46,12 @@ import {
 import { currentDay } from '#/lib/calendar'
 import { pickableCategories } from '#/lib/categories'
 import { formatCalendarDate, formatCents } from '#/lib/money'
-import { accountsQuery, categoriesQuery, isTransactional } from '#/lib/queries'
+import {
+  accountsQuery,
+  ApiRequestError,
+  categoriesQuery,
+  isTransactional,
+} from '#/lib/queries'
 import {
   afterManualExpenseChanged,
   createManualExpense,
@@ -55,6 +60,7 @@ import {
   manualExpenseErrorMessage,
   manualSuggestionsQuery,
   updateManualExpense,
+  voucherDayQuery,
 } from './queries'
 import {
   MAX_AMOUNT_CENTS,
@@ -64,11 +70,14 @@ import {
 } from './amount-entry'
 import type { AmountKey } from './amount-entry'
 import {
+  AccountChips,
   AmountKeypad,
   CategoryDot,
   CategoryChips,
   DateChips,
   HabitGrid,
+  previousDay,
+  VoucherDayGauge,
 } from './manual-fields'
 import { splitTransaction } from '#/components/transactions/edits'
 
@@ -132,6 +141,18 @@ const STEP_NAMES: Record<Step, string> = {
   details: 'Détails',
 }
 
+/** Income category of the meal-voucher card's credits (#298). */
+const MEAL_VOUCHER_CATEGORY_SLUG = 'meal_vouchers'
+
+/** Meal vouchers pay at most 25 € a day (the legal cap, checked by the API). */
+export const MEAL_VOUCHER_DAILY_CAP_CENTS = 2_500
+
+/** Expense categories a meal-voucher card pays: « Payé avec » offers it. */
+const VOUCHER_PAID_SLUGS: ReadonlySet<string> = new Set([
+  'restaurants_cafes',
+  'groceries',
+])
+
 const TITLES: Record<TransactionKind, [add: string, edit: string]> = {
   expense: ['Ajouter une dépense', 'Modifier la dépense'],
   income: ['Ajouter un revenu', 'Modifier le revenu'],
@@ -145,6 +166,8 @@ interface ManualTransactionSheetProps {
   initialCategoryId?: string
   /** Kind preselected when adding (default: expense). */
   initialKind?: TransactionKind
+  /** Account preselected when adding (default: the first checking one). */
+  initialAccountId?: string
   /** Categories listed first (the envelopes followed this month). */
   suggestedCategoryIds?: readonly string[]
   /** The transaction entered by hand to edit; absent when adding one. */
@@ -175,6 +198,7 @@ export function ManualTransactionSheet({
   onOpenChange,
   initialCategoryId,
   initialKind = 'expense',
+  initialAccountId,
   suggestedCategoryIds = [],
   expense,
 }: ManualTransactionSheetProps) {
@@ -278,7 +302,7 @@ export function ManualTransactionSheet({
         ? expense.rawLabel
         : '',
     )
-    setAccountId(expense?.accountId ?? '')
+    setAccountId(expense?.accountId ?? initialAccountId ?? '')
     setIsOneOff(expense?.isOneOff ?? false)
     setNote(expense?.note ?? '')
     // Optional fields already used stay in view when editing.
@@ -292,7 +316,7 @@ export function ManualTransactionSheet({
     // An envelope already says the category; an edit starts at the end.
     setStep(expense ? 'details' : initialCategoryId ? 'amount' : 'category')
     setSubmitted(false)
-  }, [open, expense, initialCategoryId, initialKind])
+  }, [open, expense, initialCategoryId, initialKind, initialAccountId])
 
   // An expense needs a category: the most used one by default.
   // Other kinds may stay without one (the review queue). Functional updates:
@@ -330,6 +354,18 @@ export function ManualTransactionSheet({
   const categoryOf = (categoryKey: string) =>
     kindCategories.find((category) => category.id === categoryKey)
 
+  // The meal-voucher card (#298): its credit goes on it at once, and the
+  // categories it pays offer it as « Payé avec ».
+  const voucherAccounts = cashAccounts.filter(
+    (account) => account.type === 'meal_voucher' && !account.archivedAt,
+  )
+  function chooseAccountFor(categoryKey: string) {
+    if (expense || voucherAccounts.length === 0) return
+    if (categoryOf(categoryKey)?.slug === MEAL_VOUCHER_CATEGORY_SLUG) {
+      setAccountId(voucherAccounts[0].id)
+    }
+  }
+
   // A usual label fills its category too, and moves on to the amount when
   // that leaves a category (or the kind may go without one).
   function pickSuggestion(item: ManualSuggestionDto) {
@@ -339,7 +375,10 @@ export function ManualTransactionSheet({
       kindCategories.some((category) => category.id === item.categoryId)
         ? item.categoryId
         : null
-    if (usual) setCategoryId(usual)
+    if (usual) {
+      setCategoryId(usual)
+      chooseAccountFor(usual)
+    }
     if (usual || categoryId || allowNoCategory) setStep('amount')
   }
 
@@ -349,7 +388,28 @@ export function ManualTransactionSheet({
     cashAccounts.find((option) => option.type === 'checking') ??
     cashAccounts.at(0)
   )?.id
+  const chosenSlug = categoryOf(categoryId)?.slug
+  const paidWithShown =
+    voucherAccounts.length > 0 &&
+    kind !== 'transfer' &&
+    (chosenAccount?.type === 'meal_voucher' ||
+      (chosenSlug !== undefined &&
+        (kind === 'expense'
+          ? VOUCHER_PAID_SLUGS.has(chosenSlug)
+          : chosenSlug === MEAL_VOUCHER_CATEGORY_SLUG)))
+  const paidWithAccounts = [
+    ...new Map(
+      [
+        cashAccounts.find((option) => option.id === defaultAccountId),
+        chosenAccount,
+        ...voucherAccounts,
+      ]
+        .filter((option) => option !== undefined)
+        .map((option) => [option.id, option] as const),
+    ).values(),
+  ]
   const moreSummary = [
+    !paidWithShown &&
     cashAccounts.length > 1 &&
     chosenAccount &&
     chosenAccount.id !== defaultAccountId
@@ -373,6 +433,39 @@ export function ManualTransactionSheet({
       : date > today
         ? 'La date ne peut pas être dans le futur'
         : null
+  // A payment with the card (#298): what it can still pay that day under
+  // the 25 € cap (the day's other payments counted, this one's previous
+  // version left out), shown while the amount is typed and refused over it.
+  const onVoucher =
+    chosenAccount?.type === 'meal_voucher' &&
+    kind === 'expense' &&
+    direction === 'out'
+  const voucherDayKey = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : today
+  const voucherDay = useQuery({
+    ...voucherDayQuery(accountId, voucherDayKey),
+    enabled: open && onVoucher,
+  })
+  const voucherPaid = (voucherDay.data ?? [])
+    .filter((payment) => payment.id !== expense?.id)
+    .reduce((total, payment) => total + payment.cents, 0)
+  const voucherLeft = Math.max(0, MEAL_VOUCHER_DAILY_CAP_CENTS - voucherPaid)
+  const voucherWhen =
+    voucherDayKey === today
+      ? 'aujourd’hui'
+      : voucherDayKey === previousDay(today)
+        ? 'hier'
+        : `le ${formatCalendarDate(voucherDayKey)}`
+  const typedCents = parseEurosToCents(amount) ?? 0
+  // Over what is left: « Ajouter » is greyed out and the gauge says why.
+  const voucherOver = onVoucher && typedCents > voucherLeft
+  const voucherGauge = onVoucher && voucherDay.isSuccess && (
+    <VoucherDayGauge
+      capCents={MEAL_VOUCHER_DAILY_CAP_CENTS}
+      paidCents={voucherPaid}
+      amountCents={typedCents}
+      when={voucherWhen}
+    />
+  )
   const labelError =
     !categoryId && label.trim() === ''
       ? 'Sans catégorie, indiquez un libellé'
@@ -425,7 +518,18 @@ export function ManualTransactionSheet({
       onOpenChange(false)
       await afterManualExpenseChanged(queryClient)
     },
-    onError: (error) => toast.error(manualExpenseErrorMessage(error)),
+    onError: (error) => {
+      // Over the card's daily cap (another payment of the day entered
+      // elsewhere): refreshed, the day's total shows the error in place.
+      if (
+        error instanceof ApiRequestError &&
+        error.apiMessage?.includes('capped at 25')
+      ) {
+        void voucherDay.refetch()
+        return
+      }
+      toast.error(manualExpenseErrorMessage(error))
+    },
   })
 
   const remove = useMutation({
@@ -462,7 +566,8 @@ export function ManualTransactionSheet({
     setSubmitted(true)
     if (kind === 'expense' && !categoryId) return setStep('category')
     if (amountError) return setStep('amount')
-    if (amountError || dateError || labelError || !accountId) return
+    if (amountError || dateError || labelError || voucherOver || !accountId)
+      return
     if (kind === 'expense' && !categoryId) return
     save.mutate()
   }
@@ -508,6 +613,7 @@ export function ManualTransactionSheet({
 
   function chooseCategory(next: string) {
     setCategoryId(next)
+    chooseAccountFor(next)
     setStep('amount')
   }
 
@@ -534,7 +640,8 @@ export function ManualTransactionSheet({
   const Description = isMobile ? SheetDescription : DialogDescription
   const submitLabel = expense ? 'Enregistrer' : 'Ajouter'
   const nextDisabled = step === 'category' && !categoryId && !allowNoCategory
-  const saveDisabled = (kind === 'expense' && !categoryId) || !accountId
+  const saveDisabled =
+    (kind === 'expense' && !categoryId) || !accountId || voucherOver
 
   /** What the earlier steps chose, at the top of the later ones. */
   const recap = (
@@ -747,10 +854,16 @@ export function ManualTransactionSheet({
               </span>
               <span aria-hidden>€</span>
             </div>
-            {showAmountError && (
+            {showAmountError ? (
               <FieldError id={`${id}-amount-error`} className="text-center">
                 {amountError}
               </FieldError>
+            ) : (
+              voucherGauge && (
+                <div className="mx-auto w-full max-w-64 pt-1">
+                  {voucherGauge}
+                </div>
+              )
             )}
           </div>
           {keypad ? (
@@ -793,6 +906,21 @@ export function ManualTransactionSheet({
               />
               {showDateError && <FieldError>{dateError}</FieldError>}
             </Field>
+
+            {paidWithShown && (
+              <Field>
+                <FieldLabel id={`${id}-paid-with`}>
+                  {kind === 'income' ? 'Crédité sur' : 'Payé avec'}
+                </FieldLabel>
+                <AccountChips
+                  labelId={`${id}-paid-with`}
+                  accounts={paidWithAccounts}
+                  value={accountId}
+                  onChange={setAccountId}
+                />
+                {voucherGauge && <div className="pt-1">{voucherGauge}</div>}
+              </Field>
+            )}
 
             <Field data-invalid={showLabelError}>
               <FieldLabel htmlFor={`${id}-label`}>Libellé</FieldLabel>

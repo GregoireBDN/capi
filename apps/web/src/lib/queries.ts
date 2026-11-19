@@ -68,7 +68,15 @@ export const categoriesQuery = queryOptions({
   staleTime: 5 * 60_000,
 })
 
-/** Only checking and savings accounts are fed by bank exports. */
+/**
+ * Accounts with transactions: checking and savings (bank exports) and the
+ * meal-voucher card (entered by hand, #298).
+ */
 export function isTransactional(account: AccountDto): boolean {
+  return isBankAccount(account) || account.type === 'meal_voucher'
+}
+
+/** Only checking and savings accounts are fed by bank exports. */
+export function isBankAccount(account: AccountDto): boolean {
   return account.type === 'checking' || account.type === 'savings'
 }
