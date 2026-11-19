@@ -693,50 +693,45 @@ describe('AccountDetailPage', () => {
     ).toBeInTheDocument()
     expect(
       within(settings).getByRole('button', {
-        name: /Aucune adresse utilisée en Legacy \(1…\) : vérifiez le type/,
+        name: 'Adresse EVM : 0x5aAeb6…1BeAed · Ethereum, Base',
       }),
     ).toBeInTheDocument()
-    // Each opens the sheet where keys are added, changed and removed.
-    await user.click(
-      within(settings).getByRole('button', { name: /^Ethereum, Base : / }),
-    )
-    await screen.findByRole('dialog', { name: 'Clés et jetons' })
 
-    // Keys are shown masked, with their label, chains and what they found.
-    const keys = await screen.findByRole('list', { name: 'Clés publiques' })
-    expect(within(keys).getByText('xpub661M…GMcet8')).toBeInTheDocument()
-    expect(within(keys).getByText('Épargne · Bitcoin')).toBeInTheDocument()
-    expect(within(keys).getByText('0x5aAeb6…1BeAed')).toBeInTheDocument()
-    expect(within(keys).getByText('Ethereum, Base')).toBeInTheDocument()
-    expect(
-      within(keys).getByText(/^Native SegWit \(bc1q…\) · 3 adresses utilisées/),
-    ).toBeInTheDocument()
+    // Each key opens its own screen (the owner's « Un écran par clé »).
+    await user.click(
+      within(settings).getByRole('button', {
+        name: 'Bitcoin : xpub6D4B…6fcLW5 · Aucune adresse utilisée en Legacy (1…) : vérifiez le type',
+      }),
+    )
+    let keySheet = await screen.findByRole('dialog', { name: 'Bitcoin' })
+    expect(within(keySheet).getByText('xpub6D4B…6fcLW5')).toBeInTheDocument()
+    expect(within(keySheet).getByText('Legacy (1…)')).toBeInTheDocument()
     // An xpub that found nothing in its type says so, with « Changer » (#268).
     expect(
-      within(keys).getByText(
-        /^Aucune adresse utilisée en Legacy \(1…\) : vérifiez le type/,
+      within(keySheet).getByText(
+        'Aucune adresse utilisée en Legacy (1…) : vérifiez le type',
       ),
     ).toBeInTheDocument()
+    // Copies the whole key, not its masked form.
+    await user.click(within(keySheet).getByRole('button', { name: 'Copier' }))
+    expect(await navigator.clipboard.readText()).toMatch(/^xpub6D4BDPcP2GT5/)
     await user.click(
-      within(keys).getByRole('button', {
-        name: 'Changer le type d’adresses de xpub661M…GMcet8',
+      within(keySheet).getByRole('button', {
+        name: 'Changer le type d’adresses',
       }),
     )
     const typeSheet = await screen.findByRole('dialog', {
       name: 'Type d’adresses',
     })
-    await user.click(within(typeSheet).getByLabelText(/^Legacy/))
+    await user.click(within(typeSheet).getByLabelText(/^Native SegWit/))
     await user.click(
       within(typeSheet).getByRole('button', { name: 'Enregistrer' }),
     )
     await waitFor(() =>
       expect(api.walletKeysControllerUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
-          path: {
-            id: ACCOUNT_ID,
-            keyId: 'k0000000-0000-4000-8000-000000000001',
-          },
-          body: { addressType: 'legacy' },
+          path: { id: ACCOUNT_ID, keyId: 'k-legacy' },
+          body: { addressType: 'native_segwit' },
         }),
       ),
     )
@@ -754,7 +749,9 @@ describe('AccountDetailPage', () => {
       screen.queryByRole('button', { name: /Ajouter un avoir/ }),
     ).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Ajouter une clé' }))
+    await user.click(
+      within(settings).getByRole('button', { name: 'Ajouter une clé' }),
+    )
     const sheet = await screen.findByRole('dialog', {
       name: 'Ajouter une clé publique',
     })
@@ -780,12 +777,24 @@ describe('AccountDetailPage', () => {
         }),
       ),
     )
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Ajouter une clé publique' }),
+      ).not.toBeInTheDocument(),
+    )
 
-    // Removing a key asks first.
+    // Removing a key, from its screen, asks first.
     await user.click(
-      within(keys).getByRole('button', {
-        name: 'Retirer la clé 0x5aAeb6…1BeAed',
-      }),
+      within(settings).getByRole('button', { name: /^Adresse EVM : / }),
+    )
+    keySheet = await screen.findByRole('dialog', { name: 'Adresse EVM' })
+    expect(within(keySheet).getByText('Ethereum, Base')).toBeInTheDocument()
+    // An EVM address has no address type to change.
+    expect(
+      within(keySheet).queryByRole('button', { name: /Changer/ }),
+    ).not.toBeInTheDocument()
+    await user.click(
+      within(keySheet).getByRole('button', { name: 'Retirer la clé' }),
     )
     await user.click(await screen.findByRole('button', { name: 'Retirer' }))
     await waitFor(() =>

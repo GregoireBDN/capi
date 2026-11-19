@@ -6,7 +6,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  ConfirmDialog,
   Field,
   FieldError,
   FieldLabel,
@@ -27,7 +26,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CoinsIcon,
   FileUpIcon,
-  KeyRoundIcon,
   LinkIcon,
   PlusIcon,
   Trash2Icon,
@@ -52,11 +50,9 @@ import {
   addWalletToken,
   afterHoldingsChanged,
   cryptoKeys,
-  removeWalletKey,
   removeWalletToken,
   syncWallet,
   updateWalletKeyAddressType,
-  walletKeysQuery,
   walletTokensQuery,
 } from './queries'
 import {
@@ -67,7 +63,6 @@ import {
   EVM_CHAINS,
   maskPublicKey,
   walletKeyErrorMessage,
-  walletKeyTypeLabel,
 } from './sources'
 import {
   EMPTY_WALLET_KEY,
@@ -488,12 +483,12 @@ export function WalletTokenList({
   )
 }
 
-function keyErrorMessage(error: unknown): string {
+export function keyErrorMessage(error: unknown): string {
   return walletKeyErrorMessage(error) ?? holdingErrorMessage(error)
 }
 
 /** Adds a public key to a wallet account. */
-function AddWalletKeySheet({
+export function AddWalletKeySheet({
   open,
   onOpenChange,
   accountId,
@@ -589,7 +584,7 @@ function AddWalletKeySheet({
  * Changes the address type an `xpub` is read as (Ledger Live exports `xpub`
  * for every account type), or asks to detect it on the next sync.
  */
-function WalletKeyTypeSheet({
+export function WalletKeyTypeSheet({
   accountId,
   walletKey,
   onOpenChange,
@@ -692,153 +687,6 @@ export function keyScanText(
     text: used === 1 ? '1 adresse utilisée' : `${used} adresses utilisées`,
     warning: false,
   }
-}
-
-export function WalletKeyList({
-  accountId,
-  writable,
-  provider,
-}: {
-  accountId: string
-  writable: boolean
-  /** The wallet (Ledger, Trezor…), for « Où trouver ma clé ? ». */
-  provider?: string
-}) {
-  const queryClient = useQueryClient()
-  const keys = useQuery(walletKeysQuery(accountId))
-  const [adding, setAdding] = useState(false)
-  const [removing, setRemoving] = useState<WalletKeyDto>()
-  const [typing, setTyping] = useState<WalletKeyDto>()
-
-  const remove = useMutation({
-    mutationFn: (key: WalletKeyDto) => removeWalletKey(accountId, key.id),
-    onSuccess: async () => {
-      toast.success('Clé retirée')
-      setRemoving(undefined)
-      await queryClient.invalidateQueries({
-        queryKey: cryptoKeys.walletKeys(accountId),
-      })
-    },
-    onError: (error) => toast.error(keyErrorMessage(error)),
-  })
-
-  if (keys.isPending) {
-    return <Skeleton className="h-12 w-full" aria-label="Chargement" />
-  }
-  if (keys.isError) {
-    return (
-      <Alert variant="destructive">
-        <AlertTitle>Impossible de charger les clés.</AlertTitle>
-      </Alert>
-    )
-  }
-  const list = keys.data
-  return (
-    <div className="space-y-2">
-      <ul className="divide-y" aria-label="Clés publiques">
-        {list.map((key) => (
-          <li key={key.id} className="flex items-center gap-3 py-2 text-sm">
-            <KeyRoundIcon
-              aria-hidden
-              className="text-muted-foreground size-4 shrink-0"
-            />
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-mono" title={key.publicKey}>
-                {maskPublicKey(key.publicKey)}
-              </p>
-              <p className="text-muted-foreground truncate text-xs">
-                {[
-                  // « Bitcoin · Bitcoin » said it twice.
-                  key.chains.some((c) => CRYPTO_CHAIN_LABELS[c] === key.label)
-                    ? null
-                    : key.label,
-                  key.chains.map((c) => CRYPTO_CHAIN_LABELS[c]).join(', '),
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </p>
-              {walletKeyTypeLabel(key) && (
-                <p
-                  className={
-                    keyScanText(key)?.warning
-                      ? 'text-warning-foreground dark:text-warning text-xs font-medium'
-                      : 'text-muted-foreground text-xs'
-                  }
-                >
-                  {keyScanText(key)?.warning
-                    ? keyScanText(key)!.text
-                    : [walletKeyTypeLabel(key), keyScanText(key)?.text]
-                        .filter(Boolean)
-                        .join(' · ')}
-                  {writable && key.format === 'xpub' && (
-                    <>
-                      {' · '}
-                      <button
-                        type="button"
-                        className="text-primary touch-hitbox relative font-medium underline-offset-2 hover:underline"
-                        aria-label={`Changer le type d’adresses de ${maskPublicKey(key.publicKey)}`}
-                        onClick={() => setTyping(key)}
-                      >
-                        Changer
-                      </button>
-                    </>
-                  )}
-                </p>
-              )}
-            </div>
-            {writable && list.length > 1 && (
-              <Button
-                size="sm"
-                iconOnly
-                variant="secondary"
-                ghost
-                aria-label={`Retirer la clé ${maskPublicKey(key.publicKey)}`}
-                onClick={() => setRemoving(key)}
-              >
-                <Trash2Icon />
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
-      {writable && (
-        <Button
-          className="w-full"
-          outline
-          variant="secondary"
-          iconStart={<PlusIcon />}
-          onClick={() => setAdding(true)}
-        >
-          Ajouter une clé
-        </Button>
-      )}
-      {writable && (
-        <AddWalletKeySheet
-          open={adding}
-          onOpenChange={setAdding}
-          accountId={accountId}
-          provider={provider}
-        />
-      )}
-      {writable && (
-        <WalletKeyTypeSheet
-          accountId={accountId}
-          walletKey={typing}
-          onOpenChange={(open) => !open && setTyping(undefined)}
-        />
-      )}
-      <ConfirmDialog
-        open={removing !== undefined}
-        onOpenChange={(open) => !open && setRemoving(undefined)}
-        title="Retirer cette clé ?"
-        description="Les avoirs lus avec elle ne seront plus synchronisés. Vous pourrez l’ajouter à nouveau."
-        confirmLabel="Retirer"
-        variant="danger"
-        loading={remove.isPending}
-        onConfirm={() => removing && remove.mutate(removing)}
-      />
-    </div>
-  )
 }
 
 /**

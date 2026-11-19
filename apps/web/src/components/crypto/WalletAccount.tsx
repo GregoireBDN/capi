@@ -27,10 +27,12 @@ import {
   CheckIcon,
   ChevronDownIcon,
   CoinsIcon,
+  CopyIcon,
   KeyRoundIcon,
   LineChartIcon,
   LoaderCircleIcon,
   PencilIcon,
+  PlusIcon,
   RefreshCwIcon,
   Trash2Icon,
   TriangleAlertIcon,
@@ -42,7 +44,6 @@ import type {
   AccountDto,
   AccountHoldingsDto,
   AccountPerformanceDto,
-  CryptoChain,
   SnapshotDto,
   ValuedHoldingDto,
   WalletKeyDto,
@@ -53,10 +54,12 @@ import { formatCalendarDate, formatCents } from '#/lib/money'
 import { formatShortDay } from '#/lib/period'
 import { plural } from '#/lib/plural'
 import {
+  AddWalletKeySheet,
+  keyErrorMessage,
   keyScanText,
   syncFailed,
   useWalletSync,
-  WalletKeyList,
+  WalletKeyTypeSheet,
   WalletTokenList,
 } from './CryptoSourceCard'
 import { holdingErrorMessage } from './errors'
@@ -67,6 +70,7 @@ import {
   holdingsQuery,
   refreshPrices,
   removeHolding,
+  removeWalletKey,
   walletKeysQuery,
   walletTokensQuery,
 } from './queries'
@@ -74,6 +78,7 @@ import {
   CRYPTO_CHAIN_LABELS,
   DERIVED_ORIGIN_LABELS,
   maskPublicKey,
+  walletKeyTypeLabel,
 } from './sources'
 import {
   chartRanges,
@@ -831,36 +836,206 @@ function WalletHistory({
 }
 
 /* ---------------------------------------------------------------------------
- * Keys and tokens: settings, in one sheet
+ * Keys and tokens: one screen each
  * ------------------------------------------------------------------------- */
 
-/** « Bitcoin », « Ethereum, Arbitrum »: what a key reads. */
+/** « Bitcoin », « Adresse EVM », or the key's own label. */
 function keyTitle(key: WalletKeyDto): string {
+  return key.label ?? (key.family === 'bitcoin' ? 'Bitcoin' : 'Adresse EVM')
+}
+
+/** The chains a key is read on: « Ethereum, Arbitrum ». */
+function keyChains(key: WalletKeyDto): string {
+  return key.chains.map((chain) => CRYPTO_CHAIN_LABELS[chain]).join(', ')
+}
+
+/**
+ * « zpub6rFR…GutZYs · 4 adresses utilisées »: what its last scan found, the
+ * chains of an EVM address, else its address type (never « Bitcoin ·
+ * Bitcoin »).
+ */
+function keySubtitle(key: WalletKeyDto): string {
+  const found =
+    keyScanText(key)?.text ??
+    (key.family === 'evm' ? keyChains(key) : walletKeyTypeLabel(key))
+  return [maskPublicKey(key.publicKey), found].filter(Boolean).join(' · ')
+}
+
+const sheetClass = (isMobile: boolean) =>
+  isMobile
+    ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
+    : 'overflow-y-auto'
+
+/** « Type d’adresses   Native SegWit (bc1q…) », one line of a key's screen. */
+function KeyFact({
+  label,
+  children,
+  warning = false,
+}: {
+  label: string
+  children: ReactNode
+  warning?: boolean
+}) {
   return (
-    key.label ??
-    (key.family === 'bitcoin'
-      ? 'Bitcoin'
-      : key.chains.map((chain) => CRYPTO_CHAIN_LABELS[chain]).join(', '))
+    <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-b py-1.5 text-sm last:border-b-0">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd
+        className={cn(
+          'ml-auto inline-flex items-center gap-1 text-right',
+          warning && 'text-warning-foreground dark:text-warning font-medium',
+        )}
+      >
+        {children}
+      </dd>
+    </div>
   )
 }
 
-function keySubtitle(key: WalletKeyDto): string {
-  const scan = keyScanText(key)
-  const chains = key.chains
-    .map((chain) => CRYPTO_CHAIN_LABELS[chain])
-    .join(', ')
-  return [
-    maskPublicKey(key.publicKey),
-    scan?.text ?? (key.label || key.family === 'evm' ? chains : null),
-  ]
-    .filter(Boolean)
-    .join(' · ')
+/**
+ * One key's screen (#294, the owner's « Un écran par clé »): the key with
+ * « Copier », its address type and « Changer » (an xpub), its chains, what
+ * its last scan found, and « Retirer la clé » (not the last one).
+ */
+function WalletKeySheet({
+  accountId,
+  walletKey,
+  removable,
+  writable,
+  onOpenChange,
+  onChangeType,
+}: {
+  accountId: string
+  /** The key shown; the sheet is closed without one. */
+  walletKey: WalletKeyDto | undefined
+  /** Not the wallet's only key. */
+  removable: boolean
+  writable: boolean
+  onOpenChange: (open: boolean) => void
+  onChangeType: (key: WalletKeyDto) => void
+}) {
+  const isMobile = useIsMobile()
+  const queryClient = useQueryClient()
+  const [removing, setRemoving] = useState(false)
+  // Kept while the sheet closes, so its content does not vanish mid-slide.
+  const [shown, setShown] = useState(walletKey)
+  useEffect(() => {
+    if (walletKey) setShown(walletKey)
+  }, [walletKey])
+
+  const remove = useMutation({
+    mutationFn: (key: WalletKeyDto) => removeWalletKey(accountId, key.id),
+    onSuccess: async () => {
+      toast.success('Clé retirée')
+      setRemoving(false)
+      onOpenChange(false)
+      await queryClient.invalidateQueries({
+        queryKey: cryptoKeys.walletKeys(accountId),
+      })
+    },
+    onError: (error) => toast.error(keyErrorMessage(error)),
+  })
+
+  const copy = async (key: WalletKeyDto) => {
+    try {
+      await navigator.clipboard.writeText(key.publicKey)
+      toast.success('Clé copiée')
+    } catch {
+      toast.error('Copie impossible sur cet appareil.')
+    }
+  }
+
+  const key = walletKey ?? shown
+  const scan = key ? keyScanText(key) : null
+  const type = key ? walletKeyTypeLabel(key) : null
+  return (
+    <>
+      <Sheet open={walletKey !== undefined} onOpenChange={onOpenChange}>
+        <SheetContent
+          side={isMobile ? 'bottom' : 'right'}
+          className={sheetClass(isMobile)}
+        >
+          <SheetHeader className="pb-0">
+            <SheetTitle>{key ? keyTitle(key) : 'Clé publique'}</SheetTitle>
+            <SheetDescription>
+              Clé publique : elle permet de lire les soldes, jamais de dépenser.
+            </SheetDescription>
+          </SheetHeader>
+          {key && (
+            <div className="space-y-4 px-4 pb-6">
+              <div className="bg-muted/50 flex items-center gap-2 rounded-lg py-1 pr-1 pl-3">
+                <span
+                  className="min-w-0 flex-1 truncate font-mono text-sm"
+                  title={key.publicKey}
+                >
+                  {maskPublicKey(key.publicKey)}
+                </span>
+                <Button
+                  size="sm"
+                  ghost
+                  variant="secondary"
+                  iconStart={<CopyIcon />}
+                  onClick={() => void copy(key)}
+                >
+                  Copier
+                </Button>
+              </div>
+              <dl>
+                {type && (
+                  <KeyFact label="Type d’adresses">
+                    {type}
+                    {writable && key.format === 'xpub' && (
+                      <Button
+                        size="sm"
+                        ghost
+                        variant="primary"
+                        aria-label="Changer le type d’adresses"
+                        onClick={() => onChangeType(key)}
+                      >
+                        Changer
+                      </Button>
+                    )}
+                  </KeyFact>
+                )}
+                <KeyFact label="Réseaux">{keyChains(key)}</KeyFact>
+                {scan && (
+                  <KeyFact label="Dernier scan" warning={scan.warning}>
+                    {scan.text}
+                  </KeyFact>
+                )}
+              </dl>
+              {writable && removable && (
+                <Button
+                  className="w-full"
+                  outline
+                  variant="danger"
+                  iconStart={<Trash2Icon />}
+                  onClick={() => setRemoving(true)}
+                >
+                  Retirer la clé
+                </Button>
+              )}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+      <ConfirmDialog
+        open={removing}
+        onOpenChange={setRemoving}
+        title="Retirer cette clé ?"
+        description="Les avoirs lus avec elle ne seront plus synchronisés. Vous pourrez l’ajouter à nouveau."
+        confirmLabel="Retirer"
+        variant="danger"
+        loading={remove.isPending}
+        onConfirm={() => key && remove.mutate(key)}
+      />
+    </>
+  )
 }
 
 /**
  * Keys and tokens are settings, not content (#294): one row per key (what
- * it found) and one for the tokens read, each opening the same sheet where
- * they are added, changed and removed.
+ * it found) and one for the tokens read, each opening its own screen, then
+ * « Ajouter une clé ».
  */
 function WalletSettings({
   account,
@@ -873,21 +1048,21 @@ function WalletSettings({
 }) {
   const keys = useQuery(walletKeysQuery(account.id))
   const tokens = useQuery(walletTokensQuery(account.id))
-  const [open, setOpen] = useState(false)
+  const [openKeyId, setOpenKeyId] = useState<string>()
+  const [typing, setTyping] = useState<WalletKeyDto>()
+  const [tokensOpen, setTokensOpen] = useState(false)
+  const [adding, setAdding] = useState(false)
   const isMobile = useIsMobile()
+  const list = keys.data ?? []
   const evmChains = [
     ...new Set(
-      (keys.data ?? [])
-        .filter((key) => key.family === 'evm')
-        .flatMap((key) => key.chains),
+      list.filter((key) => key.family === 'evm').flatMap((key) => key.chains),
     ),
-  ] as CryptoChain[]
-  const openSheet = () => setOpen(true)
+  ]
   const tokensText =
     tokens.data && tokens.data.length > 0
       ? tokens.data.map((token) => token.symbol).join(', ')
       : 'ETH, BNB et POL seulement'
-
   const rowClass = 'w-full text-left'
 
   return (
@@ -896,13 +1071,13 @@ function WalletSettings({
         title="Clés et jetons"
         status="Ce que le wallet lit sur la blockchain."
       />
-      <CardContent>
+      <CardContent className="space-y-3">
         {keys.isPending ? (
           <Skeleton className="h-12 w-full" aria-label="Chargement" />
         ) : (
           <ItemList>
             <ItemListGroup>
-              {(keys.data ?? []).map((key) => (
+              {list.map((key) => (
                 <ItemListRow
                   key={key.id}
                   asChild
@@ -919,7 +1094,7 @@ function WalletSettings({
                     type="button"
                     aria-label={`${keyTitle(key)} : ${keySubtitle(key)}`}
                     className={rowClass}
-                    onClick={openSheet}
+                    onClick={() => setOpenKeyId(key.id)}
                   />
                 </ItemListRow>
               ))}
@@ -934,48 +1109,73 @@ function WalletSettings({
                     type="button"
                     aria-label={`Jetons lus : ${tokensText}`}
                     className={rowClass}
-                    onClick={openSheet}
+                    onClick={() => setTokensOpen(true)}
                   />
                 </ItemListRow>
               )}
             </ItemListGroup>
           </ItemList>
         )}
+        {writable && (
+          <Button
+            className="w-full"
+            outline
+            variant="secondary"
+            iconStart={<PlusIcon />}
+            onClick={() => setAdding(true)}
+          >
+            Ajouter une clé
+          </Button>
+        )}
       </CardContent>
-      <Sheet open={open} onOpenChange={setOpen}>
+
+      <WalletKeySheet
+        accountId={account.id}
+        walletKey={list.find((key) => key.id === openKeyId)}
+        removable={list.length > 1}
+        writable={writable}
+        onOpenChange={(open) => !open && setOpenKeyId(undefined)}
+        onChangeType={(key) => {
+          setOpenKeyId(undefined)
+          setTyping(key)
+        }}
+      />
+      <Sheet open={tokensOpen} onOpenChange={setTokensOpen}>
         <SheetContent
           side={isMobile ? 'bottom' : 'right'}
-          className={
-            isMobile
-              ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-              : 'overflow-y-auto'
-          }
+          className={sheetClass(isMobile)}
         >
           <SheetHeader className="pb-0">
-            <SheetTitle>Clés et jetons</SheetTitle>
+            <SheetTitle>Jetons lus</SheetTitle>
             <SheetDescription>
-              Clés publiques du wallet
-              {account.institution ? ` ${account.institution}` : ''}, lues sur
-              la blockchain.
+              Les jetons ERC-20 / BEP-20 lus sur les adresses du wallet.
             </SheetDescription>
           </SheetHeader>
-          <div className="space-y-6 px-4 pb-6">
-            <WalletKeyList
+          <div className="px-4 pb-6">
+            <WalletTokenList
               accountId={account.id}
               writable={writable}
-              provider={account.institution ?? undefined}
+              chains={evmChains}
+              onChanged={onTokensChanged}
             />
-            {evmChains.length > 0 && (
-              <WalletTokenList
-                accountId={account.id}
-                writable={writable}
-                chains={evmChains}
-                onChanged={onTokensChanged}
-              />
-            )}
           </div>
         </SheetContent>
       </Sheet>
+      {writable && (
+        <>
+          <AddWalletKeySheet
+            open={adding}
+            onOpenChange={setAdding}
+            accountId={account.id}
+            provider={account.institution ?? undefined}
+          />
+          <WalletKeyTypeSheet
+            accountId={account.id}
+            walletKey={typing}
+            onOpenChange={(open) => !open && setTyping(undefined)}
+          />
+        </>
+      )}
     </Card>
   )
 }

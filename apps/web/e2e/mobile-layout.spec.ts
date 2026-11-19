@@ -211,11 +211,16 @@ const SCENARIOS: Array<Scenario> = [
     },
   },
   {
-    name: 'account-wallet-keys',
+    // One key's screen (#294).
+    name: 'account-wallet-key',
     path: '/accounts',
     account: 'wallet',
     step: async (page) => {
-      await clickFirst(/^Jetons lus/)(page)
+      await page
+        .getByRole('region', { name: 'Clés et jetons' })
+        .getByRole('button')
+        .first()
+        .click()
       await page.getByRole('dialog').waitFor()
     },
   },
