@@ -47,6 +47,10 @@ const failure = (status: number) =>
 const list = (n: number, extra: object = {}) =>
   Array.from({ length: n }, (_, i) => ({ id: String(i), ...extra }))
 
+/** Matches a link by the start of its name (its state follows it). */
+const startsWith = (start: string) => (accessibleName: string) =>
+  accessibleName.startsWith(start)
+
 const SECTIONS = [
   ['Compte', '/settings/account'],
   ['Sécurité', '/settings/security'],
@@ -108,7 +112,7 @@ describe('SettingsPage', () => {
 
     for (const [name, href] of SECTIONS) {
       expect(
-        screen.getByRole('link', { name: new RegExp(`^${name}`) }),
+        screen.getByRole('link', { name: startsWith(name) }),
       ).toHaveAttribute('href', href)
     }
   })
@@ -117,7 +121,7 @@ describe('SettingsPage', () => {
     await renderPage()
 
     const link = (name: string) =>
-      screen.getByRole('link', { name: new RegExp(`^${name}`) })
+      screen.getByRole('link', { name: startsWith(name) })
     expect(link('Compte')).toHaveTextContent('Owner Test')
     expect(
       await within(link('Sécurité')).findByText(
