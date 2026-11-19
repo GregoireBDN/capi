@@ -10121,6 +10121,15 @@
             "type": "string",
             "nullable": true
           },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
           "budgetable": {
             "type": "boolean",
             "description": "Whether a budget can be set (an `expense` category)."
@@ -10135,6 +10144,7 @@
           "slug",
           "name",
           "color",
+          "icon",
           "budgetable",
           "spentCents"
         ]

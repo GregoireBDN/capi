@@ -2,6 +2,7 @@ import {
   Alert,
   AlertDescription,
   Button,
+  CategoryIcon,
   Checkbox,
   InputGroup,
   InputGroupAddon,
@@ -24,7 +25,6 @@ import { formatMonth } from '#/lib/calendar'
 import { formatCents } from '#/lib/money'
 import { plural } from '#/lib/plural'
 import { centsToInput, parseEurosToCents, targetError } from './amount'
-import { CategoryDot } from './CategoryDot'
 import { budgetErrorMessage } from './errors'
 import {
   afterBudgetsChanged,
@@ -193,7 +193,11 @@ export function SuggestionsSheet({
                         htmlFor={checkboxId}
                         className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium"
                       >
-                        <CategoryDot color={item.color} />
+                        <CategoryIcon
+                          icon={item.icon}
+                          color={item.color}
+                          size="sm"
+                        />
                         <span className="truncate">{item.name}</span>
                       </label>
                       <InputGroup className="w-28 shrink-0">

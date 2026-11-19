@@ -1,11 +1,10 @@
-import { Button, cn, ProgressMeter } from '@finances/ui'
+import { Button, CategoryIcon, cn, ProgressMeter } from '@finances/ui'
 import { Link } from '@tanstack/react-router'
 import { PencilIcon } from 'lucide-react'
 import type { BudgetLineDto } from '#/api/types.gen'
 import { formatCents } from '#/lib/money'
 import { formatBudgetAmount } from './amount'
 import { ROUTES } from '#/lib/routes'
-import { CategoryDot } from './CategoryDot'
 import { WARNING_THRESHOLD } from './BudgetSummary'
 
 interface BudgetListProps {
@@ -38,11 +37,9 @@ export function BudgetList({ month, items, onEdit }: BudgetListProps) {
               to={ROUTES.transactions}
               search={{ month, category: item.categoryId, kind: 'expense' }}
               aria-label={`Opérations ${item.name}`}
-              className="hover:bg-muted/50 focus-visible:ring-ring/50 flex min-w-0 flex-1 items-start gap-2 rounded-lg p-2 outline-none focus-visible:ring-[3px]"
+              className="hover:bg-muted/50 focus-visible:ring-ring/50 flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-2 outline-none focus-visible:ring-[3px]"
             >
-              <span className="mt-1.5 flex">
-                <CategoryDot color={item.color} />
-              </span>
+              <CategoryIcon icon={item.icon} color={item.color} />
               <span className="min-w-0 flex-1 space-y-1">
                 <ProgressMeter
                   label={item.name}

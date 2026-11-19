@@ -328,6 +328,9 @@ export class UnbudgetedCategoryDto {
   @ApiProperty({ type: String, nullable: true })
   color!: string | null
 
+  @ApiProperty(CATEGORY_ICON_DOC)
+  icon!: CategoryIcon | null
+
   @ApiProperty({
     type: Boolean,
     description: 'Whether a budget can be set (an `expense` category).',

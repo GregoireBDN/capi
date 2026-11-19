@@ -65,8 +65,23 @@ function category(
   }
 }
 const groceries = category(1, 'Courses', 'expense')
-const leisure = category(2, 'Loisirs', 'expense')
-const transport = category(3, 'Transport', 'expense')
+
+/** Class of the category icon's glyph in `element`. */
+function glyph(element: HTMLElement): string {
+  return (
+    element
+      .querySelector('[data-slot="category-icon"] svg')
+      ?.getAttribute('class') ?? ''
+  )
+}
+const leisure: CategoryDto = {
+  ...category(2, 'Loisirs', 'expense'),
+  icon: 'ticket',
+}
+const transport: CategoryDto = {
+  ...category(3, 'Transport', 'expense'),
+  icon: 'car',
+}
 const salary = category(4, 'Salaire', 'income')
 
 function line(
@@ -80,7 +95,7 @@ function line(
     slug: c.slug,
     name: c.name,
     color: c.color,
-    icon: null,
+    icon: c.icon,
     targetCents,
     effectiveFrom: '2026-09',
     note: null,
@@ -131,6 +146,7 @@ const monthData: BudgetMonthDto = {
         slug: transport.slug,
         name: transport.name,
         color: transport.color,
+        icon: transport.icon,
         budgetable: true,
         spentCents: 6_000,
       },
@@ -139,6 +155,7 @@ const monthData: BudgetMonthDto = {
         slug: null,
         name: null,
         color: null,
+        icon: null,
         budgetable: false,
         spentCents: 2_000,
       },
@@ -302,6 +319,9 @@ describe('BudgetPage', () => {
     expect(text(rows[0].textContent)).toContain('dont ponctuel 100,00 €')
     expect(rows[1]).toHaveAttribute('data-status', 'ok')
     expect(text(rows[1].textContent)).toContain('Reste 200 €')
+    // Each budget heads its row with its category icon (#287).
+    expect(glyph(rows[0])).toContain('lucide-ticket')
+    expect(glyph(rows[1])).toContain('lucide-tag')
 
     // Tapping a row opens the same expenses on the transactions page.
     expect(
@@ -317,6 +337,9 @@ describe('BudgetPage', () => {
     // Spending outside the budgets, uncategorized included.
     const outside = screen.getByRole('list', { name: 'Dépenses hors budget' })
     expect(within(outside).getByText('Sans catégorie')).toBeInTheDocument()
+    const outsideRows = within(outside).getAllByRole('listitem')
+    expect(glyph(outsideRows[0])).toContain('lucide-car')
+    expect(glyph(outsideRows[1])).toContain('lucide-circle-question-mark')
     expect(
       within(outside).getByRole('button', {
         name: 'Ajouter un budget Transport',

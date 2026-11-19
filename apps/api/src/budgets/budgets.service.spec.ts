@@ -380,6 +380,7 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
               slug: null,
               name: null,
               color: null,
+              icon: null,
               budgetable: false,
               spentCents: 1_500,
             },
