@@ -101,7 +101,8 @@ function Advanced({
   const [open, setOpen] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   return (
-    <div className="rounded-lg border">
+    // Clipped to its own corners, so the hover fills the bordered shape.
+    <div className="overflow-hidden rounded-lg border">
       <button
         type="button"
         aria-expanded={open}
@@ -118,7 +119,7 @@ function Advanced({
             )
           }
         }}
-        className="hover:bg-muted/60 focus-visible:ring-ring/50 flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm outline-none focus-visible:ring-[3px]"
+        className="hover:bg-muted/60 focus-visible:ring-ring/50 flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-inset"
       >
         <span className="min-w-0 flex-1">
           <span className="block font-medium">Avancé</span>
@@ -555,7 +556,7 @@ export function RuleEditorSheet({
 
             {step === 'review' && (
               <>
-                <div className="divide-y rounded-lg border">
+                <div className="divide-y overflow-hidden rounded-lg border">
                   <StepLink label="Opérations" onClick={() => goTo('match')}>
                     <span className="font-medium">{sentence}</span>
                     {conditionsSummary && (
