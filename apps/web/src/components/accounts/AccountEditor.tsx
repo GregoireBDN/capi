@@ -43,10 +43,12 @@ import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { ROUTES } from '#/lib/routes'
 import { parseAmountToCents } from './amount'
 import { todayInParis } from './dates'
+import { DeleteAccountScreen } from './DeleteAccountScreen'
 import { accountErrorMessage } from './errors'
 import { isInvestmentType } from './labels'
 import {
   afterAccountsChanged,
+  accountKeys,
   afterSnapshotsChanged,
   createAccount,
   saveSnapshot,
@@ -181,7 +183,7 @@ interface AccountEditorProps {
 }
 
 /**
- * Creates an account of any type, or renames / archives one. A bottom sheet
+ * Creates an account of any type, or renames / archives / deletes one. A bottom sheet
  * on phones, a side sheet otherwise. A new PEA, life insurance or employee
  * savings account can take its current value right away; a new account then
  * opens its page (crypto: to add the first holdings).
@@ -213,6 +215,8 @@ export function AccountEditor({
   /** The API refused the public key (checksum, already tracked…). */
   const [keyError, setKeyError] = useState<string>()
   const [confirmArchive, setConfirmArchive] = useState(false)
+  /** The editor, or the screen that deletes the account (#297). */
+  const [screen, setScreen] = useState<'edit' | 'delete'>('edit')
 
   // Fresh form on every opening.
   useEffect(() => {
@@ -229,6 +233,7 @@ export function AccountEditor({
     setNameTouched(false)
     setSubmitted(false)
     setKeyError(undefined)
+    setScreen('edit')
   }, [open, account, defaultType])
 
   const set = (patch: Partial<FormValues>) =>
@@ -340,6 +345,15 @@ export function AccountEditor({
     onError: (error) => toast.error(accountErrorMessage(error)),
   })
 
+  /** Leaves the deleted account's page, then refreshes everything it fed. */
+  async function afterDelete(deleted: AccountDto) {
+    onOpenChange(false)
+    await navigate({ to: ROUTES.accounts })
+    queryClient.removeQueries({ queryKey: accountKeys.detail(deleted.id) })
+    // Its transactions counted in every page (spending, budgets, coverage…).
+    await queryClient.invalidateQueries()
+  }
+
   function submit(event: React.FormEvent) {
     event.preventDefault()
     setSubmitted(true)
@@ -364,198 +378,251 @@ export function AccountEditor({
         >
           <SheetHeader className="pb-0">
             <SheetTitle>
-              {creating ? 'Nouveau compte' : 'Modifier le compte'}
+              {creating
+                ? 'Nouveau compte'
+                : screen === 'delete'
+                  ? `Supprimer « ${account.name} » ?`
+                  : 'Modifier le compte'}
             </SheetTitle>
             <SheetDescription>
               {creating
                 ? 'Compte bancaire, livret, placement ou crypto.'
-                : account.type === 'crypto'
-                  ? 'Nom affiché dans l’application.'
-                  : 'Nom et établissement affichés dans l’application.'}
+                : screen === 'delete'
+                  ? 'Le compte et toutes ses données.'
+                  : account.type === 'crypto'
+                    ? 'Nom affiché dans l’application.'
+                    : 'Nom et établissement affichés dans l’application.'}
             </SheetDescription>
           </SheetHeader>
-          <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
-            {creating && (
-              <Field>
-                <FieldLabel htmlFor={`${id}-type`}>Type</FieldLabel>
-                <NativeSelect
-                  id={`${id}-type`}
-                  className="w-full"
-                  value={values.type}
-                  onChange={(event) =>
-                    choose({ type: event.target.value as AccountType })
-                  }
-                >
-                  {ACCOUNT_TYPE_OPTIONS.map(({ type, label }) => (
-                    <NativeSelectOption key={type} value={type}>
-                      {label}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-                <FieldDescription>{option.hint}</FieldDescription>
-              </Field>
-            )}
-            {picksCryptoProvider(values, creating) && (
-              <CryptoSourceFields
-                id={id}
-                values={values}
-                errors={shown}
-                onChange={choose}
-                withSource
-              />
-            )}
-            <Field data-invalid={shown.name !== undefined}>
-              <FieldLabel htmlFor={`${id}-name`}>Nom</FieldLabel>
-              <Input
-                id={`${id}-name`}
-                autoComplete="off"
-                maxLength={NAME_MAX}
-                value={values.name}
-                aria-invalid={shown.name !== undefined}
-                onChange={(event) => {
-                  setNameTouched(true)
-                  set({ name: event.target.value })
-                }}
-              />
-              {shown.name ? (
-                <FieldError>{shown.name}</FieldError>
-              ) : (
-                picksCryptoProvider(values, creating) && (
-                  <FieldDescription>Ex. « Ledger perso ».</FieldDescription>
-                )
+          {!creating && screen === 'delete' ? (
+            <DeleteAccountScreen
+              account={account}
+              onBack={() => setScreen('edit')}
+              onDeleted={() => afterDelete(account)}
+            />
+          ) : (
+            <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
+              {creating && (
+                <Field>
+                  <FieldLabel htmlFor={`${id}-type`}>Type</FieldLabel>
+                  <NativeSelect
+                    id={`${id}-type`}
+                    className="w-full"
+                    value={values.type}
+                    onChange={(event) =>
+                      choose({ type: event.target.value as AccountType })
+                    }
+                  >
+                    {ACCOUNT_TYPE_OPTIONS.map(({ type, label }) => (
+                      <NativeSelectOption key={type} value={type}>
+                        {label}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                  <FieldDescription>{option.hint}</FieldDescription>
+                </Field>
               )}
-            </Field>
-            {values.type === 'crypto' ? (
-              // Set when the account is created (source, exchange or wallet);
-              // another one is another account.
-              !creating && (
-                <div className="space-y-1 text-sm">
-                  <p className="font-medium">Source</p>
-                  <p>
-                    {[
-                      account.cryptoSource &&
-                        CRYPTO_SOURCE_LABELS[account.cryptoSource],
-                      account.institution,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ') || '—'}
-                  </p>
-                  <p className="text-muted-foreground">
-                    Fixée à la création. Pour une autre plateforme ou un autre
-                    wallet, créez un nouveau compte.
-                  </p>
-                </div>
-              )
-            ) : (
-              <Field data-invalid={shown.institution !== undefined}>
-                <FieldLabel htmlFor={`${id}-institution`}>
-                  Établissement
-                </FieldLabel>
+              {picksCryptoProvider(values, creating) && (
+                <CryptoSourceFields
+                  id={id}
+                  values={values}
+                  errors={shown}
+                  onChange={choose}
+                  withSource
+                />
+              )}
+              <Field data-invalid={shown.name !== undefined}>
+                <FieldLabel htmlFor={`${id}-name`}>Nom</FieldLabel>
                 <Input
-                  id={`${id}-institution`}
+                  id={`${id}-name`}
                   autoComplete="off"
                   maxLength={NAME_MAX}
-                  placeholder="Banque, assureur…"
-                  value={values.institution}
-                  aria-invalid={shown.institution !== undefined}
-                  onChange={(event) => set({ institution: event.target.value })}
+                  value={values.name}
+                  aria-invalid={shown.name !== undefined}
+                  onChange={(event) => {
+                    setNameTouched(true)
+                    set({ name: event.target.value })
+                  }}
                 />
-                {shown.institution && (
-                  <FieldError>{shown.institution}</FieldError>
+                {shown.name ? (
+                  <FieldError>{shown.name}</FieldError>
+                ) : (
+                  picksCryptoProvider(values, creating) && (
+                    <FieldDescription>Ex. « Ledger perso ».</FieldDescription>
+                  )
                 )}
               </Field>
-            )}
-            {creating && startsWithValue(values.type) && (
-              <>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field data-invalid={shown.value !== undefined}>
-                    <FieldLabel htmlFor={`${id}-value`}>
-                      Valeur actuelle
+              {values.type === 'crypto' ? (
+                // Set when the account is created (source, exchange or wallet);
+                // another one is another account.
+                !creating && (
+                  <div className="space-y-1 text-sm">
+                    <p className="font-medium">Source</p>
+                    <p>
+                      {[
+                        account.cryptoSource &&
+                          CRYPTO_SOURCE_LABELS[account.cryptoSource],
+                        account.institution,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ') || '—'}
+                    </p>
+                    <p className="text-muted-foreground">
+                      Fixée à la création. Pour une autre plateforme ou un autre
+                      wallet, créez un nouveau compte.
+                    </p>
+                  </div>
+                )
+              ) : (
+                <Field data-invalid={shown.institution !== undefined}>
+                  <FieldLabel htmlFor={`${id}-institution`}>
+                    Établissement
+                  </FieldLabel>
+                  <Input
+                    id={`${id}-institution`}
+                    autoComplete="off"
+                    maxLength={NAME_MAX}
+                    placeholder="Banque, assureur…"
+                    value={values.institution}
+                    aria-invalid={shown.institution !== undefined}
+                    onChange={(event) =>
+                      set({ institution: event.target.value })
+                    }
+                  />
+                  {shown.institution && (
+                    <FieldError>{shown.institution}</FieldError>
+                  )}
+                </Field>
+              )}
+              {creating && startsWithValue(values.type) && (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field data-invalid={shown.value !== undefined}>
+                      <FieldLabel htmlFor={`${id}-value`}>
+                        Valeur actuelle
+                      </FieldLabel>
+                      <InputGroup>
+                        <InputGroupInput
+                          id={`${id}-value`}
+                          inputMode="decimal"
+                          autoComplete="off"
+                          placeholder="12 345,67"
+                          value={values.value}
+                          aria-invalid={shown.value !== undefined}
+                          onChange={(event) =>
+                            set({ value: event.target.value })
+                          }
+                        />
+                        <InputGroupAddon align="inline-end">
+                          <InputGroupText>€</InputGroupText>
+                        </InputGroupAddon>
+                      </InputGroup>
+                      {shown.value && <FieldError>{shown.value}</FieldError>}
+                    </Field>
+                    <Field data-invalid={shown.date !== undefined}>
+                      <FieldLabel htmlFor={`${id}-date`}>
+                        À la date du
+                      </FieldLabel>
+                      <Input
+                        id={`${id}-date`}
+                        type="date"
+                        max={today}
+                        value={values.date}
+                        aria-invalid={shown.date !== undefined}
+                        onChange={(event) => set({ date: event.target.value })}
+                      />
+                      {shown.date && <FieldError>{shown.date}</FieldError>}
+                    </Field>
+                  </div>
+                  <Field data-invalid={shown.contributions !== undefined}>
+                    <FieldLabel htmlFor={`${id}-contributions`}>
+                      Versements nets
                     </FieldLabel>
                     <InputGroup>
                       <InputGroupInput
-                        id={`${id}-value`}
+                        id={`${id}-contributions`}
                         inputMode="decimal"
                         autoComplete="off"
-                        placeholder="12 345,67"
-                        value={values.value}
-                        aria-invalid={shown.value !== undefined}
-                        onChange={(event) => set({ value: event.target.value })}
+                        placeholder="10 000"
+                        value={values.contributions}
+                        aria-invalid={shown.contributions !== undefined}
+                        onChange={(event) =>
+                          set({ contributions: event.target.value })
+                        }
                       />
                       <InputGroupAddon align="inline-end">
                         <InputGroupText>€</InputGroupText>
                       </InputGroupAddon>
                     </InputGroup>
-                    {shown.value && <FieldError>{shown.value}</FieldError>}
+                    {shown.contributions ? (
+                      <FieldError>{shown.contributions}</FieldError>
+                    ) : (
+                      <FieldDescription>
+                        Facultatif : total versé moins les retraits, pour suivre
+                        la plus-value. Valeur et versements peuvent aussi être
+                        ajoutés plus tard.
+                      </FieldDescription>
+                    )}
                   </Field>
-                  <Field data-invalid={shown.date !== undefined}>
-                    <FieldLabel htmlFor={`${id}-date`}>À la date du</FieldLabel>
-                    <Input
-                      id={`${id}-date`}
-                      type="date"
-                      max={today}
-                      value={values.date}
-                      aria-invalid={shown.date !== undefined}
-                      onChange={(event) => set({ date: event.target.value })}
-                    />
-                    {shown.date && <FieldError>{shown.date}</FieldError>}
-                  </Field>
-                </div>
-                <Field data-invalid={shown.contributions !== undefined}>
-                  <FieldLabel htmlFor={`${id}-contributions`}>
-                    Versements nets
-                  </FieldLabel>
-                  <InputGroup>
-                    <InputGroupInput
-                      id={`${id}-contributions`}
-                      inputMode="decimal"
-                      autoComplete="off"
-                      placeholder="10 000"
-                      value={values.contributions}
-                      aria-invalid={shown.contributions !== undefined}
-                      onChange={(event) =>
-                        set({ contributions: event.target.value })
-                      }
-                    />
-                    <InputGroupAddon align="inline-end">
-                      <InputGroupText>€</InputGroupText>
-                    </InputGroupAddon>
-                  </InputGroup>
-                  {shown.contributions ? (
-                    <FieldError>{shown.contributions}</FieldError>
-                  ) : (
-                    <FieldDescription>
-                      Facultatif : total versé moins les retraits, pour suivre
-                      la plus-value. Valeur et versements peuvent aussi être
-                      ajoutés plus tard.
-                    </FieldDescription>
-                  )}
-                </Field>
-              </>
-            )}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row">
-              {!creating && (
-                <Button
-                  type="button"
-                  variant={archived ? 'secondary' : 'danger'}
-                  outline
-                  loading={archived && archive.isPending}
-                  onClick={() =>
-                    archived ? archive.mutate(false) : setConfirmArchive(true)
-                  }
-                >
-                  {archived ? 'Réactiver' : 'Archiver'}
-                </Button>
+                </>
               )}
               <Button
                 type="submit"
-                className="sm:ml-auto"
+                className="w-full"
                 loading={creating ? create.isPending : rename.isPending}
               >
                 {creating ? 'Créer le compte' : 'Enregistrer'}
               </Button>
-            </div>
-          </form>
+              {!creating && (
+                <section
+                  aria-labelledby={`${id}-end`}
+                  className="space-y-3 border-t pt-4"
+                >
+                  <h3 id={`${id}-end`} className="text-sm font-medium">
+                    {archived
+                      ? 'Réactiver ou supprimer'
+                      : 'Archiver ou supprimer'}
+                  </h3>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      {archived
+                        ? 'Archivé : il n’apparaît plus dans les listes ni les imports, son historique est conservé.'
+                        : 'Archiver le retire des listes et des imports en gardant son historique. Vous pourrez le réactiver.'}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      outline
+                      className="w-full"
+                      loading={archived && archive.isPending}
+                      onClick={() =>
+                        archived
+                          ? archive.mutate(false)
+                          : setConfirmArchive(true)
+                      }
+                    >
+                      {archived ? 'Réactiver' : 'Archiver'}
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Supprimer efface le compte et toutes ses données, pour un
+                      compte créé par erreur ou en double. C’est définitif.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      outline
+                      className="w-full"
+                      onClick={() => setScreen('delete')}
+                    >
+                      Supprimer le compte
+                    </Button>
+                  </div>
+                </section>
+              )}
+            </form>
+          )}
         </SheetContent>
       </Sheet>
       {account && !archived && (

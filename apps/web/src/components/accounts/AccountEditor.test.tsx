@@ -7,7 +7,10 @@ import { AccountEditor, NewAccountButton } from './AccountEditor'
 
 const api = vi.hoisted(() => ({
   accountsControllerCreate: vi.fn(),
+  accountsControllerDeletionPreview: vi.fn(),
+  accountsControllerRemove: vi.fn(),
   accountsControllerUpdate: vi.fn(),
+  authControllerLogin: vi.fn(),
   accountSnapshotsControllerUpsert: vi.fn(),
   cryptoControllerSettings: vi.fn(),
 }))
@@ -498,6 +501,153 @@ describe('AccountEditor', () => {
     expect(toast.success).toHaveBeenLastCalledWith(
       'Compte « Compte test » archivé',
     )
+  })
+
+  describe('deleting the account (#297)', () => {
+    const PREVIEW = {
+      transactions: 1234,
+      imports: 12,
+      snapshots: 30,
+      cryptoHoldings: 0,
+      walletKeys: 0,
+      recurringItems: 1,
+      rules: 0,
+      savingsGoals: 1,
+      closedMonths: 3,
+    }
+
+    beforeEach(() => {
+      api.accountsControllerDeletionPreview.mockImplementation(() =>
+        ok(PREVIEW),
+      )
+    })
+
+    it('presents archiving first, then deletes once the name is typed', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      api.accountsControllerRemove.mockImplementation(() => ok(undefined, 204))
+      const onOpenChange = vi.fn()
+      renderWithClient(
+        <AccountEditor open onOpenChange={onOpenChange} account={account()} />,
+      )
+
+      const archive = screen.getByRole('button', { name: 'Archiver' })
+      const remove = screen.getByRole('button', { name: 'Supprimer le compte' })
+      expect(
+        archive.compareDocumentPosition(remove) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+
+      await user.click(remove)
+      expect(
+        await screen.findByText('1 234 opérations', { exact: false }),
+      ).toBeInTheDocument()
+      for (const line of [
+        '12 imports',
+        '30 soldes enregistrés',
+        '1 abonnement détecté',
+        'son lien avec 1 objectif d’épargne',
+      ])
+        expect(screen.getByText(line)).toBeInTheDocument()
+      expect(
+        screen.getByText(/Les 3 mois clôturés .* gardent leurs chiffres/),
+      ).toBeInTheDocument()
+      expect(screen.getByText(/Définitif/)).toBeInTheDocument()
+
+      const confirm = screen.getByRole('button', {
+        name: 'Supprimer définitivement',
+      })
+      expect(confirm).toBeDisabled()
+      await user.type(
+        screen.getByLabelText('Pour confirmer, saisissez « Compte test »'),
+        '  compte  TEST ',
+      )
+      expect(confirm).toBeEnabled()
+      await user.click(confirm)
+
+      await waitFor(() =>
+        expect(api.accountsControllerRemove).toHaveBeenCalledWith(
+          expect.objectContaining({ path: { id: NEW_ID } }),
+        ),
+      )
+      expect(toast.success).toHaveBeenCalledWith(
+        'Compte « Compte test » supprimé',
+      )
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith({ to: '/accounts' }),
+      )
+      expect(onOpenChange).toHaveBeenCalledWith(false)
+    })
+
+    it('says when the account holds nothing, and goes back to the editor', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      api.accountsControllerDeletionPreview.mockImplementation(() =>
+        ok({
+          ...PREVIEW,
+          transactions: 0,
+          imports: 0,
+          snapshots: 0,
+          recurringItems: 0,
+          savingsGoals: 0,
+          closedMonths: 0,
+        }),
+      )
+      renderWithClient(
+        <AccountEditor open onOpenChange={vi.fn()} account={account()} />,
+      )
+      await user.click(
+        screen.getByRole('button', { name: 'Supprimer le compte' }),
+      )
+      expect(
+        await screen.findByText(/Ce compte ne contient aucune donnée/),
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/mois clôturé/)).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Retour' }))
+      expect(screen.getByLabelText('Nom')).toBeInTheDocument()
+      expect(api.accountsControllerRemove).not.toHaveBeenCalled()
+    })
+
+    it('asks to sign in again when the session is not fresh', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      api.accountsControllerRemove
+        .mockImplementationOnce(() =>
+          failure(403, 'Recent authentication required'),
+        )
+        .mockImplementationOnce(() => ok(undefined, 204))
+      api.authControllerLogin.mockImplementation(() => ok({}))
+      renderWithClient(
+        <AccountEditor open onOpenChange={vi.fn()} account={account()} />,
+      )
+      await user.click(
+        screen.getByRole('button', { name: 'Supprimer le compte' }),
+      )
+      await screen.findByText('1 234 opérations')
+      await user.type(
+        screen.getByLabelText('Pour confirmer, saisissez « Compte test »'),
+        'Compte test{Enter}',
+      )
+
+      expect(
+        await screen.findByText('Confirmez votre identité'),
+      ).toBeInTheDocument()
+      expect(toast.error).not.toHaveBeenCalled()
+      expect(navigate).not.toHaveBeenCalled()
+      await user.type(screen.getByLabelText('Mot de passe'), 'motdepasse-test')
+      await user.click(screen.getByRole('button', { name: 'Confirmer' }))
+      const sheet = await screen.findByRole('dialog', {
+        name: 'Identité confirmée',
+      })
+      await user.click(
+        within(sheet).getByRole('button', { name: 'Supprimer définitivement' }),
+      )
+
+      await waitFor(() =>
+        expect(api.accountsControllerRemove).toHaveBeenCalledTimes(2),
+      )
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith({ to: '/accounts' }),
+      )
+    })
   })
 
   it('renames a crypto account but keeps its exchange or wallet', async () => {

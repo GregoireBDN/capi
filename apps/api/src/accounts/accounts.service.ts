@@ -32,7 +32,17 @@ import {
   transactionsTable,
   bankAmountCents,
   bankBookingDate,
+  categorizationRulesTable,
+  cryptoImportsTable,
+  cryptoWalletKeysTable,
+  cryptoWalletTokensTable,
+  importsTable,
+  monthClosesTable,
+  recurringItemsTable,
+  savingsGoalAccountsTable,
+  transactionSplitsTable,
 } from '#/database/schema'
+import type { AnyPgColumn, AnyPgTable } from 'drizzle-orm/pg-core'
 import {
   insertWalletKeys,
   type PreparedWalletKey,
@@ -56,6 +66,18 @@ export interface AccountBalance {
 }
 
 export type AccountWithBalance = SelectAccount & AccountBalance
+
+export interface AccountDeletionPreview {
+  transactions: number
+  imports: number
+  snapshots: number
+  cryptoHoldings: number
+  walletKeys: number
+  recurringItems: number
+  rules: number
+  savingsGoals: number
+  closedMonths: number
+}
 
 const NO_BALANCE: AccountBalance = { balanceCents: null, balanceDate: null }
 
@@ -287,6 +309,94 @@ export class AccountsService {
         .set(changes)
         .where(eq(accountsTable.id, id))
       return this.findOne(id, tx)
+    })
+  }
+
+  /**
+   * What `remove` would delete (#297), counted for the confirmation, plus the
+   * closed months holding data of the account (their frozen report stays).
+   */
+  async deletionPreview(
+    id: string,
+    executor: Executor = this.db,
+  ): Promise<AccountDeletionPreview> {
+    const [account] = await executor
+      .select({ id: accountsTable.id })
+      .from(accountsTable)
+      .where(eq(accountsTable.id, id))
+      .limit(1)
+    if (!account) throw new NotFoundException('Account not found')
+
+    const countOf = (table: AnyPgTable & { accountId: AnyPgColumn }) =>
+      sql<number>`(select count(*)::int from ${table} where ${table.accountId} = ${id})`
+    const t = transactionsTable
+    const s = balanceSnapshotsTable
+    const [row] = await executor
+      .select({
+        transactions: countOf(t),
+        imports: sql<number>`${countOf(importsTable)} + ${countOf(cryptoImportsTable)}`,
+        snapshots: countOf(s),
+        cryptoHoldings: countOf(cryptoHoldingsTable),
+        walletKeys: sql<number>`${countOf(cryptoWalletKeysTable)} + ${countOf(cryptoWalletTokensTable)}`,
+        recurringItems: countOf(recurringItemsTable),
+        rules: countOf(categorizationRulesTable),
+        savingsGoals: countOf(savingsGoalAccountsTable),
+        closedMonths: sql<number>`(
+          select count(*)::int from ${monthClosesTable}
+          where ${monthClosesTable.closedAt} is not null
+            and ${monthClosesTable.month} in (
+              select to_char(${t.bookingDate}, 'YYYY-MM') from ${t}
+              where ${t.accountId} = ${id}
+              union
+              select to_char(${s.date}, 'YYYY-MM') from ${s}
+              where ${s.accountId} = ${id}
+            )
+        )`,
+      })
+      .from(accountsTable)
+      .where(eq(accountsTable.id, id))
+    return row
+  }
+
+  /**
+   * Deletes the account and everything that belongs to it (#297), in one
+   * database transaction: its transactions (with their splits), bank imports,
+   * recurring items, snapshots and savings goal links, then the account,
+   * whose crypto data (holdings, wallet keys and tokens, scans, exchange
+   * imports and movements) and account-scoped rules go with it (cascade).
+   * Budgets and categories are untouched; closed months keep their frozen
+   * report, so their `changes` show the difference.
+   */
+  async remove(id: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const [account] = await tx
+        .select({ id: accountsTable.id })
+        .from(accountsTable)
+        .where(eq(accountsTable.id, id))
+        .for('update')
+      if (!account) throw new NotFoundException('Account not found')
+
+      const t = transactionsTable
+      await tx
+        .delete(transactionSplitsTable)
+        .where(
+          inArray(
+            transactionSplitsTable.transactionId,
+            tx.select({ id: t.id }).from(t).where(eq(t.accountId, id)),
+          ),
+        )
+      await tx.delete(t).where(eq(t.accountId, id))
+      await tx.delete(importsTable).where(eq(importsTable.accountId, id))
+      await tx
+        .delete(recurringItemsTable)
+        .where(eq(recurringItemsTable.accountId, id))
+      await tx
+        .delete(balanceSnapshotsTable)
+        .where(eq(balanceSnapshotsTable.accountId, id))
+      await tx
+        .delete(savingsGoalAccountsTable)
+        .where(eq(savingsGoalAccountsTable.accountId, id))
+      await tx.delete(accountsTable).where(eq(accountsTable.id, id))
     })
   }
 
