@@ -9,7 +9,6 @@ import type {
 } from '../api/types.js'
 import { pea, period } from '../test/fixtures.js'
 import { connect, jsonError } from '../test/mock-api.js'
-import { dashboardMonth } from './month-close-writes.js'
 
 // `connect` runs on 14/11/2026: the current month is November 2026.
 const MONTHS = ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10']
@@ -120,9 +119,7 @@ describe('close_months', () => {
     expect(text).toContain('- octobre 2026 : à clôturer')
     expect(text).toContain('Déjà clôturés, rien à faire : juillet 2026.')
     expect(text).not.toContain('juin 2026')
-    expect(text).toContain(
-      "le tableau de bord s'ouvrira sur le mois en cours (novembre 2026)",
-    )
+    expect(text).not.toContain('tableau de bord')
     expect(text).toContain('confirm: true')
   })
 
@@ -137,9 +134,6 @@ describe('close_months', () => {
     expect(closes(calls)).toEqual(['2026-08', '2026-09', '2026-10'])
     expect(text).toContain(
       '3 mois clôturé(s) : août 2026, septembre 2026, octobre 2026.',
-    )
-    expect(text).toContain(
-      "Le tableau de bord s'ouvre sur le mois en cours (novembre 2026).",
     )
     expect(text).toContain('Revue du mois › Rouvrir')
 
@@ -176,7 +170,7 @@ describe('close_months', () => {
     expect(text).toContain('2 mois clôturé(s) : septembre 2026, octobre 2026.')
   })
 
-  it('closes one month and says which month the dashboard opens on', async () => {
+  it('closes one month only, even with older months open', async () => {
     const { call, calls } = await connect(monthCloseApi(['2026-07', '2026-09']))
     const preview = await call('close_months', { month: '2026-10' })
     expect(preview.text).toContain('- octobre 2026 : à clôturer')
@@ -188,9 +182,6 @@ describe('close_months', () => {
     })
     expect(closes(calls)).toEqual(['2026-10'])
     expect(text).toContain('1 mois clôturé(s) : octobre 2026.')
-    expect(text).toContain(
-      "Le tableau de bord s'ouvre sur août 2026, le plus ancien mois encore ouvert.",
-    )
 
     const again = await call('close_months', {
       month: '2026-10',
@@ -264,17 +255,5 @@ describe('close_months', () => {
     expect(text).toContain('Erreur après 1 mois clôturé(s)')
     expect(text).toContain('Clôturés : septembre 2026.')
     expect(text).toContain('Pas clôturés : octobre 2026.')
-  })
-})
-
-describe('dashboardMonth', () => {
-  it('mirrors the dashboard default month (#321)', () => {
-    expect(dashboardMonth(new Set(), '2026-11')).toBe('2026-10')
-    expect(dashboardMonth(new Set(['2026-08', '2026-10']), '2026-11')).toBe(
-      '2026-09',
-    )
-    expect(dashboardMonth(new Set(['2026-09', '2026-10']), '2026-11')).toBe(
-      '2026-11',
-    )
   })
 })

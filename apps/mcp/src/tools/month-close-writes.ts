@@ -31,29 +31,6 @@ function monthsBetween(from: string, to: string): string[] {
   return months
 }
 
-/**
- * The month the dashboard opens on (#321, `DashboardService.defaultReviewMonth`):
- * the oldest past month left open since the first month ever closed, else the
- * current month; the previous month before any close.
- */
-export function dashboardMonth(closed: Set<string>, current: string): string {
-  const past = [...closed].filter((month) => month < current).sort()
-  let month = past[0]
-  if (month === undefined) return addMonths(current, -1)
-  while (month < current && closed.has(month)) month = addMonths(month, 1)
-  return month
-}
-
-function dashboardLine(
-  month: string,
-  current: string,
-  lead = "Le tableau de bord s'ouvre",
-): string {
-  return month === current
-    ? `${lead} sur le mois en cours (${frenchMonth(current)}).`
-    : `${lead} sur ${frenchMonth(month)}, le plus ancien mois encore ouvert.`
-}
-
 /** What is still open in the month's review, one short line per step. */
 function openSteps(close: MonthCloseDto): string[] {
   const done = new Map(close.steps.map((s) => [s.key, s.done]))
@@ -97,7 +74,7 @@ export const closeMonthsTool = defineTool({
   name: 'close_months',
   title: 'Clôturer des mois',
   description:
-    'Close months of the guided month-end review ("Revue du mois"): freezes each month’s report (totals per category, income, expenses, savings, net worth) as the data stands now. Only months before the current one (Europe/Paris) can be closed. `month` closes one month; `allBefore: true` closes every past month left open since the first month ever closed, up to the previous month, so the dashboard opens on the current month again (with `from` when no month was ever closed). Steps still open do not prevent a close: the preview lists them. Without confirm: preview per month (already closed / to close, what is still open). With confirm: true closes the months still open, oldest first; already closed months are skipped. Reopening is done in the app.',
+    'Close months of the guided month-end review ("Revue du mois"): freezes each month’s report (totals per category, income, expenses, savings, net worth) as the data stands now. Only months before the current one (Europe/Paris) can be closed. `month` closes one month; `allBefore: true` closes every past month left open since the first month ever closed, up to the previous month (with `from` when no month was ever closed). Steps still open do not prevent a close: the preview lists them. Without confirm: preview per month (already closed / to close, what is still open). With confirm: true closes the months still open, oldest first; already closed months are skipped. Reopening is done in the app.',
   write: { idempotent: true },
   inputSchema: {
     month: z
@@ -160,7 +137,6 @@ export const closeMonthsTool = defineTool({
     const toClose = range.filter((m) => !closedAt.has(m))
     const batch = toClose.slice(0, MAX_MONTHS_PER_CALL)
     const later = toClose.slice(batch.length)
-    const after = new Set([...closedAt.keys(), ...batch])
     const laterLine =
       later.length > 0
         ? [
@@ -174,7 +150,6 @@ export const closeMonthsTool = defineTool({
         only
           ? `${frenchMonth(only)} est déjà clôturé (le ${frenchDate(closedAt.get(only))}) : rien à faire.`
           : `Rien à clôturer : tous les mois de ${frenchMonth(range[0] ?? previous)} à ${frenchMonth(previous)} sont déjà clôturés.`,
-        dashboardLine(dashboardMonth(after, current), current),
       ].join('\n')
     }
 
@@ -208,11 +183,6 @@ export const closeMonthsTool = defineTool({
         ...laterLine,
         '',
         'La clôture fige le rapport de chaque mois tel que les données sont maintenant ; les modifications faites ensuite apparaîtront comme des écarts. Les étapes encore ouvertes ne bloquent pas la clôture.',
-        dashboardLine(
-          dashboardMonth(after, current),
-          current,
-          "Après la clôture, le tableau de bord s'ouvrira",
-        ),
         '',
         PREVIEW_FOOTER,
       )
@@ -256,7 +226,6 @@ export const closeMonthsTool = defineTool({
         ? [`Déjà clôturés, rien à faire : ${done.map(frenchMonth).join(', ')}.`]
         : []),
       ...laterLine,
-      dashboardLine(dashboardMonth(after, current), current),
       REOPEN_HINT,
     ].join('\n')
   },
