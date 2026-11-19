@@ -30,7 +30,6 @@ import {
   detectRecurring,
   recurringErrorMessage,
   recurringListQuery,
-  recurringSummaryQuery,
 } from './queries'
 import { AddPrepaidSheet } from './AddPrepaidSheet'
 import { EndedSection } from './EndedSection'
@@ -62,7 +61,6 @@ export function SubscriptionsPage() {
   const today = todayInParis()
   const queryClient = useQueryClient()
   const list = useQuery(recurringListQuery)
-  const summary = useQuery(recurringSummaryQuery)
   const categories = useQuery(categoriesQuery)
   const [editing, setEditing] = useState<RecurringItemDto | null>(null)
   const [ending, setEnding] = useState<RecurringItemDto | null>(null)
@@ -186,7 +184,7 @@ export function SubscriptionsPage() {
       {groups && !empty && (
         <>
           <div className="flex justify-end">{analyse}</div>
-          {summary.isSuccess && <RecurringKpis summary={summary.data} />}
+          <RecurringKpis groups={groups} />
 
           <RenewalReminders
             items={list.data ?? []}

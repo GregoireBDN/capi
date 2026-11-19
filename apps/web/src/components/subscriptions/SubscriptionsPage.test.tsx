@@ -194,13 +194,29 @@ describe('SubscriptionsPage', () => {
     vi.useRealTimers()
   })
 
-  it('shows the monthly and yearly totals, fixed share and incomes', async () => {
+  it('shows the monthly total and its parts as the sections split them', async () => {
     renderPage()
-    const kpis = await screen.findByLabelText('Chiffres clés')
-    expect(text(kpis.textContent)).toContain('16,99 €')
-    expect(text(kpis.textContent)).toContain('203,88 €')
-    expect(text(kpis.textContent)).toContain('100 % du total')
-    expect(text(kpis.textContent)).toContain('2 500,00 € / mois')
+    const parts = await screen.findByRole('list', {
+      name: 'Répartition des charges',
+    })
+    const card = parts.closest('[data-slot="card"]')!
+    // Streamflix (12,99 €) + Cotisation carte (48 € a year); the inactive
+    // item and the suggestions are left out.
+    expect(text(card.textContent)).toContain('16,99 € / mois')
+    expect(text(card.textContent)).toContain('204 € par an · 2 charges')
+    const rows = within(parts).getAllByRole('listitem')
+    expect(rows).toHaveLength(2)
+    for (const [row, label, amount, share] of [
+      [rows[0], 'Abonnements', '12,99 €', '76 %'],
+      [rows[1], 'Autres charges fixes', '4,00 €', '24 %'],
+    ] as const) {
+      expect(text(row.textContent)).toContain(label)
+      expect(text(row.textContent)).toContain('1 élément')
+      expect(text(row.textContent)).toContain(amount)
+      expect(text(row.textContent)).toContain(share)
+    }
+    // Recurring incomes have their own section, not a figure here.
+    expect(card.textContent).not.toContain('Revenus')
   })
 
   it('lists confirmed items with price change, cadence and inactive badges', async () => {

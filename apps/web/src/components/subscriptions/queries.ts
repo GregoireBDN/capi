@@ -7,7 +7,6 @@ import {
   recurringControllerDetect,
   recurringControllerList,
   recurringControllerRemove,
-  recurringControllerSummary,
   recurringControllerUpdate,
 } from '#/api'
 import type {
@@ -28,12 +27,6 @@ export const recurringListQuery = queryOptions({
   queryKey: recurringKeys.list,
   queryFn: () => unwrap(recurringControllerList({ throwOnError: false })),
   // Transactions change elsewhere (imports, review): refetch on mount.
-  staleTime: 0,
-})
-
-export const recurringSummaryQuery = queryOptions({
-  queryKey: recurringKeys.summary,
-  queryFn: () => unwrap(recurringControllerSummary({ throwOnError: false })),
   staleTime: 0,
 })
 
