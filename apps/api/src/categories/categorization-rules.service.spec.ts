@@ -346,6 +346,56 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
+    describe('reorder', () => {
+      it('raises only what the wanted order needs, then lists it', async () => {
+        await withFixture(async ({ service, groceries }) => {
+          const eats = await service.create({
+            labelPattern: 'FAKEEATS DELIVERY',
+            categoryId: groceries,
+          })
+          const mart = await service.create({
+            labelPattern: 'FAKEMART',
+            categoryId: groceries,
+          })
+          const short = await service.create({
+            labelPattern: 'FAKE',
+            categoryId: groceries,
+            priority: 4,
+          })
+
+          const reordered = await service.reorder([short.id, eats.id, mart.id])
+          expect(reordered.map((r) => [r.id, r.rank, r.priority])).toEqual([
+            [short.id, 0, 1],
+            [eats.id, 1, 0],
+            [mart.id, 2, 0],
+          ])
+
+          // Back to the computed order: every priority back to 0.
+          const computed = await service.reorder([eats.id, mart.id, short.id])
+          expect(computed.map((r) => r.priority)).toEqual([0, 0, 0])
+        })
+      })
+
+      it('rejects a list that is not exactly the current rules', async () => {
+        await withFixture(async ({ service, groceries }) => {
+          const a = await service.create({
+            labelPattern: 'AAA',
+            categoryId: groceries,
+          })
+          const b = await service.create({
+            labelPattern: 'BBB',
+            categoryId: groceries,
+          })
+          const unknown = '00000000-0000-4000-8000-000000000000'
+          for (const ids of [[a.id], [a.id, b.id, unknown], [a.id, a.id]]) {
+            await expect(service.reorder(ids)).rejects.toThrow(
+              /every categorization rule exactly once/,
+            )
+          }
+        })
+      })
+    })
+
     describe('insights', () => {
       const NOW = new Date('2026-06-15T10:00:00Z')
 

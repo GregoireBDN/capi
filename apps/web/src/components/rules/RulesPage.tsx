@@ -243,6 +243,13 @@ export function RulesPage() {
             applying={apply.isPending}
             onApply={() => setConfirmApply(true)}
             onEdit={(rule) => setEditing({ rule })}
+            reordering={actions.reorder.isPending}
+            onReorder={(ids) =>
+              actions.reorder.mutate({
+                ids,
+                previous: list.map((rule) => rule.id),
+              })
+            }
           />
         </>
       )}

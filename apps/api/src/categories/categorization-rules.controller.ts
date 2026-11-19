@@ -37,6 +37,7 @@ import {
   MATCH_WINDOW_MONTHS,
   PreferCategorizationRuleDto,
   PreviewCategorizationRuleDto,
+  ReorderCategorizationRulesDto,
   SuggestCategorizationRuleDto,
   SuggestedCategorizationRuleDto,
   UpdateCategorizationRuleDto,
@@ -102,6 +103,24 @@ export class CategorizationRulesController {
     @Body() dto: CategorizationRuleMatchesQueryDto,
   ): Promise<CategorizationRuleMatchesDto> {
     return this.rulesService.matches(dto)
+  }
+
+  @Post('reorder')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Set the evaluation order by hand',
+    description:
+      'Takes every rule id once, first = evaluated first, and gives the rules the fewest priorities that produce this order (those left in their computed place stay at 0). Existing transactions change with `POST /categorization-rules/apply`.',
+  })
+  @ApiBody({ type: ReorderCategorizationRulesDto })
+  @ApiOkResponse({ type: [CategorizationRuleDto] })
+  @ApiBadRequestResponse({
+    description: 'The ids are not exactly the current rules.',
+  })
+  reorder(
+    @Body() dto: ReorderCategorizationRulesDto,
+  ): Promise<CategorizationRuleDto[]> {
+    return this.rulesService.reorder(dto.ids)
   }
 
   @Post(':id/prefer')

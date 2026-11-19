@@ -8,6 +8,7 @@ import {
   categorize,
   defaultKind,
   matchingRules,
+  prioritiesForOrder,
   sortRules,
   validateRulePattern,
 } from './categorize'
@@ -229,6 +230,49 @@ describe('categorize', () => {
       expect(
         categorize(tx(), [specific, preferred], categoriesById)?.ruleId,
       ).toBe(preferred.id)
+    })
+
+    it('finds the fewest priorities for a chosen order (drag and drop)', () => {
+      const eats = rule({ position: 1, labelPattern: 'UBER EATS' })
+      const shop = rule({ position: 2, labelPattern: 'TESTSHOP' })
+      const uber = rule({ position: 3, labelPattern: 'UBER' })
+      const all = [eats, shop, uber]
+      expect(order(all)).toEqual(['UBER EATS', 'TESTSHOP', 'UBER'])
+
+      // The computed order as it is: nothing raised.
+      expect([...prioritiesForOrder(sortRules(all)).values()]).toEqual([
+        0, 0, 0,
+      ])
+
+      // UBER dragged to the top: only UBER is raised.
+      const wanted = [uber, eats, shop]
+      const priorities = prioritiesForOrder(wanted)
+      expect(Object.fromEntries(priorities)).toEqual({
+        [uber.id]: 1,
+        [eats.id]: 0,
+        [shop.id]: 0,
+      })
+      const applied = all.map((r) => ({
+        ...r,
+        priority: priorities.get(r.id)!,
+      }))
+      expect(sortRules(applied).map((r) => r.id)).toEqual(
+        wanted.map((r) => r.id),
+      )
+
+      // TESTSHOP dragged under UBER: the two above it climb one level.
+      const last = [eats, uber, shop]
+      const lastPriorities = prioritiesForOrder(last)
+      expect(Object.fromEntries(lastPriorities)).toEqual({
+        [eats.id]: 1,
+        [uber.id]: 1,
+        [shop.id]: 0,
+      })
+      expect(
+        sortRules(
+          all.map((r) => ({ ...r, priority: lastPriorities.get(r.id)! })),
+        ).map((r) => r.id),
+      ).toEqual(last.map((r) => r.id))
     })
 
     it('lists every enabled matching rule in order', () => {

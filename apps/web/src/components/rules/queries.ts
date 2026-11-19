@@ -9,6 +9,7 @@ import {
   categorizationRulesControllerPrefer,
   categorizationRulesControllerPreview,
   categorizationRulesControllerRemove,
+  categorizationRulesControllerReorder,
   categorizationRulesControllerUpdate,
 } from '#/api'
 import type {
@@ -71,6 +72,15 @@ export const updateRule = (id: string, body: UpdateCategorizationRuleDto) =>
 export const deleteRule = (id: string) =>
   unwrap(
     categorizationRulesControllerRemove({ path: { id }, throwOnError: false }),
+  )
+
+/** Sets the evaluation order by hand: every rule id, first = evaluated first. */
+export const reorderRules = (ids: string[]) =>
+  unwrap(
+    categorizationRulesControllerReorder({
+      body: { ids },
+      throwOnError: false,
+    }),
   )
 
 /** Makes rule `id` win the transactions it shares with `overRuleId`. */

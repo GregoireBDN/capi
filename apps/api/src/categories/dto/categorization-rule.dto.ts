@@ -2,6 +2,9 @@ import { applyDecorators } from '@nestjs/common'
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Transform } from 'class-transformer'
 import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -642,6 +645,20 @@ export class CategorizationRulesInsightsDto {
       'Pairs of enabled rules matching the same transactions (not filed by hand) with different outcomes, most transactions first.',
   })
   conflicts!: CategorizationRuleConflictDto[]
+}
+
+export class ReorderCategorizationRulesDto {
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    description:
+      'Every rule id, in the wanted evaluation order (first = evaluated first).',
+  })
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(10_000)
+  @IsUUID('all', { each: true })
+  ids!: string[]
 }
 
 export class PreferCategorizationRuleDto {

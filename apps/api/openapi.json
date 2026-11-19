@@ -1979,6 +1979,53 @@
         ]
       }
     },
+    "/api/categorization-rules/reorder": {
+      "post": {
+        "description": "Takes every rule id once, first = evaluated first, and gives the rules the fewest priorities that produce this order (those left in their computed place stay at 0). Existing transactions change with `POST /categorization-rules/apply`.",
+        "operationId": "CategorizationRulesController_reorder",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderCategorizationRulesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategorizationRuleDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The ids are not exactly the current rules."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Set the evaluation order by hand",
+        "tags": [
+          "Categorization rules"
+        ]
+      }
+    },
     "/api/categorization-rules/{id}/prefer": {
       "post": {
         "description": "Raises the rule’s priority just above `overRuleId` when it comes after it in the evaluation order, so it wins the transactions both match. Existing transactions change with `POST /categorization-rules/apply`.",
@@ -8135,6 +8182,22 @@
           "since",
           "total",
           "transactions"
+        ]
+      },
+      "ReorderCategorizationRulesDto": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "description": "Every rule id, in the wanted evaluation order (first = evaluated first).",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "ids"
         ]
       },
       "PreferCategorizationRuleDto": {

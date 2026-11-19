@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -22,6 +28,7 @@ const api = vi.hoisted(() => ({
   categorizationRulesControllerUpdate: vi.fn(),
   categorizationRulesControllerRemove: vi.fn(),
   categorizationRulesControllerPrefer: vi.fn(),
+  categorizationRulesControllerReorder: vi.fn(),
   categorizationRulesControllerPreview: vi.fn(),
   categorizationRulesControllerApply: vi.fn(),
   categoriesControllerList: vi.fn(),
@@ -184,6 +191,15 @@ function lastToastAction(): () => void {
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn()
+  Element.prototype.setPointerCapture = vi.fn()
+  // jsdom has no PointerEvent: a MouseEvent carries clientY and button.
+  if (!('PointerEvent' in globalThis)) {
+    Object.assign(globalThis, {
+      PointerEvent: class extends MouseEvent {
+        pointerId = 1
+      },
+    })
+  }
   globalThis.ResizeObserver = class {
     observe() {}
     unobserve() {}
@@ -631,7 +647,11 @@ describe('RulesPage', () => {
     const order = await screen.findByRole('list', {
       name: 'Ordre d’évaluation',
     })
-    const rows = within(order).getAllByRole('button')
+    const rows = within(order)
+      .getAllByRole('button')
+      .filter(
+        (button) => !button.getAttribute('aria-label')?.startsWith('Déplacer'),
+      )
     expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([
       '1. Libellé contient « FAKEMART EXPRESS » → Cafés',
       '2. Libellé contient « FAKEMART » → Courses',
@@ -660,6 +680,100 @@ describe('RulesPage', () => {
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith('4 opérations mises à jour.'),
     )
+  })
+})
+
+describe('RulesPage evaluation order, by hand', () => {
+  const order = [EXPRESS, FAKEMART, ARCHIVED, PAY].map((r) => r.id)
+
+  beforeEach(() => {
+    api.categorizationRulesControllerReorder.mockImplementation(
+      ({ body }: { body: { ids: string[] } }) =>
+        ok(
+          body.ids.map((id, rank) => ({
+            ...[EXPRESS, FAKEMART, ARCHIVED, PAY].find((r) => r.id === id)!,
+            rank,
+          })),
+        ),
+    )
+  })
+
+  it('moves a rule with the arrow keys, applies, then undoes', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    const handle = await screen.findByRole('button', {
+      name: 'Déplacer « SALAIRE TEST », rang 4',
+    })
+    handle.focus()
+    await user.keyboard('{ArrowUp}')
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'Ordre modifié',
+        expect.objectContaining({ description: '4 opérations reclassées.' }),
+      ),
+    )
+    expect(api.categorizationRulesControllerReorder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: { ids: [EXPRESS.id, FAKEMART.id, PAY.id, ARCHIVED.id] },
+      }),
+    )
+    expect(api.categorizationRulesControllerApply).toHaveBeenCalledTimes(1)
+
+    lastToastAction()()
+    await waitFor(() =>
+      expect(api.categorizationRulesControllerReorder).toHaveBeenLastCalledWith(
+        expect.objectContaining({ body: { ids: order } }),
+      ),
+    )
+  })
+
+  it('moves a rule by dragging its handle', async () => {
+    renderPage()
+    const list = await screen.findByRole('list', { name: 'Ordre d’évaluation' })
+    // Rows 40px high, one under the other.
+    within(list)
+      .getAllByRole('listitem')
+      .forEach((row, index) => {
+        row.getBoundingClientRect = () =>
+          ({ top: index * 40, height: 40, bottom: index * 40 + 40 }) as DOMRect
+      })
+    const handle = screen.getByRole('button', {
+      name: 'Déplacer « FAKEMART EXPRESS », rang 1',
+    })
+
+    fireEvent.pointerDown(handle, { clientY: 20, button: 0 })
+    // Past the middle of the third row: lands third.
+    fireEvent.pointerMove(handle, { clientY: 105 })
+    fireEvent.pointerUp(handle, { clientY: 105 })
+
+    await waitFor(() =>
+      expect(api.categorizationRulesControllerReorder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: { ids: [FAKEMART.id, ARCHIVED.id, EXPRESS.id, PAY.id] },
+        }),
+      ),
+    )
+  })
+
+  it('does not move a rule dropped where it was', async () => {
+    renderPage()
+    const list = await screen.findByRole('list', { name: 'Ordre d’évaluation' })
+    within(list)
+      .getAllByRole('listitem')
+      .forEach((row, index) => {
+        row.getBoundingClientRect = () =>
+          ({ top: index * 40, height: 40, bottom: index * 40 + 40 }) as DOMRect
+      })
+    const handle = screen.getByRole('button', {
+      name: 'Déplacer « FAKEMART », rang 2',
+    })
+    fireEvent.pointerDown(handle, { clientY: 60, button: 0 })
+    fireEvent.pointerMove(handle, { clientY: 70 })
+    fireEvent.pointerUp(handle, { clientY: 70 })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(api.categorizationRulesControllerReorder).not.toHaveBeenCalled()
   })
 })
 

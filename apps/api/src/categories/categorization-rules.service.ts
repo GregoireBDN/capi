@@ -52,6 +52,7 @@ import {
   compareRules,
   defaultKind,
   matchingRules,
+  prioritiesForOrder,
   ruleMatches,
   ruleOutcome,
   sortRules,
@@ -309,6 +310,48 @@ export class CategorizationRulesService {
         .where(eq(categorizationRulesTable.id, id))
         .returning()
       return this.ranked(tx, updated)
+    })
+  }
+
+  /**
+   * Sets the evaluation order by hand (#299, drag and drop): `ids` lists
+   * every rule once, first = evaluated first. The order itself is not
+   * stored: the rules get the fewest priorities that produce it
+   * (`prioritiesForOrder`), so those left in their computed place stay at 0.
+   */
+  reorder(ids: string[]): Promise<RankedRule[]> {
+    return this.db.transaction(async (tx) => {
+      const rules = await tx.select().from(categorizationRulesTable)
+      const byId = new Map(rules.map((rule) => [rule.id, rule]))
+      if (
+        new Set(ids).size !== ids.length ||
+        ids.length !== rules.length ||
+        ids.some((id) => !byId.has(id))
+      ) {
+        throw new BadRequestException(
+          'ids must list every categorization rule exactly once',
+        )
+      }
+      const priorities = prioritiesForOrder(ids.map((id) => byId.get(id)!))
+      const changed = rules.filter(
+        (rule) => priorities.get(rule.id) !== rule.priority,
+      )
+      if (changed.length > 0) {
+        const values = sql.join(
+          changed.map(
+            (rule) =>
+              sql`(${rule.id}::uuid, ${priorities.get(rule.id)!}::integer)`,
+          ),
+          sql`, `,
+        )
+        await tx.execute(sql`
+          update ${categorizationRulesTable} as r
+          set priority = v.priority, updated_at = now()
+          from (values ${values}) as v(id, priority)
+          where r.id = v.id
+        `)
+      }
+      return this.list(tx)
     })
   }
 

@@ -228,6 +228,36 @@ export function compareRules(a: RuleOrderFields, b: RuleOrderFields): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
+/**
+ * The priorities that make `ordered` the evaluation order (#299, drag and
+ * drop): from the last rule up, each keeps the priority of the rule below it
+ * when the computed order already puts it first, else one more. So every
+ * rule left in its computed place stays at 0, and moving one rule above the
+ * others raises only that one (and those it must stay above).
+ */
+export function prioritiesForOrder(
+  ordered: readonly RuleOrderFields[],
+): Map<string, number> {
+  const priorities = new Map<string, number>()
+  let level = 0
+  let below: RuleOrderFields | null = null
+  for (let i = ordered.length - 1; i >= 0; i--) {
+    const rule = ordered[i]
+    if (
+      below !== null &&
+      compareRules(
+        { ...rule, priority: level },
+        { ...below, priority: level },
+      ) > 0
+    ) {
+      level++
+    }
+    priorities.set(rule.id, level)
+    below = rule
+  }
+  return priorities
+}
+
 /** `rules` sorted in evaluation order (a copy). */
 export function sortRules<T extends RuleOrderFields>(rules: readonly T[]): T[] {
   return [...rules].sort(compareRules)

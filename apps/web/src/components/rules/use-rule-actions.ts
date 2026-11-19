@@ -10,6 +10,8 @@ import {
   createRule,
   deleteRule,
   preferRule,
+  reorderRules,
+  rulesKey,
   updateRule,
 } from './queries'
 import { bodyFromRule } from './rule-form'
@@ -113,5 +115,39 @@ export function useRuleActions() {
     onError: (error) => toast.error(ruleErrorMessage(error)),
   })
 
-  return { saved, remove, prefer }
+  /** Drag and drop: shown at once, saved, applied; undo = the old order. */
+  const reorder = useMutation({
+    mutationFn: async ({
+      ids,
+      previous,
+    }: {
+      ids: string[]
+      previous: string[]
+    }) => {
+      const ranked = await reorderRules(ids)
+      queryClient.setQueryData(rulesKey, ranked)
+      await announce('Ordre modifié', () => reorderRules(previous))
+    },
+    onMutate: async ({ ids }) => {
+      await queryClient.cancelQueries({ queryKey: rulesKey })
+      const before = queryClient.getQueryData<CategorizationRuleDto[]>(rulesKey)
+      if (before) {
+        const byId = new Map(before.map((rule) => [rule.id, rule]))
+        queryClient.setQueryData(
+          rulesKey,
+          ids.flatMap((id, rank) => {
+            const rule = byId.get(id)
+            return rule ? [{ ...rule, rank }] : []
+          }),
+        )
+      }
+      return { before }
+    },
+    onError: (error, _variables, context) => {
+      if (context?.before) queryClient.setQueryData(rulesKey, context.before)
+      toast.error(ruleErrorMessage(error))
+    },
+  })
+
+  return { saved, remove, prefer, reorder }
 }
