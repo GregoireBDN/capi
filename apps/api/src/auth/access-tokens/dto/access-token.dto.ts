@@ -48,6 +48,15 @@ export class CreateAccessTokenDto {
   expiresInDays?: number | null
 }
 
+/** Renames a token (#329): the name is the only thing that can change. */
+export class UpdateAccessTokenDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  @ApiProperty({ type: String, minLength: 1, maxLength: 100 })
+  name!: string
+}
+
 export class AccessTokenDto {
   @ApiProperty({ type: String, format: 'uuid' })
   id!: string

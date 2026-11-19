@@ -7,6 +7,7 @@ import {
   HttpCode,
   Param,
   ParseIntPipe,
+  Patch,
   ParseUUIDPipe,
   Post,
   Query,
@@ -33,6 +34,7 @@ import {
   AccessTokenDto,
   CreateAccessTokenDto,
   CreatedAccessTokenDto,
+  UpdateAccessTokenDto,
 } from '#/auth/access-tokens/dto/access-token.dto'
 import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { CurrentUser } from '#/auth/decorators/current-user.decorator'
@@ -96,16 +98,41 @@ export class AccessTokensController {
     type: Number,
     maximum: AUDIT_MAX_LIMIT,
   })
+  @ApiQuery({
+    name: 'tokenId',
+    required: false,
+    type: String,
+    format: 'uuid',
+    description: 'Only the calls of this token.',
+  })
   @ApiOkResponse({ type: [AccessTokenAuditEntryDto] })
   audit(
     @CurrentUser() user: { sub: string },
     @Query('limit', new DefaultValuePipe(AUDIT_DEFAULT_LIMIT), ParseIntPipe)
     limit: number,
+    @Query('tokenId', new ParseUUIDPipe({ optional: true }))
+    tokenId?: string,
   ): Promise<AccessTokenAuditEntryDto[]> {
     return this.accessTokens.audit(
       user.sub,
       Math.min(Math.max(limit, 1), AUDIT_MAX_LIMIT),
+      tokenId,
     )
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Rename a personal access token' })
+  @ApiParam({ name: 'id', type: String, format: 'uuid' })
+  @ApiBody({ type: UpdateAccessTokenDto })
+  @ApiOkResponse({ type: AccessTokenDto })
+  @ApiBadRequestResponse()
+  @ApiNotFoundResponse()
+  rename(
+    @CurrentUser() user: { sub: string },
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: UpdateAccessTokenDto,
+  ): Promise<AccessTokenDto> {
+    return this.accessTokens.rename(user.sub, id, body)
   }
 
   @Delete(':id')
