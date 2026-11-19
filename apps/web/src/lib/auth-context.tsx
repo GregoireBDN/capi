@@ -7,6 +7,7 @@ import {
 } from 'react'
 import { authControllerLogout, authControllerMe } from '#/api'
 import type { UserDto } from '#/api/types.gen'
+import { forgetCurrentUser } from '#/lib/current-user'
 import { storeThemeMode } from '#/lib/use-theme'
 
 type AuthState = {
@@ -29,14 +30,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     const res = await authControllerMe({ throwOnError: false })
-    const fetched = res.error || !res.data ? null : res.data
-    setUser(fetched)
+    if (!res.error && res.data) {
+      setUser(res.data)
+      storeThemeMode(res.data.theme)
+    } else if (res.response?.status === 401) {
+      // Only a 401 means signed out; a 429 / 5xx / network error keeps the
+      // user already known (#292).
+      setUser(null)
+    }
     setLoading(false)
-    if (fetched) storeThemeMode(fetched.theme)
   }, [])
 
   const logout = useCallback(async () => {
     await authControllerLogout({ throwOnError: false })
+    forgetCurrentUser()
     setUser(null)
   }, [])
 

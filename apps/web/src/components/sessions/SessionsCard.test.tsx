@@ -31,6 +31,7 @@ const LAPTOP: SessionDto = {
   lastUsedAt: '2026-11-16T18:30:00.000Z',
   expiresAt: '2026-12-16T18:30:00.000Z',
   current: true,
+  reuseDetectedAt: null,
 }
 const PHONE: SessionDto = {
   ...LAPTOP,
@@ -108,6 +109,27 @@ describe('SessionsCard', () => {
 
     expect(rows[2]).toHaveTextContent('Appareil inconnu')
     expect(rows[2]).toHaveTextContent('(méthode inconnue)')
+  })
+
+  it('shows a session ended by reuse detection, without an action (#292)', async () => {
+    const reused: SessionDto = {
+      ...PHONE,
+      id: '50000000-0000-4000-8000-000000000004',
+      expiresAt: '2026-11-18T13:02:00.000Z',
+      reuseDetectedAt: '2026-11-18T13:02:00.000Z',
+    }
+    api.sessionsControllerList.mockImplementation(() => ok([LAPTOP, reused]))
+    renderCard()
+
+    const list = await screen.findByRole('list', { name: 'Sessions' })
+    const row = within(list).getAllByRole('listitem')[1]
+    expect(row).toHaveTextContent('Safari · iPhone')
+    expect(row).toHaveTextContent(
+      /Déconnecté : réutilisation détectée le 18 nov\.(,| à) 14:02/,
+    )
+    expect(
+      within(row).queryByRole('button', { name: 'Déconnecter' }),
+    ).not.toBeInTheDocument()
   })
 
   it('ends a session after confirmation', async () => {
