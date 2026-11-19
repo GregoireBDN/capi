@@ -38,16 +38,41 @@ function renderAccount() {
   return screen.getByRole('textbox', { name: 'Nom' })
 }
 
+/** The email's element, whose text is split after its `@`. */
+function emailText() {
+  return screen.getByText(
+    (_, element) =>
+      element?.tagName === 'SPAN' &&
+      element.textContent === 'owner@example.test' &&
+      element.parentElement?.textContent !== 'owner@example.test',
+  )
+}
+
 describe('AccountSettings', () => {
   it('shows the email as text, with no identity card or disabled field', () => {
     renderAccount()
 
-    expect(screen.getByText('owner@example.test')).toBeInTheDocument()
+    expect(emailText()).toHaveTextContent(/^owner@example\.test$/)
     expect(screen.getAllByRole('textbox')).toHaveLength(1)
     expect(screen.queryByText(/Email vérifié/)).not.toBeInTheDocument()
     expect(
       screen.getByText('Membre depuis le 15 mars 2026.'),
     ).toBeInTheDocument()
+  })
+
+  it('lets the email wrap after its @ only, each part cut with …', () => {
+    renderAccount()
+
+    // #325: `break-all` broke it anywhere (« …@finan / ces.test »).
+    const email = emailText()
+    const parts = [...email.querySelectorAll(':scope > span')]
+    expect(parts.map((part) => part.textContent)).toEqual([
+      'owner@',
+      'example.test',
+    ])
+    for (const part of parts) expect(part).toHaveClass('truncate')
+    expect(parts[1].previousSibling?.nodeName).toBe('WBR')
+    expect(email.className).not.toMatch(/break-all/)
   })
 
   it('saves the name when the field is left, with « Annuler »', async () => {
