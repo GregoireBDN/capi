@@ -1,6 +1,6 @@
 # ADR 0004 — Linking transfers to accounts, contributions from the links
 
-- **Status**: Proposed (accepted with the owner's review of #296)
+- **Status**: Accepted
 - **Date**: 2026-11-19
 - **Issue**: #296 (milestone M11 UX overhaul & insights)
 
