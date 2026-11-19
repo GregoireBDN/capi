@@ -213,6 +213,7 @@ function toRule(
     minAmountCents: null,
     maxAmountCents: null,
     categoryId: proposal.categoryId,
+    counterpartAccountId: null,
     kind: proposal.kind,
     merchant: null,
   }

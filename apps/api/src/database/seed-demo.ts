@@ -69,7 +69,7 @@ async function main() {
       `Demo data seeded into "${databaseName}" (bank data until ${result.dataUntil}):`,
     )
     console.log(
-      `  ${c.accounts} accounts, ${c.transactions} transactions (${c.manualTransactions} manual, ${c.reviewQueue} to review, ${c.splits} split), ${c.imports} imports`,
+      `  ${c.accounts} accounts, ${c.transactions} transactions (${c.manualTransactions} manual, ${c.reviewQueue} to review, ${c.splits} split, ${c.linkedTransferPairs} transfers linked), ${c.imports} imports`,
     )
     console.log(
       `  ${c.snapshots} value snapshots, ${c.cryptoHoldings} crypto holdings, ${c.rules} rules, ${c.budgets} budget lines, ${c.savingsGoals} savings goals, ${c.recurringItems} recurring items`,

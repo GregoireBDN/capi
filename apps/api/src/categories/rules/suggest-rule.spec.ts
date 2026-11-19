@@ -26,6 +26,7 @@ function asRule(
     ...suggestion,
     id: 'suggested',
     position: 0,
+    counterpartAccountId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   }

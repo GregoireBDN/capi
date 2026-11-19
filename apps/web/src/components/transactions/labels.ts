@@ -1,4 +1,4 @@
-import type { TransactionKind } from '#/api/types.gen'
+import type { TransactionDto, TransactionKind } from '#/api/types.gen'
 
 /** Kinds in display order. */
 export const TRANSACTION_KINDS: readonly TransactionKind[] = [
@@ -56,4 +56,11 @@ export function secondaryLabel(transaction: {
   return label !== '' && raw.includes(` ${label} `)
     ? null
     : transaction.rawLabel
+}
+
+/** « Vers » for money out, « Depuis » for money in (a transfer's link, #296). */
+export function counterpartLabel(
+  item: Pick<TransactionDto, 'amountCents'>,
+): 'Vers' | 'Depuis' {
+  return item.amountCents < 0 ? 'Vers' : 'Depuis'
 }

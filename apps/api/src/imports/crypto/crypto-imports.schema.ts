@@ -85,6 +85,22 @@ export const cryptoMovementsTable = pgTable(
     eurCents: bigint('eur_cents', { mode: 'number' }),
     /** Exchange id of the line, when exported. */
     sourceRef: varchar('source_ref', { length: 100 }),
+    /**
+     * The owner's other crypto account a `withdrawal` went to or a `deposit`
+     * came from (#296), e.g. the Ledger: set when one account alone holds the
+     * asset, or by hand.
+     */
+    counterpartAccountId: uuid('counterpart_account_id').references(
+      () => accountsTable.id,
+      { onDelete: 'set null' },
+    ),
+    /**
+     * EUR cost of the quantity a `withdrawal` took out (average cost of the
+     * holding at that moment, `computeHoldings`), null when unknown; kept up
+     * to date whenever the holdings are recomputed. A linked wallet's
+     * contributions are the cost of what it received.
+     */
+    costCents: bigint('cost_cents', { mode: 'number' }),
     dedupeHash: varchar('dedupe_hash', { length: 64 }).notNull(),
   },
   (t) => [
@@ -94,6 +110,7 @@ export const cryptoMovementsTable = pgTable(
     ),
     index().on(t.accountId, t.occurredAt),
     index().on(t.importId),
+    index().on(t.counterpartAccountId),
   ],
 )
 

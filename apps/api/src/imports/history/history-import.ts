@@ -21,6 +21,7 @@ import {
 } from '#/imports/dedupe/dedupe.repository'
 import { normalizeLabel } from '#/imports/normalize/label'
 import type { ParseIssue } from '#/imports/parsers/parsed-row'
+import { linkMatchingTransfers } from '#/transactions/transfer-links/link-transfers'
 import {
   createProposedRules,
   type ProposedRule,
@@ -140,6 +141,8 @@ export interface HistoryImportResult {
   unmappedCategories: { sheetSlug: string; rows: number }[]
   unknownGroups: { group: string; rows: number }[]
   conflicts: ConflictDetail[]
+  /** Transfers between two cash accounts whose two sides were linked (#296). */
+  transfersLinked: number
   snapshots: SnapshotResult | null
   rules: {
     proposed: ProposedRuleSummary[]
@@ -253,6 +256,7 @@ export async function importHistory(
   // 3. Transactions, account by account.
   const accountResults: AccountImportResult[] = []
   const conflicts: ConflictDetail[] = []
+  const insertedIds: string[] = []
   let needsReview = 0
   for (const spec of specs) {
     const account = accounts.get(spec.code)
@@ -266,10 +270,14 @@ export async function importHistory(
       input,
       now,
       conflicts,
+      insertedIds,
     })
     needsReview += result.needsReview
     accountResults.push(result)
   }
+
+  // The two sides of transfers between the cash accounts (#296).
+  const transfersLinked = await linkMatchingTransfers(tx, insertedIds)
 
   // 4. Month-end balances.
   const snapshots = input.balances
@@ -319,6 +327,7 @@ export async function importHistory(
       rows,
     })),
     conflicts,
+    transfersLinked,
     snapshots,
     rules: {
       proposed: proposal.proposed.map((p) => ({
@@ -342,6 +351,7 @@ async function importAccountRows(
     input: HistoryImportInput
     now: Date
     conflicts: ConflictDetail[]
+    insertedIds: string[]
   },
 ): Promise<AccountImportResult> {
   const { spec, account, rows, input } = ctx
@@ -450,7 +460,11 @@ async function importAccountRows(
       .onConflictDoNothing({
         target: [transactionsTable.accountId, transactionsTable.dedupeHash],
       })
-      .returning({ needsReview: transactionsTable.needsReview })
+      .returning({
+        id: transactionsTable.id,
+        needsReview: transactionsTable.needsReview,
+      })
+    ctx.insertedIds.push(...inserted.map((r) => r.id))
     result.inserted += inserted.length
     result.needsReview += inserted.filter((r) => r.needsReview).length
   }

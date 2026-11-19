@@ -22,6 +22,11 @@ export interface CategorizationResult {
   kind: TransactionKind
   ruleId: string
   merchant: string | null
+  /**
+   * The rule's destination account, on a transfer only (never the
+   * transaction's own account), for a transaction that has none yet.
+   */
+  counterpartAccountId: string | null
 }
 
 /** Flags for `regex` rules. Validation on save must use the same flags. */
@@ -218,11 +223,16 @@ export function categorize(
     // Rules cascade with their category; a stale snapshot just skips the rule.
     if (!category) continue
     if (!matchesSubject(rule, subject)) continue
+    const kind = rule.kind ?? category.kind
     return {
       categoryId: category.id,
-      kind: rule.kind ?? category.kind,
+      kind,
       ruleId: rule.id,
       merchant: rule.merchant ?? tx.merchant,
+      counterpartAccountId:
+        kind === 'transfer' && rule.counterpartAccountId !== tx.accountId
+          ? (rule.counterpartAccountId ?? null)
+          : null,
     }
   }
   return null

@@ -1,6 +1,7 @@
 import {
   bigint,
   boolean,
+  check,
   date,
   index,
   integer,
@@ -54,6 +55,17 @@ export const transactionsTable = pgTable(
     isOneOff: boolean('is_one_off').notNull().default(false),
     note: text('note'),
     /**
+     * The owner's other account a `transfer` goes to (money out) or comes
+     * from (money in) (#296): set by hand, by a rule's destination account or
+     * by matching the two sides of a transfer between cash accounts. Only on
+     * transfers; net contributions of an investment account are derived from
+     * the transfers linked to it (`investments/performance.ts`).
+     */
+    counterpartAccountId: uuid('counterpart_account_id').references(
+      () => accountsTable.id,
+      { onDelete: 'set null' },
+    ),
+    /**
      * Expense noted by hand during the month (#137), before the bank export
      * that will replace it. Never counts as imported data (`coverage/`), is
      * left out of the dedupe of imports, and is reconciled with the matching
@@ -86,6 +98,11 @@ export const transactionsTable = pgTable(
     index().on(t.bookingDate),
     index().on(t.categoryId),
     index().on(t.importId),
+    index().on(t.counterpartAccountId),
+    check(
+      'transactions_counterpart_not_own_account',
+      sql`${t.counterpartAccountId} <> ${t.accountId}`,
+    ),
   ],
 )
 

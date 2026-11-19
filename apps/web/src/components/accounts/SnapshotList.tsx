@@ -17,14 +17,38 @@ interface SnapshotListProps {
   withContributions: boolean
   /** Opens the editor; absent when the account cannot be changed. */
   onEdit?: (snapshot: SnapshotDto) => void
+  /**
+   * Contributions from the linked transfers by snapshot date (#296), shown
+   * where none is typed; editing still shows what was typed.
+   */
+  linkedContributions?: ReadonlyMap<string, number | null>
+  /** What the linked contributions come from: `virements`, `retraits`. */
+  linkedSource?: string
+}
+
+function contributionsText(
+  snapshot: SnapshotDto,
+  linked: number | null | undefined,
+  source: string,
+): string {
+  if (snapshot.contributionsCents !== null) {
+    return `Versé ${formatCents(snapshot.contributionsCents)}`
+  }
+  return linked == null
+    ? 'Versements inconnus'
+    : `Versé ${formatCents(linked)} · ${source}`
 }
 
 function SnapshotDetails({
   snapshot,
   withContributions,
+  linked,
+  linkedSource = 'virements',
 }: {
   snapshot: SnapshotDto
   withContributions: boolean
+  linked?: number | null
+  linkedSource?: string
 }) {
   return (
     // The amounts go under the date when both don't fit side by side.
@@ -45,9 +69,7 @@ function SnapshotDetails({
         </p>
         {withContributions && (
           <p className="text-muted-foreground text-xs tabular-nums">
-            {snapshot.contributionsCents === null
-              ? 'Versements inconnus'
-              : `Versé ${formatCents(snapshot.contributionsCents)}`}
+            {contributionsText(snapshot, linked, linkedSource)}
           </p>
         )}
       </div>
@@ -60,6 +82,8 @@ export function SnapshotRows({
   snapshots,
   withContributions,
   onEdit,
+  linkedContributions,
+  linkedSource,
   label = 'Valeurs enregistrées',
   editLabel = 'Modifier la valeur du',
 }: SnapshotListProps & {
@@ -85,6 +109,8 @@ export function SnapshotRows({
                 <SnapshotDetails
                   snapshot={snapshot}
                   withContributions={withContributions}
+                  linked={linkedContributions?.get(snapshot.date)}
+                  linkedSource={linkedSource}
                 />
                 <PencilIcon
                   aria-hidden
@@ -96,6 +122,8 @@ export function SnapshotRows({
                 <SnapshotDetails
                   snapshot={snapshot}
                   withContributions={withContributions}
+                  linked={linkedContributions?.get(snapshot.date)}
+                  linkedSource={linkedSource}
                 />
               </div>
             )}
@@ -111,6 +139,8 @@ export function SnapshotList({
   snapshots,
   withContributions,
   onEdit,
+  linkedContributions,
+  linkedSource,
 }: SnapshotListProps) {
   return (
     <Card className="min-w-0">
@@ -132,6 +162,8 @@ export function SnapshotList({
             snapshots={snapshots}
             withContributions={withContributions}
             onEdit={onEdit}
+            linkedContributions={linkedContributions}
+            linkedSource={linkedSource}
           />
         </CardContent>
       )}

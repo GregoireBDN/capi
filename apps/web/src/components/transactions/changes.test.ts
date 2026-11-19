@@ -37,6 +37,8 @@ function tx(overrides: Partial<TransactionDto> = {}): TransactionDto {
     manual: false,
     originalAmountCents: null,
     originalBookingDate: null,
+    counterpartAccountId: null,
+    counterpartAccountName: null,
     splits: [],
     createdAt: '2026-10-01T00:00:00.000Z',
     updatedAt: '2026-10-01T00:00:00.000Z',
@@ -66,6 +68,33 @@ describe('applyChanges (optimistic, mirrors the API)', () => {
       kind: 'transfer',
       ruleId: null,
     })
+  })
+
+  it('links a transfer to an account and unlinks it when it stops being one (#296)', () => {
+    const transfer = tx({ kind: 'transfer' })
+    const names = new Map([['acc-pea', 'PEA test']])
+    expect(
+      applyChanges(
+        transfer,
+        { counterpartAccountId: 'acc-pea' },
+        categories,
+        names,
+      ),
+    ).toMatchObject({
+      counterpartAccountId: 'acc-pea',
+      counterpartAccountName: 'PEA test',
+    })
+    const linked = tx({
+      kind: 'transfer',
+      counterpartAccountId: 'acc-pea',
+      counterpartAccountName: 'PEA test',
+    })
+    expect(applyChanges(linked, { kind: 'expense' }, categories)).toMatchObject(
+      { counterpartAccountId: null, counterpartAccountName: null },
+    )
+    expect(
+      applyChanges(linked, { categoryId: groceries.id }, categories),
+    ).toMatchObject({ counterpartAccountId: null })
   })
 
   it('sets flags and trims the note', () => {

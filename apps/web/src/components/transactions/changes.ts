@@ -20,6 +20,8 @@ export function applyChanges(
   item: TransactionDto,
   changes: TransactionChanges,
   categoriesById: ReadonlyMap<string, CategoryDto>,
+  /** Account names, to show a new transfer link at once (#296). */
+  accountNames: ReadonlyMap<string, string> = new Map(),
 ): TransactionDto {
   const next: TransactionDto = { ...item }
   if (changes.categoryId !== undefined) {
@@ -58,6 +60,17 @@ export function applyChanges(
   }
   if (changes.isOneOff !== undefined) next.isOneOff = changes.isOneOff
   if (changes.note !== undefined) next.note = changes.note?.trim() || null
+  // Only transfers are linked to another account.
+  if (next.kind !== 'transfer') {
+    next.counterpartAccountId = null
+    next.counterpartAccountName = null
+  } else if (changes.counterpartAccountId !== undefined) {
+    next.counterpartAccountId = changes.counterpartAccountId
+    next.counterpartAccountName =
+      changes.counterpartAccountId === null
+        ? null
+        : (accountNames.get(changes.counterpartAccountId) ?? null)
+  }
   return next
 }
 

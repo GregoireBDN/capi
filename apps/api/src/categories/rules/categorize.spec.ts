@@ -60,6 +60,7 @@ function rule(
     categoryId: 'cat-groceries',
     kind: null,
     merchant: null,
+    counterpartAccountId: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -91,7 +92,36 @@ describe('categorize', () => {
         kind: 'expense',
         ruleId: early.id,
         merchant: null,
+        counterpartAccountId: null,
       })
+    })
+
+    it('gives a transfer the rule’s destination account (#296)', () => {
+      const toPea = rule({
+        categoryId: 'cat-savings',
+        counterpartAccountId: 'account-pea',
+      })
+      expect(
+        categorize(tx(), [toPea], categoriesById)?.counterpartAccountId,
+      ).toBe('account-pea')
+    })
+
+    it('never links a non-transfer or a transaction to its own account', () => {
+      const asExpense = rule({
+        categoryId: 'cat-savings',
+        kind: 'expense',
+        counterpartAccountId: 'account-pea',
+      })
+      expect(
+        categorize(tx(), [asExpense], categoriesById)?.counterpartAccountId,
+      ).toBeNull()
+      const toSelf = rule({
+        categoryId: 'cat-savings',
+        counterpartAccountId: ACCOUNT_CHECKING,
+      })
+      expect(
+        categorize(tx(), [toSelf], categoriesById)?.counterpartAccountId,
+      ).toBeNull()
     })
 
     it('ignores array order and breaks position ties by id', () => {

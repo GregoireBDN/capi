@@ -11,6 +11,7 @@ export interface StoredManualExpense extends ManualExpense {
   kind: TransactionKind
   note: string | null
   isOneOff: boolean
+  counterpartAccountId: string | null
 }
 
 /**
@@ -38,6 +39,7 @@ export async function loadManualExpenses(
       kind: t.kind,
       note: t.note,
       isOneOff: t.isOneOff,
+      counterpartAccountId: t.counterpartAccountId,
     })
     .from(t)
     .leftJoin(categoriesTable, eq(categoriesTable.id, t.categoryId))

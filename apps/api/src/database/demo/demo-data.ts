@@ -15,6 +15,8 @@ import {
   categoriesTable,
   categorizationRulesTable,
   cryptoHoldingsTable,
+  cryptoImportsTable,
+  cryptoMovementsTable,
   cryptoPricesTable,
   importsTable,
   recurringItemsTable,
@@ -27,6 +29,13 @@ import {
   usersTable,
 } from '#/database/schema'
 import type { TransactionKind } from '#/database/schema/domain-enums'
+import { knownAsset } from '#/imports/crypto/assets'
+import { computeHoldings } from '#/imports/crypto/holdings'
+import {
+  linkNewCryptoTransfers,
+  storeWithdrawalCosts,
+} from '#/imports/crypto/movement-links'
+import { formatQuantity, parseQuantity } from '#/imports/crypto/quantity'
 import { computeDedupeHashes } from '#/imports/dedupe/dedupe'
 import { normalizeLabel } from '#/imports/normalize/label'
 import {
@@ -38,6 +47,7 @@ import {
 import { RecurringService } from '#/recurring/recurring.service'
 import { MEAL_VOUCHER_DAILY_CAP_CENTS } from '#/transactions/manual-transactions.service'
 import { MONTHLY_TARGET_KEY } from '#/savings/savings.service'
+import { linkMatchingTransfers } from '#/transactions/transfer-links/link-transfers'
 
 /**
  * Synthetic data for local manual testing (`pnpm db:demo`, #219): a verified
@@ -71,7 +81,7 @@ export const DEMO_MONTHS = 14
 export const DATA_LAG_DAYS = 10
 
 /** Checking balance before the first demo row. */
-export const CHECKING_OPENING_CENTS = 245_000
+export const CHECKING_OPENING_CENTS = 700_000
 
 const PRNG_SEED = 0x5eed_2026
 /** Own sequence for the meal-voucher card, so the bank data stays the same. */
@@ -110,6 +120,8 @@ export interface DemoCounts {
   manualTransactions: number
   reviewQueue: number
   splits: number
+  /** Transfers between two cash accounts linked on both sides (#296). */
+  linkedTransferPairs: number
   imports: number
   snapshots: number
   rules: number
@@ -174,6 +186,9 @@ function createRandom(seed: number) {
   }
 }
 type Random = ReturnType<typeof createRandom>
+
+/** Sent each month from the checking account to the exchange (#296). */
+const CRYPTO_MONTHLY_CENTS = 30_000
 
 // --- Calendar helpers -------------------------------------------------------
 
@@ -268,6 +283,8 @@ interface RuleSpec {
   slug: string
   kind?: TransactionKind
   merchant?: string
+  /** Destination account of the transfers it files (#296). */
+  counterpart?: 'pea' | 'exchange'
 }
 
 /** Ordered: `UBER EATS` before `UBER`, as an owner would set them up. */
@@ -293,7 +310,18 @@ const RULES: readonly RuleSpec[] = [
   { pattern: 'PRIME ACME', slug: 'salary', merchant: 'Acme' },
   { pattern: 'VERS LIVRET A', slug: 'savings_transfer', kind: 'transfer' },
   { pattern: 'DEPUIS LIVRET A', slug: 'internal_transfer', kind: 'transfer' },
-  { pattern: 'VERS PEA', slug: 'investment_transfer', kind: 'transfer' },
+  {
+    pattern: 'VERS PEA',
+    slug: 'investment_transfer',
+    kind: 'transfer',
+    counterpart: 'pea',
+  },
+  {
+    pattern: 'VERS BINANCE',
+    slug: 'investment_transfer',
+    kind: 'transfer',
+    counterpart: 'exchange',
+  },
   {
     pattern: 'DEPUIS COMPTE COURANT',
     slug: 'savings_transfer',
@@ -469,6 +497,12 @@ function checkingMonth(
     bookingDate: dayIn(month, 28),
     amountCents: -20_000,
     rawLabel: 'VIR SEPA VERS PEA',
+  })
+  // Crypto bought on the exchange (#296): 300 € sent each month.
+  rows.push({
+    bookingDate: dayIn(month, 4),
+    amountCents: -CRYPTO_MONTHLY_CENTS,
+    rawLabel: 'VIR SEPA VERS BINANCE',
   })
 
   // Everyday spending.
@@ -739,6 +773,13 @@ export async function generateDemoData(
         institution: 'Carte Démo',
         position: 6,
       },
+      {
+        name: 'Binance',
+        type: 'crypto',
+        cryptoSource: 'exchange',
+        cryptoProvider: 'binance',
+        position: 7,
+      },
     ])
     .returning()
   const [
@@ -749,6 +790,7 @@ export async function generateDemoData(
     employeeSavings,
     crypto,
     mealVoucher,
+    exchange,
   ] = accountRows
 
   // Rules, in order.
@@ -762,6 +804,12 @@ export async function generateDemoData(
         categoryId: category(rule.slug).id,
         kind: rule.kind ?? null,
         merchant: rule.merchant ?? null,
+        counterpartAccountId:
+          rule.counterpart === 'pea'
+            ? pea.id
+            : rule.counterpart === 'exchange'
+              ? exchange.id
+              : null,
       })),
     )
     .returning()
@@ -772,6 +820,7 @@ export async function generateDemoData(
   let reviewCount = 0
   let splitCount = 0
   let importCount = 0
+  const bankRowIds: string[] = []
   const feeds = [
     {
       account: checking,
@@ -879,6 +928,7 @@ export async function generateDemoData(
         needsReview,
         isOneOff: row.isOneOff ?? false,
         note: row.note ?? null,
+        counterpartAccountId: match?.counterpartAccountId ?? null,
         dedupeHash: hashes[i],
       }
     })
@@ -887,6 +937,7 @@ export async function generateDemoData(
       .values(values)
       .returning({ id: transactionsTable.id })
     transactionCount += inserted.length
+    bankRowIds.push(...inserted.map((row) => row.id))
 
     for (const [i, { row }] of all.entries()) {
       if (!row.split) continue
@@ -901,6 +952,9 @@ export async function generateDemoData(
       splitCount++
     }
   }
+
+  // The two sides of the checking ↔ Livret A transfers, as an import links them.
+  const linkedTransferPairs = await linkMatchingTransfers(db, bankRowIds)
 
   // A manual transaction noted after the last export.
   const manualDate = addDays(dataUntil, Math.min(4, DATA_LAG_DAYS))
@@ -948,6 +1002,9 @@ export async function generateDemoData(
       contributions: 1_100_000,
       monthly: 20_000,
       drift: [-0.03, 0.04],
+      // Fed by the linked « VIR SEPA VERS PEA » transfers (#296): the
+      // contributions are typed once, on a statement before the first one.
+      linked: true,
     },
     {
       account: lifeInsurance,
@@ -963,18 +1020,20 @@ export async function generateDemoData(
       monthly: 10_000,
       drift: [-0.02, 0.03],
     },
-    {
-      account: crypto,
-      value: 420_000,
-      contributions: 430_000,
-      monthly: 0,
-      drift: [-0.12, 0.15],
-    },
   ] as const
   for (const investment of investments) {
     let value: number = investment.value
     let contributions: number = investment.contributions
-    const snapshots = []
+    const linked = 'linked' in investment && investment.linked
+    const snapshots: (typeof balanceSnapshotsTable.$inferInsert)[] = []
+    if (linked) {
+      snapshots.push({
+        accountId: investment.account.id,
+        date: addDays(monthList[0], -1),
+        valueCents: value,
+        contributionsCents: contributions,
+      })
+    }
     for (const month of monthList) {
       const date = lastDayOf(month)
       if (date > dataUntil) break
@@ -987,41 +1046,160 @@ export async function generateDemoData(
         accountId: investment.account.id,
         date,
         valueCents: value,
-        contributionsCents: contributions,
+        contributionsCents: linked ? null : contributions,
       })
     }
     await db.insert(balanceSnapshotsTable).values(snapshots)
     snapshotCount += snapshots.length
   }
 
-  // Crypto: manual holdings and prices (no price API), valued today.
-  const holdings = [
-    {
-      assetId: 'bitcoin',
-      symbol: 'BTC',
-      name: 'Bitcoin',
-      quantity: '0.0425',
-      investedCents: 250_000,
-    },
-    {
-      assetId: 'ethereum',
-      symbol: 'ETH',
-      name: 'Ethereum',
-      quantity: '0.85',
-      investedCents: 180_000,
-    },
-  ]
+  // Crypto (#296): the euros sent to Binance buy BTC and ETH there; every
+  // fourth month the coins go to the Ledger, which holds them by hand
+  // (manual lines). Prices are manual (no price API); valued today.
   const prices: Record<string, string> = {
     bitcoin: '82500.00',
     ethereum: '2950.00',
   }
-  await db.insert(cryptoHoldingsTable).values(
-    holdings.map((h) => ({
+  const btc = knownAsset('BTC')!
+  const eth = knownAsset('ETH')!
+  const [cryptoImport] = await db
+    .insert(cryptoImportsTable)
+    .values({
+      accountId: exchange.id,
+      format: 'binance_csv',
+      fileName: 'demo-binance.csv',
+      fileHash: createHash('sha256').update('demo-binance').digest('hex'),
+      preview: {} as never,
+      committedAt: new Date(`${dataUntil}T09:00:00Z`),
+    })
+    .returning({ id: cryptoImportsTable.id })
+  const movementRows: (typeof cryptoMovementsTable.$inferInsert)[] = []
+  // Quantities in units of 10^-4, written as exact decimal strings.
+  const units = (n: number) =>
+    `${n < 0 ? '-' : ''}${Math.floor(Math.abs(n) / 10_000)}.${String(Math.abs(n) % 10_000).padStart(4, '0')}`
+  const move = (
+    at: string,
+    kind: (typeof cryptoMovementsTable.$inferInsert)['kind'],
+    operation: string,
+    asset: string,
+    quantity: string,
+  ) =>
+    movementRows.push({
+      accountId: exchange.id,
+      importId: cryptoImport.id,
+      occurredAt: new Date(at),
+      wallet: 'Spot',
+      operation,
+      kind,
+      asset,
+      quantity,
+      eurCents: null,
+      dedupeHash: createHash('sha256')
+        .update(`demo-binance-${movementRows.length}`)
+        .digest('hex'),
+    })
+  let btcSince = 0
+  let ethSince = 0
+  for (const [index, month] of monthList.entries()) {
+    const day = dayIn(month, 5)
+    if (day > dataUntil) break
+    move(`${day}T09:00:00Z`, 'deposit', 'Deposit', 'EUR', units(3_000_000))
+    move(`${day}T09:05:00Z`, 'buy', 'Buy', 'EUR', units(-2_000_000))
+    move(`${day}T09:05:00Z`, 'buy', 'Buy', 'BTC', units(28 + (index % 3)))
+    move(`${day}T09:06:00Z`, 'buy', 'Buy', 'EUR', units(-1_000_000))
+    move(`${day}T09:06:00Z`, 'buy', 'Buy', 'ETH', units(350 + 10 * (index % 4)))
+    btcSince += 28 + (index % 3)
+    ethSince += 350 + 10 * (index % 4)
+    const withdrawal = dayIn(month, 20)
+    if (index % 4 === 3 && withdrawal <= dataUntil) {
+      move(
+        `${withdrawal}T16:00:00Z`,
+        'withdrawal',
+        'Withdraw',
+        'BTC',
+        units(-btcSince),
+      )
+      move(
+        `${withdrawal}T16:30:00Z`,
+        'withdrawal',
+        'Withdraw',
+        'ETH',
+        units(-ethSince),
+      )
+      btcSince = 0
+      ethSince = 0
+    }
+  }
+  const movements = await db
+    .insert(cryptoMovementsTable)
+    .values(movementRows)
+    .returning({
+      id: cryptoMovementsTable.id,
+      occurredAt: cryptoMovementsTable.occurredAt,
+      kind: cryptoMovementsTable.kind,
+      asset: cryptoMovementsTable.asset,
+      quantity: cryptoMovementsTable.quantity,
+      eurCents: cryptoMovementsTable.eurCents,
+    })
+  const outflowCosts = new Map<string, number | null>()
+  const exchangeHoldings = computeHoldings(
+    movements.map((row) => ({
+      ...row,
+      occurredAt: row.occurredAt.toISOString(),
+    })),
+    knownAsset,
+    outflowCosts,
+  )
+  await storeWithdrawalCosts(db, outflowCosts)
+
+  // The Ledger holds what was withdrawn to it, at the cost it left with.
+  const ledger = new Map<string, { quantity: bigint; invested: number }>()
+  for (const row of movements) {
+    if (row.kind !== 'withdrawal') continue
+    const assetId = knownAsset(row.asset)!.assetId
+    const held = ledger.get(assetId) ?? { quantity: 0n, invested: 0 }
+    held.quantity -= parseQuantity(row.quantity)!
+    held.invested += outflowCosts.get(row.id) ?? 0
+    ledger.set(assetId, held)
+  }
+  const holdings = [btc, eth]
+    .filter((asset) => ledger.has(asset.assetId))
+    .map((asset) => ({
+      assetId: asset.assetId,
+      symbol: asset.symbol,
+      name: asset.name,
+      quantity: formatQuantity(ledger.get(asset.assetId)!.quantity),
+      investedCents: ledger.get(asset.assetId)!.invested,
+    }))
+  await db.insert(cryptoHoldingsTable).values([
+    ...holdings.map((h) => ({
       ...h,
       accountId: crypto.id,
       location: 'Ledger Nano',
       origin: 'manual' as const,
     })),
+    ...exchangeHoldings
+      .filter((h) => h.status === 'ok')
+      .map((h) => ({
+        accountId: exchange.id,
+        assetId: h.assetId!,
+        symbol: h.symbol,
+        name: h.name ?? h.symbol,
+        quantity: h.quantity,
+        location: '',
+        investedCents: h.investedCents,
+        origin: 'import' as const,
+      })),
+  ])
+  // Withdrawals reach the Ledger, the only account holding BTC and ETH.
+  await linkNewCryptoTransfers(
+    db,
+    exchange.id,
+    movements.map((row) => row.id),
+    new Map([
+      ['BTC', btc],
+      ['ETH', eth],
+    ]),
   )
   await db
     .insert(cryptoPricesTable)
@@ -1041,20 +1219,65 @@ export async function generateDemoData(
         fetchedAt: new Date(),
       },
     })
-  const cryptoValue = holdings.reduce(
-    (sum, h) => sum + Number(valueInCents(h.quantity, prices[h.assetId])),
-    0,
-  )
-  await db
-    .insert(balanceSnapshotsTable)
-    .values({
-      accountId: crypto.id,
-      date: today,
-      valueCents: cryptoValue,
-      contributionsCents: 430_000,
-    })
-    .onConflictDoNothing()
-  snapshotCount++
+  const valued = [
+    { account: crypto, lines: holdings },
+    {
+      account: exchange,
+      lines: exchangeHoldings
+        .filter((h) => h.status === 'ok')
+        .map((h) => ({ ...h, assetId: h.assetId! })),
+    },
+  ]
+  for (const { account, lines } of valued) {
+    if (lines.length === 0) continue
+    await db
+      .insert(balanceSnapshotsTable)
+      .values({
+        accountId: account.id,
+        date: today,
+        valueCents: lines.reduce(
+          (sum, h) => sum + Number(valueInCents(h.quantity, prices[h.assetId])),
+          0,
+        ),
+        contributionsCents: lines.every((h) => h.investedCents !== null)
+          ? lines.reduce((sum, h) => sum + (h.investedCents ?? 0), 0)
+          : null,
+      })
+      .onConflictDoNothing()
+    snapshotCount++
+  }
+
+  // The Ledger's month ends: what it received so far, moved by the market;
+  // its contributions come from the withdrawals (#296), none is typed.
+  {
+    let factor = 1
+    const received = movements
+      .filter((row) => row.kind === 'withdrawal')
+      .map((row) => ({
+        date: row.occurredAt.toISOString().slice(0, 10),
+        cost: outflowCosts.get(row.id) ?? 0,
+      }))
+    const ledgerSnapshots = []
+    for (const month of monthList) {
+      const date = lastDayOf(month)
+      if (date > dataUntil || date >= today) break
+      factor *= 1 - 0.12 + 0.27 * random.next()
+      const cost = received
+        .filter((r) => r.date <= date)
+        .reduce((sum, r) => sum + r.cost, 0)
+      if (cost === 0) continue
+      ledgerSnapshots.push({
+        accountId: crypto.id,
+        date,
+        valueCents: Math.round(cost * factor),
+        contributionsCents: null,
+      })
+    }
+    if (ledgerSnapshots.length > 0) {
+      await db.insert(balanceSnapshotsTable).values(ledgerSnapshots)
+      snapshotCount += ledgerSnapshots.length
+    }
+  }
 
   // Budgets from the first month, some tracked; groceries raised later.
   const budgetSpecs: [string, number, boolean, string | null][] = [
@@ -1181,6 +1404,7 @@ export async function generateDemoData(
       manualTransactions: 1 + voucherRows.length,
       reviewQueue: reviewCount,
       splits: splitCount,
+      linkedTransferPairs,
       imports: importCount,
       snapshots: snapshotCount,
       rules: rules.length,

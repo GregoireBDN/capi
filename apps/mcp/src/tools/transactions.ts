@@ -30,7 +30,11 @@ export function transactionLine(t: TransactionDto): string {
   const category = t.category?.name ?? 'sans catégorie'
   const note = t.note ? ` — note : ${t.note}` : ''
   const suffix = flags.length > 0 ? ` [${flags.join(', ')}]` : ''
-  return `- ${frenchDate(t.bookingDate)} · ${signedEuros(t.amountCents)} · ${label} · ${category} · ${t.accountName}${suffix}${note} · id ${t.id}`
+  // The owner's other account of a transfer (#296).
+  const link = t.counterpartAccountName
+    ? ` ${t.amountCents < 0 ? '→' : '←'} ${t.counterpartAccountName}`
+    : ''
+  return `- ${frenchDate(t.bookingDate)} · ${signedEuros(t.amountCents)} · ${label} · ${category} · ${t.accountName}${link}${suffix}${note} · id ${t.id}`
 }
 
 export const searchTransactionsTool = defineTool({

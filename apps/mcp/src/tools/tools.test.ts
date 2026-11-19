@@ -26,6 +26,7 @@ import {
   transaction,
 } from '../test/fixtures.js'
 import { connect, jsonError } from '../test/mock-api.js'
+import { transactionLine } from './transactions.js'
 
 const accounts = [checking, livret, pea]
 const categories = [groceries, restaurants, salary]
@@ -744,6 +745,26 @@ describe('month_review', () => {
   })
 })
 
+/** A synthetic exchange withdrawal for the movements listing. */
+function crypto(
+  id: string,
+  to: { name: string } | null,
+  amountCents: number | null,
+) {
+  return {
+    id,
+    source: 'crypto',
+    date: '2026-10-20',
+    from: { id: 'ex', name: 'Plateforme', type: 'crypto' },
+    to: to && { id: 'led', type: 'crypto', ...to },
+    amountCents,
+    asset: 'BTC',
+    quantity: '0.01',
+    cryptoKind: 'withdrawal',
+    linkable: true,
+  }
+}
+
 describe('savings_and_goals', () => {
   it('shows each distinct average window once and goals with their projection', async () => {
     const window = {
@@ -819,13 +840,72 @@ describe('savings_and_goals', () => {
         goal,
         { ...goal, id: 'g2', name: 'Archivé', archived: true },
       ],
+      '/api/investments/movements': {
+        from: '2025-12-01',
+        to: '2026-11-05',
+        items: [
+          crypto('m1', { name: 'Ledger' }, 50000),
+          crypto('m2', { name: 'Ledger' }, 30000),
+          crypto('m3', null, null),
+        ],
+      },
+      '/api/investments/flows': {
+        from: '2025-12-01',
+        to: '2026-11-05',
+        depositsCents: 90000,
+        withdrawalsCents: 10000,
+        netCents: 80000,
+        accounts: [
+          {
+            accountId: 'pea',
+            name: 'PEA test',
+            type: 'brokerage',
+            depositsCents: 90000,
+            withdrawalsCents: 10000,
+            netCents: 80000,
+            count: 3,
+          },
+        ],
+        months: [
+          {
+            month: '2026-10',
+            netCents: 80000,
+            accounts: [{ accountId: 'pea', netCents: 80000 }],
+          },
+        ],
+      },
     })
     const { text } = await call('savings_and_goals')
+    expect(text).toContain(
+      '- Plateforme → Ledger : 2 mouvement(s), coût 800,00 €',
+    )
+    expect(text).toContain('- 1 retrait(s) ou dépôt(s) sans compte lié')
+    expect(text).toContain(
+      "Où est allé l'argent investi du 01/12/2025 au 05/11/2026 : +800,00 € nets (versé 900,00 €, retiré 100,00 €).",
+    )
+    expect(text).toContain(
+      '- PEA test (PEA / compte-titres) : +800,00 € en 3 virement(s), dont 100,00 € retirés',
+    )
     expect(text.match(/- 3 mois \(août 2026 à oct\. 2026\)/g)).toHaveLength(1)
     expect(text).toContain('- Livret A : solde inconnu')
     expect(text).toContain(
       '- Voyage : 1 200,00 € sur 3 000,00 € (40 %) · reste 1 800,00 € · échéance 30/06/2027 · 257,15 € / mois nécessaires · atteint vers février 2027 au rythme moyen de 700,00 € / mois (dans les temps)',
     )
     expect(text).not.toContain('Archivé')
+  })
+})
+
+describe('transactionLine', () => {
+  it('shows the account a transfer goes to or comes from (#296)', () => {
+    const transfer = {
+      ...transaction,
+      kind: 'transfer' as const,
+      counterpartAccountId: 'pea',
+      counterpartAccountName: 'PEA test',
+    }
+    expect(transactionLine(transfer)).toContain('Compte courant → PEA test')
+    expect(transactionLine({ ...transfer, amountCents: 5000 })).toContain(
+      '← PEA test',
+    )
   })
 })

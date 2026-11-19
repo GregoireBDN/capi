@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import type {
   InvestmentAccountSummaryDto,
+  InvestmentFlowsDto,
+  InvestmentMovementsDto,
   MonthFlowDto,
   SavingsGoalDto,
   SavingsOverviewDto,
@@ -29,7 +31,85 @@ function investmentLine(a: InvestmentAccountSummaryDto): string {
       ? ''
       : `, plus-value ${signedEuros(a.gainCents)} (${percent(a.returnRate)})`
   const stale = a.stale ? ' — valeur pas à jour' : ''
-  return `- ${a.name} (${ACCOUNT_TYPE_LABELS[a.type]}) : ${eurosOrUnknown(a.valueCents)} au ${frenchDate(a.valueDate)}, versé ${eurosOrUnknown(a.contributionsCents)}${gain}${stale}`
+  const source =
+    a.contributionsSource === 'links'
+      ? ` (d'après ${a.linkedTransfersCount} virement(s) lié(s)${a.typedContributionsCents === null ? '' : `, les relevés indiquent ${euros(a.typedContributionsCents)}`})`
+      : ''
+  const later =
+    a.linkedAfterValueCents === 0
+      ? ''
+      : `, ${signedEuros(a.linkedAfterValueCents)} versés depuis cette valeur`
+  return `- ${a.name} (${ACCOUNT_TYPE_LABELS[a.type]}) : ${eurosOrUnknown(a.valueCents)} au ${frenchDate(a.valueDate)}, versé ${eurosOrUnknown(a.contributionsCents)}${source}${gain}${later}${stale}`
+}
+
+/**
+ * Coins moved between an exchange and the owner's other crypto accounts
+ * (#296): per route, how many and what they cost (average cost).
+ */
+export function cryptoMovementLines(
+  movements: InvestmentMovementsDto,
+): string[] {
+  const routes = new Map<
+    string,
+    { count: number; costCents: number; unknown: number }
+  >()
+  let unlinked = 0
+  for (const m of movements.items) {
+    if (m.source !== 'crypto') continue
+    if (m.from === null || m.to === null) {
+      unlinked++
+      continue
+    }
+    const key = `${m.from.name} → ${m.to.name}`
+    const route = routes.get(key) ?? { count: 0, costCents: 0, unknown: 0 }
+    route.count++
+    if (m.amountCents === null) route.unknown++
+    else route.costCents += m.amountCents
+    routes.set(key, route)
+  }
+  if (routes.size === 0 && unlinked === 0) return []
+  return [
+    `Cryptos envoyées entre vos comptes du ${frenchDate(movements.from)} au ${frenchDate(movements.to)} (le coût d'achat moyen suit les cryptos et devient l'investi du compte qui les reçoit) :`,
+    ...[...routes.entries()].map(
+      ([key, r]) =>
+        `- ${key} : ${r.count} mouvement(s), coût ${euros(r.costCents)}${r.unknown > 0 ? ` (${r.unknown} au coût inconnu)` : ''}`,
+    ),
+    ...(unlinked > 0
+      ? [
+          `- ${unlinked} retrait(s) ou dépôt(s) sans compte lié : à lier dans l'application (page de la plateforme).`,
+        ]
+      : []),
+  ]
+}
+
+/** Where the invested money went (#296): linked transfers per account and month. */
+export function investmentFlowLines(flows: InvestmentFlowsDto): string[] {
+  if (flows.accounts.length === 0) {
+    return [
+      `Virements liés aux placements du ${frenchDate(flows.from)} au ${frenchDate(flows.to)} : aucun (un virement se lie à son placement dans l'application, « Vers », ou par une règle).`,
+    ]
+  }
+  const names = new Map(flows.accounts.map((a) => [a.accountId, a.name]))
+  return [
+    `Où est allé l'argent investi du ${frenchDate(flows.from)} au ${frenchDate(flows.to)} : ${signedEuros(flows.netCents)} nets (versé ${euros(flows.depositsCents)}, retiré ${euros(flows.withdrawalsCents)}).`,
+    ...flows.accounts.map(
+      (a) =>
+        `- ${a.name} (${ACCOUNT_TYPE_LABELS[a.type]}) : ${signedEuros(a.netCents)} en ${a.count} virement(s)${a.withdrawalsCents > 0 ? `, dont ${euros(a.withdrawalsCents)} retirés` : ''}`,
+    ),
+    table(
+      ['Mois', 'Net', 'Placements'],
+      flows.months.map((m) => [
+        shortMonth(m.month),
+        signedEuros(m.netCents),
+        m.accounts
+          .map(
+            (a) =>
+              `${names.get(a.accountId) ?? '?'} ${signedEuros(a.netCents)}`,
+          )
+          .join(', '),
+      ]),
+    ),
+  ]
 }
 
 function goalLine(goal: SavingsGoalDto): string {
@@ -66,7 +146,7 @@ export const savingsTool = defineTool({
   name: 'savings_and_goals',
   title: 'Épargne et objectifs',
   description:
-    'Savings: what was saved this month and month by month (income + expenses, transfers excluded), averages, money moved to savings and investment accounts, the savings stock (savings accounts and investments with gains), and the savings goals with their progress and projection.',
+    'Savings: what was saved this month and month by month (income + expenses, transfers excluded), averages, money moved to savings and investment accounts, the savings stock (savings accounts and investments: invested, value and gain, the invested amount coming from the transfers linked to the account when it has some), where the invested money went (transfers linked to each investment account, per month), and the savings goals with their progress and projection.',
   inputSchema: {
     months: z
       .number()
@@ -79,11 +159,17 @@ export const savingsTool = defineTool({
       ),
   },
   async run({ api }, args) {
-    const [overview, goals] = await Promise.all([
+    const [overview, goals, flows, movements] = await Promise.all([
       api.get<SavingsOverviewDto>('/api/savings/overview', {
         months: args.months,
       }),
       api.get<SavingsGoalDto[]>('/api/savings/goals'),
+      api.get<InvestmentFlowsDto>('/api/investments/flows', {
+        months: args.months,
+      }),
+      api.get<InvestmentMovementsDto>('/api/investments/movements', {
+        months: args.months,
+      }),
     ])
     const { stock, averages } = overview
     const lines = [
@@ -122,6 +208,9 @@ export const savingsTool = defineTool({
       ),
       `Placements : ${euros(stock.investments.totals.valueCents)}, versé ${eurosOrUnknown(stock.investments.totals.contributionsCents)}, plus-value ${eurosOrUnknown(stock.investments.totals.gainCents)} (${percent(stock.investments.totals.returnRate)})`,
       ...stock.investments.accounts.map(investmentLine),
+      '',
+      ...investmentFlowLines(flows),
+      ...cryptoMovementLines(movements),
       '',
       table(
         [

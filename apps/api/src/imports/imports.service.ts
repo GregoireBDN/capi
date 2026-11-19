@@ -52,6 +52,7 @@ import {
   type StoredManualExpense,
 } from '#/imports/reconcile/manual-match.repository'
 import { RecurringService } from '#/recurring/recurring.service'
+import { linkMatchingTransfers } from '#/transactions/transfer-links/link-transfers'
 import { buildPreview, periodOf } from '#/imports/preview/build-preview'
 import {
   PREVIEW_VERSION,
@@ -266,6 +267,7 @@ export class ImportsService {
         if (manualRow) replacing.set(row.dedupeHash, manualRow.id)
       })
       let inserted = 0
+      const insertedIds: string[] = []
       for (let start = 0; start < values.length; start += INSERT_CHUNK_SIZE) {
         const written = await tx
           .insert(transactionsTable)
@@ -278,6 +280,7 @@ export class ImportsService {
             dedupeHash: transactionsTable.dedupeHash,
           })
         inserted += written.length
+        insertedIds.push(...written.map((row) => row.id))
         // The split of a manual transaction moves to its bank row (same
         // amount, so the parts still sum to it).
         for (const row of written) {
@@ -291,6 +294,8 @@ export class ImportsService {
       }
 
       await this.settleManualExpenses(tx, record, manual, replaced)
+      // The other side of a transfer between two cash accounts (#296).
+      await linkMatchingTransfers(tx, insertedIds)
 
       const previewDuplicates = rows.filter(
         (row) => row.status === 'duplicate',
@@ -494,13 +499,26 @@ export class ImportsService {
         : [],
       ruleIds.size > 0
         ? tx
-            .select({ id: categorizationRulesTable.id })
+            .select({
+              id: categorizationRulesTable.id,
+              counterpartAccountId:
+                categorizationRulesTable.counterpartAccountId,
+            })
             .from(categorizationRulesTable)
             .where(inArray(categorizationRulesTable.id, [...ruleIds]))
         : [],
     ])
     const kinds = new Map(categories.map((c) => [c.id, c.kind]))
-    const knownRules = new Set(rules.map((r) => r.id))
+    const knownRules = new Map(
+      rules.map((r) => [r.id, r.counterpartAccountId]),
+    )
+    /** A rule's destination account, on a transfer to another account. */
+    const ruleCounterpart = (ruleId: string | null, kind: string) => {
+      const counterpart = ruleId ? knownRules.get(ruleId) : null
+      return kind === 'transfer' && counterpart && counterpart !== record.accountId
+        ? counterpart
+        : null
+    }
     for (const categoryId of new Set(overrides.values())) {
       if (!kinds.has(categoryId)) {
         throw new BadRequestException(
@@ -544,6 +562,8 @@ export class ImportsService {
           ruleId: null,
           kind: manual.kind,
           needsReview: manual.categoryId === null,
+          counterpartAccountId:
+            manual.kind === 'transfer' ? manual.counterpartAccountId : null,
         }
       }
       if (row.categoryId && !kinds.has(row.categoryId)) {
@@ -555,12 +575,15 @@ export class ImportsService {
           needsReview: true,
         }
       }
+      const ruleId =
+        row.ruleId && knownRules.has(row.ruleId) ? row.ruleId : null
       return {
         ...base,
         categoryId: row.categoryId,
-        ruleId: row.ruleId && knownRules.has(row.ruleId) ? row.ruleId : null,
+        ruleId,
         kind: row.kind,
         needsReview: row.needsReview,
+        counterpartAccountId: ruleCounterpart(ruleId, row.kind),
       }
     })
   }
