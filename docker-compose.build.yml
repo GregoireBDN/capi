@@ -18,3 +18,11 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
     pull_policy: build
+
+  # Built only when the `remote-mcp` profile is on (COMPOSE_PROFILES or
+  # --profile remote-mcp).
+  finances-mcp:
+    build:
+      context: .
+      dockerfile: apps/mcp/Dockerfile
+    pull_policy: build

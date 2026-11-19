@@ -9,7 +9,7 @@ git push tag vX.Y.Z
   └─ .github/workflows/release.yml
        ├─ version   validate vX.Y.Z, check the tagged commit is on main
        ├─ ci        the CI workflow (lint, types, tests, build), called as a reusable workflow
-       ├─ images    build + push ghcr.io/gregoirebdn/finances-{api,web}:{vX.Y.Z, sha-<short>}
+       ├─ images    build, Trivy, push ghcr.io/gregoirebdn/finances-{api,web,mcp}:{vX.Y.Z, sha-<short>}
        └─ deploy    environment `production`
             ├─ join the tailnet as an ephemeral `tag:ci` node (Tailscale OAuth client)
             ├─ upload deploy/deploy.sh + docker-compose.prod.yml of the tag to /srv/finances/releases/vX.Y.Z/
@@ -20,11 +20,11 @@ git push tag vX.Y.Z
 
 1. installs the release's `docker-compose.prod.yml` (the previous one is kept until the deploy succeeds);
 2. records the current `FINANCES_VERSION` from `/srv/finances/.env` and sets the new one;
-3. `docker compose pull api web`;
+3. `docker compose pull api web`, plus `finances-mcp` when the release's compose file has it and its profile is on (`COMPOSE_PROFILES=remote-mcp` in `.env`, #328; with the profile on and `REMOTE_MCP_ENABLED` not `true` the deploy stops here, since the adapter would refuse to start);
 4. runs the migrations, then the seed (idempotent), from the **new** API image (`docker compose run --rm api node dist/database/{migrate,seed}.js`);
 5. `docker compose up -d --remove-orphans`;
-6. polls `http://localhost:3000/api/health` from inside the `web` container (web → API → database and SMTP), every 5 s for 3 minutes;
-7. on any failure: puts back the previous compose file and `FINANCES_VERSION`, runs `up -d` again if containers were already restarted, waits for health, and exits non-zero, so the workflow run fails.
+6. polls `http://localhost:3000/api/health` from inside the `web` container (web → API → database and SMTP), and with the adapter on `http://localhost:4100/.well-known/oauth-protected-resource` from inside `finances-mcp`, every 5 s for 3 minutes;
+7. on any failure: puts back the previous compose file and `FINANCES_VERSION`, runs `up -d --remove-orphans` again if containers were already restarted (the adapter goes back to the previous image too, or is removed when the previous compose file has no `finances-mcp`), waits for health, and exits non-zero, so the workflow run fails.
 
 Every run is appended to `/srv/finances/deploy.log`. A dropped SSH connection (e.g. a cancelled workflow run) doesn't interrupt the script.
 
@@ -136,7 +136,7 @@ If the health check fails (or the pull, migrations or seed fail), `deploy.sh` re
 
 ### Redeploy an earlier version
 
-GitHub › Actions › **Release** › **Run workflow** (branch `main`), `version` = the tag to go back to, e.g. `v1.2.2`. Nothing is rebuilt: the run checks that both images exist in GHCR, then deploys that tag with its own `deploy.sh` and `docker-compose.prod.yml`. The same works with the CLI:
+GitHub › Actions › **Release** › **Run workflow** (branch `main`), `version` = the tag to go back to, e.g. `v1.2.2`. Nothing is rebuilt: the run checks that the images exist in GHCR (`finances-mcp` too for a tag whose compose file has the adapter, #328), then deploys that tag with its own `deploy.sh` and `docker-compose.prod.yml`. The same works with the CLI:
 
 ```bash
 gh workflow run release.yml -f version=v1.2.2

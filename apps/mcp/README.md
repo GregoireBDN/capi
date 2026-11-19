@@ -159,24 +159,24 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (Settings
 
 Claude Desktop doesn't expand variables, so the token sits in that file: keep it private (`chmod 600`). If `node` isn't found, put its absolute path in `command` (`which node`). Server logs (stderr) are in `~/Library/Logs/Claude/mcp-server-finances.log`.
 
-## Remote access (claude.ai, Claude apps) — #78, disabled
+## Remote access (claude.ai, Claude apps) — #78, #328
 
-`node dist/index.js --http` (`pnpm --filter @finances/mcp start:http`) runs the same tools as a **remote MCP server** over Streamable HTTP, for claude.ai and the Claude mobile and desktop connectors, authorized with **OAuth 2.1**. It is **off**: it refuses to start unless `REMOTE_MCP_ENABLED=true`, and the API mounts no OAuth route without it. Enabling waits for the security audit (#102); design in [ADR 0003](../../docs/adr/0003-remote-mcp-oauth.md), steps in [the runbook](../../docs/runbooks/remote-mcp.md).
+`node dist/index.js --http` (`pnpm --filter @finances/mcp start:http`) runs the same tools as a **remote MCP server** over Streamable HTTP, for claude.ai and the Claude mobile and desktop connectors, authorized with **OAuth 2.1**. It is **off by default**: it refuses to start unless `REMOTE_MCP_ENABLED=true`, and the API mounts no OAuth route without it. In production it is the `finances-mcp` service of `docker-compose.prod.yml` (image `ghcr.io/gregoirebdn/finances-mcp`, built by `apps/mcp/Dockerfile`, started only with the `remote-mcp` compose profile, #328); design in [ADR 0003](../../docs/adr/0003-remote-mcp-oauth.md), enabling in [the runbook](../../docs/runbooks/remote-mcp.md).
 
 - **Public surface, nothing else**: `POST /mcp` (stateless: one MCP server per request, JSON responses; `GET` / `DELETE` → 405), `/.well-known/oauth-protected-resource[/mcp]`, and `/.well-known/oauth-authorization-server`, `/oauth/register`, `/oauth/token`, `/oauth/revoke` relayed to the API's `/api/oauth/*` (form bodies converted to JSON, 16 KB at most). Any other path is 404: the API stays private.
 - **Tokens**: `/mcp` takes only OAuth access tokens (`fin_oat_…`) issued by the API for this resource, checked with `GET /api/oauth/token-info` (cached 30 s) and forwarded to the API, which applies the same scope rules as a personal access token. Without a valid token: `401` with `WWW-Authenticate: Bearer resource_metadata="…"`, which starts Claude's OAuth flow. A personal access token never works here.
 - **Consent** happens on the web app (`/oauth/authorize`, on the tailnet), in the owner's browser; read only unless "Autoriser les modifications" is ticked. Connections are listed with the tokens in **Réglages → Claude et accès → Accès actifs** and disconnected from their detail.
 - **Differences with stdio**: `preview_bank_import` takes the CSV text (`content`) only, never a `filePath` (the server would read its own disk); error messages talk about reconnecting the connector.
-- **Limits and logs**: 120 requests/min per client IP and per token here, plus the API's own limits; `Origin` other than the public origin → 403; the client IP comes from `X-Forwarded-For` only through `MCP_TRUSTED_PROXIES`. Logs hold the method, a fixed route label and the status.
+- **Limits and logs**: 120 requests/min per client IP and per token here, plus the API's own limits; `Origin` other than the public origin → 403; the client IP comes from `X-Forwarded-For` only through `MCP_TRUSTED_PROXIES` (host names such as `caddy` are resolved every 30 s; one that doesn't resolve trusts nobody). Logs hold the method, a fixed route label and the status.
 
-| Variable                | Example                                                       |
-| ----------------------- | ------------------------------------------------------------- |
-| `REMOTE_MCP_ENABLED`    | `true` (anything else: refuses to start)                      |
-| `FINANCES_API_URL`      | `http://api:4000` (the API, from this process)                |
-| `REMOTE_MCP_PUBLIC_URL` | `https://finances-mcp.example.com` (origin, https)            |
-| `MCP_HTTP_HOST`         | `127.0.0.1` (default), `0.0.0.0` in a container               |
-| `MCP_HTTP_PORT`         | `4100` (default)                                              |
-| `MCP_TRUSTED_PROXIES`   | `loopback` (default); IPs, CIDR ranges, `uniquelocal`, `none` |
+| Variable                | Example                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------ |
+| `REMOTE_MCP_ENABLED`    | `true` (anything else: refuses to start)                                                         |
+| `FINANCES_API_URL`      | `http://api:4000` (the API, from this process)                                                   |
+| `REMOTE_MCP_PUBLIC_URL` | `https://finances-mcp.example.com` (origin, https)                                               |
+| `MCP_HTTP_HOST`         | `127.0.0.1` (default), `0.0.0.0` in a container                                                  |
+| `MCP_HTTP_PORT`         | `4100` (default)                                                                                 |
+| `MCP_TRUSTED_PROXIES`   | `loopback` (default; `caddy` in production); IPs, CIDR ranges, host names, `uniquelocal`, `none` |
 
 ## Development
 

@@ -1,6 +1,6 @@
-# Container scan (#101, SECURITY.md): builds the API and web images and scans
-# them with Trivy, failing on fixable high/critical vulnerabilities and on
-# secrets. Runs when an image definition changes and weekly (base image CVEs
+# Container scan (#101, SECURITY.md): builds the API, web and MCP adapter
+# (#328) images and scans them with Trivy, failing on fixable high/critical
+# vulnerabilities and on secrets. Runs when an image definition changes and weekly (base image CVEs
 # appear without any change here); release.yml runs the same scan on the
 # release images before pushing them.
 #
@@ -51,7 +51,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [api, web]
+        app: [api, web, mcp]
     env:
       TRIVY_IMAGE: aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
     steps:

@@ -2,7 +2,7 @@
 
 Lets claude.ai, Claude Desktop's connectors and the Claude mobile apps use the Finances tools without a local MCP server. Design and threat model: [ADR 0003](../adr/0003-remote-mcp-oauth.md) (#78).
 
-> **Status: shipped disabled.** Do **not** enable it in production before the security audit and penetration test of #102 cover it and its high / critical findings are fixed. Everything below is for that later day.
+> **Status: ready, off in production.** The #102 findings are fixed and the OAuth server and the production adapter service passed `docs/security/pentest/stack.sh oauth` (#328). The image (`ghcr.io/gregoirebdn/finances-mcp`), the `finances-mcp` service (profile `remote-mcp`) and the deploy are in this repository; the public host (DNS, Caddy) is in the `infra` repo. Turning it on is the owner's step: [Enabling](#enabling).
 
 ```
 Claude's servers (160.79.104.0/21)
@@ -15,7 +15,7 @@ finances-mcp (apps/mcp --http) ──▶ api (/api/oauth/*, /api/*) ──▶ db
 owner's browser (on the tailnet) ───┘ via web: /oauth/authorize (consent page)
 ```
 
-- **Public**: only the MCP adapter (`apps/mcp --http`) and only six paths. `web`, `api` and `db` keep no published port and no public route.
+- **Public**: only the MCP adapter (`apps/mcp --http`) and only seven paths. `web`, `api` and `db` keep no published port and no public route.
 - **Private**: the consent page is the web app on the tailnet. Claude opens it in **your** browser (phone or computer, connected to Tailscale); Claude's servers never reach it.
 - **Off switch**: `REMOTE_MCP_ENABLED`. Anything but `true` = no OAuth route in the API (404), every OAuth token refused, the adapter refuses to start.
 
@@ -29,44 +29,32 @@ The same as a personal access token of the same scope (deny-by-default, `@TokenA
 
 Tokens: access 15 minutes, refresh 30 days rotated on each use (a reused refresh token cuts the connection), connection at most 90 days. Every API call made by a connection is in its detail under Réglages › Claude et accès › Accès actifs, told in plain words (from the method, route and status; 90 days).
 
-## Enabling (after #102)
+## Enabling
 
-### 1. Pick the public host name
+In this order: the adapter must not be reachable before the API serves its OAuth routes, and Caddy must not route to a container that doesn't exist yet (it would answer 502, harmless).
 
-A dedicated name, e.g. `finances-mcp.<your domain>`, with a public DNS record pointing at the VPS (in the `infra` repo / DNS provider). The app's tailnet name stays as it is.
+### 1. Ship a release with the adapter
 
-### 2. Run the adapter
-
-Not in `docker-compose.prod.yml` yet: the enabling change adds a `finances-mcp` service (image `ghcr.io/gregoirebdn/finances-mcp`, built from `apps/mcp`, `node dist/index.js --http`), with the same hardening as `api` / `web` (`read_only`, `cap_drop: [ALL]`, `no-new-privileges`, memory and pid limits), on the project network (to reach `api`) and the external `proxy` network (for Caddy), **no `ports:`**. Its environment:
-
-| Variable                | Value                                                                      |
-| ----------------------- | -------------------------------------------------------------------------- |
-| `REMOTE_MCP_ENABLED`    | `true`                                                                     |
-| `FINANCES_API_URL`      | `http://api:4000`                                                          |
-| `REMOTE_MCP_PUBLIC_URL` | `https://finances-mcp.<domain>` (origin only, https)                       |
-| `MCP_HTTP_HOST`         | `0.0.0.0` (inside the container)                                           |
-| `MCP_HTTP_PORT`         | `4100` (default)                                                           |
-| `MCP_TRUSTED_PROXIES`   | Caddy's address on the `proxy` network (IP or CIDR; `loopback` by default) |
-
-### 3. Configure the API
-
-In the stack's `.env` (`.env.production.example` documents them):
+A release from #328 onwards builds, scans and pushes `ghcr.io/gregoirebdn/finances-mcp:vX.Y.Z` with the API and web images, and its `docker-compose.prod.yml` has the `finances-mcp` service. Deployed with the profile off, nothing changes on the server. After the first such release, check that the package `finances-mcp` exists under GitHub › Packages and that the server's GHCR token (classic, `read:packages`, deploy runbook § 2) can pull it:
 
 ```bash
-REMOTE_MCP_ENABLED=true
-REMOTE_MCP_PUBLIC_URL=https://finances-mcp.<domain>
-# Optional: the allowed redirect URIs (default: the claude.ai and claude.com callbacks)
-REMOTE_MCP_REDIRECT_URIS=
+ssh vps 'sudo -iu deploy docker pull ghcr.io/gregoirebdn/finances-mcp:vX.Y.Z'
 ```
 
-`APP_URL` must be the tailnet URL of the web app: the consent page is `${APP_URL}/oauth/authorize`. The API refuses to boot when `REMOTE_MCP_ENABLED=true` without an https `REMOTE_MCP_PUBLIC_URL` in production. Apply the migrations (the deploy does) and restart `api`.
+### 2. Public host name (DNS) and listener
 
-### 4. Route it in Caddy (infra repo)
+A dedicated name, e.g. `finances-mcp.gbodin.cloud`: an `A` record (and `AAAA` if the VPS has a public IPv6) to the VPS's **public** address, **DNS only** in Cloudflare (grey cloud): a proxied record would put Cloudflare's addresses in front of Caddy and break the `remote_ip` allow-list. The app's tailnet name (`finances.gbodin.cloud`) stays as it is: nothing else gets a public record.
 
-Sketch, to adapt in the `infra` repo:
+Caddy publishes 80 / 443 on the Tailscale IP only today. The infra change adds a listener on the public address for this site only (`bind <public IPv4>` in the site block, the port published on that address), opens `443/tcp` in `ufw` (ideally from `160.79.104.0/21` only), and gets the certificate the way the other sites do (DNS challenge with the zone's Cloudflare token; otherwise TLS-ALPN on 443).
+
+### 3. Caddy site (infra repo, own PR)
+
+Only the adapter's paths, only from Anthropic's outbound range, no buffering, a body limit; everything else 404. Caddy reaches the container as `finances-mcp:4100` on the `proxy` network (the adapter believes `X-Forwarded-For` only from the service named `caddy`: keep that name, or set `MCP_TRUSTED_PROXIES`).
 
 ```caddyfile
-finances-mcp.example.com {
+finances-mcp.gbodin.cloud {
+	# The public address only (the other sites stay on the Tailscale IP).
+	bind <public IPv4>
 	@anthropic remote_ip 160.79.104.0/21
 	@allowed path /mcp /.well-known/oauth-protected-resource /.well-known/oauth-protected-resource/mcp /.well-known/oauth-authorization-server /oauth/register /oauth/token /oauth/revoke
 
@@ -86,31 +74,68 @@ finances-mcp.example.com {
 }
 ```
 
-Check Anthropic's published outbound range before restricting by IP; drop the `remote_ip` matcher if it changes too often. Nothing else of the app is added to this site.
+Logging: the infra repo's usual access log settings (query strings stripped). Caddy redacts `Authorization` by default; the adapter's paths carry no query string and tokens travel in that header or in bodies, which Caddy never logs.
+
+Check Anthropic's published outbound range (Claude connectors docs, « IP addresses ») before restricting by IP; it was `160.79.104.0/21` on 2026-11-19. If the connector's calls get 403, the range changed: update it rather than dropping the matcher.
+
+### 4. Turn it on (`/srv/finances/.env`)
+
+```bash
+COMPOSE_PROFILES=remote-mcp
+REMOTE_MCP_ENABLED=true
+REMOTE_MCP_PUBLIC_URL=https://finances-mcp.gbodin.cloud
+# Optional, the defaults:
+# REMOTE_MCP_REDIRECT_URIS=        (claude.ai and claude.com callbacks)
+# MCP_TRUSTED_PROXIES=caddy
+# MCP_MEM_LIMIT=256m
+```
+
+`APP_URL` must stay the tailnet URL of the web app: the consent page is `${APP_URL}/oauth/authorize`. The API refuses to boot with `REMOTE_MCP_ENABLED=true` and no https `REMOTE_MCP_PUBLIC_URL`; the adapter refuses to start without both; `deploy.sh` refuses the profile without `REMOTE_MCP_ENABLED=true`. Then, as `deploy` in `/srv/finances` (`dc` = `docker compose -f docker-compose.prod.yml`, production stack runbook):
+
+```bash
+dc config --services                 # db api web finances-mcp
+dc up -d api finances-mcp            # recreates api with the new variables, starts the adapter
+dc ps                                # finances-mcp healthy
+dc logs --tail=5 finances-mcp        # "remote MCP listening on 0.0.0.0:4100 (public https://…/mcp)"
+```
+
+From then on every deploy pulls, health-checks and rolls back the adapter with the rest.
 
 ### 5. Connect Claude
 
-1. claude.ai → Settings → Connectors → **Add custom connector**: name `Finances`, URL `https://finances-mcp.<domain>/mcp`. Leave the OAuth client fields empty (Claude registers itself).
+1. claude.ai → Settings → Connectors → **Add custom connector**: name `Finances`, URL `https://finances-mcp.gbodin.cloud/mcp`. Leave the OAuth client fields empty (Claude registers itself).
 2. Claude opens the consent page on the tailnet: sign in if asked (password or passkey; approving needs a sign-in in the last 5 minutes), check that the return host is **claude.ai**, tick "Autoriser les modifications" only if you want the write tools, then **Autoriser**.
-3. The connector appears in the Claude apps signed in with the same account (mobile included). Your phone must be on the tailnet only when (re)connecting, for the consent page.
+3. The connector appears in the Claude apps signed in with the same account (iPhone included). Your phone must be on the tailnet only when (re)connecting, for the consent page.
+4. From the iPhone app: « Quels sont mes comptes ? » (`accounts_overview`), then a write tool without `confirm` to see its preview.
 
 ## Checks after enabling
 
 ```bash
 # Public: only the adapter answers, and asks for a token
-curl -si https://finances-mcp.<domain>/mcp -X POST | head -5          # 401 + WWW-Authenticate resource_metadata
-curl -s https://finances-mcp.<domain>/.well-known/oauth-protected-resource/mcp
-curl -s https://finances-mcp.<domain>/.well-known/oauth-authorization-server
-curl -si https://finances-mcp.<domain>/api/health | head -1         # 404: the API is not public
+curl -si https://finances-mcp.gbodin.cloud/mcp -X POST | head -5        # 401 + WWW-Authenticate resource_metadata (403 from outside Anthropic's range)
+curl -s https://finances-mcp.gbodin.cloud/.well-known/oauth-protected-resource/mcp
+curl -s https://finances-mcp.gbodin.cloud/.well-known/oauth-authorization-server
+curl -si https://finances-mcp.gbodin.cloud/api/health | head -1       # 404: the API is not public
+curl -si https://finances-mcp.gbodin.cloud/dashboard | head -1        # 404
 ```
 
-From a machine **outside** the tailnet, the app's own host name must still not answer. Réglages › Claude et accès shows the connection under « Accès actifs ».
+From a machine **outside** Anthropic's range the allowed paths answer 403 and the others 404 (so from your laptop, expect 403 on the first three: that is the allow-list working; run them from the server with `--resolve` to Caddy, or trust the connector's own calls). From a machine **outside** the tailnet, `finances.gbodin.cloud` must still not answer. Réglages › Claude et accès shows the connection under « Accès actifs », and its detail lists the calls.
 
 ## Disconnecting, kill switch
 
 - **One connection**: Réglages → Claude et accès → its row in « Accès actifs » → **Déconnecter** (immediate: its access and refresh tokens are revoked).
-- **Everything, now**: set `REMOTE_MCP_ENABLED=false` (API and adapter) and restart them, or stop the `finances-mcp` service. Grants are kept but refused; turning it back on restores them unless revoked.
-- **Suspected leak**: disconnect every application, then look at what each one did in its detail. The adapter logs carry only method, route label and status (`docker compose logs finances-mcp`).
+- **Everything, now** (as `deploy` in `/srv/finances`):
+
+  ```bash
+  dc stop finances-mcp      # the public host answers 502 at once
+  sed -i 's/^REMOTE_MCP_ENABLED=.*/REMOTE_MCP_ENABLED=false/; s/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=/' .env
+  dc up -d api              # no /api/oauth route, every OAuth token refused
+  dc rm -f finances-mcp
+  ```
+
+  Grants are kept but refused; setting both lines back and `dc up -d api finances-mcp` restores them unless revoked. With the API switched off but the adapter still running, a call within 30 s of the token's last check reaches the API and gets a tool error, later calls 503: no data either way (`stack.sh oauth`, « kill switch with the adapter running »). Optionally remove the Caddy site and the DNS record (infra repo).
+
+- **Suspected leak**: disconnect every application, then look at what each one did in its detail. The adapter logs carry only method, route label and status (`dc logs finances-mcp`).
 
 ## Local test (no internet exposure)
 
@@ -122,5 +147,7 @@ DATABASE_URL=…/finances_scratch_78 REMOTE_MCP_ENABLED=true REMOTE_MCP_PUBLIC_U
 # Adapter
 REMOTE_MCP_ENABLED=true FINANCES_API_URL=http://localhost:4000 REMOTE_MCP_PUBLIC_URL=http://localhost:4100 node apps/mcp/dist/index.js --http
 ```
+
+Or the production image and service: `docs/security/pentest/stack.sh up`, `run`, `oauth` (throwaway `finances-audit` stack, nothing published).
 
 Then drive the flow with the MCP Inspector, adding its callback to `REMOTE_MCP_REDIRECT_URIS` (e.g. `http://localhost:6274/oauth/callback`), or with `curl` as in `apps/mcp/src/http/server.test.ts` and `apps/api/src/auth/oauth/oauth.http.spec.ts`. Drop the scratch database afterwards.
