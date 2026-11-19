@@ -31,7 +31,13 @@ import {
 import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { FreshAuthGuard } from '#/auth/guards/fresh-auth.guard'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
+import { AccountActivityService } from './account-activity.service'
 import { AccountsService } from './accounts.service'
+import {
+  AccountMonthFlowsDto,
+  AccountMonthFlowsQueryDto,
+  BalanceHistoryDto,
+} from './dto/account-activity.dto'
 import {
   AccountDeletionPreviewDto,
   AccountDto,
@@ -49,7 +55,10 @@ const ID_PARAM = { name: 'id', type: String, format: 'uuid' } as const
 @UseGuards(JwtGuard)
 @Controller('accounts')
 export class AccountsController {
-  constructor(private readonly accountsService: AccountsService) {}
+  constructor(
+    private readonly accountsService: AccountsService,
+    private readonly activityService: AccountActivityService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -75,6 +84,42 @@ export class AccountsController {
   @ApiNotFoundResponse()
   findOne(@Param('id', ParseUUIDPipe) id: string): Promise<AccountDto> {
     return this.accountsService.findOne(id)
+  }
+
+  @Get(':id/balance-history')
+  @ApiOperation({
+    summary: 'Daily balance of a cash account',
+    description:
+      'Checking and savings accounts only (400 otherwise): the end-of-day balance over the last 12 months of data, from the bank values and statement balances, with the statement balances, the running-balance gaps of the imported rows and how far the bank data goes.',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiOkResponse({ type: BalanceHistoryDto })
+  @ApiBadRequestResponse({ description: 'Not a checking or savings account.' })
+  @ApiNotFoundResponse()
+  balanceHistory(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<BalanceHistoryDto> {
+    return this.activityService.balanceHistory(id)
+  }
+
+  @Get(':id/month-flows')
+  @ApiOperation({
+    summary: 'Money in and out of a cash account over a month',
+    description:
+      'Checking and savings accounts only (400 otherwise): every credit and debit of the month, transfers between own accounts and hand-entered rows included (they move the balance), with the transfers apart. Bank values. `period` says how far the account’s data goes in the month.',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiQuery({ type: AccountMonthFlowsQueryDto })
+  @ApiOkResponse({ type: AccountMonthFlowsDto })
+  @ApiBadRequestResponse({
+    description: 'Not a checking or savings account, or invalid month.',
+  })
+  @ApiNotFoundResponse()
+  monthFlows(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: AccountMonthFlowsQueryDto,
+  ): Promise<AccountMonthFlowsDto> {
+    return this.activityService.monthFlows(id, query.month)
   }
 
   @Post()

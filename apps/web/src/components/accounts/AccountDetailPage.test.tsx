@@ -5,7 +5,12 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   AccountDto,
+  AccountMonthFlowsDto,
   AccountPerformanceDto,
+  BalanceHistoryDto,
+  ImportSummaryDto,
+  RecurringItemDto,
+  TransactionDto,
   SnapshotDto,
   AccountHoldingsDto,
   ValuedHoldingDto,
@@ -32,7 +37,16 @@ const api = vi.hoisted(() => ({
   accountHoldingsControllerRemove: vi.fn(),
   accountHoldingsControllerValuate: vi.fn(),
   cryptoControllerSearch: vi.fn(),
+  accountsControllerBalanceHistory: vi.fn(),
+  accountsControllerMonthFlows: vi.fn(),
+  accountsControllerList: vi.fn(),
+  transactionsControllerList: vi.fn(),
+  transactionsControllerManualSuggestions: vi.fn(),
+  categoriesControllerList: vi.fn(),
+  importsControllerList: vi.fn(),
+  recurringControllerList: vi.fn(),
 }))
+const navigate = vi.hoisted(() => vi.fn())
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 )
@@ -40,7 +54,7 @@ const toast = vi.hoisted(() =>
 vi.mock('#/api', () => api)
 vi.mock('sonner', () => ({ toast }))
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigate,
   Link: ({
     to,
     params,
@@ -160,6 +174,7 @@ describe('AccountDetailPage', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-11-06T10:00:00Z'))
     for (const fn of Object.values(api)) fn.mockReset()
+    navigate.mockReset()
     api.accountsControllerFindOne.mockImplementation(() => ok(account()))
     api.accountSnapshotsControllerPerformance.mockImplementation(() =>
       ok(performance()),
@@ -187,9 +202,7 @@ describe('AccountDetailPage', () => {
     expect(
       await screen.findByRole('heading', { name: 'PEA test' }),
     ).toBeInTheDocument()
-    expect(
-      screen.getByText('PEA / compte-titres · Banque test'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('Banque test')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Comptes' })).toHaveAttribute(
       'href',
       '/accounts',
@@ -358,7 +371,9 @@ describe('AccountDetailPage', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderPage()
 
-    await user.click(await screen.findByRole('button', { name: 'Coller' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Coller un historique' }),
+    )
     const dialog = await screen.findByRole('dialog')
     const save = within(dialog).getByRole('button', { name: 'Enregistrer' })
     expect(save).toBeDisabled()
@@ -404,33 +419,323 @@ describe('AccountDetailPage', () => {
     )
   })
 
-  it('shows the balance of a checking account and links to its transactions', async () => {
-    api.accountsControllerFindOne.mockImplementation(() =>
-      ok(
-        account({
-          type: 'checking',
-          name: 'Courant test',
-          balanceCents: 154_321,
-        }),
-      ),
-    )
-    api.accountSnapshotsControllerPerformance.mockImplementation(() =>
-      ok(
-        performance({
-          type: 'checking',
-          snapshots: [snapshot('2026-09-30', 150_000, null)],
-        }),
-      ),
-    )
-    renderPage()
+  describe('cash account (#293)', () => {
+    const transactions: TransactionDto[] = [
+      {
+        id: 'b0000000-0000-4000-8000-000000000001',
+        accountId: ACCOUNT_ID,
+        accountName: 'Courant test',
+        importId: null,
+        bookingDate: '2026-11-04',
+        valueDate: null,
+        amountCents: 250_000,
+        rawLabel: 'VIR SEPA FAKE EMPLOYER',
+        merchant: null,
+        kind: 'income',
+        categoryId: null,
+        category: null,
+        ruleId: null,
+        needsReview: false,
+        isOneOff: false,
+        note: null,
+        manual: false,
+        originalAmountCents: null,
+        originalBookingDate: null,
+        splits: [],
+        createdAt: '2026-11-05T00:00:00.000Z',
+        updatedAt: '2026-11-05T00:00:00.000Z',
+      },
+    ]
 
-    const balance = await screen.findByRole('region', { name: 'Solde' })
-    expect(text(balance.textContent)).toContain('1 543,21 €')
-    expect(
-      screen.getByRole('link', { name: 'Voir les opérations' }),
-    ).toHaveAttribute('href', `/transactions?account=${ACCOUNT_ID}`)
-    expect(screen.queryByRole('region', { name: 'Chiffres clés' })).toBeNull()
-    expect(screen.queryByText(/Versé/)).toBeNull()
+    function history(
+      overrides: Partial<BalanceHistoryDto> = {},
+    ): BalanceHistoryDto {
+      return {
+        from: '2026-10-01',
+        to: '2026-11-04',
+        points: [
+          { date: '2026-10-01', balanceCents: 100_000 },
+          { date: '2026-11-04', balanceCents: 154_321 },
+        ],
+        statements: [{ date: '2026-10-01', valueCents: 100_000 }],
+        gaps: [
+          {
+            fromDate: '2026-10-10',
+            toDate: '2026-10-14',
+            differenceCents: -4_200,
+          },
+        ],
+        dataUntil: '2026-11-04',
+        lastImportOn: '2026-11-04',
+        ...overrides,
+      }
+    }
+
+    function flows(
+      overrides: Partial<AccountMonthFlowsDto> = {},
+    ): AccountMonthFlowsDto {
+      return {
+        period: {
+          month: '2026-11',
+          dataUntil: '2026-11-04',
+          status: 'partial',
+          throughDay: 4,
+          previousMonth: '2026-10',
+          previousUntil: '2026-10-04',
+          defaultMonth: '2026-11',
+        },
+        inCents: 250_000,
+        outCents: -195_679,
+        netCents: 54_321,
+        transfersInCents: 0,
+        transfersOutCents: -50_000,
+        count: 12,
+        ...overrides,
+      }
+    }
+
+    const importRow = {
+      id: 'c0000000-0000-4000-8000-000000000001',
+      accountId: ACCOUNT_ID,
+      accountName: 'Courant test',
+      source: 'cic_csv',
+      fileName: 'export-test.csv',
+      status: 'committed',
+      periodStart: '2026-10-01',
+      periodEnd: '2026-11-04',
+      counts: {
+        rows: 20,
+        new: 20,
+        duplicates: 0,
+        conflicts: 0,
+        issues: 0,
+        inserted: 20,
+        skipped: 0,
+      },
+      createdAt: '2026-11-04T09:00:00.000Z',
+      committedAt: '2026-11-04T09:00:00.000Z',
+    } as unknown as ImportSummaryDto
+
+    const recurringItem = {
+      id: 'd0000000-0000-4000-8000-000000000001',
+      accountId: ACCOUNT_ID,
+      name: 'Box internet test',
+      direction: 'debit',
+      status: 'confirmed',
+      cadence: 'monthly',
+      amountType: 'fixed',
+      typicalAmountCents: 2_999,
+      monthlyEquivalentCents: 2_999,
+      active: true,
+      ended: false,
+      nextExpectedDate: '2026-11-12',
+    } as unknown as RecurringItemDto
+
+    beforeEach(() => {
+      api.accountsControllerFindOne.mockImplementation(() =>
+        ok(
+          account({
+            type: 'checking',
+            name: 'Courant test',
+            institution: 'CIC',
+            balanceCents: 154_321,
+            balanceDate: '2026-11-04',
+          }),
+        ),
+      )
+      api.accountSnapshotsControllerPerformance.mockImplementation(() =>
+        ok(
+          performance({
+            type: 'checking',
+            snapshots: [snapshot('2026-10-01', 100_000, null)],
+          }),
+        ),
+      )
+      api.accountsControllerBalanceHistory.mockImplementation(() =>
+        ok(history()),
+      )
+      api.accountsControllerMonthFlows.mockImplementation(() => ok(flows()))
+      api.transactionsControllerList.mockImplementation(() =>
+        ok({ items: transactions, total: 30, page: 1, limit: 50 }),
+      )
+      api.categoriesControllerList.mockImplementation(() => ok([]))
+      api.accountsControllerList.mockImplementation(() => ok([]))
+      api.importsControllerList.mockImplementation(() => ok([importRow]))
+      api.recurringControllerList.mockImplementation(() =>
+        ok([
+          recurringItem,
+          { ...recurringItem, id: 'other', accountId: 'another-account' },
+        ]),
+      )
+    })
+
+    it('shows the balance, its freshness, the month and the account’s life', async () => {
+      renderPage()
+
+      expect(
+        await screen.findByRole('heading', { name: 'Courant test' }),
+      ).toBeInTheDocument()
+      // The institution only: the type is not repeated.
+      expect(screen.getByText('CIC')).toBeInTheDocument()
+      expect(screen.queryByText(/Compte courant/)).toBeNull()
+
+      const balance = screen.getByRole('region', { name: 'Solde' })
+      expect(text(balance.textContent)).toContain('1 543,21 €')
+      expect(
+        text((await within(balance).findByText(/^À jour au/)).textContent),
+      ).toBe('À jour au 4 nov. · importé il y a 2 jours')
+      const month = within(balance).getByRole('region', {
+        name: 'Mouvements de novembre 2026',
+      })
+      expect(text(month.textContent)).toContain(
+        'Novembre 2026 · jusqu’au 4 nov.',
+      )
+      expect(text(month.textContent)).toContain('Entrées+2 500,00 €')
+      expect(text(month.textContent)).toContain('Sorties-1 956,79 €')
+      expect(text(month.textContent)).toContain('Variation+543,21 €')
+
+      const latest = screen.getByRole('region', {
+        name: 'Dernières opérations',
+      })
+      expect(
+        await within(latest).findByText('VIR SEPA FAKE EMPLOYER'),
+      ).toBeInTheDocument()
+      // No bulk selection on this short list.
+      expect(within(latest).queryByRole('checkbox')).toBeNull()
+      expect(
+        within(latest).getByRole('link', { name: 'Tout voir' }),
+      ).toHaveAttribute('href', `/transactions?account=${ACCOUNT_ID}`)
+
+      const imports = screen.getByRole('region', { name: 'Imports' })
+      expect(
+        text((await within(imports).findByText(/20 ajoutées/)).textContent),
+      ).toBe('20 ajoutées · le 4 nov.')
+      expect(text(imports.textContent)).toContain(
+        'Entre le 10 oct. et le 14 oct. : -42,00 € d’opérations manquantes',
+      )
+
+      const recurring = await screen.findByRole('region', {
+        name: 'Prélèvements',
+      })
+      expect(text(recurring.textContent)).toContain('Box internet test')
+      expect(text(recurring.textContent)).toContain('29,99 € / mois')
+      expect(text(recurring.textContent)).toContain('prévu le 12 nov.')
+
+      // Statement balances: their own folded section, no hand-built buttons
+      // beside the header.
+      expect(screen.getByText('Soldes de relevés')).toBeInTheDocument()
+      expect(screen.getByText('1 solde')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Ajouter' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Coller' })).toBeNull()
+      expect(screen.queryByText(/Versé/)).toBeNull()
+    })
+
+    it('puts import, add and edit in the page actions', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      renderPage()
+
+      await screen.findByRole('heading', { name: 'Courant test' })
+      expect(
+        screen
+          .getAllByRole('button')
+          .map((button) => button.textContent)
+          .filter((label) =>
+            [
+              'Importer un relevé',
+              'Ajouter une opération',
+              'Modifier',
+            ].includes(label),
+          ),
+      ).toEqual(['Importer un relevé', 'Ajouter une opération', 'Modifier'])
+
+      await user.click(
+        screen.getByRole('button', { name: 'Importer un relevé' }),
+      )
+      expect(navigate).toHaveBeenCalledWith({
+        to: '/import',
+        search: { account: ACCOUNT_ID },
+      })
+
+      await user.click(
+        screen.getByRole('button', { name: 'Ajouter une opération' }),
+      )
+      expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    })
+
+    it('warns when the bank data stops before the previous month end', async () => {
+      api.accountsControllerBalanceHistory.mockImplementation(() =>
+        ok(history({ dataUntil: '2026-09-30', lastImportOn: '2026-10-02' })),
+      )
+      renderPage()
+
+      const warning = await screen.findByRole('status')
+      expect(text(warning.textContent)).toContain(
+        'Relevé à importer : les opérations s’arrêtent au 30 sept.',
+      )
+      expect(text(warning.textContent)).toContain(
+        'Dernier import il y a 35 jours.',
+      )
+      expect(
+        within(warning).getByRole('button', { name: 'Importer un relevé' }),
+      ).toBeInTheDocument()
+    })
+
+    it('says what to do when the account has no data yet', async () => {
+      api.accountsControllerFindOne.mockImplementation(() =>
+        ok(
+          account({
+            type: 'savings',
+            name: 'Livret test',
+            institution: null,
+            balanceCents: null,
+            balanceDate: null,
+          }),
+        ),
+      )
+      api.accountSnapshotsControllerPerformance.mockImplementation(() =>
+        ok(performance({ type: 'savings', snapshots: [] })),
+      )
+      api.accountsControllerBalanceHistory.mockImplementation(() =>
+        ok(
+          history({
+            from: null,
+            to: null,
+            points: [],
+            statements: [],
+            gaps: [],
+            dataUntil: null,
+            lastImportOn: null,
+          }),
+        ),
+      )
+      api.accountsControllerMonthFlows.mockImplementation(() =>
+        ok(
+          flows({
+            period: { ...flows().period, status: 'empty', dataUntil: null },
+            inCents: 0,
+            outCents: 0,
+            netCents: 0,
+            transfersOutCents: 0,
+            count: 0,
+          }),
+        ),
+      )
+      api.transactionsControllerList.mockImplementation(() =>
+        ok({ items: [], total: 0, page: 1, limit: 50 }),
+      )
+      api.importsControllerList.mockImplementation(() => ok([]))
+      api.recurringControllerList.mockImplementation(() => ok([]))
+      renderPage()
+
+      expect(
+        await screen.findByText('Aucune opération pour ce compte'),
+      ).toBeInTheDocument()
+      expect(
+        await screen.findByText('Aucun relevé importé'),
+      ).toBeInTheDocument()
+      expect(screen.queryByText('Évolution du solde')).toBeNull()
+      expect(screen.queryByRole('region', { name: 'Prélèvements' })).toBeNull()
+    })
   })
 
   it('is read-only for an archived account and handles unknown ones', async () => {

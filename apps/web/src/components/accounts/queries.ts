@@ -1,10 +1,12 @@
 import { queryOptions } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
 import {
+  accountsControllerBalanceHistory,
   accountsControllerCreate,
   accountsControllerDeletionPreview,
   accountsControllerFindOne,
   accountsControllerList,
+  accountsControllerMonthFlows,
   accountsControllerRemove,
   accountsControllerUpdate,
   accountSnapshotsControllerBulk,
@@ -30,6 +32,10 @@ export const accountKeys = {
   performance: (id: string) =>
     [...referenceKeys.accounts, id, 'performance'] as const,
   investments: ['investments', 'summary'] as const,
+  balanceHistory: (id: string) =>
+    [...referenceKeys.accounts, id, 'balance-history'] as const,
+  monthFlows: (id: string) =>
+    [...referenceKeys.accounts, id, 'month-flows'] as const,
 }
 
 export function accountQuery(id: string) {
@@ -51,6 +57,31 @@ export function performanceQuery(id: string) {
         }),
       ),
     // "Days since" depends on today: refetch on mount.
+    staleTime: 0,
+  })
+}
+
+/** Daily balance of a cash account over 12 months, and its import status. */
+export function balanceHistoryQuery(id: string) {
+  return queryOptions({
+    queryKey: accountKeys.balanceHistory(id),
+    queryFn: () =>
+      unwrap(
+        accountsControllerBalanceHistory({ path: { id }, throwOnError: false }),
+      ),
+    // Imports and transactions change it from other pages: refetch on mount.
+    staleTime: 0,
+  })
+}
+
+/** Money in and out of a cash account over its default month. */
+export function monthFlowsQuery(id: string) {
+  return queryOptions({
+    queryKey: accountKeys.monthFlows(id),
+    queryFn: () =>
+      unwrap(
+        accountsControllerMonthFlows({ path: { id }, throwOnError: false }),
+      ),
     staleTime: 0,
   })
 }
