@@ -34,7 +34,13 @@ import {
 } from '#/components/sheets/form-sheet'
 import { AssetBadge } from './AssetBadge'
 import { holdingErrorMessage } from './errors'
-import { decimalToInput, parsePriceInput, parseQuantityInput } from './format'
+import {
+  decimalToInput,
+  formatPrice,
+  formatPriceAge,
+  parsePriceInput,
+  parseQuantityInput,
+} from './format'
 import {
   firstStepWithError,
   HOLDING_STEP_NAMES,
@@ -420,6 +426,14 @@ export function HoldingEditor({
               {step === 'amount' && (
                 <>
                   {recap}
+                  {/* The row shows no price (#323): it is here. */}
+                  {holding?.priceEur && holding.priceFetchedAt && (
+                    <p className="text-muted-foreground text-sm">
+                      Cours {formatPrice(holding.priceEur)} ·{' '}
+                      {holding.priceSource === 'manual' ? 'manuel, ' : ''}
+                      {formatPriceAge(holding.priceFetchedAt, new Date())}
+                    </p>
+                  )}
                   <Field data-invalid={shown.quantity !== undefined}>
                     <FieldLabel htmlFor={`${id}-quantity`}>Quantité</FieldLabel>
                     <InputGroup>

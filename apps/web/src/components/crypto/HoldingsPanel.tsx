@@ -2,7 +2,6 @@ import {
   Alert,
   AlertDescription,
   AlertTitle,
-  Badge,
   Button,
   Card,
   CardContent,
@@ -22,7 +21,7 @@ import {
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  PencilIcon,
+  ChevronRightIcon,
   PlusIcon,
   RefreshCwIcon,
   Trash2Icon,
@@ -39,7 +38,7 @@ import { afterSnapshotsChanged } from '#/components/accounts/queries'
 import { formatCents } from '#/lib/money'
 import { DIVIDED_LIST, ROW_BUTTON } from '#/lib/row-list'
 import { holdingErrorMessage } from './errors'
-import { formatPrice, formatPriceAge, formatQuantity } from './format'
+import { formatPriceAge, formatQuantity } from './format'
 import { AssetBadge } from './AssetBadge'
 import { HoldingEditor } from './HoldingEditor'
 import {
@@ -63,119 +62,127 @@ const formatSignedWholeEuros = (cents: number) =>
   signedWholeEuros.format(cents / 100)
 const signed = (cents: number) => `${cents > 0 ? '+' : ''}${formatCents(cents)}`
 
+/**
+ * From 1 000 € a row drops the cents (« 2 871 € »), so the line's name
+ * keeps its room on a phone (#323); the totals keep them.
+ */
+const WHOLE_FROM_CENTS = 100_000
+export const rowAmount = (cents: number) =>
+  Math.abs(cents) >= WHOLE_FROM_CENTS
+    ? formatWholeEuros(cents)
+    : formatCents(cents)
+export const rowGain = (cents: number) =>
+  Math.abs(cents) >= WHOLE_FROM_CENTS
+    ? formatSignedWholeEuros(cents)
+    : signed(cents)
+
 type EditorState = { open: false } | { open: true; holding?: ValuedHoldingDto }
 
-function PriceLine({ holding, now }: { holding: ValuedHoldingDto; now: Date }) {
-  if (holding.priceEur === null || holding.priceFetchedAt === null) {
+/**
+ * The age of the oldest price shown (« il y a 3 h »), said once for the
+ * whole list rather than on each line (#323, owner's « A. Deux lignes »).
+ */
+export function oldestPriceAge(
+  holdings: readonly ValuedHoldingDto[],
+  now: Date,
+): string | null {
+  const dates = holdings
+    .map((holding) => holding.priceFetchedAt)
+    .filter((at): at is string => at !== null)
+  if (dates.length === 0) return null
+  const oldest = dates.reduce((a, b) =>
+    Date.parse(a) <= Date.parse(b) ? a : b,
+  )
+  return formatPriceAge(oldest, now)
+}
+
+/**
+ * Where the line is held, when it says more than the asset's name (a
+ * chain's line is located on « Ethereum »: said once).
+ */
+function holdingPlace(
+  holding: Pick<ValuedHoldingDto, 'name' | 'location'>,
+): string {
+  return holding.location !== holding.name ? holding.location : ''
+}
+
+/** What ends the second line: the gain, or why there is no value. */
+function HoldingStatus({ holding }: { holding: ValuedHoldingDto }) {
+  if (holding.priceEur === null) {
     // A token added by its contract has no price to look up (#269).
-    if (isContractAsset(holding.assetId)) {
-      return <span className="text-muted-foreground text-xs">sans cours</span>
-    }
-    return (
-      <Badge variant="warning" outline>
-        Cours inconnu
-      </Badge>
+    return isContractAsset(holding.assetId) ? (
+      <span className="shrink-0">sans cours</span>
+    ) : (
+      <span className="text-warning-foreground dark:text-warning shrink-0">
+        cours inconnu
+      </span>
     )
   }
-  return (
-    <span className="text-muted-foreground inline-flex flex-wrap items-center gap-1.5 text-xs">
-      <span className="tabular-nums">{formatPrice(holding.priceEur)}</span>
-      <span>
-        {holding.priceSource === 'manual' ? 'manuel, ' : ''}
-        {formatPriceAge(holding.priceFetchedAt, now)}
+  if (holding.priceStale) {
+    return (
+      <span className="text-warning-foreground dark:text-warning shrink-0">
+        non à jour
       </span>
-      {holding.priceStale && (
-        <Badge variant="warning" outline>
-          Non à jour
-        </Badge>
+    )
+  }
+  if (holding.gainCents === null) return null
+  return (
+    <span
+      className={cn(
+        'shrink-0 tabular-nums',
+        holding.gainCents >= 0
+          ? 'text-success-foreground dark:text-success'
+          : 'text-destructive',
       )}
+    >
+      {rowGain(holding.gainCents)}
     </span>
   )
 }
 
 /**
- * Where a line comes from, shown only when the list mixes origins (#269):
- * on an account whose lines all come from its sync or imports, it says
- * nothing.
+ * One line on two rows (#323, owner's « A. Deux lignes »): where it is held
+ * (or the coin's name) and its value, then the quantity and the gain. The
+ * price, the amount invested and the note are in the line's editor.
  */
-function OriginBadge({ holding }: { holding: ValuedHoldingDto }) {
-  return (
-    <Badge variant="secondary" outline className="shrink-0">
-      {holding.origin === 'manual'
-        ? 'Saisi à la main'
-        : DERIVED_ORIGIN_LABELS[holding.origin]}
-    </Badge>
-  )
-}
-
-/**
- * "Ethereum · Arbitrum": the asset's name when it is not its symbol, and the
- * place when it is not the asset's name (« Ethereum · Ethereum » said it
- * twice).
- */
-export function holdingSubtitle(
-  holding: Pick<ValuedHoldingDto, 'symbol' | 'name' | 'location'>,
-): string {
-  const name = holding.name !== holding.symbol ? holding.name : ''
-  const where = holding.location !== holding.name ? holding.location : ''
-  return [name, where].filter(Boolean).join(' · ')
-}
-
 function HoldingRow({
   holding,
-  now,
   mixed,
 }: {
   holding: ValuedHoldingDto
-  now: Date
   /** The list holds both derived and manual lines. */
   mixed: boolean
 }) {
+  // The badge and the quantity say which coin: the first line says where
+  // it is held when that tells two lines apart, else the coin's name.
+  const title = holdingPlace(holding) || holding.name || holding.symbol
+  const details = [
+    `${formatQuantity(holding.quantity)} ${holding.symbol}`,
+    mixed
+      ? holding.origin === 'manual'
+        ? 'à la main'
+        : DERIVED_ORIGIN_LABELS[holding.origin].toLowerCase()
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
   return (
     <>
       <AssetBadge symbol={holding.symbol} />
-      {/* The amounts go under the asset when both don't fit side by side. */}
-      <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-3 gap-y-1">
-        <div className="min-w-[8rem] flex-1 space-y-0.5">
-          <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
-            <span className="shrink-0 font-medium">{holding.symbol}</span>
-            {holdingSubtitle(holding) && (
-              <span className="text-muted-foreground min-w-0 truncate text-xs">
-                {holdingSubtitle(holding)}
-              </span>
-            )}
-            {mixed && <OriginBadge holding={holding} />}
-          </p>
-          <p className="text-sm tabular-nums">
-            {formatQuantity(holding.quantity)} {holding.symbol}
-          </p>
-          <PriceLine holding={holding} now={now} />
-        </div>
-        <div className="ml-auto space-y-0.5 text-right whitespace-nowrap">
-          <p className="font-medium tabular-nums">
-            {holding.valueCents === null
-              ? '—'
-              : formatCents(holding.valueCents)}
-          </p>
-          {holding.investedCents !== null && (
-            <p className="text-muted-foreground text-xs tabular-nums">
-              Investi {formatCents(holding.investedCents)}
-            </p>
-          )}
-          {holding.gainCents !== null && (
-            <p
-              className={cn(
-                'text-xs tabular-nums',
-                holding.gainCents >= 0
-                  ? 'text-success-foreground dark:text-success'
-                  : 'text-destructive',
-              )}
-            >
-              {signed(holding.gainCents)}
-            </p>
-          )}
-        </div>
-      </div>
+      <span className="block min-w-0 flex-1 space-y-0.5">
+        <span className="flex items-baseline gap-3">
+          <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
+          <span className="shrink-0 font-medium whitespace-nowrap tabular-nums">
+            {holding.valueCents === null ? '—' : rowAmount(holding.valueCents)}
+          </span>
+        </span>
+        <span className="text-muted-foreground flex items-baseline gap-3 text-xs">
+          <span className="min-w-0 flex-1 truncate tabular-nums">
+            {details}
+          </span>
+          <HoldingStatus holding={holding} />
+        </span>
+      </span>
     </>
   )
 }
@@ -224,13 +231,11 @@ export function PriceAlerts({
  */
 export function HoldingList({
   holdings,
-  now,
   onEdit,
   onDelete,
   label = 'Avoirs',
 }: {
   holdings: readonly ValuedHoldingDto[]
-  now: Date
   onEdit?: (holding: ValuedHoldingDto) => void
   /** Lines typed by hand that can only be deleted (on a wallet, #269). */
   onDelete?: (holding: ValuedHoldingDto) => void
@@ -243,7 +248,8 @@ export function HoldingList({
     // A container: the badges step aside on the narrowest cards.
     <ul className={cn(DIVIDED_LIST, '@container')} aria-label={label}>
       {holdings.map((holding) => {
-        const row = 'flex items-start gap-3 px-2 py-2.5 text-left text-sm'
+        const row =
+          'flex min-h-11 items-center gap-3 px-2 py-2.5 text-left text-sm'
         const name = [holding.symbol, holding.location]
           .filter(Boolean)
           .join(' · ')
@@ -256,15 +262,15 @@ export function HoldingList({
                 onClick={() => onEdit(holding)}
                 className={cn(ROW_BUTTON, row)}
               >
-                <HoldingRow holding={holding} now={now} mixed={mixed} />
-                <PencilIcon
+                <HoldingRow holding={holding} mixed={mixed} />
+                <ChevronRightIcon
                   aria-hidden
-                  className="text-muted-foreground mt-0.5 size-4 shrink-0"
+                  className="text-muted-foreground size-4 shrink-0"
                 />
               </button>
             ) : onDelete && holding.origin === 'manual' ? (
               <div className={row}>
-                <HoldingRow holding={holding} now={now} mixed={mixed} />
+                <HoldingRow holding={holding} mixed={mixed} />
                 <Button
                   size="sm"
                   iconOnly
@@ -278,7 +284,7 @@ export function HoldingList({
               </div>
             ) : (
               <div className={row}>
-                <HoldingRow holding={holding} now={now} mixed={mixed} />
+                <HoldingRow holding={holding} mixed={mixed} />
               </div>
             )}
           </li>
@@ -360,6 +366,7 @@ export function HoldingsPanel({
 
   const data = holdings.data
   const { totals } = data
+  const priceAge = oldestPriceAge(data.holdings, now)
   const openAdd = () => setEditor({ open: true })
 
   return (
@@ -394,13 +401,15 @@ export function HoldingsPanel({
         <CardHeader>
           <CardTitle>Avoirs</CardTitle>
           <CardDescription>
-            {wallet
-              ? data.priceApiEnabled
-                ? 'Lus sur la blockchain, au cours du jour.'
-                : 'Lus sur la blockchain. Cours automatiques désactivés : cours saisis à la main.'
-              : data.priceApiEnabled
-                ? 'Cours en euros mis à jour automatiquement.'
-                : 'Cours automatiques désactivés : cours saisis à la main.'}
+            {[
+              wallet ? 'Lus sur la blockchain' : null,
+              data.priceApiEnabled
+                ? 'Cours mis à jour automatiquement'
+                : 'Cours saisis à la main',
+              priceAge,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </CardDescription>
           {writable && !wallet && data.holdings.length > 0 && (
             <div className="grid gap-2 pt-2 @md:grid-cols-2 @2xl:flex">
@@ -461,7 +470,6 @@ export function HoldingsPanel({
           ) : (
             <HoldingList
               holdings={data.holdings}
-              now={now}
               onEdit={
                 writable && !wallet
                   ? (holding) => setEditor({ open: true, holding })

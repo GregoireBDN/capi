@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccountHoldingsDto, ValuedHoldingDto } from '#/api/types.gen'
-import { HoldingsPanel } from './HoldingsPanel'
+import { HoldingsPanel, rowAmount, rowGain } from './HoldingsPanel'
 
 const api = vi.hoisted(() => ({
   accountHoldingsControllerList: vi.fn(),
@@ -131,19 +131,18 @@ describe('HoldingsPanel', () => {
     vi.useRealTimers()
   })
 
-  it('shows quantities, prices with their age, values and totals', async () => {
+  it('shows each line on two rows, the price age once for the list', async () => {
     renderPanel()
     const list = await screen.findByRole('list', { name: 'Avoirs' })
     const row = text(within(list).getAllByRole('listitem')[0].textContent)
-    expect(row).toContain('BTC')
-    expect(row).toContain('Bitcoin · Portefeuille test')
-    expect(row).toContain('1 234,12345679 BTC')
-    expect(row).toContain('10,50 €')
-    expect(row).toContain('il y a 3 min')
-    expect(row).toContain('12 958,30 €')
-    expect(row).toContain('Investi 1 000,00 €')
-    expect(row).toContain('+11 958,30 €')
-    expect(row).not.toContain('Non à jour')
+    // Where it is held and its value, then the quantity and the gain; from
+    // 1 000 € without cents, so the name keeps its room on a phone.
+    expect(row).toBe('BTCPortefeuille test12 958 €1 234,12345679 BTC+11 958 €')
+    // Price, age and amount invested left the row (#323): the age is said
+    // once, the price and the invested amount are in the editor.
+    expect(
+      screen.getByText('Cours mis à jour automatiquement · il y a 3 min'),
+    ).toBeInTheDocument()
 
     const section = text(
       screen.getByRole('region', { name: 'Avoirs crypto' }).textContent,
@@ -186,8 +185,8 @@ describe('HoldingsPanel', () => {
     renderPanel()
     expect(await screen.findByText('Cours non actualisés')).toBeInTheDocument()
     expect(screen.getByText('Un avoir sans cours')).toBeInTheDocument()
-    expect(screen.getByText('Non à jour')).toBeInTheDocument()
-    expect(screen.getByText('Cours inconnu')).toBeInTheDocument()
+    expect(screen.getByText('non à jour')).toBeInTheDocument()
+    expect(screen.getByText('cours inconnu')).toBeInTheDocument()
   })
 
   it('refreshes the snapshot readers when a valuation wrote today', async () => {
@@ -321,9 +320,7 @@ describe('HoldingsPanel', () => {
     )
     renderPanel()
     expect(
-      await screen.findByText(
-        'Cours automatiques désactivés : cours saisis à la main.',
-      ),
+      await screen.findByText('Cours saisis à la main · il y a 3 min'),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Actualiser les cours' }),
@@ -336,6 +333,8 @@ describe('HoldingsPanel', () => {
       screen.getByRole('heading', { name: /^Quantité\s*1\/2/ }),
     ).toBeVisible()
     expect(screen.getByLabelText('Quantité')).toHaveValue('1234,123456789')
+    // The row shows no price: the editor does.
+    expect(screen.getByText(/^Cours 10,50\s€ · il y a 3 min$/)).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Suivant' }))
     expect(screen.getByLabelText('Sous-compte')).toHaveValue(
       'Portefeuille test',
@@ -409,5 +408,14 @@ describe('HoldingsPanel', () => {
       ),
     )
     expect(toast.success).toHaveBeenCalledWith('BTC supprimé')
+  })
+})
+
+describe('row amounts', () => {
+  it('keep their cents under 1 000 €, drop them from there', () => {
+    expect(text(rowAmount(99_999))).toBe('999,99 €')
+    expect(text(rowAmount(287_100))).toBe('2 871 €')
+    expect(text(rowGain(47_100))).toBe('+471,00 €')
+    expect(text(rowGain(-120_050))).toBe('-1 201 €')
   })
 })
