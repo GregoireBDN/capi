@@ -352,14 +352,13 @@ describe('SavingsPage', () => {
     )
     renderPage()
 
-    const recap = await screen.findByText('Investissements')
+    const recap = await screen.findByText('Où va mon épargne')
     const card = within(recap.closest('[data-slot=card]') as HTMLElement)
-    expect(
-      card.getByText(text('Versé 2 000,00 € · 4 virements')),
-    ).toBeInTheDocument()
-    const flows = await card.findByRole('region', {
-      name: 'Où est allé l’argent, sur 12 mois',
-    })
+    // No second list of the investment accounts, no totals: those are in
+    // « Épargne et placements » (#344 follow-up).
+    expect(card.queryByText('Par placement')).not.toBeInTheDocument()
+    expect(card.queryByText('Versé')).not.toBeInTheDocument()
+    const flows = await card.findByRole('region', { name: 'Sur 12 mois' })
     expect(flows).toHaveTextContent(text('+800,00 €'))
     expect(flows).toHaveTextContent(text('dont 100,00 € retirés'))
     expect(card.getByRole('group', { name: 'Par mois' })).toHaveTextContent(
@@ -371,7 +370,8 @@ describe('SavingsPage', () => {
     renderPage()
 
     expect(await screen.findByText('Épargne du mois')).toBeInTheDocument()
-    expect(screen.getByText('Novembre 2026')).toBeInTheDocument()
+    // The month is named by the navigator and by the target's row.
+    expect(screen.getAllByText('Novembre 2026')).not.toHaveLength(0)
     // One average on the tiles, named and dated.
     const average = screen
       .getByText('Épargne moyenne')
@@ -383,17 +383,30 @@ describe('SavingsPage', () => {
     const kpis = screen.getByRole('region', { name: 'Chiffres clés' })
     expect(kpis).not.toHaveTextContent(/Moy\. 6 mois|ponctuel/)
 
-    // Target vs actual: 400 € saved so far, 460 € to go.
+    // Target vs actual, one row like a goal: 400 € saved so far, 460 € to
+    // go; the last full months as dots.
     expect(
-      screen.getByText(text('Reste 460,00 € à épargner ce mois-ci')),
+      screen.getByRole('button', {
+        name: (name) =>
+          text(name) ===
+          'Modifier l’épargne cible : Novembre 2026, En cours, 400 € sur 860 €, reste 460 €',
+      }),
     ).toBeInTheDocument()
     expect(screen.getByText('1 mois sur 2')).toBeInTheDocument()
+    expect(
+      within(
+        screen.getByRole('list', { name: 'Derniers mois complets' }),
+      ).getAllByRole('listitem'),
+    ).toHaveLength(2)
 
     // Savings stock: the total and the gain as figures in the header.
     const stock = screen
       .getByRole('heading', { name: 'Épargne disponible' })
       .closest('[data-slot="card"]') as HTMLElement
-    expect(stock).toHaveTextContent(text('4 800,00 €+300,00 € de plus-value'))
+    // The total, the gain and what was paid in, in one header.
+    expect(stock).toHaveTextContent(
+      text('4 800,00 €+300,00 € de plus-valueversé 2 000,00 €'),
+    )
     // Rows link to the account pages, sentence-case group headings.
     const livret = within(stock).getByRole('link', { name: /Livret test/ })
     expect(livret).toHaveAttribute('href', `/accounts/${LIVRET_ID}`)
@@ -411,27 +424,19 @@ describe('SavingsPage', () => {
         .map((button) => button.textContent),
     ).toEqual(['Ajouter un placement', 'Ajouter un compte'])
 
-    // Goal: monthly effort and a late projection.
+    // Goal: one compact row (status, bar, what is left · deadline, %),
+    // the whole row opening its editor.
+    const row = await screen.findByRole('button', {
+      name: (name) =>
+        text(name) ===
+        'Modifier l’objectif Fonds de secours : En retard, 7 500 € restants · mars 2027, 25 %',
+    })
+    expect(row).toHaveTextContent('En retard')
+    expect(row).toHaveTextContent(text('7 500 € restants · mars 2027'))
+    expect(row).toHaveTextContent('25 %')
+    // The projections' own average (one-offs excluded) in one line.
     expect(
-      await screen.findByRole('meter', { name: 'Fonds de secours' }),
-    ).toHaveAttribute('aria-valuenow', '250000')
-    expect(
-      screen.getByText(
-        text('31 mars 2027, soit 1 500,00 € par mois pendant 5 mois'),
-      ),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        'Atteint en mai 2027 au rythme actuel, après l’échéance',
-      ),
-    ).toBeInTheDocument()
-    // The projections' own average (one-offs excluded) is in their section.
-    expect(
-      screen.getByText(
-        text(
-          'Projetés à 1 100,00 € par mois : votre épargne moyenne des 6 derniers mois complets, sans les revenus et dépenses ponctuels.',
-        ),
-      ),
+      screen.getByText(text('Au rythme de 1 100 € par mois')),
     ).toBeInTheDocument()
   })
 
@@ -504,9 +509,12 @@ describe('SavingsPage', () => {
     expect(tile).toHaveTextContent('vs 1–20 sept.')
     // The target follows the page's month, known until the 20th.
     expect(
-      screen.getByRole('meter', { name: 'Octobre 2026 (jusqu’au 20 oct.)' }),
+      screen.getByRole('button', {
+        name: (name) =>
+          text(name) ===
+          'Modifier l’épargne cible : Octobre 2026 · jusqu’au 20 oct., Sous la cible, 400 € sur 860 €, −460 €',
+      }),
     ).toBeInTheDocument()
-    expect(screen.getByText(text('460,00 € sous la cible'))).toBeInTheDocument()
   })
 
   it('names the month a complete month is compared with', async () => {
@@ -532,7 +540,9 @@ describe('SavingsPage', () => {
     ) as HTMLElement
     expect(tile).toHaveTextContent('vs septembre')
     expect(
-      screen.getByRole('meter', { name: 'Octobre 2026' }),
+      screen.getByRole('button', {
+        name: /^Modifier l’épargne cible : Octobre 2026,/,
+      }),
     ).toBeInTheDocument()
   })
 
@@ -683,15 +693,17 @@ describe('SavingsPage', () => {
     )
     renderPage()
     expect(
-      await screen.findByText(/Pas atteignable au rythme actuel/),
-    ).toBeInTheDocument()
+      await screen.findByRole('button', {
+        name: /^Modifier l’objectif Fonds de secours/,
+      }),
+    ).toHaveTextContent(text('Hors de portée7 500 € restants25 %'))
   })
 
   it('edits the monthly target in place', async () => {
     const user = userEvent.setup()
     renderPage()
     await user.click(
-      await screen.findByRole('button', { name: 'Modifier l’épargne cible' }),
+      await screen.findByRole('button', { name: /^Modifier l’épargne cible/ }),
     )
     const input = screen.getByLabelText('Épargne cible par mois')
     await user.clear(input)
@@ -751,7 +763,7 @@ describe('SavingsPage', () => {
     renderPage()
     await user.click(
       await screen.findByRole('button', {
-        name: 'Modifier l’objectif Fonds de secours',
+        name: /^Modifier l’objectif Fonds de secours/,
       }),
     )
     const dialog = await screen.findByRole('dialog')

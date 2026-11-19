@@ -4,14 +4,10 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  cn,
   EmptyState,
-  formatSignedPercent,
-  formatWholeEuros,
   ItemList,
   ItemListGroup,
   ItemListRow,
-  StatCard,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -29,95 +25,8 @@ import { plural } from '#/lib/plural'
 import { ROUTES } from '#/lib/routes'
 import { accountLinkSearch } from '#/components/accounts/account-origin'
 
-const signedWholeEuros = new Intl.NumberFormat('fr-FR', {
-  style: 'currency',
-  currency: 'EUR',
-  maximumFractionDigits: 0,
-  signDisplay: 'exceptZero',
-})
-const formatSignedWholeEuros = (cents: number) =>
-  signedWholeEuros.format(cents / 100)
-
 function signed(cents: number): string {
   return `${cents > 0 ? '+' : ''}${formatCents(cents)}`
-}
-
-/** Gain coloured by its sign, with its simple return. */
-function Gain({
-  gainCents,
-  returnRate,
-}: {
-  gainCents: number | null
-  returnRate: number | null
-}) {
-  if (gainCents === null) {
-    return <span className="text-muted-foreground">versé inconnu</span>
-  }
-  return (
-    <span
-      className={cn(
-        gainCents > 0 && 'text-chart-delta-good',
-        gainCents < 0 && 'text-chart-delta-bad',
-        gainCents === 0 && 'text-muted-foreground',
-      )}
-    >
-      {signed(gainCents)}
-      {returnRate !== null && ` · ${formatSignedPercent(returnRate)}`}
-    </span>
-  )
-}
-
-/** Versé, valeur, plus-value: in total, then per investment account. */
-function Totals({ summary }: { summary: InvestmentsSummaryDto }) {
-  const { totals } = summary
-  const dash = () => '—'
-  return (
-    <div className="space-y-2">
-      <div className="grid grid-cols-1 gap-2 @lg:grid-cols-3">
-        <StatCard
-          label="Versé"
-          value={totals.contributionsCents ?? 0}
-          valueFormatter={
-            totals.contributionsCents === null ? dash : formatWholeEuros
-          }
-        />
-        <StatCard
-          label="Valeur"
-          value={totals.valueCents}
-          valueFormatter={formatWholeEuros}
-        />
-        <StatCard
-          label="Plus-value"
-          value={totals.gainCents ?? 0}
-          valueFormatter={
-            totals.gainCents === null ? dash : formatSignedWholeEuros
-          }
-          note={
-            totals.returnRate === null
-              ? undefined
-              : formatSignedPercent(totals.returnRate)
-          }
-        />
-      </div>
-      {totals.withoutContributionsCount > 0 && (
-        <p className="text-muted-foreground px-1 text-xs">
-          Versé et plus-value hors{' '}
-          {plural(totals.withoutContributionsCount, 'placement', 'placements')}{' '}
-          sans versements connus.
-        </p>
-      )}
-    </div>
-  )
-}
-
-function accountSubtitle(
-  row: InvestmentsSummaryDto['accounts'][number],
-): string {
-  if (row.contributionsCents === null) return 'Versements inconnus'
-  const paid = `Versé ${formatCents(row.contributionsCents)}`
-  return row.contributionsSource === 'links'
-    ? `${paid} · ${plural(row.linkedTransfersCount, 'virement', 'virements')}`
-    : paid
 }
 
 /** Where the money went (#296): the linked transfers, per account and month. */
@@ -150,15 +59,16 @@ function Flows({
   const names = new Map(flows.accounts.map((a) => [a.accountId, a.name]))
   return (
     <ItemList>
-      <ItemListGroup
-        title="Où est allé l’argent, sur 12 mois"
-        total={signed(flows.netCents)}
-      >
+      <ItemListGroup title="Sur 12 mois" total={signed(flows.netCents)}>
         {flows.accounts.map((account) => {
           const { icon: Icon, className } = ACCOUNT_TYPE_ICONS[account.type]
           const archived = !summary.accounts.some(
             (row) => row.id === account.accountId,
           )
+          const withdrawn =
+            account.withdrawalsCents > 0
+              ? `dont ${formatCents(account.withdrawalsCents)} retirés`
+              : undefined
           return (
             <ItemListRow
               key={account.accountId}
@@ -168,10 +78,14 @@ function Flows({
               title={account.name}
               subtitle={`${plural(account.count, 'virement', 'virements')}${archived ? ' · archivé' : ''}`}
               value={signed(account.netCents)}
-              detail={
-                account.withdrawalsCents > 0
-                  ? `dont ${formatCents(account.withdrawalsCents)} retirés`
-                  : undefined
+              detail={withdrawn}
+              // Phones (#344): the name, then the net (and what was taken
+              // out); the count stays on wider rows and the account page.
+              compactWhenNarrow
+              compactDetail={
+                withdrawn && (
+                  <span className="text-muted-foreground">{withdrawn}</span>
+                )
               }
             >
               <Link
@@ -241,9 +155,11 @@ function RecapMovements() {
 }
 
 /**
- * The investments recap of Épargne (#296): what was paid in, what it is
- * worth and the gain, in total and per account, then where the money went
- * over the last 12 months (the transfers linked to each investment).
+ * « Où va mon épargne » on Épargne (#296, reworked after #344): where the
+ * money went over the last 12 months, the transfers linked to each
+ * investment, then the movements between the owner's accounts. What is held,
+ * paid in and gained is in « Épargne et placements » above, so this card
+ * repeats no account list and no totals.
  */
 export function InvestmentsRecap() {
   const summary = useQuery(investmentsSummaryQuery)
@@ -252,46 +168,12 @@ export function InvestmentsRecap() {
   return (
     <Card className="min-w-0">
       <CardHeader className="gap-1">
-        <CardTitle>Investissements</CardTitle>
+        <CardTitle>Où va mon épargne</CardTitle>
         <CardDescription>
-          Ce que vous avez versé, ce que ça vaut aujourd’hui.
+          Les virements vers vos placements, et entre vos comptes.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        <Totals summary={summary.data} />
-        <ItemList>
-          <ItemListGroup title="Par placement">
-            {summary.data.accounts.map((row) => {
-              const { icon: Icon, className } = ACCOUNT_TYPE_ICONS[row.type]
-              return (
-                <ItemListRow
-                  key={row.id}
-                  asChild
-                  icon={<Icon />}
-                  iconClassName={className}
-                  title={row.name}
-                  subtitle={accountSubtitle(row)}
-                  value={
-                    row.valueCents === null ? '—' : formatCents(row.valueCents)
-                  }
-                  detail={
-                    <Gain
-                      gainCents={row.gainCents}
-                      returnRate={row.returnRate}
-                    />
-                  }
-                >
-                  <Link
-                    to={ROUTES.account}
-                    params={{ accountId: row.id }}
-                    search={accountLinkSearch('savings')}
-                    title="Voir le détail du compte"
-                  />
-                </ItemListRow>
-              )
-            })}
-          </ItemListGroup>
-        </ItemList>
         {flows.data && <Flows flows={flows.data} summary={summary.data} />}
         <RecapMovements />
       </CardContent>

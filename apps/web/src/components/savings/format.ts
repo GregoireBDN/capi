@@ -1,6 +1,11 @@
-import { formatMonthLong } from '@finances/ui'
+const shortMonthYear = new Intl.DateTimeFormat('fr-FR', {
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
 
-/** `2026-12-31` → `décembre 2026` (projected reach dates are month ends). */
-export function formatMonthOf(date: string): string {
-  return formatMonthLong(date.slice(0, 7))
+/** `2027-07-01` → `juil. 2027` (calendar date, no time zone shift). */
+export function formatShortMonthOf(date: string): string {
+  const [year, month] = date.split('-').map(Number)
+  return shortMonthYear.format(new Date(Date.UTC(year, month - 1, 1)))
 }

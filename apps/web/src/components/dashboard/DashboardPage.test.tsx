@@ -716,9 +716,14 @@ describe('DashboardPage', () => {
     const investments = await screen.findByRole('region', {
       name: 'Investissements',
     })
-    expect(
-      within(investments).getByRole('link', { name: /PEA test/ }),
-    ).toHaveTextContent(`PEA testau 30 sept.${euros(1_000_000)}à mettre à jour`)
+    const peaRow = within(investments).getByRole('link', { name: /PEA test/ })
+    // Wide rows: the date on the left, « à mettre à jour » on the right.
+    expect(peaRow).toHaveTextContent(`${euros(1_000_000)}à mettre à jour`)
+    expect(peaRow).toHaveTextContent(/^PEA testau 30 sept\./)
+    // Phones (#344): the value, then the stale value's date.
+    expect(peaRow).toHaveTextContent(
+      `${euros(1_000_000)}À mettre à jour, valeur 30 sept.`,
+    )
     expect(
       within(screen.getByRole('region', { name: 'Liquidités' })).queryByText(
         /à mettre à jour/,

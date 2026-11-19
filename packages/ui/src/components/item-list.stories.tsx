@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { expect } from 'storybook/test'
 import {
   ChartCandlestickIcon,
   LandmarkIcon,
@@ -21,7 +22,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'The account lists of Épargne, the dashboard and Comptes (#267): no rules, one target per row (the whole row, chevron always last), a 32px type badge, left the name and institution · date, right the value and the gain or « à mettre à jour ». Group headings in sentence case with their total on the same line. The name and its second line are cut with … when they don’t fit; the value and its detail stay on the right, never cut (#262).',
+          'The account lists of Épargne, the dashboard and Comptes (#267): no rules, one target per row (the whole row, chevron always last), a 32px type badge, left the name and institution · date, right the value and the gain or « à mettre à jour ». Group headings in sentence case with their total on the same line. The name and its second line are cut with … when they don’t fit; the value and its detail stay on the right, never cut (#262). With `compactWhenNarrow` (the account rows, #344), a row under 464px takes two lines: the name, then the value and its `compactDetail`.',
       },
     },
   },
@@ -176,4 +177,94 @@ export const WithoutHeading: Story = {
       </CardContent>
     </Card>
   ),
+}
+
+/** Synthetic investments with a five-digit value and a four-digit gain. */
+function InvestmentRows() {
+  return (
+    <ItemList>
+      <ItemListGroup title="Investissements" total="39 251,67 €">
+        <ItemListRow
+          href="#"
+          compactWhenNarrow
+          compactDetail={gain('+14,8 %')}
+          icon={<ChartCandlestickIcon />}
+          iconClassName="bg-chart-7/15 text-chart-7"
+          title="PEA Banque B"
+          subtitle="Banque B · au 31 oct."
+          value="15 846,12 €"
+          detail={gain('+2 045,99 € · +14,8 %')}
+        />
+        <ItemListRow
+          href="#"
+          compactWhenNarrow
+          compactDetail={stale}
+          icon={<UmbrellaIcon />}
+          iconClassName="bg-chart-5/15 text-chart-5"
+          title="Assurance vie Horizon"
+          subtitle="Assureur C · au 31 oct."
+          value="23 405,55 €"
+          detail={stale}
+        />
+      </ItemListGroup>
+    </ItemList>
+  )
+}
+
+/** The first row's title, its first value shown and its subtitle. */
+function rowBoxes(canvasElement: HTMLElement) {
+  const row = canvasElement.querySelector('[data-slot="item-list-row"]')!
+  const title = row.querySelector('.font-medium')!
+  const shown = (element: Element) => element.getClientRects().length > 0
+  const value = [...row.querySelectorAll('.tabular-nums')].find(shown)!
+  const subtitle = row.querySelector('.text-muted-foreground.truncate')!
+  return {
+    title,
+    titleBox: title.getBoundingClientRect(),
+    valueBox: value.getBoundingClientRect(),
+    subtitleShown: shown(subtitle),
+    rowHeight: row.getBoundingClientRect().height,
+  }
+}
+
+/**
+ * `compactWhenNarrow` on a phone-wide card (#344, owner's « D. Nom puis
+ * chiffres »): under a 464px row two lines only, the name, then the value
+ * and its compact detail (the rate, or the stale value's date); the subtitle
+ * and the gain in euros are left to wider rows.
+ */
+export const CompactWhenNarrow: Story = {
+  render: () => (
+    <Card className="w-[340px]">
+      <CardContent>
+        <InvestmentRows />
+      </CardContent>
+    </Card>
+  ),
+  play: async ({ canvasElement }) => {
+    const { title, titleBox, valueBox, subtitleShown, rowHeight } =
+      rowBoxes(canvasElement)
+    // The name isn't cut; the value sits under it; two lines, no subtitle.
+    await expect(title.scrollWidth).toBeLessThanOrEqual(title.clientWidth)
+    await expect(valueBox.top).toBeGreaterThanOrEqual(titleBox.bottom - 1)
+    await expect(subtitleShown).toBe(false)
+    await expect(rowHeight).toBeLessThan(titleBox.height * 3)
+  },
+}
+
+/** The same rows on a wide card keep the two columns and the subtitle. */
+export const CompactWhenNarrowWide: Story = {
+  render: () => (
+    <Card className="w-[600px]">
+      <CardContent>
+        <InvestmentRows />
+      </CardContent>
+    </Card>
+  ),
+  play: async ({ canvasElement }) => {
+    const { titleBox, valueBox, subtitleShown } = rowBoxes(canvasElement)
+    await expect(valueBox.left).toBeGreaterThanOrEqual(titleBox.right)
+    await expect(valueBox.top).toBeLessThan(titleBox.bottom)
+    await expect(subtitleShown).toBe(true)
+  },
 }

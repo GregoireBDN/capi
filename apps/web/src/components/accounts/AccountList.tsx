@@ -133,9 +133,45 @@ function rowDetail(account: AccountListItem): ReactNode {
 }
 
 /**
+ * After the value on a phone (#344, « D. Nom puis chiffres »): the value's
+ * date in the warning colour when it is to update (« 30 sept. »), else the
+ * rate in the gain's colour, else the gain, else nothing. The gain in euros
+ * and « institution · date » are on wider rows and the account page.
+ */
+function compactDetail(account: AccountListItem): ReactNode {
+  if (account.stale) {
+    return (
+      <span className="text-warning-foreground dark:text-warning inline-flex items-center gap-1 font-medium">
+        <span aria-hidden className="bg-warning size-1.5 rounded-full" />
+        <span className="sr-only">À mettre à jour, valeur </span>
+        {account.valueDate === null
+          ? 'à mettre à jour'
+          : valueDateText(account.valueDate).replace(/^au /, '')}
+      </span>
+    )
+  }
+  if (account.gainCents == null) return null
+  return (
+    <span
+      className={cn(
+        account.gainCents > 0 && 'text-chart-delta-good',
+        account.gainCents < 0 && 'text-chart-delta-bad',
+        account.gainCents === 0 && 'text-muted-foreground',
+      )}
+    >
+      {account.returnRate != null
+        ? formatSignedPercent(account.returnRate)
+        : signedCents(account.gainCents)}
+    </span>
+  )
+}
+
+/**
  * One account: its type badge, name, institution · value date, value, and
- * on the right the gain over contributions or « à mettre à jour ». The whole
- * row is the link; no other control sits on it.
+ * on the right the gain over contributions or « à mettre à jour ». On a
+ * narrow row (a phone) two lines: the name, then the value and its rate or
+ * the stale value's date (#344, « D. Nom puis chiffres »). The whole row is
+ * the link; no other control sits on it.
  */
 export function AccountListRow({
   account,
@@ -168,9 +204,11 @@ export function AccountListRow({
     subtitle,
     value: account.valueCents === null ? '—' : formatCents(account.valueCents),
     detail: rowDetail(account),
+    compactDetail: compactDetail(account),
   }
   return (
-    <ItemListRow asChild {...row}>
+    // Phones: the name, then the value and its rate (#344).
+    <ItemListRow asChild compactWhenNarrow {...row}>
       {account.link === 'transactions' ? (
         <Link
           to={ROUTES.transactions}
@@ -260,30 +298,43 @@ export function AccountList({
 
 /**
  * A list card's figures: the total as the main figure and, when known, the
- * unrealised gain beside it (not in a sentence).
+ * unrealised gain beside it (not in a sentence), then what was paid in
+ * (Épargne, #344 follow-up: the investments recap's tiles folded in here).
  */
 export function AccountListTotal({
   totalCents,
   gainCents = null,
+  paidInCents = null,
 }: {
   totalCents: number
   gainCents?: number | null
+  /** Contributions to the investments the gain is computed over. */
+  paidInCents?: number | null
 }) {
   return (
     <p className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
       <span className="text-2xl font-semibold whitespace-nowrap tabular-nums">
         {formatCents(totalCents)}
       </span>
-      {gainCents !== null && (
-        <span
-          className={cn(
-            'text-sm whitespace-nowrap tabular-nums',
-            gainCents > 0 && 'text-chart-delta-good',
-            gainCents < 0 && 'text-chart-delta-bad',
-            gainCents === 0 && 'text-muted-foreground',
+      {(gainCents !== null || paidInCents !== null) && (
+        <span className="flex flex-wrap items-baseline gap-x-3 text-sm">
+          {gainCents !== null && (
+            <span
+              className={cn(
+                'whitespace-nowrap tabular-nums',
+                gainCents > 0 && 'text-chart-delta-good',
+                gainCents < 0 && 'text-chart-delta-bad',
+                gainCents === 0 && 'text-muted-foreground',
+              )}
+            >
+              {signedCents(gainCents)} de plus-value
+            </span>
           )}
-        >
-          {signedCents(gainCents)} de plus-value
+          {paidInCents !== null && (
+            <span className="text-muted-foreground whitespace-nowrap tabular-nums">
+              versé {formatCents(paidInCents)}
+            </span>
+          )}
         </span>
       )}
     </p>

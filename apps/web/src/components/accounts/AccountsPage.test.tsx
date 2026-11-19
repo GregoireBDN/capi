@@ -195,6 +195,18 @@ describe('AccountsPage', () => {
       await screen.findByRole('link', { name: /Ancien livret/ }),
     ).toHaveTextContent(/^Ancien livretBanque test · au 31 déc\. 2025/)
 
+    // Phones (#344): the name, then the value and its rate or the stale
+    // value's date.
+    expect(peaRow).toHaveTextContent('À mettre à jour, valeur 30 sept.')
+    expect(
+      screen.getByRole('link', { name: /Contrat test/ }),
+    ).toHaveTextContent(/€\+33 %/)
+    for (const item of document.querySelectorAll(
+      '[data-slot="item-list-row"]',
+    )) {
+      expect(item).toHaveClass('@container/item-row')
+    }
+
     // No per-row button in the lists.
     for (const list of document.querySelectorAll('[data-slot="item-list"]')) {
       expect(
