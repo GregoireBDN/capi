@@ -6,6 +6,7 @@ import {
   formatQuantity,
   parsePriceInput,
   parseQuantityInput,
+  sumQuantities,
 } from './format'
 
 /** `Intl` emits narrow no-break spaces. */
@@ -49,5 +50,16 @@ describe('crypto formats', () => {
     expect(formatPriceAge('2026-11-06T09:57:00Z', now)).toBe('il y a 3 min')
     expect(formatPriceAge('2026-11-06T07:00:00Z', now)).toBe('il y a 3 h')
     expect(formatPriceAge('2026-11-04T09:00:00Z', now)).toBe('il y a 2 j')
+  })
+
+  it('sums quantities exactly, without a float', () => {
+    expect(sumQuantities(['0.9', '0.15'])).toBe('1.05')
+    expect(sumQuantities(['0.1', '0.2'])).toBe('0.3')
+    expect(sumQuantities(['15000'])).toBe('15000')
+    expect(sumQuantities(['0.000000000000000001', '1'])).toBe(
+      '1.000000000000000001',
+    )
+    expect(sumQuantities(['0.5', '0.5'])).toBe('1')
+    expect(sumQuantities([])).toBe('0')
   })
 })

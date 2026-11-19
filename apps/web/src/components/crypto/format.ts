@@ -74,3 +74,20 @@ export function formatPriceAge(fetchedAt: string, now: Date): string {
   if (hours < 24) return `il y a ${hours} h`
   return `il y a ${Math.floor(hours / 24)} j`
 }
+
+/**
+ * Exact sum of non-negative decimal strings (`["0.9", "0.15"]` → `"1.05"`),
+ * with BigInt: the quantities of one asset on several chains.
+ */
+export function sumQuantities(values: readonly string[]): string {
+  const scale = Math.max(0, ...values.map((v) => v.split('.')[1]?.length ?? 0))
+  const total = values.reduce((sum, value) => {
+    const [whole, fraction = ''] = value.split('.')
+    return sum + BigInt(whole + fraction.padEnd(scale, '0'))
+  }, 0n)
+  if (scale === 0) return total.toString()
+  const digits = total.toString().padStart(scale + 1, '0')
+  const whole = digits.slice(0, -scale)
+  const fraction = digits.slice(-scale).replace(/0+$/, '')
+  return fraction === '' ? whole : `${whole}.${fraction}`
+}

@@ -198,8 +198,34 @@ const SCENARIOS: Array<Scenario> = [
       account: type,
     }),
   ),
-  // A wallet crypto account has its own page body (#269).
+  // A wallet crypto account has its own page body (#269, #294).
   { name: 'account-wallet', path: '/accounts', account: 'wallet' },
+  {
+    // Every asset and the values unfolded.
+    name: 'account-wallet-open',
+    path: '/accounts',
+    account: 'wallet',
+    step: async (page) => {
+      const folded = page.locator(
+        '[role="region"] button[aria-expanded="false"]',
+      )
+      while ((await folded.count()) > 0) await folded.first().click()
+    },
+  },
+  {
+    // One key's screen (#294).
+    name: 'account-wallet-key',
+    path: '/accounts',
+    account: 'wallet',
+    step: async (page) => {
+      await page
+        .getByRole('region', { name: 'Clés et jetons' })
+        .getByRole('button')
+        .first()
+        .click()
+      await page.getByRole('dialog').waitFor()
+    },
+  },
 ]
 
 type Issue = { tag: string; text: string; w: number; h: number }
