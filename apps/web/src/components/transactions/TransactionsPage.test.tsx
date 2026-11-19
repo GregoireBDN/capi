@@ -1318,14 +1318,22 @@ describe('TransactionsPage', () => {
         }),
       )
       const amount = within(editor).getByLabelText('Montant corrigé')
-      expect(amount).toHaveValue('-45,50')
+      // Typed unsigned (#326): the sign is the transaction's own.
+      expect(amount).toHaveValue('45,50')
+      expect(
+        within(editor).getByRole('button', { name: 'Montant négatif' }),
+      ).toHaveAttribute('aria-pressed', 'true')
+      const save = within(editor).getByRole('button', { name: 'Enregistrer' })
       await user.clear(amount)
-      await user.type(amount, '-40')
-      await user.click(
-        within(editor).getByRole('button', {
-          name: 'Enregistrer la correction',
-        }),
-      )
+      // An empty amount: its error in place of the help, nothing to save.
+      expect(
+        within(editor).getByText('Indiquez un montant'),
+      ).toBeInTheDocument()
+      expect(within(editor).queryByText('Sortie d’argent')).toBeNull()
+      expect(save).toBeDisabled()
+      await user.type(amount, 'abc40')
+      expect(save).toBeEnabled()
+      await user.click(save)
       await waitFor(() =>
         expect(api.transactionsControllerCorrect).toHaveBeenCalledWith({
           path: { id: shopRow.id },

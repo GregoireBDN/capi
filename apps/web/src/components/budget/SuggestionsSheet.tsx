@@ -4,10 +4,6 @@ import {
   Button,
   CategoryIcon,
   Checkbox,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -20,6 +16,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { AmountField } from '#/components/amount/AmountField'
 import type { BudgetSuggestionDto } from '#/api/types.gen'
 import { formatMonth } from '#/lib/calendar'
 import { formatCents } from '#/lib/money'
@@ -200,23 +197,18 @@ export function SuggestionsSheet({
                         />
                         <span className="truncate">{item.name}</span>
                       </label>
-                      <InputGroup className="w-28 shrink-0">
-                        <InputGroupInput
-                          inputMode="decimal"
-                          aria-label={`Objectif ${item.name}`}
-                          aria-invalid={error !== null}
-                          value={draft.amount}
-                          onChange={(event) =>
-                            update(item.categoryId, {
-                              amount: event.target.value,
-                              accepted: true,
-                            })
-                          }
-                        />
-                        <InputGroupAddon align="inline-end">
-                          <InputGroupText>€</InputGroupText>
-                        </InputGroupAddon>
-                      </InputGroup>
+                      <AmountField
+                        groupClassName="w-28 shrink-0"
+                        aria-label={`Objectif ${item.name}`}
+                        aria-invalid={error !== null}
+                        value={draft.amount}
+                        onValueChange={(typed) =>
+                          update(item.categoryId, {
+                            amount: typed,
+                            accepted: true,
+                          })
+                        }
+                      />
                     </div>
                     <p className="text-muted-foreground pl-8 text-xs">
                       Moyenne {formatCents(item.averageCents)}

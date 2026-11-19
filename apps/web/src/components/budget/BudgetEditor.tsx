@@ -6,10 +6,6 @@ import {
   FieldDescription,
   FieldError,
   FieldLabel,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
   Label,
   NativeSelect,
   NativeSelectOption,
@@ -25,6 +21,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
+import { AmountField } from '#/components/amount/AmountField'
 import type { CategoryDto } from '#/api/types.gen'
 import { formatMonth } from '#/lib/calendar'
 import { formatCents } from '#/lib/money'
@@ -190,20 +187,13 @@ export function BudgetEditor({
               <FieldLabel htmlFor={`${id}-amount`}>
                 Objectif par mois
               </FieldLabel>
-              <InputGroup>
-                <InputGroupInput
-                  id={`${id}-amount`}
-                  inputMode="decimal"
-                  autoComplete="off"
-                  placeholder="350"
-                  value={amount}
-                  aria-invalid={showError}
-                  onChange={(event) => setAmount(event.target.value)}
-                />
-                <InputGroupAddon align="inline-end">
-                  <InputGroupText>€</InputGroupText>
-                </InputGroupAddon>
-              </InputGroup>
+              <AmountField
+                id={`${id}-amount`}
+                placeholder="350"
+                value={amount}
+                aria-invalid={showError}
+                onValueChange={(typed) => setAmount(typed)}
+              />
               {showError && <FieldError>{amountError}</FieldError>}
             </Field>
             <Field>

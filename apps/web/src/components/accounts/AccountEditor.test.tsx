@@ -473,11 +473,9 @@ describe('AccountEditor', () => {
     await user.type(name, 'Mon assurance')
     await user.selectOptions(screen.getByLabelText('Type'), 'life_insurance')
     expect(name).toHaveValue('Mon assurance')
+    // Letters never reach the amount (#326).
     await user.type(screen.getByLabelText('Valeur actuelle'), 'abc')
-    await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
-    expect(
-      screen.getByText('Montant invalide (ex. 12 345,67)'),
-    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Valeur actuelle')).toHaveValue('')
     expect(api.accountsControllerCreate).not.toHaveBeenCalled()
   })
 

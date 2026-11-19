@@ -9,10 +9,6 @@ import {
   Field,
   FieldError,
   FieldLabel,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
   ProgressMeter,
   EmptyState,
 } from '@finances/ui'
@@ -20,6 +16,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CircleCheckIcon, PencilIcon, TargetIcon } from 'lucide-react'
 import { useId, useState } from 'react'
 import { toast } from 'sonner'
+import { AmountField } from '#/components/amount/AmountField'
 import type { MonthPeriodDto, SavingsOverviewDto } from '#/api/types.gen'
 import {
   centsToInput,
@@ -198,21 +195,15 @@ function TargetForm({
     <form noValidate onSubmit={submit} className="space-y-3">
       <Field data-invalid={showError}>
         <FieldLabel htmlFor={`${id}-target`}>Épargne cible par mois</FieldLabel>
-        <InputGroup className="max-w-48">
-          <InputGroupInput
-            id={`${id}-target`}
-            inputMode="decimal"
-            autoComplete="off"
-            placeholder="860"
-            autoFocus
-            value={amount}
-            aria-invalid={showError}
-            onChange={(event) => setAmount(event.target.value)}
-          />
-          <InputGroupAddon align="inline-end">
-            <InputGroupText>€</InputGroupText>
-          </InputGroupAddon>
-        </InputGroup>
+        <AmountField
+          groupClassName="max-w-48"
+          id={`${id}-target`}
+          placeholder="860"
+          autoFocus
+          value={amount}
+          aria-invalid={showError}
+          onValueChange={(typed) => setAmount(typed)}
+        />
         {showError && <FieldError>{error}</FieldError>}
       </Field>
       <div className="flex flex-wrap gap-2">

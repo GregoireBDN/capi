@@ -1,13 +1,7 @@
-import {
-  Button,
-  FieldError,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
-} from '@finances/ui'
+import { Button, FieldError } from '@finances/ui'
 import { PlusIcon, XIcon } from 'lucide-react'
 import { useId, useState } from 'react'
+import { AmountField } from '#/components/amount/AmountField'
 import type { CategoryDto, TransactionDto } from '#/api/types.gen'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
 import { formatCents } from '#/lib/money'
@@ -120,21 +114,13 @@ export function SplitEditor({
               label={`Catégorie de la part ${index + 1}`}
               className="min-w-[8rem] flex-1"
             />
-            <InputGroup className="w-[6.5rem]">
-              <InputGroupInput
-                inputMode="decimal"
-                autoComplete="off"
-                aria-label={`Montant de la part ${index + 1}`}
-                placeholder="0,00"
-                value={part.amount}
-                onChange={(event) =>
-                  change(part.key, { amount: event.target.value })
-                }
-              />
-              <InputGroupAddon align="inline-end">
-                <InputGroupText>€</InputGroupText>
-              </InputGroupAddon>
-            </InputGroup>
+            <AmountField
+              groupClassName="w-[6.5rem]"
+              aria-label={`Montant de la part ${index + 1}`}
+              placeholder="0,00"
+              value={part.amount}
+              onValueChange={(amount) => change(part.key, { amount })}
+            />
             <Button
               type="button"
               iconOnly

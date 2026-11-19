@@ -285,14 +285,16 @@ describe('AccountDetailPage', () => {
 
     await user.clear(date)
     await user.type(date, '2026-11-07')
+    // Letters never reach the field (#326): the value stays to fill.
     await user.type(within(dialog).getByLabelText('Valeur'), 'beaucoup')
+    expect(within(dialog).getByLabelText('Valeur')).toHaveValue('')
     await user.click(
       within(dialog).getByRole('button', { name: 'Enregistrer' }),
     )
     expect(
       within(dialog).getByText('La date ne peut pas être dans le futur'),
     ).toBeInTheDocument()
-    expect(within(dialog).getByText(/Montant invalide/)).toBeInTheDocument()
+    expect(within(dialog).getByText('Indiquez la valeur')).toBeInTheDocument()
     expect(api.accountSnapshotsControllerUpsert).not.toHaveBeenCalled()
 
     await user.clear(date)

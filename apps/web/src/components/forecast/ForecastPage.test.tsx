@@ -199,7 +199,12 @@ describe('ForecastPage', () => {
     await user.type(input, '-150,5{Enter}')
     await waitFor(() => expect(lastQuery().threshold).toBe(-15_050))
     expect(window.localStorage.getItem(THRESHOLD_STORAGE_KEY)).toBe('-15050')
-    expect(input).toHaveValue('-150,50')
+    // Typed unsigned, the « - » turned into the sign (#326).
+    expect(input).toHaveValue('150,50')
+    const sign = screen.getByRole('button', { name: 'Montant négatif' })
+    expect(sign).toHaveAttribute('aria-pressed', 'true')
+    await user.click(sign)
+    await waitFor(() => expect(lastQuery().threshold).toBe(15_050))
   })
 
   it('reads the saved threshold', async () => {

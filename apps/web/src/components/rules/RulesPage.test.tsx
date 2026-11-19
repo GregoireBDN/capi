@@ -18,6 +18,7 @@ import type {
   CategoryDto,
 } from '#/api/types.gen'
 import { bodyFromForm, formFromRule } from './RuleEditorSheet'
+import { amountFieldsOf, boundsOf } from './rule-form'
 import { groupRules, RulesPage } from './RulesPage'
 
 const api = vi.hoisted(() => ({
@@ -557,12 +558,18 @@ describe('RulesPage', () => {
     const advanced = within(sheet).getByRole('button', { name: /Avancé/ })
     expect(advanced.getAttribute('aria-expanded')).toBe('false')
     expect(advanced.textContent).toContain('compte Compte test')
-    expect(within(sheet).queryByLabelText('Montant minimum')).toBeNull()
+    expect(within(sheet).queryByLabelText('Au moins')).toBeNull()
     await user.click(advanced)
-    expect(within(sheet).getByLabelText('Montant minimum')).toHaveProperty(
+    // -50 € to -1 €: money out from 1 to 50 €, typed unsigned (#326).
+    expect(within(sheet).getByLabelText('Au moins')).toHaveProperty(
       'value',
-      '-50',
+      '1',
     )
+    expect(within(sheet).getByLabelText('Au plus')).toHaveProperty(
+      'value',
+      '50',
+    )
+    expect(within(sheet).getByRole('radio', { name: 'Sortie' })).toBeChecked()
     expect(
       await within(sheet).findByText(
         'Aucune opération sur 12 mois',
@@ -795,8 +802,9 @@ describe('bodyFromForm', () => {
     expect(
       bodyFromForm({
         ...form,
-        minAmount: '-1 234,56',
-        maxAmount: '',
+        minAmount: '',
+        maxAmount: '1 234,56',
+        amountSign: 'out',
         accountId: '',
         merchant: '  ',
         kind: 'transfer',
@@ -804,7 +812,7 @@ describe('bodyFromForm', () => {
     ).toEqual({
       body: expect.objectContaining({
         minAmountCents: -123_456,
-        maxAmountCents: null,
+        maxAmountCents: 0,
         accountId: null,
         merchant: null,
         kind: 'transfer',
@@ -834,10 +842,90 @@ describe('bodyFromForm', () => {
       errors: { categoryId: 'Choisissez une catégorie.' },
     })
     expect(bodyFromForm({ ...form, minAmount: 'abc' })).toEqual({
-      errors: { amount: 'Saisissez un montant, par exemple -50 ou 12,90.' },
+      errors: { amount: 'Saisissez un montant, par exemple 50 ou 12,90.' },
     })
     expect(bodyFromForm({ ...form, minAmount: '10', maxAmount: '5' })).toEqual({
       errors: { amount: 'Le minimum dépasse le maximum.' },
     })
+  })
+})
+
+describe('rule amounts typed unsigned (#326)', () => {
+  it('signs the typed range: money out is below 0, money in above', () => {
+    expect(boundsOf(2_000, 5_000, 'out')).toEqual({
+      minAmountCents: -5_000,
+      maxAmountCents: -2_000,
+    })
+    expect(boundsOf(2_000, 5_000, 'in')).toEqual({
+      minAmountCents: 2_000,
+      maxAmountCents: 5_000,
+    })
+    // One magnitude alone stops at 0, never across it.
+    expect(boundsOf(null, 5_000, 'out')).toEqual({
+      minAmountCents: -5_000,
+      maxAmountCents: 0,
+    })
+    expect(boundsOf(null, 5_000, 'in')).toEqual({
+      minAmountCents: 0,
+      maxAmountCents: 5_000,
+    })
+    expect(boundsOf(2_000, null, 'out')).toEqual({
+      minAmountCents: null,
+      maxAmountCents: -2_000,
+    })
+    expect(boundsOf(null, null, 'in')).toEqual({
+      minAmountCents: null,
+      maxAmountCents: null,
+    })
+  })
+
+  it('shows saved bounds unsigned with their sign, and saves them back unchanged', () => {
+    for (const [min, max] of [
+      [-5_000, -100],
+      [null, -100],
+      [-5_000, 0],
+      [1_000, null],
+      [0, 5_000],
+      [1_000, 5_000],
+      [null, null],
+    ] as const) {
+      const bounds = { minAmountCents: min, maxAmountCents: max }
+      const form = { ...formFromRule({ ...FAKEMART, ...bounds }) }
+      expect(form.keptAmounts).toBeNull()
+      expect(bodyFromForm(form)).toEqual({
+        body: expect.objectContaining(bounds),
+      })
+    }
+    expect(
+      amountFieldsOf({ minAmountCents: -5_000, maxAmountCents: -100 }),
+    ).toEqual({
+      minAmount: '1',
+      maxAmount: '50',
+      amountSign: 'out',
+    })
+  })
+
+  it('keeps a condition the fields cannot show until an amount is typed', () => {
+    for (const [min, max] of [
+      [-5_000, 5_000],
+      [-5_000, null],
+      [null, 5_000],
+    ] as const) {
+      const bounds = { minAmountCents: min, maxAmountCents: max }
+      const form = formFromRule({ ...FAKEMART, ...bounds })
+      expect(form.keptAmounts).toEqual(bounds)
+      expect(form.minAmount).toBe('')
+      expect(bodyFromForm(form)).toEqual({
+        body: expect.objectContaining(bounds),
+      })
+      expect(
+        bodyFromForm({ ...form, keptAmounts: null, maxAmount: '20' }),
+      ).toEqual({
+        body: expect.objectContaining({
+          minAmountCents: -2_000,
+          maxAmountCents: 0,
+        }),
+      })
+    }
   })
 })

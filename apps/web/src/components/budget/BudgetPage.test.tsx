@@ -404,11 +404,13 @@ describe('BudgetPage', () => {
     const amount = within(dialog).getByLabelText('Objectif par mois')
     expect(amount).toHaveValue('400')
     await user.clear(amount)
+    // Letters never reach the field (#326).
     await user.type(amount, 'abc')
+    expect(amount).toHaveValue('')
     await user.click(
       within(dialog).getByRole('button', { name: 'Enregistrer' }),
     )
-    expect(within(dialog).getByText(/Montant invalide/)).toBeInTheDocument()
+    expect(within(dialog).getByText('Indiquez un montant')).toBeInTheDocument()
     expect(api.budgetsControllerUpsert).not.toHaveBeenCalled()
 
     await user.clear(amount)

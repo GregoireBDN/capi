@@ -1,5 +1,9 @@
 import { useCallback, useSyncExternalStore } from 'react'
-import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
+import {
+  signedCents,
+  splitSignedCents,
+} from '#/components/amount/signed-amount'
+import type { AmountSign } from '#/components/amount/signed-amount'
 
 /**
  * Low-balance threshold of the forecast: a per-browser convenience kept in
@@ -10,7 +14,7 @@ import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
 export const THRESHOLD_STORAGE_KEY = 'finances.forecast.thresholdCents'
 export const DEFAULT_THRESHOLD_CENTS = 0
 /** The API's bound: ±1 000 000 000 €. */
-const THRESHOLD_LIMIT = 100_000_000_000
+export const THRESHOLD_LIMIT = 100_000_000_000
 const CHANGE_EVENT = 'finances:forecast-threshold'
 
 export function readStoredThreshold(): number {
@@ -53,18 +57,23 @@ export function useForecastThreshold(): [number, (cents: number) => void] {
 }
 
 /**
- * `"150"` → 15000, `"-200,50"` → -20050, `"1 000 €"` → 100000: a euro
- * amount in French format, possibly negative (an overdraft allowance).
- * Null when invalid.
+ * The threshold typed unsigned with its sign (#326): « 150 » and `in` →
+ * 15000, « 200,50 » and `out` → -20050 (an overdraft allowance). Null when
+ * invalid.
  */
-export function parseThreshold(text: string): number | null {
-  const trimmed = text.trim()
-  const negative = /^[-−]/.test(trimmed)
-  const cents = parseEurosToCents(negative ? trimmed.slice(1) : trimmed)
-  if (cents === null || cents > THRESHOLD_LIMIT) return null
-  return negative && cents !== 0 ? -cents : cents
+export function parseThreshold(
+  amount: string,
+  sign: AmountSign,
+): number | null {
+  const cents = signedCents(amount, sign)
+  if (cents === null || Math.abs(cents) > THRESHOLD_LIMIT) return null
+  return cents
 }
 
-export function thresholdToInput(cents: number): string {
-  return cents < 0 ? `-${centsToInput(-cents)}` : centsToInput(cents)
+/** The threshold as the field shows it: unsigned, with its sign. */
+export function thresholdToInput(cents: number): {
+  amount: string
+  sign: AmountSign
+} {
+  return splitSignedCents(cents)
 }

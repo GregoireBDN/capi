@@ -7,10 +7,6 @@ import {
   FieldError,
   FieldLabel,
   Input,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
   Label,
   RadioGroup,
   RadioGroupItem,
@@ -24,6 +20,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
+import { AmountField } from '#/components/amount/AmountField'
+import { LARGE_AMOUNT_CENTS } from '#/components/amount/signed-amount'
 import type { SavingsGoalDto, SavingsGoalSource } from '#/api/types.gen'
 import {
   centsToInput,
@@ -239,20 +237,14 @@ export function GoalEditor({
 
             <Field data-invalid={shown.target !== undefined}>
               <FieldLabel htmlFor={`${id}-target`}>Montant cible</FieldLabel>
-              <InputGroup>
-                <InputGroupInput
-                  id={`${id}-target`}
-                  inputMode="decimal"
-                  autoComplete="off"
-                  placeholder="5000"
-                  value={values.target}
-                  aria-invalid={shown.target !== undefined}
-                  onChange={(event) => set('target', event.target.value)}
-                />
-                <InputGroupAddon align="inline-end">
-                  <InputGroupText>€</InputGroupText>
-                </InputGroupAddon>
-              </InputGroup>
+              <AmountField
+                maxCents={LARGE_AMOUNT_CENTS}
+                id={`${id}-target`}
+                placeholder="5000"
+                value={values.target}
+                aria-invalid={shown.target !== undefined}
+                onValueChange={(typed) => set('target', typed)}
+              />
               {shown.target && <FieldError>{shown.target}</FieldError>}
             </Field>
 
@@ -344,20 +336,14 @@ export function GoalEditor({
                 <FieldLabel htmlFor={`${id}-manual-amount`}>
                   Montant déjà épargné
                 </FieldLabel>
-                <InputGroup>
-                  <InputGroupInput
-                    id={`${id}-manual-amount`}
-                    inputMode="decimal"
-                    autoComplete="off"
-                    placeholder="0"
-                    value={values.manual}
-                    aria-invalid={shown.manual !== undefined}
-                    onChange={(event) => set('manual', event.target.value)}
-                  />
-                  <InputGroupAddon align="inline-end">
-                    <InputGroupText>€</InputGroupText>
-                  </InputGroupAddon>
-                </InputGroup>
+                <AmountField
+                  maxCents={LARGE_AMOUNT_CENTS}
+                  id={`${id}-manual-amount`}
+                  placeholder="0"
+                  value={values.manual}
+                  aria-invalid={shown.manual !== undefined}
+                  onValueChange={(typed) => set('manual', typed)}
+                />
                 {shown.manual && <FieldError>{shown.manual}</FieldError>}
               </Field>
             )}

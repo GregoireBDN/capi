@@ -1,9 +1,5 @@
 import {
   cn,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -19,6 +15,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { AmountField } from '#/components/amount/AmountField'
 import type {
   CategoryDto,
   CorrectTransactionDto,
@@ -137,33 +134,27 @@ function InlineAmount({
         if (cents !== Math.abs(item.amountCents)) void onSave(cents)
       }}
     >
-      <InputGroup className="w-full">
-        <InputGroupInput
-          autoFocus
-          inputMode="decimal"
-          autoComplete="off"
-          aria-label={`Montant de ${name}`}
-          aria-invalid={error !== null}
-          title={error ?? 'Entrée pour enregistrer, Échap pour annuler'}
-          className="text-right"
-          value={value}
-          onChange={(event) => {
-            setValue(event.target.value)
-            setError(null)
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') {
-              event.preventDefault()
-              event.stopPropagation()
-              onDone()
-            }
-          }}
-          onBlur={onDone}
-        />
-        <InputGroupAddon align="inline-end">
-          <InputGroupText>€</InputGroupText>
-        </InputGroupAddon>
-      </InputGroup>
+      <AmountField
+        groupClassName="w-full"
+        autoFocus
+        aria-label={`Montant de ${name}`}
+        aria-invalid={error !== null}
+        title={error ?? 'Entrée pour enregistrer, Échap pour annuler'}
+        className="text-right"
+        value={value}
+        onValueChange={(typed) => {
+          setValue(typed)
+          setError(null)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            event.stopPropagation()
+            onDone()
+          }
+        }}
+        onBlur={onDone}
+      />
     </form>
   )
 }

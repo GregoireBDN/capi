@@ -6,10 +6,6 @@ import {
   FieldError,
   FieldLabel,
   Input,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
   NativeSelect,
   NativeSelectOption,
   Sheet,
@@ -25,6 +21,9 @@ import { PlusIcon } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import { toast } from 'sonner'
+import { AmountField } from '#/components/amount/AmountField'
+import { LARGE_AMOUNT_CENTS } from '#/components/amount/signed-amount'
+import { useSignedText } from '#/components/amount/use-signed-text'
 import type { AccountDto, AccountType } from '#/api/types.gen'
 import {
   CryptoSourceFields,
@@ -260,6 +259,9 @@ export function AccountEditor({
 
   const set = (patch: Partial<FormValues>) =>
     setValues((current) => ({ ...current, ...patch }))
+  const contributionsField = useSignedText(values.contributions, (text) =>
+    set({ contributions: text }),
+  )
 
   /** Changes what the name is proposed from, and the name if not typed. */
   const choose = (patch: Partial<FormValues>) => {
@@ -538,20 +540,14 @@ export function AccountEditor({
                   <FieldLabel htmlFor={`${id}-balance`}>
                     Solde actuel
                   </FieldLabel>
-                  <InputGroup>
-                    <InputGroupInput
-                      id={`${id}-balance`}
-                      inputMode="decimal"
-                      autoComplete="off"
-                      placeholder="0,00"
-                      value={values.value}
-                      aria-invalid={shown.value !== undefined}
-                      onChange={(event) => set({ value: event.target.value })}
-                    />
-                    <InputGroupAddon align="inline-end">
-                      <InputGroupText>€</InputGroupText>
-                    </InputGroupAddon>
-                  </InputGroup>
+                  <AmountField
+                    maxCents={LARGE_AMOUNT_CENTS}
+                    id={`${id}-balance`}
+                    placeholder="0,00"
+                    value={values.value}
+                    aria-invalid={shown.value !== undefined}
+                    onValueChange={(typed) => set({ value: typed })}
+                  />
                   {shown.value ? (
                     <FieldError>{shown.value}</FieldError>
                   ) : (
@@ -570,22 +566,14 @@ export function AccountEditor({
                       <FieldLabel htmlFor={`${id}-value`}>
                         Valeur actuelle
                       </FieldLabel>
-                      <InputGroup>
-                        <InputGroupInput
-                          id={`${id}-value`}
-                          inputMode="decimal"
-                          autoComplete="off"
-                          placeholder="12 345,67"
-                          value={values.value}
-                          aria-invalid={shown.value !== undefined}
-                          onChange={(event) =>
-                            set({ value: event.target.value })
-                          }
-                        />
-                        <InputGroupAddon align="inline-end">
-                          <InputGroupText>€</InputGroupText>
-                        </InputGroupAddon>
-                      </InputGroup>
+                      <AmountField
+                        maxCents={LARGE_AMOUNT_CENTS}
+                        id={`${id}-value`}
+                        placeholder="12 345,67"
+                        value={values.value}
+                        aria-invalid={shown.value !== undefined}
+                        onValueChange={(typed) => set({ value: typed })}
+                      />
                       {shown.value && <FieldError>{shown.value}</FieldError>}
                     </Field>
                     <Field data-invalid={shown.date !== undefined}>
@@ -607,22 +595,13 @@ export function AccountEditor({
                     <FieldLabel htmlFor={`${id}-contributions`}>
                       Versements nets
                     </FieldLabel>
-                    <InputGroup>
-                      <InputGroupInput
-                        id={`${id}-contributions`}
-                        inputMode="decimal"
-                        autoComplete="off"
-                        placeholder="10 000"
-                        value={values.contributions}
-                        aria-invalid={shown.contributions !== undefined}
-                        onChange={(event) =>
-                          set({ contributions: event.target.value })
-                        }
-                      />
-                      <InputGroupAddon align="inline-end">
-                        <InputGroupText>€</InputGroupText>
-                      </InputGroupAddon>
-                    </InputGroup>
+                    <AmountField
+                      maxCents={LARGE_AMOUNT_CENTS}
+                      id={`${id}-contributions`}
+                      placeholder="10 000"
+                      aria-invalid={shown.contributions !== undefined}
+                      {...contributionsField}
+                    />
                     {shown.contributions ? (
                       <FieldError>{shown.contributions}</FieldError>
                     ) : (

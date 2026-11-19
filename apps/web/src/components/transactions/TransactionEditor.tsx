@@ -155,19 +155,21 @@ function ScreenHeader({
   onBack: () => void
 }) {
   return (
-    <div className="flex items-center gap-1">
+    // One line (#326 feedback): ‹ then the screen's title, cut if too long.
+    <div className="-ml-2 flex min-h-11 items-center gap-1">
       <Button
         type="button"
         variant="secondary"
         ghost
-        size="sm"
+        iconOnly
+        aria-label="Retour"
+        title="Retour"
         onClick={onBack}
-        className="-ml-2"
+        className="shrink-0"
       >
         <ChevronLeftIcon />
-        Retour
       </Button>
-      <h3 className="text-sm font-medium">{title}</h3>
+      <h3 className="min-w-0 truncate text-base font-semibold">{title}</h3>
     </div>
   )
 }
@@ -468,7 +470,7 @@ export function TransactionEditor({
   if (screen === 'correct' && onCorrect && onRestoreBank) {
     return (
       <div className="space-y-3">
-        <ScreenHeader title="Corriger le montant ou la date" onBack={back} />
+        <ScreenHeader title="Montant et date" onBack={back} />
         <p className="text-muted-foreground text-xs">
           Le solde du compte et les prochains imports gardent les valeurs de la
           banque.
