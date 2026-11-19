@@ -850,9 +850,10 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
             }),
           ])
 
-          const result = await service.envelopes(tx, NOW)
+          const result = await service.envelopes(undefined, tx, NOW)
           expect(result).toMatchObject({
             month: '2026-10',
+            current: true,
             today: '2026-10-13',
             dayOfMonth: 13,
             daysInMonth: 31,
@@ -891,6 +892,7 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
           tracked: true,
         })
         const result = await service.envelopes(
+          undefined,
           tx,
           new Date('2026-10-31T23:30:00Z'),
         )
@@ -908,10 +910,106 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
       })
     })
 
+    it('shows a past month as over: the whole target as pace, nothing ahead', async () => {
+      await withFixture(async ({ tx, service, checking, groceries }) => {
+        await service.upsert(groceries, '2026-09', {
+          monthlyTargetCents: 30_000,
+          tracked: true,
+        })
+        await insert(tx, [
+          transaction(checking, {
+            categoryId: groceries,
+            amountCents: -12_000,
+            bookingDate: '2026-09-03',
+          }),
+          transaction(checking, {
+            categoryId: groceries,
+            amountCents: -4_000,
+            bookingDate: '2026-09-30',
+            manual: true,
+          }),
+          // The current month: not counted in September.
+          transaction(checking, {
+            categoryId: groceries,
+            amountCents: -9_999,
+            bookingDate: '2026-10-01',
+          }),
+        ])
+        const result = await service.envelopes('2026-09', tx, NOW)
+        expect(result).toMatchObject({
+          month: '2026-09',
+          current: false,
+          today: '2026-10-13',
+          dayOfMonth: 30,
+          daysInMonth: 30,
+        })
+        expect(result.items).toEqual([
+          expect.objectContaining({
+            categoryId: groceries,
+            targetCents: 30_000,
+            spentCents: 16_000,
+            manualCents: 4_000,
+            remainingCents: 14_000,
+            paceCents: 30_000,
+            aheadOfPace: false,
+          }),
+        ])
+      })
+    })
+
+    it('marks the current month as such when asked for by name', async () => {
+      await withFixture(async ({ tx, service, groceries }) => {
+        await service.upsert(groceries, '2026-10', {
+          monthlyTargetCents: 31_000,
+          tracked: true,
+        })
+        const result = await service.envelopes('2026-10', tx, NOW)
+        expect(result).toMatchObject({
+          month: '2026-10',
+          current: true,
+          dayOfMonth: 13,
+        })
+        expect(result.items[0]).toMatchObject({ paceCents: 13_000 })
+      })
+    })
+
+    it('has nothing for a month without tracked lines nor spending', async () => {
+      await withFixture(async ({ tx, service, groceries }) => {
+        // Tracked from October on: nothing to follow in August.
+        await service.upsert(groceries, '2026-10', {
+          monthlyTargetCents: 31_000,
+          tracked: true,
+        })
+        const result = await service.envelopes('2026-08', tx, NOW)
+        expect(result).toMatchObject({
+          month: '2026-08',
+          current: false,
+          dayOfMonth: 31,
+          daysInMonth: 31,
+          items: [],
+        })
+      })
+    })
+
+    it('has not started a future month', async () => {
+      await withFixture(async ({ tx, service, groceries }) => {
+        await service.upsert(groceries, '2026-10', {
+          monthlyTargetCents: 31_000,
+          tracked: true,
+        })
+        const result = await service.envelopes('2026-11', tx, NOW)
+        expect(result).toMatchObject({ current: false, dayOfMonth: 0 })
+        expect(result.items[0]).toMatchObject({
+          paceCents: 0,
+          aheadOfPace: false,
+        })
+      })
+    })
+
     it('is empty when no line is tracked', async () => {
       await withFixture(async ({ tx, service, groceries }) => {
         await service.upsert(groceries, '2026-10', { monthlyTargetCents: 100 })
-        expect((await service.envelopes(tx, NOW)).items).toEqual([])
+        expect((await service.envelopes(undefined, tx, NOW)).items).toEqual([])
       })
     })
   })

@@ -33,6 +33,7 @@ describe('BudgetsController (HTTP)', () => {
   let cookie: string
   const service = {
     month: vi.fn(),
+    envelopes: vi.fn(),
     history: vi.fn(),
     suggest: vi.fn(),
     upsert: vi.fn(),
@@ -71,6 +72,7 @@ describe('BudgetsController (HTTP)', () => {
   beforeEach(() => {
     for (const fn of Object.values(service)) fn.mockReset()
     service.month.mockResolvedValue({ month: 'x' })
+    service.envelopes.mockResolvedValue({ items: [] })
     service.history.mockResolvedValue({ months: [] })
     service.suggest.mockResolvedValue({ items: [] })
     service.upsert.mockResolvedValue({ id: 'b' })
@@ -120,6 +122,28 @@ describe('BudgetsController (HTTP)', () => {
       const response = await request('GET', '/budgets', undefined, {})
       expect(response.statusCode).toBe(401)
     })
+  })
+
+  describe('GET /budgets/envelopes', () => {
+    it('leaves the default (current Paris) month to the service', async () => {
+      const response = await request('GET', '/budgets/envelopes')
+      expect(response.statusCode).toBe(200)
+      expect(service.envelopes).toHaveBeenCalledWith(undefined)
+    })
+
+    it('reads the month', async () => {
+      await request('GET', '/budgets/envelopes?month=2026-09')
+      expect(service.envelopes).toHaveBeenCalledWith('2026-09')
+    })
+
+    it.each([['month=2026-13'], ['month=2026-9'], ['x=1']])(
+      'rejects %s',
+      async (query) => {
+        const response = await request('GET', `/budgets/envelopes?${query}`)
+        expect(response.statusCode).toBe(400)
+        expect(service.envelopes).not.toHaveBeenCalled()
+      },
+    )
   })
 
   describe('GET /budgets/history', () => {

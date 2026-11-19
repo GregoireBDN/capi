@@ -208,7 +208,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             monthlyTargetCents: 10_000,
             tracked: true,
           })
-          const before = await budgets.envelopes(tx, NOW)
+          const before = await budgets.envelopes(undefined, tx, NOW)
           expect(before.items[0]).toMatchObject({
             spentCents: 1_250,
             manualCents: 1_250,
@@ -235,7 +235,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
           // Counted once: 12.50 € for the cinema, plus the unmatched bar row
           // that no rule files under outings.
-          const after = await budgets.envelopes(tx, NOW)
+          const after = await budgets.envelopes(undefined, tx, NOW)
           expect(after.items[0]).toMatchObject({
             spentCents: 1_250,
             manualCents: 0,

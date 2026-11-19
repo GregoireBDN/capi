@@ -79,6 +79,16 @@ export class BudgetMonthQueryDto {
   month?: string
 }
 
+export class EnvelopesQueryDto {
+  @ApiPropertyOptional({
+    ...MONTH_DOC,
+    description:
+      'Calendar month (YYYY-MM). Default: the current month in Europe/Paris.',
+  })
+  @OptionalMonth()
+  month?: string
+}
+
 export class BudgetHistoryQueryDto {
   @ApiPropertyOptional({
     type: 'integer',
@@ -495,7 +505,7 @@ export class EnvelopeDto extends BudgetCategoryFields {
   @ApiProperty({
     type: 'integer',
     description:
-      'Spent so far this month, in positive cents: imported and manual `expense` transactions of the category (refunds reduce it).',
+      'Spent during the month (so far for the current one), in positive cents: imported and manual `expense` transactions of the category (refunds reduce it).',
   })
   spentCents!: number
 
@@ -514,13 +524,14 @@ export class EnvelopeDto extends BudgetCategoryFields {
   @ApiProperty({
     type: 'integer',
     description:
-      'Share of the target matching the days elapsed: target × day / days in the month, rounded.',
+      'Share of the target matching the days elapsed: target × day / days in the month, rounded. The whole target for a past month, 0 for a future one.',
   })
   paceCents!: number
 
   @ApiProperty({
     type: Boolean,
-    description: 'Spent more than `paceCents`: ahead of the month’s pace.',
+    description:
+      'Spent more than `paceCents` during the current month: ahead of its pace. Always false for another month.',
   })
   aheadOfPace!: boolean
 
@@ -531,9 +542,17 @@ export class EnvelopeDto extends BudgetCategoryFields {
 export class EnvelopesDto {
   @ApiProperty({
     ...MONTH_DOC,
-    description: 'The current month in Europe/Paris.',
+    description:
+      'The month asked for, by default the current month in Europe/Paris.',
   })
   month!: string
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'Whether `month` is the current month in Europe/Paris: only then is the pace a day of the month and expenses noted from the envelopes.',
+  })
+  current!: boolean
 
   @ApiProperty({
     type: String,

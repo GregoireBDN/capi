@@ -4087,9 +4087,21 @@
     },
     "/api/budgets/envelopes": {
       "get": {
-        "description": "Budget lines flagged `tracked`, for the current month in Europe/Paris: spent so far (imported and manual expenses of the category), remaining, and the share of the target matching the days elapsed (`paceCents`).",
+        "description": "Budget lines flagged `tracked` for `month` (default: the current month in Europe/Paris): spent (imported and manual expenses of the category), remaining, and the share of the target matching the days elapsed (`paceCents`; the whole target for a past month, nothing ahead of it).",
         "operationId": "BudgetsController_envelopes",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "Calendar month (YYYY-MM). Default: the current month in Europe/Paris.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-11",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -4101,6 +4113,9 @@
               }
             }
           },
+          "400": {
+            "description": "Invalid month."
+          },
           "401": {
             "description": ""
           }
@@ -4110,7 +4125,7 @@
             "token": []
           }
         ],
-        "summary": "Envelopes followed during the current month",
+        "summary": "Envelopes followed during a month",
         "tags": [
           "Budgets"
         ]
@@ -4433,7 +4448,7 @@
     },
     "/api/dashboard/review": {
       "get": {
-        "description": "Net worth at the month end and its change (saved from the month’s cash flow vs the rest), income, expenses and savings rate (transfers excluded), spending vs the budget with the categories furthest above and below their target, and the accounts not updated up to the month end. Default month: the previous calendar month in Europe/Paris.",
+        "description": "Net worth at the month end and its change (saved from the month’s cash flow vs the rest), income, expenses and savings rate (transfers excluded), spending vs the budget with the categories furthest above and below their target, and the accounts not updated up to the month end. Default month (`defaultMonth`): the previous calendar month in Europe/Paris until it is closed, then the current month, which is read so far (net worth as of today).",
         "operationId": "DashboardController_review",
         "parameters": [
           {
@@ -11310,7 +11325,7 @@
           },
           "spentCents": {
             "type": "integer",
-            "description": "Spent so far this month, in positive cents: imported and manual `expense` transactions of the category (refunds reduce it)."
+            "description": "Spent during the month (so far for the current one), in positive cents: imported and manual `expense` transactions of the category (refunds reduce it)."
           },
           "manualCents": {
             "type": "integer",
@@ -11322,11 +11337,11 @@
           },
           "paceCents": {
             "type": "integer",
-            "description": "Share of the target matching the days elapsed: target × day / days in the month, rounded."
+            "description": "Share of the target matching the days elapsed: target × day / days in the month, rounded. The whole target for a past month, 0 for a future one."
           },
           "aheadOfPace": {
             "type": "boolean",
-            "description": "Spent more than `paceCents`: ahead of the month’s pace."
+            "description": "Spent more than `paceCents` during the current month: ahead of its pace. Always false for another month."
           },
           "status": {
             "description": "`ok` below 80 % of the target, `warning` from 80 % to 100 % included, `over` above 100 %.",
@@ -11359,7 +11374,11 @@
             "type": "string",
             "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
             "example": "2026-11",
-            "description": "The current month in Europe/Paris."
+            "description": "The month asked for, by default the current month in Europe/Paris."
+          },
+          "current": {
+            "type": "boolean",
+            "description": "Whether `month` is the current month in Europe/Paris: only then is the pace a day of the month and expenses noted from the envelopes."
           },
           "today": {
             "type": "string",
@@ -11384,6 +11403,7 @@
         },
         "required": [
           "month",
+          "current",
           "today",
           "dayOfMonth",
           "daysInMonth",
@@ -11989,7 +12009,8 @@
           "date": {
             "type": "string",
             "format": "date",
-            "example": "2026-10-31"
+            "example": "2026-10-31",
+            "description": "The month end; today (Europe/Paris) for the current month."
           },
           "endCents": {
             "type": "integer",
@@ -12176,6 +12197,15 @@
             "example": "2026-10",
             "description": "YYYY-MM."
           },
+          "defaultMonth": {
+            "type": "string",
+            "example": "2026-10",
+            "description": "The month shown without `month`: the previous calendar month (Europe/Paris) until it is closed, then the current month."
+          },
+          "current": {
+            "type": "boolean",
+            "description": "`month` is the current month in Europe/Paris: read so far, net worth as of today, not closable yet."
+          },
           "nextMonth": {
             "type": "string",
             "example": "2026-11",
@@ -12227,6 +12257,8 @@
         },
         "required": [
           "month",
+          "defaultMonth",
+          "current",
           "nextMonth",
           "period",
           "closed",

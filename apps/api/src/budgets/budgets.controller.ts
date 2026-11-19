@@ -39,6 +39,7 @@ import {
   BudgetSuggestionsDto,
   BudgetSuggestQueryDto,
   EnvelopesDto,
+  EnvelopesQueryDto,
   UpsertBudgetDto,
 } from './dto/budget.dto'
 import { currentParisMonth } from './months'
@@ -74,13 +75,15 @@ export class BudgetsController {
 
   @Get('envelopes')
   @ApiOperation({
-    summary: 'Envelopes followed during the current month',
+    summary: 'Envelopes followed during a month',
     description:
-      'Budget lines flagged `tracked`, for the current month in Europe/Paris: spent so far (imported and manual expenses of the category), remaining, and the share of the target matching the days elapsed (`paceCents`).',
+      'Budget lines flagged `tracked` for `month` (default: the current month in Europe/Paris): spent (imported and manual expenses of the category), remaining, and the share of the target matching the days elapsed (`paceCents`; the whole target for a past month, nothing ahead of it).',
   })
+  @ApiQuery({ type: EnvelopesQueryDto })
   @ApiOkResponse({ type: EnvelopesDto })
-  envelopes(): Promise<EnvelopesDto> {
-    return this.budgetsService.envelopes()
+  @ApiBadRequestResponse({ description: 'Invalid month.' })
+  envelopes(@Query() query: EnvelopesQueryDto): Promise<EnvelopesDto> {
+    return this.budgetsService.envelopes(query.month)
   }
 
   @Get('history')

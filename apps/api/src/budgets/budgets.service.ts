@@ -223,20 +223,29 @@ export class BudgetsService {
   }
 
   /**
-   * The envelopes of the current month in Europe/Paris: the budget lines
-   * followed during the month (`tracked`), with what was spent so far,
-   * imported and noted by hand alike, and where an even pace would be today.
-   * Not tied to the data coverage: the point is to follow the month before
-   * its statement is imported.
+   * The envelopes of `month` (default: the current month in Europe/Paris):
+   * the budget lines followed during the month (`tracked`), with what was
+   * spent, imported and noted by hand alike, and where an even pace would be
+   * today. A past month is over: its pace is the whole target
+   * (`dayOfMonth` = `daysInMonth`) and nothing is ahead of it; a future month
+   * has not started (`dayOfMonth` 0). Not tied to the data coverage: the
+   * point is to follow the month before its statement is imported.
    */
   async envelopes(
+    requested?: string,
     executor: Executor = this.db,
     now: Date = new Date(),
   ): Promise<EnvelopesDto> {
     const today = parisToday(now)
-    const month = today.slice(0, 7)
-    const dayOfMonth = Number(today.slice(8, 10))
+    const current = today.slice(0, 7)
+    const month = requested ?? current
     const daysInMonth = Number(monthEnd(month).slice(8, 10))
+    const dayOfMonth =
+      month === current
+        ? Number(today.slice(8, 10))
+        : month < current
+          ? daysInMonth
+          : 0
     // Lines: a split transaction counts in each of its categories.
     const t = transactionLinesView
     const [rows, spending, categories] = await Promise.all([
@@ -277,12 +286,20 @@ export class BudgetsService {
         manualCents: spentBy.get(categoryId)?.manualCents ?? 0,
         remainingCents: target.monthlyTargetCents - spentCents,
         paceCents: pace,
-        aheadOfPace: spentCents > pace,
+        // Only a month under way can be ahead of its pace.
+        aheadOfPace: month === current && spentCents > pace,
         status: budgetStatus(spentCents, target.monthlyTargetCents),
       })
     }
     items.sort((a, b) => a.name.localeCompare(b.name, 'fr'))
-    return { month, today, dayOfMonth, daysInMonth, items }
+    return {
+      month,
+      current: month === current,
+      today,
+      dayOfMonth,
+      daysInMonth,
+      items,
+    }
   }
 
   /**

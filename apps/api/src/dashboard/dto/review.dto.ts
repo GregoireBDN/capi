@@ -30,7 +30,12 @@ export class MonthReviewQueryDto {
 }
 
 export class ReviewNetWorthDto {
-  @ApiProperty({ type: String, format: 'date', example: '2026-10-31' })
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    example: '2026-10-31',
+    description: 'The month end; today (Europe/Paris) for the current month.',
+  })
   date!: string
 
   @ApiProperty({
@@ -171,6 +176,21 @@ export class ReviewMissingAccountDto {
 export class MonthReviewDto {
   @ApiProperty({ type: String, example: '2026-10', description: 'YYYY-MM.' })
   month!: string
+
+  @ApiProperty({
+    type: String,
+    example: '2026-10',
+    description:
+      'The month shown without `month`: the previous calendar month (Europe/Paris) until it is closed, then the current month.',
+  })
+  defaultMonth!: string
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      '`month` is the current month in Europe/Paris: read so far, net worth as of today, not closable yet.',
+  })
+  current!: boolean
 
   @ApiProperty({
     type: String,

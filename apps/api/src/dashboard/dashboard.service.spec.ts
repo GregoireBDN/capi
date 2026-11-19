@@ -626,6 +626,70 @@ describe.skipIf(!process.env.DATABASE_URL)(
         })
       })
 
+      it('opens on the previous month until it is closed, then on the current one', async () => {
+        await inRollback(async ({ tx, dashboard }) => {
+          const before = await dashboard.review(undefined, { now: NOW })
+          expect(before).toMatchObject({
+            month: '2026-10',
+            defaultMonth: '2026-10',
+            current: false,
+            netWorth: { date: '2026-10-31' },
+          })
+          await tx.insert(monthClosesTable).values({
+            month: '2026-10',
+            closedAt: new Date('2026-11-03T09:00:00Z'),
+            report: {} as never,
+          })
+          const after = await dashboard.review(undefined, { now: NOW })
+          expect(after).toMatchObject({
+            month: '2026-11',
+            defaultMonth: '2026-11',
+            current: true,
+          })
+          // A month asked for by name keeps the default it would have.
+          const october = await dashboard.review('2026-10', { now: NOW })
+          expect(october).toMatchObject({
+            month: '2026-10',
+            defaultMonth: '2026-11',
+            current: false,
+          })
+        })
+      })
+
+      it('reads the current month so far: its net worth as of today', async () => {
+        await inRollback(async ({ tx, accounts, dashboard }) => {
+          const checking = await accounts.create({
+            name: 'Test checking',
+            type: 'checking',
+          })
+          await tx.insert(transactionsTable).values([
+            transaction(checking.id, {
+              bookingDate: '2026-10-20',
+              amountCents: 100_000,
+              kind: 'income',
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-11-02',
+              amountCents: -2_500,
+            }),
+          ])
+          const review = await dashboard.review('2026-11', { now: NOW })
+          expect(review).toMatchObject({
+            month: '2026-11',
+            current: true,
+            closed: false,
+            netWorth: {
+              date: '2026-11-05',
+              endCents: 97_500,
+              previousDate: '2026-10-31',
+              previousEndCents: 100_000,
+              changeCents: -2_500,
+            },
+            flow: { expenseCents: -2_500 },
+          })
+        })
+      })
+
       it('reviews a closed month against its budget, split into saved and the rest', async () => {
         await inRollback(async ({ tx, accounts, dashboard }) => {
           const { groceries, leisure } = await expenseCategories(tx)

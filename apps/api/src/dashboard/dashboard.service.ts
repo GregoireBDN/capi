@@ -230,8 +230,27 @@ export class DashboardService {
   }
 
   /**
-   * Review of a month, by default the previous calendar month (Europe/Paris):
-   * the net worth at its end and how it moved (saved from the month's cash
+   * The month the dashboard opens on (#321): the previous calendar month
+   * (Europe/Paris) while it is not closed in « Revue du mois », then the
+   * current month.
+   */
+  async defaultReviewMonth(
+    now: Date = new Date(),
+    executor: Executor = this.db,
+  ): Promise<string> {
+    const current = currentMonth(now)
+    const previous = shiftMonth(current, -1)
+    const [close] = await executor
+      .select({ closedAt: schema.monthClosesTable.closedAt })
+      .from(schema.monthClosesTable)
+      .where(eq(schema.monthClosesTable.month, previous))
+      .limit(1)
+    return close?.closedAt ? current : previous
+  }
+
+  /**
+   * Review of a month, by default `defaultReviewMonth` (the previous month
+   * until it is closed, then the current one): the net worth at its end and how it moved (saved from the month's cash
    * flow vs the rest: investments and anything not booked as income or
    * expense), its income and expenses, its spending against the budget, and
    * the accounts not updated up to its end. Transfers between the user's own
@@ -244,14 +263,20 @@ export class DashboardService {
       executor = this.db,
     }: { now?: Date; executor?: Executor } = {},
   ): Promise<MonthReviewDto> {
-    const shown = month ?? shiftMonth(currentMonth(now), -1)
+    const defaultMonth = await this.defaultReviewMonth(now, executor)
+    const shown = month ?? defaultMonth
+    const today = parisToday(now)
+    // The current month (#321) is read so far: its net worth as of today.
+    const current = shown === currentMonth(now)
+    const open = shown >= currentMonth(now)
     const end = monthEnd(shown)
+    const netWorthDate = open && today < end ? today : end
     const previousEnd = monthEnd(shiftMonth(shown, -1))
     const [
       period,
       endAccounts,
       previousAccounts,
-      current,
+      flow,
       budget,
       coverage,
       imports,
@@ -260,7 +285,7 @@ export class DashboardService {
       monthClose,
     ] = await Promise.all([
       resolvePeriod(executor, shown, { now }),
-      this.accounts.list({ asOf: end }, executor),
+      this.accounts.list({ asOf: netWorthDate }, executor),
       this.accounts.list({ asOf: previousEnd }, executor),
       this.monthFlow(shown, end, executor),
       this.budgets.month(shown, executor, now),
@@ -318,22 +343,23 @@ export class DashboardService {
 
     return {
       month: shown,
+      defaultMonth,
+      current,
       nextMonth: shiftMonth(shown, 1),
       period,
       closed: period.status === 'complete' && missing.length === 0,
       closedAt: monthClose[0]?.closedAt?.toISOString() ?? null,
       nextMonthBudgeted,
       netWorth: {
-        date: end,
+        date: netWorthDate,
         endCents,
         previousDate: previousEnd,
         previousEndCents,
         changeCents,
-        savedCents: current.netCents,
-        otherCents:
-          changeCents === null ? null : changeCents - current.netCents,
+        savedCents: flow.netCents,
+        otherCents: changeCents === null ? null : changeCents - flow.netCents,
       },
-      flow: current,
+      flow,
       budget: {
         budgetCount: budget.totals.budgetCount,
         targetCents: budget.totals.targetCents,
