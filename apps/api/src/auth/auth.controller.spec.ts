@@ -12,6 +12,7 @@ import type { AuthService } from './auth.service'
  */
 
 const authService = {
+  getUser: vi.fn(),
   isRegistrationOpen: vi.fn(),
   register: vi.fn(),
   rotateRefreshToken: vi.fn(),
@@ -169,5 +170,16 @@ describe('AuthController session cookies', () => {
       expect.objectContaining({ path: '/api/auth' }),
     )
     expect(reply.header).toHaveBeenCalledWith('Clear-Site-Data', '"cache"')
+  })
+})
+
+describe('AuthController me', () => {
+  it('answers 401 when the token outlives its user', async () => {
+    authService.getUser.mockResolvedValue(undefined)
+    const controller = new AuthController(authService as unknown as AuthService)
+    const req = { user: { sub: 'gone' } } as unknown as FastifyRequest
+    await expect(controller.me(req)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    )
   })
 })

@@ -36,6 +36,7 @@ import {
   todayInParis,
 } from '#/recurring/dates'
 import { RecurringService } from '#/recurring/recurring.service'
+import { MEAL_VOUCHER_DAILY_CAP_CENTS } from '#/transactions/manual-transactions.service'
 import { MONTHLY_TARGET_KEY } from '#/savings/savings.service'
 
 /**
@@ -73,6 +74,27 @@ export const DATA_LAG_DAYS = 10
 export const CHECKING_OPENING_CENTS = 245_000
 
 const PRNG_SEED = 0x5eed_2026
+/** Own sequence for the meal-voucher card, so the bank data stays the same. */
+const MEAL_VOUCHER_SEED = 0x7e57_0298
+/** Face value of one titre-restaurant (one per working day). */
+const MEAL_VOUCHER_FACE_CENTS = 900
+const MEAL_VOUCHER_CREDIT_LABEL = 'Crédit titres-restaurant'
+const MEAL_VOUCHER_SHOPS = [
+  {
+    label: 'Brasserie du Marché',
+    slug: 'restaurants_cafes',
+    min: 1_100,
+    max: 2_400,
+  },
+  {
+    label: 'Boulangerie Démo',
+    slug: 'restaurants_cafes',
+    min: 650,
+    max: 1_200,
+  },
+  { label: 'Sushi Démo', slug: 'restaurants_cafes', min: 1_400, max: 2_200 },
+  { label: 'Supérette Démo', slug: 'groceries', min: 900, max: 2_500 },
+] as const
 const CARD = 'CARTE 4242'
 
 export interface DemoOptions {
@@ -167,6 +189,71 @@ function dayIn(month: string, day: number): string {
 
 function lastDayOf(month: string): string {
   return dayIn(month, 31)
+}
+
+/** Monday to Friday days of a month (one titre-restaurant each). */
+function workingDays(month: string): number {
+  const [y, m] = month.split('-').map(Number)
+  let count = 0
+  for (let d = 1; d <= daysInMonth(y, m); d++) {
+    const weekDay = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
+    if (weekDay !== 0 && weekDay !== 6) count++
+  }
+  return count
+}
+
+/**
+ * The meal-voucher card (#298), entered by hand: the employer's credit on
+ * the 2nd of each month (income), payments at restaurants and food shops
+ * (expenses in their own categories) up to yesterday, never below zero nor
+ * over the daily cap.
+ */
+function mealVoucherRows(
+  months: readonly string[],
+  yesterday: string,
+): {
+  bookingDate: string
+  amountCents: number
+  label: string
+  slug: string
+}[] {
+  const random = createRandom(MEAL_VOUCHER_SEED)
+  const rows: ReturnType<typeof mealVoucherRows> = []
+  let balance = 0
+  for (const month of months) {
+    const creditDay = dayIn(month, 2)
+    if (creditDay > yesterday) break
+    const creditCents = workingDays(month) * MEAL_VOUCHER_FACE_CENTS
+    rows.push({
+      bookingDate: creditDay,
+      amountCents: creditCents,
+      label: MEAL_VOUCHER_CREDIT_LABEL,
+      slug: 'meal_vouchers',
+    })
+    balance += creditCents
+    const payments = random.int(14, 17)
+    const days = Array.from({ length: payments }, () => random.int(3, 28))
+      .map((day) => dayIn(month, day))
+      .filter((day) => day <= yesterday)
+      .sort()
+    const paidByDay = new Map<string, number>()
+    for (const day of days) {
+      const shop = random.pick(MEAL_VOUCHER_SHOPS)
+      const cents = random.int(shop.min, shop.max)
+      const paid = paidByDay.get(day) ?? 0
+      if (cents > balance || paid + cents > MEAL_VOUCHER_DAILY_CAP_CENTS)
+        continue
+      paidByDay.set(day, paid + cents)
+      balance -= cents
+      rows.push({
+        bookingDate: day,
+        amountCents: -cents,
+        label: shop.label,
+        slug: shop.slug,
+      })
+    }
+  }
+  return rows
 }
 
 /** `DDMM` of a card label. */
@@ -646,10 +733,23 @@ export async function generateDemoData(
         cryptoSource: 'manual',
         position: 5,
       },
+      {
+        name: 'Titres-restaurant',
+        type: 'meal_voucher',
+        institution: 'Carte Démo',
+        position: 6,
+      },
     ])
     .returning()
-  const [checking, livret, pea, lifeInsurance, employeeSavings, crypto] =
-    accountRows
+  const [
+    checking,
+    livret,
+    pea,
+    lifeInsurance,
+    employeeSavings,
+    crypto,
+    mealVoucher,
+  ] = accountRows
 
   // Rules, in order.
   const rules: SelectCategorizationRule[] = await db
@@ -816,6 +916,28 @@ export async function generateDemoData(
     manual: true,
     dedupeHash: `manual:${createHash('sha256').update(`demo-manual-${manualDate}`).digest('hex').slice(0, 32)}`,
   })
+
+  // The meal-voucher card, every row entered by hand (#298).
+  const voucherRows = mealVoucherRows(monthList, addDays(today, -1))
+  if (voucherRows.length > 0) {
+    await db.insert(transactionsTable).values(
+      voucherRows.map((row, i) => {
+        const filed = category(row.slug)
+        return {
+          accountId: mealVoucher.id,
+          bookingDate: row.bookingDate,
+          valueDate: row.bookingDate,
+          amountCents: row.amountCents,
+          rawLabel: row.label,
+          merchant: row.label,
+          kind: filed.kind,
+          categoryId: filed.id,
+          manual: true,
+          dedupeHash: `manual:${createHash('sha256').update(`demo-voucher-${i}-${row.bookingDate}`).digest('hex').slice(0, 32)}`,
+        }
+      }),
+    )
+  }
 
   // Investment values: one snapshot per month end, contributions alongside.
   let snapshotCount = 0
@@ -1013,6 +1135,7 @@ export async function generateDemoData(
     'insurance',
     'salary',
     'energy',
+    'meal_vouchers',
   ]
   await db
     .update(recurringItemsTable)
@@ -1054,8 +1177,8 @@ export async function generateDemoData(
     dataUntil,
     counts: {
       accounts: accountRows.length,
-      transactions: transactionCount + 1,
-      manualTransactions: 1,
+      transactions: transactionCount + 1 + voucherRows.length,
+      manualTransactions: 1 + voucherRows.length,
       reviewQueue: reviewCount,
       splits: splitCount,
       imports: importCount,

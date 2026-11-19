@@ -19,6 +19,7 @@ const api = vi.hoisted(() => ({
   transactionsControllerUpdateManual: vi.fn(),
   transactionsControllerRemoveManual: vi.fn(),
   transactionsControllerManualSuggestions: vi.fn(),
+  transactionsControllerList: vi.fn(),
   accountsControllerList: vi.fn(),
   categoriesControllerList: vi.fn(),
 }))
@@ -693,5 +694,162 @@ describe('ManualTransactionSheet (editing)', () => {
       }),
     )
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+  })
+})
+
+describe('ManualTransactionSheet with a meal-voucher card (#298)', () => {
+  const VOUCHER = 'a0000000-0000-4000-8000-000000000004'
+  const RESTAURANTS = 'c0000000-0000-4000-8000-000000000005'
+  const VOUCHERS = 'c0000000-0000-4000-8000-000000000006'
+  const withSlug = (
+    id: string,
+    slug: string,
+    name: string,
+    kind: CategoryDto['kind'],
+  ) => ({
+    ...category(id, name, kind),
+    slug,
+  })
+  const voucherCategories = [
+    withSlug(
+      RESTAURANTS,
+      'restaurants_cafes',
+      'Restaurants & cafés',
+      'expense',
+    ),
+    withSlug(OUTINGS, 'leisure', 'Sorties', 'expense'),
+    withSlug(VOUCHERS, 'meal_vouchers', 'Titres-restaurant', 'income'),
+  ]
+
+  function renderSheet(props: {
+    initialCategoryId?: string
+    initialKind?: 'expense' | 'income'
+  }) {
+    api.accountsControllerList.mockImplementation(() =>
+      ok([...accounts, account(VOUCHER, 'Titres-restaurant', 'meal_voucher')]),
+    )
+    api.categoriesControllerList.mockImplementation(() => ok(voucherCategories))
+    api.transactionsControllerCreateManual.mockImplementation(() =>
+      ok({ amountCents: -980, category: voucherCategories[0] }),
+    )
+    // 15 € already paid with the card today: 10 € left under the cap.
+    api.transactionsControllerList.mockImplementation(() =>
+      ok({
+        items: [{ id: 'p1', amountCents: -1_500 }],
+        total: 1,
+        page: 1,
+        limit: 100,
+      }),
+    )
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ManualTransactionSheet open onOpenChange={vi.fn()} {...props} />
+      </QueryClientProvider>,
+    )
+  }
+
+  it('offers « Payé avec » for a restaurant, the bank account by default', async () => {
+    const user = userEvent.setup()
+    renderSheet({ initialCategoryId: RESTAURANTS })
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText('Montant'), '9,80')
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+
+    const paidWith = await within(dialog).findByRole('group', {
+      name: 'Payé avec',
+    })
+    await waitFor(() =>
+      expect(
+        within(paidWith).getByRole('radio', { name: 'Compte courant' }),
+      ).toHaveAttribute('aria-checked', 'true'),
+    )
+    await user.click(
+      within(paidWith).getByRole('radio', { name: 'Titres-restaurant' }),
+    )
+    // The day's gauge under the choice: 15 € paid, 9,80 € now, 0,20 € left.
+    expect(
+      await within(dialog).findByText(/Plafond 25 € · aujourd’hui/),
+    ).toBeInTheDocument()
+    expect(within(dialog).getByText(/Reste 0,20 €/)).toBeInTheDocument()
+    expect(api.transactionsControllerList).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.objectContaining({
+          accountId: VOUCHER,
+          from: '2026-11-13',
+          to: '2026-11-13',
+          kind: 'expense',
+        }),
+      }),
+    )
+    // Over what is left: the most it can pay, « Ajouter » greyed out.
+    await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
+    await user.clear(within(dialog).getByLabelText('Montant'))
+    await user.type(within(dialog).getByLabelText('Montant'), '10,01')
+    expect(within(dialog).getByText(/10 € max/)).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+    expect(within(dialog).getByText(/10 € max/)).toBeInTheDocument()
+    expect(
+      within(dialog).getByRole('button', { name: 'Ajouter' }),
+    ).toBeDisabled()
+    await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
+    await user.clear(within(dialog).getByLabelText('Montant'))
+    await user.type(within(dialog).getByLabelText('Montant'), '9,80')
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
+    await waitFor(() =>
+      expect(api.transactionsControllerCreateManual).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            amountCents: 980,
+            kind: 'expense',
+            categoryId: RESTAURANTS,
+            accountId: VOUCHER,
+          }),
+        }),
+      ),
+    )
+  })
+
+  it('puts the credit on the card at once, the choice in view while it stays chosen', async () => {
+    const user = userEvent.setup()
+    renderSheet({ initialKind: 'income' })
+    const dialog = await screen.findByRole('dialog')
+    await user.click(
+      await within(dialog).findByRole('radio', { name: 'Titres-restaurant' }),
+    )
+    await user.type(within(dialog).getByLabelText('Montant'), '189')
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+    const creditedTo = await within(dialog).findByRole('group', {
+      name: 'Crédité sur',
+    })
+    expect(
+      within(creditedTo).getByRole('radio', { name: 'Titres-restaurant' }),
+    ).toHaveAttribute('aria-checked', 'true')
+    await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
+    await waitFor(() =>
+      expect(api.transactionsControllerCreateManual).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            amountCents: 18_900,
+            kind: 'income',
+            categoryId: VOUCHERS,
+            accountId: VOUCHER,
+          }),
+        }),
+      ),
+    )
+
+    // An expense outside food on the card still shows where it goes.
+    await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
+    await user.click(within(dialog).getByRole('radio', { name: 'Dépense' }))
+    await user.click(within(dialog).getByRole('radio', { name: 'Sorties' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+    expect(
+      within(dialog).queryByRole('group', { name: 'Payé avec' }),
+    ).toBeInTheDocument()
   })
 })

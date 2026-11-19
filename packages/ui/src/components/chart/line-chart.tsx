@@ -62,6 +62,12 @@ type AreaChartProps<TDatum extends ChartDatum> = CartesianChartProps<TDatum> &
   TimeSeriesChartProps & {
     /** Stacks the areas (part-to-whole over time). Default: overlapping. */
     stacked?: boolean
+    /**
+     * Series drawn as dots only, without line or fill: sparse values over a
+     * continuous series (e.g. statement balances on a daily balance). Their
+     * rows are null on the other days. Never stacked.
+     */
+    dotSeries?: ReadonlyArray<string>
   }
 
 /* ============================================================================
@@ -71,6 +77,12 @@ type AreaChartProps<TDatum extends ChartDatum> = CartesianChartProps<TDatum> &
 const LINE_WIDTH = 2
 /** Active marker: r=4 (8px) with a 2px ring in the surface colour. */
 const ACTIVE_DOT = {
+  r: 4,
+  strokeWidth: 2,
+  stroke: 'var(--chart-surface)',
+} as const
+/** Points of a dots-only series: as large as the active marker. */
+const SERIES_DOT = {
   r: 4,
   strokeWidth: 2,
   stroke: 'var(--chart-surface)',
@@ -359,6 +371,7 @@ function AreaChart<TDatum extends ChartDatum>(props: AreaChartProps<TDatum>) {
     index,
     config,
     stacked = false,
+    dotSeries = [],
     referenceLines,
     indexScale,
     indexReferenceLines,
@@ -441,22 +454,37 @@ function AreaChart<TDatum extends ChartDatum>(props: AreaChartProps<TDatum>) {
         ) : null}
         {referenceLineElements(referenceLines)}
         {indexReferenceLineElements(indexReferenceLines, indexAxis.position)}
-        {keys.map((key) => (
-          <Area
-            key={key}
-            type="monotone"
-            dataKey={key}
-            name={config[key]?.label}
-            stroke={chartSeriesColor(key)}
-            strokeWidth={LINE_WIDTH}
-            fill={chartSeriesColor(key)}
-            fillOpacity={AREA_FILL_OPACITY}
-            stackId={stacked ? 'stack' : undefined}
-            dot={false}
-            activeDot={{ ...ACTIVE_DOT, fill: chartSeriesColor(key) }}
-            connectNulls
-          />
-        ))}
+        {keys.map((key) =>
+          dotSeries.includes(key) ? (
+            <Area
+              key={key}
+              type="linear"
+              dataKey={key}
+              name={config[key]?.label}
+              stroke="none"
+              fill="none"
+              dot={{ ...SERIES_DOT, fill: chartSeriesColor(key) }}
+              activeDot={{ ...ACTIVE_DOT, fill: chartSeriesColor(key) }}
+              connectNulls={false}
+              isAnimationActive={false}
+            />
+          ) : (
+            <Area
+              key={key}
+              type="monotone"
+              dataKey={key}
+              name={config[key]?.label}
+              stroke={chartSeriesColor(key)}
+              strokeWidth={LINE_WIDTH}
+              fill={chartSeriesColor(key)}
+              fillOpacity={AREA_FILL_OPACITY}
+              stackId={stacked ? 'stack' : undefined}
+              dot={false}
+              activeDot={{ ...ACTIVE_DOT, fill: chartSeriesColor(key) }}
+              connectNulls
+            />
+          ),
+        )}
       </RechartsAreaChart>
     </ChartContainer>
   )

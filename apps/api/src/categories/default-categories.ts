@@ -177,6 +177,18 @@ export const DEFAULT_CATEGORIES = [
     color: '#16a34a',
     icon: 'hand-heart',
   },
+  /**
+   * Meal vouchers credited by the employer on the « Titres-restaurant »
+   * card (#298): income of the `meal_voucher` account, whose payments are
+   * expenses in their real category (restaurants, groceries).
+   */
+  {
+    slug: 'meal_vouchers',
+    name: 'Titres-restaurant',
+    kind: 'income',
+    color: '#0f766e',
+    icon: 'utensils',
+  },
   /** Public benefits, e.g. housing benefit (APL). */
   {
     slug: 'benefits',

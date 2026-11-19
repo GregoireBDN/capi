@@ -60,8 +60,12 @@ export interface TransactionRowActions {
 interface TransactionRowProps extends TransactionRowActions {
   item: TransactionDto
   categories: readonly CategoryDto[]
-  selected: boolean
-  onSelectedChange: (selected: boolean) => void
+  selected?: boolean
+  /**
+   * Selects the row (its category icon is a checkbox); without it the row
+   * cannot be selected (a short list with no bulk actions).
+   */
+  onSelectedChange?: (selected: boolean) => void
   /** Show the date in the row (lists not grouped by day). */
   showDate?: boolean
   /** Show the account (more than one open account, list not filtered to one). */
@@ -176,7 +180,7 @@ function InlineAmount({
 export function TransactionRow({
   item,
   categories,
-  selected,
+  selected = false,
   onSelectedChange,
   onChange,
   onUpdateManual,
@@ -218,14 +222,15 @@ export function TransactionRow({
       className="hover:bg-muted/50 focus-visible:ring-ring/50 min-w-0 flex-1 rounded-lg px-1.5 py-1.5 text-left outline-none focus-visible:ring-[3px]"
       onClick={() => setOpen(true)}
     >
-      <span className="flex min-w-0 items-start justify-between gap-3">
-        <span className="line-clamp-2 min-w-0 text-sm font-medium break-words @xl:line-clamp-1 @xl:break-all">
+      {/* The amount goes under the label when both don't fit (320px). */}
+      <span className="flex min-w-0 flex-wrap items-start justify-between gap-x-3">
+        <span className="line-clamp-2 min-w-[7rem] flex-1 text-sm font-medium break-words @xl:line-clamp-1 @xl:min-w-0 @xl:break-all">
           {name}
         </span>
         <Amount
           cents={item.amountCents}
           transfer={transfer}
-          className="text-sm @xl:hidden"
+          className="ml-auto text-sm @xl:hidden"
         />
       </span>
       <span className="text-muted-foreground mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs empty:hidden">
@@ -267,6 +272,21 @@ export function TransactionRow({
     </button>
   )
 
+  const avatar = (
+    <CategoryAvatar
+      category={
+        item.splits.length > 0
+          ? 'split'
+          : item.category && {
+              color: item.category.color,
+              icon: item.category.icon,
+            }
+      }
+      selected={selected}
+      review={item.needsReview}
+    />
+  )
+
   const editor = (
     <TransactionEditor
       item={item}
@@ -305,28 +325,23 @@ export function TransactionRow({
       data-selected={selected || undefined}
       aria-label={name}
     >
-      <button
-        type="button"
-        role="checkbox"
-        aria-checked={selected}
-        aria-label={`Sélectionner ${name}`}
-        title={selected ? 'Désélectionner' : 'Sélectionner'}
-        onClick={() => onSelectedChange(!selected)}
-        className="focus-visible:ring-ring/50 relative flex size-8 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-[3px]"
-      >
-        <CategoryAvatar
-          category={
-            item.splits.length > 0
-              ? 'split'
-              : item.category && {
-                  color: item.category.color,
-                  icon: item.category.icon,
-                }
-          }
-          selected={selected}
-          review={item.needsReview}
-        />
-      </button>
+      {onSelectedChange ? (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={selected}
+          aria-label={`Sélectionner ${name}`}
+          title={selected ? 'Désélectionner' : 'Sélectionner'}
+          onClick={() => onSelectedChange(!selected)}
+          className="focus-visible:ring-ring/50 relative flex size-8 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-[3px]"
+        >
+          {avatar}
+        </button>
+      ) : (
+        <span className="flex size-8 shrink-0 items-center justify-center">
+          {avatar}
+        </span>
+      )}
       {triggerButton}
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent

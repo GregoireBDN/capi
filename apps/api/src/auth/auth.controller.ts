@@ -57,9 +57,13 @@ export class AuthController {
   @UseGuards(JwtGuard)
   @ApiCookieAuth('token')
   @ApiOkResponse({ type: UserDto })
-  me(@Req() req: FastifyRequest) {
+  async me(@Req() req: FastifyRequest) {
     const { sub } = (req as FastifyRequest & { user: { sub: string } }).user
-    return this.authService.getUser(sub)
+    const user = await this.authService.getUser(sub)
+    // A token outliving its user (deleted account, reset database) is a
+    // signed-out session: 401, never an empty 200 the web cannot read.
+    if (!user) throw new UnauthorizedException()
+    return user
   }
 
   /**

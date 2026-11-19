@@ -4,13 +4,37 @@ import { PencilIcon, PlusIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PageHeader } from './PageHeader'
-import { PageActionsSlotProvider, useSetPageActionsSlot } from './page-actions'
+import {
+  PageActionsSlotProvider,
+  useSetPageActionsSlot,
+  useSetPageBackSlot,
+} from './page-actions'
 import type { PageAction } from './page-actions'
 
-/** Emulates a phone (below md) for `useIsMobile`. */
-function emulatePhone() {
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    to,
+    children,
+    ...props
+  }: {
+    to: string
+    children: ReactNode
+    params?: unknown
+    search?: unknown
+  }) => {
+    const { params: _params, search: _search, ...rest } = props
+    return (
+      <a href={to} {...rest}>
+        {children}
+      </a>
+    )
+  },
+}))
+
+/** Emulates a phone (below md) for `useIsMobile`, or a wide screen. */
+function emulatePhone(phone = true) {
   vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
-    matches: query.includes('max-width'),
+    matches: phone && query.includes('max-width'),
     media: query,
     onchange: null,
     addEventListener: vi.fn(),
@@ -24,7 +48,13 @@ function emulatePhone() {
 /** The authenticated shell's top bar slot, as `AppTopBar` registers it. */
 function TopBarSlot() {
   const setSlot = useSetPageActionsSlot()
-  return <header aria-label="Barre du haut" ref={setSlot} />
+  const setBackSlot = useSetPageBackSlot()
+  return (
+    <header aria-label="Barre du haut">
+      <nav aria-label="Retour" ref={setBackSlot} />
+      <div data-testid="top-bar-actions" ref={setSlot} />
+    </header>
+  )
 }
 
 function renderInShell(children: ReactNode) {
@@ -36,7 +66,8 @@ function renderInShell(children: ReactNode) {
   )
 }
 
-const topBar = () => screen.getByRole('banner', { name: 'Barre du haut' })
+const topBar = () => screen.getByTestId('top-bar-actions')
+const topBarBack = () => screen.getByRole('navigation', { name: 'Retour' })
 const page = () => screen.getByRole('main')
 
 function actions(onAdd = vi.fn(), onEdit = vi.fn()): PageAction[] {
@@ -123,5 +154,25 @@ describe('PageHeader', () => {
     expect(
       screen.getByRole('button', { name: 'Ajouter une opération' }),
     ).toBeInTheDocument()
+  })
+
+  it('puts the way back above the title from md up, in the top bar on phones (#293)', () => {
+    const back = { label: 'Comptes', to: '/accounts' } as const
+    emulatePhone(false)
+    const { unmount } = renderInShell(
+      <PageHeader title="Compte courant" back={back} />,
+    )
+    expect(
+      within(page()).getByRole('link', { name: 'Comptes' }),
+    ).toHaveAttribute('href', '/accounts')
+    expect(topBarBack()).toBeEmptyDOMElement()
+    unmount()
+
+    emulatePhone()
+    renderInShell(<PageHeader title="Compte courant" back={back} />)
+    expect(
+      within(topBarBack()).getByRole('link', { name: 'Comptes' }),
+    ).toHaveAttribute('href', '/accounts')
+    expect(within(page()).queryByRole('link')).toBeNull()
   })
 })

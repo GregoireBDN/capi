@@ -10,15 +10,13 @@ import {
   EmptyHeader,
   EmptyTitle,
   Skeleton,
-  StatCard,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import {
-  ArrowLeftIcon,
-  ArrowLeftRightIcon,
   ClipboardPasteIcon,
   ClockAlertIcon,
+  FileUpIcon,
   PencilIcon,
   PencilLineIcon,
   PlusIcon,
@@ -26,6 +24,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import type { AccountDto, SnapshotDto } from '#/api/types.gen'
+import { PageBack } from '#/components/app-shell/PageBack'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import type { PageAction } from '#/components/app-shell/page-actions'
 import { CryptoSourceCard } from '#/components/crypto/CryptoSourceCard'
@@ -34,13 +33,14 @@ import {
   useWalletRefresh,
   WalletAccount,
 } from '#/components/crypto/WalletAccount'
-import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
-import { formatCalendarDate } from '#/lib/money'
+import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
 import { ApiRequestError } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import { AccountEditor } from './AccountEditor'
+import { CashAccount } from './CashAccount'
 import { todayInParis } from './dates'
 import { isInvestmentType, valueAgeText } from './labels'
+import { MealVoucherAccount } from './MealVoucherAccount'
 import { PasteHistorySheet } from './PasteHistorySheet'
 import { PerformanceTiles } from './PerformanceTiles'
 import { accountQuery, performanceQuery } from './queries'
@@ -60,16 +60,11 @@ function PageSkeleton() {
   )
 }
 
+/** The way back to « Comptes » (top bar on phones, chip from md up). */
+const BACK = { label: 'Comptes', to: ROUTES.accounts } as const
+
 function BackLink() {
-  return (
-    <Link
-      to={ROUTES.accounts}
-      className="text-muted-foreground hover:text-foreground relative inline-flex items-center gap-1 text-sm pointer-coarse:touch-hitbox"
-    >
-      <ArrowLeftIcon aria-hidden className="size-4" />
-      Comptes
-    </Link>
-  )
+  return <PageBack {...BACK} />
 }
 
 function AccountHeader({
@@ -77,17 +72,14 @@ function AccountHeader({
   actions = [],
 }: {
   account: AccountDto
-  /** Page actions before « Modifier » (a wallet's « Actualiser »). */
+  /** Page actions before « Modifier » (import, add, update the value…). */
   actions?: PageAction[]
 }) {
   const [editing, setEditing] = useState(false)
-  const kind = [ACCOUNT_TYPE_LABELS[account.type], account.institution]
-    .filter(Boolean)
-    .join(' · ')
   return (
-    <div className="space-y-1">
-      <BackLink />
+    <>
       <PageHeader
+        back={BACK}
         title={account.name}
         titleAddon={
           account.archivedAt && (
@@ -96,7 +88,7 @@ function AccountHeader({
             </Badge>
           )
         }
-        description={kind}
+        description={account.institution ?? undefined}
         actions={[
           ...actions,
           {
@@ -111,23 +103,27 @@ function AccountHeader({
         onOpenChange={setEditing}
         account={account}
       />
-    </div>
+    </>
   )
 }
 
 /**
- * One account: its value and performance from its dated snapshots (statement
- * values of investment accounts), the history chart and the snapshots
- * themselves, added one by one or pasted from a statement history. Checking
- * and savings accounts show their current balance and their statement
- * balances, and link to their transactions. Crypto accounts also list their
- * holdings, valued every day at the last known prices.
+ * One account, under one header (name, institution, archived badge) whose
+ * page actions are the account's main ones. Investment accounts: their value
+ * and performance from their dated snapshots (statement values), the history
+ * chart and the snapshots themselves, added one by one or pasted from a
+ * statement history; crypto accounts also list their holdings, valued every
+ * day at the last known prices. Checking and savings accounts: their balance
+ * and its freshness, its evolution, their latest transactions, imports and
+ * recurring debits (`CashAccount`, #293).
  */
 export function AccountDetailPage({ accountId }: { accountId: string }) {
   const account = useQuery(accountQuery(accountId))
   const performance = useQuery(performanceQuery(accountId))
   const [editor, setEditor] = useState<EditorState>({ open: false })
   const [pasteOpen, setPasteOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
+  const navigate = useNavigate()
   const today = todayInParis()
   const walletRefresh = useWalletRefresh(accountId)
 
@@ -187,9 +183,19 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
   const writable = current.archivedAt === null
   // A wallet: one value, one refresh, its keys and tokens (#269).
   const wallet = crypto && current.cryptoSource === 'wallet'
+  // A meal-voucher card: entered by hand, its entries first (#298).
+  const mealVoucher = current.type === 'meal_voucher'
   const openAdd = () => setEditor({ open: true })
-  const headerActions: PageAction[] =
-    wallet && writable
+  const openImport = () =>
+    void navigate({ to: ROUTES.import, search: { account: current.id } })
+  const paste = (label: string): PageAction => ({
+    label,
+    icon: <ClipboardPasteIcon />,
+    onSelect: () => setPasteOpen(true),
+  })
+  const headerActions: PageAction[] = !writable
+    ? []
+    : wallet
       ? [
           {
             label: 'Actualiser',
@@ -200,43 +206,38 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
             onSelect: walletRefresh.refresh,
           },
         ]
-      : []
-
-  // Crypto: holdings are added in their own panel and today's value is
-  // computed from them; only older values (before tracking) can be pasted.
-  const actions = writable && crypto && (
-    <Button
-      outline
-      variant="secondary"
-      iconStart={<ClipboardPasteIcon />}
-      onClick={() => setPasteOpen(true)}
-    >
-      Coller un historique de valeurs
-    </Button>
-  )
-  const valueActions = writable && !crypto && (
-    <div className="grid grid-cols-2 gap-2 @2xl:flex">
-      {/* PEA, life insurance, employee savings: the value is typed by hand
-          from each statement, so updating it is the page's main action. */}
-      {investment ? (
-        <Button iconStart={<PencilLineIcon />} onClick={openAdd}>
-          Mettre à jour la valeur
-        </Button>
-      ) : (
-        <Button iconStart={<PlusIcon />} onClick={openAdd}>
-          Ajouter
-        </Button>
-      )}
-      <Button
-        outline
-        variant="secondary"
-        iconStart={<ClipboardPasteIcon />}
-        onClick={() => setPasteOpen(true)}
-      >
-        Coller
-      </Button>
-    </div>
-  )
+      : mealVoucher
+        ? // A meal-voucher card has its own entries (#298).
+          []
+        : crypto
+          ? // Holdings are added in their own panel and today's value is
+            // computed from them; only older values can be pasted.
+            [paste('Coller un historique de valeurs')]
+          : investment
+            ? [
+                // PEA, life insurance, employee savings: the value is typed by
+                // hand from each statement, so updating it is the main action.
+                {
+                  label: 'Mettre à jour la valeur',
+                  icon: <PencilLineIcon />,
+                  primary: true,
+                  onSelect: openAdd,
+                },
+                paste('Coller un historique'),
+              ]
+            : [
+                {
+                  label: 'Importer un relevé',
+                  icon: <FileUpIcon />,
+                  primary: true,
+                  onSelect: openImport,
+                },
+                {
+                  label: 'Ajouter une opération',
+                  icon: <PlusIcon />,
+                  onSelect: () => setAddOpen(true),
+                },
+              ]
 
   // A wallet (#294): its value, holdings by asset, evolution, then its keys
   // and tokens; its values come from the chain, so none is added by hand.
@@ -270,10 +271,7 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
 
   return (
     <div className="@container space-y-6">
-      <div className="flex flex-col gap-3 @2xl:flex-row @2xl:items-end @2xl:justify-between">
-        <AccountHeader account={current} actions={headerActions} />
-        {valueActions || actions}
-      </div>
+      <AccountHeader account={current} actions={headerActions} />
 
       {investment && data.stale && data.valueDate && (
         <Alert variant="warning">
@@ -299,7 +297,13 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
         />
       )}
 
-      {investment ? (
+      {mealVoucher ? (
+        <MealVoucherAccount
+          account={current}
+          writable={writable}
+          onCorrectBalance={openAdd}
+        />
+      ) : investment ? (
         data.valueCents === null ? (
           crypto ? null : (
             <Empty className="border">
@@ -330,47 +334,38 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
           </>
         )
       ) : (
-        <section aria-label="Solde" className="space-y-2">
-          <StatCard
-            label="Solde"
-            value={current.balanceCents ?? 0}
-            valueFormatter={
-              current.balanceCents === null ? () => '—' : undefined
-            }
-          />
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-            <p className="text-muted-foreground text-xs">
-              {current.balanceDate === null
-                ? 'Solde inconnu'
-                : `Au ${formatCalendarDate(current.balanceDate)}, d’après les opérations importées et les soldes de relevés.`}
-            </p>
-            <Button asChild size="sm" outline variant="secondary">
-              <Link to={ROUTES.transactions} search={{ account: current.id }}>
-                <ArrowLeftRightIcon aria-hidden />
-                Voir les opérations
-              </Link>
-            </Button>
-          </div>
-        </section>
-      )}
-
-      {data.snapshots.length > 0 && (
-        <ValueChart
+        <CashAccount
+          account={current}
+          writable={writable}
+          today={today}
           snapshots={data.snapshots}
-          withContributions={investment}
-          onAdd={investment && writable && !crypto ? openAdd : undefined}
+          onImport={openImport}
+          onAddTransaction={() => setAddOpen(true)}
+          onAddStatement={openAdd}
+          onPasteStatements={() => setPasteOpen(true)}
+          onEditStatement={(snapshot) => setEditor({ open: true, snapshot })}
         />
       )}
 
-      <SnapshotList
-        snapshots={data.snapshots}
-        withContributions={investment}
-        onEdit={
-          writable
-            ? (snapshot) => setEditor({ open: true, snapshot })
-            : undefined
-        }
-      />
+      {investment && data.snapshots.length > 0 && (
+        <ValueChart
+          snapshots={data.snapshots}
+          withContributions
+          onAdd={writable && !crypto ? openAdd : undefined}
+        />
+      )}
+
+      {investment && (
+        <SnapshotList
+          snapshots={data.snapshots}
+          withContributions
+          onEdit={
+            writable
+              ? (snapshot) => setEditor({ open: true, snapshot })
+              : undefined
+          }
+        />
+      )}
 
       {writable && (
         <>
@@ -389,6 +384,13 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
             accountId={current.id}
             today={today}
           />
+          {!investment && (
+            <ManualTransactionSheet
+              open={addOpen}
+              onOpenChange={setAddOpen}
+              initialAccountId={current.id}
+            />
+          )}
         </>
       )}
     </div>

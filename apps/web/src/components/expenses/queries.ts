@@ -3,6 +3,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import {
   budgetsControllerEnvelopes,
   transactionsControllerCreateManual,
+  transactionsControllerList,
   transactionsControllerManualSuggestions,
   transactionsControllerRemoveManual,
   transactionsControllerUpdateManual,
@@ -90,13 +91,44 @@ export function manualBody(
 }
 
 /**
- * A manual expense counts in the envelopes, budgets, spending, dashboard
- * and transaction lists: refetch them all.
+ * The meal-voucher card's payments of one day, as `{ id, cents }` (#298):
+ * what the 25 € daily cap already counts. Under `transactions`, so every
+ * manual change refetches it.
+ */
+export function voucherDayQuery(accountId: string, day: string) {
+  return queryOptions({
+    queryKey: ['transactions', 'voucher-day', accountId, day] as const,
+    queryFn: async () => {
+      const list = await unwrap(
+        transactionsControllerList({
+          query: {
+            accountId,
+            from: day,
+            to: day,
+            kind: 'expense',
+            limit: 100,
+          },
+          throwOnError: false,
+        }),
+      )
+      return list.items
+        .filter((item) => item.amountCents < 0)
+        .map((item) => ({ id: item.id, cents: -item.amountCents }))
+    },
+    staleTime: 0,
+  })
+}
+
+/**
+ * A manual expense counts in the envelopes, budgets, spending, dashboard,
+ * transaction lists and account balances (a meal-voucher card's, #298):
+ * refetch them all.
  */
 export function afterManualExpenseChanged(queryClient: QueryClient) {
   return Promise.all(
     [
       envelopeKeys.all,
+      ['accounts'],
       ['budgets'],
       ['dashboard'],
       ['transactions'],
@@ -144,8 +176,14 @@ export function manualExpenseErrorMessage(error: unknown): string {
     if (error.apiMessage?.includes('future')) {
       return 'La date ne peut pas être dans le futur.'
     }
+    if (error.apiMessage?.includes('categoryId does not match')) {
+      return 'Cette catégorie n’existe plus : rechargez la page et choisissez-en une autre.'
+    }
     if (error.apiMessage?.includes('label or a categoryId')) {
       return 'Choisissez une catégorie ou indiquez un libellé.'
+    }
+    if (error.apiMessage?.includes('capped at 25')) {
+      return 'Plafond des titres-restaurant atteint : 25 € par jour, paiements déjà saisis ce jour-là compris.'
     }
     if (error.apiMessage?.includes('split')) {
       return 'L’opération est répartie : annulez la répartition avant de changer son montant.'

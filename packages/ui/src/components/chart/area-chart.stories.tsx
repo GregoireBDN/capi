@@ -140,3 +140,49 @@ export const TimeScaleMobile: Story = {
     </ChartFrame>
   ),
 }
+
+const dailyBalance = Array.from({ length: 92 }, (_, day) => {
+  const date = new Date(Date.UTC(2026, 7, 1 + day)).toISOString().slice(0, 10)
+  // Synthetic: a salary on the 1st, spending through the month.
+  const dayOfMonth = Number(date.slice(8, 10))
+  const balance = 180_000 + 250_000 - dayOfMonth * 7_500 + day * 300
+  const statement = dayOfMonth === 1 ? balance : null
+  return { date, balance, statement }
+})
+
+/**
+ * A daily balance with statement balances as dots (`dotSeries`): the dots
+ * have no line and no fill, only their own days.
+ */
+export const DotSeries: Story = {
+  args: {
+    data: dailyBalance,
+    index: 'date',
+    config: {
+      balance: { label: 'Solde', color: 'var(--chart-1)' },
+      statement: { label: 'Solde de relevé', color: 'var(--chart-4)' },
+    },
+    dotSeries: ['statement'],
+    stacked: false,
+    indexScale: 'time',
+    indexFormatter: formatDay,
+    tooltipIndexFormatter: formatDay,
+    indexLabel: 'Date',
+    label: 'Solde du compte chaque jour et soldes de relevés',
+  },
+  render: (args) => (
+    <ChartFrame title="Solde" description="Chaque jour, et les relevés">
+      <AreaChart {...args} />
+    </ChartFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    await findChartGraphic(canvasElement, /soldes de relevés/)
+    await waitFor(() => {
+      expect(
+        canvasElement.querySelectorAll('.recharts-area-dots circle'),
+      ).toHaveLength(3)
+    })
+  },
+}
+
+export const DotSeriesDark: Story = { ...DotSeries, globals: DARK }

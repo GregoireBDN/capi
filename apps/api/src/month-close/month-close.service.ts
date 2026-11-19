@@ -18,7 +18,7 @@ import {
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import {
   AccountsService,
-  isTransactionalAccount,
+  isBankAccount,
 } from '#/accounts/accounts.service'
 import { BudgetsService } from '#/budgets/budgets.service'
 import { dataUntilByAccount } from '#/coverage/coverage'
@@ -175,7 +175,8 @@ export class MonthCloseService {
       this.savings.listGoals({}, { now, executor }),
     ])
 
-    const cash = accounts.filter(isTransactionalAccount)
+    // Imported accounts only: a meal-voucher card is entered by hand (#298).
+    const cash = accounts.filter(isBankAccount)
     const missingIds = new Set(review.missing.map((account) => account.id))
     const daysInMonth = Number(end.slice(8))
     const importAccounts: CloseImportAccountDto[] = cash.map((account) => {

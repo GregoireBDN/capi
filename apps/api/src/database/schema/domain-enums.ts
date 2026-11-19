@@ -10,11 +10,24 @@ export const ACCOUNT_TYPES = [
   'life_insurance',
   'employee_savings',
   'crypto',
+  'meal_voucher',
 ] as const
 export type AccountType = (typeof ACCOUNT_TYPES)[number]
 
-/** Fed by imports; balance comes from transactions. */
+/** Balance comes from transactions (imported, or entered by hand). */
 export const TRANSACTIONAL_ACCOUNT_TYPES = [
+  'checking',
+  'savings',
+  'meal_voucher',
+] as const satisfies readonly AccountType[]
+
+/**
+ * Bank accounts, fed by statement imports: the transactional accounts but
+ * the meal-voucher card (#298), whose transactions are all entered by hand.
+ * Only they are checked for imports up to date and projected by the
+ * end-of-month forecast.
+ */
+export const BANK_ACCOUNT_TYPES = [
   'checking',
   'savings',
 ] as const satisfies readonly AccountType[]

@@ -384,7 +384,7 @@ describe.skipIf(!process.env.DATABASE_URL)('ForecastService (database)', () => {
       expect(forecast.points).toHaveLength(17)
     }))
 
-  it('accepts savings accounts and rejects unknown or investment ones', () =>
+  it('accepts savings accounts and rejects unknown, investment or meal-voucher ones', () =>
     withFixture(async (f) => {
       await f.insert([
         {
@@ -401,12 +401,28 @@ describe.skipIf(!process.env.DATABASE_URL)('ForecastService (database)', () => {
       expect(savings.startingBalanceCents).toBe(5_000)
       expect(savings.estimate).toBeNull()
 
-      const [brokerage] = await f.tx
+      const [brokerage, card] = await f.tx
         .insert(accountsTable)
-        .values({ name: 'Test PEA', type: 'brokerage' })
+        .values([
+          { name: 'Test PEA', type: 'brokerage' },
+          { name: 'Test titres-restaurant', type: 'meal_voucher' },
+        ])
         .returning()
+      // The meal-voucher card is never part of the bank forecast (#298).
+      await f.insert([
+        {
+          accountId: card.id,
+          bookingDate: '2026-10-02',
+          amountCents: 18_000,
+          kind: 'income',
+          manual: true,
+        },
+      ])
+      const byDefault = await f.service.forecast({}, OCTOBER_15)
+      expect(byDefault.accounts.map((a) => a.id)).not.toContain(card.id)
       for (const accountIds of [
         [brokerage.id],
+        [card.id],
         ['00000000-0000-4000-8000-000000000000'],
       ]) {
         await expect(

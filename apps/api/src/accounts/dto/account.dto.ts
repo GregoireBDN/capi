@@ -54,7 +54,7 @@ const TYPE_DOC = {
   enum: ACCOUNT_TYPES,
   enumName: 'AccountType',
   description:
-    '`checking` and `savings` are transactional (fed by imports, balance from transactions); the others are investment accounts (balance from dated value snapshots).',
+    '`checking` and `savings` are bank accounts (fed by imports, balance from transactions); `meal_voucher` is the meal-voucher card (titres-restaurant): its transactions are entered by hand, its balance comes from them and it never takes an import; the others are investment accounts (balance from dated value snapshots).',
 } as const
 
 // `null` listed in the enums so the generated client types them as nullable.

@@ -115,6 +115,7 @@ describe('AccountEditor', () => {
     ).toEqual([
       'checking',
       'savings',
+      'meal_voucher',
       'brokerage',
       'life_insurance',
       'employee_savings',
@@ -150,6 +151,42 @@ describe('AccountEditor', () => {
       }),
     )
     expect(toast.success).toHaveBeenCalledWith('Compte « PEA » créé')
+  })
+
+  it('creates a meal-voucher card with its balance at the end of yesterday (#298)', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    api.accountSnapshotsControllerUpsert.mockImplementation(() =>
+      ok({ id: 's1', date: '2026-11-05', valueCents: 1, note: null }),
+    )
+    renderWithClient(<NewAccountButton />)
+
+    await user.click(screen.getByRole('button', { name: 'Nouveau compte' }))
+    await user.selectOptions(
+      await screen.findByLabelText('Type'),
+      'meal_voucher',
+    )
+    expect(screen.getByLabelText('Nom')).toHaveValue('Titres-restaurant')
+    expect(screen.queryByLabelText('Versements nets')).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText('Solde actuel'), '45,60')
+    await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled())
+    expect(api.accountsControllerCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: {
+          name: 'Titres-restaurant',
+          type: 'meal_voucher',
+          institution: null,
+        },
+      }),
+    )
+    // What is entered from today adds to it.
+    expect(api.accountSnapshotsControllerUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: { id: NEW_ID, date: '2026-11-05' },
+        body: { valueCents: 4_560, contributionsCents: null, note: null },
+      }),
+    )
   })
 
   it('creates a wallet crypto account from its public key', async () => {

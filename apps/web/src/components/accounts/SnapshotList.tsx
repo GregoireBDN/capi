@@ -55,13 +55,63 @@ function SnapshotDetails({
   )
 }
 
+/** Snapshots newest first; a tap opens one for correction. */
+export function SnapshotRows({
+  snapshots,
+  withContributions,
+  onEdit,
+  label = 'Valeurs enregistrées',
+  editLabel = 'Modifier la valeur du',
+}: SnapshotListProps & {
+  /** Accessible name of the list. */
+  label?: string
+  /** Start of each row's accessible name, before its date. */
+  editLabel?: string
+}) {
+  const newestFirst = [...snapshots].reverse()
+  return (
+    <ul className={DIVIDED_LIST} aria-label={label}>
+      {newestFirst.map((snapshot) => {
+        const row = 'flex items-center gap-3 px-2 py-2.5 text-left text-sm'
+        return (
+          <li key={snapshot.id}>
+            {onEdit ? (
+              <button
+                type="button"
+                aria-label={`${editLabel} ${formatCalendarDate(snapshot.date)}`}
+                onClick={() => onEdit(snapshot)}
+                className={cn(ROW_BUTTON, row)}
+              >
+                <SnapshotDetails
+                  snapshot={snapshot}
+                  withContributions={withContributions}
+                />
+                <PencilIcon
+                  aria-hidden
+                  className="text-muted-foreground size-4 shrink-0"
+                />
+              </button>
+            ) : (
+              <div className={row}>
+                <SnapshotDetails
+                  snapshot={snapshot}
+                  withContributions={withContributions}
+                />
+              </div>
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 /** Every snapshot, newest first; a tap opens it for correction. */
 export function SnapshotList({
   snapshots,
   withContributions,
   onEdit,
 }: SnapshotListProps) {
-  const newestFirst = [...snapshots].reverse()
   return (
     <Card className="min-w-0">
       <CardHeader>
@@ -78,40 +128,11 @@ export function SnapshotList({
       </CardHeader>
       {snapshots.length > 0 && (
         <CardContent>
-          <ul className={DIVIDED_LIST} aria-label="Valeurs enregistrées">
-            {newestFirst.map((snapshot) => {
-              const row =
-                'flex items-center gap-3 px-2 py-2.5 text-left text-sm'
-              return (
-                <li key={snapshot.id}>
-                  {onEdit ? (
-                    <button
-                      type="button"
-                      aria-label={`Modifier la valeur du ${formatCalendarDate(snapshot.date)}`}
-                      onClick={() => onEdit(snapshot)}
-                      className={cn(ROW_BUTTON, row)}
-                    >
-                      <SnapshotDetails
-                        snapshot={snapshot}
-                        withContributions={withContributions}
-                      />
-                      <PencilIcon
-                        aria-hidden
-                        className="text-muted-foreground size-4 shrink-0"
-                      />
-                    </button>
-                  ) : (
-                    <div className={row}>
-                      <SnapshotDetails
-                        snapshot={snapshot}
-                        withContributions={withContributions}
-                      />
-                    </div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
+          <SnapshotRows
+            snapshots={snapshots}
+            withContributions={withContributions}
+            onEdit={onEdit}
+          />
         </CardContent>
       )}
     </Card>

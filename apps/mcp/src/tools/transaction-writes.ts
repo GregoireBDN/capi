@@ -98,7 +98,7 @@ export const addTransactionTool = defineTool({
       .max(100)
       .optional()
       .describe(
-        'Open checking or savings account name. Default: the main checking account.',
+        'Open checking, savings or meal-voucher (titres-restaurant) account name: a payment with the meal-voucher card goes on that account, its monthly credit too (income, category Titres-restaurant). Default: the main checking account.',
       ),
     oneOff: z
       .boolean()
@@ -143,10 +143,12 @@ export const addTransactionTool = defineTool({
       : defaultAccount(accounts)
     if (
       account.archivedAt ||
-      (account.type !== 'checking' && account.type !== 'savings')
+      (account.type !== 'checking' &&
+        account.type !== 'savings' &&
+        account.type !== 'meal_voucher')
     ) {
       throw new ToolInputError(
-        `« ${account.name} » n'est pas un compte courant ou d'épargne ouvert : les opérations saisies à la main vont sur ces comptes.`,
+        `« ${account.name} » n'est pas un compte courant, d'épargne ou de titres-restaurant ouvert : les opérations saisies à la main vont sur ces comptes.`,
       )
     }
     const kind: TransactionKind = args.kind ?? category?.kind ?? 'expense'

@@ -354,7 +354,17 @@ describe.skipIf(!process.env.DATABASE_URL)(
           name: 'Test PEA',
           type: 'brokerage',
         })
+        // Entered by hand: no import step for the meal-voucher card (#298).
+        const card = await accounts.create({
+          name: 'Test titres-restaurant',
+          type: 'meal_voucher',
+        })
         await tx.insert(transactionsTable).values([
+          transaction(card.id, {
+            bookingDate: '2026-10-05',
+            amountCents: -1_500,
+            manual: true,
+          }),
           transaction(checking.id, {
             bookingDate: '2026-10-02',
             amountCents: -1_000,

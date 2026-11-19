@@ -10,6 +10,8 @@ import {
   useIsMobile,
 } from '@finances/ui'
 import { EllipsisVerticalIcon } from 'lucide-react'
+import { PageBack } from './PageBack'
+import type { PageBackLink } from './PageBack'
 import { usePageActionsSlot } from './page-actions'
 import type { PageAction } from './page-actions'
 
@@ -24,6 +26,11 @@ interface PageHeaderProps {
    * navigator, a card, a sticky bottom bar) stay in that section.
    */
   actions?: readonly PageAction[]
+  /**
+   * The parent page of a sub-page (an account → « Comptes »): in the top
+   * bar on phones, a chip above the title from `md` up (`PageBack`).
+   */
+  back?: PageBackLink
 }
 
 /**
@@ -38,6 +45,7 @@ export function PageHeader({
   description,
   titleAddon,
   actions = [],
+  back,
 }: PageHeaderProps) {
   const isMobile = useIsMobile()
   const slot = usePageActionsSlot()
@@ -48,6 +56,11 @@ export function PageHeader({
 
   return (
     <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+      {back && (
+        <div className="flex basis-full empty:hidden max-md:hidden">
+          <PageBack {...back} />
+        </div>
+      )}
       <div className="min-w-[min(100%,14rem)] flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <h1 className="min-w-0 text-xl font-semibold tracking-tight break-words md:text-2xl">

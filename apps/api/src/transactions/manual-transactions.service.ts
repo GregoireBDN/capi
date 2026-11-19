@@ -62,6 +62,12 @@ const MERCHANT_DAYS = 180
 /** Days back the most used categories are counted. */
 const CATEGORY_DAYS = 90
 
+/**
+ * Meal vouchers pay at most 25 € a day (the legal cap, #298): the card's
+ * payments of one day never add up to more.
+ */
+export const MEAL_VOUCHER_DAILY_CAP_CENTS = 2_500
+
 function signed(amountCents: number, direction: MoneyDirection): number {
   return direction === 'in' ? amountCents : -amountCents
 }
@@ -104,15 +110,22 @@ export class ManualTransactionsService {
         dto.bookingDate ?? parisToday(now),
         now,
       )
+      const amountCents = signed(
+        dto.amountCents,
+        dto.direction ?? defaultDirection(kind),
+      )
+      await this.checkVoucherCap(tx, {
+        accountId,
+        bookingDate,
+        amountCents,
+        kind,
+      })
       const [row] = await tx
         .insert(transactionsTable)
         .values({
           accountId,
           bookingDate,
-          amountCents: signed(
-            dto.amountCents,
-            dto.direction ?? defaultDirection(kind),
-          ),
+          amountCents,
           rawLabel: label,
           kind,
           categoryId: category?.id ?? null,
@@ -193,6 +206,13 @@ export class ManualTransactionsService {
       if (Object.keys(set).length === 0) {
         throw new BadRequestException('Nothing to update')
       }
+      await this.checkVoucherCap(tx, {
+        id,
+        accountId: set.accountId ?? current.accountId,
+        bookingDate: set.bookingDate ?? current.bookingDate,
+        amountCents: set.amountCents ?? current.amountCents,
+        kind: set.kind ?? current.kind,
+      })
       await tx
         .update(transactionsTable)
         .set(set)
@@ -322,6 +342,9 @@ export class ManualTransactionsService {
         rawLabel: transactionsTable.rawLabel,
         categoryId: transactionsTable.categoryId,
         amountCents: transactionsTable.amountCents,
+        accountId: transactionsTable.accountId,
+        bookingDate: transactionsTable.bookingDate,
+        kind: transactionsTable.kind,
       })
       .from(transactionsTable)
       .where(
@@ -331,6 +354,50 @@ export class ManualTransactionsService {
     if (!row) throw new NotFoundException('Manual transaction not found')
     const split = await this.transactions.isSplit(id, tx)
     return { ...row, split }
+  }
+
+  /**
+   * A payment with the meal-voucher card (an expense out of a `meal_voucher`
+   * account) is refused when the card's payments of that day, this one
+   * included (and its previous version left out), would go over the daily
+   * cap. Refunds and credits are never capped.
+   */
+  private async checkVoucherCap(
+    tx: Tx,
+    entry: {
+      id?: string
+      accountId: string
+      bookingDate: string
+      amountCents: number
+      kind: TransactionKind
+    },
+  ): Promise<void> {
+    if (entry.kind !== 'expense' || entry.amountCents >= 0) return
+    const t = transactionsTable
+    const [account] = await tx
+      .select({ type: accountsTable.type })
+      .from(accountsTable)
+      .where(eq(accountsTable.id, entry.accountId))
+    if (account?.type !== 'meal_voucher') return
+    const [{ paid }] = await tx
+      .select({
+        paid: sql<string>`coalesce(sum(-${t.amountCents}), 0)`,
+      })
+      .from(t)
+      .where(
+        and(
+          eq(t.accountId, entry.accountId),
+          eq(t.bookingDate, entry.bookingDate),
+          eq(t.kind, 'expense'),
+          sql`${t.amountCents} < 0`,
+          entry.id === undefined ? undefined : ne(t.id, entry.id),
+        ),
+      )
+    if (Number(paid) - entry.amountCents > MEAL_VOUCHER_DAILY_CAP_CENTS) {
+      throw new BadRequestException(
+        'Meal-voucher payments are capped at 25 € a day',
+      )
+    }
   }
 
   private async requireCategory(tx: Tx, id: string) {
@@ -364,7 +431,7 @@ export class ManualTransactionsService {
     }
     if (!isTransactionalAccount(account) || account.archivedAt) {
       throw new BadRequestException(
-        'accountId must be an open checking or savings account',
+        'accountId must be an open checking, savings or meal voucher account',
       )
     }
     return account.id

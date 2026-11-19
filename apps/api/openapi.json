@@ -2388,6 +2388,111 @@
         ]
       }
     },
+    "/api/accounts/{id}/balance-history": {
+      "get": {
+        "description": "Checking and savings accounts only (400 otherwise): the end-of-day balance over the last 12 months of data, from the bank values and statement balances, with the statement balances, the running-balance gaps of the imported rows and how far the bank data goes.",
+        "operationId": "AccountsController_balanceHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceHistoryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a checking or savings account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Daily balance of a cash account",
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
+    "/api/accounts/{id}/month-flows": {
+      "get": {
+        "description": "Checking and savings accounts only (400 otherwise): every credit and debit of the month, transfers between own accounts and hand-entered rows included (they move the balance), with the transfers apart. Bank values. `period` says how far the account’s data goes in the month.",
+        "operationId": "AccountsController_monthFlows",
+        "parameters": [
+          {
+            "description": "Calendar month (YYYY-MM). Default: the current month when the account has data in it, else the month its data stops in.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountMonthFlowsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a checking or savings account, or invalid month."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Money in and out of a cash account over a month",
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
     "/api/accounts/{id}/crypto-source": {
       "put": {
         "description": "Only a non-archived `manual` crypto account holding nothing changes source (409 otherwise). A wallet gets its public keys (validated, unique across accounts: 409 when one is already tracked). 0 € values recorded while the account held nothing are dropped when it never had another value. Session only.",
@@ -7876,9 +7981,10 @@
           "brokerage",
           "life_insurance",
           "employee_savings",
-          "crypto"
+          "crypto",
+          "meal_voucher"
         ],
-        "description": "`checking` and `savings` are transactional (fed by imports, balance from transactions); the others are investment accounts (balance from dated value snapshots)."
+        "description": "`checking` and `savings` are bank accounts (fed by imports, balance from transactions); `meal_voucher` is the meal-voucher card (titres-restaurant): its transactions are entered by hand, its balance comes from them and it never takes an import; the others are investment accounts (balance from dated value snapshots)."
       },
       "CryptoAccountSource": {
         "type": "string",
@@ -7911,7 +8017,7 @@
             "type": "string"
           },
           "type": {
-            "description": "`checking` and `savings` are transactional (fed by imports, balance from transactions); the others are investment accounts (balance from dated value snapshots).",
+            "description": "`checking` and `savings` are bank accounts (fed by imports, balance from transactions); `meal_voucher` is the meal-voucher card (titres-restaurant): its transactions are entered by hand, its balance comes from them and it never takes an import; the others are investment accounts (balance from dated value snapshots).",
             "allOf": [
               {
                 "$ref": "#/components/schemas/AccountType"
@@ -7992,6 +8098,237 @@
           "updatedAt"
         ]
       },
+      "BalancePointDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-10-31"
+          },
+          "balanceCents": {
+            "type": "integer",
+            "description": "Balance at the end of the day, in cents (bank values)."
+          }
+        },
+        "required": [
+          "date",
+          "balanceCents"
+        ]
+      },
+      "StatementBalanceDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-09-30"
+          },
+          "valueCents": {
+            "type": "integer",
+            "description": "Statement balance recorded for the day, in cents."
+          }
+        },
+        "required": [
+          "date",
+          "valueCents"
+        ]
+      },
+      "BalanceGapDto": {
+        "type": "object",
+        "properties": {
+          "fromDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Last day whose running balance follows."
+          },
+          "toDate": {
+            "type": "string",
+            "format": "date",
+            "description": "First day whose running balance does not follow."
+          },
+          "differenceCents": {
+            "type": "integer",
+            "description": "Bank balance − expected balance, in cents: the amount of the rows missing between the two days."
+          }
+        },
+        "required": [
+          "fromDate",
+          "toDate",
+          "differenceCents"
+        ]
+      },
+      "BalanceHistoryDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "First day of the series: the first day of the month 11 months before `to`, or the first day with data when later. Null without any data."
+          },
+          "to": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Last day of the series: the latest transaction (hand-entered ones included) or statement balance. Null without any data."
+          },
+          "points": {
+            "description": "End-of-day balance on every day from `from` to `to`, with the anchors of the account balance as of each day (latest statement balance or chaining running balance, plus the amounts booked after it, hand-entered ones from the day after the anchor). Bank values: a hand correction never changes it. The last point is the current balance.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BalancePointDto"
+            }
+          },
+          "statements": {
+            "description": "Statement balances recorded between `from` and `to`.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatementBalanceDto"
+            }
+          },
+          "gaps": {
+            "description": "Running-balance gaps of the imported rows between `from` and `to` (hand-entered rows left out), oldest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BalanceGapDto"
+            }
+          },
+          "dataUntil": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Latest day with bank data for the account (latest imported row or end of its latest committed import), never after today in Europe/Paris; hand-entered rows do not count."
+          },
+          "lastImportOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Day (Europe/Paris) of the account’s latest committed import, or null."
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "points",
+          "statements",
+          "gaps",
+          "dataUntil",
+          "lastImportOn"
+        ]
+      },
+      "PeriodStatus": {
+        "type": "string",
+        "enum": [
+          "complete",
+          "partial",
+          "empty"
+        ],
+        "description": "`complete`: the data reaches the end of the month. `partial`: it stops inside it, so only its first `throughDay` days are known and comparisons use the same days of the other months. `empty`: it stops before the month, so there is nothing to compare."
+      },
+      "MonthPeriodDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "example": "2026-11",
+            "description": "YYYY-MM."
+          },
+          "dataUntil": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "example": "2026-11-03",
+            "description": "Latest day with data in scope (latest booked transaction or end of the latest committed import, the account’s when filtered by account), never after today in Europe/Paris. Null when there is no data at all."
+          },
+          "status": {
+            "description": "`complete`: the data reaches the end of the month. `partial`: it stops inside it, so only its first `throughDay` days are known and comparisons use the same days of the other months. `empty`: it stops before the month, so there is nothing to compare.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PeriodStatus"
+              }
+            ]
+          },
+          "throughDay": {
+            "type": "integer",
+            "nullable": true,
+            "example": 3,
+            "description": "Day of the month the figures go up to when `partial`, null otherwise."
+          },
+          "previousMonth": {
+            "type": "string",
+            "example": "2026-10",
+            "description": "YYYY-MM."
+          },
+          "previousUntil": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "example": "2026-10-03",
+            "description": "Last day of `previousMonth` taken in the comparison: the same first days when `partial` (its last day if it is shorter), its last day when `complete`, null when `empty`."
+          },
+          "defaultMonth": {
+            "type": "string",
+            "example": "2026-11",
+            "description": "Month shown when none is asked for: the current month (Europe/Paris) when it has data, else the month the data stops in."
+          }
+        },
+        "required": [
+          "month",
+          "dataUntil",
+          "status",
+          "throughDay",
+          "previousMonth",
+          "previousUntil",
+          "defaultMonth"
+        ]
+      },
+      "AccountMonthFlowsDto": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "description": "The month and how far the account’s data goes in it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MonthPeriodDto"
+              }
+            ]
+          },
+          "inCents": {
+            "type": "integer",
+            "description": "Money in during the month, in cents (≥ 0): every credit of the account, transfers from the owner’s other accounts and hand-entered rows included. Bank values."
+          },
+          "outCents": {
+            "type": "integer",
+            "description": "Money out during the month, in cents (≤ 0): every debit, transfers included."
+          },
+          "netCents": {
+            "type": "integer",
+            "description": "`inCents` + `outCents`: how much the balance moved over the month."
+          },
+          "transfersInCents": {
+            "type": "integer",
+            "description": "Part of `inCents` from transfers between the owner’s accounts (never income)."
+          },
+          "transfersOutCents": {
+            "type": "integer",
+            "description": "Part of `outCents` from transfers between the owner’s accounts (never expenses)."
+          },
+          "count": {
+            "type": "integer",
+            "description": "Transactions in the month."
+          }
+        },
+        "required": [
+          "period",
+          "inCents",
+          "outCents",
+          "netCents",
+          "transfersInCents",
+          "transfersOutCents",
+          "count"
+        ]
+      },
       "CryptoChain": {
         "type": "string",
         "enum": [
@@ -8058,7 +8395,7 @@
             "maxLength": 100
           },
           "type": {
-            "description": "`checking` and `savings` are transactional (fed by imports, balance from transactions); the others are investment accounts (balance from dated value snapshots).",
+            "description": "`checking` and `savings` are bank accounts (fed by imports, balance from transactions); `meal_voucher` is the meal-voucher card (titres-restaurant): its transactions are entered by hand, its balance comes from them and it never takes an import; the others are investment accounts (balance from dated value snapshots).",
             "allOf": [
               {
                 "$ref": "#/components/schemas/AccountType"
@@ -10032,72 +10369,6 @@
             "description": "Free text; an empty string clears it."
           }
         }
-      },
-      "PeriodStatus": {
-        "type": "string",
-        "enum": [
-          "complete",
-          "partial",
-          "empty"
-        ],
-        "description": "`complete`: the data reaches the end of the month. `partial`: it stops inside it, so only its first `throughDay` days are known and comparisons use the same days of the other months. `empty`: it stops before the month, so there is nothing to compare."
-      },
-      "MonthPeriodDto": {
-        "type": "object",
-        "properties": {
-          "month": {
-            "type": "string",
-            "example": "2026-11",
-            "description": "YYYY-MM."
-          },
-          "dataUntil": {
-            "type": "string",
-            "format": "date",
-            "nullable": true,
-            "example": "2026-11-03",
-            "description": "Latest day with data in scope (latest booked transaction or end of the latest committed import, the account’s when filtered by account), never after today in Europe/Paris. Null when there is no data at all."
-          },
-          "status": {
-            "description": "`complete`: the data reaches the end of the month. `partial`: it stops inside it, so only its first `throughDay` days are known and comparisons use the same days of the other months. `empty`: it stops before the month, so there is nothing to compare.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PeriodStatus"
-              }
-            ]
-          },
-          "throughDay": {
-            "type": "integer",
-            "nullable": true,
-            "example": 3,
-            "description": "Day of the month the figures go up to when `partial`, null otherwise."
-          },
-          "previousMonth": {
-            "type": "string",
-            "example": "2026-10",
-            "description": "YYYY-MM."
-          },
-          "previousUntil": {
-            "type": "string",
-            "format": "date",
-            "nullable": true,
-            "example": "2026-10-03",
-            "description": "Last day of `previousMonth` taken in the comparison: the same first days when `partial` (its last day if it is shorter), its last day when `complete`, null when `empty`."
-          },
-          "defaultMonth": {
-            "type": "string",
-            "example": "2026-11",
-            "description": "Month shown when none is asked for: the current month (Europe/Paris) when it has data, else the month the data stops in."
-          }
-        },
-        "required": [
-          "month",
-          "dataUntil",
-          "status",
-          "throughDay",
-          "previousMonth",
-          "previousUntil",
-          "defaultMonth"
-        ]
       },
       "BudgetStatus": {
         "type": "string",

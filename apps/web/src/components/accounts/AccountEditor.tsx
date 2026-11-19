@@ -42,6 +42,7 @@ import {
 import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { ROUTES } from '#/lib/routes'
 import { parseAmountToCents } from './amount'
+import { previousDay } from '#/components/expenses/manual-fields'
 import { todayInParis } from './dates'
 import { DeleteAccountScreen } from './DeleteAccountScreen'
 import { accountErrorMessage } from './errors'
@@ -78,6 +79,12 @@ export const ACCOUNT_TYPE_OPTIONS: readonly {
     hint: 'Livret A, LDDS, livret jeune… alimenté par l’import de vos relevés.',
   },
   {
+    type: 'meal_voucher',
+    label: ACCOUNT_TYPE_LABELS.meal_voucher,
+    defaultName: 'Titres-restaurant',
+    hint: 'Carte titres-restaurant : crédits et paiements saisis à la main.',
+  },
+  {
     type: 'brokerage',
     label: ACCOUNT_TYPE_LABELS.brokerage,
     defaultName: 'PEA',
@@ -110,6 +117,14 @@ function optionOf(type: AccountType) {
 /** Investment accounts other than crypto start from a statement value. */
 function startsWithValue(type: AccountType): boolean {
   return isInvestmentType(type) && type !== 'crypto'
+}
+
+/**
+ * A meal-voucher card starts from the balance its app shows (#298), kept as
+ * the balance at the end of yesterday: what is entered from today adds to it.
+ */
+function startsWithBalance(type: AccountType): boolean {
+  return type === 'meal_voucher'
 }
 
 interface FormErrors {
@@ -155,6 +170,13 @@ function validate(values: FormValues, today: string, creating: boolean) {
     errors.institution = '100 caractères maximum'
   if (picksCryptoProvider(values, creating))
     Object.assign(errors, validateCryptoSource(values, { withSource: true }))
+  if (creating && startsWithBalance(values.type)) {
+    const cents =
+      values.value.trim() === '' ? 0 : parseAmountToCents(values.value)
+    if (cents === null) errors.value = 'Montant invalide (ex. 45,60)'
+    else if (cents < 0) errors.value = 'Le solde ne peut pas être négatif'
+    return errors
+  }
   if (!creating || !startsWithValue(values.type)) return errors
   if (values.value.trim() !== '') {
     const cents = parseAmountToCents(values.value)
@@ -285,13 +307,26 @@ export function AccountEditor({
           valueSaved = false
         }
       }
+      if (startsWithBalance(values.type) && values.value.trim() !== '') {
+        try {
+          await saveSnapshot(created.id, previousDay(today), {
+            valueCents: parseAmountToCents(values.value)!,
+            contributionsCents: null,
+            note: null,
+          })
+        } catch {
+          valueSaved = false
+        }
+      }
       return { created, valueSaved }
     },
     onSuccess: async ({ created, valueSaved }) => {
       if (valueSaved) toast.success(`Compte « ${created.name} » créé`)
       else
         toast.warning(
-          `Compte « ${created.name} » créé, mais sa valeur n’a pas pu être enregistrée. Ajoutez-la depuis sa page.`,
+          startsWithBalance(created.type)
+            ? `Compte « ${created.name} » créé, mais son solde n’a pas pu être enregistré. Ajoutez-le depuis sa page.`
+            : `Compte « ${created.name} » créé, mais sa valeur n’a pas pu être enregistrée. Ajoutez-la depuis sa page.`,
         )
       onOpenChange(false)
       await Promise.all([
@@ -386,7 +421,7 @@ export function AccountEditor({
             </SheetTitle>
             <SheetDescription>
               {creating
-                ? 'Compte bancaire, livret, placement ou crypto.'
+                ? 'Compte bancaire, livret, titres-restaurant, placement ou crypto.'
                 : screen === 'delete'
                   ? 'Le compte et toutes ses données.'
                   : account.type === 'crypto'
@@ -482,7 +517,11 @@ export function AccountEditor({
                     id={`${id}-institution`}
                     autoComplete="off"
                     maxLength={NAME_MAX}
-                    placeholder="Banque, assureur…"
+                    placeholder={
+                      values.type === 'meal_voucher'
+                        ? 'Émetteur de la carte'
+                        : 'Banque, assureur…'
+                    }
                     value={values.institution}
                     aria-invalid={shown.institution !== undefined}
                     onChange={(event) =>
@@ -491,6 +530,36 @@ export function AccountEditor({
                   />
                   {shown.institution && (
                     <FieldError>{shown.institution}</FieldError>
+                  )}
+                </Field>
+              )}
+              {creating && startsWithBalance(values.type) && (
+                <Field data-invalid={shown.value !== undefined}>
+                  <FieldLabel htmlFor={`${id}-balance`}>
+                    Solde actuel
+                  </FieldLabel>
+                  <InputGroup>
+                    <InputGroupInput
+                      id={`${id}-balance`}
+                      inputMode="decimal"
+                      autoComplete="off"
+                      placeholder="0,00"
+                      value={values.value}
+                      aria-invalid={shown.value !== undefined}
+                      onChange={(event) => set({ value: event.target.value })}
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText>€</InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                  {shown.value ? (
+                    <FieldError>{shown.value}</FieldError>
+                  ) : (
+                    <FieldDescription>
+                      Facultatif : le solde affiché par l’application de la
+                      carte. Les crédits et paiements saisis à partir
+                      d’aujourd’hui s’y ajoutent.
+                    </FieldDescription>
                   )}
                 </Field>
               )}
