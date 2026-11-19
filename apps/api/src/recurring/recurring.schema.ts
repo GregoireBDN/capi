@@ -8,6 +8,7 @@ import {
   pgEnum,
   pgTable,
   real,
+  smallint,
   text,
   unique,
   uuid,
@@ -47,8 +48,14 @@ export const recurringStatusEnum = pgEnum(
  * The detection columns (`cadence`, amounts, dates, `confidence`) are a
  * snapshot refreshed by every detection run; the list endpoint recomputes
  * them from the transactions. The user's columns (`name`, `categoryId`,
- * `isFixedCost`, `cadenceOverride`, `notes`, `status`, `endedOn`) are never overwritten
- * by a detection run. `dismissed` items are never suggested again.
+ * `isFixedCost`, `cadenceOverride`, `notes`, `status`, `endedOn`, `termMonths`,
+ * `renewalKeptOn`) are never overwritten by a detection run. `dismissed`
+ * items are never suggested again.
+ *
+ * A **prepaid** item (#314, `termMonths` set) is a subscription paid upfront
+ * for a term: its payments are the transactions linked to it
+ * (`transactions.prepaid_item_id`), its renewal is the latest payment + the
+ * term, and its monthly cost the payment ÷ the term.
  */
 export const recurringItemsTable = pgTable(
   'recurring_items',
@@ -87,6 +94,17 @@ export const recurringItemsTable = pgTable(
      * expected any more (past, today or future). Never touched by detection.
      */
     endedOn: date('ended_on', { mode: 'string' }),
+    /**
+     * Prepaid term in months (#314): the subscription is paid once for the
+     * whole term (12, 24, 36 months...). Null for an item charged every
+     * period. The owner's, never touched by detection.
+     */
+    termMonths: smallint('term_months'),
+    /**
+     * Renewal date the owner chose to keep (« Garder », #314): no reminder
+     * for it any more. Stale once the renewal date moves on.
+     */
+    renewalKeptOn: date('renewal_kept_on', { mode: 'string' }),
   },
   (t) => [
     unique('recurring_items_account_merchant_direction_unique').on(
@@ -98,6 +116,10 @@ export const recurringItemsTable = pgTable(
     check(
       'recurring_items_typical_amount_positive',
       sql`${t.typicalAmountCents} >= 0`,
+    ),
+    check(
+      'recurring_items_term_months_range',
+      sql`${t.termMonths} is null or (${t.termMonths} >= 2 and ${t.termMonths} <= 60)`,
     ),
     check(
       'recurring_items_confidence_range',

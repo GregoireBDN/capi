@@ -29,6 +29,7 @@ import {
   accountsTable,
   categoriesTable,
   categorizationRulesTable,
+  recurringItemsTable,
   transactionLinesView,
   transactionSplitsTable,
   transactionsTable,
@@ -95,6 +96,10 @@ const transactionColumns = {
   isOneOff: transactionsTable.isOneOff,
   note: transactionsTable.note,
   manual: transactionsTable.manual,
+  prepaidItemId: transactionsTable.prepaidItemId,
+  prepaidTermMonths: sql<
+    number | null
+  >`(select ${recurringItemsTable.termMonths} from ${recurringItemsTable} where ${recurringItemsTable.id} = ${transactionsTable.prepaidItemId})`,
   originalAmountCents: transactionsTable.originalAmountCents,
   originalBookingDate: transactionsTable.originalBookingDate,
   createdAt: transactionsTable.createdAt,
@@ -787,6 +792,10 @@ export class TransactionsService {
     // Only transfers are linked to another account (#296).
     if (set.kind !== undefined && set.kind !== 'transfer') {
       set.counterpartAccountId = null
+    }
+    // Only an expense pays a prepaid subscription (#314).
+    if (set.kind !== undefined && set.kind !== 'expense') {
+      set.prepaidItemId = null
     }
     return set
   }

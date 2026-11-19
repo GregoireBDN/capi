@@ -16,6 +16,7 @@ function series(overrides: Partial<ExpectedSeries> = {}): ExpectedSeries {
     typicalAmountCents: 80_000,
     nextExpectedDate: '2026-11-05',
     endedOn: null,
+    termMonths: null,
     categoryId: 'rent',
     categoryName: 'Test rent',
     categoryColor: null,
@@ -117,5 +118,28 @@ describe('expectedByCategory', () => {
       HORIZONS,
     )
     expect(result).toEqual(new Map([['rent', 80_000]]))
+  })
+
+  it('expects a prepaid plan’s renewal in its month only (#314)', () => {
+    const prepaid = series({
+      id: 'vps',
+      categoryId: 'subscriptions',
+      cadence: 'yearly',
+      termMonths: 24,
+      typicalAmountCents: 18_000,
+      nextExpectedDate: '2026-11-20',
+      occurrences: [{ date: '2024-11-20' }],
+    })
+    expect(expectedByCategory([prepaid], '2026-11', HORIZONS)).toEqual(
+      new Map([['subscriptions', 18_000]]),
+    )
+    expect(expectedByCategory([prepaid], '2026-12', HORIZONS).size).toBe(0)
+    expect(
+      expectedByCategory(
+        [{ ...prepaid, endedOn: '2026-11-20' }],
+        '2026-11',
+        HORIZONS,
+      ).size,
+    ).toBe(0)
   })
 })

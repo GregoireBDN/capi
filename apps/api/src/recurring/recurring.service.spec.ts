@@ -1,5 +1,9 @@
 import '#/load-env'
-import { BadRequestException, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common'
 import { eq } from 'drizzle-orm'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -10,6 +14,7 @@ import {
   categoriesTable,
   type InsertTransaction,
   recurringItemsTable,
+  transactionLinesView,
   transactionsTable,
 } from '#/database/schema'
 import { addMonths } from './dates'
@@ -558,6 +563,228 @@ describe.skipIf(!process.env.DATABASE_URL)(
         const result = await f.service.detect(TODAY)
         expect(result.removedCount).toBe(0)
         expect(await f.service.list()).toHaveLength(1)
+      })
+    })
+
+    describe('prepaid subscriptions (#314)', () => {
+      const VPS = 'PRLV SEPA HEBERGEUR VPS EXEMPLE'
+
+      async function paymentId(f: Fixture, date: string): Promise<string> {
+        const [row] = await f.tx
+          .select({ id: transactionsTable.id })
+          .from(transactionsTable)
+          .where(eq(transactionsTable.bookingDate, date))
+        return row.id
+      }
+
+      it('declares a debit as a 24-month plan: monthly cost, renewal, totals', async () => {
+        await withFixture(async (f) => {
+          await f.insert([
+            {
+              rawLabel: VPS,
+              bookingDate: '2025-11-07',
+              amountCents: -18_000,
+              categoryId: f.subscriptions,
+            },
+          ])
+          const { item, previousStatus } = await f.service.declarePrepaid(
+            { transactionId: await paymentId(f, '2025-11-07'), termMonths: 24 },
+            TODAY,
+          )
+          expect(previousStatus).toBeNull()
+          expect(item).toMatchObject({
+            status: 'confirmed',
+            termMonths: 24,
+            isFixedCost: true,
+            isSubscription: true,
+            typicalAmountCents: 18_000,
+            monthlyEquivalentCents: 750,
+            yearlyCostCents: 9_000,
+            renewalDate: '2027-11-07',
+            nextExpectedDate: '2027-11-07',
+            active: true,
+            occurrenceCount: 1,
+            renewalReminder: false,
+          })
+          const summary = await f.service.summary(TODAY)
+          expect(summary.debits.subscriptions).toEqual({
+            monthlyCents: 750,
+            yearlyCents: 9_000,
+            count: 1,
+          })
+          // The payment counts as a one-off in averages.
+          const [line] = await f.tx
+            .select({
+              isOneOff: transactionLinesView.isOneOff,
+              prepaidItemId: transactionLinesView.prepaidItemId,
+            })
+            .from(transactionLinesView)
+          expect(line).toEqual({ isOneOff: true, prepaidItemId: item.id })
+        })
+      })
+
+      it('never lets a detection run overwrite the term', async () => {
+        await withFixture(async (f) => {
+          // Two yearly charges: the detector sees a yearly series.
+          await f.insert([
+            { rawLabel: VPS, bookingDate: '2024-11-07', amountCents: -9_000 },
+            { rawLabel: VPS, bookingDate: '2025-11-07', amountCents: -9_000 },
+          ])
+          await f.service.detect(TODAY)
+          const [suggested] = await f.service.list('suggested', TODAY)
+          expect(suggested.cadence).toBe('yearly')
+          const { item, previousStatus } = await f.service.declarePrepaid(
+            { transactionId: await paymentId(f, '2025-11-07'), termMonths: 12 },
+            TODAY,
+          )
+          expect(previousStatus).toBe('suggested')
+          expect(item.id).toBe(suggested.id)
+          await f.service.detect(TODAY)
+          const [after] = await f.service.list(undefined, TODAY)
+          expect(after).toMatchObject({
+            status: 'confirmed',
+            termMonths: 12,
+            renewalDate: '2026-11-07',
+            monthlyEquivalentCents: 750,
+            occurrenceCount: 1,
+          })
+        })
+      })
+
+      it('attaches a charge within the renewal window as the next payment', async () => {
+        await withFixture(async (f) => {
+          await f.insert([
+            { rawLabel: VPS, bookingDate: '2024-11-29', amountCents: -24_000 },
+            // Too early for the renewal (2025-11-29 ± 30 days).
+            { rawLabel: VPS, bookingDate: '2025-06-03', amountCents: -1_500 },
+          ])
+          const { item } = await f.service.declarePrepaid(
+            { transactionId: await paymentId(f, '2024-11-29'), termMonths: 12 },
+            TODAY,
+          )
+          expect(item.renewalDate).toBe('2025-11-29')
+          await f.insert([
+            { rawLabel: VPS, bookingDate: '2025-12-02', amountCents: -26_400 },
+          ])
+          await f.service.detect(TODAY)
+          const [after] = await f.service.list('confirmed', TODAY)
+          expect(after).toMatchObject({
+            occurrenceCount: 2,
+            typicalAmountCents: 26_400,
+            priceChangeCents: 2_400,
+            lastSeenDate: '2025-12-02',
+            renewalDate: '2026-12-02',
+            monthlyEquivalentCents: 2_200,
+            // At most 30 days before the renewal: keep or cancel it.
+            renewalReminder: true,
+          })
+          const early = await f.service.list('confirmed', '2026-11-01')
+          expect(early[0].renewalReminder).toBe(false)
+          const kept = await f.service.update(
+            after.id,
+            { keepRenewal: true },
+            '2026-11-02',
+          )
+          expect(kept.renewalReminder).toBe(false)
+          // Cancelled at the renewal: nothing expected on or after it.
+          const ended = await f.service.update(
+            after.id,
+            { endedOn: '2026-12-02', keepRenewal: false },
+            '2026-11-02',
+          )
+          expect(ended).toMatchObject({ ended: false, renewalReminder: false })
+        })
+      })
+
+      it('refuses anything but an expense, and a payment declared twice', async () => {
+        await withFixture(async (f) => {
+          await f.insert([
+            {
+              rawLabel: 'VIR SEPA EMPLOYEUR EXEMPLE',
+              bookingDate: '2026-10-28',
+              amountCents: 250_000,
+              kind: 'income',
+            },
+            { rawLabel: VPS, bookingDate: '2026-10-07', amountCents: -18_000 },
+          ])
+          await expect(
+            f.service.declarePrepaid(
+              {
+                transactionId: await paymentId(f, '2026-10-28'),
+                termMonths: 12,
+              },
+              TODAY,
+            ),
+          ).rejects.toBeInstanceOf(BadRequestException)
+          const transactionId = await paymentId(f, '2026-10-07')
+          await f.service.declarePrepaid(
+            { transactionId, termMonths: 24 },
+            TODAY,
+          )
+          await expect(
+            f.service.declarePrepaid({ transactionId, termMonths: 12 }, TODAY),
+          ).rejects.toBeInstanceOf(ConflictException)
+          await expect(
+            f.service.declarePrepaid(
+              { transactionId: UNKNOWN_ID, termMonths: 12 },
+              TODAY,
+            ),
+          ).rejects.toBeInstanceOf(NotFoundException)
+        })
+      })
+
+      it('changes the term, makes the item ordinary again, removes it', async () => {
+        await withFixture(async (f) => {
+          await f.insert([
+            { rawLabel: VPS, bookingDate: '2026-10-07', amountCents: -18_000 },
+          ])
+          const transactionId = await paymentId(f, '2026-10-07')
+          const { item } = await f.service.declarePrepaid(
+            { transactionId, termMonths: 24 },
+            TODAY,
+          )
+          const longer = await f.service.update(
+            item.id,
+            { termMonths: 36 },
+            TODAY,
+          )
+          expect(longer).toMatchObject({
+            monthlyEquivalentCents: 500,
+            renewalDate: '2029-10-07',
+          })
+          const ordinary = await f.service.update(
+            item.id,
+            { termMonths: null },
+            TODAY,
+          )
+          expect(ordinary).toMatchObject({
+            termMonths: null,
+            renewalDate: null,
+          })
+          const [linked] = await f.tx
+            .select({ prepaidItemId: transactionsTable.prepaidItemId })
+            .from(transactionsTable)
+          expect(linked.prepaidItemId).toBeNull()
+          // Setting a term again links the latest debit of the series.
+          const again = await f.service.update(
+            item.id,
+            { termMonths: 12 },
+            TODAY,
+          )
+          expect(again).toMatchObject({
+            occurrenceCount: 1,
+            renewalDate: '2027-10-07',
+          })
+          await expect(
+            f.service.update(
+              item.id,
+              { keepRenewal: true, termMonths: null },
+              TODAY,
+            ),
+          ).rejects.toBeInstanceOf(BadRequestException)
+          await f.service.remove(item.id)
+          expect(await f.service.list(undefined, TODAY)).toHaveLength(0)
+        })
       })
     })
   },

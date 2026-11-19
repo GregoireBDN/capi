@@ -18,6 +18,7 @@ export type ExpectedSeries = Pick<
   | 'typicalAmountCents'
   | 'nextExpectedDate'
   | 'endedOn'
+  | 'termMonths'
   | 'categoryId'
   | 'categoryName'
   | 'categoryColor'
@@ -59,6 +60,7 @@ export function expectedByCategory(
         typicalAmountCents: item.typicalAmountCents,
         nextExpectedDate: item.nextExpectedDate,
         endedOn: item.endedOn,
+        termMonths: item.termMonths,
         bookedDates: item.occurrences.map((o) => o.date),
         categoryName: item.categoryName,
         categoryColor: item.categoryColor,

@@ -239,6 +239,13 @@
       "when": 1795087941511,
       "tag": "0033_rule_priority",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795118801599,
+      "tag": "0034_prepaid_subscriptions",
+      "breakpoints": true
     }
   ]
 }

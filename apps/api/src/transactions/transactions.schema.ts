@@ -22,6 +22,7 @@ import {
 } from '#/categories/categories.schema'
 import { coreColumns } from '#/database/schema/core.schema'
 import { importsTable } from '#/imports/imports.schema'
+import { recurringItemsTable } from '#/recurring/recurring.schema'
 
 export const transactionsTable = pgTable(
   'transactions',
@@ -73,6 +74,16 @@ export const transactionsTable = pgTable(
      */
     manual: boolean('manual').notNull().default(false),
     /**
+     * Payment of a prepaid subscription (#314): the recurring item whose term
+     * it pays upfront. It counts in its month's spending but, its cost being
+     * spread over the term, is left out of averages and budget suggestions
+     * like a one-off (`transactionLinesView.isOneOff`).
+     */
+    prepaidItemId: uuid('prepaid_item_id').references(
+      () => recurringItemsTable.id,
+      { onDelete: 'set null' },
+    ),
+    /**
      * Bank values of an imported row whose amount or date was corrected by
      * hand (#74): null until then. `amountCents` / `bookingDate` hold the
      * corrected values, which statistics use; the bank's data (balances,
@@ -99,6 +110,7 @@ export const transactionsTable = pgTable(
     index().on(t.categoryId),
     index().on(t.importId),
     index().on(t.counterpartAccountId),
+    index().on(t.prepaidItemId),
     check(
       'transactions_counterpart_not_own_account',
       sql`${t.counterpartAccountId} <> ${t.accountId}`,
@@ -154,10 +166,16 @@ export const transactionLinesView = pgView('transaction_lines', {
   kind: transactionKindEnum('kind').notNull(),
   categoryId: uuid('category_id'),
   needsReview: boolean('needs_review').notNull(),
+  /**
+   * Left out of averages: the transaction's one-off flag, or a prepaid
+   * subscription payment (#314), whose cost is spread over its term.
+   */
   isOneOff: boolean('is_one_off').notNull(),
   manual: boolean('manual').notNull(),
+  /** The prepaid subscription this payment is for (#314). */
+  prepaidItemId: uuid('prepaid_item_id'),
 }).as(
-  sql`select t.id, s.id as split_id, t.account_id, t.import_id, t.booking_date, case when s.id is null then t.amount_cents else s.amount_cents end as amount_cents, t.raw_label, t.merchant, t.kind, case when s.id is null then t.category_id else s.category_id end as category_id, t.needs_review, t.is_one_off, t.manual from transactions t left join transaction_splits s on s.transaction_id = t.id`,
+  sql`select t.id, s.id as split_id, t.account_id, t.import_id, t.booking_date, case when s.id is null then t.amount_cents else s.amount_cents end as amount_cents, t.raw_label, t.merchant, t.kind, case when s.id is null then t.category_id else s.category_id end as category_id, t.needs_review, (t.is_one_off or t.prepaid_item_id is not null) as is_one_off, t.manual, t.prepaid_item_id from transactions t left join transaction_splits s on s.transaction_id = t.id`,
 )
 
 /** Amount as the bank gave it: the original of a corrected row. */

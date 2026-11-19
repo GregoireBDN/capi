@@ -101,6 +101,46 @@ export function nextPeriod(date: string, cadence: RecurringCadence): string {
   }
 }
 
+/**
+ * The date one period after `date` for `item`: its prepaid term (#314) when
+ * it has one, else its cadence.
+ */
+export function periodAfter(
+  item: Pick<RecurringItemDto, 'cadence' | 'termMonths'>,
+  date: string,
+): string {
+  return item.termMonths
+    ? addMonths(date, item.termMonths)
+    : nextPeriod(date, item.cadence)
+}
+
+/** Terms offered for a prepaid subscription (#314). */
+export const PREPAID_TERMS = [12, 24, 36] as const
+
+/**
+ * `amountCents` ÷ `termMonths` rounded half to even, like the API: the
+ * monthly equivalent of a prepaid subscription.
+ */
+export function prepaidMonthlyCents(
+  amountCents: number,
+  termMonths: number,
+): number {
+  const quotient = Math.floor(amountCents / termMonths)
+  const twice = 2 * (amountCents - quotient * termMonths)
+  return twice > termMonths || (twice === termMonths && quotient % 2 === 1)
+    ? quotient + 1
+    : quotient
+}
+
+/** "payé 180,00 € pour 24 mois"; null for an item that is not prepaid. */
+export function formatPrepaid(
+  item: Pick<RecurringItemDto, 'termMonths' | 'typicalAmountCents'>,
+): string | null {
+  return item.termMonths
+    ? `payé ${formatCents(item.typicalAmountCents)} pour ${item.termMonths} mois`
+    : null
+}
+
 /** "aujourd’hui", "demain", "dans 5 jours", "hier", "il y a 3 jours". */
 export function formatRelativeDay(date: string, today: string): string {
   const days = daysBetween(today, date)
@@ -187,10 +227,23 @@ export function formatPriceChange(
   return `${amount} depuis ${month}${year === today.slice(0, 4) ? '' : ` ${year}`}`
 }
 
-/** "12,99 € / mois", "~ 84,00 € / mois" for a variable amount. */
+/**
+ * "12,99 € / mois", "~ 84,00 € / mois" for a variable amount; a prepaid
+ * subscription (#314) by its monthly equivalent, "7,50 € / mois".
+ */
 export function formatAmountPerPeriod(
-  item: Pick<RecurringItemDto, 'typicalAmountCents' | 'amountType' | 'cadence'>,
+  item: Pick<
+    RecurringItemDto,
+    | 'typicalAmountCents'
+    | 'amountType'
+    | 'cadence'
+    | 'termMonths'
+    | 'monthlyEquivalentCents'
+  >,
 ): string {
+  if (item.termMonths) {
+    return `${formatCents(item.monthlyEquivalentCents)} / mois`
+  }
   const approx = item.amountType === 'variable' ? '~ ' : ''
   return `${approx}${formatCents(item.typicalAmountCents)} / ${CADENCE_UNITS[item.cadence]}`
 }
@@ -236,7 +289,7 @@ export function upcomingDebits(
     let date = item.nextExpectedDate
     // Bounded: at most a year and a half of weekly periods.
     for (let guard = 0; date < today && guard < 80; guard++) {
-      date = nextPeriod(date, item.cadence)
+      date = periodAfter(item, date)
     }
     const { endedOn } = item
     for (
@@ -244,7 +297,7 @@ export function upcomingDebits(
       date <= end && (endedOn === null || date < endedOn) && guard < 10;
       guard++
     ) {
-      const next = nextPeriod(date, item.cadence)
+      const next = periodAfter(item, date)
       upcoming.push({
         key: `${item.id}:${date}`,
         date,
@@ -343,9 +396,14 @@ function isLastDayOfMonth(date: string): boolean {
  * else the last one.
  */
 export function describeSchedule(
-  item: Pick<RecurringItemDto, 'cadence' | 'nextExpectedDate' | 'lastSeenDate'>,
+  item: Pick<
+    RecurringItemDto,
+    'cadence' | 'nextExpectedDate' | 'lastSeenDate'
+  > &
+    Partial<Pick<RecurringItemDto, 'termMonths'>>,
 ): string {
   const date = item.nextExpectedDate ?? item.lastSeenDate
+  if (item.termMonths) return `tous les ${item.termMonths} mois, payé d’avance`
   switch (item.cadence) {
     case 'weekly':
       return `chaque ${weekday.format(new Date(toUtc(date)))}`

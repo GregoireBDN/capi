@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   HttpCode,
@@ -15,6 +16,8 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBody,
+  ApiConflictResponse,
+  ApiNoContentResponse,
   ApiCookieAuth,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -31,6 +34,8 @@ import '#/auth/request-user'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import {
   ConfirmRecurringItemsDto,
+  DeclarePrepaidDto,
+  PrepaidDeclarationDto,
   RecurringConfirmResultDto,
   RecurringDetectResultDto,
   RecurringItemDto,
@@ -103,23 +108,61 @@ export class RecurringController {
     return this.recurringService.confirm(dto.ids)
   }
 
+  @Post('prepaid')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Declare a prepaid subscription',
+    description:
+      'Makes an expense the upfront payment of a subscription paid for `termMonths` (#314): the recurring item of its account and merchant becomes, or is created as, a confirmed prepaid item. Its monthly cost is the payment ÷ the term, its renewal the payment date + the term; later charges of the merchant around the renewal date are linked to it. Session only.',
+  })
+  @ApiBody({ type: DeclarePrepaidDto })
+  @ApiOkResponse({ type: PrepaidDeclarationDto })
+  @ApiBadRequestResponse({
+    description:
+      'Invalid body, a transaction that is not an expense, or a label without a merchant.',
+  })
+  @ApiNotFoundResponse({ description: 'Unknown transaction.' })
+  @ApiConflictResponse({
+    description: 'The transaction already pays a prepaid subscription.',
+  })
+  declarePrepaid(
+    @Body() dto: DeclarePrepaidDto,
+  ): Promise<PrepaidDeclarationDto> {
+    return this.recurringService.declarePrepaid(dto)
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'Remove a prepaid item',
+    description:
+      'Undoes a declaration that created the item: its payments are unlinked. Prepaid items only. Session only.',
+  })
+  @ApiParam({ name: 'id', type: String, format: 'uuid' })
+  @ApiNoContentResponse()
+  @ApiBadRequestResponse({ description: 'The item is not prepaid.' })
+  @ApiNotFoundResponse({ description: 'Unknown item.' })
+  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    await this.recurringService.remove(id)
+  }
+
   @Patch(':id')
   @TokenAccess('write')
   @ApiOperation({
     summary: 'Edit a recurring item',
     description:
-      'Confirm or dismiss it, rename it, change its category, fixed-cost flag, cadence or notes, cancel it from a date (`endedOn`, confirmed items only) or reactivate it (`endedOn: null`). Omitted fields are kept.',
+      'Confirm or dismiss it, rename it, change its category, fixed-cost flag, cadence or notes, cancel it from a date (`endedOn`, confirmed items only) or reactivate it (`endedOn: null`), set or clear its prepaid term (`termMonths`), keep its coming renewal (`keepRenewal`). Omitted fields are kept.',
   })
   @ApiParam({ name: 'id', type: String, format: 'uuid' })
   @ApiBody({ type: UpdateRecurringItemDto })
   @ApiOkResponse({ type: RecurringItemDto })
   @ApiBadRequestResponse({
     description:
-      'Invalid body, unknown category, or `endedOn` on an item that is not confirmed.',
+      'Invalid body, unknown category, `endedOn` on an item that is not confirmed, `keepRenewal` on an item that is not prepaid, or a term on a credit or an item without a debit.',
   })
   @ApiForbiddenResponse({
     description:
-      'Access token with `endedOn`: cancelling stays in the app (session only).',
+      'Access token with `endedOn`, `termMonths` or `keepRenewal`: cancelling, the prepaid term and renewals stay in the app (session only).',
   })
   @ApiNotFoundResponse({ description: 'Unknown item.' })
   update(
@@ -132,6 +175,14 @@ export class RecurringController {
     if (req.accessToken && dto.endedOn !== undefined) {
       throw new ForbiddenException(
         'Cancelling a recurring item needs a session',
+      )
+    }
+    if (
+      req.accessToken &&
+      (dto.termMonths !== undefined || dto.keepRenewal !== undefined)
+    ) {
+      throw new ForbiddenException(
+        'The prepaid term and renewals of a recurring item need a session',
       )
     }
     return this.recurringService.update(id, dto)

@@ -7,7 +7,10 @@ import {
   describeSchedule,
   formatChargedAfterEnd,
   formatEnd,
+  formatAmountPerPeriod,
+  formatPrepaid,
   formatPriceChange,
+  prepaidMonthlyCents,
   formatRelativeDay,
   groupItems,
   todayInParis,
@@ -150,6 +153,45 @@ describe('subscriptions format helpers', () => {
       text(formatChargedAfterEnd({ chargedAfterEnd: '2026-11-04' }, today)),
     ).toBe('Prélevé après la résiliation (4 nov.)')
     expect(formatChargedAfterEnd({ chargedAfterEnd: null }, today)).toBeNull()
+  })
+
+  it('shows a prepaid plan by its monthly cost and renews it by its term (#314)', () => {
+    const plan = recurringItem({
+      name: 'Hébergeur',
+      cadence: 'yearly',
+      termMonths: 24,
+      typicalAmountCents: 18_000,
+      monthlyEquivalentCents: 750,
+      lastSeenDate: '2024-11-20',
+      nextExpectedDate: '2026-11-20',
+      renewalDate: '2026-11-20',
+    })
+    expect(text(formatAmountPerPeriod(plan))).toBe('7,50 € / mois')
+    expect(text(formatPrepaid(plan))).toBe('payé 180,00 € pour 24 mois')
+    expect(formatPrepaid(recurringItem())).toBeNull()
+    expect(describeSchedule(plan)).toBe('tous les 24 mois, payé d’avance')
+    expect(upcomingDebits([plan], '2026-11-06').map((u) => u.date)).toEqual([
+      '2026-11-20',
+    ])
+    // Cancelled at the renewal: nothing upcoming.
+    expect(
+      upcomingDebits([{ ...plan, endedOn: '2026-11-20' }], '2026-11-06'),
+    ).toEqual([])
+    // An unimported renewal is carried a whole term forward, not a year.
+    expect(
+      upcomingDebits(
+        [{ ...plan, nextExpectedDate: '2026-10-01' }],
+        '2026-11-06',
+        800,
+      ).map((u) => u.date),
+    ).toEqual(['2028-10-01'])
+  })
+
+  it('spreads a prepaid payment half to even, like the API', () => {
+    expect(prepaidMonthlyCents(18_000, 24)).toBe(750)
+    expect(prepaidMonthlyCents(9_999, 24)).toBe(417)
+    expect(prepaidMonthlyCents(108, 24)).toBe(4)
+    expect(prepaidMonthlyCents(132, 24)).toBe(6)
   })
 
   it('says when a series falls', () => {

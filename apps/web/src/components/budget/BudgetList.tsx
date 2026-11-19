@@ -23,7 +23,16 @@ export function BudgetList({ month, items, onEdit }: BudgetListProps) {
   return (
     <ul className="space-y-2" aria-label="Budgets par catégorie">
       {items.map((item) => {
-        const oneOffs = item.spentCents - item.spentExcludingOneOffsCents
+        // Prepaid subscription payments (#314) are left out of averages
+        // like one-offs, but named apart: why the month is over.
+        const prepaid = item.prepaid.map(
+          (p) =>
+            `dont ${formatCents(p.amountCents)} prépayés pour ${p.termMonths} mois`,
+        )
+        const oneOffs =
+          item.spentCents -
+          item.spentExcludingOneOffsCents -
+          item.prepaid.reduce((sum, p) => sum + p.amountCents, 0)
         return (
           <li
             key={item.categoryId}
@@ -49,10 +58,20 @@ export function BudgetList({ month, items, onEdit }: BudgetListProps) {
                   valueFormatter={formatBudgetAmount}
                   warningThreshold={WARNING_THRESHOLD}
                 />
-                {(oneOffs !== 0 || item.note || item.tracked) && (
-                  <span className="text-muted-foreground block truncate text-xs">
+                {(oneOffs !== 0 ||
+                  prepaid.length > 0 ||
+                  item.note ||
+                  item.tracked) && (
+                  <span
+                    className={cn(
+                      'text-muted-foreground block text-xs',
+                      // A prepaid line is the explanation: never cut it.
+                      prepaid.length > 0 ? 'break-normal' : 'truncate',
+                    )}
+                  >
                     {[
                       item.tracked && 'Suivi pendant le mois',
+                      ...prepaid,
                       oneOffs !== 0 && `dont ponctuel ${formatCents(oneOffs)}`,
                       item.note,
                     ]

@@ -193,6 +193,22 @@ export class TransactionDto {
   manual!: boolean
 
   @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Prepaid subscription this expense pays upfront (#314): counted in its month, left out of averages like a one-off.',
+  })
+  prepaidItemId!: string | null
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: 'Term in months of that prepaid subscription.',
+  })
+  prepaidTermMonths!: number | null
+
+  @ApiProperty({
     type: 'integer',
     nullable: true,
     description:
