@@ -108,6 +108,18 @@ export function decimalFromJsonNumber(literal: string): string | null {
   )
 }
 
+/**
+ * A signed JSON number literal (`-1.25`, `3.4e-2`) as a canonical decimal
+ * string with its sign (`"-1.25"`, `"0.034"`), or null when malformed. For
+ * percentages, which can be negative.
+ */
+export function signedDecimalFromJsonNumber(literal: string): string | null {
+  const negative = literal.startsWith('-')
+  const value = decimalFromJsonNumber(negative ? literal.slice(1) : literal)
+  if (value === null) return null
+  return negative && value !== '0' ? `-${value}` : value
+}
+
 /** Prefix marking the strings `quoteJsonNumbers` made out of numbers. */
 export const JSON_NUMBER_MARK = '\uE000'
 

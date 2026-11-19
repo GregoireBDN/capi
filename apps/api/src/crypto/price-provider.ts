@@ -14,12 +14,24 @@ export interface CryptoAsset {
   rank: number | null
 }
 
+/** A provider price with its change over 24 hours, exact decimal strings. */
+export interface EurQuote {
+  priceEur: string
+  /** Signed percent (`"-1.25"`), null when the provider has none. */
+  change24hPercent: string | null
+}
+
 export interface PriceProvider {
   /**
    * EUR prices of the given assets as exact decimal strings, in one request.
    * Assets the provider does not know are missing from the map.
    */
   fetchEurPrices(assetIds: readonly string[]): Promise<Map<string, string>>
+  /**
+   * The same request, each price with its change over 24 hours (#295) when
+   * the provider gives it. Optional: without it, prices have no change.
+   */
+  fetchEurQuotes?(assetIds: readonly string[]): Promise<Map<string, EurQuote>>
   searchAssets(query: string): Promise<CryptoAsset[]>
 }
 

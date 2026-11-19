@@ -7,6 +7,8 @@ export interface Quote {
   priceEur: string
   fetchedAt: Date
   source: CryptoPriceSource
+  /** Signed change over 24 hours in percent (`"-1.25"`), when known (#295). */
+  change24hPercent?: string | null
 }
 
 export interface HoldingToValue {

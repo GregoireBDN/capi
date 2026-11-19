@@ -1,0 +1,1 @@
+ALTER TABLE "crypto_prices" ADD COLUMN "change_24h_percent" numeric(12, 4);

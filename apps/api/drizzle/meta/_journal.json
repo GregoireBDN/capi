@@ -225,6 +225,13 @@
       "when": 1795077580043,
       "tag": "0031_transfer_counterparts",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1795085790845,
+      "tag": "0032_crypto_price_change",
+      "breakpoints": true
     }
   ]
 }

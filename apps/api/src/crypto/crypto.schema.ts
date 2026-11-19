@@ -242,6 +242,14 @@ export const cryptoPricesTable = pgTable(
     ...coreColumns,
     assetId: varchar('asset_id', { length: 100 }).notNull().unique(),
     priceEur: numeric('price_eur', { precision: 38, scale: 12 }).notNull(),
+    /**
+     * Change of the EUR price over 24 hours in percent, signed (#295), as the
+     * price API gave it with the price; null for manual prices.
+     */
+    change24hPercent: numeric('change_24h_percent', {
+      precision: 12,
+      scale: 4,
+    }),
     source: cryptoPriceSourceEnum('source').notNull(),
     fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull(),
   },

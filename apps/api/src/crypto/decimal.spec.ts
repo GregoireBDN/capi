@@ -8,6 +8,7 @@ import {
   parseDecimal,
   quoteJsonNumbers,
   rescale,
+  signedDecimalFromJsonNumber,
   valueInCents,
 } from './decimal'
 
@@ -92,5 +93,13 @@ describe('decimal helper', () => {
       c: [n('1'), n('-2.5')],
       d: true,
     })
+  })
+
+  it('reads signed JSON numbers exactly (#295)', () => {
+    expect(signedDecimalFromJsonNumber('-1.2345678901')).toBe('-1.2345678901')
+    expect(signedDecimalFromJsonNumber('3.4e-2')).toBe('0.034')
+    expect(signedDecimalFromJsonNumber('-0')).toBe('0')
+    expect(signedDecimalFromJsonNumber('--1')).toBeNull()
+    expect(signedDecimalFromJsonNumber('abc')).toBeNull()
   })
 })

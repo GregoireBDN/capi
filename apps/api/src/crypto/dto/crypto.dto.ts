@@ -11,9 +11,13 @@ import {
   Min,
 } from 'class-validator'
 import {
+  CRYPTO_ACCOUNT_SOURCES,
   CRYPTO_CHAINS,
+  CRYPTO_EXCHANGE_PROVIDERS,
   CRYPTO_HOLDING_ORIGINS,
   CRYPTO_PRICE_SOURCES,
+  type CryptoAccountSource,
+  type CryptoExchangeProvider,
   type CryptoChain,
   type CryptoHoldingOrigin,
   type CryptoPriceSource,
@@ -179,6 +183,15 @@ export class ValuedHoldingDto extends HoldingDto {
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   priceFetchedAt!: string | null
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Change of the price over 24 hours in percent, signed exact decimal, as the price API gave it with the price; null for manual prices or without one.',
+    example: '-1.25',
+  })
+  priceChange24hPercent!: string | null
 
   @ApiProperty({
     type: Boolean,
@@ -366,6 +379,251 @@ export class CryptoSummaryDto {
     description: 'A price refresh was attempted in this request and failed.',
   })
   refreshFailed!: boolean
+}
+
+/** Where an asset of the portfolio is held: one account (#295). */
+export class PortfolioPlaceDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  accountId!: string
+
+  @ApiProperty({ type: String })
+  name!: string
+
+  @ApiProperty({ ...QUANTITY_DOC, description: 'Its locations summed.' })
+  quantity!: string
+
+  @ApiProperty({ type: 'integer', nullable: true })
+  valueCents!: number | null
+}
+
+/** One asset of the portfolio, summed over every open crypto account. */
+export class PortfolioAssetDto {
+  @ApiProperty(ASSET_ID_DOC)
+  assetId!: string
+
+  @ApiProperty({ type: String })
+  symbol!: string
+
+  @ApiProperty({ type: String })
+  name!: string
+
+  @ApiProperty({
+    ...QUANTITY_DOC,
+    description: 'Exact sum over every account and location.',
+  })
+  quantity!: string
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Last known EUR price per unit (exact decimal), if any.',
+  })
+  priceEur!: string | null
+
+  @ApiProperty({ enum: [...CRYPTO_PRICE_SOURCES, null], nullable: true })
+  priceSource!: CryptoPriceSource | null
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  priceFetchedAt!: string | null
+
+  @ApiProperty({ type: Boolean })
+  priceStale!: boolean
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Change of the price over 24 hours in percent (signed exact decimal); null for manual prices.',
+    example: '2.4',
+  })
+  change24hPercent!: string | null
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      "Sum of its lines' values (each quantity × price rounded half to even); null without a price.",
+  })
+  valueCents!: number | null
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: 'What the value moved over 24 hours, from the price change.',
+  })
+  change24hCents!: number | null
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: 'Sum of the invested amounts, only when every line has one.',
+  })
+  investedCents!: number | null
+
+  @ApiProperty({ type: 'integer', nullable: true })
+  gainCents!: number | null
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'False for a token known by its contract only: it never gets a price.',
+  })
+  priceable!: boolean
+
+  @ApiProperty({
+    type: [PortfolioPlaceDto],
+    description: 'The accounts holding it, largest value first.',
+  })
+  places!: PortfolioPlaceDto[]
+}
+
+export class PortfolioTotalsDto {
+  @ApiProperty({
+    type: 'integer',
+    description: 'Sum over the assets that have a price.',
+  })
+  valueCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Sum of the change over 24 hours of the assets that have one; null if none.',
+  })
+  change24hCents!: number | null
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Invested in the priced assets whose cost is known; null if none.',
+  })
+  investedCents!: number | null
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: 'Value of those assets minus what was invested in them.',
+  })
+  gainCents!: number | null
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Priced assets whose cost is unknown (out of the gain).',
+  })
+  withoutInvestedCount!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Assets waiting for a price (contract-only tokens excluded).',
+  })
+  missingPriceCount!: number
+
+  @ApiProperty({ type: 'integer' })
+  staleCount!: number
+}
+
+/** « Où sont mes cryptos » : an open crypto account and how fresh it is. */
+export class PortfolioAccountDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  accountId!: string
+
+  @ApiProperty({ type: String })
+  name!: string
+
+  @ApiProperty({ type: String, nullable: true })
+  institution!: string | null
+
+  @ApiProperty({
+    enum: [...CRYPTO_ACCOUNT_SOURCES, null],
+    enumName: 'CryptoAccountSource',
+    nullable: true,
+  })
+  source!: CryptoAccountSource | null
+
+  @ApiProperty({
+    enum: [...CRYPTO_EXCHANGE_PROVIDERS, null],
+    enumName: 'CryptoExchangeProvider',
+    nullable: true,
+  })
+  provider!: CryptoExchangeProvider | null
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Value of its priced holdings.',
+  })
+  valueCents!: number
+
+  @ApiProperty({ type: 'integer' })
+  holdingCount!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Its holdings waiting for a price.',
+  })
+  missingPriceCount!: number
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      "When its holdings were last fed: an exchange's last committed export, a wallet's last sync, a manual account's last edited line. Null when never.",
+  })
+  updatedAt!: string | null
+
+  @ApiProperty({
+    type: WalletSyncStatusDto,
+    nullable: true,
+    description: 'Wallet accounts only (null otherwise).',
+  })
+  sync!: WalletSyncStatusDto | null
+}
+
+/** The Crypto page (#295): assets across accounts, then the accounts. */
+export class CryptoPortfolioDto {
+  @ApiProperty({
+    type: [PortfolioAssetDto],
+    description:
+      'Priced assets by value, largest first, then those without a price by symbol. Fiat lines are left out.',
+  })
+  assets!: PortfolioAssetDto[]
+
+  @ApiProperty({ type: PortfolioTotalsDto })
+  totals!: PortfolioTotalsDto
+
+  @ApiProperty({
+    type: [PortfolioAccountDto],
+    description: 'Open crypto accounts, in the accounts order.',
+  })
+  accounts!: PortfolioAccountDto[]
+
+  @ApiProperty({ type: Boolean })
+  priceApiEnabled!: boolean
+
+  @ApiProperty({ type: Boolean })
+  walletSyncEnabled!: boolean
+
+  @ApiProperty({
+    type: Boolean,
+    description: 'A price refresh was attempted in this request and failed.',
+  })
+  refreshFailed!: boolean
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'When the most recent price was fetched or typed.',
+  })
+  pricesAt!: string | null
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      "This request wrote today's value of at least one account (net worth changed).",
+  })
+  valued!: boolean
 }
 
 /** What this server reads by itself, for the forms that depend on it. */
