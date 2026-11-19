@@ -103,7 +103,7 @@ export function PreviewRows(props: PreviewRowsProps) {
 
       {visible.length === 0 ? (
         <Card size="sm">
-          <CardContent className="mb-0 space-y-2 text-center text-sm">
+          <CardContent className="space-y-2 text-center text-sm">
             <p className="text-muted-foreground">
               {filter === 'todo' && duplicates > 0
                 ? 'Aucune nouvelle opération : toutes les lignes sont déjà enregistrées.'
@@ -233,7 +233,7 @@ function RowCards(props: PreviewRowsProps) {
       {props.rows.map((row) => (
         <li key={row.index} data-testid={`row-${row.index}`}>
           <Card size="sm">
-            <CardContent className="mb-0 space-y-2">
+            <CardContent className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <RowStatusBadge status={row.status} />
                 <Amount cents={row.amountCents} />

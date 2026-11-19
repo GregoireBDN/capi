@@ -69,7 +69,7 @@ function OverviewSkeleton() {
         <CardHeader>
           <Skeleton className="h-5 w-32" />
         </CardHeader>
-        <CardContent className="mb-0 space-y-3">
+        <CardContent className="space-y-3">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-10 w-full" />
           ))}

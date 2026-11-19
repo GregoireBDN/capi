@@ -158,3 +158,97 @@ export const ActionOnWideCard: Story = {
     await expect(actionBox.top).toBeLessThanOrEqual(titleBox.top + 1)
   },
 }
+
+/** Distances, in px, between the card's edges and its first and last blocks. */
+function edgeSpacing(canvasElement: HTMLElement, cardIndex = 0) {
+  const card =
+    canvasElement.querySelectorAll<HTMLElement>('[data-slot="card"]')[
+      cardIndex
+    ]!
+  const blocks = [...card.children] as HTMLElement[]
+  const cardBox = card.getBoundingClientRect()
+  return {
+    top: blocks[0]!.getBoundingClientRect().top - cardBox.top,
+    bottom: cardBox.bottom - blocks.at(-1)!.getBoundingClientRect().bottom,
+  }
+}
+
+/**
+ * A card ending with its content: the space under the last block is the
+ * card's padding, the same as above the first one (16px, 12px for `sm`).
+ * Guards #330, where `CardContent`'s margin doubled it.
+ */
+export const EndsWithContent: Story = {
+  render: () => (
+    <div className="flex flex-col gap-4">
+      <Card className="w-80">
+        <CardHeader>
+          <CardTitle>Ends with content</CardTitle>
+          <CardDescription>Same space above and below.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p>First block.</p>
+        </CardContent>
+        <CardContent>
+          <Button size="sm" variant="secondary" className="w-full">
+            Last block
+          </Button>
+        </CardContent>
+      </Card>
+      <Card size="sm" className="w-80">
+        <CardHeader>
+          <CardTitle>Small card</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Button size="sm" variant="secondary" className="w-full">
+            Last block
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const card = edgeSpacing(canvasElement, 0)
+    await expect(card.bottom).toBeCloseTo(card.top, 0)
+    await expect(card.bottom).toBeCloseTo(16 * remScale(), 0)
+    const small = edgeSpacing(canvasElement, 1)
+    await expect(small.bottom).toBeCloseTo(small.top, 0)
+    await expect(small.bottom).toBeCloseTo(12 * remScale(), 0)
+  },
+}
+
+/**
+ * A card ending with a footer: the footer sits flush with the card's bottom
+ * edge, and the content keeps its room above the footer.
+ */
+export const EndsWithFooter: Story = {
+  render: () => (
+    <Card className="w-80">
+      <CardHeader>
+        <CardTitle>Ends with a footer</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p>Body content.</p>
+      </CardContent>
+      <CardFooter>
+        <Button size="sm">Action</Button>
+      </CardFooter>
+    </Card>
+  ),
+  play: async ({ canvasElement }) => {
+    const { bottom } = edgeSpacing(canvasElement)
+    await expect(bottom).toBeCloseTo(0, 0)
+    const content = canvasElement.querySelector('[data-slot="card-content"]')!
+    const footer = canvasElement.querySelector('[data-slot="card-footer"]')!
+    const space =
+      footer.getBoundingClientRect().top -
+      content.getBoundingClientRect().bottom
+    // The card's gap plus the content's margin before the next block.
+    await expect(space).toBeCloseTo(32 * remScale(), 0)
+  },
+}
+
+/** Tailwind spacing is in rem; the app's root font size may not be 16px. */
+function remScale() {
+  return parseFloat(getComputedStyle(document.documentElement).fontSize) / 16
+}

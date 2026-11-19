@@ -39,7 +39,7 @@ export function AccountsList({
         title="Comptes"
         link={{ label: 'Évolution', to: ROUTES.netWorth }}
       />
-      <CardContent className="mb-0 space-y-4">
+      <CardContent className="space-y-4">
         {/* Today's net worth, once, with its date (the month-end one is
             in the review card), then its two parts; the groups below
             don't repeat their totals. */}
