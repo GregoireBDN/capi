@@ -170,6 +170,11 @@ interface ManualTransactionSheetProps {
   initialAccountId?: string
   /** Categories listed first (the envelopes followed this month). */
   suggestedCategoryIds?: readonly string[]
+  /**
+   * Account preselected when adding (the account page); the first checking
+   * account otherwise.
+   */
+  initialAccountId?: string
   /** The transaction entered by hand to edit; absent when adding one. */
   expense?: TransactionDto
 }
@@ -200,6 +205,7 @@ export function ManualTransactionSheet({
   initialKind = 'expense',
   initialAccountId,
   suggestedCategoryIds = [],
+  initialAccountId,
   expense,
 }: ManualTransactionSheetProps) {
   const isMobile = useIsMobile()

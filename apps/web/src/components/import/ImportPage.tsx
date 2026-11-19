@@ -17,8 +17,11 @@ type Step =
   | { name: 'preview'; detail: ImportDetailDto }
   | { name: 'done'; outcome: CommitOutcome }
 
-/** `/import`: account → upload → preview → commit, plus the import history. */
-export function ImportPage() {
+/**
+ * `/import`: account → upload → preview → commit, plus the import history.
+ * `accountId` preselects the account (from an account page).
+ */
+export function ImportPage({ accountId }: { accountId?: string } = {}) {
   const accounts = useQuery(accountsQuery)
   const [step, setStep] = useState<Step>({ name: 'upload' })
   const transactional = (accounts.data ?? []).filter(
@@ -75,7 +78,13 @@ export function ImportPage() {
   } else if (transactional.length === 0) {
     main = <AccountSetupForm />
   } else {
-    main = <UploadCard accounts={transactional} onPreview={openPreview} />
+    main = (
+      <UploadCard
+        accounts={transactional}
+        defaultAccountId={accountId}
+        onPreview={openPreview}
+      />
+    )
   }
 
   return (

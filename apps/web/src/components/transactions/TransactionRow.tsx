@@ -60,8 +60,12 @@ export interface TransactionRowActions {
 interface TransactionRowProps extends TransactionRowActions {
   item: TransactionDto
   categories: readonly CategoryDto[]
-  selected: boolean
-  onSelectedChange: (selected: boolean) => void
+  selected?: boolean
+  /**
+   * Selects the row (its category icon is a checkbox); without it the row
+   * cannot be selected (a short list with no bulk actions).
+   */
+  onSelectedChange?: (selected: boolean) => void
   /** Show the date in the row (lists not grouped by day). */
   showDate?: boolean
   /** Show the account (more than one open account, list not filtered to one). */
@@ -176,7 +180,7 @@ function InlineAmount({
 export function TransactionRow({
   item,
   categories,
-  selected,
+  selected = false,
   onSelectedChange,
   onChange,
   onUpdateManual,
@@ -267,6 +271,21 @@ export function TransactionRow({
     </button>
   )
 
+  const avatar = (
+    <CategoryAvatar
+      category={
+        item.splits.length > 0
+          ? 'split'
+          : item.category && {
+              color: item.category.color,
+              icon: item.category.icon,
+            }
+      }
+      selected={selected}
+      review={item.needsReview}
+    />
+  )
+
   const editor = (
     <TransactionEditor
       item={item}
@@ -305,28 +324,23 @@ export function TransactionRow({
       data-selected={selected || undefined}
       aria-label={name}
     >
-      <button
-        type="button"
-        role="checkbox"
-        aria-checked={selected}
-        aria-label={`Sélectionner ${name}`}
-        title={selected ? 'Désélectionner' : 'Sélectionner'}
-        onClick={() => onSelectedChange(!selected)}
-        className="focus-visible:ring-ring/50 relative flex size-8 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-[3px]"
-      >
-        <CategoryAvatar
-          category={
-            item.splits.length > 0
-              ? 'split'
-              : item.category && {
-                  color: item.category.color,
-                  icon: item.category.icon,
-                }
-          }
-          selected={selected}
-          review={item.needsReview}
-        />
-      </button>
+      {onSelectedChange ? (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={selected}
+          aria-label={`Sélectionner ${name}`}
+          title={selected ? 'Désélectionner' : 'Sélectionner'}
+          onClick={() => onSelectedChange(!selected)}
+          className="focus-visible:ring-ring/50 relative flex size-8 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-[3px]"
+        >
+          {avatar}
+        </button>
+      ) : (
+        <span className="flex size-8 shrink-0 items-center justify-center">
+          {avatar}
+        </span>
+      )}
       {triggerButton}
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent

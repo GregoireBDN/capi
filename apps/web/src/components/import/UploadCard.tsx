@@ -26,6 +26,8 @@ import { formatDate } from './format'
 interface UploadCardProps {
   /** Transactional accounts only. */
   accounts: AccountDto[]
+  /** Account selected first when it is one of `accounts`. */
+  defaultAccountId?: string
   onPreview: (detail: ImportDetailDto) => void
 }
 
@@ -48,8 +50,16 @@ function isCsv(file: File): boolean {
   return /\.csv$/i.test(file.name) || file.type.includes('csv')
 }
 
-export function UploadCard({ accounts, onPreview }: UploadCardProps) {
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '')
+export function UploadCard({
+  accounts,
+  defaultAccountId,
+  onPreview,
+}: UploadCardProps) {
+  const [accountId, setAccountId] = useState(
+    accounts.find((a) => a.id === defaultAccountId)?.id ??
+      accounts.at(0)?.id ??
+      '',
+  )
   const [error, setError] = useState<string | null>(null)
   const account = accounts.find((a) => a.id === accountId)
   const queryClient = useQueryClient()
