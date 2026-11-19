@@ -14,6 +14,16 @@ export const REFRESH_TOKEN_TTL_MS = REFRESH_TOKEN_TTL_SECONDS * 1000
  * often it is used. Then the owner signs in again.
  */
 export const SESSION_MAX_LIFETIME_MS = 90 * 24 * 60 * 60 * 1000
+/**
+ * A refresh token rotated less than this long ago and presented again, while
+ * none of its successors has been used, gets a new successor instead of
+ * burning the family (#292): the response carrying the rotated cookies was
+ * lost (network drop, iOS suspending the app mid-request, the web server
+ * restarting) and the browser still holds the previous token. The unused
+ * successor is dropped as soon as one of them is renewed, and presenting a
+ * token after the grace, or once a successor was used, is still reuse.
+ */
+export const SESSION_REFRESH_REUSE_GRACE_MS = 60_000
 export const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000
 export const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000
 /**

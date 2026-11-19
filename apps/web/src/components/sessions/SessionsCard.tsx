@@ -70,8 +70,14 @@ function SessionRow({
           {SIGN_IN_METHODS[session.signInMethod]}){' · '}
           actif le {dateTimeFormat.format(new Date(session.lastUsedAt))}
         </p>
+        {session.reuseDetectedAt && (
+          <p className="text-destructive text-xs">
+            Déconnecté : réutilisation détectée le{' '}
+            {dateTimeFormat.format(new Date(session.reuseDetectedAt))}
+          </p>
+        )}
       </div>
-      {!session.current && (
+      {!session.current && !session.reuseDetectedAt && (
         <div className="ml-auto flex gap-2">
           <Button
             type="button"
@@ -93,7 +99,9 @@ function SessionRow({
  * the account (refresh-token families). Ending one revokes it: that device is
  * signed out at its next refresh, within 15 minutes. Needs a fresh session;
  * when the last sign-in is too old, `ReauthSheet` asks for the password or a
- * passkey first. This device signs out from the menu instead.
+ * passkey first. This device signs out from the menu instead. A session ended
+ * by reuse detection in the last 30 days stays listed with « Déconnecté :
+ * réutilisation détectée » (#292), without an action.
  */
 export function SessionsCard({ email }: { email: string }) {
   const queryClient = useQueryClient()

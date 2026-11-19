@@ -1,4 +1,9 @@
 import { client } from '#/api/client.gen'
+import { forgetCurrentUser } from '#/lib/current-user'
+import {
+  createSessionRefresher,
+  unavailableResponse,
+} from '#/lib/session-refresh'
 
 /**
  * The browser always calls the API on its own origin: the web server proxies
@@ -23,12 +28,12 @@ client.setConfig({
  *
  * Access tokens are short-lived (15 min); refresh tokens live in an httpOnly
  * cookie the browser never exposes to JS. When a request comes back `401`, we
- * hit `/api/auth/refresh` once to rotate the pair, then replay the original
+ * hit `/api/auth/refresh` to rotate the pair, then replay the original
  * request. Concurrent 401s share a single in-flight refresh so we never fire
- * multiple rotations for one expiry.
+ * multiple rotations for one expiry. A refresh that fails for a transient
+ * reason (429, 5xx, no answer) is retried, and never turned into « signed
+ * out » (#292, `session-refresh.ts`).
  */
-
-const REFRESH_URL = '/api/auth/refresh'
 
 /**
  * Endpoints where a 401 is a genuine auth failure (bad credentials, missing
@@ -44,20 +49,10 @@ const NO_RETRY = [
 /** Clones taken before the body is consumed, so a 401 can be replayed. */
 const replayable = new WeakMap<Request, Request>()
 
-let refreshInFlight: Promise<boolean> | null = null
-
-function refreshSession(): Promise<boolean> {
-  refreshInFlight ??= fetch(REFRESH_URL, {
-    method: 'POST',
-    credentials: 'same-origin',
-  })
-    .then((res) => res.ok)
-    .catch(() => false)
-    .finally(() => {
-      refreshInFlight = null
-    })
-  return refreshInFlight
-}
+const sessionRefresher = createSessionRefresher({
+  // The session is over: the guard must ask the API again.
+  onRefused: forgetCurrentUser,
+})
 
 client.interceptors.request.use((request) => {
   // Stash a pristine clone now — after fetch consumes the body it can't clone.
@@ -72,13 +67,17 @@ client.interceptors.response.use(async (response, request) => {
   if (
     response.status !== 401 ||
     !retry ||
+    // On the server the session was renewed by the guard (`getMe`), and a
+    // relative refresh URL means nothing there.
+    import.meta.env.SSR ||
     NO_RETRY.some((path) => request.url.includes(path))
   ) {
     return response
   }
 
-  const refreshed = await refreshSession()
-  if (!refreshed) return response
+  const refreshed = await sessionRefresher.refresh()
+  if (refreshed.kind === 'refused') return response
+  if (refreshed.kind === 'unavailable') return unavailableResponse(refreshed)
 
   // Replay with a bypass of these interceptors (raw fetch) to avoid loops.
   return fetch(retry)

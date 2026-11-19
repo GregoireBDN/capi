@@ -1,4 +1,5 @@
 import {
+  Logger,
   Body,
   Controller,
   Get,
@@ -48,6 +49,8 @@ import { UserDto } from '#/user/user.dto'
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name)
+
   constructor(private readonly authService: AuthService) {}
 
   @Get('me')
@@ -107,7 +110,12 @@ export class AuthController {
   @ApiOkResponse({ schema: { example: { success: true } } })
   async refresh(@Req() req: FastifyRequest, @Res() reply: FastifyReply) {
     const token = readRefreshCookie(req)
-    if (!token) throw new UnauthorizedException()
+    if (!token) {
+      // The reason only (#292): a browser holding no (or a wrongly named)
+      // refresh cookie.
+      this.logger.warn('Session refresh refused: no cookie')
+      throw new UnauthorizedException()
+    }
     const tokens = await this.authService.rotateRefreshToken(token)
     setSessionCookies(reply, tokens)
     await reply.send({ success: true })

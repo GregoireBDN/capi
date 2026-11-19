@@ -9,6 +9,7 @@ import {
 } from '#/lib/server-api'
 import { loadCurrentUser } from '#/lib/current-user'
 import { resolveServerSession } from '#/lib/server-session'
+import { SessionUnavailableError } from '#/lib/session-errors'
 import type { UserDto } from '#/api/types.gen'
 
 function createServerClient() {
@@ -16,7 +17,8 @@ function createServerClient() {
 }
 
 /**
- * The signed-in user for the current SSR request, or null.
+ * The signed-in user for the current SSR request, or null when nobody is
+ * signed in. Throws a `SessionUnavailableError` when the API could not say.
  *
  * When the access token has expired but the refresh cookie is still valid, the
  * session is rotated server-side (`resolveServerSession`) and the new cookies
@@ -33,6 +35,11 @@ export const getMe = createServerFn().handler(
       // since Start 1.169, so appending to it would drop the cookies.
       appendResponseHeader('set-cookie', session.setCookies)
       setRequestCookieHeader(session.cookieHeader)
+    }
+    // The API could not tell (429, 5xx, unreachable): the error page with
+    // « Réessayer », never the login page (#292).
+    if (session.unavailable !== undefined) {
+      throw new SessionUnavailableError(session.unavailable)
     }
     return session.user
   },

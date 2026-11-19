@@ -2,12 +2,13 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import * as bcrypt from 'bcryptjs'
 import * as crypto from 'node:crypto'
-import { and, eq, isNull, ne, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import { personalAccessTokensTable } from '#/auth/access-tokens/access-tokens.schema'
 import { describeDevice } from '#/auth/sessions/device'
 import { oauthGrantsTable } from '#/auth/oauth/oauth.schema'
@@ -17,6 +18,7 @@ import {
   passwordResetTokensTable,
   refreshTokensTable,
 } from '#/auth/auth.schema'
+import type { RefreshToken, RefreshTokenRevokeReason } from '#/auth/auth.schema'
 import { EmailService } from '#/email/email.service'
 import { env } from '#/config/env'
 import { publicUserColumns, usersTable } from '#/user/user.schema'
@@ -28,6 +30,7 @@ import {
   PASSWORD_RESET_TTL_MS,
   REFRESH_TOKEN_TTL_MS,
   SESSION_MAX_LIFETIME_MS,
+  SESSION_REFRESH_REUSE_GRACE_MS,
 } from './auth.constants'
 import type {
   ChangePasswordDto,
@@ -45,6 +48,19 @@ export interface SessionSignIn {
   /** The request's `User-Agent`; only `describeDevice(...)` of it is kept. */
   userAgent?: string
 }
+
+/**
+ * Why a session refresh was refused, logged without anything else (#292):
+ * unknown or expired token, family ended by reuse detection or by its
+ * absolute lifetime, or a token revoked earlier (logout, sessions list,
+ * password change, family already burned).
+ */
+type SessionRefreshRefusal =
+  | 'unknown'
+  | 'expired'
+  | 'reuse'
+  | 'lifetime'
+  | 'revoked'
 
 /** A freshly minted access token + refresh token pair for one session. */
 export interface SessionTokens {
@@ -72,6 +88,8 @@ const dummyHash = () =>
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name)
+
   constructor(
     private readonly db: DatabaseService,
     private readonly jwt: JwtService,
@@ -237,6 +255,8 @@ export class AuthService {
       authenticatedAt: Date | null
       signInMethod: SessionSignInMethod | null
       device: string | null
+      /** The token this one renews; none for a sign-in. */
+      parentId?: string | null
     },
     sessionEndsAt: Date | null = null,
   ): Promise<SessionTokens> {
@@ -253,6 +273,7 @@ export class AuthService {
       authenticatedAt,
       signInMethod,
       device,
+      parentId: family.parentId ?? null,
     })
     return {
       accessToken: this.signAccessToken(userId, authenticatedAt),
@@ -282,40 +303,44 @@ export class AuthService {
    * the same family. Presenting an already-revoked token is treated as reuse —
    * the entire family is revoked so a stolen token cannot be traded for a
    * fresh session. The revocation is conditional (`revoked_at IS NULL`), so of
-   * two rotations racing with the same token only one can win; the other is
-   * reuse. A family past `SESSION_MAX_LIFETIME_MS` since its sign-in is ended.
+   * two rotations racing with the same token only one revokes it. A family
+   * past `SESSION_MAX_LIFETIME_MS` since its sign-in is ended.
+   *
+   * Grace (#292): a token rotated less than `SESSION_REFRESH_REUSE_GRACE_MS`
+   * ago whose successors were never used is presented again when the response
+   * carrying them was lost (or two refreshes raced). It gets one more
+   * successor instead of burning the family; the successors are siblings, and
+   * renewing one drops the others (`superseded`), so the browser ends up with
+   * a single usable branch and a later use of a dropped one is reuse.
+   *
+   * Every refusal is logged with its reason only (never a token, id or user).
    */
   async rotateRefreshToken(
     token: string,
     now = new Date(),
   ): Promise<SessionTokens> {
-    const invalid = () =>
-      new UnauthorizedException(AUTH_ERRORS.INVALID_REFRESH_TOKEN)
     const tokenHash = this.hashToken(token)
     const [record] = await this.db.db
       .select()
       .from(refreshTokensTable)
       .where(eq(refreshTokensTable.tokenHash, tokenHash))
 
-    if (!record || record.expiresAt < now) throw invalid()
+    if (!record) throw this.refused('unknown')
+    if (record.expiresAt < now) throw this.refused('expired')
 
-    // Reuse of an already-rotated/revoked token ⇒ likely theft: burn the family.
-    if (record.revokedAt) {
-      await this.revokeFamily(record.familyId)
-      throw invalid()
-    }
+    if (record.revokedAt) return this.rotateRevoked(record, now)
 
     const sessionEndsAt = await this.sessionEnd(record)
     if (sessionEndsAt && sessionEndsAt <= now) {
-      await this.revokeFamily(record.familyId)
-      throw invalid()
+      await this.revokeFamily(record.familyId, 'lifetime')
+      throw this.refused('lifetime')
     }
 
-    // Atomic check-and-revoke: a concurrent rotation that got here first has
-    // already revoked the row, and this one is then reuse.
+    // Atomic check-and-revoke: of two rotations racing with one token, the
+    // loser finds it revoked and goes through `rotateRevoked`.
     const revoked = await this.db.db
       .update(refreshTokensTable)
-      .set({ revokedAt: now })
+      .set({ revokedAt: now, revokedReason: 'rotated' })
       .where(
         and(
           eq(refreshTokensTable.id, record.id),
@@ -324,12 +349,106 @@ export class AuthService {
       )
       .returning({ id: refreshTokensTable.id })
     if (revoked.length === 0) {
-      await this.revokeFamily(record.familyId)
-      throw invalid()
+      return this.rotateRevoked(
+        { ...record, revokedAt: now, revokedReason: 'rotated' },
+        now,
+      )
+    }
+
+    // This branch is the one in use: its unused siblings (successors handed
+    // out in the grace whose response the browser didn't keep) are dropped.
+    if (record.parentId) {
+      await this.db.db
+        .update(refreshTokensTable)
+        .set({ revokedAt: now, revokedReason: 'superseded' })
+        .where(
+          and(
+            eq(refreshTokensTable.parentId, record.parentId),
+            ne(refreshTokensTable.id, record.id),
+            isNull(refreshTokensTable.revokedAt),
+          ),
+        )
     }
 
     // Renewing the access token is not a new sign-in: keep the family's time.
-    return this.issueRefreshToken(record.userId, record, sessionEndsAt)
+    return this.issueRefreshToken(
+      record.userId,
+      { ...record, parentId: record.id },
+      sessionEndsAt,
+    )
+  }
+
+  /**
+   * A revoked token presented again: a retry within the grace, or reuse
+   * (burns the family), or a session already ended (logout, lifetime...).
+   */
+  private async rotateRevoked(
+    record: RefreshToken,
+    now: Date,
+  ): Promise<SessionTokens> {
+    const rotated =
+      record.revokedReason === 'rotated' ||
+      record.revokedReason === 'superseded' ||
+      // Rows revoked before #292 carry no reason: treated as before.
+      record.revokedReason === null
+    if (!rotated) throw this.refused('revoked')
+
+    if (
+      record.revokedReason === 'rotated' &&
+      record.revokedAt &&
+      now.getTime() - record.revokedAt.getTime() <
+        SESSION_REFRESH_REUSE_GRACE_MS &&
+      (await this.successorsUnused(record.id))
+    ) {
+      const sessionEndsAt = await this.sessionEnd(record)
+      if (sessionEndsAt && sessionEndsAt <= now) {
+        await this.revokeFamily(record.familyId, 'lifetime')
+        throw this.refused('lifetime')
+      }
+      const tokens = await this.issueRefreshToken(
+        record.userId,
+        { ...record, parentId: record.id },
+        sessionEndsAt,
+      )
+      // A successor renewed while this one was issued would make it a
+      // parallel branch: drop it and count the retry as reuse after all.
+      if (await this.successorsUnused(record.id)) {
+        this.logger.log('Session refresh: rotated token retried in grace')
+        return tokens
+      }
+      await this.db.db
+        .update(refreshTokensTable)
+        .set({ revokedAt: now, revokedReason: 'superseded' })
+        .where(
+          eq(refreshTokensTable.tokenHash, this.hashToken(tokens.refreshToken)),
+        )
+    }
+
+    const burned = await this.revokeFamily(record.familyId, 'reuse')
+    // Nothing left to burn: the session had already ended another way.
+    throw this.refused(burned > 0 ? 'reuse' : 'revoked')
+  }
+
+  /** Whether no successor of the token has been renewed or revoked. */
+  private async successorsUnused(tokenId: string): Promise<boolean> {
+    const [used] = await this.db.db
+      .select({ id: refreshTokensTable.id })
+      .from(refreshTokensTable)
+      .where(
+        and(
+          eq(refreshTokensTable.parentId, tokenId),
+          isNotNull(refreshTokensTable.revokedAt),
+          ne(refreshTokensTable.revokedReason, 'superseded'),
+        ),
+      )
+      .limit(1)
+    return !used
+  }
+
+  /** Logs why a refresh was refused (the reason only) and builds the 401. */
+  private refused(reason: SessionRefreshRefusal): UnauthorizedException {
+    this.logger.warn(`Session refresh refused: ${reason}`)
+    return new UnauthorizedException(AUTH_ERRORS.INVALID_REFRESH_TOKEN)
   }
 
   /**
@@ -356,16 +475,25 @@ export class AuthService {
     return start ? new Date(start.getTime() + SESSION_MAX_LIFETIME_MS) : null
   }
 
-  private async revokeFamily(familyId: string): Promise<void> {
-    await this.db.db
+  /** Revokes the family's live tokens; returns how many were still live. */
+  private async revokeFamily(
+    familyId: string,
+    reason: RefreshTokenRevokeReason,
+  ): Promise<number> {
+    const revoked = await this.db.db
       .update(refreshTokensTable)
-      .set({ revokedAt: new Date() })
+      .set({ revokedAt: new Date(), revokedReason: reason })
       .where(
         and(
           eq(refreshTokensTable.familyId, familyId),
           isNull(refreshTokensTable.revokedAt),
         ),
       )
+      .returning({ id: refreshTokensTable.id })
+    if (revoked.length > 0 && reason !== 'reuse' && reason !== 'lifetime') {
+      this.logger.log(`Session ended: ${reason}`)
+    }
+    return revoked.length
   }
 
   /** Logout: revoke the session behind the presented refresh token, if any. */
@@ -375,7 +503,7 @@ export class AuthService {
       .select({ familyId: refreshTokensTable.familyId })
       .from(refreshTokensTable)
       .where(eq(refreshTokensTable.tokenHash, this.hashToken(token)))
-    if (record) await this.revokeFamily(record.familyId)
+    if (record) await this.revokeFamily(record.familyId, 'logout')
   }
 
   async getUser(userId: string) {
@@ -554,9 +682,9 @@ export class AuthService {
       revokeAccessTokens,
     }: { keepFamilyId: string | null; revokeAccessTokens: boolean },
   ): Promise<void> {
-    await this.db.db
+    const ended = await this.db.db
       .update(refreshTokensTable)
-      .set({ revokedAt: now })
+      .set({ revokedAt: now, revokedReason: 'password' })
       .where(
         and(
           eq(refreshTokensTable.userId, userId),
@@ -566,6 +694,9 @@ export class AuthService {
             : undefined,
         ),
       )
+      .returning({ familyId: refreshTokensTable.familyId })
+    const families = new Set(ended.map((row) => row.familyId)).size
+    if (families > 0) this.logger.log(`Sessions ended: password (${families})`)
     await this.spendResetTokens(userId, now)
     if (revokeAccessTokens) {
       await this.db.db

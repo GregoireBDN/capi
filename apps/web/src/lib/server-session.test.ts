@@ -12,6 +12,7 @@ import {
 } from './server-session'
 
 const API_URL = 'http://api.test:4000'
+const noWait = () => Promise.resolve()
 
 const user = {
   id: '00000000-0000-0000-0000-000000000001',
@@ -200,19 +201,18 @@ describe('resolveServerSession (SSR guard)', () => {
     expect(api.calls.refresh).toBe(0)
   })
 
-  it('does not refresh when the API is unreachable rather than unauthorized', async () => {
+  it('does not refresh, nor sign out, when the API is unreachable rather than unauthorized', async () => {
     const failing = vi.fn(() => Promise.reject(new Error('ECONNREFUSED')))
 
     const session = await resolveServerSession(
       'token=access-0; refresh_token=refresh-0',
-      {
-        apiUrl: API_URL,
-        fetch: failing,
-      },
+      { apiUrl: API_URL, fetch: failing, sleep: noWait },
     )
 
     expect(session.user).toBeNull()
-    expect(failing).toHaveBeenCalledTimes(1)
+    expect(session.unavailable).toBe(0)
+    // Tried twice, never a refresh.
+    expect(failing).toHaveBeenCalledTimes(2)
   })
 
   it('shares one rotation between concurrent requests presenting the same refresh token', async () => {
@@ -290,6 +290,150 @@ describe('resolveServerSession (SSR guard)', () => {
     await refreshSession({ name: 'refresh_token', value: 'forged' }, target())
 
     expect(api.calls.refresh).toBe(2)
+  })
+})
+
+describe('resolveServerSession when the API cannot tell (#292)', () => {
+  beforeEach(() => {
+    forgetRefreshes()
+  })
+
+  const json = (status: number, body: unknown = {}, headers?: HeadersInit) =>
+    Response.json(body, { status, headers })
+
+  /** Answers each call to `path` with the next response of the list. */
+  function scripted(script: Partial<Record<string, (() => Response)[]>>) {
+    const calls: { path: string; cookie: string | null }[] = []
+    const fetchImpl = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const path = new URL(input instanceof Request ? input.url : input)
+          .pathname
+        calls.push({ path, cookie: new Headers(init?.headers).get('cookie') })
+        const next = script[path]?.shift()
+        if (!next) throw new Error(`unexpected call to ${path}`)
+        return next()
+      },
+    )
+    return { fetch: fetchImpl as unknown as typeof fetch, calls }
+  }
+
+  const rotated = () => {
+    const headers = new Headers({ 'content-type': 'application/json' })
+    headers.append('set-cookie', 'token=access-1; Max-Age=900; Path=/')
+    headers.append(
+      'set-cookie',
+      'refresh_token=refresh-1; Max-Age=2592000; Path=/',
+    )
+    return new Response('{"success":true}', { status: 200, headers })
+  }
+
+  it('retries a rate-limited `me` once, honouring Retry-After', async () => {
+    const api = scripted({
+      '/api/auth/me': [
+        () => json(429, {}, { 'retry-after': '1' }),
+        () => json(200, user),
+      ],
+    })
+    const sleep = vi.fn(noWait)
+
+    const session = await resolveServerSession('token=access-0', {
+      apiUrl: API_URL,
+      fetch: api.fetch,
+      sleep,
+    })
+
+    expect(session.user).toEqual(user)
+    expect(session.unavailable).toBeUndefined()
+    expect(sleep).toHaveBeenCalledWith(1000)
+  })
+
+  it('reports a failing `me` as unavailable, never as signed out', async () => {
+    const api = scripted({
+      '/api/auth/me': [() => json(503), () => json(503)],
+    })
+
+    const session = await resolveServerSession(
+      'token=access-0; refresh_token=refresh-0',
+      { apiUrl: API_URL, fetch: api.fetch, sleep: noWait },
+    )
+
+    expect(session).toMatchObject({ user: null, unavailable: 503 })
+    expect(api.calls.map((c) => c.path)).not.toContain('/api/auth/refresh')
+  })
+
+  it('reports a rate-limited refresh as unavailable after one retry', async () => {
+    const api = scripted({
+      '/api/auth/refresh': [() => json(429), () => json(429)],
+    })
+
+    const session = await resolveServerSession('refresh_token=refresh-0', {
+      apiUrl: API_URL,
+      fetch: api.fetch,
+      sleep: noWait,
+    })
+
+    expect(session).toMatchObject({
+      user: null,
+      unavailable: 429,
+      setCookies: [],
+    })
+    expect(api.calls).toHaveLength(2)
+  })
+
+  it('retries a refresh whose answer was lost with the same token', async () => {
+    const api = scripted({
+      '/api/auth/refresh': [
+        () => {
+          throw new TypeError('fetch failed')
+        },
+        rotated,
+      ],
+      '/api/auth/me': [() => json(200, user)],
+    })
+
+    const session = await resolveServerSession('refresh_token=refresh-0', {
+      apiUrl: API_URL,
+      fetch: api.fetch,
+      sleep: noWait,
+    })
+
+    expect(session.user).toEqual(user)
+    expect(session.setCookies).toHaveLength(2)
+    const refreshes = api.calls.filter((c) => c.path === '/api/auth/refresh')
+    expect(refreshes.map((c) => c.cookie)).toEqual([
+      'refresh_token=refresh-0',
+      'refresh_token=refresh-0',
+    ])
+  })
+
+  it('still signs out when the API refuses the refresh', async () => {
+    const api = scripted({ '/api/auth/refresh': [() => json(401)] })
+
+    const session = await resolveServerSession('refresh_token=refresh-0', {
+      apiUrl: API_URL,
+      fetch: api.fetch,
+      sleep: noWait,
+    })
+
+    expect(session.user).toBeNull()
+    expect(session.unavailable).toBeUndefined()
+    expect(api.calls).toHaveLength(1)
+  })
+
+  it('forwards the rotated cookies even when `me` then fails', async () => {
+    const api = scripted({
+      '/api/auth/refresh': [rotated],
+      '/api/auth/me': [() => json(502), () => json(502)],
+    })
+
+    const session = await resolveServerSession('refresh_token=refresh-0', {
+      apiUrl: API_URL,
+      fetch: api.fetch,
+      sleep: noWait,
+    })
+
+    expect(session.unavailable).toBe(502)
+    expect(session.setCookies).toHaveLength(2)
   })
 })
 
