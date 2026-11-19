@@ -812,29 +812,34 @@ export function AddCryptoSheet({
     case 'manual-asset':
       title = 'Quel actif ?'
       body = (
+        // The asset kept above the search, whose results run down the rest
+        // of the screen: typing moves nothing (#323).
         <div className="space-y-3">
+          {asset && (
+            <Button
+              type="button"
+              variant="secondary"
+              outline
+              className="w-full justify-start"
+              onClick={() => go('manual-amount')}
+            >
+              <span className="truncate">
+                Garder {asset.symbol} · {asset.name}
+              </span>
+            </Button>
+          )}
           <Field>
             <FieldLabel htmlFor={`${id}-asset`}>Rechercher un actif</FieldLabel>
             <AssetPicker
               id={`${id}-asset`}
               invalid={false}
+              fill
               onPick={(picked) => {
                 setAsset(picked)
                 go('manual-amount')
               }}
             />
           </Field>
-          {asset && (
-            <Button
-              type="button"
-              variant="secondary"
-              outline
-              className="w-full"
-              onClick={() => go('manual-amount')}
-            >
-              Garder {asset.symbol} · {asset.name}
-            </Button>
-          )}
         </div>
       )
       break
@@ -1056,8 +1061,10 @@ export function AddCryptoSheet({
       <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4">
         {body}
       </div>
+      {/* Above the keyboard while a field is typed in: the step's button
+          stays in reach (#323). */}
       {action && (
-        <div className="flex shrink-0 gap-2 border-t px-4 py-3 group-data-keyboard-open/sheet:hidden">
+        <div className="flex shrink-0 gap-2 border-t px-4 py-3">
           <Button
             type="submit"
             className="min-h-11 flex-1 font-medium"

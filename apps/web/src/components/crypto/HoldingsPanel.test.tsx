@@ -233,16 +233,37 @@ describe('HoldingsPanel', () => {
     await user.click(
       await screen.findByRole('button', { name: 'Ajouter un avoir' }),
     )
-    await user.type(screen.getByLabelText('Actif'), 'ether')
+    // 1. Actif: picking a result moves on.
+    expect(screen.getByRole('heading', { name: /^Actif\s*1\/3/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Suivant' })).toBeDisabled()
+    await user.type(screen.getByLabelText('Rechercher un actif'), 'ether')
     await user.click(
       await screen.findByRole('button', { name: /ETH\s*Ethereum\s*n° 2/ }),
     )
     expect(api.cryptoControllerSearch).toHaveBeenCalledWith(
       expect.objectContaining({ query: { q: 'ether' } }),
     )
-    await user.type(screen.getByLabelText('Sous-compte'), ' Spot ')
+    // 2. Quantité and invested amount, typed on a decimal pad.
+    expect(
+      screen.getByRole('heading', { name: /^Quantité\s*2\/3/ }),
+    ).toBeVisible()
+    expect(screen.queryByLabelText('Sous-compte')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Quantité')).toHaveAttribute(
+      'inputmode',
+      'decimal',
+    )
+    expect(screen.getByLabelText('Montant investi')).toHaveAttribute(
+      'inputmode',
+      'decimal',
+    )
     await user.type(screen.getByLabelText('Quantité'), '1 234,500')
     await user.type(screen.getByLabelText('Montant investi'), '2 000,50')
+    await user.click(screen.getByRole('button', { name: 'Suivant' }))
+    // 3. Détails, then save.
+    expect(
+      screen.getByRole('heading', { name: /^Détails\s*3\/3/ }),
+    ).toBeVisible()
+    await user.type(screen.getByLabelText('Sous-compte'), ' Spot ')
     await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
 
     await waitFor(() =>
@@ -271,10 +292,25 @@ describe('HoldingsPanel', () => {
     await user.click(
       await screen.findByRole('button', { name: 'Ajouter un avoir' }),
     )
+    await user.type(screen.getByLabelText('Rechercher un actif'), 'ether')
+    await user.click(await screen.findByRole('button', { name: /^ETH/ }))
+    // No quantity: « Suivant » stays on the step and says why.
+    await user.click(screen.getByRole('button', { name: 'Suivant' }))
+    expect(screen.getByText('Indiquez la quantité')).toBeInTheDocument()
     await user.type(screen.getByLabelText('Quantité'), '1,2,3')
-    await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
-    expect(screen.getByText('Choisissez un actif')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('Montant investi'), '-5')
+    await user.click(screen.getByRole('button', { name: 'Suivant' }))
     expect(screen.getByText(/^Quantité invalide/)).toBeInTheDocument()
+    expect(screen.getByText(/^Montant invalide/)).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: /^Quantité\s*2\/3/ }),
+    ).toBeVisible()
+    // « Retour » keeps the asset, offered again above the search.
+    await user.click(screen.getByRole('button', { name: 'Retour' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Garder ETH · Ethereum' }),
+    )
+    expect(screen.getByLabelText('Quantité')).toHaveValue('1,2,3')
     expect(api.accountHoldingsControllerCreate).not.toHaveBeenCalled()
   })
 
@@ -295,7 +331,16 @@ describe('HoldingsPanel', () => {
     await user.click(
       screen.getByRole('button', { name: 'Modifier BTC · Portefeuille test' }),
     )
+    // A line being edited keeps its asset and opens at its quantity.
+    expect(
+      screen.getByRole('heading', { name: /^Quantité\s*1\/2/ }),
+    ).toBeVisible()
     expect(screen.getByLabelText('Quantité')).toHaveValue('1234,123456789')
+    await user.click(screen.getByRole('button', { name: 'Suivant' }))
+    expect(screen.getByLabelText('Sous-compte')).toHaveValue(
+      'Portefeuille test',
+    )
+    expect(screen.getByRole('button', { name: 'Supprimer' })).toBeVisible()
     await user.type(screen.getByLabelText('Cours manuel'), '0,0012')
     await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
     await waitFor(() =>
@@ -325,9 +370,10 @@ describe('HoldingsPanel', () => {
     await user.click(
       await screen.findByRole('button', { name: 'Ajouter un avoir' }),
     )
-    await user.type(screen.getByLabelText('Actif'), 'ether')
+    await user.type(screen.getByLabelText('Rechercher un actif'), 'ether')
     await user.click(await screen.findByRole('button', { name: /^ETH/ }))
     await user.type(screen.getByLabelText('Quantité'), '1')
+    await user.click(screen.getByRole('button', { name: 'Suivant' }))
     await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(

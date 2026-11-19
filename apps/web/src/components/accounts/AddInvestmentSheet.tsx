@@ -1,5 +1,6 @@
 import {
   Button,
+  cn,
   Field,
   FieldDescription,
   FieldError,
@@ -16,13 +17,20 @@ import {
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { PlusIcon } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 import { AmountField } from '#/components/amount/AmountField'
 import { LARGE_AMOUNT_CENTS } from '#/components/amount/signed-amount'
 import { useSignedText } from '#/components/amount/use-signed-text'
 import type { AccountDto } from '#/api/types.gen'
+import {
+  FORM_SHEET_BOTTOM,
+  FORM_SHEET_FORM,
+  FORM_SHEET_SIDE,
+  FormSheetBody,
+  FormSheetFooter,
+} from '#/components/sheets/form-sheet'
 import { parseAmountToCents } from './amount'
 import { todayInParis } from './dates'
 import { accountErrorMessage } from './errors'
@@ -138,12 +146,6 @@ export function AddInvestmentSheet({
   const [submitted, setSubmitted] = useState(false)
   /** The account created by the first step: the sheet shows the second. */
   const [created, setCreated] = useState<AccountDto | null>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
-
-  // The second step starts at its top, not where the first was scrolled to.
-  useEffect(() => {
-    if (created && contentRef.current) contentRef.current.scrollTop = 0
-  }, [created])
 
   // Fresh form on every opening.
   useEffect(() => {
@@ -212,17 +214,14 @@ export function AddInvestmentSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        ref={contentRef}
         side={isMobile ? 'bottom' : 'right'}
         className={
-          isMobile
-            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-            : 'overflow-y-auto sm:max-w-lg'
+          isMobile ? FORM_SHEET_BOTTOM : cn(FORM_SHEET_SIDE, 'sm:max-w-lg')
         }
       >
         {created ? (
           <>
-            <SheetHeader className="pb-0">
+            <SheetHeader>
               <SheetTitle>Historique de « {created.name} »</SheetTitle>
               <SheetDescription>
                 Facultatif : collez ou saisissez ses valeurs de fin de mois
@@ -230,144 +229,153 @@ export function AddInvestmentSheet({
                 patrimoine soit juste dès aujourd’hui.
               </SheetDescription>
             </SheetHeader>
-            <PasteHistoryForm
-              className="px-4 pb-6"
-              accountId={created.id}
-              today={today}
-              doneLabel="Plus tard"
-              onDone={() => onOpenChange(false)}
-            />
+            {/* A body of its own: it starts at its top, not where the first
+                step was scrolled to. */}
+            <FormSheetBody>
+              <PasteHistoryForm
+                accountId={created.id}
+                today={today}
+                doneLabel="Plus tard"
+                onDone={() => onOpenChange(false)}
+              />
+            </FormSheetBody>
           </>
         ) : (
           <>
-            <SheetHeader className="pb-0">
+            <SheetHeader>
               <SheetTitle>Ajouter un placement</SheetTitle>
               <SheetDescription>
                 Suivi par sa valeur, d’après vos relevés ou votre espace client.
               </SheetDescription>
             </SheetHeader>
-            <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
-              <fieldset className="space-y-2">
-                <legend
-                  id={`${id}-type-legend`}
-                  className="mb-2 text-sm font-medium"
-                >
-                  Type
-                </legend>
-                <RadioCardGroup
-                  aria-labelledby={`${id}-type-legend`}
-                  // Sized to their labels, wrapping: two short rows on a phone
-                  // keep the value field in view.
-                  className="flex flex-wrap"
-                  value={values.type}
-                  onValueChange={(value) => {
-                    const type = value as InvestmentType
-                    set(
-                      nameTouched
-                        ? { type }
-                        : { type, name: defaultNameOf(type) },
-                    )
-                  }}
-                >
-                  {INVESTMENT_TYPES.map(({ type, label }) => (
-                    <RadioCard
-                      key={type}
-                      value={type}
-                      indicator={false}
-                      className="w-auto flex-auto items-center justify-center px-3 font-medium whitespace-nowrap"
-                    >
-                      {label}
-                    </RadioCard>
-                  ))}
-                </RadioCardGroup>
-              </fieldset>
-              <Field data-invalid={shown.name !== undefined}>
-                <FieldLabel htmlFor={`${id}-name`}>Nom</FieldLabel>
-                <Input
-                  id={`${id}-name`}
-                  autoComplete="off"
-                  maxLength={NAME_MAX}
-                  value={values.name}
-                  aria-invalid={shown.name !== undefined}
-                  onChange={(event) => {
-                    setNameTouched(true)
-                    set({ name: event.target.value })
-                  }}
-                />
-                {shown.name && <FieldError>{shown.name}</FieldError>}
-              </Field>
-              <Field data-invalid={shown.institution !== undefined}>
-                <FieldLabel htmlFor={`${id}-institution`}>
-                  Établissement
-                </FieldLabel>
-                <Input
-                  id={`${id}-institution`}
-                  autoComplete="off"
-                  maxLength={NAME_MAX}
-                  placeholder="Banque, assureur…"
-                  value={values.institution}
-                  aria-invalid={shown.institution !== undefined}
-                  onChange={(event) => set({ institution: event.target.value })}
-                />
-                {shown.institution && (
-                  <FieldError>{shown.institution}</FieldError>
-                )}
-              </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field data-invalid={shown.value !== undefined}>
-                  <FieldLabel htmlFor={`${id}-value`}>
-                    Valeur actuelle
+            <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
+              <FormSheetBody>
+                <fieldset className="space-y-2">
+                  <legend
+                    id={`${id}-type-legend`}
+                    className="mb-2 text-sm font-medium"
+                  >
+                    Type
+                  </legend>
+                  <RadioCardGroup
+                    aria-labelledby={`${id}-type-legend`}
+                    // Sized to their labels, wrapping: two short rows on a phone
+                    // keep the value field in view.
+                    className="flex flex-wrap"
+                    value={values.type}
+                    onValueChange={(value) => {
+                      const type = value as InvestmentType
+                      set(
+                        nameTouched
+                          ? { type }
+                          : { type, name: defaultNameOf(type) },
+                      )
+                    }}
+                  >
+                    {INVESTMENT_TYPES.map(({ type, label }) => (
+                      <RadioCard
+                        key={type}
+                        value={type}
+                        indicator={false}
+                        className="w-auto flex-auto items-center justify-center px-3 font-medium whitespace-nowrap"
+                      >
+                        {label}
+                      </RadioCard>
+                    ))}
+                  </RadioCardGroup>
+                </fieldset>
+                <Field data-invalid={shown.name !== undefined}>
+                  <FieldLabel htmlFor={`${id}-name`}>Nom</FieldLabel>
+                  <Input
+                    id={`${id}-name`}
+                    autoComplete="off"
+                    maxLength={NAME_MAX}
+                    value={values.name}
+                    aria-invalid={shown.name !== undefined}
+                    onChange={(event) => {
+                      setNameTouched(true)
+                      set({ name: event.target.value })
+                    }}
+                  />
+                  {shown.name && <FieldError>{shown.name}</FieldError>}
+                </Field>
+                <Field data-invalid={shown.institution !== undefined}>
+                  <FieldLabel htmlFor={`${id}-institution`}>
+                    Établissement
+                  </FieldLabel>
+                  <Input
+                    id={`${id}-institution`}
+                    autoComplete="off"
+                    maxLength={NAME_MAX}
+                    placeholder="Banque, assureur…"
+                    value={values.institution}
+                    aria-invalid={shown.institution !== undefined}
+                    onChange={(event) =>
+                      set({ institution: event.target.value })
+                    }
+                  />
+                  {shown.institution && (
+                    <FieldError>{shown.institution}</FieldError>
+                  )}
+                </Field>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field data-invalid={shown.value !== undefined}>
+                    <FieldLabel htmlFor={`${id}-value`}>
+                      Valeur actuelle
+                    </FieldLabel>
+                    <AmountField
+                      maxCents={LARGE_AMOUNT_CENTS}
+                      id={`${id}-value`}
+                      placeholder="12 345,67"
+                      value={values.value}
+                      aria-invalid={shown.value !== undefined}
+                      onValueChange={(typed) => set({ value: typed })}
+                    />
+                    {shown.value && <FieldError>{shown.value}</FieldError>}
+                  </Field>
+                  <Field data-invalid={shown.date !== undefined}>
+                    <FieldLabel htmlFor={`${id}-date`}>À la date du</FieldLabel>
+                    <Input
+                      id={`${id}-date`}
+                      type="date"
+                      max={today}
+                      value={values.date}
+                      aria-invalid={shown.date !== undefined}
+                      onChange={(event) => set({ date: event.target.value })}
+                    />
+                    {shown.date && <FieldError>{shown.date}</FieldError>}
+                  </Field>
+                </div>
+                <Field data-invalid={shown.contributions !== undefined}>
+                  <FieldLabel htmlFor={`${id}-contributions`}>
+                    Versé jusqu’ici
                   </FieldLabel>
                   <AmountField
                     maxCents={LARGE_AMOUNT_CENTS}
-                    id={`${id}-value`}
-                    placeholder="12 345,67"
-                    value={values.value}
-                    aria-invalid={shown.value !== undefined}
-                    onValueChange={(typed) => set({ value: typed })}
+                    id={`${id}-contributions`}
+                    placeholder="10 000"
+                    aria-invalid={shown.contributions !== undefined}
+                    {...contributionsField}
                   />
-                  {shown.value && <FieldError>{shown.value}</FieldError>}
+                  {shown.contributions ? (
+                    <FieldError>{shown.contributions}</FieldError>
+                  ) : (
+                    <FieldDescription>
+                      Facultatif : total versé moins les retraits, pour suivre
+                      la plus-value.
+                    </FieldDescription>
+                  )}
                 </Field>
-                <Field data-invalid={shown.date !== undefined}>
-                  <FieldLabel htmlFor={`${id}-date`}>À la date du</FieldLabel>
-                  <Input
-                    id={`${id}-date`}
-                    type="date"
-                    max={today}
-                    value={values.date}
-                    aria-invalid={shown.date !== undefined}
-                    onChange={(event) => set({ date: event.target.value })}
-                  />
-                  {shown.date && <FieldError>{shown.date}</FieldError>}
-                </Field>
-              </div>
-              <Field data-invalid={shown.contributions !== undefined}>
-                <FieldLabel htmlFor={`${id}-contributions`}>
-                  Versé jusqu’ici
-                </FieldLabel>
-                <AmountField
-                  maxCents={LARGE_AMOUNT_CENTS}
-                  id={`${id}-contributions`}
-                  placeholder="10 000"
-                  aria-invalid={shown.contributions !== undefined}
-                  {...contributionsField}
-                />
-                {shown.contributions ? (
-                  <FieldError>{shown.contributions}</FieldError>
-                ) : (
-                  <FieldDescription>
-                    Facultatif : total versé moins les retraits, pour suivre la
-                    plus-value.
-                  </FieldDescription>
-                )}
-              </Field>
-              <Button
-                type="submit"
-                className="w-full sm:ml-auto sm:flex sm:w-auto"
-                loading={create.isPending}
-              >
-                Ajouter
-              </Button>
+              </FormSheetBody>
+              <FormSheetFooter>
+                <Button
+                  type="submit"
+                  className="min-h-11 flex-1 font-medium"
+                  loading={create.isPending}
+                >
+                  Ajouter
+                </Button>
+              </FormSheetFooter>
             </form>
           </>
         )}
