@@ -14,6 +14,11 @@ import { useId, useState } from 'react'
 import { toast } from 'sonner'
 import type { AccountDeletionPreviewDto, AccountDto } from '#/api/types.gen'
 import { ReauthSheet } from '#/components/auth/ReauthSheet'
+import {
+  FORM_SHEET_FORM,
+  FormSheetBody,
+  FormSheetFooter,
+} from '#/components/sheets/form-sheet'
 import { useAuth } from '#/lib/auth-context'
 import { needsReauth } from '#/lib/reauth'
 import { accountErrorMessage } from './errors'
@@ -114,83 +119,87 @@ export function DeleteAccountScreen({
 
   return (
     <>
-      <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
-        <Alert variant="destructive">
-          <TriangleAlertIcon />
-          <AlertDescription>
-            Définitif : rien ne pourra être récupéré. Pour le garder sans le
-            voir, archivez-le plutôt.
-          </AlertDescription>
-        </Alert>
-        <div className="space-y-2 text-sm" aria-live="polite">
-          {preview.isPending ? (
-            <div className="space-y-2" aria-label="Chargement">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-4 w-1/2" />
-            </div>
-          ) : preview.isError ? (
-            <p className="text-destructive">
-              Impossible de savoir ce qui sera supprimé.{' '}
-              <Button
-                type="button"
-                variant="secondary"
-                ghost
-                size="sm"
-                onClick={() => void preview.refetch()}
-              >
-                Réessayer
-              </Button>
-            </p>
-          ) : lines.length === 0 ? (
-            <p>
-              Ce compte ne contient aucune donnée : seul le compte disparaît.
-            </p>
-          ) : (
-            <>
-              <p className="font-medium">Seront supprimés avec le compte :</p>
-              <ul className="list-disc space-y-1 pl-5">
-                {lines.map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-            </>
-          )}
-          {preview.isSuccess && (
-            <p className="text-muted-foreground">
-              Budgets et catégories ne changent pas.
-              {closedMonths > 0 &&
-                ` ${
-                  closedMonths === 1
-                    ? 'Le mois clôturé qui contient ses données garde ses chiffres'
-                    : `Les ${COUNT.format(closedMonths)} mois clôturés qui contiennent ses données gardent leurs chiffres`
-                } : leur revue montrera l’écart.`}
-            </p>
-          )}
-        </div>
-        <Field data-invalid={submitted && !matches}>
-          <FieldLabel htmlFor={`${id}-name`}>
-            Pour confirmer, saisissez « {account.name} »
-          </FieldLabel>
-          <Input
-            id={`${id}-name`}
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            placeholder={account.name}
-            value={typed}
-            aria-invalid={submitted && !matches}
-            onChange={(event) => setTyped(event.target.value)}
-          />
-          {submitted && !matches && (
-            <FieldError>Le nom ne correspond pas.</FieldError>
-          )}
-        </Field>
-        <div className="flex flex-col gap-2">
+      <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
+        <FormSheetBody>
+          <Alert variant="destructive">
+            <TriangleAlertIcon />
+            <AlertDescription>
+              Définitif : rien ne pourra être récupéré. Pour le garder sans le
+              voir, archivez-le plutôt.
+            </AlertDescription>
+          </Alert>
+          <div className="space-y-2 text-sm" aria-live="polite">
+            {preview.isPending ? (
+              <div className="space-y-2" aria-label="Chargement">
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-4 w-1/2" />
+              </div>
+            ) : preview.isError ? (
+              <p className="text-destructive">
+                Impossible de savoir ce qui sera supprimé.{' '}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  ghost
+                  size="sm"
+                  onClick={() => void preview.refetch()}
+                >
+                  Réessayer
+                </Button>
+              </p>
+            ) : lines.length === 0 ? (
+              <p>
+                Ce compte ne contient aucune donnée : seul le compte disparaît.
+              </p>
+            ) : (
+              <>
+                <p className="font-medium">Seront supprimés avec le compte :</p>
+                <ul className="list-disc space-y-1 pl-5">
+                  {lines.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {preview.isSuccess && (
+              <p className="text-muted-foreground">
+                Budgets et catégories ne changent pas.
+                {closedMonths > 0 &&
+                  ` ${
+                    closedMonths === 1
+                      ? 'Le mois clôturé qui contient ses données garde ses chiffres'
+                      : `Les ${COUNT.format(closedMonths)} mois clôturés qui contiennent ses données gardent leurs chiffres`
+                  } : leur revue montrera l’écart.`}
+              </p>
+            )}
+          </div>
+          <Field data-invalid={submitted && !matches}>
+            <FieldLabel htmlFor={`${id}-name`}>
+              Pour confirmer, saisissez « {account.name} »
+            </FieldLabel>
+            <Input
+              id={`${id}-name`}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              placeholder={account.name}
+              value={typed}
+              aria-invalid={submitted && !matches}
+              onChange={(event) => setTyped(event.target.value)}
+            />
+            {submitted && !matches && (
+              <FieldError>Le nom ne correspond pas.</FieldError>
+            )}
+          </Field>
+        </FormSheetBody>
+        {/* Above the keyboard while the name is typed (#323); « Retour »
+            on a line of its own when both don't fit. */}
+        <FormSheetFooter className="flex-row-reverse flex-wrap">
           <Button
             type="submit"
             variant="danger"
-            className="w-full"
+            className="min-h-11 grow-[2] font-medium"
             disabled={!matches || !preview.isSuccess}
             loading={deleting}
           >
@@ -200,13 +209,13 @@ export function DeleteAccountScreen({
             type="button"
             variant="secondary"
             outline
-            className="w-full"
+            className="min-h-11 grow"
             disabled={deleting}
             onClick={onBack}
           >
             Retour
           </Button>
-        </div>
+        </FormSheetFooter>
       </form>
       {/* Outside the form: React submit events bubble through portals. */}
       <ReauthSheet

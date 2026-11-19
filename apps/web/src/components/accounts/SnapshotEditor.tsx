@@ -21,6 +21,13 @@ import { AmountField } from '#/components/amount/AmountField'
 import { LARGE_AMOUNT_CENTS } from '#/components/amount/signed-amount'
 import { useSignedText } from '#/components/amount/use-signed-text'
 import type { SnapshotDto } from '#/api/types.gen'
+import {
+  FORM_SHEET_BOTTOM,
+  FORM_SHEET_FORM,
+  FORM_SHEET_SIDE,
+  FormSheetBody,
+  FormSheetFooter,
+} from '#/components/sheets/form-sheet'
 import { formatCalendarDate, formatCents } from '#/lib/money'
 import { centsToInput, parseAmountToCents } from './amount'
 import { snapshotErrorMessage } from './errors'
@@ -171,11 +178,7 @@ export function SnapshotEditor({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side={isMobile ? 'bottom' : 'right'}
-          className={
-            isMobile
-              ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-              : undefined
-          }
+          className={isMobile ? FORM_SHEET_BOTTOM : FORM_SHEET_SIDE}
           // A new value is what is typed: the date is today's.
           onOpenAutoFocus={(event) => {
             if (snapshot) return
@@ -183,85 +186,88 @@ export function SnapshotEditor({
             valueRef.current?.focus()
           }}
         >
-          <SheetHeader className="pb-0">
+          <SheetHeader>
             <SheetTitle>{title}</SheetTitle>
             <SheetDescription>
               Valeur du compte en fin de journée, d’après un relevé ou votre
               espace client.
             </SheetDescription>
           </SheetHeader>
-          <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
-            {!snapshot && (
-              <Field data-invalid={shown.date !== undefined}>
-                <FieldLabel htmlFor={`${id}-date`}>Date</FieldLabel>
-                <Input
-                  id={`${id}-date`}
-                  type="date"
-                  max={today}
-                  value={date}
-                  aria-invalid={shown.date !== undefined}
-                  onChange={(event) => setDate(event.target.value)}
-                />
-                {shown.date && <FieldError>{shown.date}</FieldError>}
-              </Field>
-            )}
-            <Field data-invalid={shown.value !== undefined}>
-              <FieldLabel htmlFor={`${id}-value`}>Valeur</FieldLabel>
-              <AmountField
-                maxCents={LARGE_AMOUNT_CENTS}
-                ref={valueRef}
-                id={`${id}-value`}
-                placeholder="12 345,67"
-                value={value}
-                aria-invalid={shown.value !== undefined}
-                onValueChange={(typed) => setValue(typed)}
-              />
-              {shown.value && <FieldError>{shown.value}</FieldError>}
-            </Field>
-            {withContributions && (
-              <Field data-invalid={shown.contributions !== undefined}>
-                <FieldLabel htmlFor={`${id}-contributions`}>
-                  Versements nets
-                </FieldLabel>
+          <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
+            <FormSheetBody>
+              {!snapshot && (
+                <Field data-invalid={shown.date !== undefined}>
+                  <FieldLabel htmlFor={`${id}-date`}>Date</FieldLabel>
+                  <Input
+                    id={`${id}-date`}
+                    type="date"
+                    max={today}
+                    value={date}
+                    aria-invalid={shown.date !== undefined}
+                    onChange={(event) => setDate(event.target.value)}
+                  />
+                  {shown.date && <FieldError>{shown.date}</FieldError>}
+                </Field>
+              )}
+              <Field data-invalid={shown.value !== undefined}>
+                <FieldLabel htmlFor={`${id}-value`}>Valeur</FieldLabel>
                 <AmountField
                   maxCents={LARGE_AMOUNT_CENTS}
-                  id={`${id}-contributions`}
-                  placeholder="10 000"
-                  aria-invalid={shown.contributions !== undefined}
-                  {...contributionsField}
+                  ref={valueRef}
+                  id={`${id}-value`}
+                  placeholder="12 345,67"
+                  value={value}
+                  aria-invalid={shown.value !== undefined}
+                  onValueChange={(typed) => setValue(typed)}
                 />
-                {shown.contributions ? (
-                  <FieldError>{shown.contributions}</FieldError>
-                ) : (
+                {shown.value && <FieldError>{shown.value}</FieldError>}
+              </Field>
+              {withContributions && (
+                <Field data-invalid={shown.contributions !== undefined}>
+                  <FieldLabel htmlFor={`${id}-contributions`}>
+                    Versements nets
+                  </FieldLabel>
+                  <AmountField
+                    maxCents={LARGE_AMOUNT_CENTS}
+                    id={`${id}-contributions`}
+                    placeholder="10 000"
+                    aria-invalid={shown.contributions !== undefined}
+                    {...contributionsField}
+                  />
+                  {shown.contributions ? (
+                    <FieldError>{shown.contributions}</FieldError>
+                  ) : (
+                    <FieldDescription>
+                      Total versé moins les retraits, à cette date. Laissez vide
+                      si vous ne le connaissez pas.
+                    </FieldDescription>
+                  )}
+                </Field>
+              )}
+              {/* Opened away from the account page: the value, quickly. */}
+              {(snapshot || !accountName) && (
+                <Field>
+                  <FieldLabel htmlFor={`${id}-note`}>Note</FieldLabel>
+                  <Textarea
+                    id={`${id}-note`}
+                    rows={2}
+                    maxLength={NOTE_MAX}
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                  />
                   <FieldDescription>
-                    Total versé moins les retraits, à cette date. Laissez vide
-                    si vous ne le connaissez pas.
+                    Facultative, par ex. « relevé annuel ».
                   </FieldDescription>
-                )}
-              </Field>
-            )}
-            {/* Opened away from the account page: the value, quickly. */}
-            {(snapshot || !accountName) && (
-              <Field>
-                <FieldLabel htmlFor={`${id}-note`}>Note</FieldLabel>
-                <Textarea
-                  id={`${id}-note`}
-                  rows={2}
-                  maxLength={NOTE_MAX}
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                />
-                <FieldDescription>
-                  Facultative, par ex. « relevé annuel ».
-                </FieldDescription>
-              </Field>
-            )}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                </Field>
+              )}
+            </FormSheetBody>
+            <FormSheetFooter>
               {snapshot && (
                 <Button
                   type="button"
                   variant="danger"
                   outline
+                  className="min-h-11"
                   onClick={() => setConfirmOpen(true)}
                 >
                   Supprimer
@@ -269,12 +275,12 @@ export function SnapshotEditor({
               )}
               <Button
                 type="submit"
-                className="sm:ml-auto"
+                className="min-h-11 flex-1 font-medium"
                 loading={save.isPending}
               >
                 Enregistrer
               </Button>
-            </div>
+            </FormSheetFooter>
           </form>
         </SheetContent>
       </Sheet>

@@ -928,8 +928,9 @@ describe('AccountDetailPage', () => {
 
     const list = await screen.findByRole('list', { name: 'Avoirs' })
     // The imported line is read-only, the line typed by hand opens its editor.
-    expect(within(list).getByText('Importé')).toBeInTheDocument()
-    expect(within(list).getByText('Saisi à la main')).toBeInTheDocument()
+    // Where each line comes from, on its second row when the list mixes them.
+    expect(within(list).getByText(/ · importé$/)).toBeInTheDocument()
+    expect(within(list).getByText(/ · à la main$/)).toBeInTheDocument()
     expect(
       within(list).queryByRole('button', { name: /^Modifier BTC/ }),
     ).not.toBeInTheDocument()

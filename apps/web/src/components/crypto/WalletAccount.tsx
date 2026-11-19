@@ -63,6 +63,7 @@ import {
   WalletKeyTypeSheet,
   WalletTokenList,
 } from './CryptoSourceCard'
+import { AssetBadge } from './AssetBadge'
 import { holdingErrorMessage } from './errors'
 import { formatPrice, formatPriceAge, formatQuantity } from './format'
 import {
@@ -394,34 +395,6 @@ function WalletSummary({
 /* ---------------------------------------------------------------------------
  * Holdings
  * ------------------------------------------------------------------------- */
-
-/** The symbol in a round badge, tinted with the asset's colour in the split. */
-export function AssetBadge({
-  symbol,
-  color,
-}: {
-  symbol: string
-  color?: string
-}) {
-  return (
-    <span
-      aria-hidden
-      // 32px whatever the root size (the app's rem is 22px).
-      // Left out on the narrowest cards (320px phones): the name comes first.
-      className="bg-muted text-muted-foreground hidden size-[32px] shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-semibold @[12rem]:flex"
-      style={
-        color
-          ? {
-              background: `color-mix(in oklab, ${color} 16%, transparent)`,
-              color,
-            }
-          : undefined
-      }
-    >
-      {symbol.slice(0, 4)}
-    </span>
-  )
-}
 
 /** Where a line is: its chain, or « Saisi à la main » for a manual line. */
 function lineLocation(line: ValuedHoldingDto): string {

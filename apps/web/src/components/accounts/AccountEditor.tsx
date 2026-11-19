@@ -35,6 +35,13 @@ import {
 import type { CryptoSourceValues } from '#/components/crypto/CryptoSourceFields'
 import type { WalletKeyErrors } from '#/components/crypto/WalletKeyFields'
 import {
+  FORM_SHEET_BOTTOM,
+  FORM_SHEET_FORM,
+  FORM_SHEET_SIDE,
+  FormSheetBody,
+  FormSheetFooter,
+} from '#/components/sheets/form-sheet'
+import {
   CRYPTO_SOURCE_LABELS,
   walletKeyErrorMessage,
 } from '#/components/crypto/sources'
@@ -413,13 +420,9 @@ export function AccountEditor({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side={isMobile ? 'bottom' : 'right'}
-          className={
-            isMobile
-              ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-              : undefined
-          }
+          className={isMobile ? FORM_SHEET_BOTTOM : FORM_SHEET_SIDE}
         >
-          <SheetHeader className="pb-0">
+          <SheetHeader>
             <SheetTitle>
               {creating
                 ? 'Nouveau compte'
@@ -444,237 +447,243 @@ export function AccountEditor({
               onDeleted={() => afterDelete(account)}
             />
           ) : (
-            <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
-              {creating && (
-                <Field>
-                  <FieldLabel htmlFor={`${id}-type`}>Type</FieldLabel>
-                  <NativeSelect
-                    id={`${id}-type`}
-                    className="w-full"
-                    value={values.type}
-                    onChange={(event) =>
-                      choose({ type: event.target.value as AccountType })
-                    }
-                  >
-                    {ACCOUNT_TYPE_OPTIONS.map(({ type, label }) => (
-                      <NativeSelectOption key={type} value={type}>
-                        {label}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                  <FieldDescription>{option.hint}</FieldDescription>
-                </Field>
-              )}
-              {picksCryptoProvider(values, creating) && (
-                <CryptoSourceFields
-                  id={id}
-                  values={values}
-                  errors={shown}
-                  onChange={choose}
-                  withSource
-                />
-              )}
-              <Field data-invalid={shown.name !== undefined}>
-                <FieldLabel htmlFor={`${id}-name`}>Nom</FieldLabel>
-                <Input
-                  id={`${id}-name`}
-                  autoComplete="off"
-                  maxLength={NAME_MAX}
-                  value={values.name}
-                  aria-invalid={shown.name !== undefined}
-                  onChange={(event) => {
-                    setNameTouched(true)
-                    set({ name: event.target.value })
-                  }}
-                />
-                {shown.name ? (
-                  <FieldError>{shown.name}</FieldError>
-                ) : (
-                  picksCryptoProvider(values, creating) && (
-                    <FieldDescription>Ex. « Ledger perso ».</FieldDescription>
-                  )
+            <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
+              <FormSheetBody>
+                {creating && (
+                  <Field>
+                    <FieldLabel htmlFor={`${id}-type`}>Type</FieldLabel>
+                    <NativeSelect
+                      id={`${id}-type`}
+                      className="w-full"
+                      value={values.type}
+                      onChange={(event) =>
+                        choose({ type: event.target.value as AccountType })
+                      }
+                    >
+                      {ACCOUNT_TYPE_OPTIONS.map(({ type, label }) => (
+                        <NativeSelectOption key={type} value={type}>
+                          {label}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                    <FieldDescription>{option.hint}</FieldDescription>
+                  </Field>
                 )}
-              </Field>
-              {values.type === 'crypto' ? (
-                // Set when the account is created (source, exchange or wallet);
-                // another one is another account.
-                !creating && (
-                  <div className="space-y-1 text-sm">
-                    <p className="font-medium">Source</p>
-                    <p>
-                      {[
-                        account.cryptoSource &&
-                          CRYPTO_SOURCE_LABELS[account.cryptoSource],
-                        account.institution,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ') || '—'}
-                    </p>
-                    <p className="text-muted-foreground">
-                      Fixée à la création. Pour une autre plateforme ou un autre
-                      wallet, créez un nouveau compte.
-                    </p>
-                  </div>
-                )
-              ) : (
-                <Field data-invalid={shown.institution !== undefined}>
-                  <FieldLabel htmlFor={`${id}-institution`}>
-                    Établissement
-                  </FieldLabel>
+                {picksCryptoProvider(values, creating) && (
+                  <CryptoSourceFields
+                    id={id}
+                    values={values}
+                    errors={shown}
+                    onChange={choose}
+                    withSource
+                  />
+                )}
+                <Field data-invalid={shown.name !== undefined}>
+                  <FieldLabel htmlFor={`${id}-name`}>Nom</FieldLabel>
                   <Input
-                    id={`${id}-institution`}
+                    id={`${id}-name`}
                     autoComplete="off"
                     maxLength={NAME_MAX}
-                    placeholder={
-                      values.type === 'meal_voucher'
-                        ? 'Émetteur de la carte'
-                        : 'Banque, assureur…'
-                    }
-                    value={values.institution}
-                    aria-invalid={shown.institution !== undefined}
-                    onChange={(event) =>
-                      set({ institution: event.target.value })
-                    }
+                    value={values.name}
+                    aria-invalid={shown.name !== undefined}
+                    onChange={(event) => {
+                      setNameTouched(true)
+                      set({ name: event.target.value })
+                    }}
                   />
-                  {shown.institution && (
-                    <FieldError>{shown.institution}</FieldError>
-                  )}
-                </Field>
-              )}
-              {creating && startsWithBalance(values.type) && (
-                <Field data-invalid={shown.value !== undefined}>
-                  <FieldLabel htmlFor={`${id}-balance`}>
-                    Solde actuel
-                  </FieldLabel>
-                  <AmountField
-                    maxCents={LARGE_AMOUNT_CENTS}
-                    id={`${id}-balance`}
-                    placeholder="0,00"
-                    value={values.value}
-                    aria-invalid={shown.value !== undefined}
-                    onValueChange={(typed) => set({ value: typed })}
-                  />
-                  {shown.value ? (
-                    <FieldError>{shown.value}</FieldError>
+                  {shown.name ? (
+                    <FieldError>{shown.name}</FieldError>
                   ) : (
-                    <FieldDescription>
-                      Facultatif : le solde affiché par l’application de la
-                      carte. Les crédits et paiements saisis à partir
-                      d’aujourd’hui s’y ajoutent.
-                    </FieldDescription>
+                    picksCryptoProvider(values, creating) && (
+                      <FieldDescription>Ex. « Ledger perso ».</FieldDescription>
+                    )
                   )}
                 </Field>
-              )}
-              {creating && startsWithValue(values.type) && (
-                <>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field data-invalid={shown.value !== undefined}>
-                      <FieldLabel htmlFor={`${id}-value`}>
-                        Valeur actuelle
-                      </FieldLabel>
-                      <AmountField
-                        maxCents={LARGE_AMOUNT_CENTS}
-                        id={`${id}-value`}
-                        placeholder="12 345,67"
-                        value={values.value}
-                        aria-invalid={shown.value !== undefined}
-                        onValueChange={(typed) => set({ value: typed })}
-                      />
-                      {shown.value && <FieldError>{shown.value}</FieldError>}
-                    </Field>
-                    <Field data-invalid={shown.date !== undefined}>
-                      <FieldLabel htmlFor={`${id}-date`}>
-                        À la date du
-                      </FieldLabel>
-                      <Input
-                        id={`${id}-date`}
-                        type="date"
-                        max={today}
-                        value={values.date}
-                        aria-invalid={shown.date !== undefined}
-                        onChange={(event) => set({ date: event.target.value })}
-                      />
-                      {shown.date && <FieldError>{shown.date}</FieldError>}
-                    </Field>
-                  </div>
-                  <Field data-invalid={shown.contributions !== undefined}>
-                    <FieldLabel htmlFor={`${id}-contributions`}>
-                      Versements nets
+                {values.type === 'crypto' ? (
+                  // Set when the account is created (source, exchange or wallet);
+                  // another one is another account.
+                  !creating && (
+                    <div className="space-y-1 text-sm">
+                      <p className="font-medium">Source</p>
+                      <p>
+                        {[
+                          account.cryptoSource &&
+                            CRYPTO_SOURCE_LABELS[account.cryptoSource],
+                          account.institution,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ') || '—'}
+                      </p>
+                      <p className="text-muted-foreground">
+                        Fixée à la création. Pour une autre plateforme ou un
+                        autre wallet, créez un nouveau compte.
+                      </p>
+                    </div>
+                  )
+                ) : (
+                  <Field data-invalid={shown.institution !== undefined}>
+                    <FieldLabel htmlFor={`${id}-institution`}>
+                      Établissement
+                    </FieldLabel>
+                    <Input
+                      id={`${id}-institution`}
+                      autoComplete="off"
+                      maxLength={NAME_MAX}
+                      placeholder={
+                        values.type === 'meal_voucher'
+                          ? 'Émetteur de la carte'
+                          : 'Banque, assureur…'
+                      }
+                      value={values.institution}
+                      aria-invalid={shown.institution !== undefined}
+                      onChange={(event) =>
+                        set({ institution: event.target.value })
+                      }
+                    />
+                    {shown.institution && (
+                      <FieldError>{shown.institution}</FieldError>
+                    )}
+                  </Field>
+                )}
+                {creating && startsWithBalance(values.type) && (
+                  <Field data-invalid={shown.value !== undefined}>
+                    <FieldLabel htmlFor={`${id}-balance`}>
+                      Solde actuel
                     </FieldLabel>
                     <AmountField
                       maxCents={LARGE_AMOUNT_CENTS}
-                      id={`${id}-contributions`}
-                      placeholder="10 000"
-                      aria-invalid={shown.contributions !== undefined}
-                      {...contributionsField}
+                      id={`${id}-balance`}
+                      placeholder="0,00"
+                      value={values.value}
+                      aria-invalid={shown.value !== undefined}
+                      onValueChange={(typed) => set({ value: typed })}
                     />
-                    {shown.contributions ? (
-                      <FieldError>{shown.contributions}</FieldError>
+                    {shown.value ? (
+                      <FieldError>{shown.value}</FieldError>
                     ) : (
                       <FieldDescription>
-                        Facultatif : total versé moins les retraits, pour suivre
-                        la plus-value. Valeur et versements peuvent aussi être
-                        ajoutés plus tard.
+                        Facultatif : le solde affiché par l’application de la
+                        carte. Les crédits et paiements saisis à partir
+                        d’aujourd’hui s’y ajoutent.
                       </FieldDescription>
                     )}
                   </Field>
-                </>
-              )}
-              <Button
-                type="submit"
-                className="w-full"
-                loading={creating ? create.isPending : rename.isPending}
-              >
-                {creating ? 'Créer le compte' : 'Enregistrer'}
-              </Button>
-              {!creating && (
-                <section
-                  aria-labelledby={`${id}-end`}
-                  className="space-y-3 border-t pt-4"
-                >
-                  <h3 id={`${id}-end`} className="text-sm font-medium">
-                    {archived
-                      ? 'Réactiver ou supprimer'
-                      : 'Archiver ou supprimer'}
-                  </h3>
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
+                )}
+                {creating && startsWithValue(values.type) && (
+                  <>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field data-invalid={shown.value !== undefined}>
+                        <FieldLabel htmlFor={`${id}-value`}>
+                          Valeur actuelle
+                        </FieldLabel>
+                        <AmountField
+                          maxCents={LARGE_AMOUNT_CENTS}
+                          id={`${id}-value`}
+                          placeholder="12 345,67"
+                          value={values.value}
+                          aria-invalid={shown.value !== undefined}
+                          onValueChange={(typed) => set({ value: typed })}
+                        />
+                        {shown.value && <FieldError>{shown.value}</FieldError>}
+                      </Field>
+                      <Field data-invalid={shown.date !== undefined}>
+                        <FieldLabel htmlFor={`${id}-date`}>
+                          À la date du
+                        </FieldLabel>
+                        <Input
+                          id={`${id}-date`}
+                          type="date"
+                          max={today}
+                          value={values.date}
+                          aria-invalid={shown.date !== undefined}
+                          onChange={(event) =>
+                            set({ date: event.target.value })
+                          }
+                        />
+                        {shown.date && <FieldError>{shown.date}</FieldError>}
+                      </Field>
+                    </div>
+                    <Field data-invalid={shown.contributions !== undefined}>
+                      <FieldLabel htmlFor={`${id}-contributions`}>
+                        Versements nets
+                      </FieldLabel>
+                      <AmountField
+                        maxCents={LARGE_AMOUNT_CENTS}
+                        id={`${id}-contributions`}
+                        placeholder="10 000"
+                        aria-invalid={shown.contributions !== undefined}
+                        {...contributionsField}
+                      />
+                      {shown.contributions ? (
+                        <FieldError>{shown.contributions}</FieldError>
+                      ) : (
+                        <FieldDescription>
+                          Facultatif : total versé moins les retraits, pour
+                          suivre la plus-value. Valeur et versements peuvent
+                          aussi être ajoutés plus tard.
+                        </FieldDescription>
+                      )}
+                    </Field>
+                  </>
+                )}
+                {!creating && (
+                  <section
+                    aria-labelledby={`${id}-end`}
+                    className="space-y-3 border-t pt-4"
+                  >
+                    <h3 id={`${id}-end`} className="text-sm font-medium">
                       {archived
-                        ? 'Archivé : il n’apparaît plus dans les listes ni les imports, son historique est conservé.'
-                        : 'Archiver le retire des listes et des imports en gardant son historique. Vous pourrez le réactiver.'}
-                    </p>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      outline
-                      className="w-full"
-                      loading={archived && archive.isPending}
-                      onClick={() =>
-                        archived
-                          ? archive.mutate(false)
-                          : setConfirmArchive(true)
-                      }
-                    >
-                      {archived ? 'Réactiver' : 'Archiver'}
-                    </Button>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      Supprimer efface le compte et toutes ses données, pour un
-                      compte créé par erreur ou en double. C’est définitif.
-                    </p>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      outline
-                      className="w-full"
-                      onClick={() => setScreen('delete')}
-                    >
-                      Supprimer le compte
-                    </Button>
-                  </div>
-                </section>
-              )}
+                        ? 'Réactiver ou supprimer'
+                        : 'Archiver ou supprimer'}
+                    </h3>
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        {archived
+                          ? 'Archivé : il n’apparaît plus dans les listes ni les imports, son historique est conservé.'
+                          : 'Archiver le retire des listes et des imports en gardant son historique. Vous pourrez le réactiver.'}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        outline
+                        className="w-full"
+                        loading={archived && archive.isPending}
+                        onClick={() =>
+                          archived
+                            ? archive.mutate(false)
+                            : setConfirmArchive(true)
+                        }
+                      >
+                        {archived ? 'Réactiver' : 'Archiver'}
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        Supprimer efface le compte et toutes ses données, pour
+                        un compte créé par erreur ou en double. C’est définitif.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        outline
+                        className="w-full"
+                        onClick={() => setScreen('delete')}
+                      >
+                        Supprimer le compte
+                      </Button>
+                    </div>
+                  </section>
+                )}
+              </FormSheetBody>
+              <FormSheetFooter>
+                <Button
+                  type="submit"
+                  className="min-h-11 flex-1 font-medium"
+                  loading={creating ? create.isPending : rename.isPending}
+                >
+                  {creating ? 'Créer le compte' : 'Enregistrer'}
+                </Button>
+              </FormSheetFooter>
             </form>
           )}
         </SheetContent>

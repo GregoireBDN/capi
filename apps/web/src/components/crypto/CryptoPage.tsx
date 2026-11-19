@@ -39,6 +39,7 @@ import { plural } from '#/lib/plural'
 import { ROUTES } from '#/lib/routes'
 import { accountLinkSearch } from '#/components/accounts/account-origin'
 import { AddCryptoSheet } from './AddCryptoSheet'
+import { AssetBadge } from './AssetBadge'
 import { holdingErrorMessage } from './errors'
 import { formatPrice, formatPriceAge, formatQuantity } from './format'
 import {
@@ -53,7 +54,7 @@ import {
   refreshPortfolio,
 } from './queries'
 import { shareText, splitParts } from './wallet-assets'
-import { AssetBadge, SplitBar, StatusLine } from './WalletAccount'
+import { SplitBar, StatusLine } from './WalletAccount'
 
 const SOURCE_ICONS = {
   exchange: <Building2Icon />,

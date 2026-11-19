@@ -30,6 +30,13 @@ import {
   targetError,
 } from '#/components/budget/amount'
 import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
+import {
+  FORM_SHEET_BOTTOM,
+  FORM_SHEET_FORM,
+  FORM_SHEET_SIDE,
+  FormSheetBody,
+  FormSheetFooter,
+} from '#/components/sheets/form-sheet'
 import { formatCents } from '#/lib/money'
 import { accountsQuery } from '#/lib/queries'
 import { savingsErrorMessage } from './errors'
@@ -205,13 +212,9 @@ export function GoalEditor({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side={isMobile ? 'bottom' : 'right'}
-          className={
-            isMobile
-              ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-              : 'overflow-y-auto'
-          }
+          className={isMobile ? FORM_SHEET_BOTTOM : FORM_SHEET_SIDE}
         >
-          <SheetHeader className="pb-0">
+          <SheetHeader>
             <SheetTitle>
               {goal ? `Objectif ${goal.name}` : 'Ajouter un objectif'}
             </SheetTitle>
@@ -220,167 +223,175 @@ export function GoalEditor({
               déjà épargné.
             </SheetDescription>
           </SheetHeader>
-          <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
-            <Field data-invalid={shown.name !== undefined}>
-              <FieldLabel htmlFor={`${id}-name`}>Nom</FieldLabel>
-              <Input
-                id={`${id}-name`}
-                autoComplete="off"
-                maxLength={NAME_MAX}
-                placeholder="Fonds de secours"
-                value={values.name}
-                aria-invalid={shown.name !== undefined}
-                onChange={(event) => set('name', event.target.value)}
-              />
-              {shown.name && <FieldError>{shown.name}</FieldError>}
-            </Field>
+          <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
+            <FormSheetBody>
+              <Field data-invalid={shown.name !== undefined}>
+                <FieldLabel htmlFor={`${id}-name`}>Nom</FieldLabel>
+                <Input
+                  id={`${id}-name`}
+                  autoComplete="off"
+                  maxLength={NAME_MAX}
+                  placeholder="Fonds de secours"
+                  value={values.name}
+                  aria-invalid={shown.name !== undefined}
+                  onChange={(event) => set('name', event.target.value)}
+                />
+                {shown.name && <FieldError>{shown.name}</FieldError>}
+              </Field>
 
-            <Field data-invalid={shown.target !== undefined}>
-              <FieldLabel htmlFor={`${id}-target`}>Montant cible</FieldLabel>
-              <AmountField
-                maxCents={LARGE_AMOUNT_CENTS}
-                id={`${id}-target`}
-                placeholder="5000"
-                value={values.target}
-                aria-invalid={shown.target !== undefined}
-                onValueChange={(typed) => set('target', typed)}
-              />
-              {shown.target && <FieldError>{shown.target}</FieldError>}
-            </Field>
-
-            <Field data-invalid={shown.date !== undefined}>
-              <FieldLabel htmlFor={`${id}-date`}>Échéance</FieldLabel>
-              <Input
-                id={`${id}-date`}
-                type="date"
-                value={values.date}
-                aria-invalid={shown.date !== undefined}
-                onChange={(event) => set('date', event.target.value)}
-              />
-              <FieldDescription>
-                Facultative : sert à calculer l’effort mensuel.
-              </FieldDescription>
-              {shown.date && <FieldError>{shown.date}</FieldError>}
-            </Field>
-
-            <fieldset className="space-y-2">
-              <legend className="mb-2 text-sm font-medium">Déjà épargné</legend>
-              {/* 44px rows: each radio's touch area stays its own. */}
-              <RadioGroup
-                value={values.source}
-                onValueChange={(value) =>
-                  set('source', value as SavingsGoalSource)
-                }
-              >
-                <div className="flex min-h-11 items-center gap-2">
-                  <RadioGroupItem value="accounts" id={`${id}-accounts`} />
-                  <Label htmlFor={`${id}-accounts`} className="font-normal">
-                    Solde de comptes liés
-                  </Label>
-                </div>
-                <div className="flex min-h-11 items-center gap-2">
-                  <RadioGroupItem value="manual" id={`${id}-manual`} />
-                  <Label htmlFor={`${id}-manual`} className="font-normal">
-                    Montant saisi à la main
-                  </Label>
-                </div>
-              </RadioGroup>
-            </fieldset>
-
-            {values.source === 'accounts' ? (
-              <fieldset
-                className="space-y-2"
-                aria-describedby={
-                  shown.accounts ? `${id}-accounts-error` : undefined
-                }
-              >
-                <legend className="mb-2 text-sm font-medium">
-                  Comptes liés
-                </legend>
-                {accounts.isPending && (
-                  <p className="text-muted-foreground text-sm">Chargement…</p>
-                )}
-                {accountList.map((account) => (
-                  <div key={account.id} className="flex items-center gap-2">
-                    <Checkbox
-                      id={`${id}-${account.id}`}
-                      checked={values.accountIds.includes(account.id)}
-                      onCheckedChange={(checked) =>
-                        toggleAccount(account.id, checked === true)
-                      }
-                    />
-                    <Label
-                      htmlFor={`${id}-${account.id}`}
-                      className="min-w-0 flex-1 font-normal"
-                    >
-                      <span className="truncate">{account.name}</span>
-                      <span className="text-muted-foreground ml-auto shrink-0 text-xs tabular-nums">
-                        {account.balanceCents === null
-                          ? ACCOUNT_TYPE_LABELS[account.type]
-                          : formatCents(account.balanceCents)}
-                      </span>
-                    </Label>
-                  </div>
-                ))}
-                {shown.accounts && (
-                  <p
-                    id={`${id}-accounts-error`}
-                    className="text-destructive text-sm"
-                  >
-                    {shown.accounts}
-                  </p>
-                )}
-              </fieldset>
-            ) : (
-              <Field data-invalid={shown.manual !== undefined}>
-                <FieldLabel htmlFor={`${id}-manual-amount`}>
-                  Montant déjà épargné
-                </FieldLabel>
+              <Field data-invalid={shown.target !== undefined}>
+                <FieldLabel htmlFor={`${id}-target`}>Montant cible</FieldLabel>
                 <AmountField
                   maxCents={LARGE_AMOUNT_CENTS}
-                  id={`${id}-manual-amount`}
-                  placeholder="0"
-                  value={values.manual}
-                  aria-invalid={shown.manual !== undefined}
-                  onValueChange={(typed) => set('manual', typed)}
+                  id={`${id}-target`}
+                  placeholder="5000"
+                  value={values.target}
+                  aria-invalid={shown.target !== undefined}
+                  onValueChange={(typed) => set('target', typed)}
                 />
-                {shown.manual && <FieldError>{shown.manual}</FieldError>}
+                {shown.target && <FieldError>{shown.target}</FieldError>}
               </Field>
-            )}
 
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
-              {goal && (
-                <>
-                  <Button
-                    type="button"
-                    variant="danger"
-                    outline
-                    disabled={busy}
-                    onClick={() => setConfirmOpen(true)}
-                  >
-                    Supprimer
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    outline
-                    loading={archive.isPending}
-                    disabled={busy}
-                    onClick={() => archive.mutate(!goal.archived)}
-                  >
-                    {goal.archived ? 'Restaurer' : 'Archiver'}
-                  </Button>
-                </>
+              <Field data-invalid={shown.date !== undefined}>
+                <FieldLabel htmlFor={`${id}-date`}>Échéance</FieldLabel>
+                <Input
+                  id={`${id}-date`}
+                  type="date"
+                  value={values.date}
+                  aria-invalid={shown.date !== undefined}
+                  onChange={(event) => set('date', event.target.value)}
+                />
+                <FieldDescription>
+                  Facultative : sert à calculer l’effort mensuel.
+                </FieldDescription>
+                {shown.date && <FieldError>{shown.date}</FieldError>}
+              </Field>
+
+              <fieldset className="space-y-2">
+                <legend className="mb-2 text-sm font-medium">
+                  Déjà épargné
+                </legend>
+                {/* 44px rows: each radio's touch area stays its own. */}
+                <RadioGroup
+                  value={values.source}
+                  onValueChange={(value) =>
+                    set('source', value as SavingsGoalSource)
+                  }
+                >
+                  <div className="flex min-h-11 items-center gap-2">
+                    <RadioGroupItem value="accounts" id={`${id}-accounts`} />
+                    <Label htmlFor={`${id}-accounts`} className="font-normal">
+                      Solde de comptes liés
+                    </Label>
+                  </div>
+                  <div className="flex min-h-11 items-center gap-2">
+                    <RadioGroupItem value="manual" id={`${id}-manual`} />
+                    <Label htmlFor={`${id}-manual`} className="font-normal">
+                      Montant saisi à la main
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </fieldset>
+
+              {values.source === 'accounts' ? (
+                <fieldset
+                  className="space-y-2"
+                  aria-describedby={
+                    shown.accounts ? `${id}-accounts-error` : undefined
+                  }
+                >
+                  <legend className="mb-2 text-sm font-medium">
+                    Comptes liés
+                  </legend>
+                  {accounts.isPending && (
+                    <p className="text-muted-foreground text-sm">Chargement…</p>
+                  )}
+                  {accountList.map((account) => (
+                    <div key={account.id} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`${id}-${account.id}`}
+                        checked={values.accountIds.includes(account.id)}
+                        onCheckedChange={(checked) =>
+                          toggleAccount(account.id, checked === true)
+                        }
+                      />
+                      <Label
+                        htmlFor={`${id}-${account.id}`}
+                        className="min-w-0 flex-1 font-normal"
+                      >
+                        <span className="truncate">{account.name}</span>
+                        <span className="text-muted-foreground ml-auto shrink-0 text-xs tabular-nums">
+                          {account.balanceCents === null
+                            ? ACCOUNT_TYPE_LABELS[account.type]
+                            : formatCents(account.balanceCents)}
+                        </span>
+                      </Label>
+                    </div>
+                  ))}
+                  {shown.accounts && (
+                    <p
+                      id={`${id}-accounts-error`}
+                      className="text-destructive text-sm"
+                    >
+                      {shown.accounts}
+                    </p>
+                  )}
+                </fieldset>
+              ) : (
+                <Field data-invalid={shown.manual !== undefined}>
+                  <FieldLabel htmlFor={`${id}-manual-amount`}>
+                    Montant déjà épargné
+                  </FieldLabel>
+                  <AmountField
+                    maxCents={LARGE_AMOUNT_CENTS}
+                    id={`${id}-manual-amount`}
+                    placeholder="0"
+                    value={values.manual}
+                    aria-invalid={shown.manual !== undefined}
+                    onValueChange={(typed) => set('manual', typed)}
+                  />
+                  {shown.manual && <FieldError>{shown.manual}</FieldError>}
+                </Field>
               )}
+
+              {/* The rarer actions end the fields; « Enregistrer » stays in
+                the footer, above the keyboard (#323). */}
+              {goal && (
+                <div className="flex flex-wrap gap-2 border-t pt-4">
+                  <>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      outline
+                      disabled={busy}
+                      onClick={() => setConfirmOpen(true)}
+                    >
+                      Supprimer
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      outline
+                      loading={archive.isPending}
+                      disabled={busy}
+                      onClick={() => archive.mutate(!goal.archived)}
+                    >
+                      {goal.archived ? 'Restaurer' : 'Archiver'}
+                    </Button>
+                  </>
+                </div>
+              )}
+            </FormSheetBody>
+            <FormSheetFooter>
               <Button
                 type="submit"
-                className="sm:ml-auto"
+                className="min-h-11 flex-1 font-medium"
                 loading={save.isPending}
                 disabled={busy}
               >
                 Enregistrer
               </Button>
-            </div>
+            </FormSheetFooter>
           </form>
         </SheetContent>
       </Sheet>
