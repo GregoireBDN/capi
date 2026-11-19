@@ -12,9 +12,8 @@ import {
   Skeleton,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import {
-  ArrowLeftIcon,
   ClipboardPasteIcon,
   ClockAlertIcon,
   FileUpIcon,
@@ -25,6 +24,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import type { AccountDto, SnapshotDto } from '#/api/types.gen'
+import { PageBack } from '#/components/app-shell/PageBack'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import type { PageAction } from '#/components/app-shell/page-actions'
 import { CryptoSourceCard } from '#/components/crypto/CryptoSourceCard'
@@ -60,16 +60,11 @@ function PageSkeleton() {
   )
 }
 
+/** The way back to « Comptes » (top bar on phones, chip from md up). */
+const BACK = { label: 'Comptes', to: ROUTES.accounts } as const
+
 function BackLink() {
-  return (
-    <Link
-      to={ROUTES.accounts}
-      className="text-muted-foreground hover:text-foreground relative inline-flex items-center gap-1 text-sm pointer-coarse:touch-hitbox"
-    >
-      <ArrowLeftIcon aria-hidden className="size-4" />
-      Comptes
-    </Link>
-  )
+  return <PageBack {...BACK} />
 }
 
 function AccountHeader({
@@ -82,9 +77,9 @@ function AccountHeader({
 }) {
   const [editing, setEditing] = useState(false)
   return (
-    <div className="space-y-1">
-      <BackLink />
+    <>
       <PageHeader
+        back={BACK}
         title={account.name}
         titleAddon={
           account.archivedAt && (
@@ -108,7 +103,7 @@ function AccountHeader({
         onOpenChange={setEditing}
         account={account}
       />
-    </div>
+    </>
   )
 }
 
