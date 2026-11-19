@@ -1,10 +1,12 @@
 import { z } from 'zod'
 import type { MonthReviewDto, ReviewCategoryDto } from '../api/types.js'
 import {
+  addMonths,
   euros,
   eurosOrUnknown,
   frenchDate,
   frenchMonth,
+  parisToday,
   periodNote,
   signedEuros,
 } from '../format.js'
@@ -31,9 +33,11 @@ export const monthReviewTool = defineTool({
         'Month to review, YYYY-MM. Default: the previous calendar month.',
       ),
   },
-  async run({ api }, args) {
+  async run({ api, now }, args) {
+    // Named: the API's own default moves to the current month once the
+    // previous one is closed (the dashboard, #321).
     const review = await api.get<MonthReviewDto>('/api/dashboard/review', {
-      month: args.month,
+      month: args.month ?? addMonths(parisToday(now()).slice(0, 7), -1),
     })
     const { netWorth, budget } = review
     const lines = [

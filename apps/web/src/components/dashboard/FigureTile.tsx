@@ -13,6 +13,8 @@ export interface FigureTileProps {
   link?: Omit<DashboardCardLink, 'label'>
   /** `dl`: the tile is a term / description pair of an enclosing `<dl>`. */
   variant?: 'dl' | 'block'
+  /** Notes on a phone too: the ones that explain the figure (#321). */
+  notesOnPhone?: boolean
   className?: string
 }
 
@@ -33,6 +35,7 @@ export function FigureTile({
   tone,
   link,
   variant = 'block',
+  notesOnPhone = false,
   className,
 }: FigureTileProps) {
   const Term = variant === 'dl' ? 'dt' : 'p'
@@ -54,7 +57,10 @@ export function FigureTile({
       {shown.map((note, index) => (
         <Desc
           key={index}
-          className="text-muted-foreground hidden text-xs @[36rem]:block"
+          className={cn(
+            'text-muted-foreground text-xs',
+            !notesOnPhone && 'hidden @[36rem]:block',
+          )}
         >
           {note}
         </Desc>

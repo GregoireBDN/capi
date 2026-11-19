@@ -178,7 +178,7 @@ export class UpsertBudgetDto {
   @ApiPropertyOptional({
     type: Boolean,
     description:
-      'Envelope: follow the category during the month on the dashboard ("Ce mois-ci"). Omitted: kept from the target in effect.',
+      'Envelope: follow the category during the month on the dashboard (« Budget »). Omitted: kept from the target in effect.',
   })
   @IsOptional()
   @IsBoolean()

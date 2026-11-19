@@ -2,9 +2,11 @@ import { Card, CardContent } from '@finances/ui'
 import type { DashboardAccountDto, NetWorthDto } from '#/api/types.gen'
 import { AccountList } from '#/components/accounts/AccountList'
 import { formatCents } from '#/lib/money'
+import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
 import { DashboardCardHeader } from './DashboardCardHeader'
 import { FigureTile } from './FigureTile'
+import { formatSignedWhole } from './MonthReview'
 
 const GROUPS = [
   {
@@ -18,6 +20,17 @@ const GROUPS = [
     total: (netWorth: NetWorthDto) => netWorth.investmentsCents,
   },
 ] as const
+
+/**
+ * « +1 120 € depuis le 31 oct. »: today's net worth against the last month
+ * end, so it reads apart from the review's month-end figure. Null when that
+ * end is unknown.
+ */
+export function sinceMonthEnd(netWorth: NetWorthDto): string | null {
+  if (netWorth.previousMonthEndCents === null) return null
+  const change = netWorth.totalCents - netWorth.previousMonthEndCents
+  return `${formatSignedWhole(change)} depuis le ${formatShortDay(netWorth.previousMonthEnd)}`
+}
 
 /**
  * Accounts and their balances, cash (checking, savings) apart from
@@ -40,13 +53,15 @@ export function AccountsList({
         link={{ label: 'Évolution', to: ROUTES.netWorth }}
       />
       <CardContent className="space-y-4">
-        {/* Today's net worth, once, with its date (the month-end one is
-            in the review card), then its two parts; the groups below
-            don't repeat their totals. */}
+        {/* Today's net worth, once, and how it moved since the last month
+            end (the month-end figure of the review, #321), then its two
+            parts; the groups below don't repeat their totals. */}
         <div className="@container grid gap-2">
           <FigureTile
             label="Patrimoine à ce jour"
             value={formatCents(netWorth.totalCents)}
+            notes={[sinceMonthEnd(netWorth)]}
+            notesOnPhone
           />
           <div className="grid gap-2 @[36rem]:grid-cols-2">
             {GROUPS.map(({ group, title, total }) => (

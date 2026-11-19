@@ -37,7 +37,7 @@ export const budgetsTable = pgTable(
     monthlyTargetCents: integer('monthly_target_cents'),
     note: text('note'),
     /**
-     * Envelope: followed during the month on the dashboard ("Ce mois-ci"),
+     * Envelope: followed during the month on the dashboard (« Budget »),
      * with expenses noted by hand (#137). Carried over like the note.
      */
     tracked: boolean('tracked').notNull().default(false),

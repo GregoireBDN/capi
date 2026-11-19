@@ -418,6 +418,7 @@ describe('budget_status', () => {
   }
   const envelopes: EnvelopesDto = {
     month: '2026-11',
+    current: true,
     today: '2026-11-14',
     dayOfMonth: 14,
     daysInMonth: 30,
@@ -695,6 +696,8 @@ describe('month_review', () => {
   it('summarizes the review of the previous month', async () => {
     const review: MonthReviewDto = {
       month: '2026-10',
+      defaultMonth: '2026-11',
+      current: false,
       nextMonth: '2026-11',
       period: period({
         month: '2026-10',
@@ -745,8 +748,14 @@ describe('month_review', () => {
         },
       ],
     }
-    const { call } = await connect({ '/api/dashboard/review': review })
+    const { call, calls } = await connect({ '/api/dashboard/review': review })
     const { text } = await call('month_review')
+    // The previous month is named: the API's default may be the current one.
+    expect(
+      calls
+        .find((c) => c.url.pathname === '/api/dashboard/review')
+        ?.url.searchParams.get('month'),
+    ).toBe('2026-10')
     expect(text).toContain(
       'Bilan de octobre 2026 : des données manquent encore.',
     )

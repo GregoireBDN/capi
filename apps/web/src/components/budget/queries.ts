@@ -92,7 +92,7 @@ export function removeBudget(categoryId: string, month: string) {
 export function afterBudgetsChanged(queryClient: QueryClient) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: budgetKeys.all }),
-    // The dashboard's "Ce mois-ci" card follows the tracked lines.
+    // The dashboard's « Budget » card follows the tracked lines.
     queryClient.invalidateQueries({ queryKey: envelopeKeys.all }),
   ])
 }

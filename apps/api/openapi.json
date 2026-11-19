@@ -11662,7 +11662,7 @@
           },
           "tracked": {
             "type": "boolean",
-            "description": "Envelope: follow the category during the month on the dashboard (\"Ce mois-ci\"). Omitted: kept from the target in effect."
+            "description": "Envelope: follow the category during the month on the dashboard (« Budget »). Omitted: kept from the target in effect."
           }
         },
         "required": [
