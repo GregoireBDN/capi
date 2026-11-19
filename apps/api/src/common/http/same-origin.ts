@@ -22,6 +22,16 @@ import type { ErrorResponse } from '../filters/all-exceptions.filter'
  * - without either header the request does not come from a page (the web
  *   server's SSR and server-function calls, scripts): it passes.
  *
+ * Outside production only (#339), an `Origin` equal to the origin the request
+ * was addressed to also passes: the phone opens the dev server at the Mac's
+ * LAN address (`http://192.168.1.x:3000`), which is no secure context, so the
+ * browser sends no `Sec-Fetch-Site` and its `Origin` is not `APP_URL`. That
+ * origin is `X-Forwarded-Proto` + `X-Forwarded-Host`, which the web proxy
+ * sets from the browser's own `Host` (`lib/api-proxy.ts`), else `Host`. A
+ * page elsewhere can't make a browser send another site's `Host`, nor set
+ * `X-Forwarded-Host` without a preflight only `APP_URL` passes. Production
+ * keeps the rule above as audited (#102).
+ *
  * Requests with `Authorization: Bearer` (personal access tokens: the MCP
  * server, scripts) skip the check: `JwtGuard` then ignores the cookies, and a
  * page can't set that header on another origin without a CORS preflight,
@@ -50,18 +60,39 @@ function header(
 }
 
 /**
+ * The origin a request was addressed to: the browser's `Host` as forwarded by
+ * the web proxy, else the request's own (outside production only, see above).
+ */
+export function addressedOrigin(
+  headers: IncomingHttpHeaders,
+): string | undefined {
+  const host = header(headers, 'x-forwarded-host') ?? header(headers, 'host')
+  if (!host) return undefined
+  const proto = header(headers, 'x-forwarded-proto') ?? 'http'
+  return `${proto.split(',')[0].trim()}://${host.split(',')[0].trim()}`
+}
+
+/**
  * Whether a request is an unsafe one coming from a page on another origin
- * (see above). `allowed` holds the app's origins.
+ * (see above). `allowed` holds the app's origins; `allowAddressedOrigin`
+ * (outside production) also lets through the origin the request was sent to.
  */
 export function isCrossOriginWrite(
   request: { method: string; headers: IncomingHttpHeaders },
   allowed: ReadonlySet<string>,
+  allowAddressedOrigin = false,
 ): boolean {
   if (SAFE_METHODS.has(request.method.toUpperCase())) return false
   if (readBearerToken(header(request.headers, 'authorization'))) return false
 
   const origin = header(request.headers, 'origin')
   if (origin !== undefined && allowed.has(origin)) return false
+  if (
+    allowAddressedOrigin &&
+    origin !== undefined &&
+    origin === addressedOrigin(request.headers)
+  )
+    return false
 
   const fetchSite = header(request.headers, 'sec-fetch-site')
   if (fetchSite !== undefined) {
@@ -77,9 +108,11 @@ export function isCrossOriginWrite(
 export function registerSameOriginCheck(
   fastify: FastifyInstance,
   allowed: ReadonlySet<string> = appOrigins(),
+  allowAddressedOrigin = !env.isProduction,
 ): void {
   fastify.addHook('onRequest', (request, reply, done) => {
-    if (!isCrossOriginWrite(request, allowed)) return done()
+    if (!isCrossOriginWrite(request, allowed, allowAddressedOrigin))
+      return done()
     void reply.code(403).send(refused(request))
   })
 }

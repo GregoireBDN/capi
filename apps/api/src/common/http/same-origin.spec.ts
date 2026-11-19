@@ -20,6 +20,7 @@ import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import {
   CROSS_ORIGIN_MESSAGE,
+  addressedOrigin,
   appOrigins,
   isCrossOriginWrite,
   registerSameOriginCheck,
@@ -120,6 +121,91 @@ describe('isCrossOriginWrite', () => {
   })
 })
 
+describe('isCrossOriginWrite from the dev server at a LAN address (#339)', () => {
+  const LAN = 'http://192.168.1.20:3000'
+  // What the browser sends over plain HTTP (no Sec-Fetch-*), as the web
+  // proxy forwards it.
+  const throughProxy = (origin: string) => ({
+    origin,
+    host: 'localhost:4000',
+    'x-forwarded-host': '192.168.1.20:3000',
+    'x-forwarded-proto': 'http',
+  })
+  const allowed = new Set(['http://localhost:3000'])
+
+  it('lets the page through outside production', () => {
+    expect(
+      isCrossOriginWrite(
+        { method: 'POST', headers: throughProxy(LAN) },
+        allowed,
+        true,
+      ),
+    ).toBe(false)
+  })
+
+  it('still refuses it in production', () => {
+    expect(
+      isCrossOriginWrite(
+        { method: 'POST', headers: throughProxy(LAN) },
+        allowed,
+        false,
+      ),
+    ).toBe(true)
+  })
+
+  it('still refuses a page on another origin', () => {
+    expect(
+      isCrossOriginWrite(
+        { method: 'POST', headers: throughProxy('http://192.168.1.66:8080') },
+        allowed,
+        true,
+      ),
+    ).toBe(true)
+    expect(
+      isCrossOriginWrite(
+        {
+          method: 'POST',
+          headers: { ...throughProxy(SIBLING), 'sec-fetch-site': 'same-site' },
+        },
+        allowed,
+        true,
+      ),
+    ).toBe(true)
+  })
+
+  it('compares with Host when no proxy forwarded one', () => {
+    expect(
+      isCrossOriginWrite(
+        {
+          method: 'POST',
+          headers: {
+            origin: 'http://192.168.1.20:4000',
+            host: '192.168.1.20:4000',
+          },
+        },
+        allowed,
+        true,
+      ),
+    ).toBe(false)
+  })
+})
+
+describe('addressedOrigin', () => {
+  it('prefers the forwarded host and scheme', () => {
+    expect(
+      addressedOrigin({
+        host: 'api:4000',
+        'x-forwarded-host': 'finances.example.test',
+        'x-forwarded-proto': 'https',
+      }),
+    ).toBe('https://finances.example.test')
+    expect(addressedOrigin({ host: 'localhost:4000' })).toBe(
+      'http://localhost:4000',
+    )
+    expect(addressedOrigin({})).toBeUndefined()
+  })
+})
+
 describe('appOrigins', () => {
   it('holds the APP_URL origin', () => {
     expect(appOrigins().has('http://localhost:3000')).toBe(true)
@@ -184,6 +270,26 @@ describe('same-origin check on /api writes (HTTP)', () => {
       'sec-fetch-site': 'same-origin',
     })
     expect(response.statusCode).toBe(200)
+  })
+
+  it('accepts the dev server at a LAN address through the proxy (#339)', async () => {
+    const response = await post('/api/probe/valuate', {
+      cookie,
+      origin: 'http://192.168.1.20:3000',
+      'x-forwarded-host': '192.168.1.20:3000',
+      'x-forwarded-proto': 'http',
+    })
+    expect(response.statusCode).toBe(200)
+  })
+
+  it('still refuses another LAN page with the same forwarded host', async () => {
+    const response = await post('/api/probe/valuate', {
+      cookie,
+      origin: 'http://192.168.1.66:8080',
+      'x-forwarded-host': '192.168.1.20:3000',
+      'x-forwarded-proto': 'http',
+    })
+    expect(response.statusCode).toBe(403)
   })
 
   it('accepts the passkey origin', async () => {
