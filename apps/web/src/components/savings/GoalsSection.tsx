@@ -1,5 +1,4 @@
 import {
-  Badge,
   Button,
   Card,
   CardAction,
@@ -7,55 +6,67 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  cn,
   Empty,
   EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-  Label,
-  ProgressMeter,
+  formatWholeEuros,
   Skeleton,
-  Switch,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
-import {
-  CircleAlertIcon,
-  CircleCheckIcon,
-  FlagIcon,
-  PencilIcon,
-  PlusIcon,
-} from 'lucide-react'
-import { useId, useState } from 'react'
+import { ArchiveIcon, FlagIcon, PlusIcon } from 'lucide-react'
+import { useState } from 'react'
 import type { SavingsGoalDto } from '#/api/types.gen'
-import { formatCalendarDate, formatCents } from '#/lib/money'
 import { GoalEditor } from './GoalEditor'
-import { formatMonthOf } from './format'
+import { formatShortMonthOf } from './format'
 import { savingsGoalsQuery } from './queries'
 
-/** Plain-language status of a goal's projection, with its tone. */
-function projectionText(goal: SavingsGoalDto): {
-  text: string
-  tone: 'good' | 'bad' | 'neutral'
+type GoalTone = 'good' | 'bad' | 'neutral'
+
+/** The goal's status in one word or two, with its tone (#344 follow-up). */
+export function goalStatus(goal: SavingsGoalDto): {
+  label: string
+  tone: GoalTone
 } {
+  if (goal.archived) return { label: 'Archivé', tone: 'neutral' }
+  if (goal.reached) return { label: 'Atteint', tone: 'good' }
   const { projection } = goal
-  if (goal.reached) return { text: 'Objectif atteint', tone: 'good' }
   if (!projection.reachable || projection.projectedDate === null) {
-    return {
-      text: 'Pas atteignable au rythme actuel (épargne moyenne nulle ou négative)',
-      tone: 'bad',
-    }
+    return { label: 'Hors de portée', tone: 'bad' }
   }
-  const when = `Atteint en ${formatMonthOf(projection.projectedDate)} au rythme actuel`
-  if (projection.onTrack === false) {
-    return { text: `${when}, après l’échéance`, tone: 'bad' }
-  }
+  if (goal.targetDatePassed) return { label: 'Échéance passée', tone: 'bad' }
+  if (projection.onTrack === false) return { label: 'En retard', tone: 'bad' }
   if (projection.onTrack === true) {
-    return { text: `${when}, dans les temps`, tone: 'good' }
+    return { label: 'Dans les temps', tone: 'good' }
   }
-  return { text: when, tone: 'neutral' }
+  return { label: 'Sans date', tone: 'neutral' }
 }
 
+/** `juil. 2027` (the deadline), `prévu févr. 2027` without one, or null. */
+export function goalWhen(goal: SavingsGoalDto): string | null {
+  if (goal.reached) return null
+  if (goal.targetDate !== null) return formatShortMonthOf(goal.targetDate)
+  if (goal.projection.projectedDate !== null) {
+    return `prévu ${formatShortMonthOf(goal.projection.projectedDate)}`
+  }
+  return null
+}
+
+const TONE: Record<GoalTone, string> = {
+  good: 'text-chart-delta-good',
+  bad: 'text-chart-delta-bad',
+  neutral: 'text-muted-foreground',
+}
+
+/**
+ * One goal in three lines (owner's « A. Lignes compactes », prototypes in
+ * `apps/ui-docs/src/prototypes/savings-goals.stories.tsx`): its name and
+ * status, its bar, then what is left · its deadline and the %. The whole
+ * goal opens its editor.
+ */
 function GoalItem({
   goal,
   onEdit,
@@ -63,90 +74,67 @@ function GoalItem({
   goal: SavingsGoalDto
   onEdit: () => void
 }) {
-  const status = projectionText(goal)
-  const StatusIcon =
-    status.tone === 'good'
-      ? CircleCheckIcon
-      : status.tone === 'bad'
-        ? CircleAlertIcon
-        : null
-
+  const status = goalStatus(goal)
+  const when = goalWhen(goal)
+  const percent = `${Math.floor(goal.progressRatio * 100)} %`
+  const amount = goal.reached
+    ? `${formatWholeEuros(goal.currentCents)} sur ${formatWholeEuros(goal.targetCents)}`
+    : `${formatWholeEuros(goal.remainingCents)} restants`
   return (
-    <li className="space-y-2 py-3">
-      <ProgressMeter
-        goal="reach"
-        label={goal.name}
-        value={goal.currentCents}
-        target={goal.targetCents}
-        valueFormatter={formatCents}
-        // The goal's own lines below say what is left and when.
-        hideStatus
-        action={
-          <Button
-            ghost
-            size="sm"
-            className="-mt-1 shrink-0"
-            onClick={onEdit}
-            aria-label={`Modifier l’objectif ${goal.name}`}
-          >
-            <PencilIcon aria-hidden />
-          </Button>
-        }
-      />
-      <dl className="text-muted-foreground grid gap-0.5 text-xs">
-        <div className="flex flex-wrap gap-x-1">
-          <dt className="sr-only">Épargné</dt>
-          <dd>
-            {goal.reached
-              ? `${formatCents(goal.currentCents)} épargnés`
-              : `Reste ${formatCents(goal.remainingCents)}`}{' '}
-            ({Math.floor(goal.progressRatio * 100)} %)
-            {goal.archived && (
-              <Badge variant="secondary" className="ml-2">
-                Archivé
-              </Badge>
+    <li>
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={`Modifier l’objectif ${goal.name} : ${status.label}, ${amount}${when ? ` · ${when}` : ''}, ${percent}`}
+        className="hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-ring block w-full space-y-1.5 rounded-lg px-2 py-2 text-left text-sm outline-none focus-visible:ring-2"
+      >
+        <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+          <span className="min-w-0 font-medium break-normal">{goal.name}</span>
+          <span
+            className={cn(
+              'text-xs font-medium whitespace-nowrap',
+              TONE[status.tone],
             )}
-          </dd>
-        </div>
-        {goal.targetDate !== null && (
-          <div className="flex flex-wrap gap-x-1">
-            <dt>Échéance :</dt>
-            <dd>
-              {formatCalendarDate(goal.targetDate)}
-              {goal.targetDatePassed
-                ? ' (dépassée)'
-                : goal.requiredMonthlyCents !== null &&
-                  !goal.reached &&
-                  `, soit ${formatCents(goal.requiredMonthlyCents)} par mois pendant ${goal.monthsLeft} mois`}
-            </dd>
-          </div>
-        )}
-        <div className="flex items-center gap-1">
-          <dt className="sr-only">Projection</dt>
-          <dd
-            className={
-              status.tone === 'good'
-                ? 'text-chart-delta-good flex items-center gap-1'
-                : status.tone === 'bad'
-                  ? 'text-chart-delta-bad flex items-center gap-1'
-                  : 'flex items-center gap-1'
-            }
           >
-            {StatusIcon && (
-              <StatusIcon aria-hidden className="size-3.5 shrink-0" />
+            {status.label}
+          </span>
+        </span>
+        <span
+          aria-hidden
+          className="bg-muted block h-2 overflow-hidden rounded-full"
+        >
+          <span
+            className={cn(
+              'block h-full rounded-full',
+              goal.reached ? 'bg-chart-delta-good' : 'bg-primary',
             )}
-            {status.text}
-          </dd>
-        </div>
-      </dl>
+            style={{ width: `${Math.min(goal.progressRatio, 1) * 100}%` }}
+          />
+        </span>
+        <span className="text-muted-foreground flex flex-wrap items-baseline justify-between gap-x-3 text-xs tabular-nums">
+          <span>
+            <span className="whitespace-nowrap">{amount}</span>
+            {when && (
+              <>
+                {' · '}
+                <span className="whitespace-nowrap">{when}</span>
+              </>
+            )}
+          </span>
+          <span className="text-foreground font-medium whitespace-nowrap">
+            {percent}
+          </span>
+        </span>
+      </button>
     </li>
   )
 }
 
 /**
- * Savings goals: progress, deadline and monthly amount needed, projected
- * reach date at the average monthly savings, one-offs excluded (stated in
- * the description). Added, changed, archived and deleted in a sheet.
+ * Savings goals, one compact row each (status, bar, what is left, deadline,
+ * %), projected at the average monthly savings, one-offs excluded. The
+ * monthly effort is in the goal's editor. Added, changed, archived and
+ * deleted in a sheet.
  */
 export function GoalsSection({
   projectionAverageCents,
@@ -154,7 +142,6 @@ export function GoalsSection({
   /** Average the projections use (6 full months, one-offs excluded). */
   projectionAverageCents: number | null
 }) {
-  const id = useId()
   const [showArchived, setShowArchived] = useState(false)
   const goals = useQuery(savingsGoalsQuery(showArchived))
   const [editorOpen, setEditorOpen] = useState(false)
@@ -174,7 +161,7 @@ export function GoalsSection({
         <CardDescription>
           {projectionAverageCents === null
             ? 'Pas encore de mois complet pour projeter vos objectifs.'
-            : `Projetés à ${formatCents(projectionAverageCents)} par mois : votre épargne moyenne des 6 derniers mois complets, sans les revenus et dépenses ponctuels.`}
+            : `Au rythme de ${formatWholeEuros(projectionAverageCents)} par mois`}
         </CardDescription>
         <CardAction>
           <Button size="sm" onClick={() => open()}>
@@ -224,24 +211,24 @@ export function GoalsSection({
             </EmptyContent>
           </Empty>
         ) : (
-          <ul className="divide-y">
+          <ul className="space-y-1">
             {list.map((goal) => (
               <GoalItem key={goal.id} goal={goal} onEdit={() => open(goal)} />
             ))}
           </ul>
         )}
         {goals.isSuccess && (
-          <div className="flex items-center gap-2">
-            <Switch
-              id={`${id}-archived`}
-              size="sm"
-              checked={showArchived}
-              onCheckedChange={setShowArchived}
-            />
-            <Label htmlFor={`${id}-archived`} className="font-normal">
-              Afficher les objectifs archivés
-            </Label>
-          </div>
+          <button
+            type="button"
+            aria-pressed={showArchived}
+            onClick={() => setShowArchived(!showArchived)}
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-sm outline-none focus-visible:ring-2"
+          >
+            <ArchiveIcon aria-hidden className="size-[16px] shrink-0" />
+            <span className="flex-1 text-left">
+              {showArchived ? 'Masquer les archivés' : 'Voir les archivés'}
+            </span>
+          </button>
         )}
       </CardContent>
       <GoalEditor

@@ -88,6 +88,28 @@ export function validateGoal(values: FormValues): Errors {
 }
 
 /**
+ * Under the deadline: the monthly effort it asks (the goal rows don't show
+ * it, #344 follow-up) while the saved deadline is kept, else what it is for.
+ */
+export function deadlineHelp(
+  goal: SavingsGoalDto | undefined,
+  date: string,
+): string {
+  if (
+    goal &&
+    !goal.reached &&
+    goal.targetDate !== null &&
+    goal.targetDate === date
+  ) {
+    if (goal.targetDatePassed) return 'Échéance passée.'
+    if (goal.requiredMonthlyCents !== null && goal.monthsLeft !== null) {
+      return `Soit ${formatCents(goal.requiredMonthlyCents)} par mois pendant ${goal.monthsLeft} mois.`
+    }
+  }
+  return 'Facultative : sert à calculer l’effort mensuel.'
+}
+
+/**
  * Adds or changes a savings goal: name, target amount, optional deadline,
  * and where the amount saved comes from (linked accounts' balances or an
  * amount typed by hand). An existing goal can also be archived, restored or
@@ -262,7 +284,7 @@ export function GoalEditor({
                   onChange={(event) => set('date', event.target.value)}
                 />
                 <FieldDescription>
-                  Facultative : sert à calculer l’effort mensuel.
+                  {deadlineHelp(goal, values.date)}
                 </FieldDescription>
                 {shown.date && <FieldError>{shown.date}</FieldError>}
               </Field>

@@ -411,27 +411,19 @@ describe('SavingsPage', () => {
         .map((button) => button.textContent),
     ).toEqual(['Ajouter un placement', 'Ajouter un compte'])
 
-    // Goal: monthly effort and a late projection.
+    // Goal: one compact row (status, bar, what is left · deadline, %),
+    // the whole row opening its editor.
+    const row = await screen.findByRole('button', {
+      name: (name) =>
+        text(name) ===
+        'Modifier l’objectif Fonds de secours : En retard, 7 500 € restants · mars 2027, 25 %',
+    })
+    expect(row).toHaveTextContent('En retard')
+    expect(row).toHaveTextContent(text('7 500 € restants · mars 2027'))
+    expect(row).toHaveTextContent('25 %')
+    // The projections' own average (one-offs excluded) in one line.
     expect(
-      await screen.findByRole('meter', { name: 'Fonds de secours' }),
-    ).toHaveAttribute('aria-valuenow', '250000')
-    expect(
-      screen.getByText(
-        text('31 mars 2027, soit 1 500,00 € par mois pendant 5 mois'),
-      ),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        'Atteint en mai 2027 au rythme actuel, après l’échéance',
-      ),
-    ).toBeInTheDocument()
-    // The projections' own average (one-offs excluded) is in their section.
-    expect(
-      screen.getByText(
-        text(
-          'Projetés à 1 100,00 € par mois : votre épargne moyenne des 6 derniers mois complets, sans les revenus et dépenses ponctuels.',
-        ),
-      ),
+      screen.getByText(text('Au rythme de 1 100 € par mois')),
     ).toBeInTheDocument()
   })
 
@@ -683,8 +675,10 @@ describe('SavingsPage', () => {
     )
     renderPage()
     expect(
-      await screen.findByText(/Pas atteignable au rythme actuel/),
-    ).toBeInTheDocument()
+      await screen.findByRole('button', {
+        name: /^Modifier l’objectif Fonds de secours/,
+      }),
+    ).toHaveTextContent(text('Hors de portée7 500 € restants25 %'))
   })
 
   it('edits the monthly target in place', async () => {
@@ -751,7 +745,7 @@ describe('SavingsPage', () => {
     renderPage()
     await user.click(
       await screen.findByRole('button', {
-        name: 'Modifier l’objectif Fonds de secours',
+        name: /^Modifier l’objectif Fonds de secours/,
       }),
     )
     const dialog = await screen.findByRole('dialog')
