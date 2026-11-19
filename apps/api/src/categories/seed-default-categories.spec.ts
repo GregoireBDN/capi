@@ -1,5 +1,5 @@
 import '#/load-env'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -59,6 +59,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           inserted: DEFAULT_CATEGORIES.length,
           skipped: 0,
           deleted: 0,
+          iconsFilled: 0,
         })
         const rows = await tx
           .select({
@@ -88,6 +89,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           inserted: 0,
           skipped: DEFAULT_CATEGORIES.length,
           deleted: 0,
+          iconsFilled: 0,
         })
         const rows = await tx.select().from(categoriesTable)
         expect(rows).toHaveLength(DEFAULT_CATEGORIES.length)
@@ -95,6 +97,41 @@ describe.skipIf(!process.env.DATABASE_URL)(
           name: 'Supermarché',
           color: '#000000',
         })
+      })
+    })
+
+    it('fills a missing default icon and keeps a chosen one', async () => {
+      await withEmptyCategories(async (tx) => {
+        await seedDefaultCategories(tx)
+        await tx
+          .update(categoriesTable)
+          .set({ icon: null })
+          .where(inArray(categoriesTable.slug, ['groceries', 'rent']))
+        await tx
+          .update(categoriesTable)
+          .set({ icon: 'gift' })
+          .where(eq(categoriesTable.slug, 'restaurants_cafes'))
+        await tx.insert(categoriesTable).values({
+          slug: 'test_no_icon',
+          name: 'Test sans icône',
+          kind: 'expense',
+          color: '#2a78d6',
+        })
+
+        const result = await seedDefaultCategories(tx)
+
+        expect(result.iconsFilled).toBe(2)
+        const rows = await tx.select().from(categoriesTable)
+        const icon = (slug: string) => rows.find((r) => r.slug === slug)?.icon
+        const wanted = (slug: string) =>
+          DEFAULT_CATEGORIES.find((c) => c.slug === slug)?.icon
+        expect(icon('groceries')).toBe(wanted('groceries'))
+        expect(icon('rent')).toBe(wanted('rent'))
+        expect(icon('restaurants_cafes')).toBe('gift')
+        expect(icon('test_no_icon')).toBeNull()
+        expect(rows.every((r) => r.slug === 'test_no_icon' || r.icon)).toBe(
+          true,
+        )
       })
     })
 
@@ -119,6 +156,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           inserted: 0,
           skipped: DEFAULT_CATEGORIES.length,
           deleted: 0,
+          iconsFilled: 0,
         })
         const rows = await tx.select().from(categoriesTable)
         expect(rows).toHaveLength(DEFAULT_CATEGORIES.length + 1)
@@ -144,6 +182,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           inserted: 0,
           skipped: DEFAULT_CATEGORIES.length - 1,
           deleted: 1,
+          iconsFilled: 0,
         })
         const rows = await tx.select().from(categoriesTable)
         expect(rows.map((r) => r.slug)).not.toContain('rent')
@@ -161,6 +200,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           inserted: 1,
           skipped: DEFAULT_CATEGORIES.length - 1,
           deleted: 0,
+          iconsFilled: 0,
         })
         const rows = await tx.select().from(categoriesTable)
         expect(rows).toHaveLength(DEFAULT_CATEGORIES.length)

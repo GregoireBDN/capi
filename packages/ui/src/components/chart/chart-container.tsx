@@ -35,6 +35,11 @@ type ChartSeriesConfig = {
    * position (1 → `--chart-1`, …, 9+ → `--chart-other`).
    */
   color?: string
+  /**
+   * Drawn instead of the colour swatch in the legend and before the label in
+   * the data table's header, e.g. a `CategoryIcon` (#287).
+   */
+  icon?: React.ReactNode
 }
 
 /**
@@ -43,7 +48,10 @@ type ChartSeriesConfig = {
  */
 type ChartConfig = Record<string, ChartSeriesConfig>
 
-type ResolvedChartConfig = Record<string, Required<ChartSeriesConfig>>
+type ResolvedChartConfig = Record<
+  string,
+  Required<Omit<ChartSeriesConfig, 'icon'>> & Pick<ChartSeriesConfig, 'icon'>
+>
 
 /** A row of chart data: one index field (period, category) + numeric series. */
 type ChartDatum = Record<string, unknown>
@@ -87,6 +95,7 @@ function resolveChartConfig(config: ChartConfig): ResolvedChartConfig {
       {
         label: series.label,
         color: series.color ?? chartCategoricalColor(position),
+        icon: series.icon,
       },
     ]),
   )
@@ -481,16 +490,18 @@ function ChartLegendContent({
         if (!series) return null
         return (
           <li key={key} className="flex min-w-0 items-center gap-1.5">
-            <span
-              aria-hidden
-              className={cn(
-                'shrink-0',
-                marker === 'line'
-                  ? 'h-0.5 w-3 rounded-full'
-                  : 'size-2.5 rounded-[3px]',
-              )}
-              style={{ backgroundColor: series.color }}
-            />
+            {series.icon ?? (
+              <span
+                aria-hidden
+                className={cn(
+                  'shrink-0',
+                  marker === 'line'
+                    ? 'h-0.5 w-3 rounded-full'
+                    : 'size-2.5 rounded-[3px]',
+                )}
+                style={{ backgroundColor: series.color }}
+              />
+            )}
             <span className="text-muted-foreground">{series.label}</span>
             {values?.[key] !== undefined ? (
               <span className="font-medium text-foreground tabular-nums">
@@ -560,7 +571,14 @@ function ChartDataTable({
           <TableHead scope="col">{indexLabel}</TableHead>
           {columns.map((key) => (
             <TableHead key={key} scope="col" className="text-right">
-              {columnLabels?.[key] ?? config[key]?.label ?? key}
+              {config[key]?.icon && !columnLabels?.[key] ? (
+                <span className="inline-flex items-center gap-1.5">
+                  {config[key].icon}
+                  {config[key].label}
+                </span>
+              ) : (
+                (columnLabels?.[key] ?? config[key]?.label ?? key)
+              )}
             </TableHead>
           ))}
         </TableRow>

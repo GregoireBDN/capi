@@ -1,6 +1,12 @@
 import { DonutChart, formatWholeEuros } from '@finances/ui'
 import type { SpendingByCategoryDto } from '#/api/types.gen'
-import { categoryColor, categoryKey, categoryLabel } from './labels'
+import {
+  categoryColor,
+  categoryKey,
+  categoryLabel,
+  OTHER_LABEL,
+} from './labels'
+import { SpendingCategoryIcon } from './SpendingCategoryIcon'
 
 /**
  * The month's spending by category; small slices fold into "Autres". Only
@@ -21,10 +27,13 @@ export function SpendingDonut({
       label: categoryLabel(item),
       value: item.spentCents,
       color: categoryColor(item),
+      icon: <SpendingCategoryIcon item={item} size="sm" />,
     }))
   return (
     <DonutChart
       data={slices}
+      otherLabel={OTHER_LABEL}
+      otherIcon={<SpendingCategoryIcon item="other" size="sm" />}
       centerLabel="Dépensé"
       centerFormatter={() => formatWholeEuros(data.totalCents)}
       height={220}

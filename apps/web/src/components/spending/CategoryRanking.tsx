@@ -12,6 +12,7 @@ import {
   UNCATEGORIZED_COLOR,
 } from './labels'
 import { isWithoutSpending, rowComparison, targetRatio } from './rows'
+import { SpendingCategoryIcon } from './SpendingCategoryIcon'
 import type { Comparison } from './rows'
 import { UNCATEGORIZED } from './search'
 
@@ -96,15 +97,11 @@ function Row({
           ...(accountId ? { account: accountId } : {}),
         }}
         aria-label={`${label} : ${formatEuros(item.spentCents)}, voir les opérations`}
-        className="hover:bg-muted/60 focus-visible:outline-ring flex items-center gap-2 rounded-lg px-2 py-2.5 focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="hover:bg-muted/60 focus-visible:outline-ring flex items-center gap-2.5 rounded-lg px-2 py-2.5 focus-visible:outline-2 focus-visible:outline-offset-2"
       >
+        <SpendingCategoryIcon item={item} />
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex items-center gap-2">
-            <span
-              aria-hidden
-              className="size-2.5 shrink-0 rounded-[3px]"
-              style={{ backgroundColor: color }}
-            />
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
               {label}
             </span>

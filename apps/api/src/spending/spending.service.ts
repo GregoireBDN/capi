@@ -31,6 +31,7 @@ import {
 } from './dto/spending.dto'
 import { expectedByCategory } from './expected'
 import { firstDay, monthsBetween, shiftMonth } from './spending-months'
+import type { CategoryIcon } from '#/categories/category-icons'
 
 type Db = PostgresJsDatabase<typeof schema>
 
@@ -54,6 +55,7 @@ interface CategoryInfo {
   slug: string
   name: string
   color: string | null
+  icon: CategoryIcon | null
 }
 
 interface Scope {
@@ -197,6 +199,7 @@ export class SpendingService {
         slug: category?.slug ?? null,
         name: category?.name ?? null,
         color: category?.color ?? null,
+        icon: category?.icon ?? null,
         spentCents,
         share: totalCents > 0 ? spentCents / totalCents : 0,
         transactionCount,
@@ -305,6 +308,7 @@ export class SpendingService {
           slug: null,
           name: null,
           color: null,
+          icon: null,
           valuesCents: other,
           totalCents: other.reduce((sum, value) => sum + value, 0),
         })
@@ -351,6 +355,7 @@ export class SpendingService {
       slug: category?.slug ?? null,
       name: category?.name ?? null,
       color: category?.color ?? null,
+      icon: category?.icon ?? null,
       valuesCents,
       totalCents: valuesCents.reduce((sum, value) => sum + value, 0),
     }
@@ -470,6 +475,7 @@ export class SpendingService {
         slug: categoriesTable.slug,
         name: categoriesTable.name,
         color: categoriesTable.color,
+        icon: categoriesTable.icon,
       })
       .from(categoriesTable)
       .where(inArray(categoriesTable.id, ids))

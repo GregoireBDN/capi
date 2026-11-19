@@ -20,6 +20,7 @@ function item(
     slug: 'groceries',
     name: 'Courses',
     color: null,
+    icon: null,
     spentCents: 12_000,
     share: 0.5,
     transactionCount: 3,

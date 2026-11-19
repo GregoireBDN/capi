@@ -9,6 +9,7 @@ import type { ChartConfig, ChartDatum } from '@finances/ui'
 import { useMemo } from 'react'
 import type { SpendingTrendDto } from '#/api/types.gen'
 import { seriesColor, seriesLabel, UNCATEGORIZED_LABEL } from './labels'
+import { SpendingCategoryIcon } from './SpendingCategoryIcon'
 import { UNCATEGORIZED } from './search'
 
 export interface TrendCategoryOption {
@@ -43,7 +44,16 @@ export function SpendingTrend({
     const seriesConfig: ChartConfig = Object.fromEntries(
       data.series.map((series) => [
         seriesKey(series.key),
-        { label: seriesLabel(series), color: seriesColor(series) },
+        {
+          label: seriesLabel(series),
+          color: seriesColor(series),
+          icon: (
+            <SpendingCategoryIcon
+              item={series.type === 'other' ? 'other' : series}
+              size="sm"
+            />
+          ),
+        },
       ]),
     )
     const monthRows: ChartDatum[] = data.months.map((month, index) => ({

@@ -18,6 +18,9 @@ export const OTHER_LABEL = 'Autres'
  */
 export const UNCATEGORIZED_COLOR = 'var(--chart-target)'
 
+/** Colour of « Autres », the remaining categories folded together. */
+export const OTHER_COLOR = 'var(--chart-other)'
+
 /** Stable identifier of a ranked category (`none` for the uncategorized bucket). */
 export function categoryKey(item: { categoryId: string | null }): string {
   return item.categoryId ?? UNCATEGORIZED
@@ -44,7 +47,7 @@ export function seriesLabel(series: SpendingTrendSeriesDto): string {
 export function seriesColor(
   series: SpendingTrendSeriesDto,
 ): string | undefined {
-  if (series.type === 'other') return 'var(--chart-other)'
+  if (series.type === 'other') return OTHER_COLOR
   if (series.type === 'uncategorized') return UNCATEGORIZED_COLOR
   return series.color ?? undefined
 }
