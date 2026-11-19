@@ -516,6 +516,25 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
+    it('lists the closed months, oldest first (#342)', async () => {
+      await inRollback(async ({ service }) => {
+        expect(await service.listClosed()).toEqual({ closed: [] })
+        await service.close('2026-10', {}, { now: NOW })
+        await service.close('2026-08', {}, { now: NOW })
+        // Notes only: not closed.
+        await service.update('2026-09', { notes: 'En cours' }, { now: NOW })
+
+        const { closed } = await service.listClosed()
+        expect(closed.map((row) => row.month)).toEqual(['2026-08', '2026-10'])
+        expect(closed[0].closedAt).toBe(NOW.toISOString())
+
+        await service.reopen('2026-08', { now: NOW })
+        expect(
+          (await service.listClosed()).closed.map((row) => row.month),
+        ).toEqual(['2026-10'])
+      })
+    })
+
     it('refuses to close a month that is not over', async () => {
       await inRollback(async ({ service }) => {
         const current = await service.get('2026-11', { now: NOW })

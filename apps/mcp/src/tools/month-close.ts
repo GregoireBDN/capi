@@ -20,7 +20,7 @@ import { MONTH_PATTERN } from './lookup.js'
 import { defineTool } from './tool.js'
 import { transactionLine } from './transactions.js'
 
-const STEP_LABELS: Record<MonthCloseStep, string> = {
+export const STEP_LABELS: Record<MonthCloseStep, string> = {
   imports: 'Relevés importés',
   review_queue: 'Opérations à revoir',
   recurring: 'Abonnements et charges fixes',
@@ -34,7 +34,7 @@ export const monthCloseStatusTool = defineTool({
   name: 'month_close_status',
   title: 'Revue du mois : étapes',
   description:
-    'Steps of the guided month-end review ("Revue du mois", default: the previous calendar month) and what is left in each: accounts whose statement is not imported up to the month end or with running-balance gaps, transactions of the month in review, recurring items to confirm and price changes, budget, savings target and goals, investment values missing at the month end, and whether the month is closed. Ticking steps and closing are done in the app.',
+    'Steps of the guided month-end review ("Revue du mois", default: the previous calendar month) and what is left in each: accounts whose statement is not imported up to the month end or with running-balance gaps, transactions of the month in review, recurring items to confirm and price changes, budget, savings target and goals, investment values missing at the month end, and whether the month is closed. Ticking steps is done in the app; close_months closes the month.',
   inputSchema: {
     month: z
       .string()

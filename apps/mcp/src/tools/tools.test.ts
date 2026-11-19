@@ -61,6 +61,7 @@ describe('tool list', () => {
       'budget_status',
       'budget_suggestions',
       'categorize_transactions',
+      'close_months',
       'commit_bank_import',
       'create_investment_account',
       'create_rule',
@@ -93,6 +94,7 @@ describe('tool list', () => {
       'set_transaction_note',
       'preview_bank_import',
       'commit_bank_import',
+      'close_months',
     ])
     // Writes no transaction (a pending preview only): nothing to confirm (#103).
     const withoutConfirm = new Set(['preview_bank_import'])

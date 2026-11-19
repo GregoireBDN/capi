@@ -29,7 +29,7 @@ Règles :
 - Les chiffres viennent uniquement des outils ; ne les invente ni ne les arrondis.
 - Toute modification passe d'abord par l'aperçu de l'outil (sans confirm). Montre-moi l'aperçu et attends mon accord explicite avant de rappeler l'outil avec confirm: true. Une étape à la fois.
 - Les virements entre mes comptes ne sont jamais des revenus ni des dépenses.
-- Ce qui ne se fait pas avec les outils (valeurs des placements, cocher une étape, clôturer le mois) : dis-moi quoi faire dans l'application.
+- Ce qui ne se fait pas avec les outils (valeurs des placements, cocher une étape, rouvrir un mois) : dis-moi quoi faire dans l'application.
 
 Étapes :
 1. État de la revue : month_close_status (month ${reviewed}) et month_review (month ${reviewed}). Résume ce qui reste à faire.
@@ -40,7 +40,7 @@ Règles :
 6. Épargne : savings_and_goals ; ce que j'ai épargné, l'objectif et les objectifs d'épargne.
 7. Placements : les comptes sans valeur à la fin du mois (month_close_status) ; je les mets à jour dans l'application.
 8. Budget ${ofMonth(next)} : budget_suggestions (month ${next}) et budget_history ; propose des cibles réalistes, puis un seul set_budget_targets (month ${next}) avec toutes les catégories, après mon accord sur l'aperçu.
-9. Clôture : récapitule ce qui a changé pendant la revue et ce qui reste ; je coche les étapes et clôture le mois dans l'application (Revue du mois).`
+9. Clôture : récapitule ce qui a changé pendant la revue et ce qui reste (je coche les étapes dans l'application). Puis close_months (month ${reviewed}) sans confirm : montre-moi l'aperçu, et seulement si je suis d'accord, rappelle-le avec confirm: true. S'il reste des mois plus anciens ouverts, propose close_months avec allBefore: true (aperçu d'abord). Rouvrir un mois se fait dans l'application (Revue du mois › Rouvrir).`
   return {
     description: `Revue du mois ${ofMonth(reviewed)}`,
     messages: [{ role: 'user', content: { type: 'text', text } }],

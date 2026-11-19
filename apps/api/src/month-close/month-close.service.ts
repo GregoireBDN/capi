@@ -39,6 +39,7 @@ import {
   type CloseImportAccountDto,
   type CloseMonthDto,
   type MonthCloseDto,
+  type MonthCloseListDto,
   type MonthCloseStepDto,
   type MonthReportDto,
   REPORT_ONE_OFFS,
@@ -350,6 +351,27 @@ export class MonthCloseService {
       .returning({ id: monthClosesTable.id })
     if (saved.length === 0) throw new ConflictException(CLOSED_MESSAGE)
     return this.get(month, { now })
+  }
+
+  /**
+   * The closed months, oldest first (#342): the MCP's `close_months` finds the
+   * first month ever closed here without reading every month's review.
+   */
+  async listClosed(executor: Executor = this.db): Promise<MonthCloseListDto> {
+    const rows = await executor
+      .select({
+        month: monthClosesTable.month,
+        closedAt: monthClosesTable.closedAt,
+      })
+      .from(monthClosesTable)
+      .where(isNotNull(monthClosesTable.closedAt))
+      .orderBy(asc(monthClosesTable.month))
+    return {
+      closed: rows.map((row) => ({
+        month: row.month,
+        closedAt: (row.closedAt as Date).toISOString(),
+      })),
+    }
   }
 
   /** Freezes the month's report; only a month that is over can be closed. */

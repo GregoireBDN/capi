@@ -19,6 +19,7 @@ import {
   monthCloseStatusTool,
   reviewQueueTool,
 } from './month-close.js'
+import { closeMonthsTool } from './month-close-writes.js'
 import { monthReviewTool } from './review.js'
 import { createRuleTool } from './rule-writes.js'
 import { savingsTool } from './savings.js'
@@ -70,6 +71,8 @@ export const writeTools = [
   // #104
   addInvestmentSnapshotsTool,
   syncCryptoHoldingsTool,
+  // #342: close past months (reopening stays in the app).
+  closeMonthsTool,
 ]
 
 export const tools = [...readTools, ...writeTools]
