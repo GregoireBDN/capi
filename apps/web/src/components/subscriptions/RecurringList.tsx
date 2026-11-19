@@ -9,6 +9,7 @@ import {
 import type { RecurringItemDto } from '#/api/types.gen'
 import { CategoryDot } from '#/components/budget/CategoryDot'
 import { formatCents } from '#/lib/money'
+import { ROW_BUTTON, ROW_LIST } from '#/lib/row-list'
 import {
   CADENCE_LABELS,
   formatAmountPerPeriod,
@@ -102,7 +103,7 @@ export function RecurringList({
       {description && (
         <p className="text-muted-foreground text-sm">{description}</p>
       )}
-      <ul className="bg-card divide-y rounded-xl border">
+      <ul className={cn('bg-card', ROW_LIST)}>
         {items.map((item) => {
           const priceChange = formatPriceChange(item, today)
           const end = formatEnd(item, today)
@@ -113,7 +114,10 @@ export function RecurringList({
                 onClick={() => onEdit(item)}
                 aria-label={`Modifier ${item.name}`}
                 data-active={item.active}
-                className="hover:bg-muted/50 focus-visible:ring-ring/50 flex w-full min-w-0 items-start gap-2 p-3 text-left outline-none first:rounded-t-xl last:rounded-b-xl focus-visible:ring-[3px] data-[active=false]:opacity-70"
+                className={cn(
+                  ROW_BUTTON,
+                  'flex min-w-0 items-start gap-2 p-3 data-[active=false]:opacity-70',
+                )}
               >
                 <span className="mt-1.5 flex">
                   <CategoryDot color={item.categoryColor} />

@@ -50,6 +50,7 @@ import { formatSignedWhole } from '#/components/dashboard/MonthReview'
 import { currentMonth } from '#/lib/calendar'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
+import { DIVIDED_LIST, ROW_BUTTON } from '#/lib/row-list'
 import {
   breakdownByType,
   NET_WORTH_HISTORY_MONTHS,
@@ -108,19 +109,24 @@ const LINK_ROW =
 function AccountLink({
   accountId,
   account,
-  className,
+  className: rowClassName,
+  divided = false,
   children,
 }: Pick<TypeBreakdown['accounts'][number], 'accountId' | 'account'> & {
   className: string
+  /** A row of a list split by rules: square, filling the space between them. */
+  divided?: boolean
   children: ReactNode
 }) {
+  const className = divided ? cn('px-2', rowClassName) : rowClassName
   if (!account) return <div className={className}>{children}</div>
+  const linkClassName = cn(divided ? ROW_BUTTON : LINK_ROW, className)
   return account.group === 'cash' ? (
     <Link
       to={ROUTES.transactions}
       search={{ account: accountId }}
       title="Voir les opérations"
-      className={cn(LINK_ROW, className)}
+      className={linkClassName}
     >
       {children}
     </Link>
@@ -129,7 +135,7 @@ function AccountLink({
       to={ROUTES.account}
       params={{ accountId }}
       title="Voir la valeur et la plus-value"
-      className={cn(LINK_ROW, className)}
+      className={linkClassName}
     >
       {children}
     </Link>
@@ -154,6 +160,7 @@ function AccountRow({
     <AccountLink
       accountId={accountId}
       account={account}
+      divided
       className="flex min-w-0 flex-1 items-center gap-x-2 py-2 text-sm"
     >
       {/* The amount goes under the name when both don't fit; the chevron
@@ -266,7 +273,7 @@ function Breakdown({
                   />
                 </div>
                 {!only && (
-                  <ul className="mt-1 divide-y">
+                  <ul className={cn('mt-1', DIVIDED_LIST)}>
                     {type.accounts.map((item) => (
                       <li key={item.accountId} className="flex">
                         <AccountRow {...item} />

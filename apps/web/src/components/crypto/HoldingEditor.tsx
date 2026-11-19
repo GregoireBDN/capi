@@ -155,7 +155,7 @@ export function AssetPicker({
               <li key={asset.id}>
                 <button
                   type="button"
-                  className="hover:bg-muted/50 focus-visible:ring-ring flex w-full items-center gap-2 px-3 py-2 text-left text-sm outline-none focus-visible:ring-2"
+                  className="hover:bg-muted/50 focus-visible:ring-ring flex w-full items-center gap-2 px-3 py-2 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-inset"
                   onClick={() => onPick(asset)}
                 >
                   <span className="font-medium">{asset.symbol}</span>
