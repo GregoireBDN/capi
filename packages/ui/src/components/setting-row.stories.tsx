@@ -179,6 +179,8 @@ export const LongValuesAt320: Story = {
         lineHeight * 1.5,
       )
       await expect(getComputedStyle(value).textOverflow).toBe('ellipsis')
+      // Never squeezed out of sight (« Corrigée » beside a long label).
+      await expect(value.clientWidth).toBeGreaterThan(40)
       const row = value.closest('[data-slot="setting-row"]')!
       await expect(value.getBoundingClientRect().right).toBeLessThanOrEqual(
         row.getBoundingClientRect().right,

@@ -26,8 +26,9 @@ export const SETTING_ROW_CLASS =
 
 /**
  * A row that opens a screen: icon, label, value and ›. The label keeps its
- * width and the value is cut with « … » first; a label too long for the row
- * (« Corriger montant ou date » at 320px) wraps between its words.
+ * width and the value is cut with « … »; a label too long for the row
+ * (« Corriger montant ou date » at 320px) wraps between its words and puts
+ * its value under it.
  */
 function SettingRow({
   icon: Icon,
@@ -56,20 +57,20 @@ function SettingRow({
           {label}
         </span>
       ) : (
-        <>
-          <span
-            data-slot="setting-label"
-            className="max-w-[70%] shrink-0 py-2 break-normal"
-          >
+        // One line that wraps: the value (no width of its own) takes what
+        // is left beside the label, cut with « … », and goes under it only
+        // when the label alone fills the row.
+        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5 py-2">
+          <span data-slot="setting-label" className="break-normal">
             {label}
           </span>
           <span
             data-slot="setting-value"
-            className="text-muted-foreground min-w-0 flex-1 truncate text-right"
+            className="text-muted-foreground min-w-0 flex-[1_1_0%] truncate text-right"
           >
             {value}
           </span>
-        </>
+        </span>
       )}
       <ChevronRightIcon
         className="text-muted-foreground size-[0.7rem] shrink-0"
