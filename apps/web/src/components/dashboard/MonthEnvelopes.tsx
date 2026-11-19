@@ -53,7 +53,7 @@ export function MonthEnvelopes({
           }
           link={{ label: 'Budget', to: ROUTES.budget }}
         />
-        <CardContent className="@container mb-0 space-y-4">
+        <CardContent className="@container space-y-4">
           {figures}
           {data ? (
             <EnvelopeList

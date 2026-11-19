@@ -41,7 +41,7 @@ function SummaryCard({
 }) {
   return (
     <Card size="sm">
-      <CardContent className="mb-0">
+      <CardContent>
         <p className="text-muted-foreground text-xs">{label}</p>
         <p
           className={cn(
@@ -64,7 +64,7 @@ export function PreviewSummary({ detail }: { detail: ImportDetailDto }) {
   return (
     <section aria-label="Résumé" className="space-y-3">
       <Card size="sm">
-        <CardContent className="mb-0 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <CardContent className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <p
             className="min-w-0 truncate text-sm font-medium"
             title={detail.fileName}

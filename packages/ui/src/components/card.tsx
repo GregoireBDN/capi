@@ -172,7 +172,11 @@ function CardContent({ className, ...props }: CardContentProps) {
           // Spacing
           'px-4',
           'group-data-[size=sm]/card:px-3',
-          'mb-4',
+
+          // Room before the next block (a footer, more content). The last
+          // block adds nothing: the card's own padding is the space under
+          // it, the same as above the first one (#330).
+          'mb-4 last:mb-0',
         ].join(' '),
         className,
       )}

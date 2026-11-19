@@ -60,7 +60,7 @@ export function ImportPage({ accountId }: { accountId?: string } = {}) {
   } else if (accounts.isError) {
     main = (
       <Card>
-        <CardContent className="mb-0 flex flex-wrap items-center justify-between gap-2 text-sm">
+        <CardContent className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <p className="text-destructive">
             {genericErrorMessage(accounts.error)}
           </p>

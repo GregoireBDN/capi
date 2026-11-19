@@ -83,7 +83,7 @@ function VerifyEmailPage() {
               accès à l&apos;ensemble des fonctionnalités de votre compte.
             </CardDescription>
           </CardHeader>
-          <CardContent className="mb-0">
+          <CardContent>
             <Button
               onClick={() => navigate({ to: ROUTES.home })}
               className="w-full"
@@ -111,7 +111,7 @@ function VerifyEmailPage() {
                 ' Demandez-en un nouveau pour activer votre compte.'}
             </CardDescription>
           </CardHeader>
-          <CardContent className="mb-0 flex flex-col gap-2">
+          <CardContent className="flex flex-col gap-2">
             {user &&
               (resendSent ? (
                 <div className="text-success bg-success/10 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium">
