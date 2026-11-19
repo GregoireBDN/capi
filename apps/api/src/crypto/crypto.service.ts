@@ -315,7 +315,8 @@ export class CryptoService {
             eq(accountsTable.cryptoSource, 'wallet'),
           ),
         )
-      for (const wallet of wallets) await this.walletSync.syncNow(wallet.id, now)
+      for (const wallet of wallets)
+        await this.walletSync.syncNow(wallet.id, now)
     }
     return this.buildPortfolio(true, now)
   }

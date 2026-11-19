@@ -127,7 +127,10 @@ export function changeOverDay(
 ): number | null {
   const change = signedDigits(percent, PERCENT_SCALE)
   if (change === null || HUNDRED + change <= 0n) return null
-  const previous = divideHalfEven(BigInt(valueCents) * HUNDRED, HUNDRED + change)
+  const previous = divideHalfEven(
+    BigInt(valueCents) * HUNDRED,
+    HUNDRED + change,
+  )
   return valueCents - Number(previous)
 }
 

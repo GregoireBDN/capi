@@ -96,7 +96,13 @@ export class CryptoPricesService {
   ): Promise<CryptoPriceDto> {
     const [row] = await this.upsert(
       // A price typed by hand has no change over 24 hours.
-      [{ assetId, priceEur: canonicalPrice(priceEur)!, change24hPercent: null }],
+      [
+        {
+          assetId,
+          priceEur: canonicalPrice(priceEur)!,
+          change24hPercent: null,
+        },
+      ],
       'manual',
       now,
     )
@@ -167,11 +173,7 @@ export class CryptoPricesService {
     return false
   }
 
-  private upsert(
-    rows: PriceRow[],
-    source: CryptoPriceSource,
-    now: Date,
-  ) {
+  private upsert(rows: PriceRow[], source: CryptoPriceSource, now: Date) {
     // Rows in one order (by asset id), so that two concurrent upserts lock
     // them in the same order and never deadlock.
     const sorted = [...rows].sort((x, y) =>

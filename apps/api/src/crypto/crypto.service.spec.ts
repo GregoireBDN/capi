@@ -420,7 +420,12 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
       )
       await crypto.create(
         b,
-        { ...BTC, quantity: '0.05', location: 'Ledger', investedCents: 250_000 },
+        {
+          ...BTC,
+          quantity: '0.05',
+          location: 'Ledger',
+          investedCents: 250_000,
+        },
         NOW,
       )
       await crypto.create(b, { ...ETH, quantity: '1' }, NOW)

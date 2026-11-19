@@ -239,7 +239,7 @@ export class CryptoController {
   @ApiOperation({
     summary: 'The crypto portfolio: holdings summed per asset across accounts',
     description:
-      "Every open crypto account valued like `summary` (one batched price request when the last valuation is older than the TTL), its holdings summed per price id with exact quantities, value, change over 24 hours, invested and gain where known (fiat lines left out), then the accounts with when their holdings were last fed. The price API only receives asset ids.",
+      'Every open crypto account valued like `summary` (one batched price request when the last valuation is older than the TTL), its holdings summed per price id with exact quantities, value, change over 24 hours, invested and gain where known (fiat lines left out), then the accounts with when their holdings were last fed. The price API only receives asset ids.',
   })
   @ApiOkResponse({ type: CryptoPortfolioDto })
   portfolio(): Promise<CryptoPortfolioDto> {
