@@ -61,7 +61,8 @@ export function ImportedCorrection({
     () => splitSignedCents(item.amountCents).sign,
   )
   const [date, setDate] = useState(item.bookingDate)
-  const [submitted, setSubmitted] = useState(false)
+  // Errors show once a field was changed; « Enregistrer » waits for both.
+  const [touched, setTouched] = useState({ amount: false, date: false })
   const corrected =
     item.originalAmountCents !== null || item.originalBookingDate !== null
   const split = item.splits.length > 0
@@ -69,6 +70,8 @@ export function ImportedCorrection({
   const parsed = correctionCents(amount, sign)
   const amountError = 'error' in parsed ? parsed.error : null
   const dateError = date === '' ? 'Indiquez une date' : null
+  const showAmountError = touched.amount && amountError !== null
+  const showDateError = touched.date && dateError !== null
 
   return (
     <div className="space-y-3 text-sm">
@@ -96,7 +99,6 @@ export function ImportedCorrection({
         className="space-y-3"
         onSubmit={(event) => {
           event.preventDefault()
-          setSubmitted(true)
           if (amountError || dateError || !('cents' in parsed)) return
           const body: CorrectTransactionDto = {}
           if (parsed.cents !== item.amountCents) body.amountCents = parsed.cents
@@ -106,7 +108,7 @@ export function ImportedCorrection({
         }}
       >
         {/* The editor's screen says the bank values stay (#280). */}
-        <Field data-invalid={submitted && amountError !== null}>
+        <Field>
           <FieldLabel htmlFor={`${id}-amount`}>Montant corrigé</FieldLabel>
           <AmountField
             id={`${id}-amount`}
@@ -114,31 +116,40 @@ export function ImportedCorrection({
             onValueChange={(typed, typedSign) => {
               setAmount(typed)
               if (typedSign) setSign(typedSign)
+              setTouched((current) => ({ ...current, amount: true }))
             }}
             sign={sign}
             onSignChange={setSign}
             disabled={split}
-            aria-invalid={submitted && amountError !== null}
+            aria-invalid={showAmountError}
             aria-describedby={`${id}-amount-help`}
           />
-          <FieldDescription id={`${id}-amount-help`}>
-            {split
-              ? 'Opération répartie : annulez la répartition pour changer son montant.'
-              : sign === 'out'
-                ? 'Sortie d’argent. Touchez « − » pour une entrée.'
-                : 'Entrée d’argent. Touchez « + » pour une sortie.'}
-          </FieldDescription>
-          {submitted && amountError && <FieldError>{amountError}</FieldError>}
+          {/* The error takes the help line's place, never both. */}
+          {showAmountError ? (
+            <FieldError id={`${id}-amount-help`}>{amountError}</FieldError>
+          ) : (
+            <FieldDescription id={`${id}-amount-help`}>
+              {split
+                ? 'Opération répartie : annulez la répartition pour changer son montant.'
+                : sign === 'out'
+                  ? 'Sortie d’argent'
+                  : 'Entrée d’argent'}
+            </FieldDescription>
+          )}
         </Field>
-        <Field data-invalid={submitted && dateError !== null}>
+        <Field>
           <FieldLabel htmlFor={`${id}-date`}>Date corrigée</FieldLabel>
           <Input
             id={`${id}-date`}
             type="date"
             value={date}
-            onChange={(event) => setDate(event.target.value)}
+            aria-invalid={showDateError}
+            onChange={(event) => {
+              setDate(event.target.value)
+              setTouched((current) => ({ ...current, date: true }))
+            }}
           />
-          {submitted && dateError && <FieldError>{dateError}</FieldError>}
+          {showDateError && <FieldError>{dateError}</FieldError>}
         </Field>
         <div className="flex justify-end gap-2">
           <Button
@@ -150,8 +161,12 @@ export function ImportedCorrection({
           >
             Annuler
           </Button>
-          <Button type="submit" size="sm">
-            Enregistrer la correction
+          <Button
+            type="submit"
+            size="sm"
+            disabled={amountError !== null || dateError !== null}
+          >
+            Enregistrer
           </Button>
         </div>
       </form>
