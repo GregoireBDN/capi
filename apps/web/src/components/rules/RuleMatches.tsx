@@ -1,4 +1,4 @@
-import { CategoryIcon, Skeleton } from '@finances/ui'
+import { Button, CategoryIcon, Skeleton } from '@finances/ui'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import type {
@@ -10,6 +10,9 @@ import { formatCalendarDate } from '#/lib/money'
 import { plural } from '#/lib/plural'
 import { ruleErrorMessage } from './errors'
 import { ruleMatchesQuery } from './queries'
+
+/** Matches listed before « Voir plus », so « Avancé » below stays near. */
+const SHOWN = 5
 
 /** Wait after the last keystroke before asking the API. */
 const DEBOUNCE_MS = 300
@@ -39,6 +42,10 @@ export function RuleMatches({
   categories: readonly CategoryDto[]
 }) {
   const debounced = useDebounced(conditions, DEBOUNCE_MS)
+  const [all, setAll] = useState(false)
+  // A new search starts folded again.
+  const searchKey = JSON.stringify(debounced)
+  useEffect(() => setAll(false), [searchKey])
   const matches = useQuery({
     ...ruleMatchesQuery(debounced ?? { labelPattern: '' }),
     enabled: debounced !== null,
@@ -70,8 +77,10 @@ export function RuleMatches({
       </div>
     )
   }
-  const { total, transactions } = matches.data
-  const hidden = total - transactions.length
+  const { total, transactions: loaded } = matches.data
+  const transactions = all ? loaded : loaded.slice(0, SHOWN)
+  const more = loaded.length - transactions.length
+  const hidden = total - loaded.length
   return (
     <section aria-label="Opérations reconnues" className="space-y-2">
       <p aria-live="polite" className="text-sm font-medium">
@@ -125,7 +134,18 @@ export function RuleMatches({
           })}
         </ul>
       )}
-      {hidden > 0 && (
+      {more > 0 && (
+        <Button
+          type="button"
+          variant="secondary"
+          ghost
+          className="w-full"
+          onClick={() => setAll(true)}
+        >
+          Voir {plural(more, 'autre opération', 'autres opérations')}
+        </Button>
+      )}
+      {all && hidden > 0 && (
         <p className="text-muted-foreground text-xs">
           … et {plural(hidden, 'autre', 'autres')} plus anciennes.
         </p>

@@ -99,31 +99,45 @@ function Advanced({
   children: ReactNode
 }) {
   const [open, setOpen] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
   return (
-    <div>
-      <Button
+    <div className="rounded-lg border">
+      <button
         type="button"
-        ghost
-        variant="secondary"
-        className="h-auto min-h-11 max-w-full justify-start px-0 text-left whitespace-normal"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          setOpen((current) => !current)
+          // Opened: bring what it holds into view.
+          if (!open) {
+            requestAnimationFrame(() =>
+              contentRef.current?.scrollIntoView({
+                block: 'nearest',
+                behavior: 'smooth',
+              }),
+            )
+          }
+        }}
+        className="hover:bg-muted/60 focus-visible:ring-ring/50 flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm outline-none focus-visible:ring-[3px]"
       >
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium">Avancé</span>
+          {!open && summary && (
+            <span className="text-muted-foreground block text-xs break-words">
+              {summary}
+            </span>
+          )}
+        </span>
         <ChevronDownIcon
           aria-hidden
           className={cn(
-            'transition-transform motion-reduce:transition-none',
+            'text-muted-foreground size-[0.8rem] shrink-0 transition-transform motion-reduce:transition-none',
             open && 'rotate-180',
           )}
         />
-        Avancé
-        {!open && summary && (
-          <span className="text-muted-foreground font-normal">· {summary}</span>
-        )}
-      </Button>
+      </button>
       {open && (
-        <div id={id} className="space-y-4 pt-2">
+        <div id={id} ref={contentRef} className="space-y-4 border-t p-3">
           {children}
         </div>
       )}
@@ -406,7 +420,9 @@ export function RuleEditorSheet({
                     spellCheck={false}
                     maxLength={PATTERN_MAX}
                     placeholder={
-                      form.matchType === 'regex' ? '^PRLV .*EDF' : 'UBER EATS'
+                      form.matchType === 'regex'
+                        ? 'Ex. : ^PRLV .*EDF'
+                        : 'Ex. : UBER EATS'
                     }
                     value={form.labelPattern}
                     aria-invalid={errors.labelPattern ? true : undefined}
@@ -426,6 +442,13 @@ export function RuleEditorSheet({
                     <FieldError>{errors.labelPattern}</FieldError>
                   )}
                 </Field>
+
+                <RuleMatches
+                  conditions={
+                    'conditions' in conditions ? conditions.conditions : null
+                  }
+                  categories={categories}
+                />
 
                 <Advanced
                   id={`${id}-conditions`}
@@ -447,7 +470,7 @@ export function RuleEditorSheet({
                         Contient
                       </SegmentedControlItem>
                       <SegmentedControlItem value="regex">
-                        Expression régulière
+                        Expression
                       </SegmentedControlItem>
                     </SegmentedControl>
                   </Field>
@@ -505,13 +528,6 @@ export function RuleEditorSheet({
                     {errors.amount && <FieldError>{errors.amount}</FieldError>}
                   </Field>
                 </Advanced>
-
-                <RuleMatches
-                  conditions={
-                    'conditions' in conditions ? conditions.conditions : null
-                  }
-                  categories={categories}
-                />
               </>
             )}
 

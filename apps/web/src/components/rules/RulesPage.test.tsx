@@ -183,6 +183,7 @@ function lastToastAction(): () => void {
 }
 
 beforeAll(() => {
+  Element.prototype.scrollIntoView = vi.fn()
   globalThis.ResizeObserver = class {
     observe() {}
     unobserve() {}
@@ -372,6 +373,17 @@ describe('RulesPage', () => {
       { timeout: 2000 },
     )
     expect(found.textContent).toContain('2 opérations sur 12 mois')
+    // The matches come right under the field, « Avancé » after them.
+    const advancedToggle = within(sheet).getByRole('button', { name: /Avancé/ })
+    expect(
+      found.compareDocumentPosition(advancedToggle) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      within(sheet)
+        .getByLabelText('Le libellé contient')
+        .getAttribute('placeholder'),
+    ).toBe('Ex. : UBER EATS')
     expect(found.textContent).toContain('CB CAFE DU COIN 0311')
     expect(found.textContent).toContain('classée à la main, ne changera pas')
     expect(api.categorizationRulesControllerMatches).toHaveBeenLastCalledWith(
