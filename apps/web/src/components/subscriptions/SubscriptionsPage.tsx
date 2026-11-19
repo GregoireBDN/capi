@@ -6,6 +6,7 @@ import {
   EmptyState,
   Skeleton,
   Spinner,
+  cn,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -17,6 +18,7 @@ import { PageHeader } from '#/components/app-shell/PageHeader'
 import { plural } from '#/lib/plural'
 import { categoriesQuery } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
+import { ROW_BUTTON, ROW_LIST } from '#/lib/row-list'
 import { groupItems, todayInParis } from './format'
 import {
   afterRecurringChanged,
@@ -229,12 +231,12 @@ export function SubscriptionsPage() {
                   'éléments ignorés',
                 )}
               </summary>
-              <ul className="mt-2 divide-y rounded-xl border">
+              <ul className={cn('mt-2', ROW_LIST)}>
                 {groups.dismissed.map((item) => (
                   <li key={item.id}>
                     <button
                       type="button"
-                      className="hover:bg-muted/50 w-full truncate p-3 text-left text-sm"
+                      className={cn(ROW_BUTTON, 'truncate p-3 text-sm')}
                       onClick={() => setEditing(item)}
                     >
                       {item.name}
