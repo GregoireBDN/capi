@@ -4,6 +4,8 @@
 @import '@finances/ui/globals.css';
 
 @source '../../../packages/ui/src';
+/* Prototypes use classes the library doesn't. */
+@source './prototypes';
 
 @layer base {
   * {
