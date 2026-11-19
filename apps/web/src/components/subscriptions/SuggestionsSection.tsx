@@ -3,9 +3,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CheckCheckIcon, CheckIcon, XIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import type { RecurringItemDto } from '#/api/types.gen'
+import { RecurringCategoryIcon } from './RecurringCategoryIcon'
 import { formatCalendarDate, formatCents } from '#/lib/money'
 import { plural } from '#/lib/plural'
-import { CategoryDot } from '#/components/budget/CategoryDot'
 import {
   CADENCE_LABELS,
   confidenceLabel,
@@ -105,9 +105,7 @@ export function SuggestionsSection({
               onClick={() => onEdit(item)}
               aria-label={`Détails de ${item.name}`}
             >
-              <span className="mt-1.5 flex">
-                <CategoryDot color={item.categoryColor} />
-              </span>
+              <RecurringCategoryIcon item={item} />
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-baseline justify-between gap-x-2">
                   <span className="min-w-0 font-medium break-words">

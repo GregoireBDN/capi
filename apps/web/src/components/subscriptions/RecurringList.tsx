@@ -7,7 +7,7 @@ import {
   TriangleAlertIcon,
 } from 'lucide-react'
 import type { RecurringItemDto } from '#/api/types.gen'
-import { CategoryDot } from '#/components/budget/CategoryDot'
+import { RecurringCategoryIcon } from './RecurringCategoryIcon'
 import { formatCents } from '#/lib/money'
 import { ROW_BUTTON, ROW_LIST } from '#/lib/row-list'
 import {
@@ -119,9 +119,7 @@ export function RecurringList({
                   'flex min-w-0 items-start gap-2 p-3 data-[active=false]:opacity-70',
                 )}
               >
-                <span className="mt-1.5 flex">
-                  <CategoryDot color={item.categoryColor} />
-                </span>
+                <RecurringCategoryIcon item={item} />
                 <span className="min-w-0 flex-1 space-y-0.5">
                   {/* Each fact beside what it is about: the price change
                       under the price, the end date under the next date. */}

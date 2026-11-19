@@ -7,11 +7,11 @@ import {
   CardTitle,
 } from '@finances/ui'
 import type { ForecastDto, ForecastItemDto } from '#/api/types.gen'
-import { CategoryDot } from '#/components/budget/CategoryDot'
 import {
   formatRelativeDay,
   formatShortDay,
 } from '#/components/subscriptions/format'
+import { RecurringCategoryIcon } from '#/components/subscriptions/RecurringCategoryIcon'
 import { formatCents } from '#/lib/money'
 import { plural } from '#/lib/plural'
 
@@ -41,8 +41,8 @@ function ItemRow({ item }: { item: ForecastItemDto }) {
   const late = item.expectedDate !== item.date
   return (
     <li className="flex items-start gap-2 text-sm">
-      <span className="mt-1.5 flex">
-        <CategoryDot color={item.categoryColor} />
+      <span className="mt-px flex">
+        <RecurringCategoryIcon item={item} size="sm" />
       </span>
       {/* Name and amount on one line; the "not imported yet" note under both
           so a long name keeps the width it needs. */}

@@ -147,8 +147,8 @@ const envelopes: EnvelopesDto = {
       categoryId: OUTINGS,
       slug: 'sorties',
       name: 'Sorties',
-      color: null,
-      icon: null,
+      color: '#db2777',
+      icon: 'party-popper',
       targetCents: 15_000,
       spentCents: 9_000,
       manualCents: 2_500,
@@ -207,6 +207,12 @@ describe('MonthEnvelopes', () => {
       name: 'Ajouter une dépense Sorties',
     })
     expect(row).toContainElement(outings)
+    // The shared category icon heads it (#288).
+    expect(
+      row
+        .querySelector('[data-slot="category-icon"] svg')
+        ?.getAttribute('class'),
+    ).toContain('lucide-party-popper')
     expect(row).toHaveTextContent(text('Reste 60 € · en avance'))
     // What was noted by hand isn't repeated in the row (owner: too much room).
     expect(row).not.toHaveTextContent('noté à la main')

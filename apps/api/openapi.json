@@ -9587,6 +9587,15 @@
             "nullable": true,
             "example": "#7c3aed"
           },
+          "categoryIcon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
           "isFixedCost": {
             "type": "boolean"
           },
@@ -9738,6 +9747,7 @@
           "categorySlug",
           "categoryName",
           "categoryColor",
+          "categoryIcon",
           "isFixedCost",
           "isSubscription",
           "cadence",
@@ -14167,6 +14177,15 @@
           "categoryColor": {
             "type": "string",
             "nullable": true
+          },
+          "categoryIcon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
           }
         },
         "required": [
@@ -14180,7 +14199,8 @@
           "amountType",
           "isFixedCost",
           "categoryName",
-          "categoryColor"
+          "categoryColor",
+          "categoryIcon"
         ]
       },
       "ForecastEstimateDto": {
@@ -15362,6 +15382,15 @@
             "type": "string",
             "nullable": true
           },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name). A report frozen before icons existed takes the category’s current one.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
           "kind": {
             "allOf": [
               {
@@ -15387,6 +15416,7 @@
           "categoryId",
           "name",
           "color",
+          "icon",
           "kind",
           "amountCents",
           "previousAmountCents",

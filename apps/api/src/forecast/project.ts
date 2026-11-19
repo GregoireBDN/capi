@@ -1,3 +1,4 @@
+import type { CategoryIcon } from '#/categories/category-icons'
 import type {
   RecurringAmountType,
   RecurringCadence,
@@ -39,6 +40,8 @@ export interface ForecastRecurringItem {
   bookedDates: readonly string[]
   categoryName: string | null
   categoryColor: string | null
+  /** Icon of the category; left out where only the amounts matter. */
+  categoryIcon?: CategoryIcon | null
 }
 
 export interface ExpectedItem {
@@ -59,6 +62,7 @@ export interface ExpectedItem {
   isFixedCost: boolean
   categoryName: string | null
   categoryColor: string | null
+  categoryIcon: CategoryIcon | null
 }
 
 export interface ProjectionWindow {
@@ -136,6 +140,7 @@ export function expectedOccurrences(
       isFixedCost: item.isFixedCost,
       categoryName: item.categoryName,
       categoryColor: item.categoryColor,
+      categoryIcon: item.categoryIcon ?? null,
     })
   }
   return result

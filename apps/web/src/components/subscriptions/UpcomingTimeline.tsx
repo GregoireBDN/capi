@@ -6,7 +6,7 @@ import {
   CardTitle,
 } from '@finances/ui'
 import type { RecurringItemDto } from '#/api/types.gen'
-import { CategoryDot } from '#/components/budget/CategoryDot'
+import { RecurringCategoryIcon } from './RecurringCategoryIcon'
 import { formatCents } from '#/lib/money'
 import {
   formatRelativeDay,
@@ -68,7 +68,7 @@ export function UpcomingTimeline({
                 <ul className="mt-1 space-y-1">
                   {entries.map(({ key, item, last }) => (
                     <li key={key} className="flex items-center gap-2 text-sm">
-                      <CategoryDot color={item.categoryColor} />
+                      <RecurringCategoryIcon item={item} size="sm" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate">{item.name}</span>
                         {last && (

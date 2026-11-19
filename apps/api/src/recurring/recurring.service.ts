@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common'
 import { and, asc, eq, inArray, ne, type SQL, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
+import type { CategoryIcon } from '#/categories/category-icons'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import {
@@ -64,6 +65,7 @@ const itemColumns = {
   categorySlug: categoriesTable.slug,
   categoryName: categoriesTable.name,
   categoryColor: categoriesTable.color,
+  categoryIcon: categoriesTable.icon,
 }
 
 interface ItemRow {
@@ -72,6 +74,7 @@ interface ItemRow {
   categorySlug: string | null
   categoryName: string | null
   categoryColor: string | null
+  categoryIcon: CategoryIcon | null
 }
 
 const transactionColumns = {
@@ -451,6 +454,7 @@ export class RecurringService {
       categorySlug: row.categorySlug,
       categoryName: row.categoryName,
       categoryColor: row.categoryColor,
+      categoryIcon: row.categoryIcon,
       isFixedCost: item.isFixedCost,
       isSubscription: row.categorySlug === SUBSCRIPTIONS_SLUG,
       cadence,
