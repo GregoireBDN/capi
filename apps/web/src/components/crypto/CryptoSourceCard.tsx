@@ -184,6 +184,9 @@ function maskContract(contract: string): string {
  * the wallet where it exists), or by its contract address on one chain
  * (#269), what Etherscan shows: for a token the price service does not know.
  */
+/** « Trouver le jeton » segments: both labels fit a 320px phone. */
+const FIT = 'px-1.5 text-[min(0.875rem,6cqi)]'
+
 function AddWalletTokenSheet({
   open,
   onOpenChange,
@@ -271,19 +274,22 @@ function AddWalletTokenSheet({
           </SheetDescription>
         </SheetHeader>
         <div className="space-y-4 px-4 pb-6">
-          <SegmentedControl
-            fullWidth
-            aria-label="Trouver le jeton"
-            value={mode}
-            onValueChange={setMode}
-          >
-            <SegmentedControlItem value="name">
-              Par son nom
-            </SegmentedControlItem>
-            <SegmentedControlItem value="contract">
-              Par son adresse
-            </SegmentedControlItem>
-          </SegmentedControl>
+          {/* Both labels on a 320px phone: sized on the row's width. */}
+          <div className="@container">
+            <SegmentedControl
+              fullWidth
+              aria-label="Trouver le jeton"
+              value={mode}
+              onValueChange={setMode}
+            >
+              <SegmentedControlItem value="name" className={FIT}>
+                Par son nom
+              </SegmentedControlItem>
+              <SegmentedControlItem value="contract" className={FIT}>
+                Par son adresse
+              </SegmentedControlItem>
+            </SegmentedControl>
+          </div>
           {mode === 'name' ? (
             <div className="space-y-2">
               <label htmlFor={id} className="text-sm font-medium">

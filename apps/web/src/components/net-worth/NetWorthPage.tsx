@@ -397,18 +397,25 @@ function HistoryCard({
             Données jusqu’au {formatShortDay(coverage.dataUntil)}
           </p>
         )}
-        <SegmentedControl
-          fullWidth
-          aria-label="Période du graphique"
-          value={period}
-          onValueChange={onPeriodChange}
-        >
-          {NET_WORTH_PERIODS.map((item) => (
-            <SegmentedControlItem key={item} value={item}>
-              {NET_WORTH_PERIOD_LABELS[item]}
-            </SegmentedControlItem>
-          ))}
-        </SegmentedControl>
+        {/* Three labels on a 320px phone: sized on the row's width. */}
+        <div className="@container">
+          <SegmentedControl
+            fullWidth
+            aria-label="Période du graphique"
+            value={period}
+            onValueChange={onPeriodChange}
+          >
+            {NET_WORTH_PERIODS.map((item) => (
+              <SegmentedControlItem
+                key={item}
+                value={item}
+                className="px-1.5 text-[min(0.875rem,7cqi)]"
+              >
+                {NET_WORTH_PERIOD_LABELS[item]}
+              </SegmentedControlItem>
+            ))}
+          </SegmentedControl>
+        </div>
         {series.length < 2 ? (
           <EmptyState
             variant="inline"

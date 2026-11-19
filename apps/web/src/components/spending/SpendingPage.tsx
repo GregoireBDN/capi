@@ -38,6 +38,12 @@ import { SpendingKpis, SpendingKpisSkeleton } from './SpendingKpis'
 import { SpendingTrend } from './SpendingTrend'
 import type { TrendCategoryOption } from './SpendingTrend'
 
+/**
+ * Comparison segments: both labels fit a 320px phone, sized on the row
+ * (the `@container` around the control).
+ */
+const FIT = 'px-2 text-[min(0.875rem,6.2cqi)]'
+
 /** Months shown by the trend, ending with the selected month. */
 export const TREND_MONTHS = 12
 
@@ -263,11 +269,12 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
                       set({ cmp: next === 'average' ? 'avg' : undefined })
                     }
                   >
-                    <SegmentedControlItem value="previous">
+                    <SegmentedControlItem value="previous" className={FIT}>
                       Mois précédent
                     </SegmentedControlItem>
                     <SegmentedControlItem
                       value="average"
+                      className={FIT}
                       disabled={data.averageMonths === 0}
                     >
                       Moyenne
