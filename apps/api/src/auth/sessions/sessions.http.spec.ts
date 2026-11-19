@@ -16,6 +16,7 @@ import { createFastifyAdapter } from '#/config/fastify-adapter'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import { usersTable } from '#/user/user.schema'
+import { REUSE_LISTED_FOR_MS } from './sessions.service'
 
 /**
  * The owner's sessions (#217, ASVS 3.3.4) through the real Nest + Fastify
@@ -50,6 +51,7 @@ interface SessionRow {
   lastUsedAt: string
   expiresAt: string
   current: boolean
+  reuseDetectedAt: string | null
 }
 
 describe.skipIf(!process.env.DATABASE_URL)('Sessions list (HTTP)', () => {
@@ -209,6 +211,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Sessions list (HTTP)', () => {
           'expiresAt',
           'id',
           'lastUsedAt',
+          'reuseDetectedAt',
           'signInMethod',
           'signedInAt',
         ])
@@ -270,6 +273,51 @@ describe.skipIf(!process.env.DATABASE_URL)('Sessions list (HTTP)', () => {
       const sessions = await list(current.cookie)
 
       expect(sessions.map((s) => s.current)).toEqual([true])
+    })
+  })
+
+  it('lists a session ended by reuse detection for 30 days (#292)', async () => {
+    await asOwner(async (tx) => {
+      const current = await signIn(LINUX_FIREFOX)
+      const phone = await signIn(IPHONE_SAFARI)
+      const refresh = (token: string) =>
+        send('POST', '/api/auth/refresh', { cookie: `refresh_token=${token}` })
+      const next = cookieOf(await refresh(phone.refresh), 'refresh_token')!
+      expect((await refresh(next)).statusCode).toBe(200)
+      // The first token again, once its successor was used: reuse.
+      expect((await refresh(phone.refresh)).statusCode).toBe(401)
+
+      const sessions = await list(current.cookie)
+
+      expect(sessions).toHaveLength(2)
+      expect(sessions[0]).toMatchObject({
+        current: true,
+        reuseDetectedAt: null,
+      })
+      expect(sessions[1]).toMatchObject({
+        current: false,
+        device: 'Safari · iPhone',
+        signInMethod: 'password',
+      })
+      expect(sessions[1]!.reuseDetectedAt).toEqual(sessions[1]!.expiresAt)
+      expect(
+        Date.now() - Date.parse(sessions[1]!.reuseDetectedAt!),
+      ).toBeLessThan(60_000)
+      // It is already ended: nothing to end.
+      const end = await send(
+        'DELETE',
+        `/api/auth/sessions/${sessions[1]!.id}`,
+        {
+          cookie: current.cookie,
+        },
+      )
+      expect(end.statusCode).toBe(404)
+
+      await tx
+        .update(refreshTokensTable)
+        .set({ revokedAt: new Date(Date.now() - REUSE_LISTED_FOR_MS - DAY_MS) })
+        .where(eq(refreshTokensTable.revokedReason, 'reuse'))
+      expect((await list(current.cookie)).map((s) => s.current)).toEqual([true])
     })
   })
 
