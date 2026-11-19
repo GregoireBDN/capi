@@ -255,9 +255,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           })
 
           expect(longer.rank).toBe(0)
-          expect(
-            (await service.list()).map((r) => [r.id, r.rank]),
-          ).toEqual([
+          expect((await service.list()).map((r) => [r.id, r.rank])).toEqual([
             [regex.id, 0],
             [longer.id, 1],
             [withAmount.id, 2],
@@ -308,9 +306,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
           // Already first: unchanged.
           const again = await service.prefer(broad.id, specific.id)
           expect(again).toMatchObject({ priority: 3, rank: 0 })
-          const other = await service.prefer(specific.id, specific.id).catch(
-            (error: unknown) => error,
-          )
+          const other = await service
+            .prefer(specific.id, specific.id)
+            .catch((error: unknown) => error)
           expect(other).toBeInstanceOf(BadRequestException)
           await expect(
             service.prefer(broad.id, '00000000-0000-4000-8000-000000000000'),

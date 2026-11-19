@@ -587,8 +587,7 @@ export class CategorizationRuleMatchDto {
 
   @ApiProperty({
     type: Boolean,
-    description:
-      'Filed by hand (a category, no rule): rules never change it.',
+    description: 'Filed by hand (a category, no rule): rules never change it.',
   })
   manual!: boolean
 }
