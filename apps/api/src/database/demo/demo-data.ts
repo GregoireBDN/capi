@@ -229,7 +229,7 @@ function mealVoucherRows(
       slug: 'meal_vouchers',
     })
     balance += creditCents
-    const payments = random.int(8, 11)
+    const payments = random.int(11, 13)
     const days = Array.from({ length: payments }, () => random.int(3, 28))
       .map((day) => dayIn(month, day))
       .filter((day) => day <= yesterday)
