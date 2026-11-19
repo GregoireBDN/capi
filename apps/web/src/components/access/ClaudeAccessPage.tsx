@@ -30,8 +30,8 @@ import { ConnectSheet } from './ConnectSheet'
 import type { TokenTarget } from './ConnectSheet'
 
 /**
- * « Claude et accès » (#329, direction « A. Choix d’abord » of the
- * prototypes): what Claude can and can't do, « Connecter Claude » (this Mac,
+ * « Claude et accès » (#329, the owner's direction « A. Choix d’abord »):
+ * what Claude can and can't do, « Connecter Claude » (this Mac,
  * the phone and claude.ai while remote access is on, a script), then every
  * access in one list.
  */
