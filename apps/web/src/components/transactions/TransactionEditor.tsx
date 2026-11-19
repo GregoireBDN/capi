@@ -1,10 +1,19 @@
-import { Button, cn, Input, Switch, Textarea, useIsMobile } from '@finances/ui'
+import {
+  Button,
+  cn,
+  Input,
+  SETTING_GROUP_CLASS,
+  SETTING_ROW_CLASS,
+  SettingRow,
+  SettingSwitchRow,
+  Textarea,
+  useIsMobile,
+} from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import {
   ArrowLeftRightIcon,
   ArrowRightIcon,
   ChevronLeftIcon,
-  ChevronRightIcon,
   CheckIcon,
   FlagIcon,
   PencilIcon,
@@ -14,9 +23,7 @@ import {
   StickyNoteIcon,
   TagIcon,
 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
-import { useId, useState } from 'react'
-import type { ReactNode } from 'react'
+import { useState } from 'react'
 import type {
   AccountDto,
   CategoryDto,
@@ -72,14 +79,9 @@ interface TransactionEditorProps {
   initialScreen?: 'list' | 'category'
 }
 
-/**
- * A group of settings, iPhone style (#280): a tinted block without border,
- * square rows and straight full-width hairlines between them.
- */
-const GROUP = 'bg-muted/60 divide-border divide-y overflow-hidden rounded-md'
-/** A row of a group: square, hover and focus inside its block. */
-const ROW =
-  'hover:bg-muted focus-visible:ring-ring/50 flex min-h-9 w-full items-center gap-3 px-3 text-left text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-inset'
+/** A group of settings and its rows (#280, `@finances/ui` `setting-row`). */
+const GROUP = SETTING_GROUP_CLASS
+const ROW = SETTING_ROW_CLASS
 
 /** Lowercase, without accents, for the category search. */
 function searchable(text: string): string {
@@ -87,65 +89,6 @@ function searchable(text: string): string {
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase()
-}
-
-/** A row of the list that opens a screen: icon, name, value and ›. */
-function SettingButton({
-  icon: Icon,
-  label,
-  value,
-  onClick,
-}: {
-  icon: LucideIcon
-  label: string
-  value?: ReactNode
-  onClick: () => void
-}) {
-  return (
-    <button type="button" onClick={onClick} className={ROW}>
-      <Icon
-        className="text-muted-foreground size-[0.8rem] shrink-0"
-        aria-hidden="true"
-      />
-      <span className="min-w-0 flex-1 py-2">{label}</span>
-      {value !== undefined && (
-        <span className="text-muted-foreground max-w-[55%] truncate text-right">
-          {value}
-        </span>
-      )}
-      <ChevronRightIcon
-        className="text-muted-foreground size-[0.7rem] shrink-0"
-        aria-hidden="true"
-      />
-    </button>
-  )
-}
-
-/** A row of the list with a switch, saved at once. */
-function SettingSwitch({
-  icon: Icon,
-  label,
-  checked,
-  onCheckedChange,
-}: {
-  icon: LucideIcon
-  label: string
-  checked: boolean
-  onCheckedChange: (checked: boolean) => void
-}) {
-  const id = useId()
-  return (
-    <div className="flex min-h-9 items-center gap-3 px-3 text-sm">
-      <Icon
-        className="text-muted-foreground size-[0.8rem] shrink-0"
-        aria-hidden="true"
-      />
-      <label htmlFor={id} className="flex-1 cursor-pointer py-2">
-        {label}
-      </label>
-      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
-    </div>
-  )
 }
 
 /** Title of a screen with « Retour » to the list. */
@@ -544,11 +487,16 @@ export function TransactionEditor({
           }
         />
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <p className="min-w-0 font-medium break-words">{name}</p>
+          {/* The amount goes under the name when both don't fit, so the
+          name is never squeezed into broken words (#325). */}
+          <div className="flex flex-wrap items-start justify-between gap-x-3">
+            <p className="min-w-[7rem] flex-1 font-medium break-words">
+              {name}
+            </p>
             <Amount
               cents={item.amountCents}
               transfer={item.kind === 'transfer'}
+              className="ml-auto"
             />
           </div>
           <p className="text-muted-foreground text-xs">
@@ -565,33 +513,33 @@ export function TransactionEditor({
       </div>
 
       <div className={GROUP}>
-        <SettingButton
+        <SettingRow
           icon={split ? SplitIcon : TagIcon}
           label={split ? 'Répartition' : 'Catégorie'}
           value={categoryValue}
           onClick={() => setScreen(split && onSplit ? 'split' : 'category')}
         />
         {item.kind === 'transfer' && (
-          <SettingButton
+          <SettingRow
             icon={ArrowRightIcon}
             label={counterpartLabel(item)}
             value={item.counterpartAccountName ?? 'Choisir'}
             onClick={() => setScreen('counterpart')}
           />
         )}
-        <SettingButton
+        <SettingRow
           icon={StickyNoteIcon}
           label="Note"
           value={item.note || 'Ajouter'}
           onClick={() => setScreen('note')}
         />
-        <SettingSwitch
+        <SettingSwitchRow
           icon={SparkleIcon}
           label="Ponctuelle"
           checked={item.isOneOff}
           onCheckedChange={(isOneOff) => onChange({ isOneOff })}
         />
-        <SettingSwitch
+        <SettingSwitchRow
           icon={FlagIcon}
           label="À revoir"
           checked={item.needsReview}
@@ -601,7 +549,7 @@ export function TransactionEditor({
 
       <div className={GROUP}>
         {onSplit && !split && (
-          <SettingButton
+          <SettingRow
             icon={SplitIcon}
             label="Répartir"
             onClick={() => setScreen('split')}
@@ -609,7 +557,7 @@ export function TransactionEditor({
         )}
         {item.manual
           ? onEditManual && (
-              <SettingButton
+              <SettingRow
                 icon={PencilIcon}
                 label="Modifier ou supprimer"
                 onClick={onEditManual}
@@ -617,14 +565,14 @@ export function TransactionEditor({
             )
           : onCorrect &&
             onRestoreBank && (
-              <SettingButton
+              <SettingRow
                 icon={PencilIcon}
                 label="Corriger montant ou date"
                 value={corrected ? 'Corrigée' : undefined}
                 onClick={() => setScreen('correct')}
               />
             )}
-        <SettingButton
+        <SettingRow
           icon={ArrowLeftRightIcon}
           label="Type"
           value={KIND_LABELS[item.kind]}

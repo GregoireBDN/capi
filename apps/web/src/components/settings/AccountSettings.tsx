@@ -1,5 +1,5 @@
 import { Input } from '@finances/ui'
-import { useEffect, useId, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { profileControllerUpdate } from '#/api'
 import type { UserDto } from '#/api/types.gen'
@@ -105,9 +105,7 @@ export function AccountSettings({ user }: { user: UserDto }) {
           </li>
           <li className="flex min-h-14 items-center gap-3 px-3 py-2 text-sm">
             <span className="w-16 shrink-0 font-medium">Email</span>
-            <span className="text-muted-foreground min-w-0 flex-1 break-all">
-              {user.email}
-            </span>
+            <EmailText email={user.email} />
           </li>
         </SettingsGroup>
         {error && (
@@ -124,5 +122,26 @@ export function AccountSettings({ user }: { user: UserDto }) {
         </p>
       </div>
     </div>
+  )
+}
+
+/**
+ * The email, which may wrap after its `@` and nowhere else (#325): each part
+ * stays on one line, cut with « … » if it alone is wider than the row.
+ */
+function EmailText({ email }: { email: string }) {
+  const at = email.lastIndexOf('@')
+  const parts = at > 0 ? [email.slice(0, at + 1), email.slice(at + 1)] : [email]
+  return (
+    <span className="text-muted-foreground min-w-0 flex-1">
+      {parts.map((part, index) => (
+        <Fragment key={index}>
+          {index > 0 && <wbr />}
+          <span className="inline-block max-w-full truncate align-bottom">
+            {part}
+          </span>
+        </Fragment>
+      ))}
+    </span>
   )
 }
