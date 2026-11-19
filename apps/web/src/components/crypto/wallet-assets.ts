@@ -1,4 +1,5 @@
 import type { SnapshotDto, ValuedHoldingDto } from '#/api/types.gen'
+import { assetColor } from './asset-colors'
 import { sumQuantities } from './format'
 
 /*
@@ -63,7 +64,10 @@ export function groupHoldings(
   )
 }
 
-/** Colours of the split, by weight; the rest share `--chart-other`. */
+/**
+ * Colours of the split for the assets without one of their own
+ * (`asset-colors.ts`), by weight; the rest share `--chart-other`.
+ */
 const SPLIT_COLORS = [
   'var(--chart-1)',
   'var(--chart-2)',
@@ -95,12 +99,24 @@ export function splitParts(assets: readonly SplitAsset[]): SplitPart[] {
   )
   const top = valued.slice(0, valued.length > 5 ? 4 : 5)
   const rest = valued.slice(top.length)
+  // A coin's own colour when it has one (its badge has it too) and no larger
+  // part took it, else the next colour of the palette.
+  const taken = new Set<string>()
+  let next = 0
+  const colorOf = (symbol: string) => {
+    const own = assetColor(symbol)
+    if (own && !taken.has(own)) {
+      taken.add(own)
+      return own
+    }
+    return SPLIT_COLORS[next++] ?? 'var(--chart-5)'
+  }
   return [
-    ...top.map((asset, index) => ({
+    ...top.map((asset) => ({
       key: asset.assetId,
       label: asset.symbol,
       valueCents: asset.valueCents,
-      color: SPLIT_COLORS[index] ?? 'var(--chart-5)',
+      color: colorOf(asset.symbol),
     })),
     ...(rest.length > 0
       ? [

@@ -40,6 +40,7 @@ import { formatCents } from '#/lib/money'
 import { DIVIDED_LIST, ROW_BUTTON } from '#/lib/row-list'
 import { holdingErrorMessage } from './errors'
 import { formatPrice, formatPriceAge, formatQuantity } from './format'
+import { AssetBadge } from './AssetBadge'
 import { HoldingEditor } from './HoldingEditor'
 import {
   afterHoldingsChanged,
@@ -131,46 +132,51 @@ function HoldingRow({
   mixed: boolean
 }) {
   return (
-    // The amounts go under the asset when both don't fit side by side.
-    <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-3 gap-y-1">
-      <div className="min-w-[8rem] flex-1 space-y-0.5">
-        <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
-          <span className="shrink-0 font-medium">{holding.symbol}</span>
-          {holdingSubtitle(holding) && (
-            <span className="text-muted-foreground min-w-0 truncate text-xs">
-              {holdingSubtitle(holding)}
-            </span>
-          )}
-          {mixed && <OriginBadge holding={holding} />}
-        </p>
-        <p className="text-sm tabular-nums">
-          {formatQuantity(holding.quantity)} {holding.symbol}
-        </p>
-        <PriceLine holding={holding} now={now} />
-      </div>
-      <div className="ml-auto space-y-0.5 text-right whitespace-nowrap">
-        <p className="font-medium tabular-nums">
-          {holding.valueCents === null ? '—' : formatCents(holding.valueCents)}
-        </p>
-        {holding.investedCents !== null && (
-          <p className="text-muted-foreground text-xs tabular-nums">
-            Investi {formatCents(holding.investedCents)}
-          </p>
-        )}
-        {holding.gainCents !== null && (
-          <p
-            className={cn(
-              'text-xs tabular-nums',
-              holding.gainCents >= 0
-                ? 'text-success-foreground dark:text-success'
-                : 'text-destructive',
+    <>
+      <AssetBadge symbol={holding.symbol} />
+      {/* The amounts go under the asset when both don't fit side by side. */}
+      <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-3 gap-y-1">
+        <div className="min-w-[8rem] flex-1 space-y-0.5">
+          <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+            <span className="shrink-0 font-medium">{holding.symbol}</span>
+            {holdingSubtitle(holding) && (
+              <span className="text-muted-foreground min-w-0 truncate text-xs">
+                {holdingSubtitle(holding)}
+              </span>
             )}
-          >
-            {signed(holding.gainCents)}
+            {mixed && <OriginBadge holding={holding} />}
           </p>
-        )}
+          <p className="text-sm tabular-nums">
+            {formatQuantity(holding.quantity)} {holding.symbol}
+          </p>
+          <PriceLine holding={holding} now={now} />
+        </div>
+        <div className="ml-auto space-y-0.5 text-right whitespace-nowrap">
+          <p className="font-medium tabular-nums">
+            {holding.valueCents === null
+              ? '—'
+              : formatCents(holding.valueCents)}
+          </p>
+          {holding.investedCents !== null && (
+            <p className="text-muted-foreground text-xs tabular-nums">
+              Investi {formatCents(holding.investedCents)}
+            </p>
+          )}
+          {holding.gainCents !== null && (
+            <p
+              className={cn(
+                'text-xs tabular-nums',
+                holding.gainCents >= 0
+                  ? 'text-success-foreground dark:text-success'
+                  : 'text-destructive',
+              )}
+            >
+              {signed(holding.gainCents)}
+            </p>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -234,7 +240,8 @@ export function HoldingList({
     holdings.some((holding) => holding.origin !== 'manual') &&
     holdings.some((holding) => holding.origin === 'manual')
   return (
-    <ul className={DIVIDED_LIST} aria-label={label}>
+    // A container: the badges step aside on the narrowest cards.
+    <ul className={cn(DIVIDED_LIST, '@container')} aria-label={label}>
       {holdings.map((holding) => {
         const row = 'flex items-start gap-3 px-2 py-2.5 text-left text-sm'
         const name = [holding.symbol, holding.location]

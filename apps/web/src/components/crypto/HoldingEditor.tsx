@@ -32,6 +32,7 @@ import {
   FormSheetFooter,
   STEPPED_SHEET_BOTTOM,
 } from '#/components/sheets/form-sheet'
+import { AssetBadge } from './AssetBadge'
 import { holdingErrorMessage } from './errors'
 import { decimalToInput, parsePriceInput, parseQuantityInput } from './format'
 import {
@@ -145,6 +146,7 @@ export function AssetPicker({
                   )}
                   onClick={() => onPick(asset)}
                 >
+                  <AssetBadge symbol={asset.symbol} size="sm" />
                   <span className="font-medium">{asset.symbol}</span>
                   <span className="text-muted-foreground min-w-0 truncate">
                     {asset.name}
@@ -331,9 +333,12 @@ export function HoldingEditor({
 
   /** The asset chosen, at the top of the later steps. */
   const recap = asset && (
-    <p className="text-muted-foreground min-w-0 truncate text-sm">
-      <span className="text-foreground font-medium">{asset.symbol}</span> ·{' '}
-      {asset.name}
+    <p className="text-muted-foreground flex min-w-0 items-center gap-2 text-sm">
+      <AssetBadge symbol={asset.symbol} size="sm" />
+      <span className="min-w-0 truncate">
+        <span className="text-foreground font-medium">{asset.symbol}</span> ·{' '}
+        {asset.name}
+      </span>
     </p>
   )
 
@@ -538,7 +543,8 @@ export function HoldingEditor({
             </FormSheetBody>
 
             <FormSheetFooter>
-              {holding && last && (
+              {/* Any step of an edit: removing a line is one decision. */}
+              {holding && (
                 <Button
                   type="button"
                   variant="danger"

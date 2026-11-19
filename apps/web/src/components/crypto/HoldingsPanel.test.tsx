@@ -381,4 +381,33 @@ describe('HoldingsPanel', () => {
       ),
     )
   })
+
+  it('removes a line typed by hand from the first step of its editor', async () => {
+    const user = userEvent.setup()
+    api.accountHoldingsControllerRemove.mockImplementation(() =>
+      ok(undefined, 204),
+    )
+    renderPanel()
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Modifier BTC · Portefeuille test',
+      }),
+    )
+    expect(
+      screen.getByRole('heading', { name: /^Quantité\s*1\/2/ }),
+    ).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Supprimer' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Supprimer BTC (Portefeuille test) ?',
+    })
+    await user.click(within(dialog).getByRole('button', { name: 'Supprimer' }))
+    await waitFor(() =>
+      expect(api.accountHoldingsControllerRemove).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { id: ACCOUNT_ID, holdingId: holding().id },
+        }),
+      ),
+    )
+    expect(toast.success).toHaveBeenCalledWith('BTC supprimé')
+  })
 })
