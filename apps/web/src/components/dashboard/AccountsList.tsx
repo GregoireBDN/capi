@@ -74,6 +74,7 @@ export function AccountsList({
           </div>
         </div>
         <AccountList
+          from="dashboard"
           primaryAction="account"
           groups={GROUPS.map(({ group, title }) => ({
             id: group,

@@ -14,6 +14,7 @@ import {
   UpdateValueButton,
 } from '#/components/accounts/UpdateValueButton'
 import { ROUTES } from '#/lib/routes'
+import { accountLinkSearch } from '#/components/accounts/account-origin'
 
 /**
  * PEA, life insurance and employee savings accounts whose latest value is
@@ -46,6 +47,7 @@ export function StaleValuesReminder() {
                 <Link
                   to={ROUTES.account}
                   params={{ accountId: account.id }}
+                  search={accountLinkSearch('review')}
                   className="font-medium break-words hover:underline"
                 >
                   {account.name}

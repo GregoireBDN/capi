@@ -161,6 +161,7 @@ export function AccountsPage() {
             </CardHeader>
             <CardContent>
               <AccountList
+                from="accounts"
                 groups={[
                   { id: 'cash', accounts: cash.map((a) => listItem(a)) },
                 ]}
@@ -182,6 +183,7 @@ export function AccountsPage() {
             </CardHeader>
             <CardContent>
               <AccountList
+                from="accounts"
                 groups={[
                   {
                     id: 'investments',
@@ -206,6 +208,7 @@ export function AccountsPage() {
           </CardHeader>
           <CardContent>
             <AccountList
+              from="accounts"
               groups={[
                 {
                   id: 'archived',

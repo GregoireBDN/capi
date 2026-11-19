@@ -15,11 +15,12 @@ export interface PageBackLink {
 }
 
 /**
- * The way back from a sub-page (e.g. an account to « Comptes »), the
- * owner's « A » (#293): on phones « ‹ Comptes » in the top bar, in place of
- * the logo (the menu stays); from `md` up a rounded chip above the title.
- * The server renders the chip (hidden below md); it moves into the top bar
- * once hydrated, like the page actions.
+ * The way back from a sub-page, the one back link of the app (the owner's
+ * « A », #293, kept for every page in #324: accounts and the settings
+ * screens): on phones « ‹ Comptes » in the top bar, in place of the logo (the
+ * menu stays); from `md` up a rounded chip above the title. The server
+ * renders the chip (hidden below md); it moves into the top bar once
+ * hydrated, like the page actions. Render it first on the page.
  */
 export function PageBack({ label, to, params, search }: PageBackLink) {
   const isMobile = useIsMobile()
@@ -39,12 +40,14 @@ export function PageBack({ label, to, params, search }: PageBackLink) {
     )
   }
   return (
-    <Link
-      {...link}
-      className="bg-muted text-foreground hover:bg-muted/70 focus-visible:ring-ring/50 relative inline-flex h-9 w-fit items-center gap-1 rounded-full pr-3.5 pl-2 text-sm font-medium outline-none focus-visible:ring-[3px] pointer-coarse:touch-hitbox max-md:hidden"
-    >
-      <ChevronLeftIcon aria-hidden className="size-4" />
-      {label}
-    </Link>
+    <div className="mb-3 flex max-md:hidden">
+      <Link
+        {...link}
+        className="bg-muted text-foreground hover:bg-muted/70 focus-visible:ring-ring/50 relative inline-flex h-9 w-fit items-center gap-1 rounded-full pr-3.5 pl-2 text-sm font-medium outline-none focus-visible:ring-[3px] pointer-coarse:touch-hitbox"
+      >
+        <ChevronLeftIcon aria-hidden className="size-4" />
+        {label}
+      </Link>
+    </div>
   )
 }

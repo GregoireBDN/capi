@@ -27,6 +27,7 @@ import { formatShortMonth } from '#/lib/calendar'
 import { formatCents } from '#/lib/money'
 import { plural } from '#/lib/plural'
 import { ROUTES } from '#/lib/routes'
+import { accountLinkSearch } from '#/components/accounts/account-origin'
 
 const signedWholeEuros = new Intl.NumberFormat('fr-FR', {
   style: 'currency',
@@ -176,6 +177,7 @@ function Flows({
               <Link
                 to={ROUTES.account}
                 params={{ accountId: account.accountId }}
+                search={accountLinkSearch('savings')}
                 title="Voir le détail du compte"
               />
             </ItemListRow>
@@ -282,6 +284,7 @@ export function InvestmentsRecap() {
                   <Link
                     to={ROUTES.account}
                     params={{ accountId: row.id }}
+                    search={accountLinkSearch('savings')}
                     title="Voir le détail du compte"
                   />
                 </ItemListRow>

@@ -35,9 +35,13 @@ vi.mock('@tanstack/react-router', () => ({
   }: {
     to: string
     params?: Record<string, string>
-    search?: Record<string, string>
+    search?:
+      | Record<string, string>
+      | ((current: Record<string, unknown>) => Record<string, string>)
     children: ReactNode
   }) => {
+    // A function resolves against the page's search (none here).
+    if (typeof search === 'function') search = search({})
     const path = Object.entries(params ?? {}).reduce(
       (url, [key, value]) => url.replace(`$${key}`, value),
       to,
@@ -284,7 +288,7 @@ describe('NetWorthPage', () => {
     ).toHaveAttribute('href', `/transactions?account=${checking.id}`)
     expect(
       within(peaType).getByRole('link', { name: /PEA test/ }),
-    ).toHaveAttribute('href', `/accounts/${pea.id}`)
+    ).toHaveAttribute('href', `/accounts/${pea.id}?from=net-worth`)
   })
 
   it('lists the accounts under a type only when it has several', async () => {

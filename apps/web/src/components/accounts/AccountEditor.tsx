@@ -40,6 +40,8 @@ import {
 } from '#/components/crypto/sources'
 import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { ROUTES } from '#/lib/routes'
+import { accountLinkSearch } from './account-origin'
+import type { AccountOrigin } from './account-origin'
 import { parseAmountToCents } from './amount'
 import { previousDay } from '#/components/expenses/manual-fields'
 import { todayInParis } from './dates'
@@ -201,6 +203,8 @@ interface AccountEditorProps {
   account?: AccountDto
   /** Preselected type when creating. */
   defaultType?: AccountType
+  /** The page it is opened on: the new account page's way back (#324). */
+  from?: AccountOrigin
 }
 
 /**
@@ -214,6 +218,7 @@ export function AccountEditor({
   onOpenChange,
   account,
   defaultType = 'checking',
+  from = 'accounts',
 }: AccountEditorProps) {
   const isMobile = useIsMobile()
   const queryClient = useQueryClient()
@@ -338,6 +343,7 @@ export function AccountEditor({
       await navigate({
         to: ROUTES.account,
         params: { accountId: created.id },
+        search: accountLinkSearch(from),
       })
     },
     onError: (error) => {
@@ -697,6 +703,7 @@ export function NewAccountButton({
   outline,
   icon = <PlusIcon />,
   className,
+  from,
 }: {
   label?: string
   defaultType?: AccountType
@@ -705,6 +712,8 @@ export function NewAccountButton({
   /** Defaults to « + ». */
   icon?: ReactNode
   className?: string
+  /** The page it is on: the new account page's way back (#324). */
+  from?: AccountOrigin
 }) {
   const [open, setOpen] = useState(false)
   return (
@@ -723,6 +732,7 @@ export function NewAccountButton({
         open={open}
         onOpenChange={setOpen}
         defaultType={defaultType}
+        from={from}
       />
     </>
   )

@@ -133,8 +133,13 @@ describe('AccountEditor', () => {
       expect(navigate).toHaveBeenCalledWith({
         to: '/accounts/$accountId',
         params: { accountId: NEW_ID },
+        // Its back link: « Comptes », where the editor was opened (#324).
+        search: expect.any(Function),
       }),
     )
+    expect(navigate.mock.lastCall?.[0].search({ month: '2026-10' })).toEqual({
+      from: 'accounts',
+    })
     expect(api.accountsControllerCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         body: { name: 'PEA', type: 'brokerage', institution: 'Courtier test' },

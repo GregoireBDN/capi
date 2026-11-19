@@ -156,23 +156,28 @@ describe('PageHeader', () => {
     ).toBeInTheDocument()
   })
 
-  it('puts the way back above the title from md up, in the top bar on phones (#293)', () => {
-    const back = { label: 'Comptes', to: '/accounts' } as const
+  it('puts the way back above the title from md up, in the top bar on phones (#293, #324)', () => {
+    const back = { label: 'Épargne', to: '/savings' } as const
     emulatePhone(false)
     const { unmount } = renderInShell(
       <PageHeader title="Compte courant" back={back} />,
     )
+    const chip = within(page()).getByRole('link', { name: 'Épargne' })
+    expect(chip).toHaveAttribute('href', '/savings')
+    // Before the title.
     expect(
-      within(page()).getByRole('link', { name: 'Comptes' }),
-    ).toHaveAttribute('href', '/accounts')
+      chip.compareDocumentPosition(
+        screen.getByRole('heading', { name: 'Compte courant' }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
     expect(topBarBack()).toBeEmptyDOMElement()
     unmount()
 
     emulatePhone()
     renderInShell(<PageHeader title="Compte courant" back={back} />)
     expect(
-      within(topBarBack()).getByRole('link', { name: 'Comptes' }),
-    ).toHaveAttribute('href', '/accounts')
+      within(topBarBack()).getByRole('link', { name: 'Épargne' }),
+    ).toHaveAttribute('href', '/savings')
     expect(within(page()).queryByRole('link')).toBeNull()
   })
 })

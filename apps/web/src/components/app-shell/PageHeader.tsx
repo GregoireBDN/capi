@@ -27,7 +27,7 @@ interface PageHeaderProps {
    */
   actions?: readonly PageAction[]
   /**
-   * The parent page of a sub-page (an account → « Comptes »): in the top
+   * The page a sub-page goes back to (an account → « Épargne »): in the top
    * bar on phones, a chip above the title from `md` up (`PageBack`).
    */
   back?: PageBackLink
@@ -55,45 +55,43 @@ export function PageHeader({
   const inTopBar = isMobile && slot !== null
 
   return (
-    <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-      {back && (
-        <div className="flex basis-full empty:hidden max-md:hidden">
-          <PageBack {...back} />
-        </div>
-      )}
-      <div className="min-w-[min(100%,14rem)] flex-1 space-y-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <h1 className="min-w-0 text-xl font-semibold tracking-tight break-words md:text-2xl">
-            {title}
-          </h1>
-          {titleAddon}
-        </div>
-        {description && (
-          <p className="text-muted-foreground text-xs md:text-sm">
-            {description}
-          </p>
-        )}
-      </div>
-      {actions.length > 0 &&
-        (inTopBar ? (
-          createPortal(<TopBarActions actions={actions} />, slot)
-        ) : (
-          <div className="flex flex-wrap gap-2 max-md:hidden">
-            {actions.map((action) => (
-              <Button
-                key={action.label}
-                variant={action.primary ? 'primary' : 'secondary'}
-                outline={!action.primary}
-                iconStart={action.icon}
-                loading={action.loading}
-                disabled={action.disabled}
-                onClick={action.onSelect}
-              >
-                {action.label}
-              </Button>
-            ))}
+    <header>
+      {back && <PageBack {...back} />}
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="min-w-[min(100%,14rem)] flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h1 className="min-w-0 text-xl font-semibold tracking-tight break-words md:text-2xl">
+              {title}
+            </h1>
+            {titleAddon}
           </div>
-        ))}
+          {description && (
+            <p className="text-muted-foreground text-xs md:text-sm">
+              {description}
+            </p>
+          )}
+        </div>
+        {actions.length > 0 &&
+          (inTopBar ? (
+            createPortal(<TopBarActions actions={actions} />, slot)
+          ) : (
+            <div className="flex flex-wrap gap-2 max-md:hidden">
+              {actions.map((action) => (
+                <Button
+                  key={action.label}
+                  variant={action.primary ? 'primary' : 'secondary'}
+                  outline={!action.primary}
+                  iconStart={action.icon}
+                  loading={action.loading}
+                  disabled={action.disabled}
+                  onClick={action.onSelect}
+                >
+                  {action.label}
+                </Button>
+              ))}
+            </div>
+          ))}
+      </div>
     </header>
   )
 }
