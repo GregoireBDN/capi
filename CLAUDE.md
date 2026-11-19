@@ -114,6 +114,7 @@ The owner's pre-app history (a Google Sheet, ~3,250 categorized rows since 07/20
 ### Categorization
 
 - Categories are assigned by **ordered rules** first (first matching rule wins).
+- **The order is computed** (#299, `compareRules` in `categories/rules/categorize.ts`): higher `categorization_rules.priority` first (0 by default), then the most specific rule (a regex, then the longer folded pattern, then more account / amount conditions), then the oldest (`position` is the creation order only); the list carries each rule's `rank`. Overlaps are shown, not ordered by hand: `GET /api/categorization-rules/insights` gives each rule's matches over 12 months and the conflicts (two enabled rules matching the same transactions, not filed by hand, with another category or kind), `POST /:id/prefer` (session only) makes a rule win by raising its priority above the other's, and the preview lists the previewed rule's conflicts (MCP `create_rule` shows them). The web (`components/rules/`) reads rules as sentences grouped by category, edits them in three steps (« Quelles opérations ? » with the live matches of `POST /matches`, « Classer dans », « Vérifier » with the preview; « Avancé » holds regex, account, amount, kind, active and priority) and applies the rules after every save, with « Annuler ».
 - Uncategorized or flagged transactions go to a **review queue**.
 - Correcting a category can create a new rule, so similar transactions are categorized automatically next time.
 

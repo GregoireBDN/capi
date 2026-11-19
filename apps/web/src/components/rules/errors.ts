@@ -18,7 +18,7 @@ export function ruleErrorMessage(error: unknown): string {
     if (message.includes('minAmountCents')) {
       return 'Le montant minimum dépasse le maximum.'
     }
-    if (message.includes('exactly once')) {
+    if (message.includes('overRuleId')) {
       return 'La liste des règles a changé. Rechargez la page.'
     }
     if (message.includes('categoryId')) return 'Cette catégorie n’existe plus.'

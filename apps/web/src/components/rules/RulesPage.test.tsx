@@ -1,29 +1,27 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   AccountDto,
   CategorizationRuleDto,
+  CategorizationRuleMatchesDto,
   CategorizationRulePreviewDto,
+  CategorizationRulesInsightsDto,
   CategoryDto,
 } from '#/api/types.gen'
 import { bodyFromForm, formFromRule } from './RuleEditorSheet'
-import { RulesPage } from './RulesPage'
+import { groupRules, RulesPage } from './RulesPage'
 
 const api = vi.hoisted(() => ({
   categorizationRulesControllerList: vi.fn(),
+  categorizationRulesControllerInsights: vi.fn(),
+  categorizationRulesControllerMatches: vi.fn(),
   categorizationRulesControllerCreate: vi.fn(),
   categorizationRulesControllerUpdate: vi.fn(),
   categorizationRulesControllerRemove: vi.fn(),
-  categorizationRulesControllerReorder: vi.fn(),
+  categorizationRulesControllerPrefer: vi.fn(),
   categorizationRulesControllerPreview: vi.fn(),
   categorizationRulesControllerApply: vi.fn(),
   categoriesControllerList: vi.fn(),
@@ -70,6 +68,7 @@ const CAFES = category('c2', 'Cafés', 'expense')
 const OLD = category('c3', 'Ancienne', 'expense', {
   archivedAt: '2026-10-01T00:00:00.000Z',
 })
+const SALARY = category('c4', 'Salaire', 'income')
 
 const ACCOUNT: AccountDto = {
   id: 'a1',
@@ -89,13 +88,15 @@ const ACCOUNT: AccountDto = {
 
 function rule(
   id: string,
-  position: number,
+  rank: number,
   labelPattern: string,
   overrides: Partial<CategorizationRuleDto> = {},
 ): CategorizationRuleDto {
   return {
     id,
-    position,
+    position: rank,
+    priority: 0,
+    rank,
     enabled: true,
     matchType: 'contains',
     labelPattern,
@@ -112,17 +113,37 @@ function rule(
   }
 }
 
-const FAKEMART = rule('r1', 0, 'FAKEMART', {
+const EXPRESS = rule('r1', 0, 'FAKEMART EXPRESS', { categoryId: CAFES.id })
+const FAKEMART = rule('r2', 1, 'FAKEMART', {
   accountId: ACCOUNT.id,
   minAmountCents: -5_000,
   maxAmountCents: -100,
 })
-const CAFE = rule('r2', 1, 'CAFE TEST', { categoryId: CAFES.id })
 const ARCHIVED = rule('r3', 2, 'FLEUR TEST', {
   categoryId: OLD.id,
   enabled: false,
 })
-const ORPHAN = rule('r4', 3, 'GONE TEST', { categoryId: 'c-missing' })
+const PAY = rule('r4', 3, 'SALAIRE TEST', { categoryId: SALARY.id })
+
+const INSIGHTS: CategorizationRulesInsightsDto = {
+  since: '2025-11-19',
+  rules: [
+    { ruleId: EXPRESS.id, matchCount: 12 },
+    { ruleId: FAKEMART.id, matchCount: 42 },
+    { ruleId: ARCHIVED.id, matchCount: 0 },
+    { ruleId: PAY.id, matchCount: 1 },
+  ],
+  conflicts: [{ winnerRuleId: EXPRESS.id, loserRuleId: FAKEMART.id, count: 3 }],
+}
+
+const EMPTY_PREVIEW: CategorizationRulePreviewDto = {
+  matched: 0,
+  leavingReview: 0,
+  released: 0,
+  changed: 0,
+  transactions: [],
+  conflicts: [],
+}
 
 const ok = <T,>(data: T, status = 200) =>
   Promise.resolve({ data, response: new Response(null, { status }) })
@@ -143,15 +164,22 @@ function renderPage() {
   )
 }
 
-/** Patterns of the listed rules, in display order. */
-async function listedPatterns() {
-  const list = await screen.findByRole('list', {
-    name: 'Règles, dans l’ordre d’application',
-  })
-  return within(list)
-    .getAllByRole('listitem')
-    .filter((item) => item.parentElement === list)
-    .map((item) => item.getAttribute('aria-label'))
+/** `text` with non-breaking spaces inside its guillemets, as the page writes them. */
+function nbsp(text: string): string {
+  return text.replace(/« /g, '«\u00a0').replace(/ »/g, '\u00a0»')
+}
+
+/** The editor's step heading: its name and « n/3 ». */
+function stepHeading(sheet: HTMLElement): string | null {
+  return within(sheet).getByRole('heading', { level: 3 }).textContent
+}
+
+/** The action of the last success toast, as a callback. */
+function lastToastAction(): () => void {
+  const options = toast.success.mock.calls.at(-1)?.[1] as {
+    action: { onClick: () => void }
+  }
+  return options.action.onClick
 }
 
 beforeAll(() => {
@@ -172,271 +200,351 @@ beforeAll(() => {
   })
 })
 
-/** Rules as the mocked API stores them. */
-let server: CategorizationRuleDto[] = []
-
 beforeEach(() => {
   vi.clearAllMocks()
-  server = [FAKEMART, CAFE, ARCHIVED, ORPHAN]
-  api.categorizationRulesControllerList.mockImplementation(() => ok(server))
+  api.categorizationRulesControllerList.mockImplementation(() =>
+    ok([EXPRESS, FAKEMART, ARCHIVED, PAY]),
+  )
+  api.categorizationRulesControllerInsights.mockImplementation(() =>
+    ok(INSIGHTS),
+  )
   api.categoriesControllerList.mockImplementation(() =>
-    ok([GROCERIES, CAFES, OLD]),
+    ok([GROCERIES, CAFES, OLD, SALARY]),
   )
   api.accountsControllerList.mockImplementation(() => ok([ACCOUNT]))
   api.transactionsControllerReviewCount.mockImplementation(() =>
     ok({ count: 0 }),
   )
-  api.categorizationRulesControllerReorder.mockImplementation(
-    ({ body }: { body: { ids: string[] } }) => {
-      server = body.ids.map((id, position) => ({
-        ...server.find((r) => r.id === id)!,
-        position,
-      }))
-      return ok(server)
-    },
+  api.categorizationRulesControllerApply.mockImplementation(() =>
+    ok({ scanned: 10, matched: 8, unmatched: 2, updated: 4, manualSkipped: 1 }),
+  )
+  api.categorizationRulesControllerPreview.mockImplementation(() =>
+    ok(EMPTY_PREVIEW),
   )
   api.categorizationRulesControllerUpdate.mockImplementation(
     ({ path, body }: { path: { id: string }; body: object }) =>
       ok({ ...FAKEMART, id: path.id, ...body }),
   )
+  api.categorizationRulesControllerRemove.mockImplementation(() =>
+    ok(undefined, 204),
+  )
 })
 
 describe('RulesPage', () => {
-  it('lists the rules in order with their conditions and target', async () => {
+  it('lists the rules as sentences by category, with their match counts', async () => {
     renderPage()
 
-    expect(await listedPatterns()).toEqual([
-      'Règle 1 : FAKEMART',
-      'Règle 2 : CAFE TEST',
-      'Règle 3 : FLEUR TEST',
-      'Règle 4 : GONE TEST',
-    ])
-    const first = screen.getByRole('listitem', { name: 'Règle 1 : FAKEMART' })
-    expect(within(first).getByText(/compte Compte test/).textContent).toMatch(
-      /entre -50,00\s€ et -1,00\s€/,
-    )
-    expect(within(first).getByText('Courses')).toBeTruthy()
-    expect(
-      within(first).getByRole('switch', {
-        name: 'Activer la règle « FAKEMART »',
-      }),
-    ).toHaveProperty('ariaChecked', 'true')
-  })
-
-  it('flags rules of an archived or deleted category, and disabled ones', async () => {
-    renderPage()
-
-    const archived = await screen.findByRole('listitem', {
-      name: 'Règle 3 : FLEUR TEST',
+    const groups = await screen.findByRole('list', {
+      name: 'Règles par catégorie',
     })
-    expect(within(archived).getByText('Catégorie archivée')).toBeTruthy()
-    expect(within(archived).getByText('Désactivée')).toBeTruthy()
-    const orphan = screen.getByRole('listitem', { name: 'Règle 4 : GONE TEST' })
-    expect(within(orphan).getByText('Catégorie supprimée')).toBeTruthy()
+    // Expenses by name, then income.
     expect(
-      within(
-        screen.getByRole('listitem', { name: 'Règle 2 : CAFE TEST' }),
-      ).queryByText(/Catégorie (archivée|supprimée)/),
-    ).toBeNull()
-    expect(screen.getByRole('status').textContent).toMatch(
-      /2 règles visent une catégorie archivée ou supprimée/,
-    )
-  })
+      within(groups)
+        .getAllByRole('heading')
+        .map((heading) => heading.textContent),
+    ).toEqual(['Anciennearchivée', 'Cafés', 'Courses', 'Salaire'])
 
-  it('moves a rule with the arrows and sends the whole new order', async () => {
-    const user = userEvent.setup()
-    renderPage()
-
-    await user.click(
-      await screen.findByRole('button', {
-        name: 'Descendre la règle « FAKEMART »',
-      }),
-    )
-
-    await waitFor(() =>
-      expect(api.categorizationRulesControllerReorder).toHaveBeenCalledWith(
-        expect.objectContaining({ body: { ids: ['r2', 'r1', 'r3', 'r4'] } }),
-      ),
-    )
-    expect((await listedPatterns())[0]).toBe('Règle 1 : CAFE TEST')
-    // The ends cannot move further.
-    expect(
-      screen.getByRole('button', { name: 'Monter la règle « CAFE TEST »' }),
-    ).toHaveProperty('disabled', true)
-    expect(
-      screen.getByRole('button', { name: 'Descendre la règle « GONE TEST »' }),
-    ).toHaveProperty('disabled', true)
-  })
-
-  it('reorders by dragging a rule onto another', async () => {
-    renderPage()
-
-    const dragged = await screen.findByRole('listitem', {
-      name: 'Règle 4 : GONE TEST',
+    const courses = screen.getByRole('list', { name: 'Règles vers Courses' })
+    const row = within(courses).getByRole('button', {
+      name: 'Libellé contient « FAKEMART » → Courses',
     })
-    const target = screen.getByRole('listitem', { name: 'Règle 2 : CAFE TEST' })
-    fireEvent.mouseDown(within(dragged).getByTitle('Glisser pour déplacer'))
-    expect(dragged.getAttribute('draggable')).toBe('true')
-    fireEvent.dragStart(dragged)
-    fireEvent.dragOver(target)
-    fireEvent.drop(target)
-    fireEvent.dragEnd(dragged)
+    expect(row.textContent).toContain('42 opérations')
+    expect(row.textContent).toContain('compte Compte test')
+    expect(row.textContent).toContain('entre -50,00')
 
-    await waitFor(() =>
-      expect(api.categorizationRulesControllerReorder).toHaveBeenCalledWith(
-        expect.objectContaining({ body: { ids: ['r1', 'r4', 'r2', 'r3'] } }),
-      ),
+    const old = screen.getByRole('button', {
+      name: 'Libellé contient « FLEUR TEST » → Ancienne',
+    })
+    expect(old.textContent).toContain('Aucune opération')
+    expect(old.textContent).toContain('Désactivée')
+    expect((await screen.findByRole('status')).textContent).toContain(
+      '1 règle ne reconnaît aucune opération des 12 derniers mois',
     )
+
+    // No manual ordering in the default view.
+    expect(screen.queryByRole('button', { name: /Monter/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Descendre/ })).toBeNull()
+    expect(screen.queryByTitle('Glisser pour déplacer')).toBeNull()
   })
 
-  it('restores the order when the reorder fails', async () => {
-    api.categorizationRulesControllerReorder.mockImplementation(() =>
-      fail(400, 'ids must list every categorization rule exactly once'),
+  it('makes the overridden rule win in one tap, then applies, with undo', async () => {
+    api.categorizationRulesControllerPrefer.mockImplementation(() =>
+      ok({ ...FAKEMART, priority: 1, rank: 0 }),
     )
     const user = userEvent.setup()
     renderPage()
 
+    const conflicts = await screen.findByRole('list', {
+      name: 'Règles qui se recouvrent',
+    })
+    expect(conflicts.textContent).toContain(
+      nbsp(
+        '3 opérations correspondent aussi à la règle « FAKEMART » → Courses : « FAKEMART EXPRESS » → Cafés l’emporte.',
+      ),
+    )
     await user.click(
-      await screen.findByRole('button', {
-        name: 'Monter la règle « CAFE TEST »',
+      within(conflicts).getByRole('button', {
+        name: nbsp('Faire gagner « FAKEMART »'),
       }),
     )
 
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith(
-        'La liste des règles a changé. Rechargez la page.',
+      expect(toast.success).toHaveBeenCalledWith(
+        '« FAKEMART » passe avant « FAKEMART EXPRESS »',
+        expect.objectContaining({ description: '4 opérations reclassées.' }),
       ),
     )
-    expect((await listedPatterns())[0]).toBe('Règle 1 : FAKEMART')
-  })
-
-  it('disables a rule with its switch', async () => {
-    const user = userEvent.setup()
-    renderPage()
-
-    await user.click(
-      await screen.findByRole('switch', {
-        name: 'Activer la règle « CAFE TEST »',
+    expect(api.categorizationRulesControllerPrefer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: { id: FAKEMART.id },
+        body: { overRuleId: EXPRESS.id },
       }),
     )
+    expect(api.categorizationRulesControllerApply).toHaveBeenCalledTimes(1)
 
-    expect(api.categorizationRulesControllerUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ path: { id: 'r2' }, body: { enabled: false } }),
+    lastToastAction()()
+    await waitFor(() =>
+      expect(api.categorizationRulesControllerUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { id: FAKEMART.id },
+          body: { priority: 0 },
+        }),
+      ),
+    )
+    await waitFor(() =>
+      expect(api.categorizationRulesControllerApply).toHaveBeenCalledTimes(2),
     )
   })
 
-  it('tests an edited rule at its position before saving it', async () => {
-    const preview: CategorizationRulePreviewDto = {
-      matched: 2,
-      leavingReview: 1,
-      released: 1,
-      changed: 3,
+  it('creates a rule in three steps, with the matches shown before saving', async () => {
+    const matches: CategorizationRuleMatchesDto = {
+      since: '2025-11-19',
+      total: 2,
       transactions: [
         {
           id: 't1',
           bookingDate: '2026-11-03',
           accountId: ACCOUNT.id,
-          rawLabel: 'CB FAKEMART DRIVE 0311',
+          rawLabel: 'CB CAFE DU COIN 0311',
           merchant: null,
-          amountCents: -1_234,
+          amountCents: -450,
           categoryId: null,
-          kind: 'expense',
-          nextCategoryId: CAFES.id,
-          nextKind: 'expense',
+          manual: false,
         },
         {
           id: 't2',
-          bookingDate: '2026-11-01',
+          bookingDate: '2026-10-20',
           accountId: ACCOUNT.id,
-          rawLabel: 'CB FAKEMART CITY 0111',
+          rawLabel: 'CB CAFE DU COIN 2010',
           merchant: null,
-          amountCents: -560,
+          amountCents: -380,
           categoryId: GROCERIES.id,
-          kind: 'expense',
-          nextCategoryId: null,
-          nextKind: 'expense',
+          manual: true,
         },
       ],
     }
+    api.categorizationRulesControllerMatches.mockImplementation(() =>
+      ok(matches),
+    )
+    const created = rule('r9', 1, 'CAFE DU COIN', { categoryId: CAFES.id })
+    api.categorizationRulesControllerCreate.mockImplementation(() =>
+      ok(created),
+    )
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(
+      (await screen.findAllByRole('button', { name: 'Nouvelle règle' }))[0],
+    )
+    const sheet = await screen.findByRole('dialog')
+    expect(stepHeading(sheet)).toBe('Quelles opérations ?1/3')
+    const next = within(sheet).getByRole('button', { name: 'Suivant' })
+    expect(next).toHaveProperty('disabled', true)
+
+    // Step 1: the text, the matches listed live.
+    await user.type(
+      within(sheet).getByLabelText('Le libellé contient'),
+      'CAFE DU COIN',
+    )
+    const found = await within(sheet).findByRole(
+      'region',
+      { name: 'Opérations reconnues' },
+      { timeout: 2000 },
+    )
+    expect(found.textContent).toContain('2 opérations sur 12 mois')
+    expect(found.textContent).toContain('CB CAFE DU COIN 0311')
+    expect(found.textContent).toContain('classée à la main, ne changera pas')
+    expect(api.categorizationRulesControllerMatches).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        body: {
+          matchType: 'contains',
+          labelPattern: 'CAFE DU COIN',
+          accountId: null,
+          minAmountCents: null,
+          maxAmountCents: null,
+        },
+      }),
+    )
+    await user.click(next)
+
+    // Step 2: a category chip moves on.
+    expect(stepHeading(sheet)).toBe('Classer dans2/3')
+    await user.click(within(sheet).getByRole('button', { name: 'Cafés' }))
+
+    // Step 3: the sentence and what changes, then save.
+    expect(stepHeading(sheet)).toBe('Vérifier3/3')
+    expect(sheet.textContent).toContain('Libellé contient « CAFE DU COIN »')
+    await within(sheet).findByRole('region', { name: 'Ce qui change' })
+    expect(api.categorizationRulesControllerPreview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          labelPattern: 'CAFE DU COIN',
+          categoryId: CAFES.id,
+          priority: 0,
+        }),
+      }),
+    )
+    await user.click(within(sheet).getByRole('button', { name: 'Enregistrer' }))
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'Règle ajoutée',
+        expect.objectContaining({ description: '4 opérations reclassées.' }),
+      ),
+    )
+    expect(api.categorizationRulesControllerCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          labelPattern: 'CAFE DU COIN',
+          categoryId: CAFES.id,
+          matchType: 'contains',
+        }),
+      }),
+    )
+    expect(api.categorizationRulesControllerApply).toHaveBeenCalledTimes(1)
+
+    // « Annuler » removes the new rule and applies the rules again.
+    lastToastAction()()
+    await waitFor(() =>
+      expect(api.categorizationRulesControllerRemove).toHaveBeenCalledWith(
+        expect.objectContaining({ path: { id: 'r9' } }),
+      ),
+    )
+  })
+
+  it('opens an edit on its last step and fixes a conflict from the preview', async () => {
     api.categorizationRulesControllerPreview.mockImplementation(() =>
-      ok(preview),
+      ok({
+        ...EMPTY_PREVIEW,
+        matched: 5,
+        conflicts: [
+          { winnerRuleId: EXPRESS.id, loserRuleId: FAKEMART.id, count: 3 },
+        ],
+      }),
     )
     const user = userEvent.setup()
     renderPage()
 
     await user.click(
       await screen.findByRole('button', {
-        name: 'Modifier la règle « FAKEMART »',
+        name: 'Libellé contient « FAKEMART » → Courses',
       }),
     )
     const sheet = await screen.findByRole('dialog')
-    const pattern = within(sheet).getByLabelText('Le libellé ou le marchand')
-    expect(pattern).toHaveProperty('value', 'FAKEMART')
-    expect(within(sheet).getByLabelText('Montant minimum')).toHaveProperty(
-      'value',
-      '-50',
-    )
-    await user.clear(pattern)
-    await user.type(pattern, 'FAKEMART DRIVE')
-    await user.selectOptions(
-      within(sheet).getByRole('combobox', { name: 'Catégorie' }),
-      CAFES.id,
-    )
-    await user.click(within(sheet).getByRole('button', { name: 'Tester' }))
-
-    const result = await within(sheet).findByRole('region', {
-      name: 'Résultat du test',
+    expect(stepHeading(sheet)).toBe('Vérifier3/3')
+    const overlaps = await within(sheet).findByRole('region', {
+      name: 'Règles qui se recouvrent',
     })
-    expect(api.categorizationRulesControllerPreview).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: expect.objectContaining({
-          ruleId: 'r1',
-          labelPattern: 'FAKEMART DRIVE',
-          categoryId: CAFES.id,
-          accountId: ACCOUNT.id,
-          minAmountCents: -5_000,
-          maxAmountCents: -100,
-        }),
+    expect(overlaps.textContent).toContain(
+      nbsp(
+        '3 opérations correspondent aussi à la règle « FAKEMART EXPRESS » → Cafés, qui l’emporte.',
+      ),
+    )
+
+    await user.click(
+      within(overlaps).getByRole('button', {
+        name: 'Faire gagner cette règle',
       }),
     )
-    expect(result.textContent).toContain(
-      '2 opérations classées par cette règle, dont 1 à revoir.',
+    await waitFor(() =>
+      expect(api.categorizationRulesControllerPreview).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({ ruleId: FAKEMART.id, priority: 1 }),
+        }),
+      ),
     )
-    expect(result.textContent).toContain('1 opération quitterait cette règle')
-    const changed = within(result).getAllByRole('listitem')
-    expect(changed).toHaveLength(2)
-    expect(changed[0].textContent).toContain('CB FAKEMART DRIVE 0311')
-    expect(changed[0].textContent).toContain('Non classée')
-    expect(changed[0].textContent).toContain('Cafés')
-    expect(changed[1].textContent).toContain('À revoir')
-    expect(result.textContent).toContain('… et 1 autre.')
-    expect(api.categorizationRulesControllerUpdate).not.toHaveBeenCalled()
-
-    // Editing again makes the test stale.
-    await user.type(pattern, ' X')
-    expect(
-      within(sheet).queryByRole('region', { name: 'Résultat du test' }),
-    ).toBeNull()
-
     await user.click(within(sheet).getByRole('button', { name: 'Enregistrer' }))
     await waitFor(() =>
       expect(api.categorizationRulesControllerUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
-          path: { id: 'r1' },
+          path: { id: FAKEMART.id },
           body: expect.objectContaining({
-            labelPattern: 'FAKEMART DRIVE X',
-            categoryId: CAFES.id,
+            priority: 1,
+            labelPattern: 'FAKEMART',
+            accountId: ACCOUNT.id,
+            minAmountCents: -5_000,
           }),
         }),
       ),
     )
-    expect(toast.success).toHaveBeenCalledWith(
-      'Règle enregistrée',
-      expect.anything(),
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'Règle enregistrée',
+        expect.anything(),
+      ),
+    )
+
+    // « Annuler » puts the previous rule back.
+    lastToastAction()()
+    await waitFor(() =>
+      expect(api.categorizationRulesControllerUpdate).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({ priority: 0 }),
+        }),
+      ),
     )
   })
 
-  it('shows why a test failed', async () => {
+  it('goes back to a step from the review, and keeps the advanced conditions folded', async () => {
+    api.categorizationRulesControllerMatches.mockImplementation(() =>
+      ok({ since: '2025-11-19', total: 0, transactions: [] }),
+    )
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Libellé contient « FAKEMART » → Courses',
+      }),
+    )
+    const sheet = await screen.findByRole('dialog')
+    await user.click(within(sheet).getByRole('button', { name: /Opérations/ }))
+    expect(stepHeading(sheet)).toBe('Quelles opérations ?1/3')
+    const advanced = within(sheet).getByRole('button', { name: /Avancé/ })
+    expect(advanced.getAttribute('aria-expanded')).toBe('false')
+    expect(advanced.textContent).toContain('compte Compte test')
+    expect(within(sheet).queryByLabelText('Montant minimum')).toBeNull()
+    await user.click(advanced)
+    expect(within(sheet).getByLabelText('Montant minimum')).toHaveProperty(
+      'value',
+      '-50',
+    )
+    expect(
+      await within(sheet).findByText(
+        'Aucune opération sur 12 mois',
+        {},
+        {
+          timeout: 2000,
+        },
+      ),
+    ).toBeTruthy()
+
+    // The category is known: « Suivant » goes straight back to the review.
+    await user.click(within(sheet).getByRole('button', { name: 'Suivant' }))
+    expect(stepHeading(sheet)).toBe('Vérifier3/3')
+  })
+
+  it('shows why the preview failed', async () => {
     api.categorizationRulesControllerPreview.mockImplementation(() =>
       fail(400, 'labelPattern is not a valid regular expression: oops'),
     )
@@ -445,81 +553,102 @@ describe('RulesPage', () => {
 
     await user.click(
       await screen.findByRole('button', {
-        name: 'Modifier la règle « CAFE TEST »',
+        name: 'Libellé contient « SALAIRE TEST » → Salaire',
       }),
     )
     const sheet = await screen.findByRole('dialog')
-    await user.click(within(sheet).getByRole('button', { name: 'Tester' }))
-
     expect((await within(sheet).findByRole('alert')).textContent).toBe(
       'Cette expression régulière n’est pas valide.',
     )
   })
 
-  it('applies the rules to existing transactions after confirmation', async () => {
-    api.categorizationRulesControllerApply.mockImplementation(() =>
-      ok({
-        scanned: 9,
-        matched: 7,
-        unmatched: 2,
-        updated: 4,
-        manualSkipped: 3,
-      }),
-    )
-    const user = userEvent.setup()
-    renderPage()
-
-    await screen.findByRole('list', {
-      name: 'Règles, dans l’ordre d’application',
-    })
-    await user.click(
-      screen.getByRole('button', {
-        name: /Appliquer aux opérations existantes/,
-      }),
-    )
-    expect(api.categorizationRulesControllerApply).not.toHaveBeenCalled()
-    await user.click(
-      within(await screen.findByRole('dialog')).getByRole('button', {
-        name: 'Appliquer',
-      }),
-    )
-
-    await waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith('4 opérations mises à jour.'),
-    )
-    expect(api.transactionsControllerReviewCount).toHaveBeenCalled()
-  })
-
-  it('deletes a rule after confirmation', async () => {
-    api.categorizationRulesControllerRemove.mockImplementation(() =>
-      Promise.resolve({
-        data: undefined,
-        response: new Response(null, { status: 204 }),
-      }),
-    )
+  it('deletes a rule after confirmation, with undo', async () => {
+    api.categorizationRulesControllerCreate.mockImplementation(() => ok(PAY))
     const user = userEvent.setup()
     renderPage()
 
     await user.click(
       await screen.findByRole('button', {
-        name: 'Actions pour la règle « CAFE TEST »',
+        name: 'Libellé contient « SALAIRE TEST » → Salaire',
       }),
     )
+    const sheet = await screen.findByRole('dialog')
     await user.click(
-      await screen.findByRole('menuitem', { name: 'Supprimer…' }),
+      within(sheet).getByRole('button', { name: 'Supprimer la règle' }),
     )
-    await user.click(
-      within(await screen.findByRole('dialog')).getByRole('button', {
-        name: 'Supprimer',
-      }),
-    )
+    const confirm = await screen.findByRole('dialog', {
+      name: 'Supprimer la règle ?',
+    })
+    await user.click(within(confirm).getByRole('button', { name: 'Supprimer' }))
 
     await waitFor(() =>
       expect(api.categorizationRulesControllerRemove).toHaveBeenCalledWith(
-        expect.objectContaining({ path: { id: 'r2' } }),
+        expect.objectContaining({ path: { id: PAY.id } }),
       ),
     )
-    expect(toast.success).toHaveBeenCalledWith('Règle supprimée')
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'Règle supprimée',
+        expect.anything(),
+      ),
+    )
+    lastToastAction()()
+    await waitFor(() =>
+      expect(api.categorizationRulesControllerCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            labelPattern: 'SALAIRE TEST',
+            categoryId: SALARY.id,
+            priority: 0,
+          }),
+        }),
+      ),
+    )
+  })
+
+  it('keeps the evaluation order and re-applying under « Avancé »', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    const order = await screen.findByRole('list', {
+      name: 'Ordre d’évaluation',
+    })
+    expect(
+      within(order)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual(
+      [
+        '1.Libellé contient « FAKEMART EXPRESS » → Cafés',
+        '2.Libellé contient « FAKEMART » → Courses',
+        '3.Libellé contient « FLEUR TEST » → Ancienne · désactivée',
+        '4.Libellé contient « SALAIRE TEST » → Salaire',
+      ].map(nbsp),
+    )
+    await user.click(screen.getByText('Avancé'))
+    await user.click(
+      screen.getByRole('button', { name: 'Réappliquer toutes les règles' }),
+    )
+    const confirm = await screen.findByRole('dialog', {
+      name: 'Réappliquer toutes les règles ?',
+    })
+    await user.click(
+      within(confirm).getByRole('button', { name: 'Réappliquer' }),
+    )
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith('4 opérations mises à jour.'),
+    )
+  })
+})
+
+describe('groupRules', () => {
+  it('puts an unknown category last', () => {
+    const orphan = rule('r5', 4, 'GONE TEST', { categoryId: 'missing' })
+    expect(
+      groupRules([orphan, PAY, FAKEMART], [GROCERIES, SALARY]).map(
+        (group) => group.category?.name ?? null,
+      ),
+    ).toEqual(['Courses', 'Salaire', null])
   })
 })
 
@@ -543,6 +672,7 @@ describe('bodyFromForm', () => {
         accountId: null,
         merchant: null,
         kind: 'transfer',
+        priority: 0,
       }),
     })
   })
@@ -560,9 +690,12 @@ describe('bodyFromForm', () => {
     })
   })
 
-  it('rejects an empty pattern, a bad amount and min above max', () => {
+  it('rejects an empty pattern, no category, a bad amount and min above max', () => {
     expect(bodyFromForm({ ...form, labelPattern: '  ' })).toEqual({
-      errors: { labelPattern: 'Saisissez un motif.' },
+      errors: { labelPattern: 'Saisissez un texte.' },
+    })
+    expect(bodyFromForm({ ...form, categoryId: '' })).toEqual({
+      errors: { categoryId: 'Choisissez une catégorie.' },
     })
     expect(bodyFromForm({ ...form, minAmount: 'abc' })).toEqual({
       errors: { amount: 'Saisissez un montant, par exemple -50 ou 12,90.' },

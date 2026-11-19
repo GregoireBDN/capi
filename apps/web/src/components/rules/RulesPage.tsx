@@ -1,101 +1,123 @@
 import {
+  Badge,
   Button,
   Card,
   CardContent,
+  CategoryIcon,
   ConfirmDialog,
+  EmptyState,
   Skeleton,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { PlusIcon, WandSparklesIcon } from 'lucide-react'
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  PlusIcon,
+  WandSparklesIcon,
+} from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import type { CategorizationRuleDto } from '#/api/types.gen'
+import type {
+  CategorizationRuleDto,
+  CategoryDto,
+  TransactionKind,
+} from '#/api/types.gen'
 import { PageHeader } from '#/components/app-shell/PageHeader'
+import { TRANSACTION_KINDS } from '#/components/transactions/labels'
 import { plural } from '#/lib/plural'
 import { accountsQuery, categoriesQuery } from '#/lib/queries'
-import { categoryProblem } from './describe'
+import { MATCH_TYPE_LABELS, ruleName } from './describe'
 import { ruleErrorMessage } from './errors'
-import { moveById, moveOnto } from './order'
 import {
   afterTransactionsChanged,
   applyRules,
-  deleteRule,
-  reorderRules,
-  rulesKey,
+  rulesInsightsQuery,
   rulesQuery,
-  updateRule,
 } from './queries'
+import { RuleConflicts } from './RuleConflicts'
 import { RuleEditorSheet } from './RuleEditorSheet'
 import { RuleRow } from './RuleRow'
+import { useRuleActions } from './use-rule-actions'
 
 type Editing = { rule: CategorizationRuleDto | null } | null
 
+interface RuleGroup {
+  categoryId: string
+  category: CategoryDto | undefined
+  rules: CategorizationRuleDto[]
+}
+
+const KIND_ORDER: Record<TransactionKind, number> = Object.fromEntries(
+  TRANSACTION_KINDS.map((kind, index) => [kind, index]),
+) as Record<TransactionKind, number>
+
 /**
- * Settings page of the categorization rules, in evaluation order (the first
- * matching rule wins): enable, reorder (arrows, or drag with a mouse), edit
- * and test, delete, add, and apply the rules to existing transactions.
+ * The rules by target category (#299): expenses, income, then internal
+ * moves, each by name; an unknown category last. Inside a group the rules
+ * keep the evaluation order.
+ */
+export function groupRules(
+  rules: readonly CategorizationRuleDto[],
+  categories: readonly CategoryDto[],
+): RuleGroup[] {
+  const groups = new Map<string, RuleGroup>()
+  for (const rule of rules) {
+    let group = groups.get(rule.categoryId)
+    if (!group) {
+      group = {
+        categoryId: rule.categoryId,
+        category: categories.find((c) => c.id === rule.categoryId),
+        rules: [],
+      }
+      groups.set(rule.categoryId, group)
+    }
+    group.rules.push(rule)
+  }
+  for (const group of groups.values()) {
+    group.rules.sort((a, b) => a.rank - b.rank)
+  }
+  return [...groups.values()].sort((a, b) => {
+    if (!a.category || !b.category) {
+      return a.category ? -1 : b.category ? 1 : 0
+    }
+    return (
+      KIND_ORDER[a.category.kind] - KIND_ORDER[b.category.kind] ||
+      a.category.name.localeCompare(b.category.name, 'fr')
+    )
+  })
+}
+
+/**
+ * Settings page of the categorization rules (#299), read as sentences: the
+ * rules by category with how many transactions each catches over 12 months,
+ * the rules that overlap with a one-tap fix, and « Nouvelle règle ». There
+ * is no order to set: the most specific rule wins, and the explicit order
+ * (a rule's priority) stays under « Avancé ». Every save applies the rules
+ * to the existing transactions, with « Annuler ».
  */
 export function RulesPage() {
   const queryClient = useQueryClient()
   const rules = useQuery({ ...rulesQuery, staleTime: 0 })
+  const insights = useQuery({ ...rulesInsightsQuery, staleTime: 0 })
   const categories = useQuery(categoriesQuery)
   const accounts = useQuery(accountsQuery)
+  const actions = useRuleActions()
   const [editing, setEditing] = useState<Editing>(null)
   const [deleting, setDeleting] = useState<CategorizationRuleDto | null>(null)
   const [confirmApply, setConfirmApply] = useState(false)
-  const [dragged, setDragged] = useState<string | null>(null)
-  const [over, setOver] = useState<string | null>(null)
 
   const list = rules.data ?? []
   const allCategories = categories.data ?? []
-  const flagged = list.filter(
-    (rule) => categoryProblem(rule, allCategories) !== null,
-  ).length
-
-  const setRules = (next: CategorizationRuleDto[]) =>
-    queryClient.setQueryData(rulesKey, next)
-
-  const reorder = useMutation({
-    mutationFn: (next: CategorizationRuleDto[]) =>
-      reorderRules(next.map((rule) => rule.id)),
-    onMutate: async (next) => {
-      await queryClient.cancelQueries({ queryKey: rulesKey })
-      const previous =
-        queryClient.getQueryData<CategorizationRuleDto[]>(rulesKey)
-      setRules(next)
-      return { previous }
-    },
-    onSuccess: (saved) => setRules(saved),
-    onError: (error, _next, context) => {
-      if (context?.previous) setRules(context.previous)
-      toast.error(ruleErrorMessage(error))
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: rulesKey }),
-  })
-
-  const toggle = useMutation({
-    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
-      updateRule(id, { enabled }),
-    onMutate: ({ id, enabled }) => {
-      setRules(
-        (queryClient.getQueryData<CategorizationRuleDto[]>(rulesKey) ?? []).map(
-          (rule) => (rule.id === id ? { ...rule, enabled } : rule),
-        ),
-      )
-    },
-    onError: (error) => toast.error(ruleErrorMessage(error)),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: rulesKey }),
-  })
-
-  const remove = useMutation({
-    mutationFn: (rule: CategorizationRuleDto) => deleteRule(rule.id),
-    onSuccess: async () => {
-      setDeleting(null)
-      toast.success('Règle supprimée')
-      await afterTransactionsChanged(queryClient)
-    },
-    onError: (error) => toast.error(ruleErrorMessage(error)),
-  })
+  const allAccounts = accounts.data ?? []
+  const counts = new Map(
+    (insights.data?.rules ?? []).map((usage) => [
+      usage.ruleId,
+      usage.matchCount,
+    ]),
+  )
+  const unused = insights.data
+    ? list.filter((rule) => counts.get(rule.id) === 0).length
+    : 0
 
   const apply = useMutation({
     mutationFn: applyRules,
@@ -111,21 +133,22 @@ export function RulesPage() {
     onError: (error) => toast.error(ruleErrorMessage(error)),
   })
 
-  function move(next: CategorizationRuleDto[]) {
-    if (next.every((rule, index) => rule.id === list[index]?.id)) return
-    reorder.mutate(next)
-  }
-
-  function endDrag() {
-    setDragged(null)
-    setOver(null)
-  }
+  const newRule = () => setEditing({ rule: null })
 
   return (
-    <div className="@container space-y-6 pb-24">
+    <div className="@container space-y-6">
       <PageHeader
         title="Règles"
-        description="Chaque opération importée est classée par la première règle qui lui correspond, de haut en bas. Changez l’ordre avec les flèches ou en glissant une règle."
+        description="Chaque opération importée est classée par la règle la plus précise qui la reconnaît."
+        actions={[
+          {
+            label: 'Nouvelle règle',
+            icon: <PlusIcon />,
+            primary: true,
+            onSelect: newRule,
+            disabled: !rules.isSuccess,
+          },
+        ]}
       />
 
       {rules.isPending && (
@@ -141,89 +164,93 @@ export function RulesPage() {
         </p>
       )}
 
-      {rules.isSuccess && flagged > 0 && (
-        <p role="status" className="text-sm text-amber-700 dark:text-amber-400">
-          {plural(
-            flagged,
-            'règle vise une catégorie archivée ou supprimée',
-            'règles visent une catégorie archivée ou supprimée',
-          )}{' '}
-          : modifiez-les ou désactivez-les.
-        </p>
+      {rules.isSuccess && list.length === 0 && (
+        <EmptyState
+          variant="page"
+          icon={<WandSparklesIcon />}
+          title="Aucune règle pour l’instant"
+          description="Une règle classe toute seule les opérations dont le libellé contient un texte. Créez-en une ici, ou depuis une opération dont vous corrigez la catégorie."
+          actions={
+            <Button iconStart={<PlusIcon />} onClick={newRule}>
+              Nouvelle règle
+            </Button>
+          }
+        />
       )}
 
-      {rules.isSuccess && (
-        <Card>
-          <CardContent>
-            {list.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                Aucune règle pour l’instant. Ajoutez-en une ici, ou depuis une
-                opération dont vous corrigez la catégorie.
-              </p>
-            ) : (
-              <ol
-                aria-label="Règles, dans l’ordre d’application"
-                className="divide-border -mx-3 divide-y px-3"
-                onDragLeave={(event) => {
-                  if (
-                    !event.currentTarget.contains(event.relatedTarget as Node)
-                  )
-                    setOver(null)
-                }}
-              >
-                {list.map((rule, index) => (
-                  <RuleRow
-                    key={rule.id}
-                    rule={rule}
-                    index={index}
-                    count={list.length}
-                    categories={allCategories}
-                    accounts={accounts.data ?? []}
-                    busy={reorder.isPending}
-                    onToggle={(target, enabled) =>
-                      toggle.mutate({ id: target.id, enabled })
-                    }
-                    onMove={(target, step) =>
-                      move(moveById(list, target.id, step))
-                    }
-                    onEdit={(target) => setEditing({ rule: target })}
-                    onDelete={setDeleting}
-                    dragging={dragged === rule.id}
-                    dropTarget={dragged !== null && over === rule.id}
-                    onDragStart={(target) => setDragged(target.id)}
-                    onDragOver={(target) => setOver(target.id)}
-                    onDrop={(target) => {
-                      if (dragged) move(moveOnto(list, dragged, target.id))
-                      endDrag()
-                    }}
-                    onDragEnd={endDrag}
-                  />
-                ))}
-              </ol>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {rules.isSuccess && list.length > 0 && (
+        <>
+          {insights.data && (
+            <RuleConflicts
+              conflicts={insights.data.conflicts}
+              rules={list}
+              categories={allCategories}
+              pendingRuleId={
+                actions.prefer.isPending
+                  ? actions.prefer.variables.rule.id
+                  : null
+              }
+              onPrefer={(rule, over) => actions.prefer.mutate({ rule, over })}
+            />
+          )}
 
-      <div className="sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex gap-2 sm:justify-end">
-        <Button
-          variant="secondary"
-          className="shadow-lg"
-          onClick={() => setEditing({ rule: null })}
-          disabled={!rules.isSuccess}
-        >
-          <PlusIcon />
-          <span className="max-sm:sr-only">Ajouter</span>
-        </Button>
-        <Button
-          className="flex-1 shadow-lg sm:flex-none"
-          onClick={() => setConfirmApply(true)}
-          disabled={!rules.isSuccess || list.length === 0}
-        >
-          <WandSparklesIcon />
-          Appliquer aux opérations existantes
-        </Button>
-      </div>
+          {unused > 0 && (
+            <p role="status" className="text-muted-foreground text-sm">
+              {plural(unused, 'règle ne reconnaît', 'règles ne reconnaissent')}{' '}
+              aucune opération des 12 derniers mois : modifiez-la ou
+              supprimez-la si elle ne sert plus.
+            </p>
+          )}
+
+          <Card className="min-w-0 gap-0 py-0">
+            <ul aria-label="Règles par catégorie" className="divide-y">
+              {groupRules(list, allCategories).map((group) => (
+                <li key={group.categoryId}>
+                  <h2 className="bg-muted/40 flex min-h-11 items-center gap-2 px-4 py-2 text-sm font-medium">
+                    {group.category ? (
+                      <CategoryIcon
+                        icon={group.category.icon}
+                        color={group.category.color}
+                        size="md"
+                      />
+                    ) : null}
+                    <span className="min-w-0 flex-1 break-words">
+                      {group.category?.name ?? 'Catégorie inconnue'}
+                    </span>
+                    {group.category?.archivedAt && (
+                      <Badge variant="warning">archivée</Badge>
+                    )}
+                  </h2>
+                  <ul
+                    aria-label={`Règles vers ${group.category?.name ?? 'une catégorie inconnue'}`}
+                    className="divide-y"
+                  >
+                    {group.rules.map((rule) => (
+                      <RuleRow
+                        key={rule.id}
+                        rule={rule}
+                        categories={allCategories}
+                        accounts={allAccounts}
+                        matchCount={
+                          insights.data ? (counts.get(rule.id) ?? 0) : undefined
+                        }
+                        onEdit={(target) => setEditing({ rule: target })}
+                      />
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          </Card>
+
+          <EvaluationOrder
+            rules={list}
+            categories={allCategories}
+            applying={apply.isPending}
+            onApply={() => setConfirmApply(true)}
+          />
+        </>
+      )}
 
       <RuleEditorSheet
         open={editing !== null}
@@ -231,15 +258,11 @@ export function RulesPage() {
           if (!open) setEditing(null)
         }}
         rule={editing?.rule ?? null}
+        rules={list}
         categories={allCategories}
-        accounts={accounts.data ?? []}
-        onSaved={(_rule, created) =>
-          toast.success(created ? 'Règle ajoutée' : 'Règle enregistrée', {
-            description:
-              'Les opérations existantes changent quand vous appliquez les règles.',
-            action: { label: 'Appliquer', onClick: () => apply.mutate() },
-          })
-        }
+        accounts={allAccounts}
+        onSaved={(rule, previous) => actions.saved.mutate({ rule, previous })}
+        onDelete={setDeleting}
       />
 
       <ConfirmDialog
@@ -248,24 +271,109 @@ export function RulesPage() {
           if (!open) setDeleting(null)
         }}
         title="Supprimer la règle ?"
-        description="Les opérations qu’elle a classées repassent par les autres règles ; celles qu’aucune ne reconnaît retournent dans À revoir."
+        description="Les opérations qu’elle a classées repassent par les autres règles ; celles qu’aucune ne reconnaît retournent dans À revoir. Vous pourrez annuler juste après."
         confirmLabel="Supprimer"
         variant="danger"
-        loading={remove.isPending}
+        loading={actions.remove.isPending}
         onConfirm={() => {
-          if (deleting) remove.mutate(deleting)
+          if (!deleting) return
+          actions.remove.mutate(deleting, {
+            onSettled: () => setDeleting(null),
+          })
         }}
       />
 
       <ConfirmDialog
         open={confirmApply}
         onOpenChange={setConfirmApply}
-        title="Appliquer les règles ?"
-        description="Les opérations non classées et celles classées par une règle sont recalculées avec l’ordre actuel. Celles que vous avez classées à la main ne changent pas."
-        confirmLabel="Appliquer"
+        title="Réappliquer toutes les règles ?"
+        description="Les opérations non classées et celles classées par une règle sont recalculées. Celles que vous avez classées à la main ne changent pas."
+        confirmLabel="Réappliquer"
         loading={apply.isPending}
         onConfirm={() => apply.mutate()}
       />
     </div>
+  )
+}
+
+/**
+ * « Avancé », folded: the rules in evaluation order, numbered, for checking
+ * which one wins; the order is changed through a rule's priority (in its
+ * editor), and the rules can be re-applied by hand.
+ */
+function EvaluationOrder({
+  rules,
+  categories,
+  applying,
+  onApply,
+}: {
+  rules: readonly CategorizationRuleDto[]
+  categories: readonly CategoryDto[]
+  applying: boolean
+  onApply: () => void
+}) {
+  return (
+    <Card size="sm" className="min-w-0">
+      <details className="group space-y-3">
+        <summary className="focus-visible:ring-ring/50 flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 outline-none focus-visible:ring-[3px] [&::-webkit-details-marker]:hidden">
+          <ChevronRightIcon
+            aria-hidden
+            className="text-muted-foreground size-4 shrink-0 group-open:hidden"
+          />
+          <ChevronDownIcon
+            aria-hidden
+            className="text-muted-foreground hidden size-4 shrink-0 group-open:block"
+          />
+          <h2 className="min-w-0 flex-1 font-semibold">Avancé</h2>
+          <span className="text-muted-foreground shrink-0 text-sm">
+            ordre d’évaluation
+          </span>
+        </summary>
+        <CardContent className="space-y-3">
+          <p className="text-muted-foreground text-sm">
+            Une opération est classée par la première règle qui la reconnaît,
+            dans cet ordre : la priorité d’abord, puis la règle la plus précise
+            (expression régulière, texte plus long, compte ou montant), puis la
+            plus ancienne. Pour faire passer une règle avant, ouvrez-la et
+            montez sa priorité dans « Avancé ».
+          </p>
+          <ol aria-label="Ordre d’évaluation" className="space-y-1 text-sm">
+            {rules.map((rule) => (
+              <li key={rule.id} className="flex items-baseline gap-2">
+                <span className="text-muted-foreground w-6 shrink-0 text-right tabular-nums">
+                  {rule.rank + 1}.
+                </span>
+                <span className="min-w-0 flex-1 break-words">
+                  <span className="text-muted-foreground">
+                    {MATCH_TYPE_LABELS[rule.matchType]}{' '}
+                  </span>
+                  {ruleName(rule, categories)}
+                  {rule.priority !== 0 && (
+                    <span className="text-muted-foreground">
+                      {' '}
+                      · priorité {rule.priority > 0 ? '+' : ''}
+                      {rule.priority}
+                    </span>
+                  )}
+                  {!rule.enabled && (
+                    <span className="text-muted-foreground"> · désactivée</span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ol>
+          <Button
+            variant="secondary"
+            outline
+            className="w-full"
+            loading={applying}
+            iconStart={<WandSparklesIcon />}
+            onClick={onApply}
+          >
+            Réappliquer toutes les règles
+          </Button>
+        </CardContent>
+      </details>
+    </Card>
   )
 }
