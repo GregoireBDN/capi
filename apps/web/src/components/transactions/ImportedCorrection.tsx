@@ -1,37 +1,36 @@
 import {
   Button,
   Field,
+  FieldDescription,
   FieldError,
   FieldLabel,
   Input,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
 } from '@finances/ui'
 import { useId, useState } from 'react'
 import type { CorrectTransactionDto, TransactionDto } from '#/api/types.gen'
-import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
+import { AmountField } from '#/components/amount/AmountField'
+import {
+  signedCents,
+  splitSignedCents,
+} from '#/components/amount/signed-amount'
+import type { AmountSign } from '#/components/amount/signed-amount'
+import { MAX_AMOUNT_CENTS } from '#/components/expenses/amount-entry'
 import { formatCalendarDate, formatCents } from '#/lib/money'
 
-/** Highest amount the API accepts (1 000 000 €). */
-const MAX_CENTS = 100_000_000
-
 /**
- * Signed cents typed for a correction ("-12,50" or "12,50"), or an error.
- * A leading minus is money out, like the bank's.
+ * Signed cents of a correction, typed unsigned with its sign beside it
+ * (#326: the iOS decimal pad has no « - »), or an error.
  */
-export function parseSignedCents(
-  text: string,
+export function correctionCents(
+  amount: string,
+  sign: AmountSign,
 ): { cents: number } | { error: string } {
-  const trimmed = text.trim().replace(/^[−–]/, '-')
-  if (trimmed === '') return { error: 'Indiquez un montant' }
-  const negative = trimmed.startsWith('-')
-  const cents = parseEurosToCents(negative ? trimmed.slice(1) : trimmed)
-  if (cents === null) return { error: 'Montant invalide (ex. -12,50)' }
+  if (amount.trim() === '') return { error: 'Indiquez un montant' }
+  const cents = signedCents(amount, sign)
+  if (cents === null) return { error: 'Montant invalide (ex. 12,50)' }
   if (cents === 0) return { error: 'Le montant ne peut pas être nul' }
-  if (cents > MAX_CENTS) return { error: 'Montant trop élevé' }
-  return { cents: negative ? -cents : cents }
+  if (Math.abs(cents) > MAX_AMOUNT_CENTS) return { error: 'Montant trop élevé' }
+  return { cents }
 }
 
 interface ImportedCorrectionProps {
@@ -54,8 +53,12 @@ export function ImportedCorrection({
   onCancel,
 }: ImportedCorrectionProps) {
   const id = useId()
+  // The transaction's own sign, kept unless « − » / « + » is pressed.
   const [amount, setAmount] = useState(
-    `${item.amountCents < 0 ? '-' : ''}${centsToInput(Math.abs(item.amountCents))}`,
+    () => splitSignedCents(item.amountCents).amount,
+  )
+  const [sign, setSign] = useState(
+    () => splitSignedCents(item.amountCents).sign,
   )
   const [date, setDate] = useState(item.bookingDate)
   const [submitted, setSubmitted] = useState(false)
@@ -63,7 +66,7 @@ export function ImportedCorrection({
     item.originalAmountCents !== null || item.originalBookingDate !== null
   const split = item.splits.length > 0
 
-  const parsed = parseSignedCents(amount)
+  const parsed = correctionCents(amount, sign)
   const amountError = 'error' in parsed ? parsed.error : null
   const dateError = date === '' ? 'Indiquez une date' : null
 
@@ -102,32 +105,29 @@ export function ImportedCorrection({
           else onCancel()
         }}
       >
-        <p className="text-muted-foreground text-xs">
-          Le solde du compte et les prochains imports gardent les valeurs de la
-          banque.
-        </p>
+        {/* The editor's screen says the bank values stay (#280). */}
         <Field data-invalid={submitted && amountError !== null}>
           <FieldLabel htmlFor={`${id}-amount`}>Montant corrigé</FieldLabel>
-          <InputGroup>
-            <InputGroupInput
-              id={`${id}-amount`}
-              inputMode="text"
-              autoComplete="off"
-              value={amount}
-              disabled={split}
-              aria-invalid={submitted && amountError !== null}
-              onChange={(event) => setAmount(event.target.value)}
-            />
-            <InputGroupAddon align="inline-end">
-              <InputGroupText>€</InputGroupText>
-            </InputGroupAddon>
-          </InputGroup>
-          {split && (
-            <p className="text-muted-foreground text-xs">
-              Opération répartie : annulez la répartition pour changer son
-              montant.
-            </p>
-          )}
+          <AmountField
+            id={`${id}-amount`}
+            value={amount}
+            onValueChange={(typed, typedSign) => {
+              setAmount(typed)
+              if (typedSign) setSign(typedSign)
+            }}
+            sign={sign}
+            onSignChange={setSign}
+            disabled={split}
+            aria-invalid={submitted && amountError !== null}
+            aria-describedby={`${id}-amount-help`}
+          />
+          <FieldDescription id={`${id}-amount-help`}>
+            {split
+              ? 'Opération répartie : annulez la répartition pour changer son montant.'
+              : sign === 'out'
+                ? 'Sortie d’argent. Touchez « − » pour une entrée.'
+                : 'Entrée d’argent. Touchez « + » pour une sortie.'}
+          </FieldDescription>
           {submitted && amountError && <FieldError>{amountError}</FieldError>}
         </Field>
         <Field data-invalid={submitted && dateError !== null}>

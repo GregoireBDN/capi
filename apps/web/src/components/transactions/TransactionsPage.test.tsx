@@ -1318,9 +1318,13 @@ describe('TransactionsPage', () => {
         }),
       )
       const amount = within(editor).getByLabelText('Montant corrigé')
-      expect(amount).toHaveValue('-45,50')
+      // Typed unsigned (#326): the sign is the transaction's own.
+      expect(amount).toHaveValue('45,50')
+      expect(
+        within(editor).getByRole('button', { name: 'Montant négatif' }),
+      ).toHaveAttribute('aria-pressed', 'true')
       await user.clear(amount)
-      await user.type(amount, '-40')
+      await user.type(amount, 'abc40')
       await user.click(
         within(editor).getByRole('button', {
           name: 'Enregistrer la correction',

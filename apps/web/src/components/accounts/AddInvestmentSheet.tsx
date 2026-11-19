@@ -5,10 +5,6 @@ import {
   FieldError,
   FieldLabel,
   Input,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
   RadioCard,
   RadioCardGroup,
   Sheet,
@@ -23,6 +19,9 @@ import { PlusIcon } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { toast } from 'sonner'
+import { AmountField } from '#/components/amount/AmountField'
+import { LARGE_AMOUNT_CENTS } from '#/components/amount/signed-amount'
+import { useSignedText } from '#/components/amount/use-signed-text'
 import type { AccountDto } from '#/api/types.gen'
 import { parseAmountToCents } from './amount'
 import { todayInParis } from './dates'
@@ -157,6 +156,9 @@ export function AddInvestmentSheet({
 
   const set = (patch: Partial<InvestmentValues>) =>
     setValues((current) => ({ ...current, ...patch }))
+  const contributionsField = useSignedText(values.contributions, (text) =>
+    set({ contributions: text }),
+  )
 
   const errors = validateInvestment(values, today)
   const valid = Object.keys(errors).length === 0
@@ -316,20 +318,14 @@ export function AddInvestmentSheet({
                   <FieldLabel htmlFor={`${id}-value`}>
                     Valeur actuelle
                   </FieldLabel>
-                  <InputGroup>
-                    <InputGroupInput
-                      id={`${id}-value`}
-                      inputMode="decimal"
-                      autoComplete="off"
-                      placeholder="12 345,67"
-                      value={values.value}
-                      aria-invalid={shown.value !== undefined}
-                      onChange={(event) => set({ value: event.target.value })}
-                    />
-                    <InputGroupAddon align="inline-end">
-                      <InputGroupText>€</InputGroupText>
-                    </InputGroupAddon>
-                  </InputGroup>
+                  <AmountField
+                    maxCents={LARGE_AMOUNT_CENTS}
+                    id={`${id}-value`}
+                    placeholder="12 345,67"
+                    value={values.value}
+                    aria-invalid={shown.value !== undefined}
+                    onValueChange={(typed) => set({ value: typed })}
+                  />
                   {shown.value && <FieldError>{shown.value}</FieldError>}
                 </Field>
                 <Field data-invalid={shown.date !== undefined}>
@@ -349,22 +345,13 @@ export function AddInvestmentSheet({
                 <FieldLabel htmlFor={`${id}-contributions`}>
                   Versé jusqu’ici
                 </FieldLabel>
-                <InputGroup>
-                  <InputGroupInput
-                    id={`${id}-contributions`}
-                    inputMode="decimal"
-                    autoComplete="off"
-                    placeholder="10 000"
-                    value={values.contributions}
-                    aria-invalid={shown.contributions !== undefined}
-                    onChange={(event) =>
-                      set({ contributions: event.target.value })
-                    }
-                  />
-                  <InputGroupAddon align="inline-end">
-                    <InputGroupText>€</InputGroupText>
-                  </InputGroupAddon>
-                </InputGroup>
+                <AmountField
+                  maxCents={LARGE_AMOUNT_CENTS}
+                  id={`${id}-contributions`}
+                  placeholder="10 000"
+                  aria-invalid={shown.contributions !== undefined}
+                  {...contributionsField}
+                />
                 {shown.contributions ? (
                   <FieldError>{shown.contributions}</FieldError>
                 ) : (

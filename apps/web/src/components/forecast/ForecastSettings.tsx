@@ -6,13 +6,14 @@ import {
   FieldDescription,
   FieldError,
   FieldLabel,
-  Input,
   Label,
   Switch,
 } from '@finances/ui'
 import { useEffect, useId, useState } from 'react'
 import type { AccountDto } from '#/api/types.gen'
-import { parseThreshold, thresholdToInput } from './threshold'
+import { AmountField } from '#/components/amount/AmountField'
+import type { AmountSign } from '#/components/amount/signed-amount'
+import { parseThreshold, THRESHOLD_LIMIT, thresholdToInput } from './threshold'
 
 interface ForecastSettingsProps {
   /** Checking and savings accounts that can be projected. */
@@ -36,24 +37,32 @@ export function ForecastSettings({
   onIncludeVariableChange,
 }: ForecastSettingsProps) {
   const id = useId()
-  const [text, setText] = useState(() => thresholdToInput(thresholdCents))
+  const [text, setText] = useState(
+    () => thresholdToInput(thresholdCents).amount,
+  )
+  const [sign, setSign] = useState(() => thresholdToInput(thresholdCents).sign)
   const [error, setError] = useState<string | null>(null)
 
   // The saved threshold is read after hydration (and may change elsewhere).
   useEffect(() => {
-    setText(thresholdToInput(thresholdCents))
+    const shown = thresholdToInput(thresholdCents)
+    setText(shown.amount)
+    setSign(shown.sign)
     setError(null)
   }, [thresholdCents])
 
-  function commit() {
-    const cents = parseThreshold(text)
+  function commit(withSign: AmountSign = sign) {
+    const cents = parseThreshold(text, withSign)
     if (cents === null) {
-      setError('Montant invalide (ex. 200 ou -150,50)')
+      setError('Montant invalide (ex. 200 ou 150,50)')
       return
     }
     setError(null)
-    if (cents === thresholdCents) setText(thresholdToInput(cents))
-    else onThresholdChange(cents)
+    if (cents === thresholdCents) {
+      const shown = thresholdToInput(cents)
+      setText(shown.amount)
+      setSign(shown.sign)
+    } else onThresholdChange(cents)
   }
 
   function toggle(accountId: string, checked: boolean) {
@@ -102,26 +111,30 @@ export function ForecastSettings({
         >
           <Field data-invalid={error !== null}>
             <FieldLabel htmlFor={`${id}-threshold`}>Seuil d’alerte</FieldLabel>
-            <div className="flex items-center gap-2">
-              <Input
-                id={`${id}-threshold`}
-                inputMode="decimal"
-                autoComplete="off"
-                className="w-36 tabular-nums"
-                value={text}
-                aria-invalid={error !== null}
-                aria-describedby={`${id}-threshold-help`}
-                onChange={(event) => setText(event.target.value)}
-                onBlur={commit}
-              />
-              <span aria-hidden="true">€</span>
-            </div>
+            <AmountField
+              id={`${id}-threshold`}
+              maxCents={THRESHOLD_LIMIT}
+              value={text}
+              onValueChange={(typed, typedSign) => {
+                setText(typed)
+                if (typedSign) setSign(typedSign)
+              }}
+              sign={sign}
+              onSignChange={(next) => {
+                setSign(next)
+                // Saved at once, unless the amount is not one yet.
+                if (parseThreshold(text, next) !== null) commit(next)
+              }}
+              aria-invalid={error !== null}
+              aria-describedby={`${id}-threshold-help`}
+              onBlur={() => commit()}
+            />
             {error ? (
               <FieldError>{error}</FieldError>
             ) : (
               <FieldDescription id={`${id}-threshold-help`}>
-                Alerte si le solde prévu passe en dessous. Enregistré sur cet
-                appareil.
+                Alerte si le solde prévu passe en dessous. « − » pour un seuil
+                sous 0 € (découvert). Enregistré sur cet appareil.
               </FieldDescription>
             )}
           </Field>

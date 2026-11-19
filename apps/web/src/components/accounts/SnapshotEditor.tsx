@@ -6,10 +6,6 @@ import {
   FieldError,
   FieldLabel,
   Input,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -21,6 +17,9 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { AmountField } from '#/components/amount/AmountField'
+import { LARGE_AMOUNT_CENTS } from '#/components/amount/signed-amount'
+import { useSignedText } from '#/components/amount/use-signed-text'
 import type { SnapshotDto } from '#/api/types.gen'
 import { formatCalendarDate, formatCents } from '#/lib/money'
 import { centsToInput, parseAmountToCents } from './amount'
@@ -90,6 +89,7 @@ export function SnapshotEditor({
   const [date, setDate] = useState('')
   const [value, setValue] = useState('')
   const [contributions, setContributions] = useState('')
+  const contributionsField = useSignedText(contributions, setContributions)
   const [note, setNote] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -207,21 +207,15 @@ export function SnapshotEditor({
             )}
             <Field data-invalid={shown.value !== undefined}>
               <FieldLabel htmlFor={`${id}-value`}>Valeur</FieldLabel>
-              <InputGroup>
-                <InputGroupInput
-                  ref={valueRef}
-                  id={`${id}-value`}
-                  inputMode="decimal"
-                  autoComplete="off"
-                  placeholder="12 345,67"
-                  value={value}
-                  aria-invalid={shown.value !== undefined}
-                  onChange={(event) => setValue(event.target.value)}
-                />
-                <InputGroupAddon align="inline-end">
-                  <InputGroupText>€</InputGroupText>
-                </InputGroupAddon>
-              </InputGroup>
+              <AmountField
+                maxCents={LARGE_AMOUNT_CENTS}
+                ref={valueRef}
+                id={`${id}-value`}
+                placeholder="12 345,67"
+                value={value}
+                aria-invalid={shown.value !== undefined}
+                onValueChange={(typed) => setValue(typed)}
+              />
               {shown.value && <FieldError>{shown.value}</FieldError>}
             </Field>
             {withContributions && (
@@ -229,20 +223,13 @@ export function SnapshotEditor({
                 <FieldLabel htmlFor={`${id}-contributions`}>
                   Versements nets
                 </FieldLabel>
-                <InputGroup>
-                  <InputGroupInput
-                    id={`${id}-contributions`}
-                    inputMode="decimal"
-                    autoComplete="off"
-                    placeholder="10 000"
-                    value={contributions}
-                    aria-invalid={shown.contributions !== undefined}
-                    onChange={(event) => setContributions(event.target.value)}
-                  />
-                  <InputGroupAddon align="inline-end">
-                    <InputGroupText>€</InputGroupText>
-                  </InputGroupAddon>
-                </InputGroup>
+                <AmountField
+                  maxCents={LARGE_AMOUNT_CENTS}
+                  id={`${id}-contributions`}
+                  placeholder="10 000"
+                  aria-invalid={shown.contributions !== undefined}
+                  {...contributionsField}
+                />
                 {shown.contributions ? (
                   <FieldError>{shown.contributions}</FieldError>
                 ) : (

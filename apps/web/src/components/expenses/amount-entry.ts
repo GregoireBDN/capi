@@ -62,11 +62,15 @@ export function amountKeyOf(key: string): AmountKey | null {
 /**
  * Text typed or pasted in the amount field (desktop): spaces and a trailing
  * "€" dropped, "." read as ",". Returns null when it isn't an amount the
- * keypad could have typed, so the field keeps its previous value.
+ * keypad could have typed, or is over `maxCents`, so the field keeps its
+ * previous value.
  */
-export function typedAmount(text: string): string | null {
+export function typedAmount(
+  text: string,
+  maxCents: number = MAX_AMOUNT_CENTS,
+): string | null {
   const compact = text.replace(/\s/g, '').replace(/€$/, '').replace('.', ',')
   if (!TYPED.test(compact)) return null
   const cents = typedCents(compact)
-  return cents === null || cents > MAX_AMOUNT_CENTS ? null : compact
+  return cents === null || cents > maxCents ? null : compact
 }

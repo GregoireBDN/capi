@@ -13,20 +13,20 @@ afterEach(() => {
 })
 
 describe('parseThreshold', () => {
-  it('reads French euro amounts into signed cents', () => {
-    expect(parseThreshold('150')).toBe(15_000)
-    expect(parseThreshold(' 1 000,5 € ')).toBe(100_050)
-    expect(parseThreshold('-200,50')).toBe(-20_050)
-    expect(parseThreshold('−75')).toBe(-7_500)
-    expect(parseThreshold('-0')).toBe(0)
-    expect(parseThreshold('abc')).toBeNull()
-    expect(parseThreshold('1,234')).toBeNull()
-    expect(parseThreshold('')).toBeNull()
+  it('reads the unsigned amount into cents with its sign', () => {
+    expect(parseThreshold('150', 'in')).toBe(15_000)
+    expect(parseThreshold('1 000,5 €', 'in')).toBe(100_050)
+    expect(parseThreshold('200,50', 'out')).toBe(-20_050)
+    expect(parseThreshold('0', 'out')).toBe(0)
+    expect(parseThreshold('abc', 'in')).toBeNull()
+    expect(parseThreshold('1,234', 'in')).toBeNull()
+    expect(parseThreshold('', 'out')).toBeNull()
+    expect(parseThreshold('1000000001', 'out')).toBeNull()
   })
 
-  it('prints cents back as an editable amount', () => {
-    expect(thresholdToInput(-20_050)).toBe('-200,50')
-    expect(thresholdToInput(15_000)).toBe('150')
+  it('prints cents back unsigned, with their sign', () => {
+    expect(thresholdToInput(-20_050)).toEqual({ amount: '200,50', sign: 'out' })
+    expect(thresholdToInput(15_000)).toEqual({ amount: '150', sign: 'in' })
   })
 })
 

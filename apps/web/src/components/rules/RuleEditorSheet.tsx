@@ -42,9 +42,15 @@ import {
   KIND_LABELS,
   TRANSACTION_KINDS,
 } from '#/components/transactions/labels'
+import { AmountField } from '#/components/amount/AmountField'
+import type { AmountSign } from '#/components/amount/signed-amount'
 import { isTransactional } from '#/lib/queries'
 import { CategoryChips } from './CategoryChips'
-import { describeConditions, MATCH_TYPE_LABELS } from './describe'
+import {
+  describeAmount,
+  describeConditions,
+  MATCH_TYPE_LABELS,
+} from './describe'
 import { ruleErrorMessage } from './errors'
 import { createRule, rulePreviewQuery, rulesKey, updateRule } from './queries'
 import { bodyFromForm, conditionsFromForm, formFromRule } from './rule-form'
@@ -53,6 +59,9 @@ import { RuleMatches } from './RuleMatches'
 import { PREVIEW_RULE_ID, RulePreview } from './RulePreview'
 
 export { bodyFromForm, formFromRule, type RuleForm } from './rule-form'
+
+/** Largest amount a rule's condition takes (1 000 000 000 €). */
+const RULE_MAX_AMOUNT_CENTS = 100_000_000_000
 
 const PATTERN_MAX = 255
 const MERCHANT_MAX = 255
@@ -496,36 +505,69 @@ export function RuleEditorSheet({
                     </NativeSelect>
                   </Field>
                   <Field data-invalid={errors.amount ? true : undefined}>
-                    <FieldLabel htmlFor={`${id}-min`}>Montant</FieldLabel>
+                    <FieldLabel id={`${id}-amount`}>Montant</FieldLabel>
+                    <SegmentedControl
+                      fullWidth
+                      aria-labelledby={`${id}-amount`}
+                      value={form.amountSign}
+                      onValueChange={(amountSign: AmountSign) =>
+                        change({ amountSign, keptAmounts: null })
+                      }
+                    >
+                      <SegmentedControlItem value="out">
+                        Sortie
+                      </SegmentedControlItem>
+                      <SegmentedControlItem value="in">
+                        Entrée
+                      </SegmentedControlItem>
+                    </SegmentedControl>
                     <div className="grid grid-cols-2 gap-2">
-                      <Input
+                      <AmountField
                         id={`${id}-min`}
                         aria-label="Montant minimum"
-                        placeholder="Min."
-                        inputMode="decimal"
-                        autoComplete="off"
+                        placeholder="De"
+                        maxCents={RULE_MAX_AMOUNT_CENTS}
                         value={form.minAmount}
                         aria-invalid={errors.amount ? true : undefined}
-                        onChange={(event) =>
-                          change({ minAmount: event.target.value })
+                        onValueChange={(minAmount) =>
+                          change({ minAmount, keptAmounts: null })
                         }
                       />
-                      <Input
+                      <AmountField
                         aria-label="Montant maximum"
-                        placeholder="Max."
-                        inputMode="decimal"
-                        autoComplete="off"
+                        placeholder="À"
+                        maxCents={RULE_MAX_AMOUNT_CENTS}
                         value={form.maxAmount}
                         aria-invalid={errors.amount ? true : undefined}
-                        onChange={(event) =>
-                          change({ maxAmount: event.target.value })
+                        onValueChange={(maxAmount) =>
+                          change({ maxAmount, keptAmounts: null })
                         }
                       />
                     </div>
-                    <FieldDescription>
-                      En euros, bornes comprises ; négatif pour une dépense (ex.
-                      -50).
-                    </FieldDescription>
+                    {form.keptAmounts ? (
+                      <div className="space-y-2">
+                        <FieldDescription>
+                          Condition actuelle :{' '}
+                          {describeAmount(form.keptAmounts)}. Saisissez un
+                          montant pour la remplacer.
+                        </FieldDescription>
+                        <Button
+                          type="button"
+                          size="sm"
+                          outline
+                          variant="secondary"
+                          onClick={() => change({ keptAmounts: null })}
+                        >
+                          Retirer la condition de montant
+                        </Button>
+                      </div>
+                    ) : (
+                      <FieldDescription>
+                        {form.amountSign === 'out'
+                          ? 'Montant débité, en euros, bornes comprises.'
+                          : 'Montant crédité, en euros, bornes comprises.'}
+                      </FieldDescription>
+                    )}
                     {errors.amount && <FieldError>{errors.amount}</FieldError>}
                   </Field>
                 </Advanced>
