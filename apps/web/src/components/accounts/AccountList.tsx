@@ -133,11 +133,45 @@ function rowDetail(account: AccountListItem): ReactNode {
 }
 
 /**
+ * After the value on a phone (#344, « D. Nom puis chiffres »): the value's
+ * date in the warning colour when it is to update (« 30 sept. »), else the
+ * rate in the gain's colour, else the gain, else nothing. The gain in euros
+ * and « institution · date » are on wider rows and the account page.
+ */
+function compactDetail(account: AccountListItem): ReactNode {
+  if (account.stale) {
+    return (
+      <span className="text-warning-foreground dark:text-warning inline-flex items-center gap-1 font-medium">
+        <span aria-hidden className="bg-warning size-1.5 rounded-full" />
+        <span className="sr-only">À mettre à jour, valeur </span>
+        {account.valueDate === null
+          ? 'à mettre à jour'
+          : valueDateText(account.valueDate).replace(/^au /, '')}
+      </span>
+    )
+  }
+  if (account.gainCents == null) return null
+  return (
+    <span
+      className={cn(
+        account.gainCents > 0 && 'text-chart-delta-good',
+        account.gainCents < 0 && 'text-chart-delta-bad',
+        account.gainCents === 0 && 'text-muted-foreground',
+      )}
+    >
+      {account.returnRate != null
+        ? formatSignedPercent(account.returnRate)
+        : signedCents(account.gainCents)}
+    </span>
+  )
+}
+
+/**
  * One account: its type badge, name, institution · value date, value, and
  * on the right the gain over contributions or « à mettre à jour ». On a
- * narrow row (a phone) the value and the gain go on lines of their own under
- * the name (#344, « C. Empilé »). The whole row is the link; no other
- * control sits on it.
+ * narrow row (a phone) two lines: the name, then the value and its rate or
+ * the stale value's date (#344, « D. Nom puis chiffres »). The whole row is
+ * the link; no other control sits on it.
  */
 export function AccountListRow({
   account,
@@ -170,10 +204,11 @@ export function AccountListRow({
     subtitle,
     value: account.valueCents === null ? '—' : formatCents(account.valueCents),
     detail: rowDetail(account),
+    compactDetail: compactDetail(account),
   }
   return (
-    // Phones: the figures go under the name so it reads in full (#344).
-    <ItemListRow asChild stackWhenNarrow {...row}>
+    // Phones: the name, then the value and its rate (#344).
+    <ItemListRow asChild compactWhenNarrow {...row}>
       {account.link === 'transactions' ? (
         <Link
           to={ROUTES.transactions}

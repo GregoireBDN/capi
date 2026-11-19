@@ -92,12 +92,14 @@ type ItemListRowProps = Omit<React.ComponentProps<'a'>, 'title'> & {
   /** Second line on the right. */
   detail?: React.ReactNode
   /**
-   * On a narrow row (under 464px, a phone), put the value and its detail on
-   * lines of their own under the title and its second line, and let the
-   * title take two lines, so it reads in full whatever the figures (#344,
-   * direction « C. Empilé »). Wider rows keep the two columns.
+   * On a narrow row (under 464px, a phone), show two lines only: the title,
+   * then the value followed by `compactDetail` (#344, owner's « D. Nom puis
+   * chiffres »); the subtitle and `detail` are left to wider rows, which keep
+   * the two columns. The gaps tighten so a 20-character title fits at 375px.
    */
-  stackWhenNarrow?: boolean
+  compactWhenNarrow?: boolean
+  /** With `compactWhenNarrow`: what follows the value on a narrow row. */
+  compactDetail?: React.ReactNode
 }
 
 /**
@@ -113,23 +115,27 @@ function ItemListRow({
   subtitle,
   value,
   detail,
-  stackWhenNarrow = false,
+  compactWhenNarrow = false,
+  compactDetail,
   className,
   children,
   ...props
 }: ItemListRowProps) {
   const Comp = asChild ? Slot.Root : 'a'
-  const stack = stackWhenNarrow
+  const compact = compactWhenNarrow
   const figures = value != null || Boolean(detail)
   return (
     <li
       data-slot="item-list-row"
-      // The row's own width decides whether it stacks (the li is the row).
-      className={stack ? '@container/item-row' : undefined}
+      // The row's own width decides whether it is compact (the li is the row).
+      className={compact ? '@container/item-row' : undefined}
     >
       <Comp
         className={cn(
-          'flex min-h-11 items-center gap-3 rounded-lg px-2 py-2 text-sm',
+          'flex min-h-11 items-center rounded-lg py-2 text-sm',
+          compact
+            ? 'gap-2 px-1.5 @min-[464px]/item-row:gap-3 @min-[464px]/item-row:px-2'
+            : 'gap-3 px-2',
           'hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-ring outline-none focus-visible:ring-2',
           'transition-colors',
           className,
@@ -143,31 +149,39 @@ function ItemListRow({
             className={cn(
               // 32px whatever the root size (the app's rem is 22px).
               'bg-muted text-muted-foreground flex size-[32px] shrink-0 items-center justify-center rounded-full [&_svg]:size-[16px]',
-              // Stacked: beside the title, not in the middle of the lines.
-              stack && 'self-start @min-[464px]/item-row:self-center',
               iconClassName,
             )}
           >
             {icon}
           </span>
         )}
-        {stack ? (
-          /* Narrow: title (up to two lines), second line, then the value
-             and its detail, flowing on one line when they fit. Wide: the
-             two columns below. */
-          <span className="flex min-w-0 flex-1 flex-col @min-[464px]/item-row:flex-row @min-[464px]/item-row:items-center @min-[464px]/item-row:gap-3">
+        {compact ? (
+          /* Narrow: the title, then the value and its compact detail. Wide:
+             the title and its subtitle, the value and its detail on the
+             right, as below. */
+          <>
             <span className="block min-w-0 flex-1">
-              <span className="line-clamp-2 font-medium break-normal @min-[464px]/item-row:line-clamp-1">
-                {title}
-              </span>
+              <span className="block truncate font-medium">{title}</span>
               {subtitle && (
-                <span className="text-muted-foreground block truncate text-xs">
+                <span className="text-muted-foreground hidden truncate text-xs @min-[464px]/item-row:block">
                   {subtitle}
+                </span>
+              )}
+              {value != null && (
+                <span className="flex flex-wrap items-baseline gap-x-2 @min-[464px]/item-row:hidden">
+                  <span className="whitespace-nowrap tabular-nums">
+                    {value}
+                  </span>
+                  {compactDetail && (
+                    <span className="text-xs whitespace-nowrap tabular-nums">
+                      {compactDetail}
+                    </span>
+                  )}
                 </span>
               )}
             </span>
             {figures && (
-              <span className="mt-0.5 flex flex-wrap items-baseline gap-x-2 @min-[464px]/item-row:mt-0 @min-[464px]/item-row:block @min-[464px]/item-row:shrink-0 @min-[464px]/item-row:text-right">
+              <span className="hidden shrink-0 text-right @min-[464px]/item-row:block">
                 {value != null && (
                   <span className="block font-medium whitespace-nowrap tabular-nums">
                     {value}
@@ -180,7 +194,7 @@ function ItemListRow({
                 )}
               </span>
             )}
-          </span>
+          </>
         ) : (
           <>
             {/* Name and its second line on the left, cut with … when they

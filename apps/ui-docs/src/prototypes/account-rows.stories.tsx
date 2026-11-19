@@ -1,12 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  cn,
-  ItemListRow,
-} from '@finances/ui'
+import { Card, CardContent, CardHeader, CardTitle, cn } from '@finances/ui'
 import {
   BitcoinIcon,
   BriefcaseIcon,
@@ -37,8 +30,8 @@ import { useEffect, type ReactNode } from 'react'
  * C. Empilé sur les lignes étroites : when the row is narrow (under 464px,
  *    every phone), the name (up to two lines) and « institution · date »
  *    take the whole width, and the value and the gain go on lines of their
- *    own under them; wide rows keep the two columns. Built (`ItemListRow`
- *    `stackWhenNarrow`).
+ *    own under them; wide rows keep the two columns. Built first, then
+ *    dropped for D.
  *
  * After seeing C in the app, the owner found four lines too many and too
  * much data, with the badge off centre. Three more directions, two lines
@@ -47,7 +40,8 @@ import { useEffect, type ReactNode } from 'react'
  * warning colour instead of the rate), 8px gaps so a 20-character name fits:
  *
  * D. Nom puis chiffres : the name alone on the first line, the value and the
- *    rate after it on the second.
+ *    rate after it on the second. Chosen and built (`ItemListRow`
+ *    `compactWhenNarrow`, `compactDetail`); wide rows keep the two columns.
  * E. Taux aligné : as D, the value muted and the rate at the end of the line,
  *    so the rates line up from row to row.
  * F. Montant d’abord : the value in bold and the rate on the first line, the
@@ -357,12 +351,11 @@ function RowB({ row }: { row: Row }) {
 }
 
 /**
- * C: the app's `ItemListRow` with `stackWhenNarrow` (what was built): on a
- * row under 464px, the name (up to two lines) and its subtitle take the whole
- * width, then the value and the gain flow on lines of their own.
+ * C: on a row under 464px, the name (up to two lines) and its subtitle take
+ * the whole width, then the value and the gain flow on lines of their own.
+ * (Built first, then dropped for D: four lines and the badge off centre.)
  */
 function RowC({ row }: { row: Row }) {
-  const { icon: Icon, className } = BADGES[row.kind]
   const detail = row.stale
     ? STALE
     : row.gain != null && (
@@ -372,21 +365,29 @@ function RowC({ row }: { row: Row }) {
         </span>
       )
   return (
-    <ItemListRow
-      href="#"
-      onClick={(event) => event.preventDefault()}
-      stackWhenNarrow
-      icon={<Icon />}
-      iconClassName={className}
-      title={row.name}
-      subtitle={row.subtitle}
-      value={cents(row.value)}
-      detail={detail || undefined}
-    />
+    <RowLink kind={row.kind}>
+      <span className="block min-w-0 flex-1">
+        <span className="line-clamp-2 font-medium break-normal">
+          {row.name}
+        </span>
+        <span className="text-muted-foreground block truncate text-xs">
+          {row.subtitle}
+        </span>
+        <span className="mt-0.5 flex flex-wrap items-baseline gap-x-2">
+          <span className="font-medium whitespace-nowrap tabular-nums">
+            {cents(row.value)}
+          </span>
+          {detail && (
+            <span className="text-xs whitespace-nowrap tabular-nums">
+              {detail}
+            </span>
+          )}
+        </span>
+      </span>
+    </RowLink>
   )
 }
 
-/** The value's date in the warning colour: the account is to update. */
 function staleDate(row: Row) {
   return (
     <span className="text-warning-foreground dark:text-warning inline-flex items-center gap-1 font-medium whitespace-nowrap">
@@ -604,7 +605,7 @@ export const C_Empile: StoryObj = {
   render: () => (
     <Widths
       title="C. Empilé sur les lignes étroites"
-      description="Sur une ligne étroite (< 464px, tous les téléphones), le nom (sur deux lignes au besoin) et « institution · date » prennent toute la largeur, la valeur et la plus-value passent dessous. Les lignes larges gardent les deux colonnes. C’est la version construite."
+      description="Sur une ligne étroite (< 464px, tous les téléphones), le nom (sur deux lignes au besoin) et « institution · date » prennent toute la largeur, la valeur et la plus-value passent dessous. Les lignes larges gardent les deux colonnes. Construite d’abord, remplacée par D."
       View={RowC}
     />
   ),
@@ -614,7 +615,7 @@ export const D_NomPuisChiffres: StoryObj = {
   name: 'D. Nom puis chiffres',
   render: () => (
     <Widths
-      title="D. Nom puis chiffres"
+      title="D. Nom puis chiffres (construite)"
       description="Deux lignes, pastille centrée : le nom seul en haut, puis la valeur et le taux en couleur. Plus-value en euros et « institution · date » sur la page du compte ; un compte à mettre à jour montre la date de sa valeur en orange."
       View={RowD}
     />
