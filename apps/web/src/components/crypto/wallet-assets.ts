@@ -84,10 +84,13 @@ export interface SplitPart {
   color: string
 }
 
+/** An asset as the split reads it (a wallet's, or the portfolio's). */
+type SplitAsset = Pick<WalletAsset, 'assetId' | 'symbol' | 'valueCents'>
+
 /** The four largest assets, then « Autres ». */
-export function splitParts(assets: readonly WalletAsset[]): SplitPart[] {
+export function splitParts(assets: readonly SplitAsset[]): SplitPart[] {
   const valued = assets.filter(
-    (asset): asset is WalletAsset & { valueCents: number } =>
+    (asset): asset is SplitAsset & { valueCents: number } =>
       asset.valueCents !== null && asset.valueCents > 0,
   )
   const top = valued.slice(0, valued.length > 5 ? 4 : 5)

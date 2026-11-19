@@ -4,35 +4,25 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
-  AccountDto,
-  CryptoSummaryAccountDto,
-  CryptoSummaryDto,
-  ValuedHoldingDto,
+  CryptoPortfolioDto,
+  PortfolioAccountDto,
+  PortfolioAssetDto,
 } from '#/api/types.gen'
 import { CryptoPage } from './CryptoPage'
 
 const api = vi.hoisted(() => ({
-  cryptoControllerSummary: vi.fn(),
-  cryptoControllerValuate: vi.fn(),
-  cryptoControllerSearch: vi.fn(),
-  cryptoControllerSetPrice: vi.fn(),
+  cryptoControllerPortfolio: vi.fn(),
+  cryptoControllerRefreshPortfolio: vi.fn(),
   cryptoControllerSettings: vi.fn(),
-  accountsControllerList: vi.fn(),
-  accountsControllerCreate: vi.fn(),
-  accountHoldingsControllerCreate: vi.fn(),
-  accountHoldingsControllerUpdate: vi.fn(),
-  accountHoldingsControllerRemove: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 )
 
-const navigate = vi.hoisted(() => vi.fn())
-
 vi.mock('#/api', () => api)
 vi.mock('sonner', () => ({ toast }))
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => navigate,
+  useNavigate: () => vi.fn(),
   Link: ({
     to,
     params,
@@ -55,111 +45,149 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 
-// Radix RadioGroup (radio cards) measures itself; jsdom has no ResizeObserver.
-if (!('ResizeObserver' in globalThis)) {
-  globalThis.ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  }
-}
-
 /** Testing Library collapses the narrow no-break spaces `Intl` emits. */
 const text = (value: string | null) => (value ?? '').replace(/\s/g, ' ')
 
-/** Public test vectors only (BIP32 test vector 1, EIP-55 example). */
-const XPUB =
-  'xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8'
-const ADDRESS = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed'
-
 /** Synthetic data only. */
 const LEDGER_ID = 'a0000000-0000-4000-8000-000000000011'
-const NEW_ID = 'a0000000-0000-4000-8000-000000000012'
-const NOW = new Date('2026-11-06T10:00:00Z')
+const EXCHANGE_ID = 'a0000000-0000-4000-8000-000000000012'
+const NOW = new Date('2026-11-19T10:00:00Z')
+const PRICED_AT = '2026-11-19T09:57:00Z'
 
-function holding(overrides: Partial<ValuedHoldingDto> = {}): ValuedHoldingDto {
+function asset(overrides: Partial<PortfolioAssetDto>): PortfolioAssetDto {
   return {
-    id: 'h0000000-0000-4000-8000-000000000001',
-    accountId: LEDGER_ID,
     assetId: 'bitcoin',
     symbol: 'BTC',
     name: 'Bitcoin',
-    quantity: '0.5',
-    location: 'Coffre test',
-    investedCents: 1_000_000,
-    note: null,
-    origin: 'manual',
-    priceEur: '40000',
+    quantity: '0.0825',
+    priceEur: '82500',
     priceSource: 'provider',
-    priceFetchedAt: '2026-11-06T09:55:00Z',
+    priceFetchedAt: PRICED_AT,
     priceStale: false,
-    valueCents: 2_000_000,
-    gainCents: 1_000_000,
+    change24hPercent: '2.4',
+    valueCents: 680_625,
+    change24hCents: 15_952,
+    investedCents: 412_000,
+    gainCents: 268_625,
+    priceable: true,
+    places: [
+      {
+        accountId: LEDGER_ID,
+        name: 'Ledger test',
+        quantity: '0.06',
+        valueCents: 495_000,
+      },
+      {
+        accountId: EXCHANGE_ID,
+        name: 'Binance test',
+        quantity: '0.0225',
+        valueCents: 185_625,
+      },
+    ],
     ...overrides,
   }
 }
 
-const TOTALS = {
-  valueCents: 2_000_000,
-  investedCents: 1_000_000,
-  gainCents: 1_000_000,
-  missingPriceCount: 0,
-  staleCount: 0,
-  withoutInvestedCount: 0,
-}
-
-function account(
-  overrides: Partial<CryptoSummaryAccountDto> = {},
-): CryptoSummaryAccountDto {
+function account(overrides: Partial<PortfolioAccountDto>): PortfolioAccountDto {
   return {
     accountId: LEDGER_ID,
     name: 'Ledger test',
     institution: 'Ledger',
-    holdings: [holding()],
-    totals: TOTALS,
-    complete: true,
-    snapshot: null,
-    priceApiEnabled: true,
-    refreshFailed: false,
-    sync: null,
+    source: 'wallet',
+    provider: null,
+    valueCents: 495_000,
+    holdingCount: 2,
+    missingPriceCount: 0,
+    updatedAt: '2026-11-19T09:54:00Z',
+    sync: {
+      enabled: true,
+      syncedAt: '2026-11-19T09:54:00Z',
+      failedAt: null,
+      failedChains: [],
+      retryAt: null,
+    },
     ...overrides,
   }
 }
 
-function summary(overrides: Partial<CryptoSummaryDto> = {}): CryptoSummaryDto {
+function portfolio(
+  overrides: Partial<CryptoPortfolioDto> = {},
+): CryptoPortfolioDto {
   return {
-    accounts: [account()],
-    totals: TOTALS,
+    assets: [
+      asset({}),
+      asset({
+        assetId: 'ethereum',
+        symbol: 'ETH',
+        name: 'Ethereum',
+        quantity: '0.3',
+        priceEur: '2950',
+        change24hPercent: '-1.8',
+        valueCents: 88_500,
+        change24hCents: -1_622,
+        investedCents: null,
+        gainCents: null,
+        places: [
+          {
+            accountId: EXCHANGE_ID,
+            name: 'Binance test',
+            quantity: '0.3',
+            valueCents: 88_500,
+          },
+        ],
+      }),
+      asset({
+        assetId: 'erc20.42161.0x0000000000000000000000000000000000000001',
+        symbol: 'DEMO',
+        name: 'Demo Token',
+        quantity: '15000',
+        priceEur: null,
+        priceSource: null,
+        priceFetchedAt: null,
+        change24hPercent: null,
+        valueCents: null,
+        change24hCents: null,
+        investedCents: null,
+        gainCents: null,
+        priceable: false,
+        places: [
+          {
+            accountId: LEDGER_ID,
+            name: 'Ledger test',
+            quantity: '15000',
+            valueCents: null,
+          },
+        ],
+      }),
+    ],
+    totals: {
+      valueCents: 769_125,
+      change24hCents: 14_330,
+      investedCents: 412_000,
+      gainCents: 268_625,
+      withoutInvestedCount: 1,
+      missingPriceCount: 0,
+      staleCount: 0,
+    },
+    accounts: [
+      account({}),
+      account({
+        accountId: EXCHANGE_ID,
+        name: 'Binance test',
+        institution: 'Binance',
+        source: 'exchange',
+        provider: 'binance',
+        valueCents: 274_125,
+        updatedAt: '2026-09-02T10:00:00Z',
+        sync: null,
+      }),
+    ],
     priceApiEnabled: true,
+    walletSyncEnabled: true,
     refreshFailed: false,
+    pricesAt: PRICED_AT,
+    valued: false,
     ...overrides,
-  }
-}
-
-const EMPTY_TOTALS = {
-  valueCents: 0,
-  investedCents: null,
-  gainCents: null,
-  missingPriceCount: 0,
-  staleCount: 0,
-  withoutInvestedCount: 0,
-}
-
-function accountDto(id: string, name: string): AccountDto {
-  return {
-    id,
-    name,
-    type: 'crypto',
-    institution: name,
-    position: 0,
-    archivedAt: null,
-    balanceCents: 2_000_000,
-    balanceDate: '2026-11-05',
-    cryptoSource: null,
-    cryptoProvider: null,
-    cryptoSyncedAt: null,
-    createdAt: NOW.toISOString(),
-    updatedAt: NOW.toISOString(),
   }
 }
 
@@ -171,13 +199,11 @@ function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
   render(
     <QueryClientProvider client={queryClient}>
       <CryptoPage />
     </QueryClientProvider>,
   )
-  return { invalidate }
 }
 
 describe('CryptoPage', () => {
@@ -185,49 +211,11 @@ describe('CryptoPage', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(NOW)
     for (const fn of Object.values(api)) fn.mockReset()
-    navigate.mockReset()
     toast.success.mockReset()
     toast.error.mockReset()
-    api.cryptoControllerSummary.mockImplementation(() => ok(summary()))
-    api.accountsControllerList.mockImplementation(() =>
-      ok([accountDto(LEDGER_ID, 'Ledger test')]),
-    )
-    api.accountsControllerCreate.mockImplementation(
-      ({ body }: { body: { name: string; cryptoSource?: string } }) =>
-        ok(
-          {
-            ...accountDto(NEW_ID, body.name),
-            cryptoSource: body.cryptoSource ?? 'manual',
-          },
-          201,
-        ),
-    )
+    api.cryptoControllerPortfolio.mockImplementation(() => ok(portfolio()))
     api.cryptoControllerSettings.mockImplementation(() =>
       ok({ priceApiEnabled: true, walletSyncEnabled: true }),
-    )
-    api.accountHoldingsControllerCreate.mockImplementation(
-      ({
-        path,
-        body,
-      }: {
-        path: { id: string }
-        body: Partial<ValuedHoldingDto>
-      }) => ok({ ...holding(), ...body, id: 'new', accountId: path.id }, 201),
-    )
-    api.accountHoldingsControllerUpdate.mockImplementation(
-      ({ body }: { body: Partial<ValuedHoldingDto> }) =>
-        ok({ ...holding(), ...body }),
-    )
-    api.cryptoControllerSearch.mockImplementation(() =>
-      ok([{ id: 'ethereum', symbol: 'ETH', name: 'Ethereum', rank: 2 }]),
-    )
-    api.cryptoControllerSetPrice.mockImplementation(() =>
-      ok({
-        assetId: 'ethereum',
-        priceEur: '1',
-        source: 'manual',
-        fetchedAt: NOW.toISOString(),
-      }),
     )
   })
 
@@ -235,415 +223,167 @@ describe('CryptoPage', () => {
     vi.useRealTimers()
   })
 
-  it('offers to add a first wallet when nothing is tracked yet', async () => {
-    api.cryptoControllerSummary.mockImplementation(() =>
-      ok(summary({ accounts: [], totals: EMPTY_TOTALS })),
+  it('offers to add cryptos when nothing is followed yet', async () => {
+    api.cryptoControllerPortfolio.mockImplementation(() =>
+      ok(
+        portfolio({
+          assets: [],
+          accounts: [],
+          totals: { ...portfolio().totals, valueCents: 0 },
+        }),
+      ),
     )
+    const user = userEvent.setup()
     renderPage()
     expect(await screen.findByText('Aucune crypto suivie')).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Ajouter un wallet' }),
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'Actualiser les cours' }),
+      screen.queryByRole('button', { name: 'Actualiser' }),
     ).not.toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: 'Ajouter des cryptos' }),
+    )
+    // The add flow opens on where the cryptos come from.
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByText('D’où viennent ces cryptos ?')).toBeInTheDocument()
   })
 
-  it('sets up a Ledger from its public keys, without any quantity (#207)', async () => {
-    const user = userEvent.setup()
-    api.cryptoControllerSummary.mockImplementation(() =>
-      ok(summary({ accounts: [], totals: EMPTY_TOTALS })),
-    )
+  it('shows the total, its change, the cost and the split by asset', async () => {
     renderPage()
-    await user.click(
-      await screen.findByRole('button', { name: 'Ajouter un wallet' }),
+    const summary = await screen.findByRole('region', {
+      name: 'Valeur de vos cryptos',
+    })
+    expect(text(summary.textContent)).toContain('7 691,25 €')
+    expect(text(summary.textContent)).toContain('+143,30 € sur 24 h')
+    // ETH's cost is unknown: the gain is over BTC only, and says so.
+    expect(text(summary.textContent)).toContain(
+      'Investi 4 120,00 € · plus-value +2 686,25 € (hors ETH)',
     )
-    const sheet = within(screen.getByRole('dialog'))
-    // No account to pick from: straight to where the cryptos are.
-    expect(sheet.queryByText('Compte')).not.toBeInTheDocument()
-    // Nothing to type about a holding before knowing where it comes from.
-    expect(sheet.queryByLabelText('Actif')).not.toBeInTheDocument()
-    await user.click(sheet.getByRole('button', { name: 'Enregistrer' }))
+    expect(text(summary.textContent)).toContain('Cours il y a 3 min')
     expect(
-      sheet.getByText('Choisissez d’où viennent les avoirs'),
+      within(summary).getByRole('img', { name: /^Répartition : BTC 88 %/ }),
     ).toBeInTheDocument()
-    expect(api.accountsControllerCreate).not.toHaveBeenCalled()
+  })
 
-    await user.click(sheet.getByRole('radio', { name: /^Wallet/ }))
-    expect(sheet.getByText('Nouveau wallet')).toBeInTheDocument()
-    // Its holdings are read from its keys: no asset, no quantity.
-    expect(sheet.queryByLabelText('Actif')).not.toBeInTheDocument()
-    expect(sheet.queryByLabelText('Quantité')).not.toBeInTheDocument()
-    await user.click(sheet.getByRole('radio', { name: 'Ledger' }))
-    await user.click(sheet.getByLabelText('Clé publique'))
-    await user.paste(XPUB)
-    await user.click(
-      sheet.getByRole('button', { name: 'Ajouter une autre clé' }),
+  it('lists each asset once across accounts, the unpriced token last', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const assets = await screen.findByRole('list', { name: 'Actifs' })
+    const rows = within(assets).getAllByRole('button')
+    expect(rows.map((row) => text(row.getAttribute('aria-label')))).toEqual([
+      'Bitcoin, 6 806,25 €, 0,0825 BTC · 2 comptes, +2,4 % sur 24 h',
+      'Ethereum, 885,00 €, 0,3 ETH · Binance test, -1,8 % sur 24 h',
+    ])
+    const unpriced = screen.getByRole('list', { name: 'Actifs sans cours' })
+    expect(text(unpriced.textContent)).toContain('Demo Token')
+
+    // Where BTC is, each place opening its account.
+    await user.click(rows[0])
+    const places = screen.getByRole('list', { name: 'Où est BTC' })
+    const links = within(places).getAllByRole('link')
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      `/accounts/${LEDGER_ID}`,
+      `/accounts/${EXCHANGE_ID}`,
+    ])
+    expect(text(places.textContent)).toContain('Ledger test · 0,06 BTC')
+    const btc = rows[0].closest('li')!
+    expect(text(btc.textContent)).toContain(
+      '1 BTC = 82 500,00 € · cours il y a 3 min · +2,4 % sur 24 h',
     )
-    await user.click(sheet.getByLabelText('Clé publique 2'))
-    await user.paste(XPUB)
-    await user.click(sheet.getByRole('button', { name: 'Ajouter le wallet' }))
-    // The same key twice is caught before anything is sent.
+    expect(text(btc.textContent)).toContain(
+      'Investi 4 120,00 € · plus-value +2 686,25 €',
+    )
+
+    await user.click(rows[1])
     expect(
-      sheet.getByText('Cette clé est déjà saisie ci-dessus'),
+      screen.getByText('Coût inconnu : pas de plus-value calculée.'),
     ).toBeInTheDocument()
-    await user.clear(sheet.getByLabelText('Clé publique 2'))
-    await user.click(sheet.getByLabelText('Clé publique 2'))
-    await user.paste(ADDRESS)
-    await user.click(sheet.getByRole('checkbox', { name: 'Base' }))
-    // Sync is on here: nothing to warn about.
-    expect(
-      sheet.queryByText(/^Synchronisation des wallets désactivée/),
-    ).not.toBeInTheDocument()
-    await user.click(sheet.getByRole('button', { name: 'Ajouter le wallet' }))
-
-    await waitFor(() =>
-      expect(navigate).toHaveBeenCalledWith({
-        to: '/accounts/$accountId',
-        params: { accountId: NEW_ID },
-      }),
-    )
-    expect(api.accountsControllerCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: {
-          name: 'Ledger',
-          type: 'crypto',
-          institution: 'Ledger',
-          cryptoSource: 'wallet',
-          walletKeys: [
-            {
-              publicKey: XPUB,
-              chains: ['bitcoin'],
-              label: null,
-              addressType: 'native_segwit',
-            },
-            {
-              publicKey: ADDRESS,
-              chains: ['ethereum', 'base'],
-              label: null,
-            },
-          ],
-        },
-      }),
-    )
-    expect(api.accountHoldingsControllerCreate).not.toHaveBeenCalled()
-    expect(toast.success).toHaveBeenCalledWith('Wallet « Ledger » ajouté')
   })
 
-  it('says before creating a wallet that this server does not sync wallets', async () => {
-    const user = userEvent.setup()
-    api.cryptoControllerSettings.mockImplementation(() =>
-      ok({ priceApiEnabled: true, walletSyncEnabled: false }),
-    )
-    api.cryptoControllerSummary.mockImplementation(() =>
-      ok(summary({ accounts: [], totals: EMPTY_TOTALS })),
-    )
+  it('lists the accounts with their freshness, linking to their page', async () => {
     renderPage()
-    await user.click(
-      await screen.findByRole('button', { name: 'Ajouter un wallet' }),
+    const card = await screen.findByRole('region', {
+      name: 'Où sont mes cryptos',
+    })
+    const links = within(card).getAllByRole('link')
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      `/accounts/${LEDGER_ID}`,
+      `/accounts/${EXCHANGE_ID}`,
+    ])
+    expect(text(links[0].textContent)).toContain('Wallet · lu il y a 6 min')
+    // An export older than a month asks for a newer one.
+    expect(text(links[1].textContent)).toContain(
+      'Plateforme · export importé le 2 sept.',
     )
-    const sheet = within(screen.getByRole('dialog'))
-    await user.click(sheet.getByRole('radio', { name: /^Wallet/ }))
-    // In the owner's terms, without the server setting's name (#249).
+    expect(text(links[1].textContent)).toContain('à mettre à jour')
     expect(
-      await sheet.findByText(/^Synchronisation des wallets désactivée/),
+      within(card).getByRole('button', {
+        name: 'Ajouter une plateforme ou un wallet',
+      }),
     ).toBeInTheDocument()
-    expect(sheet.getByText('En savoir plus')).toBeInTheDocument()
-    expect(sheet.queryByText(/WALLET_SYNC_ENABLED/)).not.toBeInTheDocument()
   })
 
-  it('sets up an exchange and opens the import of its first export', async () => {
-    const user = userEvent.setup()
-    api.cryptoControllerSummary.mockImplementation(() =>
-      ok(summary({ accounts: [], totals: EMPTY_TOTALS })),
-    )
-    renderPage()
-    await user.click(
-      await screen.findByRole('button', { name: 'Ajouter un wallet' }),
-    )
-    const sheet = within(screen.getByRole('dialog'))
-    await user.click(sheet.getByRole('radio', { name: /^Plateforme/ }))
-    expect(sheet.queryByLabelText('Quantité')).not.toBeInTheDocument()
-    await user.click(sheet.getByRole('radio', { name: 'Binance' }))
-    await user.click(
-      sheet.getByRole('button', { name: 'Ajouter et importer un export' }),
-    )
-    expect(
-      await screen.findByRole('heading', { name: 'Importer un export' }),
-    ).toBeInTheDocument()
-    expect(api.accountsControllerCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: {
-          name: 'Binance',
-          type: 'crypto',
-          institution: 'Binance',
-          cryptoSource: 'exchange',
-          cryptoProvider: 'binance',
-        },
-      }),
-    )
-    expect(api.accountHoldingsControllerCreate).not.toHaveBeenCalled()
-    expect(navigate).not.toHaveBeenCalled()
-  })
-
-  it('adds a first holding typed by hand, creating its account', async () => {
-    const user = userEvent.setup()
-    api.cryptoControllerSummary.mockImplementation(() =>
-      ok(summary({ accounts: [], totals: EMPTY_TOTALS })),
-    )
-    const { invalidate } = renderPage()
-    await user.click(
-      await screen.findByRole('button', { name: 'Ajouter un wallet' }),
-    )
-    const sheet = within(screen.getByRole('dialog'))
-    await user.click(sheet.getByRole('radio', { name: /^Saisie manuelle/ }))
-    await user.type(sheet.getByLabelText('Actif'), 'ether')
-    await user.click(await sheet.findByRole('button', { name: /^ETH/ }))
-    await user.type(sheet.getByLabelText('Quantité'), '2,5')
-    await user.click(sheet.getByRole('button', { name: 'Enregistrer' }))
-
-    await waitFor(() =>
-      expect(api.accountHoldingsControllerCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          path: { id: NEW_ID },
-          body: expect.objectContaining({
-            assetId: 'ethereum',
-            quantity: '2.5',
-          }) as unknown,
-        }),
-      ),
-    )
-    expect(api.accountsControllerCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: {
-          name: 'Crypto',
-          type: 'crypto',
-          institution: null,
-          cryptoSource: 'manual',
-        },
-      }),
-    )
-    expect(toast.success).toHaveBeenCalledWith('ETH ajouté')
-    await waitFor(() =>
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['crypto'] }),
-    )
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['accounts'] })
-  })
-
-  it('reuses the account it created when the holding failed', async () => {
-    const user = userEvent.setup()
-    api.cryptoControllerSummary.mockImplementation(() =>
-      ok(summary({ accounts: [], totals: EMPTY_TOTALS })),
-    )
-    api.accountHoldingsControllerCreate.mockImplementationOnce(() =>
-      Promise.resolve({
-        error: { message: 'boom' },
-        response: new Response(null, { status: 500 }),
-      }),
-    )
-    renderPage()
-    await user.click(
-      await screen.findByRole('button', { name: 'Ajouter un wallet' }),
-    )
-    const sheet = within(screen.getByRole('dialog'))
-    await user.click(sheet.getByRole('radio', { name: /^Saisie manuelle/ }))
-    await user.type(
-      sheet.getByLabelText('Plateforme ou wallet (facultatif)'),
-      'Bourse test',
-    )
-    await user.type(sheet.getByLabelText('Actif'), 'ether')
-    await user.click(await sheet.findByRole('button', { name: /^ETH/ }))
-    await user.type(sheet.getByLabelText('Quantité'), '1')
-    await user.click(sheet.getByRole('button', { name: 'Enregistrer' }))
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith(
-        'Une erreur est survenue. Réessayez.',
-      ),
-    )
-    await user.click(sheet.getByRole('button', { name: 'Enregistrer' }))
-    await waitFor(() => expect(toast.success).toHaveBeenCalled())
-    expect(api.accountsControllerCreate).toHaveBeenCalledTimes(1)
-    expect(api.accountHoldingsControllerCreate).toHaveBeenCalledTimes(2)
-  })
-
-  it('groups holdings by wallet with totals, prices and the last valuation', async () => {
-    renderPage()
-    const wallet = await screen.findByRole('region', { name: 'Ledger test' })
-    const card = text(wallet.textContent)
-    expect(card).toContain('20 000,00 €')
-    expect(card).toContain('Ledger · Valorisé le 5 nov. 2026')
-    expect(card).toContain('Bitcoin · Coffre test')
-    expect(card).toContain('0,5 BTC')
-    expect(card).toContain('il y a 5 min')
-    expect(
-      within(wallet).getByRole('link', { name: 'Ledger test' }),
-    ).toHaveAttribute('href', `/accounts/${LEDGER_ID}`)
-    const page = text(document.body.textContent)
-    expect(page).toContain('Valeur totale20 000,00 €')
-    expect(page).toContain('Plus-value+10 000 €')
-    expect(page).toContain('Dernier cours il y a 5 min.')
-  })
-
-  it('shows stale and missing prices', async () => {
-    api.cryptoControllerSummary.mockImplementation(() =>
+  it('says what went wrong without an alert block', async () => {
+    api.cryptoControllerPortfolio.mockImplementation(() =>
       ok(
-        summary({
+        portfolio({
           refreshFailed: true,
+          totals: { ...portfolio().totals, missingPriceCount: 2 },
           accounts: [
             account({
-              holdings: [
-                holding({ priceStale: true }),
-                holding({
-                  id: 'h2',
-                  assetId: 'inconnu-test',
-                  symbol: 'UNK',
-                  priceEur: null,
-                  priceSource: null,
-                  priceFetchedAt: null,
-                  valueCents: null,
-                  gainCents: null,
-                }),
-              ],
+              sync: {
+                enabled: true,
+                syncedAt: '2026-11-19T09:54:00Z',
+                failedAt: '2026-11-19T09:58:00Z',
+                failedChains: [],
+                retryAt: null,
+              },
             }),
           ],
-          totals: { ...TOTALS, staleCount: 1, missingPriceCount: 1 },
-        }),
-      ),
-    )
-    renderPage()
-    expect(await screen.findByText('Cours non actualisés')).toBeInTheDocument()
-    expect(screen.getByText('Un avoir sans cours')).toBeInTheDocument()
-    expect(screen.getByText('Non à jour')).toBeInTheDocument()
-    expect(screen.getByText('Cours inconnu')).toBeInTheDocument()
-  })
-
-  it('adds a holding to a picked wallet', async () => {
-    const user = userEvent.setup()
-    renderPage()
-    await screen.findByRole('region', { name: 'Ledger test' })
-    await user.click(screen.getByRole('button', { name: 'Ajouter un avoir' }))
-    const sheet = within(screen.getByRole('dialog'))
-    expect(sheet.getByRole('radio', { name: 'Ledger test' })).toBeChecked()
-    await user.type(sheet.getByLabelText('Actif'), 'ether')
-    await user.click(await sheet.findByRole('button', { name: /^ETH/ }))
-    await user.type(sheet.getByLabelText('Quantité'), '3')
-    await user.click(sheet.getByRole('button', { name: 'Enregistrer' }))
-    await waitFor(() =>
-      expect(api.accountHoldingsControllerCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ path: { id: LEDGER_ID } }),
-      ),
-    )
-    expect(api.accountsControllerCreate).not.toHaveBeenCalled()
-  })
-
-  it('adds a holding to a wallet from its card, without the picker', async () => {
-    const user = userEvent.setup()
-    renderPage()
-    await user.click(
-      await screen.findByRole('button', {
-        name: 'Ajouter un avoir à Ledger test',
-      }),
-    )
-    const sheet = within(screen.getByRole('dialog'))
-    expect(sheet.queryByRole('radio', { name: 'Ledger test' })).toBeNull()
-    await user.type(sheet.getByLabelText('Actif'), 'ether')
-    await user.click(await sheet.findByRole('button', { name: /^ETH/ }))
-    await user.type(sheet.getByLabelText('Quantité'), '1')
-    await user.click(sheet.getByRole('button', { name: 'Enregistrer' }))
-    await waitFor(() =>
-      expect(api.accountHoldingsControllerCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ path: { id: LEDGER_ID } }),
-      ),
-    )
-  })
-
-  it('offers no « Ajouter un avoir » for a wallet, whose holdings come from the chain (#269)', async () => {
-    const user = userEvent.setup()
-    api.accountsControllerList.mockImplementation(() =>
-      ok([
-        { ...accountDto(LEDGER_ID, 'Ledger test'), cryptoSource: 'wallet' },
-        { ...accountDto(NEW_ID, 'Binance test'), cryptoSource: 'exchange' },
-      ]),
-    )
-    api.cryptoControllerSummary.mockImplementation(() =>
-      ok(
-        summary({
-          accounts: [
-            account({ holdings: [holding({ origin: 'sync' })] }),
-            account({ accountId: NEW_ID, name: 'Binance test' }),
-          ],
-        }),
-      ),
-    )
-    renderPage()
-    const wallet = await screen.findByRole('region', { name: 'Ledger test' })
-    await waitFor(() =>
-      expect(
-        within(wallet).queryByRole('button', { name: /Ajouter un avoir/ }),
-      ).not.toBeInTheDocument(),
-    )
-    expect(
-      screen.getByRole('button', { name: 'Ajouter un avoir à Binance test' }),
-    ).toBeInTheDocument()
-    // Nor can it be picked from the page action.
-    await user.click(screen.getByRole('button', { name: 'Ajouter un avoir' }))
-    const sheet = within(screen.getByRole('dialog'))
-    expect(sheet.queryByRole('radio', { name: 'Ledger test' })).toBeNull()
-  })
-
-  it('edits a holding and sets its price by hand without the price API', async () => {
-    const user = userEvent.setup()
-    api.cryptoControllerSummary.mockImplementation(() =>
-      ok(
-        summary({
-          priceApiEnabled: false,
-          accounts: [account({ priceApiEnabled: false })],
         }),
       ),
     )
     renderPage()
     expect(
-      await screen.findByText(/Cours automatiques désactivés/),
+      await screen.findByText(
+        'Ledger test non lu : soldes de la lecture précédente.',
+      ),
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'Actualiser les cours' }),
+      screen.getByText(
+        'Cours non actualisés : les derniers connus sont utilisés.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        '2 actifs sans cours connu : ils ne comptent pas dans le total.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('refreshes the whole section at once', async () => {
+    const user = userEvent.setup()
+    api.cryptoControllerRefreshPortfolio.mockImplementation(() =>
+      ok(portfolio({ valued: true })),
+    )
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Actualiser' }))
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith('Cryptos actualisées'),
+    )
+    expect(api.cryptoControllerRefreshPortfolio).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers no refresh when the server reads neither prices nor wallets', async () => {
+    api.cryptoControllerPortfolio.mockImplementation(() =>
+      ok(portfolio({ priceApiEnabled: false, walletSyncEnabled: false })),
+    )
+    renderPage()
+    expect(
+      await screen.findByText('Cours saisis à la main'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Actualiser' }),
     ).not.toBeInTheDocument()
-    await user.click(
-      screen.getByRole('button', { name: 'Modifier BTC · Coffre test' }),
-    )
-    const sheet = within(screen.getByRole('dialog'))
-    expect(sheet.queryByText('Compte')).not.toBeInTheDocument()
-    const quantity = sheet.getByLabelText('Quantité')
-    await user.clear(quantity)
-    await user.type(quantity, '0,75')
-    await user.type(sheet.getByLabelText('Cours manuel'), '41000')
-    await user.click(sheet.getByRole('button', { name: 'Enregistrer' }))
-    await waitFor(() =>
-      expect(api.cryptoControllerSetPrice).toHaveBeenCalledWith(
-        expect.objectContaining({
-          path: { assetId: 'bitcoin' },
-          body: { priceEur: '41000' },
-        }),
-      ),
-    )
-    expect(api.accountHoldingsControllerUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: { id: LEDGER_ID, holdingId: holding().id },
-        body: expect.objectContaining({ quantity: '0.75' }) as unknown,
-      }),
-    )
-  })
-
-  it('refreshes the prices of every wallet at once', async () => {
-    const user = userEvent.setup()
-    api.cryptoControllerValuate.mockImplementation(() => ok(summary()))
-    renderPage()
-    await user.click(
-      await screen.findByRole('button', { name: 'Actualiser les cours' }),
-    )
-    await waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith('Cours actualisés'),
-    )
-    expect(api.cryptoControllerValuate).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Ajouter' })).toBeInTheDocument()
   })
 })

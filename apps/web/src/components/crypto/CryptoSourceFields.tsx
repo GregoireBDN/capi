@@ -197,7 +197,7 @@ function isEmptyKey(key: WalletKeyValues): boolean {
  * with the icon in its header (« Annuler » in the toast puts it back), and
  * « Ajouter une autre clé ».
  */
-function NewWalletKeys({
+export function NewWalletKeys({
   id,
   keys,
   errors,
@@ -315,7 +315,7 @@ function NewWalletKeys({
  * (the setting itself is in the production runbook), before anything is
  * created.
  */
-function WalletSyncOffNotice() {
+export function WalletSyncOffNotice() {
   const settings = useQuery(cryptoSettingsQuery)
   if (settings.data?.walletSyncEnabled !== false) return null
   return (

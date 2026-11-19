@@ -841,6 +841,7 @@ describe('AccountDetailPage', () => {
       priceSource: 'provider',
       priceFetchedAt: new Date().toISOString(),
       priceStale: false,
+      priceChange24hPercent: null,
       valueCents: 3_000_000,
       gainCents: null,
       ...overrides,

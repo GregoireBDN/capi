@@ -26,6 +26,7 @@ function line(overrides: Partial<ValuedHoldingDto>): ValuedHoldingDto {
     priceSource: 'provider',
     priceFetchedAt: '2026-11-19T08:00:00.000Z',
     priceStale: false,
+    priceChange24hPercent: null,
     valueCents: 3_000_000,
     gainCents: null,
     ...overrides,

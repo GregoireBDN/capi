@@ -135,7 +135,7 @@ export function useWalletRefresh(accountId: string) {
 const STATUS_LINE = 'flex items-start gap-1.5 text-sm'
 const WARNING = 'text-warning-foreground dark:text-warning'
 
-function StatusLine({
+export function StatusLine({
   icon,
   warning = false,
   children,
@@ -246,7 +246,7 @@ function WalletStatusLines({
 }
 
 /** The split by asset as one bar, with its legend. */
-function SplitBar({
+export function SplitBar({
   parts,
   totalCents,
 }: {
@@ -396,7 +396,13 @@ function WalletSummary({
  * ------------------------------------------------------------------------- */
 
 /** The symbol in a round badge, tinted with the asset's colour in the split. */
-function AssetBadge({ symbol, color }: { symbol: string; color?: string }) {
+export function AssetBadge({
+  symbol,
+  color,
+}: {
+  symbol: string
+  color?: string
+}) {
   return (
     <span
       aria-hidden
