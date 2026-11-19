@@ -88,8 +88,8 @@ interface CashAccountProps {
  * up to date (balance, freshness, the month's flows), its balance over 12
  * months, its latest transactions, its imports and running-balance gaps,
  * the recurring debits paid from it, and its statement balances (folded).
- * One column on phones; from `@3xl` the balance and its chart on the left,
- * the lists on the right.
+ * One column at every width (the owner's choice: full-width strips read
+ * top to bottom, as on the dashboard).
  */
 export function CashAccount({
   account,
@@ -107,36 +107,30 @@ export function CashAccount({
 
   return (
     <>
-      <div className="grid items-start gap-6 @3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <div className="min-w-0 space-y-6">
-          <BalanceCard
-            account={account}
-            writable={writable}
-            today={today}
-            history={history.data}
-            flows={flows.data}
-            loading={history.isPending || flows.isPending}
-            onImport={onImport}
-            onAddTransaction={onAddTransaction}
-          />
-          {history.data && <BalanceChart history={history.data} />}
-        </div>
-        <div className="min-w-0 space-y-6">
-          <LatestTransactions
-            account={account}
-            writable={writable}
-            onImport={onImport}
-          />
-          <ImportStatus
-            accountId={account.id}
-            writable={writable}
-            history={history.data}
-            today={today}
-            onImport={onImport}
-          />
-          <RecurringDebits accountId={account.id} />
-        </div>
-      </div>
+      <BalanceCard
+        account={account}
+        writable={writable}
+        today={today}
+        history={history.data}
+        flows={flows.data}
+        loading={history.isPending || flows.isPending}
+        onImport={onImport}
+        onAddTransaction={onAddTransaction}
+      />
+      {history.data && <BalanceChart history={history.data} today={today} />}
+      <LatestTransactions
+        account={account}
+        writable={writable}
+        onImport={onImport}
+      />
+      <ImportStatus
+        accountId={account.id}
+        writable={writable}
+        history={history.data}
+        today={today}
+        onImport={onImport}
+      />
+      <RecurringDebits accountId={account.id} />
       <StatementBalances
         snapshots={snapshots}
         writable={writable}
@@ -332,7 +326,7 @@ function MonthFlows({
           Aucune opération ce mois-ci.
         </p>
       ) : (
-        <dl className="grid grid-cols-1 gap-2 @[26rem]:grid-cols-3">
+        <dl className="grid grid-cols-1 gap-2 @[36rem]:grid-cols-3">
           <FigureTile
             variant="dl"
             label="Entrées"
@@ -388,7 +382,13 @@ const balanceWithStatementsConfig = {
  * The end-of-day balance over 12 months (bank values), the statement
  * balances as dots. Hidden until there are two days to draw.
  */
-function BalanceChart({ history }: { history: BalanceHistoryDto }) {
+function BalanceChart({
+  history,
+  today,
+}: {
+  history: BalanceHistoryDto
+  today: string
+}) {
   if (history.points.length < 2 || history.from === null) return null
   const statements = new Map(
     history.statements.map((s) => [s.date, s.valueCents]),
@@ -399,14 +399,14 @@ function BalanceChart({ history }: { history: BalanceHistoryDto }) {
     balance: point.balanceCents,
     ...(withStatements && { statement: statements.get(point.date) ?? null }),
   }))
-  const since = formatShortDay(history.from)
+  const since = formatShortDay(history.from, today.slice(0, 4))
   return (
     <Card className="min-w-0">
       <CardHeader>
         <CardTitle>Évolution du solde</CardTitle>
         <CardDescription>
           Chaque jour depuis le {since}
-          {withStatements && ', avec les soldes de relevés'}.
+          {withStatements && ' · points : soldes de relevés'}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -517,7 +517,7 @@ function LatestTransactions({
                 onDismiss={() => actions.setOffer(null)}
               />
             )}
-            <ul className="divide-y" aria-label="Dernières opérations">
+            <ul className="-mx-3 divide-y" aria-label="Dernières opérations">
               {items.map((item) => (
                 <TransactionRow
                   key={item.id}
@@ -564,8 +564,9 @@ function importPeriod(item: ImportSummaryDto, year: string): string | null {
 }
 
 /**
- * How far the bank data goes, the latest imports and the running-balance
- * gaps of the last 12 months.
+ * The latest imports of the account (pending ones to validate first) and
+ * the running-balance gaps of the last 12 months. How far the data goes is
+ * in the balance card.
  */
 function ImportStatus({
   accountId,
@@ -586,11 +587,12 @@ function ImportStatus({
     (item) => item.accountId === accountId,
   )
   const pending = mine.filter((item) => item.status === 'pending')
+  // Latest statements first (imports made the same day come in any order).
   const committed = mine
     .filter((item) => item.status === 'committed')
+    .sort((a, b) => (b.periodEnd ?? '').localeCompare(a.periodEnd ?? ''))
     .slice(0, LATEST_IMPORTS)
   const gaps = history?.gaps ?? []
-  const dataUntil = history?.dataUntil ?? null
 
   return (
     <Card
@@ -601,11 +603,6 @@ function ImportStatus({
       <DashboardCardHeader
         id="account-imports-title"
         title="Imports"
-        status={
-          dataUntil !== null
-            ? `Opérations bancaires jusqu’au ${formatShortDay(dataUntil, year)}`
-            : undefined
-        }
         link={
           mine.length > 0
             ? { label: 'Historique', to: ROUTES.import }
@@ -746,8 +743,8 @@ function RecurringDebits({ accountId }: { accountId: string }) {
     >
       <DashboardCardHeader
         id="account-recurring-title"
-        title="Prélèvements réguliers"
-        status={`${formatCents(monthly)} par mois en moyenne`}
+        title="Prélèvements"
+        status={`${formatCents(monthly)} / mois en moyenne`}
         link={{ label: 'Abonnements', to: ROUTES.subscriptions }}
       />
       <CardContent>
@@ -769,7 +766,7 @@ function RecurringDebits({ accountId }: { accountId: string }) {
                 {item.nextExpectedDate && (
                   <span className="text-muted-foreground block text-xs">
                     {item.active
-                      ? `prochain le ${formatShortDay(item.nextExpectedDate)}`
+                      ? `prévu le ${formatShortDay(item.nextExpectedDate)}`
                       : 'inactif'}
                   </span>
                 )}

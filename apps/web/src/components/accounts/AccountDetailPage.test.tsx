@@ -611,18 +611,15 @@ describe('AccountDetailPage', () => {
         text((await within(imports).findByText(/20 ajoutées/)).textContent),
       ).toBe('20 ajoutées · le 4 nov.')
       expect(text(imports.textContent)).toContain(
-        'Opérations bancaires jusqu’au 4 nov.',
-      )
-      expect(text(imports.textContent)).toContain(
         'Entre le 10 oct. et le 14 oct. : -42,00 € d’opérations manquantes',
       )
 
       const recurring = await screen.findByRole('region', {
-        name: 'Prélèvements réguliers',
+        name: 'Prélèvements',
       })
       expect(text(recurring.textContent)).toContain('Box internet test')
       expect(text(recurring.textContent)).toContain('29,99 € / mois')
-      expect(text(recurring.textContent)).toContain('prochain le 12 nov.')
+      expect(text(recurring.textContent)).toContain('prévu le 12 nov.')
 
       // Statement balances: their own folded section, no hand-built buttons
       // beside the header.
@@ -737,9 +734,7 @@ describe('AccountDetailPage', () => {
         await screen.findByText('Aucun relevé importé'),
       ).toBeInTheDocument()
       expect(screen.queryByText('Évolution du solde')).toBeNull()
-      expect(
-        screen.queryByRole('region', { name: 'Prélèvements réguliers' }),
-      ).toBeNull()
+      expect(screen.queryByRole('region', { name: 'Prélèvements' })).toBeNull()
     })
   })
 

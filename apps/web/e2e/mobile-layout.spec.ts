@@ -191,11 +191,13 @@ const SCENARIOS: Array<Scenario> = [
   { name: 'settings-security', path: '/settings/security' },
   { name: 'settings-access', path: '/settings/access' },
   { name: 'settings-danger', path: '/settings/danger' },
-  ...['checking', 'brokerage', 'life_insurance', 'crypto'].map((type) => ({
-    name: `account-${type}`,
-    path: '/accounts',
-    account: type,
-  })),
+  ...['checking', 'savings', 'brokerage', 'life_insurance', 'crypto'].map(
+    (type) => ({
+      name: `account-${type}`,
+      path: '/accounts',
+      account: type,
+    }),
+  ),
   // A wallet crypto account has its own page body (#269).
   { name: 'account-wallet', path: '/accounts', account: 'wallet' },
 ]
@@ -219,6 +221,10 @@ function auditPage(min: { target: number; font: number; width: number }) {
     if (r.width === 0 || r.height === 0) return false
     const s = getComputedStyle(el)
     if (s.visibility === 'hidden' || s.display === 'none') return false
+    // The content of a folded <details> is not rendered (its summary is).
+    const folded = el.closest('details:not([open])')
+    if (folded && !folded.querySelector(':scope > summary')?.contains(el))
+      return false
     return !el.closest('[aria-hidden="true"],[inert],.tsqd-parent-container')
   }
   // Hit area: probe points half a target away from the centre in the four

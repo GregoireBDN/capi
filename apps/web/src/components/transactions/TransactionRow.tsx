@@ -222,14 +222,15 @@ export function TransactionRow({
       className="hover:bg-muted/50 focus-visible:ring-ring/50 min-w-0 flex-1 rounded-lg px-1.5 py-1.5 text-left outline-none focus-visible:ring-[3px]"
       onClick={() => setOpen(true)}
     >
-      <span className="flex min-w-0 items-start justify-between gap-3">
-        <span className="line-clamp-2 min-w-0 text-sm font-medium break-words @xl:line-clamp-1 @xl:break-all">
+      {/* The amount goes under the label when both don't fit (320px). */}
+      <span className="flex min-w-0 flex-wrap items-start justify-between gap-x-3">
+        <span className="line-clamp-2 min-w-[7rem] flex-1 text-sm font-medium break-words @xl:line-clamp-1 @xl:min-w-0 @xl:break-all">
           {name}
         </span>
         <Amount
           cents={item.amountCents}
           transfer={transfer}
-          className="text-sm @xl:hidden"
+          className="ml-auto text-sm @xl:hidden"
         />
       </span>
       <span className="text-muted-foreground mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs empty:hidden">
