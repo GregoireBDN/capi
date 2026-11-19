@@ -77,6 +77,7 @@ import {
   DateChips,
   HabitGrid,
   previousDay,
+  VoucherDayGauge,
 } from './manual-fields'
 import { splitTransaction } from '#/components/transactions/edits'
 
@@ -444,13 +445,10 @@ export function ManualTransactionSheet({
     ...voucherDayQuery(accountId, voucherDayKey),
     enabled: open && onVoucher,
   })
-  const voucherLeft = Math.max(
-    0,
-    MEAL_VOUCHER_DAILY_CAP_CENTS -
-      (voucherDay.data ?? [])
-        .filter((payment) => payment.id !== expense?.id)
-        .reduce((total, payment) => total + payment.cents, 0),
-  )
+  const voucherPaid = (voucherDay.data ?? [])
+    .filter((payment) => payment.id !== expense?.id)
+    .reduce((total, payment) => total + payment.cents, 0)
+  const voucherLeft = Math.max(0, MEAL_VOUCHER_DAILY_CAP_CENTS - voucherPaid)
   const voucherWhen =
     voucherDayKey === today
       ? 'aujourd’hui'
@@ -458,23 +456,16 @@ export function ManualTransactionSheet({
         ? 'hier'
         : `le ${formatCalendarDate(voucherDayKey)}`
   const typedCents = parseEurosToCents(amount) ?? 0
-  const voucherError =
-    onVoucher && typedCents > voucherLeft
-      ? voucherLeft === 0
-        ? `La carte a déjà payé 25 € ${voucherWhen}, son plafond du jour : payez avec un autre compte.`
-        : `La carte ne peut plus payer que ${formatCents(voucherLeft)} ${voucherWhen} (25 € par jour) : payez le reste avec un autre compte.`
-      : null
-  const voucherHint =
-    onVoucher && voucherDay.isSuccess && voucherError === null
-      ? [
-          `Encore ${formatCents(voucherLeft)} possibles ${voucherWhen} avec la carte`,
-          chosenAccount.balanceCents !== null
-            ? `solde ${formatCents(chosenAccount.balanceCents)}`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(' · ')
-      : null
+  // Over what is left: « Ajouter » is greyed out and the gauge says why.
+  const voucherOver = onVoucher && typedCents > voucherLeft
+  const voucherGauge = onVoucher && voucherDay.isSuccess && (
+    <VoucherDayGauge
+      capCents={MEAL_VOUCHER_DAILY_CAP_CENTS}
+      paidCents={voucherPaid}
+      amountCents={typedCents}
+      when={voucherWhen}
+    />
+  )
   const labelError =
     !categoryId && label.trim() === ''
       ? 'Sans catégorie, indiquez un libellé'
@@ -575,7 +566,7 @@ export function ManualTransactionSheet({
     setSubmitted(true)
     if (kind === 'expense' && !categoryId) return setStep('category')
     if (amountError) return setStep('amount')
-    if (amountError || dateError || labelError || voucherError || !accountId)
+    if (amountError || dateError || labelError || voucherOver || !accountId)
       return
     if (kind === 'expense' && !categoryId) return
     save.mutate()
@@ -650,7 +641,7 @@ export function ManualTransactionSheet({
   const submitLabel = expense ? 'Enregistrer' : 'Ajouter'
   const nextDisabled = step === 'category' && !categoryId && !allowNoCategory
   const saveDisabled =
-    (kind === 'expense' && !categoryId) || !accountId || voucherError !== null
+    (kind === 'expense' && !categoryId) || !accountId || voucherOver
 
   /** What the earlier steps chose, at the top of the later ones. */
   const recap = (
@@ -867,11 +858,11 @@ export function ManualTransactionSheet({
               <FieldError id={`${id}-amount-error`} className="text-center">
                 {amountError}
               </FieldError>
-            ) : voucherError ? (
-              <FieldError className="text-center">{voucherError}</FieldError>
             ) : (
-              voucherHint && (
-                <p className="text-muted-foreground text-sm">{voucherHint}</p>
+              voucherGauge && (
+                <div className="mx-auto w-full max-w-64 pt-1">
+                  {voucherGauge}
+                </div>
               )
             )}
           </div>
@@ -917,7 +908,7 @@ export function ManualTransactionSheet({
             </Field>
 
             {paidWithShown && (
-              <Field data-invalid={voucherError !== null}>
+              <Field>
                 <FieldLabel id={`${id}-paid-with`}>
                   {kind === 'income' ? 'Crédité sur' : 'Payé avec'}
                 </FieldLabel>
@@ -927,13 +918,7 @@ export function ManualTransactionSheet({
                   value={accountId}
                   onChange={setAccountId}
                 />
-                {voucherError ? (
-                  <FieldError>{voucherError}</FieldError>
-                ) : (
-                  voucherHint && (
-                    <FieldDescription>{voucherHint}</FieldDescription>
-                  )
-                )}
+                {voucherGauge && <div className="pt-1">{voucherGauge}</div>}
               </Field>
             )}
 

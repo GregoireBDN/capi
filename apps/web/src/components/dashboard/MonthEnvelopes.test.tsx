@@ -769,12 +769,11 @@ describe('ManualTransactionSheet with a meal-voucher card (#298)', () => {
     await user.click(
       within(paidWith).getByRole('radio', { name: 'Titres-restaurant' }),
     )
-    // What the card can still pay today is shown under the choice.
+    // The day's gauge under the choice: 15 € paid, 9,80 € now, 0,20 € left.
     expect(
-      await within(dialog).findByText(
-        /Encore 10,00 € possibles aujourd’hui avec la carte/,
-      ),
+      await within(dialog).findByText(/Plafond 25 € · aujourd’hui/),
     ).toBeInTheDocument()
+    expect(within(dialog).getByText(/Reste 0,20 €/)).toBeInTheDocument()
     expect(api.transactionsControllerList).toHaveBeenCalledWith(
       expect.objectContaining({
         query: expect.objectContaining({
@@ -785,17 +784,13 @@ describe('ManualTransactionSheet with a meal-voucher card (#298)', () => {
         }),
       }),
     )
-    // Over what is left: refused on the card, said on the amount too.
+    // Over what is left: the most it can pay, « Ajouter » greyed out.
     await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
     await user.clear(within(dialog).getByLabelText('Montant'))
     await user.type(within(dialog).getByLabelText('Montant'), '10,01')
-    expect(
-      within(dialog).getByText(/ne peut plus payer que 10,00 € aujourd’hui/),
-    ).toBeInTheDocument()
+    expect(within(dialog).getByText(/10 € max/)).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
-    expect(
-      within(dialog).getByText(/ne peut plus payer que 10,00 € aujourd’hui/),
-    ).toBeInTheDocument()
+    expect(within(dialog).getByText(/10 € max/)).toBeInTheDocument()
     expect(
       within(dialog).getByRole('button', { name: 'Ajouter' }),
     ).toBeDisabled()
