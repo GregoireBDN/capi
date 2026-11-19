@@ -175,7 +175,7 @@ export class BudgetsService {
         this.income(executor, month, month),
         this.incomeCredits(executor),
         this.prepaid(executor, month),
-    ])
+      ])
     const inEffect = targetsInEffect(rows, month)
     const targets = ofKind(inEffect, categories, 'expense')
     const spentBy = new Map(spending.map((row) => [row.categoryId, row]))

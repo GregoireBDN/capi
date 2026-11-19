@@ -9,7 +9,6 @@ import {
   accountsTable,
   budgetsTable,
   categoriesTable,
-  recurringItemsTable,
   type InsertTransaction,
   recurringItemsTable,
   transactionSplitsTable,
