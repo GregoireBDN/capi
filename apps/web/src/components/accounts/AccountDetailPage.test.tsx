@@ -679,10 +679,28 @@ describe('AccountDetailPage', () => {
       name: 'Valeur du wallet',
     })
     expect(within(status).getByText(/30\s000,00\s€/)).toBeInTheDocument()
-    // The server does not read chains: said once, in the header.
+    // The server does not read chains: said once, beside the balances' age.
     expect(
-      within(status).getByText(/^Synchronisation désactivée sur ce serveur/),
+      within(status).getByText(/^Soldes lus .* · synchronisation désactivée$/),
     ).toBeInTheDocument()
+
+    // Keys and tokens are settings: one row per key, what it found (#294).
+    const settings = screen.getByRole('region', { name: 'Clés et jetons' })
+    expect(
+      await within(settings).findByRole('button', {
+        name: 'Épargne : xpub661M…GMcet8 · 3 adresses utilisées',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      within(settings).getByRole('button', {
+        name: /Aucune adresse utilisée en Legacy \(1…\) : vérifiez le type/,
+      }),
+    ).toBeInTheDocument()
+    // Each opens the sheet where keys are added, changed and removed.
+    await user.click(
+      within(settings).getByRole('button', { name: /^Ethereum, Base : / }),
+    )
+    await screen.findByRole('dialog', { name: 'Clés et jetons' })
 
     // Keys are shown masked, with their label, chains and what they found.
     const keys = await screen.findByRole('list', { name: 'Clés publiques' })
@@ -907,8 +925,17 @@ describe('AccountDetailPage', () => {
     )
     renderPage()
 
-    await screen.findByRole('region', { name: 'Valeur du wallet' })
-    expect(await screen.findAllByText(/30\s000,00\s€/)).toHaveLength(2) // header + its line
+    const summary = await screen.findByRole('region', {
+      name: 'Valeur du wallet',
+    })
+    expect(within(summary).getAllByText(/30\s000,00\s€/)).toHaveLength(1)
+    // Once more on its asset's row, nowhere else on the page.
+    const assets = screen.getByRole('list', { name: 'Avoirs' })
+    expect(
+      within(assets).getByRole('button', {
+        name: /^Bitcoin, 30\s000,00\s€, 0,5 BTC, 100 %$/,
+      }),
+    ).toBeInTheDocument()
     // No key figures left without a year of history: nothing but dashes.
     expect(
       screen.queryByRole('region', { name: 'Chiffres clés' }),
@@ -922,6 +949,108 @@ describe('AccountDetailPage', () => {
     ]) {
       expect(screen.queryByText(label)).not.toBeInTheDocument()
     }
+  })
+
+  it('shows what the wallet holds before its keys: change, split, assets, evolution', async () => {
+    const user = userEvent.setup()
+    mockWallet(
+      {
+        enabled: true,
+        syncedAt: new Date(Date.now() - 6 * 60_000).toISOString(),
+        failedAt: null,
+        failedChains: [],
+        retryAt: null,
+      },
+      [
+        holding({ id: 'h-btc', origin: 'sync', location: 'Bitcoin' }),
+        holding({
+          id: 'h-eth',
+          origin: 'sync',
+          assetId: 'ethereum',
+          symbol: 'ETH',
+          name: 'Ethereum',
+          quantity: '1',
+          location: 'Ethereum',
+          priceEur: '1000',
+          valueCents: 100_000,
+        }),
+        holding({
+          id: 'h-demo',
+          origin: 'sync',
+          assetId: 'erc20.42161.0x1111111111111111111111111111111111111111',
+          symbol: 'DEMO',
+          name: 'Demo Token',
+          quantity: '15000',
+          location: 'Arbitrum',
+          priceEur: null,
+          priceFetchedAt: null,
+          valueCents: null,
+        }),
+      ],
+    )
+    api.accountSnapshotsControllerPerformance.mockImplementation(() =>
+      ok(
+        performance({
+          type: 'crypto',
+          contributionsCents: null,
+          contributionsDate: null,
+          gainCents: null,
+          returnRate: null,
+        }),
+      ),
+    )
+    renderPage()
+
+    const summary = await screen.findByRole('region', {
+      name: 'Valeur du wallet',
+    })
+    // The change since the previous value, then how fresh the balances are.
+    expect(text(summary.textContent)).toContain('+500,00 € depuis le 30 juin')
+    expect(
+      within(summary).getByText('Soldes lus il y a 6 min'),
+    ).toBeInTheDocument()
+    // The split by asset, priced ones only.
+    expect(
+      within(summary).getByRole('img', {
+        name: 'Répartition : BTC 97 %, ETH 3 %',
+      }),
+    ).toBeInTheDocument()
+
+    // Tokens without a price apart, last.
+    const unpriced = screen.getByRole('list', { name: 'Avoirs sans cours' })
+    expect(
+      within(unpriced).getByRole('button', {
+        name: /^Demo Token, sans cours, 15\s000 DEMO · Arbitrum$/,
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('3 actifs · 3 réseaux · cours à l’instant'),
+    ).toBeInTheDocument()
+
+    // The evolution: its change over one year, the values folded.
+    const evolution = screen.getByRole('region', { name: 'Évolution' })
+    expect(text(evolution.textContent)).toContain('+2 500,00 € sur 1 an (+25')
+    const values = within(evolution).getByRole('button', {
+      name: 'Valeurs enregistrées (3)',
+    })
+    expect(values).toHaveAttribute('aria-expanded', 'false')
+    await user.click(values)
+    expect(
+      within(evolution).getByRole('button', {
+        name: /^Modifier la valeur du 30 sept\.? 2026$/,
+      }),
+    ).toBeInTheDocument()
+
+    // Then the keys and tokens, last.
+    const regions = screen
+      .getAllByRole('region')
+      .map((region) => region.getAttribute('aria-label') ?? 'Valeur du wallet')
+    expect(regions).toEqual([
+      'Valeur du wallet',
+      'Avoirs crypto',
+      'Évolution',
+      'Clés et jetons',
+    ])
   })
 
   it('flags stale holdings when the last sync failed', async () => {
@@ -1048,6 +1177,11 @@ describe('AccountDetailPage', () => {
     )
     renderPage()
 
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Jetons lus : ETH, BNB et POL seulement',
+      }),
+    )
     expect(
       await screen.findByText(
         'ETH, BNB et POL sont toujours lus. Ajoutez les jetons ERC-20 / BEP-20 de vos adresses.',
@@ -1155,29 +1289,42 @@ describe('AccountDetailPage', () => {
     )
     renderPage()
 
+    // One row per asset (#294): ETH read on two chains is one row.
     const list = await screen.findByRole('list', { name: 'Avoirs' })
-    // The place only when it is not the asset's name.
+    const ethRow = within(list).getByRole('button', {
+      name: /^Ethereum, 60\s000,00\s€, 1 ETH · 2 réseaux, 67 %$/,
+    })
+    const btcRow = within(list).getByRole('button', {
+      name: /^Bitcoin, 30\s000,00\s€, 0,5 BTC · Papier, 33 %$/,
+    })
+    expect(ethRow).toHaveAttribute('aria-expanded', 'false')
+    // Its chains and price fold under it.
+    await user.click(ethRow)
+    expect(ethRow).toHaveAttribute('aria-expanded', 'true')
+    const ethLines = screen.getByRole('list', { name: 'Lignes ETH' })
     expect(
-      within(list).queryByText('Ethereum · Ethereum'),
-    ).not.toBeInTheDocument()
-    expect(within(list).getByText('Ethereum · Arbitrum')).toBeInTheDocument()
-    // Mixed origins: each line says where it comes from, next to its symbol.
-    const badges = within(list).getAllByText(/^(Synchronisé|Saisi à la main)$/)
-    expect(badges.map((badge) => badge.textContent)).toEqual([
-      'Synchronisé',
-      'Synchronisé',
-      'Saisi à la main',
+      within(ethLines)
+        .getAllByRole('listitem')
+        .map((item) => text(item.textContent)),
+    ).toEqual([
+      'Ethereum · 0,5 ETHSynchronisé30 000,00 €',
+      'Arbitrum · 0,5 ETHSynchronisé30 000,00 €',
     ])
-    for (const badge of badges) {
-      expect(badge.parentElement?.firstElementChild?.textContent).toMatch(
-        /^(ETH|BTC)$/,
-      )
-    }
     expect(
-      within(list).queryByRole('button', { name: /^Modifier/ }),
+      screen.getByText(/^1 ETH = 60\s000,00\s€ · cours /),
+    ).toBeInTheDocument()
+    // Mixed origins: each line says where it comes from; nothing to edit.
+    await user.click(btcRow)
+    expect(
+      within(screen.getByRole('list', { name: 'Lignes BTC' })).getByText(
+        'Saisi à la main',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /^Modifier (BTC|ETH)/ }),
     ).not.toBeInTheDocument()
     await user.click(
-      within(list).getByRole('button', { name: 'Supprimer BTC · Papier' }),
+      screen.getByRole('button', { name: 'Supprimer BTC · Papier' }),
     )
     await user.click(await screen.findByRole('button', { name: 'Supprimer' }))
     await waitFor(() =>

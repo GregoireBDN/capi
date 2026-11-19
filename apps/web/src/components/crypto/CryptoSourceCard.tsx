@@ -467,7 +467,7 @@ export function WalletTokenList({
       {writable && (
         <>
           <Button
-            size="sm"
+            className="w-full"
             outline
             variant="secondary"
             iconStart={<PlusIcon />}
@@ -803,7 +803,7 @@ export function WalletKeyList({
       </ul>
       {writable && (
         <Button
-          size="sm"
+          className="w-full"
           outline
           variant="secondary"
           iconStart={<PlusIcon />}
