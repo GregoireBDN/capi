@@ -14,15 +14,20 @@ phone / laptop ──tailnet──▶ Caddy (infra, 443 on the Tailscale IP, net
                  │ api  (default network only)                         │
                  │  │                                                  │
                  │ db   postgres:17-alpine, volume finances_db_data    │
+                 │ finances-mcp (profile remote-mcp, proxy + default)  │
+                 │  │  → http://api:4000 with the connector's token    │
                  └─────────────────────────────────────────────────────┘
+Claude's servers ──internet──▶ Caddy, public host finances-mcp.<domain>
+                              (seven paths only) → finances-mcp:4100
 ```
 
 - **No service publishes a port.** Only Caddy publishes 80/443, bound to the Tailscale IP. Never add `ports:` to this stack: Docker-published ports bypass `ufw`, and the API trusts `X-Forwarded-For` from private addresses (#49).
-- **Images**: `ghcr.io/gregoirebdn/finances-api` and `finances-web`, tag pinned by `FINANCES_VERSION` in `.env` (`vX.Y.Z` or `sha-<shortsha>`).
+- **Images**: `ghcr.io/gregoirebdn/finances-api`, `finances-web` and `finances-mcp`, tag pinned by `FINANCES_VERSION` in `.env` (`vX.Y.Z` or `sha-<shortsha>`).
+- **Remote MCP adapter** (`finances-mcp`, #78, #328): only started with `COMPOSE_PROFILES=remote-mcp` in `.env`, and refuses to start unless `REMOTE_MCP_ENABLED=true`. It is the only part of the app on a public host; enabling, checks and the kill switch are in the [remote MCP runbook](remote-mcp.md).
 - **Files on the server**: `/srv/finances/docker-compose.prod.yml` (copied from the release tag by each deploy) and `/srv/finances/.env`. Both are owned by `deploy`, and `.env` has mode `600`. Nothing else from the repo is needed there.
 - **Restart policy**: every service is `restart: unless-stopped`. After a reboot, Docker starts the stack again on its own (Docker is enabled at boot and ordered after `tailscaled`, see the `infra` bootstrap). Containers stopped by hand stay stopped.
-- **Container hardening** (#183): `api` and `web` run as the image's `node` user on a read-only root filesystem (only a 16 MB `/tmp` tmpfs is writable), with every Linux capability dropped, `no-new-privileges`, a memory limit (`APP_MEM_LIMIT`, default `512m`, no swap) and at most 256 processes. `db` keeps only the capabilities its entrypoint needs to fix the data directory's ownership and drop to `postgres`, with `no-new-privileges`. `dc run` (migrations, seed) gets the same settings as the service.
-- **Health**: `GET /api/health` checks the database, and SMTP only when SMTP is configured (see [Email](#email-smtp)). The `api` and `web` containers have healthchecks. `web` checks the whole chain (web → API → database).
+- **Container hardening** (#183): `api`, `web` and `finances-mcp` run as the image's `node` user on a read-only root filesystem (only a 16 MB `/tmp` tmpfs is writable), with every Linux capability dropped, `no-new-privileges`, a memory limit (`APP_MEM_LIMIT`, default `512m`, no swap; `finances-mcp`: `MCP_MEM_LIMIT`, default `256m`) and at most 256 processes (`finances-mcp`: 128). `db` keeps only the capabilities its entrypoint needs to fix the data directory's ownership and drop to `postgres`, with `no-new-privileges`. `dc run` (migrations, seed) gets the same settings as the service.
+- **Health**: `GET /api/health` checks the database, and SMTP only when SMTP is configured (see [Email](#email-smtp)). The `api` and `web` containers have healthchecks. `web` checks the whole chain (web → API → database). `finances-mcp` checks that its port accepts connections (no request, no log line).
 
 Every command below runs as `deploy` in `/srv/finances` (`sudo -iu deploy`, then `cd /srv/finances`). To keep commands short:
 
@@ -182,7 +187,8 @@ Caddy sets `X-Forwarded-For`. `web` believes it only from Caddy and forwards a c
 
 - **Caddy** (infra repo) must see the device itself: its `100.x` Tailscale IPv4 or its `fd7a:115c:a1e0::…` Tailscale IPv6 (both are published, with `A` and `AAAA` records). That needs the shared `proxy` network to be **dual-stack**: on an IPv4-only `proxy`, Docker relays the IPv6 connections through `docker-proxy` from the bridge gateway, so every device on IPv6 arrives as `172.18.0.1` and shares one rate-limit bucket (#251; the sign-in throttle of one device locks out the others). The infra repo's `bootstrap.sh` creates `proxy` with `--ipv6`, and `scripts/proxy-network-ipv6.sh` converts an existing one (infra runbook `caddy-portal.md`, Client IP). A device that uses both families counts as two clients, one per address.
 - **`web`** (`WEB_TRUSTED_PROXIES`, default `caddy`): Caddy's service name on the shared `proxy` network (`caddy` in the infra repo's `caddy/compose.yml`). `web` resolves it through Docker's DNS at start-up and every 30 s, so a restarted Caddy with a new IP is followed within 30 s. Any other container on `proxy` (the portal, another app) that calls `finances-web:3000` gets its own address as client IP, whatever header it sends (#183). While the name doesn't resolve (Caddy renamed or off `proxy`), `web` trusts nobody: the site still works, but every request counts against the address it comes from (Caddy's) for rate limits, and the `web` logs say `Trusted proxy "caddy" does not resolve` once.
-- **`api`** (`TRUSTED_PROXIES`, default `loopback,uniquelocal`): `web` on the project network, which only `web` and `db` join.
+- **`api`** (`TRUSTED_PROXIES`, default `loopback,uniquelocal`): `web` on the project network, and `finances-mcp` when it runs, which forwards the client IP it believes.
+- **`finances-mcp`** (`MCP_TRUSTED_PROXIES`, default `caddy`, #328): like `web`, Caddy's service name resolved every 30 s; its per-IP limit and the API's limits on the OAuth routes then apply to the real caller (Anthropic's servers). While the name doesn't resolve it trusts nobody and logs `trusted proxy "caddy" does not resolve` once.
 
 Check what `web` resolves: `dc exec -T web node -e "require('dns').promises.lookup('caddy',{all:true}).then(r=>console.log(r))"` (it should be Caddy's addresses in `docker network inspect proxy`: an IPv4 and, on the dual-stack network, an IPv6).
 
@@ -223,7 +229,7 @@ $c exec -T web node -e "fetch('http://localhost:3000/api/health').then(async r=>
 $c down -v                                         # removes the throwaway volume too
 ```
 
-`docker-compose.build.yml` builds both images from the checkout (monorepo root as context) and tags them like the GHCR images, with `FINANCES_VERSION`.
+`docker-compose.build.yml` builds the images from the checkout (monorepo root as context) and tags them like the GHCR images, with `FINANCES_VERSION`; the MCP adapter only with its profile (`COMPOSE_PROFILES=remote-mcp` in the env file, plus `REMOTE_MCP_ENABLED=true` and `REMOTE_MCP_PUBLIC_URL=https://finances-mcp.example.test`, https in production images). `docs/security/pentest/stack.sh oauth` runs it that way.
 
 ## Troubleshooting
 

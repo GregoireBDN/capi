@@ -3,7 +3,9 @@
 # Deployed in /srv/finances with a root-only `.env` next to this file (template:
 # .env.production.example). No service publishes a port: Caddy (infra repo)
 # reaches `web` on the external `proxy` network as `finances-web:3000`, and
-# `api`/`db` stay on this project's internal network.
+# `api`/`db` stay on this project's internal network. The remote MCP adapter
+# (`finances-mcp`, ADR 0003, #328) only runs with the `remote-mcp` profile
+# (COMPOSE_PROFILES=remote-mcp in .env); Caddy reaches it as finances-mcp:4100.
 #
 # Images come from GHCR, pinned by FINANCES_VERSION. To build them locally
 # instead, add docker-compose.build.yml (see the runbook), and on a dev machine
@@ -17,7 +19,7 @@ x-logging: &logging
     max-size: 10m
     max-file: '5'
 
-# Container hardening for `api` and `web` (#183): they run as the image's
+# Container hardening for `api`, `web` and `finances-mcp` (#183): they run as the image's
 # unprivileged `node` user on a read-only root filesystem (only a small /tmp
 # is writable), with no Linux capabilities, no privilege escalation through
 # setuid binaries, and bounded memory and process counts. `docker compose run`
@@ -98,6 +100,12 @@ services:
       EVM_RPC_URLS: ${EVM_RPC_URLS:-}
       WALLET_SYNC_TIMEOUT_MS: ${WALLET_SYNC_TIMEOUT_MS:-10000}
       WALLET_SYNC_INTERVAL_SECONDS: ${WALLET_SYNC_INTERVAL_SECONDS:-600}
+      # Remote MCP OAuth (#78, ADR 0003): off unless set to "true". Off, no
+      # /api/oauth route is mounted and every OAuth token is refused: the kill
+      # switch of every Claude connector (docs/runbooks/remote-mcp.md).
+      REMOTE_MCP_ENABLED: ${REMOTE_MCP_ENABLED:-false}
+      REMOTE_MCP_PUBLIC_URL: ${REMOTE_MCP_PUBLIC_URL:-}
+      REMOTE_MCP_REDIRECT_URIS: ${REMOTE_MCP_REDIRECT_URIS:-}
     depends_on:
       db:
         condition: service_healthy
@@ -153,6 +161,55 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    restart: unless-stopped
+    logging: *logging
+
+  # Remote MCP adapter (#78, ADR 0003, #328): the only part of the app on a
+  # public host (Caddy, infra repo: only its seven paths, from Anthropic's
+  # range). It holds no secret and no database access; it checks OAuth tokens
+  # with the API and calls it with them. Only started with the `remote-mcp`
+  # profile, and refuses to start unless REMOTE_MCP_ENABLED=true.
+  finances-mcp:
+    image: ghcr.io/gregoirebdn/finances-mcp:${FINANCES_VERSION:?set FINANCES_VERSION in .env}
+    profiles: [remote-mcp]
+    <<: *hardening
+    mem_limit: ${MCP_MEM_LIMIT:-256m}
+    memswap_limit: ${MCP_MEM_LIMIT:-256m}
+    pids_limit: 128
+    environment:
+      REMOTE_MCP_ENABLED: ${REMOTE_MCP_ENABLED:-false}
+      # Public origin (https): the OAuth issuer; MCP at <origin>/mcp.
+      REMOTE_MCP_PUBLIC_URL: ${REMOTE_MCP_PUBLIC_URL:-}
+      FINANCES_API_URL: http://api:4000
+      MCP_HTTP_HOST: 0.0.0.0
+      MCP_HTTP_PORT: '4100'
+      # Peers allowed to set the client IP (X-Forwarded-For): Caddy only, by
+      # its service name on the `proxy` network, resolved every 30 s (like
+      # WEB_TRUSTED_PROXIES). The adapter forwards that IP to the API, whose
+      # per-IP limits on the OAuth routes then apply to the real client.
+      MCP_TRUSTED_PROXIES: ${MCP_TRUSTED_PROXIES:-caddy}
+    networks:
+      # `default` to reach api:4000; `proxy` for Caddy (finances-mcp:4100).
+      default: {}
+      proxy:
+        aliases:
+          - finances-mcp
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      # A TCP connect: no request, so no log line and no rate-limit bucket.
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('net').connect(4100,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
     logging: *logging
 

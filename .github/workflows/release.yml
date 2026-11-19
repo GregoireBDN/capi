@@ -1,8 +1,9 @@
 # Release and deploy (ADR 0001 §5–6, runbook: docs/runbooks/deploy.md).
 #
-# - Push a tag vX.Y.Z (on main): CI, then build and push the API and web images
-#   to GHCR (tags vX.Y.Z and sha-<short>), then deploy to production once the
-#   `production` environment is approved.
+# - Push a tag vX.Y.Z (on main): CI, then build and push the API, web and MCP
+#   adapter images to GHCR (tags vX.Y.Z and sha-<short>), then deploy to
+#   production once the `production` environment is approved. The MCP adapter
+#   (#328) only runs where its compose profile is on; its image is always built.
 # - Run manually with an existing tag: redeploys that version without
 #   rebuilding (rollback).
 name: Release
@@ -75,12 +76,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Releases before #328 have no MCP adapter image (nor its service).
       - name: Check the images exist
         if: github.event_name == 'workflow_dispatch'
         env:
           VERSION: ${{ steps.resolve.outputs.version }}
         run: |
-          for app in api web; do
+          apps=(api web)
+          if git show "refs/tags/$VERSION:docker-compose.prod.yml" | grep -q '^  finances-mcp:$'; then
+            apps+=(mcp)
+          fi
+          for app in "${apps[@]}"; do
             docker buildx imagetools inspect "$REGISTRY/finances-$app:$VERSION" >/dev/null
           done
 
@@ -111,7 +117,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        app: [api, web]
+        app: [api, web, mcp]
     env:
       TRIVY_IMAGE: aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
     steps:

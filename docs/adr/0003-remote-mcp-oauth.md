@@ -1,8 +1,8 @@
 # ADR 0003 — Remote MCP access with OAuth (claude.ai and the Claude apps)
 
-- **Status**: Accepted (implemented **disabled**; enabling waits for #102)
+- **Status**: Accepted (implemented in #78; the #102 audit passed and #328 ships the adapter's image and production service, still **off** until the owner turns it on)
 - **Date**: 2026-11-15
-- **Issue**: #78 (milestone M8 Claude (MCP))
+- **Issue**: #78 (milestone M8 Claude (MCP)); deployment #328
 
 ## Context
 
@@ -55,10 +55,12 @@ The MCP process holds **no secret and no database access**: it stays a protocol 
 
 Everything else answers 404. The **authorization endpoint is the web app's consent page** (`https://<app on the tailnet>/oauth/authorize`): it is opened by the owner's own browser (phone or computer, which are on the tailnet), never by Anthropic's servers, so it stays private. Anthropic's servers only need the adapter.
 
-Infrastructure, to be done in the separate `infra` repo when enabling (not in this change):
+Deployment (#328): the image `ghcr.io/gregoirebdn/finances-mcp` (`apps/mcp/Dockerfile`, built, scanned and pushed by `release.yml` with the others) runs as the `finances-mcp` service of `docker-compose.prod.yml`, with the hardening of `api` / `web`, on the project network (to reach `api:4000`) and the external `proxy` network, no published port. It only starts with the `remote-mcp` compose profile (`COMPOSE_PROFILES` in the server's `.env`), so a stack with remote access off doesn't even run it, and `deploy.sh` pulls, health-checks and rolls it back with the rest. It believes `X-Forwarded-For` only from the host named `caddy` (resolved every 30 s, as `web` does since #183).
 
-- a **dedicated public host name** for the adapter (e.g. `finances-mcp.<domain>`), served by the server's Caddy and routed to a `finances-mcp` container (`node dist/index.js --http`) that joins the external `proxy` network and the project network; `web`, `api` and `db` keep no published port and no public route;
-- Caddy for that host forwards only the paths listed above (`handle /mcp`, `/.well-known/oauth-*`, `/oauth/register|token|revoke`, `respond 404` otherwise), optionally restricted to Anthropic's range `160.79.104.0/21` (`remote_ip`), with request body limits and no buffering of responses;
+Infrastructure, in the separate `infra` repo when enabling:
+
+- a **dedicated public host name** for the adapter (e.g. `finances-mcp.<domain>`), served by the server's Caddy and routed to `finances-mcp:4100` on the `proxy` network; `web`, `api` and `db` keep no published port and no public route;
+- Caddy for that host forwards only the seven paths listed above (`/mcp`, the three `/.well-known/oauth-*`, `/oauth/register|token|revoke`; `respond 404` otherwise), restricted to Anthropic's range `160.79.104.0/21` (`remote_ip`, 403 otherwise), with request body limits and no buffering of responses (runbook § 3);
 - the public listener is the only change to the network edge: the tailnet listener and DNS of the app stay as they are.
 
 **Rejected: Tailscale Funnel.** Funnel publishes a node's whole HTTPS listener on the `ts.net` name (paths can be split, but it is the tailnet's own host name and certificate), only on ports 443/8443/10000, with Tailscale's relays in the request path and less control over limits and IP filtering than Caddy. A dedicated Caddy host keeps one edge, one place for TLS, body limits and the IP allow-list, and the tailnet name untouched. Funnel stays a fallback for a quick test from a laptop.
@@ -67,7 +69,7 @@ Infrastructure, to be done in the separate `infra` repo when enabling (not in th
 
 ### 4. Defense in depth and kill switch
 
-- **Off by default**: `REMOTE_MCP_ENABLED` (anything but `true` is off). Off, the API mounts **no** `/api/oauth` route (404, not even in the router) and `JwtGuard` refuses every `fin_oat_` token; the adapter refuses to start. Turning it off and restarting is the kill switch: every connection stops at once, without deleting grants.
+- **Off by default**: `REMOTE_MCP_ENABLED` (anything but `true` is off), and the adapter's compose profile. Off, the API mounts **no** `/api/oauth` route (404, not even in the router) and `JwtGuard` refuses every `fin_oat_` token; the adapter refuses to start. Turning it off and restarting `api` is the kill switch: every connection stops at once, without deleting grants (an adapter left running answers tool errors, then 503 once its 30 s token cache expires: no data; checked by `pentest/oauth.sh killed`).
 - **Revocation** from the profile page ("Applications connectées", next to the personal access tokens): revoking a grant revokes its access and refresh tokens at once.
 - **Rate limits**: per IP on the public OAuth routes (above), the per-token bucket already applied to bearer tokens (60/min), and in the adapter (per IP before authentication, per token after).
 - **Audit**: one `oauth_audit` row per API call made with an OAuth token (grant, method, route pattern, status; never the URL, query, body or amounts), kept 90 days, shown on the profile page like the access-token audit.
@@ -77,7 +79,7 @@ Infrastructure, to be done in the separate `infra` repo when enabling (not in th
 
 ## Consequences
 
-- Enabling remote access puts one more host on the internet. Its attack surface is the adapter's six paths and, behind them, the API's OAuth routes and the token-authenticated API. The **pentest of #102 must cover it, and its high / critical findings must be fixed before `REMOTE_MCP_ENABLED=true` is set in production** (runbook `docs/runbooks/remote-mcp.md`).
+- Enabling remote access puts one more host on the internet. Its attack surface is the adapter's seven paths and, behind them, the API's OAuth routes and the token-authenticated API. The pentest of #102 covered it (2026-11-17, OAuth on) and every finding is fixed; #328 re-ran `pentest/stack.sh oauth` against the production adapter service (2026-11-19). Re-run it before enabling on a release that changes auth, OAuth, the adapter or the proxy (runbook `docs/runbooks/remote-mcp.md`).
 - Tokens are held by Anthropic on the owner's behalf. A leaked access token is usable for 15 minutes, a refresh token until it is rotated or revoked; revoking the connection or the kill switch stops both.
 - The owner reconnects every 90 days at most, and after any reuse alarm.
 - **Residual risk: consent phishing.** Anyone can add a custom connector pointing at the public MCP URL in _their own_ claude.ai account; claude.ai then registers a client with the allow-listed claude.ai callback and builds an authorization link. If the owner opens that link and approves it, the tokens go to the other account. Mitigations: approving needs a sign-in in the last 5 minutes, the page says to approve only a connection the owner just started, connections and their calls are listed on the profile with one-click disconnection, the default scope is read only, and the IP allow-list does not help here (same Anthropic range). The #102 pentest should look at this flow.

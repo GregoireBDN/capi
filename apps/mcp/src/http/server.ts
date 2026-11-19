@@ -145,6 +145,8 @@ export function createHttpHandler(options: HttpServerOptions) {
   const now = options.now ?? (() => new Date())
   const log = options.log ?? ((line: string) => console.error(line))
   const proxies = compileTrustedProxies(config.trustedProxies)
+  // Host names (`caddy`) are resolved now, then every 30 s (unref'd timer).
+  proxies.start()
   const ipLimiter = new RateLimiter(RATE_LIMITS.perIp, 60_000)
   const tokenLimiter = new RateLimiter(RATE_LIMITS.perToken, 60_000)
   const validTokens = new Map<string, { until: number }>()
