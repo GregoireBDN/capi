@@ -195,6 +195,13 @@ describe('AccountsPage', () => {
       await screen.findByRole('link', { name: /Ancien livret/ }),
     ).toHaveTextContent(/^Ancien livretBanque test · au 31 déc\. 2025/)
 
+    // Phones: the rows stack their figures under the name (#344).
+    for (const item of document.querySelectorAll(
+      '[data-slot="item-list-row"]',
+    )) {
+      expect(item).toHaveClass('@container/item-row')
+    }
+
     // No per-row button in the lists.
     for (const list of document.querySelectorAll('[data-slot="item-list"]')) {
       expect(

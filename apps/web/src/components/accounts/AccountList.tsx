@@ -134,8 +134,10 @@ function rowDetail(account: AccountListItem): ReactNode {
 
 /**
  * One account: its type badge, name, institution · value date, value, and
- * on the right the gain over contributions or « à mettre à jour ». The whole
- * row is the link; no other control sits on it.
+ * on the right the gain over contributions or « à mettre à jour ». On a
+ * narrow row (a phone) the value and the gain go on lines of their own under
+ * the name (#344, « C. Empilé »). The whole row is the link; no other
+ * control sits on it.
  */
 export function AccountListRow({
   account,
@@ -170,7 +172,8 @@ export function AccountListRow({
     detail: rowDetail(account),
   }
   return (
-    <ItemListRow asChild {...row}>
+    // Phones: the figures go under the name so it reads in full (#344).
+    <ItemListRow asChild stackWhenNarrow {...row}>
       {account.link === 'transactions' ? (
         <Link
           to={ROUTES.transactions}

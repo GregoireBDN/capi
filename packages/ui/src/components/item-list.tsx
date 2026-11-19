@@ -53,9 +53,10 @@ function ItemListGroup({
         <div className="flex flex-wrap items-baseline gap-x-3 px-2">
           <h3
             id={id}
-            // No min-w-0: a long word (« Investissements ») wraps the total
-            // to the next line instead of breaking.
-            className="text-muted-foreground flex-1 text-sm font-medium"
+            // No min-w-0 and words kept whole (the body breaks anywhere): a
+            // long word (« Investissements ») wraps the total to the next
+            // line instead of breaking (#344).
+            className="text-muted-foreground flex-1 text-sm font-medium break-normal"
           >
             {title}
           </h3>
@@ -90,6 +91,13 @@ type ItemListRowProps = Omit<React.ComponentProps<'a'>, 'title'> & {
   value?: React.ReactNode
   /** Second line on the right. */
   detail?: React.ReactNode
+  /**
+   * On a narrow row (under 464px, a phone), put the value and its detail on
+   * lines of their own under the title and its second line, and let the
+   * title take two lines, so it reads in full whatever the figures (#344,
+   * direction « C. Empilé »). Wider rows keep the two columns.
+   */
+  stackWhenNarrow?: boolean
 }
 
 /**
@@ -105,13 +113,20 @@ function ItemListRow({
   subtitle,
   value,
   detail,
+  stackWhenNarrow = false,
   className,
   children,
   ...props
 }: ItemListRowProps) {
   const Comp = asChild ? Slot.Root : 'a'
+  const stack = stackWhenNarrow
+  const figures = value != null || Boolean(detail)
   return (
-    <li data-slot="item-list-row">
+    <li
+      data-slot="item-list-row"
+      // The row's own width decides whether it stacks (the li is the row).
+      className={stack ? '@container/item-row' : undefined}
+    >
       <Comp
         className={cn(
           'flex min-h-11 items-center gap-3 rounded-lg px-2 py-2 text-sm',
@@ -128,35 +143,72 @@ function ItemListRow({
             className={cn(
               // 32px whatever the root size (the app's rem is 22px).
               'bg-muted text-muted-foreground flex size-[32px] shrink-0 items-center justify-center rounded-full [&_svg]:size-[16px]',
+              // Stacked: beside the title, not in the middle of the lines.
+              stack && 'self-start @min-[464px]/item-row:self-center',
               iconClassName,
             )}
           >
             {icon}
           </span>
         )}
-        {/* Name and its second line on the left, cut with … when they
-            don't fit; the value and its detail on the right, never cut. */}
-        <span className="block min-w-0 flex-1">
-          <span className="block truncate font-medium">{title}</span>
-          {subtitle && (
-            <span className="text-muted-foreground block truncate text-xs">
-              {subtitle}
-            </span>
-          )}
-        </span>
-        {(value != null || detail) && (
-          <span className="block shrink-0 text-right">
-            {value != null && (
-              <span className="block font-medium whitespace-nowrap tabular-nums">
-                {value}
+        {stack ? (
+          /* Narrow: title (up to two lines), second line, then the value
+             and its detail, flowing on one line when they fit. Wide: the
+             two columns below. */
+          <span className="flex min-w-0 flex-1 flex-col @min-[464px]/item-row:flex-row @min-[464px]/item-row:items-center @min-[464px]/item-row:gap-3">
+            <span className="block min-w-0 flex-1">
+              <span className="line-clamp-2 font-medium break-normal @min-[464px]/item-row:line-clamp-1">
+                {title}
               </span>
-            )}
-            {detail && (
-              <span className="block text-xs whitespace-nowrap tabular-nums">
-                {detail}
+              {subtitle && (
+                <span className="text-muted-foreground block truncate text-xs">
+                  {subtitle}
+                </span>
+              )}
+            </span>
+            {figures && (
+              <span className="mt-0.5 flex flex-wrap items-baseline gap-x-2 @min-[464px]/item-row:mt-0 @min-[464px]/item-row:block @min-[464px]/item-row:shrink-0 @min-[464px]/item-row:text-right">
+                {value != null && (
+                  <span className="block font-medium whitespace-nowrap tabular-nums">
+                    {value}
+                  </span>
+                )}
+                {detail && (
+                  <span className="block text-xs whitespace-nowrap tabular-nums">
+                    {detail}
+                  </span>
+                )}
               </span>
             )}
           </span>
+        ) : (
+          <>
+            {/* Name and its second line on the left, cut with … when they
+                don't fit; the value and its detail on the right, never
+                cut. */}
+            <span className="block min-w-0 flex-1">
+              <span className="block truncate font-medium">{title}</span>
+              {subtitle && (
+                <span className="text-muted-foreground block truncate text-xs">
+                  {subtitle}
+                </span>
+              )}
+            </span>
+            {figures && (
+              <span className="block shrink-0 text-right">
+                {value != null && (
+                  <span className="block font-medium whitespace-nowrap tabular-nums">
+                    {value}
+                  </span>
+                )}
+                {detail && (
+                  <span className="block text-xs whitespace-nowrap tabular-nums">
+                    {detail}
+                  </span>
+                )}
+              </span>
+            )}
+          </>
         )}
         <ChevronRightIcon
           aria-hidden
