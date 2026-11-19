@@ -355,9 +355,29 @@ function RecurringStep(props: StepsProps) {
 }
 
 function BudgetStep(props: StepsProps) {
-  const { budget, month, nextMonth } = props.review
+  const { budget, income, month, nextMonth } = props.review
   return (
     <>
+      {income.shortfalls.length > 0 && (
+        <ul className="space-y-1" aria-label="Revenus pas reçus comme prévu">
+          {income.shortfalls.map((line) => (
+            <li
+              key={line.categoryId}
+              className="flex flex-wrap items-center justify-between gap-x-3"
+            >
+              <span className="flex min-w-[7rem] flex-1 items-center gap-2">
+                <CategoryIcon icon={line.icon} color={line.color} size="sm" />
+                <span className="min-w-0 break-words">{line.name}</span>
+              </span>
+              <span className="text-warning-foreground dark:text-warning ml-auto whitespace-nowrap tabular-nums">
+                {line.status === 'missing'
+                  ? `pas reçu (${formatWholeEuros(line.plannedCents)} prévus)`
+                  : `${formatWholeEuros(line.plannedCents - (line.receivedCents ?? 0))} de moins que prévu`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
       {budget.budgetCount > 0 ? (
         <>
           <ProgressMeter

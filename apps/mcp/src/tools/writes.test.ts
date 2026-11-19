@@ -547,13 +547,43 @@ describe('set_budget_targets', () => {
       warningCount: 0,
     },
     unbudgeted: { totalCents: 0, categoryCount: 0, top: [] },
-  } as BudgetMonthDto
+    income: {
+      items: [
+        {
+          categoryId: salary.id,
+          slug: 'salary',
+          name: 'Salaire',
+          color: null,
+          icon: null,
+          plannedCents: 210000,
+          effectiveFrom: '2026-09',
+          note: null,
+          receivedCents: null,
+          expectedByNowCents: null,
+          expectedOn: null,
+          status: 'pending',
+        },
+      ],
+      totals: {
+        plannedCents: 210000,
+        receivedCents: null,
+        unplannedCents: null,
+        lineCount: 1,
+      },
+    },
+    plan: {
+      plannedIncomeCents: 210000,
+      budgetedExpensesCents: 40000,
+      toSaveCents: 170000,
+    },
+  } satisfies BudgetMonthDto
   const put = (_url: URL, body: unknown) => ({ id: 'b', ...(body as object) })
   const routes = {
     '/api/categories': categories,
     'GET /api/budgets': budget,
     [`PUT /api/budgets/${groceries.id}`]: put,
     [`PUT /api/budgets/${restaurants.id}`]: put,
+    [`PUT /api/budgets/${salary.id}`]: put,
   }
 
   it('previews several categories at once, writing nothing', async () => {
@@ -609,14 +639,68 @@ describe('set_budget_targets', () => {
     )
   })
 
-  it('refuses income categories and duplicates before writing', async () => {
+  it('plans income with the expenses and says what the plan leaves to save (#315)', async () => {
     const { call, writes } = await connect(routes)
-    const income = await call('set_budget_targets', {
-      targets: [{ category: 'Salaire', amount: '10' }],
+    const preview = await call('set_budget_targets', {
+      month: '2026-12',
+      targets: [
+        { category: 'Salaire', amount: '2080' },
+        { category: 'restaurants', amount: '150' },
+      ],
+    })
+    expect(preview.text).toContain(
+      '- Salaire (revenu prévu) : 2 100,00 € → 2 080,00 €',
+    )
+    expect(preview.text).toContain(
+      'Total des revenus prévus demandés : 2 080,00 € par mois.',
+    )
+    expect(preview.text).toContain(
+      'revenus prévus 2 080,00 € − dépenses prévues 550,00 € = à épargner 1 530,00 €',
+    )
+    expect(writes()).toHaveLength(0)
+
+    const applied = await call('set_budget_targets', {
+      month: '2026-12',
+      targets: [{ category: 'Salaire', amount: '2080' }],
       confirm: true,
     })
-    expect(income.isError).toBe(true)
-    expect(income.text).toContain("n'est pas une catégorie de dépenses")
+    expect(writes()).toHaveLength(1)
+    expect(writes()[0]?.url.pathname).toBe(`/api/budgets/${salary.id}`)
+    expect(writes()[0]?.body).toEqual({
+      monthlyTargetCents: 208000,
+      effectiveFrom: '2026-12',
+    })
+    expect(applied.text).toContain(
+      'targets [{"category":"salary","amount":"2100,00"}]',
+    )
+  })
+
+  it('refuses transfer categories, tracked income and duplicates before writing', async () => {
+    const livretCategory = {
+      ...salary,
+      id: '00000000-0000-4000-8000-0000000000c9',
+      slug: 'savings_transfer',
+      name: 'Virement épargne',
+      kind: 'transfer' as const,
+    }
+    const { call, writes } = await connect({
+      ...routes,
+      '/api/categories': [...categories, livretCategory],
+    })
+    const transfer = await call('set_budget_targets', {
+      targets: [{ category: 'Virement épargne', amount: '10' }],
+      confirm: true,
+    })
+    expect(transfer.isError).toBe(true)
+    expect(transfer.text).toContain(
+      "n'est pas une catégorie de dépenses ou de revenus",
+    )
+    const tracked = await call('set_budget_targets', {
+      targets: [{ category: 'Salaire', amount: '10', tracked: true }],
+      confirm: true,
+    })
+    expect(tracked.isError).toBe(true)
+    expect(tracked.text).toContain("n'est pas suivi pendant le mois")
     const twice = await call('set_budget_targets', {
       targets: [
         { category: 'Courses', amount: '10' },

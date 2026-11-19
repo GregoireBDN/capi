@@ -2,6 +2,7 @@ import { queryOptions } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
 import {
   budgetsControllerHistory,
+  budgetsControllerIncomeSuggestions,
   budgetsControllerMonth,
   budgetsControllerRemove,
   budgetsControllerSuggest,
@@ -60,7 +61,20 @@ export function fetchSuggestions(month: string, months = SUGGEST_MONTHS) {
   )
 }
 
-/** Sets the target of a category from `month` on. */
+/**
+ * The income side of `month`'s plan: the plan carried over from the month
+ * before, else the confirmed recurring credits (nothing is saved).
+ */
+export function fetchIncomeSuggestions(month: string) {
+  return unwrap(
+    budgetsControllerIncomeSuggestions({
+      query: { month },
+      throwOnError: false,
+    }),
+  )
+}
+
+/** Sets the target (or the planned income) of a category from `month` on. */
 export function saveBudget(
   categoryId: string,
   month: string,

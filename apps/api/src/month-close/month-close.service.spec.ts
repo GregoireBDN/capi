@@ -485,6 +485,70 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
+    it('freezes planned vs received income and planned vs actual savings (#315)', async () => {
+      await inRollback(async ({ tx, accounts, budgets, service }) => {
+        await completeOctober(tx, accounts, budgets)
+        const [salary, family] = await tx
+          .insert(categoriesTable)
+          .values([
+            { slug: 'test_salary', name: 'Test salaire', kind: 'income' },
+            { slug: 'test_family', name: 'Test famille', kind: 'income' },
+          ])
+          .returning()
+        // The October income (250 000) filed as salary; the family transfer
+        // never came in.
+        await tx
+          .update(transactionsTable)
+          .set({ categoryId: salary.id })
+          .where(eq(transactionsTable.kind, 'income'))
+        await budgets.upsert(salary.id, '2026-10', {
+          monthlyTargetCents: 250_000,
+        })
+        await budgets.upsert(family.id, '2026-10', {
+          monthlyTargetCents: 25_000,
+        })
+
+        const open = await service.get('2026-10', { now: NOW })
+        expect(open.income).toEqual({
+          plannedCents: 275_000,
+          receivedCents: 250_000,
+          shortfalls: [
+            expect.objectContaining({
+              categoryId: family.id,
+              plannedCents: 25_000,
+              receivedCents: 0,
+              status: 'missing',
+            }),
+          ],
+        })
+
+        const closed = await service.close('2026-10', {}, { now: NOW })
+        expect(closed.closedReport?.plan).toEqual({
+          plannedIncomeCents: 275_000,
+          receivedIncomeCents: 250_000,
+          budgetedExpensesCents: 20_000,
+          plannedSavingsCents: 255_000,
+          actualSavingsCents: 220_000,
+        })
+        expect(closed.closedReport?.categories).toContainEqual(
+          expect.objectContaining({
+            categoryId: salary.id,
+            kind: 'income',
+            amountCents: 250_000,
+            targetCents: 250_000,
+          }),
+        )
+
+        // A plan changed after the close leaves the frozen report as it was.
+        await budgets.upsert(family.id, '2026-10', {
+          monthlyTargetCents: 30_000,
+        })
+        const later = await service.get('2026-10', { now: NOW })
+        expect(later.closedReport?.plan?.plannedIncomeCents).toBe(275_000)
+        expect(later.report.plan?.plannedIncomeCents).toBe(280_000)
+      })
+    })
+
     it('reopens a closed month and keeps its notes', async () => {
       await inRollback(async ({ tx, accounts, budgets, service }) => {
         await completeOctober(tx, accounts, budgets)

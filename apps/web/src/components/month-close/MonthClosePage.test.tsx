@@ -72,6 +72,7 @@ function report(overrides: Partial<MonthReportDto> = {}): MonthReportDto {
     ],
     oneOffs: [],
     notes: null,
+    plan: null,
     ...overrides,
   }
 }
@@ -146,6 +147,7 @@ function review(overrides: Partial<MonthCloseDto> = {}): MonthCloseDto {
       ],
       under: [],
     },
+    income: { plannedCents: 0, receivedCents: 0, shortfalls: [] },
     savings: {
       netCents: 210_000,
       targetCents: 60_000,
@@ -249,6 +251,90 @@ describe('MonthClosePage', () => {
       within(reportCard).getByRole('list', { name: 'Au-dessus du budget' }),
     ).toHaveTextContent(text('50 € de trop'))
     expect(screen.getByText('Encore 4 étapes.')).toBeInTheDocument()
+  })
+
+  it('names the income that did not come in and compares the plan (#315)', async () => {
+    const SALARY_ID = '30000000-0000-4000-8000-000000000004'
+    const FAMILY_ID = '30000000-0000-4000-8000-000000000005'
+    api.monthCloseControllerGet.mockImplementation(() =>
+      ok(
+        review({
+          income: {
+            plannedCents: 275_000,
+            receivedCents: 250_000,
+            shortfalls: [
+              {
+                categoryId: FAMILY_ID,
+                name: 'Famille test',
+                color: null,
+                icon: null,
+                plannedCents: 25_000,
+                receivedCents: 0,
+                status: 'missing',
+              },
+            ],
+          },
+          report: report({
+            categories: [
+              ...report().categories,
+              {
+                categoryId: SALARY_ID,
+                name: 'Salaire test',
+                color: null,
+                icon: null,
+                kind: 'income',
+                amountCents: 250_000,
+                previousAmountCents: 250_000,
+                // Above plan: never « au-dessus du budget ».
+                targetCents: 240_000,
+              },
+              {
+                categoryId: FAMILY_ID,
+                name: 'Famille test',
+                color: null,
+                icon: null,
+                kind: 'income',
+                amountCents: 0,
+                previousAmountCents: 25_000,
+                targetCents: 25_000,
+              },
+            ],
+            plan: {
+              plannedIncomeCents: 265_000,
+              receivedIncomeCents: 250_000,
+              budgetedExpensesCents: 35_000,
+              plannedSavingsCents: 230_000,
+              actualSavingsCents: 210_000,
+            },
+          }),
+        }),
+      ),
+    )
+    renderPage()
+
+    await screen.findByText('2 / 7 étapes faites')
+    expect(
+      within(step('budget')).getByRole('list', {
+        name: 'Revenus pas reçus comme prévu',
+      }),
+    ).toHaveTextContent(text('Famille testpas reçu (250 € prévus)'))
+
+    const reportCard = screen.getByRole('region', {
+      name: /Rapport d’octobre 2026/,
+    })
+    const plan = within(reportCard).getByRole('list', {
+      name: 'Prévu et réalisé',
+    })
+    expect(plan).toHaveTextContent(text('Revenus2 500 € / 2 650 € prévus'))
+    expect(plan).toHaveTextContent(text('Épargne2 100 € / 2 300 € prévus'))
+    expect(
+      within(reportCard).getByRole('list', {
+        name: 'Revenus en dessous du prévu',
+      }),
+    ).toHaveTextContent('Famille testpas reçu')
+    expect(
+      within(reportCard).getByRole('list', { name: 'Au-dessus du budget' }),
+    ).not.toHaveTextContent('Salaire test')
   })
 
   it('lists a cancelled subscription charged after its end date', async () => {
@@ -492,6 +578,21 @@ describe('report CSV', () => {
     expect(lines).toContain('Dépense;Courses test;400,00;300,00;350,00')
     expect(lines).toContain('Ponctuel;2026-10-18 MAGASIN TEST;-600,00;;')
     expect(lines).toContain('Notes;"Note; avec ""guillemets""";;;')
+    // No plan in a report frozen before planned income.
+    expect(csv).not.toContain('Revenus prévus')
+    const planned = reportToCsv(
+      report({
+        plan: {
+          plannedIncomeCents: 265_000,
+          receivedIncomeCents: 250_000,
+          budgetedExpensesCents: 35_000,
+          plannedSavingsCents: 230_000,
+          actualSavingsCents: 210_000,
+        },
+      }),
+    ).split('\r\n')
+    expect(planned).toContain('Total;Revenus prévus;2650,00;;')
+    expect(planned).toContain('Total;Épargne prévue;2300,00;;')
   })
 
   it('keeps labels, category names and notes from becoming formulas', () => {

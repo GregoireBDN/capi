@@ -29,6 +29,14 @@ export function reportToCsv(report: MonthReportDto): string {
     total('Dépenses', report.flow.expenseCents),
     total('Épargné', report.flow.netCents),
     total('Épargne cible', report.savingsTargetCents),
+    // Reports frozen before planned income (#315) have no plan.
+    ...(report.plan
+      ? [
+          total('Revenus prévus', report.plan.plannedIncomeCents),
+          total('Revenus prévus reçus', report.plan.receivedIncomeCents),
+          total('Épargne prévue', report.plan.plannedSavingsCents),
+        ]
+      : []),
     total('Patrimoine en fin de mois', report.netWorthCents),
     ...report.categories.map((category) => [
       text(category.kind === 'expense' ? 'Dépense' : 'Revenu'),

@@ -2,10 +2,13 @@ import { z } from 'zod'
 import type {
   BudgetHistoryCellDto,
   BudgetHistoryDto,
+  BudgetHistoryIncomeCellDto,
+  BudgetIncomeLineDto,
   BudgetLineDto,
   BudgetMonthDto,
   EnvelopeDto,
   EnvelopesDto,
+  IncomeSuggestionsDto,
 } from '../api/types.js'
 import {
   euros,
@@ -30,6 +33,31 @@ function budgetLine(line: BudgetLineDto): string {
   return `- ${line.name} : ${euros(line.spentCents)}${oneOffs} sur ${euros(line.targetCents)} (${percent(line.percentUsed / 100)}), reste ${euros(line.remainingCents)} — ${BUDGET_STATUS_LABELS[line.status]}${tracked}${note}`
 }
 
+/** One planned income line (#315): planned, received and where it stands. */
+function incomeLine(line: BudgetIncomeLineDto): string {
+  const received = line.receivedCents ?? 0
+  const state = (() => {
+    switch (line.status) {
+      case 'received':
+        return `reçu ${euros(received)}`
+      case 'short':
+        return `reçu ${euros(received)}, manque ${euros((line.expectedByNowCents ?? line.plannedCents) - received)}`
+      case 'missing':
+        return 'pas reçu'
+      case 'so_far':
+        return `reçu à ce jour ${euros(received)}`
+      case 'pending':
+        return line.expectedOn
+          ? `attendu le ${frenchDate(line.expectedOn)}${received > 0 ? ` (reçu ${euros(received)})` : ''}`
+          : line.receivedCents === null
+            ? 'mois sans données'
+            : `reçu à ce jour ${euros(received)}`
+    }
+  })()
+  const note = line.note ? ` · note : ${line.note}` : ''
+  return `- ${line.name} : prévu ${euros(line.plannedCents)} — ${state}${note}`
+}
+
 function envelopeLine(e: EnvelopeDto): string {
   const manual =
     e.manualCents !== 0 ? ` dont saisies manuelles ${euros(e.manualCents)}` : ''
@@ -41,7 +69,7 @@ export const budgetStatusTool = defineTool({
   name: 'budget_status',
   title: 'Budget du mois',
   description:
-    'Budget of one month: spent vs target per budgeted category (positive cents, refunds deducted), totals, and the biggest spending without a budget. For the current month it also lists the envelopes tracked during the month with the even pace (target × day / days in the month).',
+    "Budget of one month, both sides: the planned income per income category vs what came in (income lines only, transfers never; a partial month is compared with what was due by the data's last day when the date of the credit is known), what the plan leaves to save (planned income − budgeted expenses), then spent vs target per budgeted expense category (positive cents, refunds deducted), totals, and the biggest spending without a budget. A month without planned income lists the income to plan (from the confirmed recurring credits). For the current month it also lists the envelopes tracked during the month with the even pace (target × day / days in the month).",
   inputSchema: {
     month: z
       .string()
@@ -56,11 +84,48 @@ export const budgetStatusTool = defineTool({
       api.get<BudgetMonthDto>('/api/budgets', { month: args.month }),
       api.get<EnvelopesDto>('/api/budgets/envelopes'),
     ])
-    const { totals, unbudgeted } = budget
+    const { totals, unbudgeted, income, plan } = budget
     const lines = [
       `Budget de ${frenchMonth(budget.month)}.`,
       periodNote(budget.period),
     ]
+    if (income.items.length > 0) {
+      const received =
+        income.totals.receivedCents === null
+          ? ''
+          : `, reçus ${euros(income.totals.receivedCents)}`
+      const outside = income.totals.unplannedCents
+        ? ` · hors plan ${euros(income.totals.unplannedCents)}`
+        : ''
+      lines.push(
+        `Revenus prévus : ${euros(income.totals.plannedCents)}${received}${outside}.`,
+        ...income.items.map(incomeLine),
+      )
+      if (plan.toSaveCents !== null) {
+        lines.push(
+          `À épargner d'après le budget : ${euros(plan.plannedIncomeCents)} de revenus prévus − ${euros(plan.budgetedExpensesCents)} de dépenses prévues = ${euros(plan.toSaveCents)}.`,
+        )
+      }
+      lines.push('')
+    } else {
+      // The income to plan: from the confirmed recurring credits.
+      const suggestions = await api
+        .get<IncomeSuggestionsDto>('/api/budgets/income-suggestions', {
+          month: budget.month,
+        })
+        .catch(() => null)
+      lines.push('Aucun revenu prévu pour ce mois.')
+      if (suggestions && suggestions.items.length > 0) {
+        lines.push(
+          "Revenus à prévoir d'après les revenus réguliers confirmés (à fixer avec set_budget_targets) :",
+          ...suggestions.items.map(
+            (s) =>
+              `- ${s.name} : ${euros(s.suggestedCents)}${s.sources.length > 0 ? ` (${s.sources.join(', ')})` : ''}`,
+          ),
+        )
+      }
+      lines.push('')
+    }
     if (totals.budgetCount === 0) {
       lines.push('Aucun budget défini pour ce mois.')
     } else {
@@ -90,6 +155,13 @@ export const budgetStatusTool = defineTool({
   },
 })
 
+function incomeCell(cell: BudgetHistoryIncomeCellDto | undefined): string {
+  if (!cell) return ''
+  return cell.plannedCents === null
+    ? euros(cell.receivedCents)
+    : `${euros(cell.receivedCents)} / ${euros(cell.plannedCents)}`
+}
+
 function historyCell(cell: BudgetHistoryCellDto | undefined): string {
   if (!cell) return ''
   return cell.targetCents === null
@@ -101,7 +173,7 @@ export const budgetHistoryTool = defineTool({
   name: 'budget_history',
   title: 'Historique du budget',
   description:
-    'Spent vs target per budgeted category, month by month over the last N months (ending with `month`): how targets held over time. Cells read "spent / target"; a lone amount means no target that month.',
+    'Spent vs target per budgeted expense category, month by month over the last N months (ending with `month`): how targets held over time, then the planned income per income category ("received / planned") and the savings the plan left (planned income − targets). Cells read "spent / target"; a lone amount means no target that month.',
   inputSchema: {
     month: z
       .string()
@@ -123,7 +195,9 @@ export const budgetHistoryTool = defineTool({
       month: args.month,
       months: args.months,
     })
-    if (data.categories.length === 0) return 'Aucun budget sur cette période.'
+    if (data.categories.length === 0 && data.income.length === 0) {
+      return 'Aucun budget sur cette période.'
+    }
     const first = data.months[0]
     const last = data.months[data.months.length - 1]
     return [
@@ -144,6 +218,27 @@ export const budgetHistoryTool = defineTool({
               historyCell(data.totals.find((t) => t.month === m)),
             ),
           ],
+          ...data.income.map((c) => [
+            `${c.name} (revenu reçu / prévu)`,
+            ...data.months.map((m) =>
+              incomeCell(c.months.find((cell) => cell.month === m)),
+            ),
+          ]),
+          ...(data.income.length > 0
+            ? [
+                [
+                  'À épargner prévu',
+                  ...data.months.map((m) => {
+                    const cents = data.totals.find(
+                      (t) => t.month === m,
+                    )?.plannedSavingsCents
+                    return cents === null || cents === undefined
+                      ? ''
+                      : euros(cents)
+                  }),
+                ],
+              ]
+            : []),
         ],
       ),
     ].join('\n')

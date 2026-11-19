@@ -18,6 +18,7 @@ import {
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { AccountsService, isBankAccount } from '#/accounts/accounts.service'
 import { BudgetsService } from '#/budgets/budgets.service'
+import type { BudgetMonthDto } from '#/budgets/dto/budget.dto'
 import { dataUntilByAccount } from '#/coverage/coverage'
 import { currentMonth, monthEnd, shiftMonth } from '#/dashboard/calendar'
 import { DashboardService } from '#/dashboard/dashboard.service'
@@ -262,6 +263,7 @@ export class MonthCloseService {
     })
 
     const notes = row?.notes ?? null
+    const budget = await this.budgets.month(month, executor, now)
     const report = await this.report(month, {
       now,
       executor,
@@ -269,6 +271,7 @@ export class MonthCloseService {
       flow: review.flow,
       netWorthCents: review.netWorth.endCents,
       savingsTargetCents: target,
+      budget,
     })
 
     const acknowledged = ACKNOWLEDGEABLE_STEPS.filter((step) =>
@@ -292,7 +295,10 @@ export class MonthCloseService {
       close: closed,
     }
 
-    const closedReport = closed ? withIcons(row.report!, report) : null
+    // Reports frozen before planned income (#315) have no plan.
+    const closedReport = closed
+      ? { ...withIcons(row.report!, report), plan: row.report!.plan ?? null }
+      : null
     return {
       month,
       nextMonth: shiftMonth(month, 1),
@@ -310,6 +316,23 @@ export class MonthCloseService {
       reviewQueue: { count: queue },
       recurring: { suggestedCount: suggested, priceChanges, chargedAfterEnd },
       budget: review.budget,
+      income: {
+        plannedCents: budget.income.totals.plannedCents,
+        receivedCents: budget.income.totals.receivedCents,
+        shortfalls: budget.income.items
+          .filter(
+            (item) => item.status === 'missing' || item.status === 'short',
+          )
+          .map((item) => ({
+            categoryId: item.categoryId,
+            name: item.name,
+            color: item.color,
+            icon: item.icon,
+            plannedCents: item.plannedCents,
+            receivedCents: item.receivedCents,
+            status: item.status,
+          })),
+      },
       savings: {
         netCents: review.flow.netCents,
         targetCents: target,
@@ -458,6 +481,7 @@ export class MonthCloseService {
       flow?: MonthReportDto['flow']
       netWorthCents?: number | null
       savingsTargetCents?: number | null
+      budget?: BudgetMonthDto
     },
   ): Promise<MonthReportDto> {
     const [review, target, budget, totals, oneOffs] = await Promise.all([
@@ -467,7 +491,7 @@ export class MonthCloseService {
       known.savingsTargetCents === undefined
         ? this.savings.readTarget(executor)
         : known.savingsTargetCents,
-      this.budgets.month(month, executor, now),
+      known.budget ?? this.budgets.month(month, executor, now),
       this.categoryTotals(month, executor),
       this.oneOffs(month, executor),
     ])
@@ -505,10 +529,26 @@ export class MonthCloseService {
       entry.targetCents = item.targetCents
       categories.set(key, entry)
     }
+    for (const item of budget.income.items) {
+      const key = categoryKey({ kind: 'income', categoryId: item.categoryId })
+      const entry = categories.get(key) ?? {
+        categoryId: item.categoryId,
+        name: item.name,
+        color: item.color,
+        icon: item.icon,
+        kind: 'income' as const,
+        amountCents: 0,
+        previousAmountCents: 0,
+        targetCents: null,
+      }
+      entry.targetCents = item.plannedCents
+      categories.set(key, entry)
+    }
 
+    const flow = known.flow ?? review!.flow
     return {
       month,
-      flow: known.flow ?? review!.flow,
+      flow,
       netWorthCents:
         known.netWorthCents !== undefined
           ? known.netWorthCents
@@ -522,6 +562,13 @@ export class MonthCloseService {
       ),
       oneOffs,
       notes,
+      plan: {
+        plannedIncomeCents: budget.plan.plannedIncomeCents,
+        receivedIncomeCents: budget.income.totals.receivedCents ?? 0,
+        budgetedExpensesCents: budget.plan.budgetedExpensesCents,
+        plannedSavingsCents: budget.plan.toSaveCents,
+        actualSavingsCents: flow.netCents,
+      },
     }
   }
 

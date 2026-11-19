@@ -8,7 +8,7 @@ export function budgetErrorMessage(error: unknown): string {
   if (error.status === 401) return 'Votre session a expiré. Reconnectez-vous.'
   if (error.status === 404) return 'Cette catégorie n’existe plus.'
   if (error.status === 400) {
-    return 'Seules les catégories de dépenses peuvent avoir un budget.'
+    return 'Seules les catégories de dépenses et de revenus peuvent avoir un budget.'
   }
   if (error.status === 429)
     return 'Trop de requêtes. Réessayez dans un instant.'

@@ -35,6 +35,22 @@ export const UNBUDGETED_TOP_COUNT = 5
 export const BUDGET_STATUSES = ['ok', 'warning', 'over'] as const
 export type BudgetStatus = (typeof BUDGET_STATUSES)[number]
 
+/**
+ * Where a planned income line stands (#315): `pending` (nothing to say yet:
+ * empty month, or not due by the data's last day), `received` (the planned
+ * amount came in), `short` (less came in), `missing` (nothing came in
+ * although due), `so_far` (partial month without a known date: « reçu à ce
+ * jour »).
+ */
+export const INCOME_LINE_STATUSES = [
+  'pending',
+  'received',
+  'short',
+  'missing',
+  'so_far',
+] as const
+export type IncomeLineStatus = (typeof INCOME_LINE_STATUSES)[number]
+
 const STATUS_DOC = {
   enum: BUDGET_STATUSES,
   enumName: 'BudgetStatus',
@@ -129,6 +145,16 @@ export class BudgetSuggestQueryDto {
   month?: string
 }
 
+export class IncomeSuggestQueryDto {
+  @ApiPropertyOptional({
+    ...MONTH_DOC,
+    description:
+      'Month the plan is for (YYYY-MM). Default: the current month in Europe/Paris.',
+  })
+  @OptionalMonth()
+  month?: string
+}
+
 export class BudgetRemoveQueryDto {
   @ApiPropertyOptional({
     ...MONTH_DOC,
@@ -145,7 +171,8 @@ export class UpsertBudgetDto {
     minimum: 1,
     maximum: BUDGET_TARGET_MAX_CENTS,
     example: 40_000,
-    description: 'Monthly target in integer cents.',
+    description:
+      'Monthly target in integer cents: a spending target for an expense category, the planned income for an income category.',
   })
   @IsInt()
   @Min(1)
@@ -178,7 +205,7 @@ export class UpsertBudgetDto {
   @ApiPropertyOptional({
     type: Boolean,
     description:
-      'Envelope: follow the category during the month on the dashboard (« Budget »). Omitted: kept from the target in effect.',
+      'Envelope: follow the category during the month on the dashboard (« Budget »). Omitted: kept from the target in effect. Expense categories only: true is refused for an income category.',
   })
   @IsOptional()
   @IsBoolean()
@@ -372,6 +399,110 @@ export class UnbudgetedSpendingDto {
   top!: UnbudgetedCategoryDto[]
 }
 
+export class BudgetIncomeLineDto extends BudgetCategoryFields {
+  @ApiProperty({
+    type: 'integer',
+    description: 'Planned income of the month, in cents.',
+  })
+  plannedCents!: number
+
+  @ApiProperty({
+    ...MONTH_DOC,
+    description: 'Month the planned amount in effect was set from.',
+  })
+  effectiveFrom!: string
+
+  @ApiProperty({ type: String, nullable: true })
+  note!: string | null
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Received in the month (so far for a partial one), in cents: `income` lines of the category (splits count). Transfers never count. Null for a month without data.',
+  })
+  receivedCents!: number | null
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Partial month only, for a category with a confirmed recurring credit whose day is known: what should have come in by the data’s last day. Null otherwise.',
+  })
+  expectedByNowCents!: number | null
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    nullable: true,
+    description:
+      'Partial or empty month: next day a recurring credit of the category is expected after the data’s last day.',
+  })
+  expectedOn!: string | null
+
+  @ApiProperty({
+    enum: INCOME_LINE_STATUSES,
+    enumName: 'IncomeLineStatus',
+    description:
+      '`pending`: nothing to say yet; `received`: the plan came in; `short`: less came in; `missing`: nothing came in although due; `so_far`: partial month without a known date.',
+  })
+  status!: IncomeLineStatus
+}
+
+export class BudgetIncomeTotalsDto {
+  @ApiProperty({ type: 'integer', description: 'Sum of the planned income.' })
+  plannedCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Received in the planned categories; null for a month without data.',
+  })
+  receivedCents!: number | null
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Income received outside the planned categories (uncategorized included); null for a month without data.',
+  })
+  unplannedCents!: number | null
+
+  @ApiProperty({ type: 'integer' })
+  lineCount!: number
+}
+
+export class BudgetIncomeDto {
+  @ApiProperty({
+    type: [BudgetIncomeLineDto],
+    description: 'Planned income lines, largest first.',
+  })
+  items!: BudgetIncomeLineDto[]
+
+  @ApiProperty({ type: BudgetIncomeTotalsDto })
+  totals!: BudgetIncomeTotalsDto
+}
+
+export class BudgetPlanDto {
+  @ApiProperty({ type: 'integer' })
+  plannedIncomeCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Sum of the expense targets of the month.',
+  })
+  budgetedExpensesCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      '« À épargner »: planned income − budgeted expenses (negative when the plan spends more than it brings in). Null without planned income.',
+  })
+  toSaveCents!: number | null
+}
+
 export class BudgetMonthDto {
   @ApiProperty(MONTH_DOC)
   month!: string
@@ -384,15 +515,30 @@ export class BudgetMonthDto {
 
   @ApiProperty({
     type: [BudgetLineDto],
-    description: 'Budgeted categories, highest share used first.',
+    description: 'Budgeted expense categories, highest share used first.',
   })
   items!: BudgetLineDto[]
 
-  @ApiProperty({ type: BudgetTotalsDto })
+  @ApiProperty({
+    type: BudgetTotalsDto,
+    description: 'Totals of the expense targets.',
+  })
   totals!: BudgetTotalsDto
 
   @ApiProperty({ type: UnbudgetedSpendingDto })
   unbudgeted!: UnbudgetedSpendingDto
+
+  @ApiProperty({
+    type: BudgetIncomeDto,
+    description: 'Planned income (« Revenus prévus ») vs received.',
+  })
+  income!: BudgetIncomeDto
+
+  @ApiProperty({
+    type: BudgetPlanDto,
+    description: 'The balance of the plan: what it leaves to save.',
+  })
+  plan!: BudgetPlanDto
 }
 
 export class BudgetHistoryCellDto {
@@ -433,6 +579,49 @@ export class BudgetHistoryTotalDto {
 
   @ApiProperty({ ...STATUS_DOC, nullable: true })
   status!: BudgetStatus | null
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Sum of the planned income.',
+  })
+  plannedIncomeCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Income received in the planned categories.',
+  })
+  receivedIncomeCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Planned income − expense targets; null without planned income.',
+  })
+  plannedSavingsCents!: number | null
+}
+
+export class BudgetHistoryIncomeCellDto {
+  @ApiProperty(MONTH_DOC)
+  month!: string
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: 'Planned income in effect, null when none that month.',
+  })
+  plannedCents!: number | null
+
+  @ApiProperty({ type: 'integer' })
+  receivedCents!: number
+}
+
+export class BudgetHistoryIncomeCategoryDto extends BudgetCategoryFields {
+  @ApiProperty({
+    type: [BudgetHistoryIncomeCellDto],
+    description: 'Oldest first.',
+  })
+  months!: BudgetHistoryIncomeCellDto[]
 }
 
 export class BudgetHistoryDto {
@@ -445,6 +634,13 @@ export class BudgetHistoryDto {
       'Categories budgeted in at least one month of the window, by name.',
   })
   categories!: BudgetHistoryCategoryDto[]
+
+  @ApiProperty({
+    type: [BudgetHistoryIncomeCategoryDto],
+    description:
+      'Income categories planned in at least one month of the window, by name.',
+  })
+  income!: BudgetHistoryIncomeCategoryDto[]
 
   @ApiProperty({ type: [BudgetHistoryTotalDto], description: 'Oldest first.' })
   totals!: BudgetHistoryTotalDto[]
@@ -496,6 +692,41 @@ export class BudgetSuggestionsDto {
     description: 'Expense categories with spending, biggest first.',
   })
   items!: BudgetSuggestionDto[]
+}
+
+export class IncomeSuggestionDto extends BudgetCategoryFields {
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Planned income suggested for the month, in cents rounded to the euro.',
+  })
+  suggestedCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: 'Planned income in effect for `month`, if any.',
+  })
+  currentPlannedCents!: number | null
+
+  @ApiProperty({
+    type: [String],
+    description:
+      'Where the amount comes from: the recurring credits’ names, or empty when it is the plan of the month before.',
+  })
+  sources!: string[]
+}
+
+export class IncomeSuggestionsDto {
+  @ApiProperty({ ...MONTH_DOC, description: 'Month the plan is for.' })
+  month!: string
+
+  @ApiProperty({
+    type: [IncomeSuggestionDto],
+    description:
+      'The plan in effect (carried over from the month before) for the income categories that have one, else the confirmed recurring credits of the category at their typical amount (monthly equivalent); largest first.',
+  })
+  items!: IncomeSuggestionDto[]
 }
 
 export class EnvelopeDto extends BudgetCategoryFields {
