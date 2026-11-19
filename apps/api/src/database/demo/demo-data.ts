@@ -287,7 +287,10 @@ interface RuleSpec {
   counterpart?: 'pea' | 'exchange'
 }
 
-/** Ordered: `UBER EATS` before `UBER`, as an owner would set them up. */
+/**
+ * Created in this order; evaluated most specific first (#299), so `UBER EATS`
+ * wins over `UBER` either way.
+ */
 const RULES: readonly RuleSpec[] = [
   { pattern: 'UBER EATS', slug: 'restaurants_cafes' },
   { pattern: 'UBER', slug: 'transport' },
@@ -793,7 +796,7 @@ export async function generateDemoData(
     exchange,
   ] = accountRows
 
-  // Rules, in order.
+  // Rules, in creation order (evaluated most specific first, #299).
   const rules: SelectCategorizationRule[] = await db
     .insert(categorizationRulesTable)
     .values(

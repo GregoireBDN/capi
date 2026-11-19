@@ -7,6 +7,9 @@ import {
   type CategorizableTransaction,
   categorize,
   defaultKind,
+  matchingRules,
+  prioritiesForOrder,
+  sortRules,
   validateRulePattern,
 } from './categorize'
 
@@ -51,6 +54,7 @@ function rule(
   return {
     id: `rule-${String(nextRule).padStart(3, '0')}`,
     position: nextRule,
+    priority: 0,
     enabled: true,
     matchType: 'contains',
     labelPattern: 'TESTSHOP',
@@ -162,6 +166,126 @@ describe('categorize', () => {
       expect(categorize(tx(), [orphan, valid], categoriesById)?.ruleId).toBe(
         valid.id,
       )
+    })
+  })
+
+  describe('computed order (#299)', () => {
+    const order = (rules: SelectCategorizationRule[]) =>
+      sortRules(rules).map((r) => r.labelPattern)
+
+    it('puts the longer pattern first, whatever the creation order', () => {
+      const uber = rule({ position: 1, labelPattern: 'UBER' })
+      const eats = rule({ position: 2, labelPattern: 'UBER EATS' })
+      const t = tx({ rawLabel: 'PAIEMENT CB 0101 UBER EATS PARIS' })
+
+      expect(order([uber, eats])).toEqual(['UBER EATS', 'UBER'])
+      expect(categorize(t, [uber, eats], categoriesById)?.ruleId).toBe(eats.id)
+    })
+
+    it('compares folded patterns, so spacing and case do not weigh', () => {
+      const spaced = rule({ position: 1, labelPattern: 'uber   eats' })
+      const plain = rule({ position: 2, labelPattern: 'UBER EATS' })
+
+      expect(sortRules([plain, spaced]).map((r) => r.id)).toEqual([
+        spaced.id,
+        plain.id,
+      ])
+    })
+
+    it('puts a regex before any contains pattern', () => {
+      const long = rule({ position: 1, labelPattern: 'TESTSHOP CARTE 4XXX' })
+      const regex = rule({
+        position: 2,
+        matchType: 'regex',
+        labelPattern: 'SHOP',
+      })
+
+      expect(order([long, regex])).toEqual(['SHOP', 'TESTSHOP CARTE 4XXX'])
+    })
+
+    it('breaks a pattern tie with the account and amount conditions', () => {
+      const bare = rule({ position: 1 })
+      const account = rule({ position: 2, accountId: ACCOUNT_CHECKING })
+      const both = rule({
+        position: 3,
+        accountId: ACCOUNT_CHECKING,
+        maxAmountCents: -1_000,
+      })
+
+      expect(sortRules([bare, account, both]).map((r) => r.id)).toEqual([
+        both.id,
+        account.id,
+        bare.id,
+      ])
+    })
+
+    it('lets a higher priority win over a more specific rule', () => {
+      const specific = rule({
+        position: 1,
+        labelPattern: 'TESTSHOP CARTE',
+        categoryId: 'cat-restaurants',
+      })
+      const preferred = rule({ position: 2, priority: 1 })
+
+      expect(
+        categorize(tx(), [specific, preferred], categoriesById)?.ruleId,
+      ).toBe(preferred.id)
+    })
+
+    it('finds the fewest priorities for a chosen order (drag and drop)', () => {
+      const eats = rule({ position: 1, labelPattern: 'UBER EATS' })
+      const shop = rule({ position: 2, labelPattern: 'TESTSHOP' })
+      const uber = rule({ position: 3, labelPattern: 'UBER' })
+      const all = [eats, shop, uber]
+      expect(order(all)).toEqual(['UBER EATS', 'TESTSHOP', 'UBER'])
+
+      // The computed order as it is: nothing raised.
+      expect([...prioritiesForOrder(sortRules(all)).values()]).toEqual([
+        0, 0, 0,
+      ])
+
+      // UBER dragged to the top: only UBER is raised.
+      const wanted = [uber, eats, shop]
+      const priorities = prioritiesForOrder(wanted)
+      expect(Object.fromEntries(priorities)).toEqual({
+        [uber.id]: 1,
+        [eats.id]: 0,
+        [shop.id]: 0,
+      })
+      const applied = all.map((r) => ({
+        ...r,
+        priority: priorities.get(r.id)!,
+      }))
+      expect(sortRules(applied).map((r) => r.id)).toEqual(
+        wanted.map((r) => r.id),
+      )
+
+      // TESTSHOP dragged under UBER: the two above it climb one level.
+      const last = [eats, uber, shop]
+      const lastPriorities = prioritiesForOrder(last)
+      expect(Object.fromEntries(lastPriorities)).toEqual({
+        [eats.id]: 1,
+        [uber.id]: 1,
+        [shop.id]: 0,
+      })
+      expect(
+        sortRules(
+          all.map((r) => ({ ...r, priority: lastPriorities.get(r.id)! })),
+        ).map((r) => r.id),
+      ).toEqual(last.map((r) => r.id))
+    })
+
+    it('lists every enabled matching rule in order', () => {
+      const eats = rule({ labelPattern: 'TESTSHOP CARTE' })
+      const shop = rule({ labelPattern: 'TESTSHOP' })
+      const off = rule({ labelPattern: 'TESTSHOP CARTE 4X', enabled: false })
+      const other = rule({ labelPattern: 'ELSEWHERE' })
+
+      expect(
+        matchingRules(tx(), [shop, other, off, eats], categoriesById).map(
+          (r) => r.id,
+        ),
+      ).toEqual([eats.id, shop.id])
     })
   })
 

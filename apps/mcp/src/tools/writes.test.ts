@@ -375,6 +375,8 @@ describe('create_rule', () => {
   const rule: CategorizationRuleDto = {
     id: '00000000-0000-4000-8000-0000000000b1',
     position: 4,
+    priority: 0,
+    rank: 4,
     enabled: true,
     matchType: 'contains',
     labelPattern: 'BOULANGERIE TEST',
@@ -407,6 +409,14 @@ describe('create_rule', () => {
         nextKind: 'expense',
       },
     ],
+    conflicts: [],
+  }
+  const broadRule: CategorizationRuleDto = {
+    ...rule,
+    id: '00000000-0000-4000-8000-0000000000b2',
+    labelPattern: 'BOULANGERIE',
+    categoryId: restaurants.id,
+    rank: 7,
   }
   const routes = (existing: CategorizationRuleDto[] = []) => ({
     '/api/categories': categories,
@@ -448,6 +458,30 @@ describe('create_rule', () => {
     })
   })
 
+  it('shows the conflicts with existing rules in the preview', async () => {
+    const { call } = await connect({
+      ...routes([broadRule]),
+      'POST /api/categorization-rules/preview': {
+        ...preview,
+        conflicts: [
+          {
+            winnerRuleId: '00000000-0000-0000-0000-000000000000',
+            loserRuleId: broadRule.id,
+            count: 3,
+          },
+        ],
+      },
+    })
+    const { text } = await call('create_rule', {
+      pattern: 'BOULANGERIE TEST',
+      category: 'Courses',
+    })
+    expect(text).toContain('Conflits avec des règles existantes')
+    expect(text).toContain(
+      '3 opération(s) aussi reconnue(s) par la règle « BOULANGERIE » → Restaurants',
+    )
+  })
+
   it('creates the rule and re-applies the rules with confirm', async () => {
     const { call, writes } = await connect(routes())
     const { text } = await call('create_rule', {
@@ -460,7 +494,7 @@ describe('create_rule', () => {
       '/api/categorization-rules',
       '/api/categorization-rules/apply',
     ])
-    expect(text).toContain('Règle créée (position 5')
+    expect(text).toContain("Règle créée (rang 5 dans l'ordre d'évaluation")
     expect(text).toContain('2 opération(s) modifiée(s) sur 10')
     expect(text).toContain('page Règles')
   })
@@ -472,7 +506,9 @@ describe('create_rule', () => {
       category: 'groceries',
       confirm: true,
     })
-    expect(text).toContain('une règle identique existe déjà (position 5)')
+    expect(text).toContain(
+      "une règle identique existe déjà (rang 5 dans l'ordre d'évaluation)",
+    )
     expect(writes()).toHaveLength(0)
   })
 })

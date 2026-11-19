@@ -9,6 +9,7 @@ import {
   count,
   eq,
   gt,
+  gte,
   isNotNull,
   isNull,
   max,
@@ -29,11 +30,18 @@ import {
   type TransactionKind,
   transactionsTable,
 } from '#/database/schema'
+import { addMonths, todayInParis } from '#/recurring/dates'
 import {
   type ApplyCategorizationRulesResultDto,
+  type CategorizationRuleConflictDto,
+  type CategorizationRuleMatchDto,
+  type CategorizationRuleMatchesDto,
+  type CategorizationRuleMatchesQueryDto,
   type CategorizationRulePreviewDto,
   type CategorizationRulePreviewTransactionDto,
+  type CategorizationRulesInsightsDto,
   type CreateCategorizationRuleDto,
+  MATCH_WINDOW_MONTHS,
   PREVIEW_SAMPLE_SIZE,
   type PreviewCategorizationRuleDto,
   type SuggestCategorizationRuleDto,
@@ -41,8 +49,13 @@ import {
 } from './dto/categorization-rule.dto'
 import {
   categorize,
+  compareRules,
   defaultKind,
+  matchingRules,
+  prioritiesForOrder,
   ruleMatches,
+  ruleOutcome,
+  sortRules,
   validateRulePattern,
 } from './rules/categorize'
 import {
@@ -57,6 +70,82 @@ type Executor = Db | Tx
 
 /** Transactions read and written per round-trip when re-applying rules. */
 export const APPLY_CHUNK_SIZE = 500
+
+/** A rule with its 0-based place in the evaluation order. */
+export type RankedRule = SelectCategorizationRule & { rank: number }
+
+/** A row read by `chunks`. */
+interface ScannedTransaction {
+  id: string
+  bookingDate: string
+  accountId: string
+  rawLabel: string
+  merchant: string | null
+  amountCents: number
+  categoryId: string | null
+  ruleId: string | null
+  kind: TransactionKind
+  needsReview: boolean
+  counterpartAccountId: string | null
+}
+
+/** Rows `apply` may change: uncategorized, or categorized by a rule. */
+function inApplyScope(row: Pick<ScannedTransaction, 'categoryId' | 'ruleId'>) {
+  return row.categoryId === null || row.ruleId !== null
+}
+
+/** First day of the match window: `MATCH_WINDOW_MONTHS` months back. */
+export function matchWindowStart(now: Date = new Date()): string {
+  return addMonths(todayInParis(now), -MATCH_WINDOW_MONTHS)
+}
+
+/**
+ * Counts, per (winner, loser) pair, the transactions where two rules with
+ * different outcomes both match: `matched` is in evaluation order, so the
+ * first rule wins over each later one that files the row differently.
+ */
+class ConflictCounter {
+  private readonly counts = new Map<string, CategorizationRuleConflictDto>()
+
+  constructor(private readonly categoriesById: Map<string, SelectCategory>) {}
+
+  add(matched: readonly SelectCategorizationRule[]) {
+    if (matched.length < 2) return
+    const [winner, ...others] = matched
+    const won = ruleOutcome(winner, this.categoriesById)
+    for (const loser of others) {
+      const lost = ruleOutcome(loser, this.categoriesById)
+      if (
+        won &&
+        lost &&
+        won.categoryId === lost.categoryId &&
+        won.kind === lost.kind
+      ) {
+        continue
+      }
+      const key = `${winner.id}:${loser.id}`
+      const entry = this.counts.get(key)
+      if (entry) entry.count++
+      else {
+        this.counts.set(key, {
+          winnerRuleId: winner.id,
+          loserRuleId: loser.id,
+          count: 1,
+        })
+      }
+    }
+  }
+
+  /** Most transactions first, then by ids for a stable order. */
+  list(): CategorizationRuleConflictDto[] {
+    return [...this.counts.values()].sort(
+      (a, b) =>
+        b.count - a.count ||
+        a.winnerRuleId.localeCompare(b.winnerRuleId) ||
+        a.loserRuleId.localeCompare(b.loserRuleId),
+    )
+  }
+}
 
 /** What the categorization engine needs, loaded once per batch. */
 export interface RuleSet {
@@ -115,6 +204,7 @@ const APPLY_SCOPE = () =>
 function newRuleValues(dto: CreateCategorizationRuleDto) {
   return {
     enabled: dto.enabled ?? true,
+    priority: dto.priority ?? 0,
     matchType: dto.matchType ?? 'contains',
     labelPattern: dto.labelPattern,
     accountId: dto.accountId ?? null,
@@ -135,14 +225,19 @@ export class CategorizationRulesService {
     return this.database.db
   }
 
-  list(executor: Executor = this.db): Promise<SelectCategorizationRule[]> {
-    return executor
-      .select()
-      .from(categorizationRulesTable)
-      .orderBy(
-        asc(categorizationRulesTable.position),
-        asc(categorizationRulesTable.id),
-      )
+  /** Every rule in evaluation order (`compareRules`), with its rank. */
+  async list(executor: Executor = this.db): Promise<RankedRule[]> {
+    const rules = await executor.select().from(categorizationRulesTable)
+    return sortRules(rules).map((rule, rank) => ({ ...rule, rank }))
+  }
+
+  /** `rule` with its rank among the saved rules. */
+  private async ranked(
+    executor: Executor,
+    rule: SelectCategorizationRule,
+  ): Promise<RankedRule> {
+    const rules = await this.list(executor)
+    return rules.find((r) => r.id === rule.id) ?? { ...rule, rank: 0 }
   }
 
   async findOne(
@@ -158,8 +253,11 @@ export class CategorizationRulesService {
     return rule
   }
 
-  /** Appends a rule at the end of the order (lowest priority). */
-  create(dto: CreateCategorizationRuleDto): Promise<SelectCategorizationRule> {
+  /**
+   * Creates a rule. Its place in the evaluation order is computed
+   * (`compareRules`); `position` only records that it is the newest.
+   */
+  create(dto: CreateCategorizationRuleDto): Promise<RankedRule> {
     return this.db.transaction(async (tx) => {
       const values = newRuleValues(dto)
       await this.assertValidRule(tx, values)
@@ -167,17 +265,201 @@ export class CategorizationRulesService {
         .insert(categorizationRulesTable)
         .values({ ...values, position: await this.nextPosition(tx) })
         .returning()
-      return rule
+      return this.ranked(tx, rule)
     })
   }
 
   /**
+   * Makes rule `id` win the transactions it shares with `overRuleId`
+   * (« faire gagner cette règle », #299). A rule already first is left as it
+   * is. When the other one only wins through a higher priority and this one
+   * is more specific, the other's priority comes back down to this one's
+   * (so making them win in turn never climbs); otherwise this one's priority
+   * becomes one more than the other's.
+   */
+  prefer(id: string, overRuleId: string): Promise<RankedRule> {
+    return this.db.transaction(async (tx) => {
+      if (id === overRuleId) {
+        throw new BadRequestException('overRuleId must be another rule')
+      }
+      const rule = await this.findOne(id, tx)
+      const [other] = await tx
+        .select()
+        .from(categorizationRulesTable)
+        .where(eq(categorizationRulesTable.id, overRuleId))
+        .limit(1)
+      if (!other) {
+        throw new BadRequestException('overRuleId does not match any rule')
+      }
+      if (compareRules(rule, other) < 0) return this.ranked(tx, rule)
+      // The other rule was raised above this one: putting it back level is
+      // enough when this one is the more specific (no priority race).
+      if (
+        other.priority > rule.priority &&
+        compareRules(rule, { ...other, priority: rule.priority }) < 0
+      ) {
+        await tx
+          .update(categorizationRulesTable)
+          .set({ priority: rule.priority })
+          .where(eq(categorizationRulesTable.id, overRuleId))
+        return this.ranked(tx, rule)
+      }
+      const [updated] = await tx
+        .update(categorizationRulesTable)
+        .set({ priority: other.priority + 1 })
+        .where(eq(categorizationRulesTable.id, id))
+        .returning()
+      return this.ranked(tx, updated)
+    })
+  }
+
+  /**
+   * Sets the evaluation order by hand (#299, drag and drop): `ids` lists
+   * every rule once, first = evaluated first. The order itself is not
+   * stored: the rules get the fewest priorities that produce it
+   * (`prioritiesForOrder`), so those left in their computed place stay at 0.
+   */
+  reorder(ids: string[]): Promise<RankedRule[]> {
+    return this.db.transaction(async (tx) => {
+      const rules = await tx.select().from(categorizationRulesTable)
+      const byId = new Map(rules.map((rule) => [rule.id, rule]))
+      if (
+        new Set(ids).size !== ids.length ||
+        ids.length !== rules.length ||
+        ids.some((id) => !byId.has(id))
+      ) {
+        throw new BadRequestException(
+          'ids must list every categorization rule exactly once',
+        )
+      }
+      const priorities = prioritiesForOrder(ids.map((id) => byId.get(id)!))
+      const changed = rules.filter(
+        (rule) => priorities.get(rule.id) !== rule.priority,
+      )
+      if (changed.length > 0) {
+        const values = sql.join(
+          changed.map(
+            (rule) =>
+              sql`(${rule.id}::uuid, ${priorities.get(rule.id)!}::integer)`,
+          ),
+          sql`, `,
+        )
+        await tx.execute(sql`
+          update ${categorizationRulesTable} as r
+          set priority = v.priority, updated_at = now()
+          from (values ${values}) as v(id, priority)
+          where r.id = v.id
+        `)
+      }
+      return this.list(tx)
+    })
+  }
+
+  /**
+   * The transactions booked over the last `MATCH_WINDOW_MONTHS` months that
+   * the conditions match, whatever their category: what a rule being written
+   * would catch (the editor's first step), most recent first.
+   */
+  async matches(
+    query: CategorizationRuleMatchesQueryDto,
+    now: Date = new Date(),
+  ): Promise<CategorizationRuleMatchesDto> {
+    const matchType = query.matchType ?? 'contains'
+    const patternError = validateRulePattern(matchType, query.labelPattern)
+    if (patternError) throw new BadRequestException(patternError)
+    const since = matchWindowStart(now)
+    const rule: SelectCategorizationRule = {
+      id: PREVIEW_RULE_ID,
+      position: 0,
+      priority: 0,
+      enabled: true,
+      matchType,
+      labelPattern: query.labelPattern,
+      accountId: query.accountId ?? null,
+      minAmountCents: query.minAmountCents ?? null,
+      maxAmountCents: query.maxAmountCents ?? null,
+      categoryId: PREVIEW_RULE_ID,
+      kind: null,
+      merchant: null,
+      counterpartAccountId: null,
+      createdAt: now,
+      updatedAt: now,
+    }
+    let total = 0
+    const found: CategorizationRuleMatchDto[] = []
+    for await (const rows of this.chunks(
+      this.db,
+      gte(transactionsTable.bookingDate, since),
+    )) {
+      for (const row of rows) {
+        if (!ruleMatches(rule, row)) continue
+        total++
+        found.push({
+          id: row.id,
+          bookingDate: row.bookingDate,
+          accountId: row.accountId,
+          rawLabel: row.rawLabel,
+          merchant: row.merchant,
+          amountCents: row.amountCents,
+          categoryId: row.categoryId,
+          manual: !inApplyScope(row),
+        })
+      }
+    }
+    found.sort(
+      (a, b) =>
+        b.bookingDate.localeCompare(a.bookingDate) || a.id.localeCompare(b.id),
+    )
+    return { since, total, transactions: found.slice(0, PREVIEW_SAMPLE_SIZE) }
+  }
+
+  /**
+   * What the rules page shows beside each rule (#299): how many transactions
+   * of the last `MATCH_WINDOW_MONTHS` months its conditions match, and the
+   * conflicts between enabled rules (the same transactions, not filed by
+   * hand, filed differently by two rules; the first in the order wins).
+   */
+  async insights(
+    now: Date = new Date(),
+  ): Promise<CategorizationRulesInsightsDto> {
+    const since = matchWindowStart(now)
+    const ruleSet = await this.loadRuleSet()
+    const counts = new Map(ruleSet.rules.map((rule) => [rule.id, 0]))
+    const conflicts = new ConflictCounter(ruleSet.categoriesById)
+    for await (const rows of this.chunks(this.db, sql`true`)) {
+      for (const row of rows) {
+        if (row.bookingDate >= since) {
+          for (const rule of ruleSet.rules) {
+            if (ruleMatches(rule, row)) {
+              counts.set(rule.id, (counts.get(rule.id) ?? 0) + 1)
+            }
+          }
+        }
+        if (inApplyScope(row)) {
+          conflicts.add(
+            matchingRules(row, ruleSet.rules, ruleSet.categoriesById),
+          )
+        }
+      }
+    }
+    return {
+      since,
+      rules: ruleSet.rules.map((rule) => ({
+        ruleId: rule.id,
+        matchCount: counts.get(rule.id) ?? 0,
+      })),
+      conflicts: conflicts.list(),
+    }
+  }
+
+  /**
    * What saving `dto` and then re-applying the rules would do, without saving
-   * anything. A new rule is appended last; with `ruleId`, `dto` replaces that
-   * rule at its position (an edit). Only this rule's effect is reported:
+   * anything. A new rule takes its computed place in the order; with
+   * `ruleId`, `dto` replaces that rule (an edit). Only this rule's effect is reported:
    * transactions it would win (first match wins) and those it categorizes
-   * today but would no longer win. Manual categorizations are never counted,
-   * as `apply` never touches them.
+   * today but would no longer win, and its conflicts: the other rules that
+   * match the same rows with another outcome, and which one wins. Manual
+   * categorizations are never counted, as `apply` never touches them.
    */
   async preview(
     dto: PreviewCategorizationRuleDto,
@@ -215,11 +497,20 @@ export class CategorizationRulesService {
         changed: 0,
       }
       const changed: CategorizationRulePreviewTransactionDto[] = []
+      const conflicts = new ConflictCounter(ruleSet.categoriesById)
       for await (const rows of this.chunks(tx, APPLY_SCOPE())) {
         for (const row of rows) {
           const ownedToday = row.ruleId === candidate.id
+          const matches = ruleMatches(candidate, row)
           // Cheap pre-check: most rows have nothing to do with this rule.
-          if (!ownedToday && !ruleMatches(candidate, row)) continue
+          if (!ownedToday && !matches) continue
+          if (matches && candidate.enabled) {
+            const matched = matchingRules(row, rules, ruleSet.categoriesById)
+            // Only the pairs this rule is part of.
+            const own = matched.findIndex((r) => r.id === candidate.id)
+            if (own === 0) conflicts.add(matched)
+            else if (own > 0) conflicts.add([matched[0], candidate])
+          }
           const outcome = categorize(row, rules, ruleSet.categoriesById)
           const wins = outcome?.ruleId === candidate.id
           if (!wins && !ownedToday) continue
@@ -263,6 +554,7 @@ export class CategorizationRulesService {
       return {
         ...result,
         transactions: changed.slice(0, PREVIEW_SAMPLE_SIZE),
+        conflicts: conflicts.list(),
       }
     })
   }
@@ -271,15 +563,13 @@ export class CategorizationRulesService {
    * Partial update. Transactions already categorized by the rule keep their
    * category until rules are re-applied (`apply`).
    */
-  update(
-    id: string,
-    dto: UpdateCategorizationRuleDto,
-  ): Promise<SelectCategorizationRule> {
+  update(id: string, dto: UpdateCategorizationRuleDto): Promise<RankedRule> {
     return this.db.transaction(async (tx) => {
       const existing = await this.findOne(id, tx)
       const changes: Partial<InsertCategorizationRule> = {}
       for (const key of [
         'enabled',
+        'priority',
         'matchType',
         'labelPattern',
         'accountId',
@@ -295,7 +585,7 @@ export class CategorizationRulesService {
       }
       if (dto.merchant !== undefined)
         changes.merchant = nullIfBlank(dto.merchant)
-      if (Object.keys(changes).length === 0) return existing
+      if (Object.keys(changes).length === 0) return this.ranked(tx, existing)
 
       await this.assertValidRule(tx, { ...existing, ...changes })
       const [rule] = await tx
@@ -303,7 +593,7 @@ export class CategorizationRulesService {
         .set(changes)
         .where(eq(categorizationRulesTable.id, id))
         .returning()
-      return rule
+      return this.ranked(tx, rule)
     })
   }
 
@@ -322,43 +612,6 @@ export class CategorizationRulesService {
       await tx
         .delete(categorizationRulesTable)
         .where(eq(categorizationRulesTable.id, id))
-    })
-  }
-
-  /**
-   * Sets the evaluation order: `ids` must list every rule exactly once, first
-   * = highest priority. Positions become 0..n-1.
-   */
-  reorder(ids: string[]): Promise<SelectCategorizationRule[]> {
-    return this.db.transaction(async (tx) => {
-      const existing = await tx
-        .select({ id: categorizationRulesTable.id })
-        .from(categorizationRulesTable)
-      const known = new Set(existing.map((rule) => rule.id))
-      const requested = new Set(ids)
-      if (
-        requested.size !== ids.length ||
-        requested.size !== known.size ||
-        ids.some((id) => !known.has(id))
-      ) {
-        throw new BadRequestException(
-          'ids must list every categorization rule exactly once',
-        )
-      }
-
-      if (ids.length > 0) {
-        const positions = sql.join(
-          ids.map((id, position) => sql`(${id}::uuid, ${position}::integer)`),
-          sql`, `,
-        )
-        await tx.execute(sql`
-          update ${categorizationRulesTable} as r
-          set position = v.position, updated_at = now()
-          from (values ${positions}) as v(id, position)
-          where r.id = v.id
-        `)
-      }
-      return this.list(tx)
     })
   }
 
@@ -492,7 +745,10 @@ export class CategorizationRulesService {
   }
 
   /** The transactions matching `where`, by id-ordered chunks. */
-  private async *chunks(executor: Executor, where: SQL) {
+  private async *chunks(
+    executor: Executor,
+    where: SQL,
+  ): AsyncGenerator<ScannedTransaction[]> {
     let lastId: string | null = null
     for (;;) {
       const rows = await executor

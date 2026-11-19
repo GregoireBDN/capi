@@ -232,6 +232,13 @@
       "when": 1795085790845,
       "tag": "0032_crypto_price_change",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1795087941511,
+      "tag": "0033_rule_priority",
+      "breakpoints": true
     }
   ]
 }

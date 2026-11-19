@@ -206,6 +206,7 @@ function toRule(
     createdAt: now,
     updatedAt: now,
     position,
+    priority: 0,
     enabled: true,
     matchType: 'contains',
     labelPattern: proposal.labelPattern,
@@ -220,8 +221,8 @@ function toRule(
 }
 
 /**
- * Saves the proposals at the end of the rule order, in order. Run inside the
- * import transaction.
+ * Saves the proposals after the existing rules (their creation order; the
+ * evaluation order is computed, #299). Run inside the import transaction.
  */
 export async function createProposedRules(
   db: DedupeExecutor,

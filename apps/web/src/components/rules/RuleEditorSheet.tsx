@@ -1,5 +1,7 @@
 import {
   Button,
+  CategoryIcon,
+  cn,
   Field,
   FieldDescription,
   FieldError,
@@ -7,457 +9,772 @@ import {
   Input,
   NativeSelect,
   NativeSelectOption,
+  SegmentedControl,
+  SegmentedControlItem,
   Sheet,
   SheetContent,
   SheetDescription,
-  SheetHeader,
   SheetTitle,
+  Skeleton,
   Switch,
   useIsMobile,
 } from '@finances/ui'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  MinusIcon,
+  PlusIcon,
+  Trash2Icon,
+} from 'lucide-react'
+import { useEffect, useId, useRef, useState } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import type {
   AccountDto,
   CategorizationRuleDto,
-  CategorizationRulePreviewDto,
   CategoryDto,
   CreateCategorizationRuleDto,
   RuleMatchType,
   TransactionKind,
 } from '#/api/types.gen'
-import { centsToInput, parseAmountToCents } from '#/components/accounts/amount'
-import { CategoryPicker } from '#/components/transactions/CategoryPicker'
 import {
   KIND_LABELS,
   TRANSACTION_KINDS,
 } from '#/components/transactions/labels'
 import { isTransactional } from '#/lib/queries'
-import { MATCH_TYPE_LABELS } from './describe'
+import { CategoryChips } from './CategoryChips'
+import { describeConditions, MATCH_TYPE_LABELS } from './describe'
 import { ruleErrorMessage } from './errors'
-import { createRule, previewRule, rulesKey, updateRule } from './queries'
-import { RulePreview } from './RulePreview'
+import { createRule, rulePreviewQuery, rulesKey, updateRule } from './queries'
+import { bodyFromForm, conditionsFromForm, formFromRule } from './rule-form'
+import type { FormErrors, RuleForm } from './rule-form'
+import { RuleMatches } from './RuleMatches'
+import { PREVIEW_RULE_ID, RulePreview } from './RulePreview'
+
+export { bodyFromForm, formFromRule, type RuleForm } from './rule-form'
 
 const PATTERN_MAX = 255
 const MERCHANT_MAX = 255
+/** Bounds of `priority` (API). */
+const PRIORITY_MIN = -1000
+const PRIORITY_MAX = 1000
 
-/** The form as typed: amounts stay text until they are checked. */
-export interface RuleForm {
-  labelPattern: string
-  matchType: RuleMatchType
-  /** '' = every account. */
-  accountId: string
-  minAmount: string
-  maxAmount: string
-  categoryId: string
-  /** '' = the category's kind. */
-  kind: TransactionKind | ''
-  merchant: string
-  enabled: boolean
-  /** Destination of the transfers it files (#296); '' = none. */
-  counterpartAccountId: string
-}
+/** The steps of the editor (#299): one decision per screen. */
+const STEPS = ['match', 'category', 'review'] as const
+type Step = (typeof STEPS)[number]
 
-type FormErrors = Partial<
-  Record<'labelPattern' | 'amount' | 'categoryId', string>
->
-
-export function formFromRule(rule: CategorizationRuleDto | null): RuleForm {
-  return {
-    labelPattern: rule?.labelPattern ?? '',
-    matchType: rule?.matchType ?? 'contains',
-    accountId: rule?.accountId ?? '',
-    minAmount:
-      rule?.minAmountCents == null ? '' : centsToInput(rule.minAmountCents),
-    maxAmount:
-      rule?.maxAmountCents == null ? '' : centsToInput(rule.maxAmountCents),
-    categoryId: rule?.categoryId ?? '',
-    kind: rule?.kind ?? '',
-    merchant: rule?.merchant ?? '',
-    enabled: rule?.enabled ?? true,
-    counterpartAccountId: rule?.counterpartAccountId ?? '',
-  }
-}
-
-/**
- * The request body for `form`, or the errors to show. Amounts are read
- * straight into cents; an empty amount means no bound.
- */
-export function bodyFromForm(
-  form: RuleForm,
-  /** Kind of the chosen category: a destination only goes with transfers. */
-  categoryKind?: TransactionKind,
-): { body: Required<CreateCategorizationRuleDto> } | { errors: FormErrors } {
-  const errors: FormErrors = {}
-  const labelPattern = form.labelPattern.trim()
-  if (labelPattern === '') errors.labelPattern = 'Saisissez un motif.'
-  if (form.categoryId === '') errors.categoryId = 'Choisissez une catégorie.'
-
-  const amount = (text: string) =>
-    text.trim() === '' ? null : parseAmountToCents(text)
-  const minAmountCents = amount(form.minAmount)
-  const maxAmountCents = amount(form.maxAmount)
-  if (
-    (form.minAmount.trim() !== '' && minAmountCents === null) ||
-    (form.maxAmount.trim() !== '' && maxAmountCents === null)
-  ) {
-    errors.amount = 'Saisissez un montant, par exemple -50 ou 12,90.'
-  } else if (
-    minAmountCents !== null &&
-    maxAmountCents !== null &&
-    minAmountCents > maxAmountCents
-  ) {
-    errors.amount = 'Le minimum dépasse le maximum.'
-  }
-
-  if (Object.keys(errors).length > 0) return { errors }
-  return {
-    body: {
-      enabled: form.enabled,
-      matchType: form.matchType,
-      labelPattern,
-      accountId: form.accountId || null,
-      minAmountCents,
-      maxAmountCents,
-      categoryId: form.categoryId,
-      kind: form.kind || null,
-      merchant: form.merchant.trim() || null,
-      counterpartAccountId:
-        (form.kind || categoryKind) === 'transfer' &&
-        form.counterpartAccountId !== form.accountId
-          ? form.counterpartAccountId || null
-          : null,
-    },
-  }
+const STEP_NAMES: Record<Step, string> = {
+  match: 'Quelles opérations ?',
+  category: 'Classer dans',
+  review: 'Vérifier',
 }
 
 interface RuleEditorSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** The rule to edit, or null for a new one (appended last). */
+  /** The rule to edit, or null for a new one. */
   rule: CategorizationRuleDto | null
+  /** Every saved rule, to name the ones it overlaps with. */
+  rules: readonly CategorizationRuleDto[]
   categories: readonly CategoryDto[]
   accounts: readonly AccountDto[]
-  /** Called once the rule is saved, to offer applying the rules. */
-  onSaved: (rule: CategorizationRuleDto, created: boolean) => void
+  /** Once saved: the page applies the rules and offers « Annuler ». */
+  onSaved: (
+    rule: CategorizationRuleDto,
+    previous: CategorizationRuleDto | null,
+  ) => void
+  /** « Supprimer la règle » (an edit only): the page confirms. */
+  onDelete: (rule: CategorizationRuleDto) => void
+}
+
+/** A folded « Avancé » section, its summary beside the title when closed. */
+function Advanced({
+  id,
+  summary,
+  children,
+}: {
+  id: string
+  summary: string | null
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
+  return (
+    // Clipped to its own corners, so the hover fills the bordered shape.
+    <div className="overflow-hidden rounded-lg border">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={open ? id : undefined}
+        onClick={() => {
+          setOpen((current) => !current)
+          // Opened: bring what it holds into view.
+          if (!open) {
+            requestAnimationFrame(() =>
+              contentRef.current?.scrollIntoView({
+                block: 'nearest',
+                behavior: 'smooth',
+              }),
+            )
+          }
+        }}
+        className="hover:bg-muted/60 focus-visible:ring-ring/50 flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-inset"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium">Avancé</span>
+          {!open && summary && (
+            <span className="text-muted-foreground block text-xs break-words">
+              {summary}
+            </span>
+          )}
+        </span>
+        <ChevronDownIcon
+          aria-hidden
+          className={cn(
+            'text-muted-foreground size-[0.8rem] shrink-0 transition-transform motion-reduce:transition-none',
+            open && 'rotate-180',
+          )}
+        />
+      </button>
+      {open && (
+        <div id={id} ref={contentRef} className="space-y-4 border-t p-3">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** A row of the review step that goes back to a step: label, value, ›. */
+function StepLink({
+  label,
+  onClick,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="hover:bg-muted/60 focus-visible:ring-ring/50 flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-inset"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="text-muted-foreground block text-xs">{label}</span>
+        <span className="block break-words">{children}</span>
+      </span>
+      <ChevronRightIcon
+        aria-hidden
+        className="text-muted-foreground size-[0.8rem] shrink-0"
+      />
+    </button>
+  )
 }
 
 /**
- * Edits or creates a rule: pattern and match type, account and amount
- * filters, target category, kind and merchant, enabled. "Tester" shows what
- * saving it and applying the rules would change, before anything is saved.
- * A bottom sheet on phones, a side sheet otherwise.
+ * Creates or edits a rule in three steps (#299, like the quick entry #245):
+ * 1. « Quelles opérations ? »: the text the label contains, the transactions
+ *    it catches listed live below; « Avancé »: regex, account, amount.
+ * 2. « Classer dans »: the categories as chips, a tap moves on.
+ * 3. « Vérifier »: the rule as a sentence, what applying it will change and
+ *    the rules it overlaps with (« Faire gagner cette règle »); « Avancé »:
+ *    kind, destination, merchant, active, priority. « Enregistrer » saves,
+ *    then the page applies the rules with « Annuler ».
+ * An edit opens on the third step. A bottom sheet on phones, a side sheet
+ * otherwise.
  */
 export function RuleEditorSheet({
   open,
   onOpenChange,
   rule,
+  rules,
   categories,
   accounts,
   onSaved,
+  onDelete,
 }: RuleEditorSheetProps) {
   const isMobile = useIsMobile()
   const queryClient = useQueryClient()
   const id = useId()
+  const stepRef = useRef<HTMLHeadingElement>(null)
   const [form, setForm] = useState<RuleForm>(() => formFromRule(rule))
+  const [step, setStep] = useState<Step>(rule ? 'review' : 'match')
   const [errors, setErrors] = useState<FormErrors>({})
-  const [preview, setPreview] = useState<CategorizationRulePreviewDto | null>(
-    null,
-  )
   const [requestError, setRequestError] = useState<string | null>(null)
 
   // Fresh form on every opening.
   useEffect(() => {
     if (!open) return
     setForm(formFromRule(rule))
+    setStep(rule ? 'review' : 'match')
     setErrors({})
-    setPreview(null)
     setRequestError(null)
   }, [open, rule])
 
-  /** Any change makes the last test stale. */
   function change(patch: Partial<RuleForm>) {
     setForm((current) => ({ ...current, ...patch }))
-    setPreview(null)
     setRequestError(null)
   }
 
-  function validBody() {
-    const result = bodyFromForm(form, category?.kind)
-    if ('errors' in result) {
-      setErrors(result.errors)
-      return null
-    }
-    setErrors({})
-    return result.body
+  function goTo(target: Step) {
+    setStep(target)
+    setRequestError(null)
+    // The step's heading, read out by screen readers.
+    requestAnimationFrame(() => stepRef.current?.focus({ preventScroll: true }))
   }
 
-  const test = useMutation({
-    mutationFn: (body: CreateCategorizationRuleDto) =>
-      previewRule(rule ? { ...body, ruleId: rule.id } : body),
-    onSuccess: (result) => setPreview(result),
-    onError: (error) => setRequestError(ruleErrorMessage(error)),
+  const category = categories.find((c) => c.id === form.categoryId)
+  const conditions = conditionsFromForm(form)
+  const result = bodyFromForm(form, category?.kind)
+  const body = 'body' in result ? result.body : null
+  const selfId = rule?.id ?? PREVIEW_RULE_ID
+
+  const preview = useQuery({
+    ...rulePreviewQuery(
+      body
+        ? { ...body, ...(rule ? { ruleId: rule.id } : {}) }
+        : { labelPattern: '', categoryId: '' },
+    ),
+    enabled: open && step === 'review' && body !== null,
+    staleTime: 0,
   })
 
   const save = useMutation({
-    mutationFn: (body: Required<CreateCategorizationRuleDto>) =>
-      rule ? updateRule(rule.id, body) : createRule(body),
+    mutationFn: (saved: Required<CreateCategorizationRuleDto>) =>
+      rule ? updateRule(rule.id, saved) : createRule(saved),
     onSuccess: async (saved) => {
       onOpenChange(false)
-      onSaved(saved, rule === null)
+      onSaved(saved, rule)
       await queryClient.invalidateQueries({ queryKey: rulesKey })
     },
     onError: (error) => setRequestError(ruleErrorMessage(error)),
   })
 
+  function next() {
+    if (step === 'match') {
+      if ('errors' in conditions) {
+        setErrors(conditions.errors)
+        return
+      }
+      setErrors({})
+      goTo(form.categoryId ? 'review' : 'category')
+      return
+    }
+    if (step === 'category') {
+      if (!form.categoryId) {
+        setErrors({ categoryId: 'Choisissez une catégorie.' })
+        return
+      }
+      setErrors({})
+      goTo('review')
+      return
+    }
+    if ('errors' in result) {
+      setErrors(result.errors)
+      goTo(
+        result.errors.labelPattern || result.errors.amount
+          ? 'match'
+          : 'category',
+      )
+      return
+    }
+    save.mutate(result.body)
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    next()
+  }
+
+  const stepIndex = STEPS.indexOf(step)
   const accountChoices = accounts.filter(
     (account) =>
       account.id === form.accountId ||
       (isTransactional(account) && !account.archivedAt),
   )
-  const category = categories.find((c) => c.id === form.categoryId)
   const filesTransfers = (form.kind || category?.kind) === 'transfer'
   const destinationChoices = accounts.filter(
     (account) =>
       account.id === form.counterpartAccountId ||
       (!account.archivedAt && account.id !== form.accountId),
   )
+  const conditionsSummary = [
+    form.matchType === 'regex' ? 'expression régulière' : null,
+    describeConditions(
+      'conditions' in conditions
+        ? conditions.conditions
+        : {
+            accountId: form.accountId || null,
+            minAmountCents: null,
+            maxAmountCents: null,
+          },
+      accounts,
+    ),
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  const outcomeSummary = [
+    form.kind ? KIND_LABELS[form.kind] : null,
+    form.merchant.trim() ? `renommé « ${form.merchant.trim()} »` : null,
+    form.enabled ? null : 'désactivée',
+    form.priority !== 0 ? `priorité ${form.priority}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  const sentence = `${MATCH_TYPE_LABELS[form.matchType]} « ${form.labelPattern.trim()} »`
+
+  const header = (
+    <div className="flex min-h-14 shrink-0 items-center gap-1 py-2 pr-12 pl-2">
+      {stepIndex > 0 ? (
+        <Button
+          type="button"
+          ghost
+          variant="secondary"
+          onClick={() => goTo(STEPS[stepIndex - 1])}
+        >
+          <ChevronLeftIcon aria-hidden />
+          Retour
+        </Button>
+      ) : (
+        <span className="w-2" />
+      )}
+      <h3
+        ref={stepRef}
+        tabIndex={-1}
+        className="min-w-0 flex-1 text-base leading-tight font-semibold break-words outline-none"
+      >
+        {STEP_NAMES[step]}
+        <span className="text-muted-foreground ml-1.5 text-sm font-normal whitespace-nowrap">
+          {stepIndex + 1}/{STEPS.length}
+        </span>
+      </h3>
+    </div>
+  )
+
+  const footer = (
+    <div className="flex shrink-0 gap-2 border-t px-4 py-3 group-data-keyboard-open/sheet:hidden">
+      <Button
+        type="submit"
+        className="flex-1 font-medium"
+        loading={step === 'review' && save.isPending}
+        disabled={
+          (step === 'match' && form.labelPattern.trim() === '') ||
+          (step === 'category' && !form.categoryId)
+        }
+      >
+        {step === 'review' ? (
+          'Enregistrer'
+        ) : (
+          <>
+            Suivant
+            <ChevronRightIcon aria-hidden />
+          </>
+        )}
+      </Button>
+    </div>
+  )
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side={isMobile ? 'bottom' : 'right'}
-        className={
-          isMobile
-            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-            : 'overflow-y-auto'
-        }
+        className={cn(
+          'flex flex-col gap-0 overflow-hidden',
+          isMobile &&
+            'h-[calc(92svh-var(--keyboard-inset,0px))] rounded-t-xl data-[side=bottom]:h-[calc(92svh-var(--keyboard-inset,0px))]',
+        )}
+        onOpenAutoFocus={(event) => {
+          // The step's heading, never a field: no keyboard on phones.
+          event.preventDefault()
+          stepRef.current?.focus({ preventScroll: true })
+        }}
       >
-        <SheetHeader className="pb-0">
-          <SheetTitle>
-            {rule ? 'Modifier la règle' : 'Nouvelle règle'}
-          </SheetTitle>
-          <SheetDescription>
-            {rule
-              ? 'Testez-la pour voir les opérations qui changeraient avant d’enregistrer.'
-              : 'Elle passe après les règles existantes.'}
-          </SheetDescription>
-        </SheetHeader>
+        <SheetTitle className="sr-only">
+          {rule ? 'Modifier la règle' : 'Nouvelle règle'}
+        </SheetTitle>
+        <SheetDescription className="sr-only">
+          Les opérations dont le libellé correspond sont classées dans la
+          catégorie choisie.
+        </SheetDescription>
         <form
           noValidate
-          onSubmit={(event) => {
-            event.preventDefault()
-            const body = validBody()
-            if (body) save.mutate(body)
-          }}
-          className="space-y-4 px-4 pb-6"
+          onSubmit={submit}
+          className="flex min-h-0 flex-1 flex-col"
         >
-          <Field data-invalid={errors.labelPattern ? true : undefined}>
-            <FieldLabel htmlFor={`${id}-pattern`}>
-              Le libellé ou le marchand
-            </FieldLabel>
-            <div className="grid gap-2 sm:grid-cols-[auto_1fr]">
-              <NativeSelect
-                aria-label="Type de correspondance"
-                value={form.matchType}
-                onChange={(event) =>
-                  change({ matchType: event.target.value as RuleMatchType })
-                }
-              >
-                {(['contains', 'regex'] as const).map((value) => (
-                  <NativeSelectOption key={value} value={value}>
-                    {MATCH_TYPE_LABELS[value]}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-              <Input
-                id={`${id}-pattern`}
-                autoComplete="off"
-                autoCapitalize="off"
-                spellCheck={false}
-                maxLength={PATTERN_MAX}
-                value={form.labelPattern}
-                aria-invalid={errors.labelPattern ? true : undefined}
-                onChange={(event) =>
-                  change({ labelPattern: event.target.value })
-                }
-                className={form.matchType === 'regex' ? 'font-mono' : undefined}
-              />
-            </div>
-            <FieldDescription>
-              {form.matchType === 'contains'
-                ? 'Majuscules, accents et ponctuation sont ignorés.'
-                : 'Expression régulière, sans distinction de majuscules.'}
-            </FieldDescription>
-            {errors.labelPattern && (
-              <FieldError>{errors.labelPattern}</FieldError>
+          {header}
+          <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4">
+            {step === 'match' && (
+              <>
+                <Field data-invalid={errors.labelPattern ? true : undefined}>
+                  <FieldLabel htmlFor={`${id}-pattern`}>
+                    {form.matchType === 'regex'
+                      ? 'Le libellé correspond à'
+                      : 'Le libellé contient'}
+                  </FieldLabel>
+                  <Input
+                    id={`${id}-pattern`}
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    maxLength={PATTERN_MAX}
+                    placeholder={
+                      form.matchType === 'regex'
+                        ? 'Ex. : ^PRLV .*EDF'
+                        : 'Ex. : UBER EATS'
+                    }
+                    value={form.labelPattern}
+                    aria-invalid={errors.labelPattern ? true : undefined}
+                    onChange={(event) =>
+                      change({ labelPattern: event.target.value })
+                    }
+                    className={
+                      form.matchType === 'regex' ? 'font-mono' : undefined
+                    }
+                  />
+                  <FieldDescription>
+                    {form.matchType === 'contains'
+                      ? 'Le libellé de la banque ou le marchand. Majuscules, accents et ponctuation sont ignorés.'
+                      : 'Expression régulière, sans distinction de majuscules.'}
+                  </FieldDescription>
+                  {errors.labelPattern && (
+                    <FieldError>{errors.labelPattern}</FieldError>
+                  )}
+                </Field>
+
+                <RuleMatches
+                  conditions={
+                    'conditions' in conditions ? conditions.conditions : null
+                  }
+                  categories={categories}
+                />
+
+                <Advanced
+                  id={`${id}-conditions`}
+                  summary={conditionsSummary || null}
+                >
+                  <Field>
+                    <FieldLabel id={`${id}-match-type`}>
+                      Correspondance
+                    </FieldLabel>
+                    <SegmentedControl
+                      fullWidth
+                      aria-labelledby={`${id}-match-type`}
+                      value={form.matchType}
+                      onValueChange={(matchType: RuleMatchType) =>
+                        change({ matchType })
+                      }
+                    >
+                      <SegmentedControlItem value="contains">
+                        Contient
+                      </SegmentedControlItem>
+                      <SegmentedControlItem value="regex">
+                        Expression
+                      </SegmentedControlItem>
+                    </SegmentedControl>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor={`${id}-account`}>Compte</FieldLabel>
+                    <NativeSelect
+                      id={`${id}-account`}
+                      className="w-full"
+                      value={form.accountId}
+                      onChange={(event) =>
+                        change({ accountId: event.target.value })
+                      }
+                    >
+                      <NativeSelectOption value="">
+                        Tous les comptes
+                      </NativeSelectOption>
+                      {accountChoices.map((account) => (
+                        <NativeSelectOption key={account.id} value={account.id}>
+                          {account.name}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </Field>
+                  <Field data-invalid={errors.amount ? true : undefined}>
+                    <FieldLabel htmlFor={`${id}-min`}>Montant</FieldLabel>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        id={`${id}-min`}
+                        aria-label="Montant minimum"
+                        placeholder="Min."
+                        inputMode="decimal"
+                        autoComplete="off"
+                        value={form.minAmount}
+                        aria-invalid={errors.amount ? true : undefined}
+                        onChange={(event) =>
+                          change({ minAmount: event.target.value })
+                        }
+                      />
+                      <Input
+                        aria-label="Montant maximum"
+                        placeholder="Max."
+                        inputMode="decimal"
+                        autoComplete="off"
+                        value={form.maxAmount}
+                        aria-invalid={errors.amount ? true : undefined}
+                        onChange={(event) =>
+                          change({ maxAmount: event.target.value })
+                        }
+                      />
+                    </div>
+                    <FieldDescription>
+                      En euros, bornes comprises ; négatif pour une dépense (ex.
+                      -50).
+                    </FieldDescription>
+                    {errors.amount && <FieldError>{errors.amount}</FieldError>}
+                  </Field>
+                </Advanced>
+              </>
             )}
-          </Field>
 
-          <Field data-invalid={errors.categoryId ? true : undefined}>
-            <FieldLabel htmlFor={`${id}-category`}>Catégorie</FieldLabel>
-            <CategoryPicker
-              id={`${id}-category`}
-              label="Catégorie"
-              categories={categories}
-              value={form.categoryId || null}
-              onChange={(categoryId) => change({ categoryId })}
-              className="w-full"
-            />
-            {category?.archivedAt && (
-              <FieldDescription>
-                Cette catégorie est archivée : choisissez-en une autre ou
-                désactivez la règle.
-              </FieldDescription>
+            {step === 'category' && (
+              <>
+                <p className="text-muted-foreground text-sm break-words">
+                  {sentence}
+                </p>
+                <CategoryChips
+                  categories={categories}
+                  value={form.categoryId}
+                  onPick={(categoryId) => {
+                    change({ categoryId })
+                    setErrors({})
+                    goTo('review')
+                  }}
+                />
+                {errors.categoryId && (
+                  <p role="alert" className="text-destructive text-sm">
+                    {errors.categoryId}
+                  </p>
+                )}
+              </>
             )}
-            {errors.categoryId && <FieldError>{errors.categoryId}</FieldError>}
-          </Field>
 
-          <Field>
-            <FieldLabel htmlFor={`${id}-kind`}>Type</FieldLabel>
-            <NativeSelect
-              id={`${id}-kind`}
-              className="w-full"
-              value={form.kind}
-              onChange={(event) =>
-                change({ kind: event.target.value as TransactionKind | '' })
-              }
-            >
-              <NativeSelectOption value="">
-                {category
-                  ? `Celui de la catégorie (${KIND_LABELS[category.kind]})`
-                  : 'Celui de la catégorie'}
-              </NativeSelectOption>
-              {TRANSACTION_KINDS.map((kind) => (
-                <NativeSelectOption key={kind} value={kind}>
-                  {KIND_LABELS[kind]}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </Field>
+            {step === 'review' && (
+              <>
+                <div className="divide-y overflow-hidden rounded-lg border">
+                  <StepLink label="Opérations" onClick={() => goTo('match')}>
+                    <span className="font-medium">{sentence}</span>
+                    {conditionsSummary && (
+                      <span className="text-muted-foreground block text-xs">
+                        {conditionsSummary}
+                      </span>
+                    )}
+                  </StepLink>
+                  <StepLink
+                    label="Classer dans"
+                    onClick={() => goTo('category')}
+                  >
+                    {category ? (
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <CategoryIcon
+                          icon={category.icon}
+                          color={category.color}
+                          size="sm"
+                        />
+                        <span className="font-medium">{category.name}</span>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Catégorie inconnue
+                      </span>
+                    )}
+                  </StepLink>
+                </div>
+                {category?.archivedAt && (
+                  <p className="text-sm text-amber-700 dark:text-amber-400">
+                    Cette catégorie est archivée : choisissez-en une autre ou
+                    désactivez la règle.
+                  </p>
+                )}
 
-          {filesTransfers && (
-            <Field>
-              <FieldLabel htmlFor={`${id}-destination`}>
-                Compte de destination
-              </FieldLabel>
-              <NativeSelect
-                id={`${id}-destination`}
-                className="w-full"
-                value={form.counterpartAccountId}
-                onChange={(event) =>
-                  change({ counterpartAccountId: event.target.value })
-                }
-              >
-                <NativeSelectOption value="">Aucun</NativeSelectOption>
-                {destinationChoices.map((account) => (
-                  <NativeSelectOption key={account.id} value={account.id}>
-                    {account.name}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-              <FieldDescription>
-                Les virements classés par cette règle sont liés à ce compte :
-                ceux vers un placement font ses versements.
-              </FieldDescription>
-            </Field>
-          )}
+                {preview.isPending && body !== null && (
+                  <div className="space-y-2" aria-hidden="true">
+                    <Skeleton className="h-5 w-48" />
+                    <Skeleton className="h-16 w-full" />
+                  </div>
+                )}
+                {preview.isError && (
+                  <p role="alert" className="text-destructive text-sm">
+                    {ruleErrorMessage(preview.error)}
+                  </p>
+                )}
+                {preview.data && (
+                  <RulePreview
+                    preview={preview.data}
+                    categories={categories}
+                    rules={rules}
+                    selfId={selfId}
+                    onPreferOver={(winner) =>
+                      change({
+                        priority: Math.min(PRIORITY_MAX, winner.priority + 1),
+                      })
+                    }
+                  />
+                )}
 
-          <Field>
-            <FieldLabel htmlFor={`${id}-account`}>Compte</FieldLabel>
-            <NativeSelect
-              id={`${id}-account`}
-              className="w-full"
-              value={form.accountId}
-              onChange={(event) => change({ accountId: event.target.value })}
-            >
-              <NativeSelectOption value="">Tous les comptes</NativeSelectOption>
-              {accountChoices.map((account) => (
-                <NativeSelectOption key={account.id} value={account.id}>
-                  {account.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </Field>
+                <Advanced id={`${id}-outcome`} summary={outcomeSummary || null}>
+                  <Field>
+                    <FieldLabel htmlFor={`${id}-kind`}>Type</FieldLabel>
+                    <NativeSelect
+                      id={`${id}-kind`}
+                      className="w-full"
+                      value={form.kind}
+                      onChange={(event) =>
+                        change({
+                          kind: event.target.value as TransactionKind | '',
+                        })
+                      }
+                    >
+                      <NativeSelectOption value="">
+                        {category
+                          ? `Celui de la catégorie (${KIND_LABELS[category.kind]})`
+                          : 'Celui de la catégorie'}
+                      </NativeSelectOption>
+                      {TRANSACTION_KINDS.map((kind) => (
+                        <NativeSelectOption key={kind} value={kind}>
+                          {KIND_LABELS[kind]}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </Field>
 
-          <Field data-invalid={errors.amount ? true : undefined}>
-            <FieldLabel htmlFor={`${id}-min`}>Montant (facultatif)</FieldLabel>
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                id={`${id}-min`}
-                aria-label="Montant minimum"
-                placeholder="Min."
-                autoComplete="off"
-                value={form.minAmount}
-                aria-invalid={errors.amount ? true : undefined}
-                onChange={(event) => change({ minAmount: event.target.value })}
-              />
-              <Input
-                aria-label="Montant maximum"
-                placeholder="Max."
-                autoComplete="off"
-                value={form.maxAmount}
-                aria-invalid={errors.amount ? true : undefined}
-                onChange={(event) => change({ maxAmount: event.target.value })}
-              />
-            </div>
-            <FieldDescription>
-              En euros, bornes comprises ; négatif pour une dépense (ex. -50).
-            </FieldDescription>
-            {errors.amount && <FieldError>{errors.amount}</FieldError>}
-          </Field>
+                  {filesTransfers && (
+                    <Field>
+                      <FieldLabel htmlFor={`${id}-destination`}>
+                        Compte de destination
+                      </FieldLabel>
+                      <NativeSelect
+                        id={`${id}-destination`}
+                        className="w-full"
+                        value={form.counterpartAccountId}
+                        onChange={(event) =>
+                          change({ counterpartAccountId: event.target.value })
+                        }
+                      >
+                        <NativeSelectOption value="">Aucun</NativeSelectOption>
+                        {destinationChoices.map((account) => (
+                          <NativeSelectOption
+                            key={account.id}
+                            value={account.id}
+                          >
+                            {account.name}
+                          </NativeSelectOption>
+                        ))}
+                      </NativeSelect>
+                      <FieldDescription>
+                        Les virements classés par cette règle sont liés à ce
+                        compte : ceux vers un placement font ses versements.
+                      </FieldDescription>
+                    </Field>
+                  )}
 
-          <Field>
-            <FieldLabel htmlFor={`${id}-merchant`}>
-              Renommer le marchand (facultatif)
-            </FieldLabel>
-            <Input
-              id={`${id}-merchant`}
-              autoComplete="off"
-              maxLength={MERCHANT_MAX}
-              value={form.merchant}
-              onChange={(event) => change({ merchant: event.target.value })}
-            />
-          </Field>
+                  <Field>
+                    <FieldLabel htmlFor={`${id}-merchant`}>
+                      Renommer le marchand
+                    </FieldLabel>
+                    <Input
+                      id={`${id}-merchant`}
+                      autoComplete="off"
+                      maxLength={MERCHANT_MAX}
+                      value={form.merchant}
+                      onChange={(event) =>
+                        change({ merchant: event.target.value })
+                      }
+                    />
+                  </Field>
 
-          <Field orientation="horizontal" className="min-h-11 items-center">
-            <Switch
-              id={`${id}-enabled`}
-              checked={form.enabled}
-              onCheckedChange={(enabled) => change({ enabled })}
-            />
-            <FieldLabel htmlFor={`${id}-enabled`}>Règle active</FieldLabel>
-          </Field>
+                  <Field
+                    orientation="horizontal"
+                    className="min-h-11 items-center"
+                  >
+                    <Switch
+                      id={`${id}-enabled`}
+                      checked={form.enabled}
+                      onCheckedChange={(enabled) => change({ enabled })}
+                    />
+                    <FieldLabel htmlFor={`${id}-enabled`}>
+                      Règle active
+                    </FieldLabel>
+                  </Field>
 
-          {preview && <RulePreview preview={preview} categories={categories} />}
-          {requestError && (
-            <p role="alert" className="text-destructive text-sm">
-              {requestError}
-            </p>
-          )}
+                  <Field>
+                    <FieldLabel id={`${id}-priority`}>Priorité</FieldLabel>
+                    <div
+                      role="group"
+                      aria-labelledby={`${id}-priority`}
+                      className="flex items-center gap-2"
+                    >
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        outline
+                        iconOnly
+                        aria-label="Baisser la priorité"
+                        disabled={form.priority <= PRIORITY_MIN}
+                        onClick={() => change({ priority: form.priority - 1 })}
+                      >
+                        <MinusIcon />
+                      </Button>
+                      <output
+                        aria-live="polite"
+                        className="min-w-[4rem] flex-1 text-center text-sm tabular-nums"
+                      >
+                        {form.priority === 0
+                          ? 'Normale'
+                          : form.priority > 0
+                            ? `+${form.priority}`
+                            : form.priority}
+                      </output>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        outline
+                        iconOnly
+                        aria-label="Monter la priorité"
+                        disabled={form.priority >= PRIORITY_MAX}
+                        onClick={() => change({ priority: form.priority + 1 })}
+                      >
+                        <PlusIcon />
+                      </Button>
+                    </div>
+                    <FieldDescription>
+                      Par défaut, la règle la plus précise passe en premier. Une
+                      priorité plus haute passe avant, même devant une règle
+                      plus précise.
+                    </FieldDescription>
+                  </Field>
+                </Advanced>
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              outline
-              className="flex-1 sm:flex-none"
-              loading={test.isPending}
-              onClick={() => {
-                const body = validBody()
-                if (body) test.mutate(body)
-              }}
-            >
-              Tester
-            </Button>
-            <Button
-              type="submit"
-              className="flex-1 sm:flex-none"
-              loading={save.isPending}
-            >
-              Enregistrer
-            </Button>
+                {rule && (
+                  <Button
+                    type="button"
+                    ghost
+                    variant="danger"
+                    className="w-full"
+                    onClick={() => {
+                      onOpenChange(false)
+                      onDelete(rule)
+                    }}
+                  >
+                    <Trash2Icon aria-hidden />
+                    Supprimer la règle
+                  </Button>
+                )}
+              </>
+            )}
+
+            {requestError && (
+              <p role="alert" className="text-destructive text-sm">
+                {requestError}
+              </p>
+            )}
           </div>
+          {footer}
         </form>
       </SheetContent>
     </Sheet>
