@@ -13,6 +13,8 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   ArrowLeftRightIcon,
+  CheckIcon,
+  CircleCheckBigIcon,
   PlusIcon,
   SearchXIcon,
   UploadIcon,
@@ -20,11 +22,12 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
+import { StaleValuesReminder } from '#/components/review/StaleValuesReminder'
 import { currentMonth, formatMonth } from '#/lib/calendar'
 import { accountsQuery, categoriesQuery, isTransactional } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import { BulkActionsBar } from './BulkActionsBar'
-import type { BulkChanges } from './changes'
+import type { BulkChanges, TransactionChanges } from './changes'
 import { transactionListQuery, transactionSummaryQuery } from './queries'
 import { RuleFromCorrectionDialog } from './RuleFromCorrectionDialog'
 import { RuleOfferBanner } from './RuleOfferBanner'
@@ -40,7 +43,11 @@ import {
   coverageQuery,
   nearestMonthWithData,
 } from '#/components/month/coverage'
-import type { CoverageDto, TransactionSort } from '#/api/types.gen'
+import type {
+  CoverageDto,
+  TransactionDto,
+  TransactionSort,
+} from '#/api/types.gen'
 import { plural } from '#/lib/plural'
 import { formatShortDay } from '#/lib/period'
 import type { TransactionsSearch } from './search'
@@ -158,8 +165,58 @@ function EmptyList({
 }
 
 /**
+ * « À revoir » is empty (#322): everything is filed. Offers every date when
+ * one month is shown, and the whole list.
+ */
+function ReviewDone({
+  allMonths,
+  month,
+  onAllDates,
+  onLeave,
+}: {
+  allMonths: boolean
+  month: string
+  onAllDates: () => void
+  onLeave: () => void
+}) {
+  return (
+    <EmptyState
+      icon={<CircleCheckBigIcon />}
+      title={
+        allMonths
+          ? 'Tout est à jour'
+          : `Rien à revoir en ${formatMonth(month).toLowerCase()}`
+      }
+      description="Les opérations que les règles ne reconnaissent pas lors des prochains imports apparaîtront ici."
+      actions={
+        <>
+          {!allMonths && (
+            <Button onClick={onAllDates}>Voir toutes les dates</Button>
+          )}
+          <Button outline variant="secondary" onClick={onLeave}>
+            Voir les opérations
+          </Button>
+        </>
+      }
+    />
+  )
+}
+
+/** A change that takes a transaction out of « À revoir » (#322). */
+function leavesReview(changes: TransactionChanges | BulkChanges): boolean {
+  return (
+    changes.needsReview === false ||
+    (changes.categoryId != null && changes.needsReview === undefined)
+  )
+}
+
+/**
  * Browse and correct transactions: URL-synced filters, totals for the
  * filters, the list grouped by day, and corrections one by one or in bulk.
+ * Filtered on « À revoir » (#322, the former review queue), the list counts
+ * what is left to review, each row gets « Valider », « Tout valider » takes
+ * every row once they all have a category, and a row validated or filed
+ * leaves the list at once.
  */
 export function TransactionsPage({
   search,
@@ -219,15 +276,32 @@ export function TransactionsPage({
     })
   }
 
-  async function applyBulk(changes: BulkChanges) {
+  const reviewing = search.review === true
+
+  async function applyBulk(
+    targets: readonly TransactionDto[],
+    changes: BulkChanges,
+  ) {
     setBulkBusy(true)
-    const done = await actions.updateMany(selectedItems, changes)
+    const done = await actions.updateMany(targets, changes, {
+      leaveReview: reviewing && leavesReview(changes),
+    })
     setBulkBusy(false)
     if (done) setSelected(new Set())
   }
 
+  // « Tout valider »: every row loaded, all of them with a category.
+  const toValidate = items.filter((item) => item.needsReview)
+  const canValidateAll =
+    reviewing &&
+    !list.hasNextPage &&
+    toValidate.length > 0 &&
+    toValidate.every((item) => item.categoryId !== null)
+
   const visibleAccounts = (accounts.data ?? []).filter(isTransactional)
   const filtered = activeFilterCount(search) > 0
+  // Only « À revoir » is on (besides the month): its own empty state.
+  const reviewOnly = reviewing && activeFilterCount(search) === 1
   return (
     <div className="@container space-y-6">
       <PageHeader
@@ -260,8 +334,9 @@ export function TransactionsPage({
         defaultMonth={shownMonth}
       />
 
-      {/* No block of 0,00 € tiles above an empty list. */}
-      {summary.isError || summary.data?.count === 0 ? null : (
+      {/* No block of 0,00 € tiles above an empty list; no totals while
+          reviewing: the count is in the list's header. */}
+      {reviewing || summary.isError || summary.data?.count === 0 ? null : (
         <TransactionSummary summary={summary.data} />
       )}
 
@@ -278,7 +353,23 @@ export function TransactionsPage({
         </Alert>
       )}
 
-      {list.isSuccess && items.length === 0 && (
+      {list.isSuccess && items.length === 0 && reviewOnly && (
+        <ReviewDone
+          allMonths={search.month === ALL_MONTHS}
+          month={filters.month ?? shownMonth}
+          onAllDates={() => onSearchChange({ ...search, month: ALL_MONTHS })}
+          onLeave={() =>
+            onSearchChange(
+              compactSearch({
+                month: search.month === ALL_MONTHS ? undefined : search.month,
+                sort: search.sort,
+              }),
+            )
+          }
+        />
+      )}
+
+      {list.isSuccess && items.length === 0 && !reviewOnly && (
         <EmptyList
           filtered={filtered}
           allMonths={search.month === ALL_MONTHS}
@@ -300,7 +391,9 @@ export function TransactionsPage({
               phones; all three on one row from 672px. */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 @[672px]:gap-x-3 @[672px]:px-3">
             <p className="text-sm font-medium" aria-live="polite">
-              {plural(total, 'opération')}
+              {reviewing
+                ? plural(total, 'opération à revoir', 'opérations à revoir')
+                : plural(total, 'opération')}
             </p>
             <span
               aria-hidden
@@ -338,6 +431,21 @@ export function TransactionsPage({
                 Mise à jour…
               </span>
             )}
+            {canValidateAll && (
+              <Button
+                size="sm"
+                variant="success"
+                outline
+                iconStart={<CheckIcon />}
+                disabled={bulkBusy}
+                className="ml-auto"
+                onClick={() =>
+                  void applyBulk(toValidate, { needsReview: false })
+                }
+              >
+                Tout valider
+              </Button>
+            )}
             <NativeSelect
               aria-label="Tri"
               size="sm"
@@ -351,7 +459,7 @@ export function TransactionsPage({
                   }),
                 )
               }}
-              className="ml-auto w-auto"
+              className={canValidateAll ? 'w-auto' : 'ml-auto w-auto'}
             >
               {SORTS.map((option) => (
                 <NativeSelectOption key={option} value={option}>
@@ -372,13 +480,26 @@ export function TransactionsPage({
             selected={selected}
             onSelectedChange={toggle}
             actionsFor={(item) => ({
-              onChange: (changes) => void actions.update(item, changes),
+              onChange: (changes) =>
+                void actions.update(item, changes, {
+                  leaveReview: reviewing && leavesReview(changes),
+                }),
               onUpdateManual: (changes) => actions.updateManual(item, changes),
               onCorrect: (body) => void actions.correct(item, body),
               onRestoreBank: () => void actions.restoreBank(item),
               onSplit: (parts) => void actions.split(item, parts),
               onUnsplit: () => void actions.unsplit(item),
             })}
+            onValidate={
+              reviewing
+                ? (item) =>
+                    void actions.update(
+                      item,
+                      { needsReview: false },
+                      { leaveReview: true },
+                    )
+                : undefined
+            }
             remaining={total - items.length}
             hasMore={list.hasNextPage}
             loadingMore={list.isFetchingNextPage}
@@ -394,10 +515,13 @@ export function TransactionsPage({
           selected={selectedItems}
           categories={categoryList}
           busy={bulkBusy}
-          onApply={(changes) => void applyBulk(changes)}
+          onApply={(changes) => void applyBulk(selectedItems, changes)}
           onClear={() => setSelected(new Set())}
         />
       )}
+
+      {/* The investment values to update, as the review queue had them. */}
+      {reviewing && <StaleValuesReminder />}
 
       {actions.offer && (
         <RuleFromCorrectionDialog

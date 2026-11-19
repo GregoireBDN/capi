@@ -22,6 +22,3 @@ export const importsQuery = queryOptions({
 
 /** Largest file the API accepts (mirrors `IMPORT_FILE_MAX_BYTES`). */
 export const MAX_FILE_BYTES = 5 * 1024 * 1024
-
-/** Not a route of this branch yet: the review queue ships separately. */
-export const REVIEW_PATH = '/review'

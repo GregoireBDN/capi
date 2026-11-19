@@ -18,6 +18,8 @@ interface TransactionListProps {
   onSelectedChange: (id: string, selected: boolean) => void
   /** Edits of one transaction (category, note, amount, split, ...). */
   actionsFor: (item: TransactionDto) => TransactionRowActions
+  /** « Valider » of a row, while the list is filtered on « À revoir ». */
+  onValidate?: (item: TransactionDto) => void
   remaining: number
   hasMore: boolean
   loadingMore: boolean
@@ -38,6 +40,7 @@ export function TransactionList({
   selected,
   onSelectedChange,
   actionsFor,
+  onValidate,
   remaining,
   hasMore,
   loadingMore,
@@ -72,6 +75,7 @@ export function TransactionList({
       {...actionsFor(item)}
       showDate={!groupByDate}
       showAccount={showAccount}
+      onValidate={onValidate && (() => onValidate(item))}
     />
   )
 

@@ -29,8 +29,24 @@ const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 vi.mock('#/api', () => api)
 vi.mock('sonner', () => ({ toast }))
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ to, children }: { to: string; children: ReactNode }) => (
-    <a href={to}>{children}</a>
+  Link: ({
+    to,
+    search,
+    children,
+  }: {
+    to: string
+    search?: Record<string, string | boolean>
+    children: ReactNode
+  }) => (
+    <a
+      href={
+        search
+          ? `${to}?${new URLSearchParams(Object.entries(search).map(([k, v]) => [k, String(v)]))}`
+          : to
+      }
+    >
+      {children}
+    </a>
   ),
 }))
 
@@ -274,10 +290,10 @@ describe('ImportPage — preview', () => {
     expect(
       screen.getByRole('link', { name: 'Voir les opérations' }),
     ).toHaveAttribute('href', '/transactions')
-    // The uncategorized salary row goes to the review queue.
+    // The uncategorized salary row goes to « À revoir » in Opérations.
     expect(screen.getByRole('link', { name: 'À revoir' })).toHaveAttribute(
       'href',
-      '/review',
+      '/transactions?review=true&month=all',
     )
     // History and balances are refetched.
     await waitFor(() =>

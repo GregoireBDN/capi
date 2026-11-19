@@ -8,7 +8,6 @@ import {
   SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   Tooltip,
@@ -19,6 +18,8 @@ import {
   useSidebar,
 } from '@finances/ui'
 import type { UserDto } from '#/api/types.gen'
+import { REVIEW_SEARCH } from '#/components/transactions/search'
+import { plural } from '#/lib/plural'
 import { useReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
 import {
@@ -104,16 +105,24 @@ export function AppSidebar({ user }: { user: UserDto }) {
             <span>{label}</span>
           </Link>
         </SidebarMenuButton>
+        {/* The badge is a link of its own: Opérations filtered on « À
+            revoir » (#322). Hidden while the column is folded. */}
         {count !== null && count > 0 && (
-          <SidebarMenuBadge
+          <Link
+            to={ROUTES.transactions}
+            search={REVIEW_SEARCH}
+            onClick={closeMobileSheet}
             data-testid={`nav-badge-${to}`}
-            className="bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-active/menu-button:text-primary-foreground rounded-full"
+            aria-label={plural(
+              count,
+              'opération à revoir',
+              'opérations à revoir',
+            )}
+            title="Voir les opérations à revoir"
+            className="bg-primary text-primary-foreground focus-visible:ring-sidebar-ring touch-hitbox absolute top-1/2 right-1 flex h-5 min-w-5 -translate-y-1/2 items-center justify-center rounded-full px-1 text-xs font-medium tabular-nums outline-none select-none hover:opacity-90 focus-visible:ring-2 group-data-[collapsible=icon]:hidden"
           >
             {count > 99 ? '99+' : count}
-            <span className="sr-only">
-              {count > 1 ? ' opérations à revoir' : ' opération à revoir'}
-            </span>
-          </SidebarMenuBadge>
+          </Link>
         )}
       </SidebarMenuItem>
     )

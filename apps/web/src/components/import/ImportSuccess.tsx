@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { Button, Card, CardContent } from '@finances/ui'
 import { CircleCheckIcon } from 'lucide-react'
 import { ROUTES } from '#/lib/routes'
-import { REVIEW_PATH } from './api'
+import { REVIEW_SEARCH } from '#/components/transactions/search'
 import { formatPeriod, plural } from './format'
 import type { CommitOutcome } from './ImportPreview'
 
@@ -56,8 +56,9 @@ export function ImportSuccess({ outcome, onAnother }: ImportSuccessProps) {
           </Button>
           {forReview > 0 && (
             <Button asChild variant="warning" outline>
-              {/* Plain link: the review queue route ships separately (#14). */}
-              <a href={REVIEW_PATH}>À revoir</a>
+              <Link to={ROUTES.transactions} search={REVIEW_SEARCH}>
+                À revoir
+              </Link>
             </Button>
           )}
           <Button variant="secondary" ghost onClick={onAnother}>

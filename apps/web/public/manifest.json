@@ -57,7 +57,7 @@
     },
     {
       "name": "À revoir",
-      "url": "/review",
+      "url": "/transactions?review=true&month=all",
       "icons": [
         {
           "src": "/icons/icon-192.png",

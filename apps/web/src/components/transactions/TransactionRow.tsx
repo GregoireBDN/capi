@@ -1,4 +1,5 @@
 import {
+  Button,
   cn,
   InputGroup,
   InputGroupAddon,
@@ -12,10 +13,12 @@ import {
   useIsMobile,
 } from '@finances/ui'
 import {
+  CheckIcon,
   HandIcon,
   PencilLineIcon,
   SparkleIcon,
   StickyNoteIcon,
+  TagIcon,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -47,6 +50,17 @@ const ROW_COLUMNS =
   '@xl:grid @xl:grid-cols-[2rem_minmax(0,1fr)_11rem_7.5rem] @xl:items-center @xl:gap-3'
 const ROW_COLUMNS_WITH_ACCOUNT =
   '@2xl:grid-cols-[2rem_minmax(0,1fr)_11rem_8rem_7.5rem]'
+/** The same with « Valider » last, while « À revoir » is filtered (#322). */
+const REVIEW_ROW_COLUMNS =
+  '@xl:grid-cols-[2rem_minmax(0,1fr)_11rem_7.5rem_6.5rem]'
+const REVIEW_ROW_COLUMNS_WITH_ACCOUNT =
+  '@2xl:grid-cols-[2rem_minmax(0,1fr)_11rem_8rem_7.5rem_6.5rem]'
+/**
+ * The review action: a 44px icon on narrow pages (the label keeps its
+ * room), its name beside the icon in the wide row.
+ */
+const REVIEW_ACTION = 'size-8 p-0 @xl:size-auto @xl:pr-2 @xl:pl-1.5'
+const REVIEW_ACTION_TEXT = 'sr-only @xl:not-sr-only'
 
 export interface TransactionRowActions {
   onChange: (changes: TransactionChanges) => void
@@ -70,6 +84,12 @@ interface TransactionRowProps extends TransactionRowActions {
   showDate?: boolean
   /** Show the account (more than one open account, list not filtered to one). */
   showAccount?: boolean
+  /**
+   * The list is filtered on « À revoir » (#322): a row to review ends with
+   * « Valider » (it keeps its category), or, without a category, on phones,
+   * « Classer » (the editor opens on the categories).
+   */
+  onValidate?: () => void
 }
 
 /** Small flags of a row, as icons with an accessible name (#266). */
@@ -190,9 +210,11 @@ export function TransactionRow({
   onUnsplit,
   showDate = false,
   showAccount = true,
+  onValidate,
 }: TransactionRowProps) {
   const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
+  const [openOn, setOpenOn] = useState<'list' | 'category'>('list')
   const [manualOpen, setManualOpen] = useState(false)
   const [editingAmount, setEditingAmount] = useState(false)
   const amountButton = useRef<HTMLButtonElement>(null)
@@ -220,7 +242,10 @@ export function TransactionRow({
       aria-label={`Modifier ${name}`}
       aria-haspopup="dialog"
       className="hover:bg-muted/50 focus-visible:ring-ring/50 min-w-0 flex-1 rounded-lg px-1.5 py-1.5 text-left outline-none focus-visible:ring-[3px]"
-      onClick={() => setOpen(true)}
+      onClick={() => {
+        setOpenOn('list')
+        setOpen(true)
+      }}
     >
       {/* The amount goes under the label when both don't fit (320px). */}
       <span className="flex min-w-0 flex-wrap items-start justify-between gap-x-3">
@@ -268,7 +293,8 @@ export function TransactionRow({
             {item.accountName}
           </span>
         )}
-        {item.needsReview && (
+        {/* Filtered on « À revoir », every row is: no badge (#322). */}
+        {item.needsReview && !onValidate && (
           <span className="bg-warning text-warning-foreground rounded-full px-1.5 text-[0.7rem] font-medium whitespace-nowrap">
             À revoir
           </span>
@@ -297,6 +323,7 @@ export function TransactionRow({
     <TransactionEditor
       item={item}
       categories={categories}
+      initialScreen={openOn}
       onChange={change}
       onEditManual={() => {
         setOpen(false)
@@ -327,6 +354,8 @@ export function TransactionRow({
         'flex items-center gap-1 px-1 py-0.5',
         ROW_COLUMNS,
         showAccount && ROW_COLUMNS_WITH_ACCOUNT,
+        onValidate && REVIEW_ROW_COLUMNS,
+        onValidate && showAccount && REVIEW_ROW_COLUMNS_WITH_ACCOUNT,
       )}
       data-selected={selected || undefined}
       aria-label={name}
@@ -416,6 +445,43 @@ export function TransactionRow({
           <Amount cents={item.amountCents} transfer={transfer} />
         )}
       </span>
+
+      {onValidate && (
+        <span className="flex shrink-0 justify-end">
+          {item.needsReview && item.categoryId !== null && (
+            <Button
+              size="sm"
+              variant="success"
+              outline
+              iconStart={<CheckIcon />}
+              aria-label={`Valider ${name}`}
+              title="Garder la catégorie et sortir de « À revoir »"
+              className={REVIEW_ACTION}
+              onClick={onValidate}
+            >
+              <span className={REVIEW_ACTION_TEXT}>Valider</span>
+            </Button>
+          )}
+          {item.needsReview && item.categoryId === null && (
+            // Wide pages pick the category in its column.
+            <Button
+              size="sm"
+              variant="secondary"
+              outline
+              iconStart={<TagIcon />}
+              aria-label={`Classer ${name}`}
+              title="Choisir une catégorie"
+              className={cn(REVIEW_ACTION, '@xl:hidden')}
+              onClick={() => {
+                setOpenOn('category')
+                setOpen(true)
+              }}
+            >
+              <span className={REVIEW_ACTION_TEXT}>Classer</span>
+            </Button>
+          )}
+        </span>
+      )}
 
       {item.manual && (
         <ManualTransactionSheet

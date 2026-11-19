@@ -68,6 +68,8 @@ interface TransactionEditorProps {
   /** Splits between categories (parts summing to the amount), or ends it. */
   onSplit?: (parts: { categoryId: string; amountCents: number }[]) => void
   onUnsplit?: () => void
+  /** Screen shown first: the list, or the categories (« Classer », #322). */
+  initialScreen?: 'list' | 'category'
 }
 
 /**
@@ -399,8 +401,9 @@ export function TransactionEditor({
   onRestoreBank,
   onSplit,
   onUnsplit,
+  initialScreen = 'list',
 }: TransactionEditorProps) {
-  const [screen, setScreen] = useState<Screen>('list')
+  const [screen, setScreen] = useState<Screen>(initialScreen)
   const name = displayLabel(item)
   const raw = secondaryLabel(item)
   const split = item.splits.length > 0

@@ -123,7 +123,7 @@ export const reviewQueueTool = defineTool({
   name: 'review_queue',
   title: 'Opérations à revoir',
   description:
-    'Transactions waiting in the review queue (uncategorized or flagged), newest first, with their id so they can be categorized (categorize_transactions), marked one-off or annotated.',
+    'Transactions to review (uncategorized or flagged; in the app, the « À revoir » filter of Opérations), newest first, with their id so they can be categorized (categorize_transactions), marked one-off or annotated.',
   inputSchema: {
     month: z
       .string()
@@ -149,6 +149,7 @@ export const reviewQueueTool = defineTool({
     return [
       `${list.total} opération(s) à revoir${scope}${list.items.length < list.total ? `, les ${list.items.length} plus récentes` : ''} :`,
       ...list.items.map(transactionLine),
+      'Dans l’application : Opérations, filtre « À revoir ».',
     ].join('\n')
   },
 })

@@ -21,6 +21,7 @@ import {
 import { plural } from '#/lib/plural'
 import { accountsQuery } from '#/lib/queries'
 import {
+  adjustReviewCount,
   refreshReviewCount,
   scheduleReviewCountRefresh,
 } from '#/lib/review-count'
@@ -29,7 +30,9 @@ import type { BulkChanges, TransactionChanges } from './changes'
 import { KIND_LABELS, counterpartLabel, displayLabel } from './labels'
 import {
   afterTransactionsChanged,
+  dropFromReviewLists,
   patchCachedTransactions,
+  refetchReviewLists,
   transactionKeys,
 } from './queries'
 import {
@@ -44,6 +47,15 @@ import type { RuleOffer } from './RuleOfferBanner'
 
 /** How long a toast offering "Annuler" stays up (Sonner's default is 4 s). */
 export const UNDO_TOAST_MS = 8000
+
+export interface ReviewOptions {
+  /**
+   * The change takes the transactions out of « À revoir » (validated, or
+   * filed in a category): they leave the lists filtered on it at once
+   * (#322), and come back with « Annuler ».
+   */
+  leaveReview?: boolean
+}
 
 function describeChange(
   item: TransactionDto,
@@ -66,7 +78,7 @@ function describeChange(
       : 'N’est plus ponctuelle'
   }
   if (changes.needsReview !== undefined) {
-    return changes.needsReview ? 'Remise à revoir' : 'Marquée comme revue'
+    return changes.needsReview ? 'Remise à revoir' : 'Opération validée'
   }
   return changes.note ? 'Note enregistrée' : 'Note supprimée'
 }
@@ -88,7 +100,7 @@ function describeBulkChange(
   }
   return changes.needsReview
     ? `${n} ${count > 1 ? 'remises' : 'remise'} à revoir`
-    : `${n} ${count > 1 ? 'marquées comme revues' : 'marquée comme revue'}`
+    : `${n} ${count > 1 ? 'validées' : 'validée'}`
 }
 
 /**
@@ -123,7 +135,10 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
   }
 
   /** Puts transactions back as they were before a correction. */
-  async function undo(previous: readonly TransactionDto[], noteOnly = false) {
+  async function undo(
+    previous: readonly TransactionDto[],
+    { noteOnly = false, leaveReview = false } = {},
+  ) {
     await optimistic(previous)
     const restored = noteOnly
       ? (
@@ -143,6 +158,8 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
           )
         ).every((result) => result.status === 'fulfilled')
     settled()
+    // Back in « À revoir »: its lists fetch them again.
+    if (leaveReview) refetchReviewLists(queryClient)
     if (previous.some((item) => item.splits.length > 0)) {
       void queryClient.invalidateQueries({ queryKey: transactionKeys.lists })
     }
@@ -283,8 +300,19 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     )
   }
 
+  /** Takes `items` out of the « À revoir » lists before the request. */
+  function leave(items: readonly TransactionDto[]) {
+    const ids = items.filter((item) => item.needsReview).map((item) => item.id)
+    dropFromReviewLists(queryClient, ids)
+    adjustReviewCount(-ids.length)
+  }
+
   /** Applies `changes` to one transaction. */
-  async function update(item: TransactionDto, changes: TransactionChanges) {
+  async function update(
+    item: TransactionDto,
+    changes: TransactionChanges,
+    { leaveReview = false }: ReviewOptions = {},
+  ) {
     const category =
       changes.categoryId != null
         ? categoriesById.get(changes.categoryId)
@@ -292,6 +320,7 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     await optimistic([
       applyChanges(item, changes, categoriesById, accountNames),
     ])
+    if (leaveReview) leave([item])
     const { data } = await transactionsControllerUpdate({
       path: { id: item.id },
       body: changes,
@@ -299,11 +328,16 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     })
     if (!data) {
       patchCachedTransactions(queryClient, [item])
+      if (leaveReview) {
+        refetchReviewLists(queryClient)
+        scheduleReviewCountRefresh()
+      }
       toast.error('La modification n’a pas pu être enregistrée.')
       return
     }
     patchCachedTransactions(queryClient, [data])
     settled()
+    if (leaveReview) refetchReviewLists(queryClient)
     // A transfer's link makes the contributions of an investment (#296).
     if (
       changes.counterpartAccountId !== undefined ||
@@ -319,7 +353,7 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     toastUndoable(
       describeChange(item, changes, category, accountNames),
       displayLabel(item),
-      () => void undo([item], noteOnly),
+      () => void undo([item], { noteOnly, leaveReview }),
     )
     if (category) setOffer({ transaction: item, category })
   }
@@ -328,6 +362,7 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
   async function updateMany(
     items: readonly TransactionDto[],
     changes: BulkChanges,
+    { leaveReview = false }: ReviewOptions = {},
   ): Promise<boolean> {
     if (items.length === 0) return false
     const category =
@@ -337,20 +372,26 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     await optimistic(
       items.map((item) => applyChanges(item, changes, categoriesById)),
     )
+    if (leaveReview) leave(items)
     const { data } = await transactionsControllerBulkUpdate({
       body: { ...changes, ids: items.map((item) => item.id) },
       throwOnError: false,
     })
     if (!data) {
       patchCachedTransactions(queryClient, items)
+      if (leaveReview) {
+        refetchReviewLists(queryClient)
+        scheduleReviewCountRefresh()
+      }
       toast.error('Les opérations n’ont pas pu être modifiées.')
       return false
     }
     settled()
+    if (leaveReview) refetchReviewLists(queryClient)
     toastUndoable(
       describeBulkChange(items.length, changes, category),
       undefined,
-      () => void undo(items),
+      () => void undo(items, { leaveReview }),
     )
     return true
   }
