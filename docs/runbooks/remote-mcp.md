@@ -5,7 +5,7 @@ Lets claude.ai, Claude Desktop's connectors and the Claude mobile apps use the F
 > **Status: ready, off in production.** The #102 findings are fixed and the OAuth server and the production adapter service passed `docs/security/pentest/stack.sh oauth` (#328). The image (`ghcr.io/gregoirebdn/finances-mcp`), the `finances-mcp` service (profile `remote-mcp`) and the deploy are in this repository; the public host (DNS, Caddy) is in the `infra` repo. Turning it on is the owner's step: [Enabling](#enabling).
 
 ```
-Claude's servers (160.79.104.0/21)
+Claude's servers (160.79.104.0/21, 153.61.208.0/20)
    │  HTTPS, public host finances-mcp.<domain>
    ▼
 Caddy (infra repo) ── only /mcp, /.well-known/oauth-*, /oauth/register|token|revoke
@@ -38,45 +38,22 @@ In this order: the adapter must not be reachable before the API serves its OAuth
 A release from #328 onwards builds, scans and pushes `ghcr.io/gregoirebdn/finances-mcp:vX.Y.Z` with the API and web images, and its `docker-compose.prod.yml` has the `finances-mcp` service. Deployed with the profile off, nothing changes on the server. After the first such release, check that the package `finances-mcp` exists under GitHub › Packages and that the server's GHCR token (classic, `read:packages`, deploy runbook § 2) can pull it:
 
 ```bash
-ssh vps 'sudo -iu deploy docker pull ghcr.io/gregoirebdn/finances-mcp:vX.Y.Z'
+ssh -t ops@vps 'sudo -iu deploy docker pull ghcr.io/gregoirebdn/finances-mcp:vX.Y.Z'
 ```
 
-### 2. Public host name (DNS) and listener
+### 2. Public host name (DNS)
 
-A dedicated name, e.g. `finances-mcp.gbodin.cloud`: an `A` record (and `AAAA` if the VPS has a public IPv6) to the VPS's **public** address, **DNS only** in Cloudflare (grey cloud): a proxied record would put Cloudflare's addresses in front of Caddy and break the `remote_ip` allow-list. The app's tailnet name (`finances.gbodin.cloud`) stays as it is: nothing else gets a public record.
+A dedicated name, `finances-mcp.gbodin.cloud`: an `A` record to the VPS's **public** IPv4, **DNS only** in Cloudflare (grey cloud). A proxied record would put Cloudflare's addresses in front of Caddy and break the `remote_ip` allow-list. No `AAAA`: Anthropic calls over IPv4 only, and nothing listens on the public IPv6. The app's tailnet name (`finances.gbodin.cloud`) stays as it is: nothing else gets a public record.
 
-Caddy publishes 80 / 443 on the Tailscale IP only today. The infra change adds a listener on the public address for this site only (`bind <public IPv4>` in the site block, the port published on that address), opens `443/tcp` in `ufw` (ideally from `160.79.104.0/21` only), and gets the certificate the way the other sites do (DNS challenge with the zone's Cloudflare token; otherwise TLS-ALPN on 443).
+### 3. Public listener and Caddy site (infra repo)
 
-### 3. Caddy site (infra repo, own PR)
+Done in the `infra` repo (GregoireBDN/infra#7, its `docs/runbooks/caddy-portal.md` « Public MCP host »). Three layers, each open only to Anthropic's **outbound IPv4 ranges** `160.79.104.0/21` and `153.61.208.0/20`:
 
-Only the adapter's paths, only from Anthropic's outbound range, no buffering, a body limit; everything else 404. Caddy reaches the container as `finances-mcp:4100` on the `proxy` network (the adapter believes `X-Forwarded-For` only from the service named `caddy`: keep that name, or set `MCP_TRUSTED_PROXIES`).
+- **Hostinger firewall**: two accept rules, TCP 443 from those ranges.
+- **Docker guard**: `DOCKER-USER` exceptions from `/etc/infra-public-allow`, applied by the infra `bootstrap.sh`. Docker forwards published ports past `ufw`, so a `ufw allow` alone would do nothing.
+- **Caddy**: the public IPv4 `:443` is mapped to container port `8443` (`compose.public.yml`), where only the `finances-mcp.gbodin.cloud` site listens. That site answers 403 outside the ranges and 404 outside the adapter's seven paths, caps bodies at 8 MB and keeps streaming (`flush_interval -1`). It reaches the adapter as `finances-mcp:4100` on the `proxy` network: the adapter believes `X-Forwarded-For` only from the service named `caddy` (keep that name, or set `MCP_TRUSTED_PROXIES`).
 
-```caddyfile
-finances-mcp.gbodin.cloud {
-	# The public address only (the other sites stay on the Tailscale IP).
-	bind <public IPv4>
-	@anthropic remote_ip 160.79.104.0/21
-	@allowed path /mcp /.well-known/oauth-protected-resource /.well-known/oauth-protected-resource/mcp /.well-known/oauth-authorization-server /oauth/register /oauth/token /oauth/revoke
-
-	request_body {
-		max_size 8MB
-	}
-	handle @allowed {
-		# route keeps this order (Caddy would otherwise run respond first).
-		route {
-			reverse_proxy @anthropic finances-mcp:4100 {
-				flush_interval -1
-			}
-			respond 403
-		}
-	}
-	respond 404
-}
-```
-
-Logging: the infra repo's usual access log settings (query strings stripped). Caddy redacts `Authorization` by default; the adapter's paths carry no query string and tokens travel in that header or in bodies, which Caddy never logs.
-
-Check Anthropic's published outbound range (Claude connectors docs, « IP addresses ») before restricting by IP; it was `160.79.104.0/21` on 2026-11-19. If the connector's calls get 403, the range changed: update it rather than dropping the matcher.
+Anthropic publishes its ranges at [platform.claude.com/docs/en/api/ip-addresses](https://platform.claude.com/docs/en/api/ip-addresses) (« Outbound IP addresses »; checked 2026-11-19, no outbound IPv6). If the connector's calls time out or get 403, check that page first and update the three layers together rather than dropping the filter.
 
 ### 4. Turn it on (`/srv/finances/.env`)
 
