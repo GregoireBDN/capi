@@ -37,6 +37,7 @@ import type {
 } from '#/api/types.gen'
 import { afterSnapshotsChanged } from '#/components/accounts/queries'
 import { formatCents } from '#/lib/money'
+import { DIVIDED_LIST, ROW_BUTTON } from '#/lib/row-list'
 import { holdingErrorMessage } from './errors'
 import { formatPrice, formatPriceAge, formatQuantity } from './format'
 import { HoldingEditor } from './HoldingEditor'
@@ -233,9 +234,9 @@ export function HoldingList({
     holdings.some((holding) => holding.origin !== 'manual') &&
     holdings.some((holding) => holding.origin === 'manual')
   return (
-    <ul className="divide-y" aria-label={label}>
+    <ul className={DIVIDED_LIST} aria-label={label}>
       {holdings.map((holding) => {
-        const row = 'flex items-start gap-3 py-2.5 text-left text-sm'
+        const row = 'flex items-start gap-3 px-2 py-2.5 text-left text-sm'
         const name = [holding.symbol, holding.location]
           .filter(Boolean)
           .join(' · ')
@@ -246,10 +247,7 @@ export function HoldingList({
                 type="button"
                 aria-label={`Modifier ${name}`}
                 onClick={() => onEdit(holding)}
-                className={cn(
-                  row,
-                  'hover:bg-muted/50 focus-visible:ring-ring -mx-2 w-[calc(100%+1rem)] rounded-md px-2 outline-none focus-visible:ring-2',
-                )}
+                className={cn(ROW_BUTTON, row)}
               >
                 <HoldingRow holding={holding} now={now} mixed={mixed} />
                 <PencilIcon

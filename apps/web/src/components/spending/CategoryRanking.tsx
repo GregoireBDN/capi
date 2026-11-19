@@ -4,6 +4,7 @@ import { ChevronDownIcon, ChevronRightIcon, ClockIcon } from 'lucide-react'
 import { useState } from 'react'
 import type { CategorySpendingDto } from '#/api/types.gen'
 import { ROUTES } from '#/lib/routes'
+import { DIVIDED_LIST, ROW_BUTTON } from '#/lib/row-list'
 import { Delta } from './Delta'
 import {
   categoryColor,
@@ -96,7 +97,7 @@ function Row({
           ...(accountId ? { account: accountId } : {}),
         }}
         aria-label={`${label} : ${formatEuros(item.spentCents)}, voir les opérations`}
-        className="hover:bg-muted/60 focus-visible:outline-ring flex items-center gap-2 rounded-lg px-2 py-2.5 focus-visible:outline-2 focus-visible:outline-offset-2"
+        className={cn(ROW_BUTTON, 'flex items-center gap-2 px-2 py-2.5')}
       >
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex items-center gap-2">
@@ -185,7 +186,7 @@ export function CategoryRanking({
   const shown = showEmpty ? [...spending, ...empty] : spending
   return (
     <div className="space-y-2">
-      <ul className="divide-y" aria-label="Dépenses par catégorie">
+      <ul className={DIVIDED_LIST} aria-label="Dépenses par catégorie">
         {shown.map((item) => (
           <Row key={categoryKey(item)} item={item} {...rowProps} />
         ))}
