@@ -181,7 +181,7 @@ export class MonthReviewDto {
     type: String,
     example: '2026-10',
     description:
-      'The month shown without `month`: the previous calendar month (Europe/Paris) until it is closed, then the current month.',
+      'The month shown without `month`: the oldest past month left open since the first month ever closed, else the current month (Europe/Paris) once they are all closed; the previous month before any close.',
   })
   defaultMonth!: string
 

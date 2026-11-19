@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { and, eq, gte, lt, sql } from 'drizzle-orm'
+import { and, eq, gte, isNotNull, lt, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import {
   type AccountWithBalance,
@@ -230,27 +230,37 @@ export class DashboardService {
   }
 
   /**
-   * The month the dashboard opens on (#321): the previous calendar month
-   * (Europe/Paris) while it is not closed in « Revue du mois », then the
-   * current month.
+   * The month the dashboard opens on (#321, the owner's rule): the oldest
+   * past month left open since the first month ever closed in « Revue du
+   * mois », else the current month (Europe/Paris) once they are all closed.
+   * Before any close, the previous month: the history imported before the
+   * app was never closed, and is not what the owner reviews.
    */
   async defaultReviewMonth(
     now: Date = new Date(),
     executor: Executor = this.db,
   ): Promise<string> {
     const current = currentMonth(now)
-    const previous = shiftMonth(current, -1)
-    const [close] = await executor
-      .select({ closedAt: schema.monthClosesTable.closedAt })
+    const rows = await executor
+      .select({ month: schema.monthClosesTable.month })
       .from(schema.monthClosesTable)
-      .where(eq(schema.monthClosesTable.month, previous))
-      .limit(1)
-    return close?.closedAt ? current : previous
+      .where(
+        and(
+          isNotNull(schema.monthClosesTable.closedAt),
+          lt(schema.monthClosesTable.month, current),
+        ),
+      )
+    if (rows.length === 0) return shiftMonth(current, -1)
+    const closed = new Set(rows.map((row) => row.month))
+    // `YYYY-MM` strings sort as months.
+    let month = [...closed].sort()[0]
+    while (month < current && closed.has(month)) month = shiftMonth(month, 1)
+    return month
   }
 
   /**
-   * Review of a month, by default `defaultReviewMonth` (the previous month
-   * until it is closed, then the current one): the net worth at its end and how it moved (saved from the month's cash
+   * Review of a month, by default `defaultReviewMonth` (the oldest month
+   * left open, else the current one): the net worth at its end and how it moved (saved from the month's cash
    * flow vs the rest: investments and anything not booked as income or
    * expense), its income and expenses, its spending against the budget, and
    * the accounts not updated up to its end. Transfers between the user's own

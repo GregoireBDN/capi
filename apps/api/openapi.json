@@ -4448,7 +4448,7 @@
     },
     "/api/dashboard/review": {
       "get": {
-        "description": "Net worth at the month end and its change (saved from the month’s cash flow vs the rest), income, expenses and savings rate (transfers excluded), spending vs the budget with the categories furthest above and below their target, and the accounts not updated up to the month end. Default month (`defaultMonth`): the previous calendar month in Europe/Paris until it is closed, then the current month, which is read so far (net worth as of today).",
+        "description": "Net worth at the month end and its change (saved from the month’s cash flow vs the rest), income, expenses and savings rate (transfers excluded), spending vs the budget with the categories furthest above and below their target, and the accounts not updated up to the month end. Default month (`defaultMonth`): the oldest past month left open since the first month ever closed, else the current month in Europe/Paris (the previous month before any close); the current month is read so far (net worth as of today).",
         "operationId": "DashboardController_review",
         "parameters": [
           {
@@ -12200,7 +12200,7 @@
           "defaultMonth": {
             "type": "string",
             "example": "2026-10",
-            "description": "The month shown without `month`: the previous calendar month (Europe/Paris) until it is closed, then the current month."
+            "description": "The month shown without `month`: the oldest past month left open since the first month ever closed, else the current month (Europe/Paris) once they are all closed; the previous month before any close."
           },
           "current": {
             "type": "boolean",
