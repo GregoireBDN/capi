@@ -60,7 +60,7 @@ Deployment (#328): the image `ghcr.io/gregoirebdn/finances-mcp` (`apps/mcp/Docke
 Infrastructure, in the separate `infra` repo when enabling:
 
 - a **dedicated public host name** for the adapter (e.g. `finances-mcp.<domain>`), served by the server's Caddy and routed to `finances-mcp:4100` on the `proxy` network; `web`, `api` and `db` keep no published port and no public route;
-- Caddy for that host forwards only the seven paths listed above (`/mcp`, the three `/.well-known/oauth-*`, `/oauth/register|token|revoke`; `respond 404` otherwise), restricted to Anthropic's range `160.79.104.0/21` (`remote_ip`, 403 otherwise), with request body limits and no buffering of responses (runbook § 3);
+- Caddy for that host forwards only the seven paths listed above (`/mcp`, the three `/.well-known/oauth-*`, `/oauth/register|token|revoke`; `respond 404` otherwise), restricted to Anthropic's outbound ranges `160.79.104.0/21` and `153.61.208.0/20` (`remote_ip`, 403 otherwise, and the firewalls in front), with request body limits and no buffering of responses (runbook § 3);
 - the public listener is the only change to the network edge: the tailnet listener and DNS of the app stay as they are.
 
 **Rejected: Tailscale Funnel.** Funnel publishes a node's whole HTTPS listener on the `ts.net` name (paths can be split, but it is the tailnet's own host name and certificate), only on ports 443/8443/10000, with Tailscale's relays in the request path and less control over limits and IP filtering than Caddy. A dedicated Caddy host keeps one edge, one place for TLS, body limits and the IP allow-list, and the tailnet name untouched. Funnel stays a fallback for a quick test from a laptop.
