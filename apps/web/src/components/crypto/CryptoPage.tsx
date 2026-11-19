@@ -37,6 +37,7 @@ import { DashboardCardHeader } from '#/components/dashboard/DashboardCardHeader'
 import { formatCents } from '#/lib/money'
 import { plural } from '#/lib/plural'
 import { ROUTES } from '#/lib/routes'
+import { accountLinkSearch } from '#/components/accounts/account-origin'
 import { AddCryptoSheet } from './AddCryptoSheet'
 import { holdingErrorMessage } from './errors'
 import { formatPrice, formatPriceAge, formatQuantity } from './format'
@@ -284,6 +285,7 @@ function AssetRow({
               <Link
                 to={ROUTES.account}
                 params={{ accountId: place.accountId }}
+                search={accountLinkSearch('crypto')}
                 className="hover:text-foreground focus-visible:ring-ring flex min-h-11 items-center gap-3 rounded-sm outline-none focus-visible:ring-2"
               >
                 <span className="min-w-0 flex-1 tabular-nums">
@@ -418,6 +420,7 @@ function AccountRow({
       <Link
         to={ROUTES.account}
         params={{ accountId: account.accountId }}
+        search={accountLinkSearch('crypto')}
         className="hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-ring flex min-h-11 items-center gap-3 rounded-lg px-2 py-2 text-sm transition-colors outline-none focus-visible:ring-2"
       >
         <span

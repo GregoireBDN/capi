@@ -4,11 +4,7 @@ import { PencilIcon, PlusIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PageHeader } from './PageHeader'
-import {
-  PageActionsSlotProvider,
-  useSetPageActionsSlot,
-  useSetPageBackSlot,
-} from './page-actions'
+import { PageActionsSlotProvider, useSetPageActionsSlot } from './page-actions'
 import type { PageAction } from './page-actions'
 
 vi.mock('@tanstack/react-router', () => ({
@@ -48,10 +44,8 @@ function emulatePhone(phone = true) {
 /** The authenticated shell's top bar slot, as `AppTopBar` registers it. */
 function TopBarSlot() {
   const setSlot = useSetPageActionsSlot()
-  const setBackSlot = useSetPageBackSlot()
   return (
     <header aria-label="Barre du haut">
-      <nav aria-label="Retour" ref={setBackSlot} />
       <div data-testid="top-bar-actions" ref={setSlot} />
     </header>
   )
@@ -67,7 +61,6 @@ function renderInShell(children: ReactNode) {
 }
 
 const topBar = () => screen.getByTestId('top-bar-actions')
-const topBarBack = () => screen.getByRole('navigation', { name: 'Retour' })
 const page = () => screen.getByRole('main')
 
 function actions(onAdd = vi.fn(), onEdit = vi.fn()): PageAction[] {
@@ -156,23 +149,27 @@ describe('PageHeader', () => {
     ).toBeInTheDocument()
   })
 
-  it('puts the way back above the title from md up, in the top bar on phones (#293)', () => {
-    const back = { label: 'Comptes', to: '/accounts' } as const
-    emulatePhone(false)
-    const { unmount } = renderInShell(
-      <PageHeader title="Compte courant" back={back} />,
-    )
-    expect(
-      within(page()).getByRole('link', { name: 'Comptes' }),
-    ).toHaveAttribute('href', '/accounts')
-    expect(topBarBack()).toBeEmptyDOMElement()
-    unmount()
-
-    emulatePhone()
-    renderInShell(<PageHeader title="Compte courant" back={back} />)
-    expect(
-      within(topBarBack()).getByRole('link', { name: 'Comptes' }),
-    ).toHaveAttribute('href', '/accounts')
-    expect(within(page()).queryByRole('link')).toBeNull()
+  it('puts the way back above the title, on phones as on wide pages (#324)', () => {
+    const back = { label: 'Épargne', to: '/savings' } as const
+    for (const phone of [false, true]) {
+      emulatePhone(phone)
+      const { unmount } = renderInShell(
+        <PageHeader title="Compte courant" back={back} />,
+      )
+      const link = within(page()).getByRole('link', { name: 'Épargne' })
+      expect(link).toHaveAttribute('href', '/savings')
+      // Before the title, never in the top bar.
+      expect(
+        link.compareDocumentPosition(
+          screen.getByRole('heading', { name: 'Compte courant' }),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+      expect(
+        within(
+          screen.getByRole('banner', { name: 'Barre du haut' }),
+        ).queryByRole('link'),
+      ).toBeNull()
+      unmount()
+    }
   })
 })

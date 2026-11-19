@@ -26,6 +26,7 @@ export function SavingsStock({ stock }: { stock: SavingsStockDto }) {
       </CardHeader>
       <CardContent>
         <AccountList
+          from="savings"
           primaryAction="investment"
           groups={[
             {

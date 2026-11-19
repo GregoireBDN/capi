@@ -24,6 +24,7 @@ import type { MonthReviewDto, ReviewMissingAccountDto } from '#/api/types.gen'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
+import { accountLinkSearch } from '#/components/accounts/account-origin'
 import { FigureTile } from './FigureTile'
 
 const signedWholeEuros = new Intl.NumberFormat('fr-FR', {
@@ -421,6 +422,7 @@ function MissingAccounts({
                   <Link
                     to={ROUTES.account}
                     params={{ accountId: account.id }}
+                    search={accountLinkSearch('dashboard')}
                   />
                 )}
               </ItemListRow>

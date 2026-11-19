@@ -1,9 +1,7 @@
-import { useIsMobile } from '@finances/ui'
+import { Button } from '@finances/ui'
 import { Link } from '@tanstack/react-router'
 import type { LinkProps } from '@tanstack/react-router'
 import { ChevronLeftIcon } from 'lucide-react'
-import { createPortal } from 'react-dom'
-import { usePageBackSlot } from './page-actions'
 
 /** Where a sub-page goes back to (`PageHeader`'s `back`). */
 export interface PageBackLink {
@@ -15,36 +13,22 @@ export interface PageBackLink {
 }
 
 /**
- * The way back from a sub-page (e.g. an account to « Comptes »), the
- * owner's « A » (#293): on phones « ‹ Comptes » in the top bar, in place of
- * the logo (the menu stays); from `md` up a rounded chip above the title.
- * The server renders the chip (hidden below md); it moves into the top bar
- * once hydrated, like the page actions.
+ * The way back from a sub-page, the one back link of the app (#324, the
+ * Réglages look the owner chose): « ‹ Réglages », « ‹ Épargne »… on its own
+ * line above the page title, on phones as on wide pages. It goes into the
+ * page's top padding (`py-6 md:py-10` in `_app.tsx`), so the title stays
+ * where it is on the other pages: render it first on the page.
  */
 export function PageBack({ label, to, params, search }: PageBackLink) {
-  const isMobile = useIsMobile()
-  const slot = usePageBackSlot()
   const link = { to, params, search } as LinkProps
-
-  if (isMobile && slot !== null) {
-    return createPortal(
-      <Link
-        {...link}
-        className="text-primary hover:bg-muted/60 focus-visible:ring-ring/50 flex h-11 min-w-0 items-center gap-0.5 rounded-lg pr-2 pl-1 text-base font-medium outline-none focus-visible:ring-[3px]"
-      >
-        <ChevronLeftIcon aria-hidden className="size-6 shrink-0" />
-        <span className="truncate">{label}</span>
-      </Link>,
-      slot,
-    )
-  }
   return (
-    <Link
-      {...link}
-      className="bg-muted text-foreground hover:bg-muted/70 focus-visible:ring-ring/50 relative inline-flex h-9 w-fit items-center gap-1 rounded-full pr-3.5 pl-2 text-sm font-medium outline-none focus-visible:ring-[3px] pointer-coarse:touch-hitbox max-md:hidden"
-    >
-      <ChevronLeftIcon aria-hidden className="size-4" />
-      {label}
-    </Link>
+    <div className="-mt-4 mb-2 flex md:-mt-6">
+      <Button asChild variant="secondary" ghost size="sm" className="-ml-2">
+        <Link {...link}>
+          <ChevronLeftIcon aria-hidden />
+          {label}
+        </Link>
+      </Button>
+    </div>
   )
 }

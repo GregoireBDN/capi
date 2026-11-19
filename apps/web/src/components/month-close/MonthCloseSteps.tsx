@@ -29,6 +29,7 @@ import {
 import { formatCents } from '#/lib/money'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
+import { accountLinkSearch } from '#/components/accounts/account-origin'
 
 export const STEP_TITLES: Record<MonthCloseStep, string> = {
   imports: 'Relevés importés',
@@ -464,6 +465,7 @@ function InvestmentsStep({ review }: { review: MonthCloseDto }) {
             <Link
               to={ROUTES.account}
               params={{ accountId: account.id }}
+              search={accountLinkSearch('month-review')}
               className="break-words hover:underline"
             >
               {account.name}

@@ -23,8 +23,6 @@ type Slot = HTMLElement | null
 const PageActionsSlotContext = createContext<{
   slot: Slot
   setSlot: (slot: Slot) => void
-  backSlot: Slot
-  setBackSlot: (slot: Slot) => void
 } | null>(null)
 
 /**
@@ -33,11 +31,8 @@ const PageActionsSlotContext = createContext<{
  */
 export function PageActionsSlotProvider({ children }: { children: ReactNode }) {
   const [slot, setSlot] = useState<Slot>(null)
-  const [backSlot, setBackSlot] = useState<Slot>(null)
   return (
-    <PageActionsSlotContext.Provider
-      value={{ slot, setSlot, backSlot, setBackSlot }}
-    >
+    <PageActionsSlotContext.Provider value={{ slot, setSlot }}>
       {children}
     </PageActionsSlotContext.Provider>
   )
@@ -51,14 +46,4 @@ export function usePageActionsSlot(): Slot {
 /** Ref callback for the element that hosts the page actions. */
 export function useSetPageActionsSlot(): ((slot: Slot) => void) | undefined {
   return useContext(PageActionsSlotContext)?.setSlot
-}
-
-/** The top bar's back slot (left side, phones), null outside the shell. */
-export function usePageBackSlot(): Slot {
-  return useContext(PageActionsSlotContext)?.backSlot ?? null
-}
-
-/** Ref callback for the element that hosts a page's back button. */
-export function useSetPageBackSlot(): ((slot: Slot) => void) | undefined {
-  return useContext(PageActionsSlotContext)?.setBackSlot
 }

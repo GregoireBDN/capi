@@ -50,9 +50,13 @@ vi.mock('@tanstack/react-router', () => ({
   }: {
     to: string
     params?: Record<string, string>
-    search?: Record<string, string>
+    search?:
+      | Record<string, string>
+      | ((current: Record<string, unknown>) => Record<string, string>)
     children: ReactNode
   }) => {
+    // A function resolves against the page's search (none here).
+    if (typeof search === 'function') search = search({})
     const path = Object.entries(params ?? {}).reduce(
       (url, [key, value]) => url.replace(`$${key}`, value),
       to,
@@ -562,7 +566,7 @@ describe('DashboardPage', () => {
     expect(cash).toHaveAttribute('href', '/import')
     expect(cash).toHaveTextContent('Au 20 oct. · importer')
     const value = within(missing).getByRole('link', { name: /PEA test/ })
-    expect(value).toHaveAttribute('href', `/accounts/${pea.id}`)
+    expect(value).toHaveAttribute('href', `/accounts/${pea.id}?from=dashboard`)
     expect(value).toHaveTextContent('Aucune donnée · mettre à jour')
     expect(within(missing).queryByRole('button')).not.toBeInTheDocument()
   })
@@ -669,7 +673,7 @@ describe('DashboardPage', () => {
     // Investment accounts open their valuation page.
     expect(
       within(investments).getByRole('link', { name: /PEA test/ }),
-    ).toHaveAttribute('href', `/accounts/${pea.id}`)
+    ).toHaveAttribute('href', `/accounts/${pea.id}?from=dashboard`)
     expect(investments).not.toHaveTextContent('PEA / compte-titres')
     expect(
       within(investments).getByRole('link', { name: /Crypto test/ }),

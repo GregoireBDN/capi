@@ -12,6 +12,8 @@ import type { AccountType } from '#/api/types.gen'
 import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { formatCents } from '#/lib/money'
 import { ROUTES } from '#/lib/routes'
+import { accountLinkSearch } from './account-origin'
+import type { AccountOrigin } from './account-origin'
 import { NewAccountButton } from './AccountEditor'
 import { AddInvestmentButton } from './AddInvestmentSheet'
 import { todayInParis } from './dates'
@@ -138,9 +140,12 @@ function rowDetail(account: AccountListItem): ReactNode {
 export function AccountListRow({
   account,
   impliedTypes = [],
+  from,
 }: {
   account: AccountListItem
   impliedTypes?: AccountType[]
+  /** The page the list is on: the account page's way back (#324). */
+  from: AccountOrigin
 }) {
   const { icon: Icon, className: iconClassName } =
     ACCOUNT_TYPE_ICONS[account.type]
@@ -176,6 +181,7 @@ export function AccountListRow({
         <Link
           to={ROUTES.account}
           params={{ accountId: account.id }}
+          search={accountLinkSearch(from)}
           title="Voir le détail du compte"
         />
       )}
@@ -190,9 +196,12 @@ export function AccountListRow({
  */
 export function AccountList({
   groups,
+  from,
   primaryAction,
 }: {
   groups: AccountListGroup[]
+  /** The page the list is on: the account pages' way back (#324). */
+  from: AccountOrigin
   /** Shows the add buttons, this one primary; omit for none. */
   primaryAction?: AccountListPrimaryAction
 }) {
@@ -211,6 +220,7 @@ export function AccountList({
       icon={<LandmarkIcon />}
       outline={primaryAction !== 'account'}
       className="w-full"
+      from={from}
     />
   )
   return (
@@ -232,6 +242,7 @@ export function AccountList({
                 key={item.id}
                 account={item}
                 impliedTypes={group.impliedTypes}
+                from={from}
               />
             ))}
           </ItemListGroup>

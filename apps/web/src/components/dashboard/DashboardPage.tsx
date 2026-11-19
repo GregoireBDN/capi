@@ -212,7 +212,11 @@ export function DashboardPage({
                 Importer un relevé
               </Link>
             </Button>
-            <NewAccountButton label="Ajouter un compte" outline />
+            <NewAccountButton
+              label="Ajouter un compte"
+              outline
+              from="dashboard"
+            />
           </EmptyContent>
         </Empty>
       )}

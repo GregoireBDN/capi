@@ -50,6 +50,7 @@ import { formatSignedWhole } from '#/components/dashboard/MonthReview'
 import { currentMonth } from '#/lib/calendar'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
+import { accountLinkSearch } from '#/components/accounts/account-origin'
 import { DIVIDED_LIST, ROW_BUTTON } from '#/lib/row-list'
 import {
   breakdownByType,
@@ -131,6 +132,7 @@ function AccountLink({
     <Link
       to={ROUTES.account}
       params={{ accountId }}
+      search={accountLinkSearch('net-worth')}
       title="Voir la valeur et la plus-value"
       className={linkClassName}
     >

@@ -25,6 +25,7 @@ import {
 import { useState } from 'react'
 import type { AccountDto, SnapshotDto } from '#/api/types.gen'
 import { PageBack } from '#/components/app-shell/PageBack'
+import type { PageBackLink } from '#/components/app-shell/PageBack'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import type { PageAction } from '#/components/app-shell/page-actions'
 import { CryptoSourceCard } from '#/components/crypto/CryptoSourceCard'
@@ -36,6 +37,8 @@ import {
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
 import { ApiRequestError } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
+import { accountBackLink } from './account-origin'
+import type { AccountSearch } from './account-origin'
 import { AccountEditor } from './AccountEditor'
 import { CashAccount } from './CashAccount'
 import { todayInParis } from './dates'
@@ -62,18 +65,14 @@ function PageSkeleton() {
   )
 }
 
-/** The way back to « Comptes » (top bar on phones, chip from md up). */
-const BACK = { label: 'Comptes', to: ROUTES.accounts } as const
-
-function BackLink() {
-  return <PageBack {...BACK} />
-}
-
 function AccountHeader({
   account,
+  back,
   actions = [],
 }: {
   account: AccountDto
+  /** The page it was opened from (#324), « Comptes » by default. */
+  back: PageBackLink
   /** Page actions before « Modifier » (import, add, update the value…). */
   actions?: PageAction[]
 }) {
@@ -81,7 +80,7 @@ function AccountHeader({
   return (
     <>
       <PageHeader
-        back={BACK}
+        back={back}
         title={account.name}
         titleAddon={
           account.archivedAt && (
@@ -119,7 +118,15 @@ function AccountHeader({
  * and its freshness, its evolution, their latest transactions, imports and
  * recurring debits (`CashAccount`, #293).
  */
-export function AccountDetailPage({ accountId }: { accountId: string }) {
+export function AccountDetailPage({
+  accountId,
+  origin = {},
+}: {
+  accountId: string
+  /** Where it was opened from (`?from=`, `?month=`), for its back link. */
+  origin?: AccountSearch
+}) {
+  const back = accountBackLink(origin)
   const account = useQuery(accountQuery(accountId))
   const performance = useQuery(performanceQuery(accountId))
   const [editor, setEditor] = useState<EditorState>({ open: false })
@@ -131,8 +138,8 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
 
   if (account.isPending || performance.isPending) {
     return (
-      <div className="space-y-6">
-        <BackLink />
+      <div>
+        <PageBack {...back} />
         <PageSkeleton />
       </div>
     )
@@ -145,8 +152,8 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
       error instanceof ApiRequestError &&
       (error.status === 404 || error.status === 400)
     return (
-      <div className="space-y-6">
-        <BackLink />
+      <div>
+        <PageBack {...back} />
         {notFound ? (
           <Empty className="border">
             <EmptyHeader>
@@ -253,7 +260,7 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
   if (wallet) {
     return (
       <div className="@container space-y-6">
-        <AccountHeader account={current} actions={headerActions} />
+        <AccountHeader account={current} back={back} actions={headerActions} />
         <WalletAccount
           account={current}
           performance={data}
@@ -280,7 +287,7 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
 
   return (
     <div className="@container space-y-6">
-      <AccountHeader account={current} actions={headerActions} />
+      <AccountHeader account={current} back={back} actions={headerActions} />
 
       {investment && data.stale && data.valueDate && (
         <Alert variant="warning">

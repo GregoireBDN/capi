@@ -17,6 +17,7 @@ import type {
   WalletKeyDto,
   WalletSyncStatusDto,
 } from '#/api/types.gen'
+import type { AccountSearch } from './account-origin'
 import { AccountDetailPage } from './AccountDetailPage'
 
 const api = vi.hoisted(() => ({
@@ -166,13 +167,13 @@ function ok<T>(data: T, status = 200) {
   return Promise.resolve({ data, response: new Response(null, { status }) })
 }
 
-function renderPage() {
+function renderPage(origin?: AccountSearch) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   render(
     <QueryClientProvider client={queryClient}>
-      <AccountDetailPage accountId={ACCOUNT_ID} />
+      <AccountDetailPage accountId={ACCOUNT_ID} origin={origin} />
     </QueryClientProvider>,
   )
 }
@@ -202,6 +203,28 @@ describe('AccountDetailPage', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
+  })
+
+  it('goes back to the page it was opened from, with its month (#324)', async () => {
+    renderPage({ from: 'savings', month: '2026-10' })
+
+    expect(
+      await screen.findByRole('heading', { name: 'PEA test' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Épargne' })).toHaveAttribute(
+      'href',
+      '/savings?month=2026-10',
+    )
+    expect(screen.queryByRole('link', { name: 'Comptes' })).toBeNull()
+  })
+
+  it('shows the way back while the account loads', () => {
+    renderPage({ from: 'crypto' })
+    // The back link is there before the account is loaded.
+    expect(screen.getByRole('link', { name: 'Crypto' })).toHaveAttribute(
+      'href',
+      '/crypto',
+    )
   })
 
   it('shows the value, contributions, gain and changes', async () => {
