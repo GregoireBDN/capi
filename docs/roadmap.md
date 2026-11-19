@@ -12,5 +12,6 @@ Work is tracked as GitHub issues grouped into milestones: <https://github.com/Gr
 - **M8 — Claude (MCP)**: MCP server for Claude (read tools, then write tools: manual transactions, categorization, rules), bank CSV imports and investment values from the owner's Google Drive documents through MCP, then remote access with OAuth.
 - **M9 — Month-end review**: guided month-end review replacing the spreadsheet routine, closed-month reports.
 - **M10 — Everyday use**: owner feedback from daily use on the phone: readable dashboard, spending and savings pages, like-for-like monthly comparisons, easy setup of accounts, investments and crypto (exchange imports, wallet sync), configurable categories and rules.
+- **M11 — UX overhaul & insights**: second pass on the pages used every day (cash and crypto account pages, a portfolio view of crypto, spending trend, budget, rules, settings), category icons and shared components, and new insights: transfers linked to investment accounts for invested vs gain / loss, meal vouchers, deleting an account.
 
 Domain rules and workflow conventions: see [`CLAUDE.md`](../CLAUDE.md).
