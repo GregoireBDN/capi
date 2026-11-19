@@ -352,14 +352,13 @@ describe('SavingsPage', () => {
     )
     renderPage()
 
-    const recap = await screen.findByText('Investissements')
+    const recap = await screen.findByText('Où va mon épargne')
     const card = within(recap.closest('[data-slot=card]') as HTMLElement)
-    expect(
-      card.getByText(text('Versé 2 000,00 € · 4 virements')),
-    ).toBeInTheDocument()
-    const flows = await card.findByRole('region', {
-      name: 'Où est allé l’argent, sur 12 mois',
-    })
+    // No second list of the investment accounts, no totals: those are in
+    // « Épargne et placements » (#344 follow-up).
+    expect(card.queryByText('Par placement')).not.toBeInTheDocument()
+    expect(card.queryByText('Versé')).not.toBeInTheDocument()
+    const flows = await card.findByRole('region', { name: 'Sur 12 mois' })
     expect(flows).toHaveTextContent(text('+800,00 €'))
     expect(flows).toHaveTextContent(text('dont 100,00 € retirés'))
     expect(card.getByRole('group', { name: 'Par mois' })).toHaveTextContent(
@@ -404,7 +403,10 @@ describe('SavingsPage', () => {
     const stock = screen
       .getByRole('heading', { name: 'Épargne disponible' })
       .closest('[data-slot="card"]') as HTMLElement
-    expect(stock).toHaveTextContent(text('4 800,00 €+300,00 € de plus-value'))
+    // The total, the gain and what was paid in, in one header.
+    expect(stock).toHaveTextContent(
+      text('4 800,00 €+300,00 € de plus-valueversé 2 000,00 €'),
+    )
     // Rows link to the account pages, sentence-case group headings.
     const livret = within(stock).getByRole('link', { name: /Livret test/ })
     expect(livret).toHaveAttribute('href', `/accounts/${LIVRET_ID}`)

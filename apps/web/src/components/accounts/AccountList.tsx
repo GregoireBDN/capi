@@ -298,30 +298,43 @@ export function AccountList({
 
 /**
  * A list card's figures: the total as the main figure and, when known, the
- * unrealised gain beside it (not in a sentence).
+ * unrealised gain beside it (not in a sentence), then what was paid in
+ * (Épargne, #344 follow-up: the investments recap's tiles folded in here).
  */
 export function AccountListTotal({
   totalCents,
   gainCents = null,
+  paidInCents = null,
 }: {
   totalCents: number
   gainCents?: number | null
+  /** Contributions to the investments the gain is computed over. */
+  paidInCents?: number | null
 }) {
   return (
     <p className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
       <span className="text-2xl font-semibold whitespace-nowrap tabular-nums">
         {formatCents(totalCents)}
       </span>
-      {gainCents !== null && (
-        <span
-          className={cn(
-            'text-sm whitespace-nowrap tabular-nums',
-            gainCents > 0 && 'text-chart-delta-good',
-            gainCents < 0 && 'text-chart-delta-bad',
-            gainCents === 0 && 'text-muted-foreground',
+      {(gainCents !== null || paidInCents !== null) && (
+        <span className="flex flex-wrap items-baseline gap-x-3 text-sm">
+          {gainCents !== null && (
+            <span
+              className={cn(
+                'whitespace-nowrap tabular-nums',
+                gainCents > 0 && 'text-chart-delta-good',
+                gainCents < 0 && 'text-chart-delta-bad',
+                gainCents === 0 && 'text-muted-foreground',
+              )}
+            >
+              {signedCents(gainCents)} de plus-value
+            </span>
           )}
-        >
-          {signedCents(gainCents)} de plus-value
+          {paidInCents !== null && (
+            <span className="text-muted-foreground whitespace-nowrap tabular-nums">
+              versé {formatCents(paidInCents)}
+            </span>
+          )}
         </span>
       )}
     </p>

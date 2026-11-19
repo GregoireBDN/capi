@@ -4,11 +4,13 @@ import {
   AccountList,
   AccountListTotal,
 } from '#/components/accounts/AccountList'
+import { plural } from '#/lib/plural'
 
 /**
  * What has been put aside: savings accounts (balance) and investment
  * accounts (value, gain over contributions), each opening its account page.
- * The total and the unrealised gain head the card as figures.
+ * The total, the unrealised gain and what was paid in head the card as
+ * figures; « Où va mon épargne » below says where the money went.
  */
 export function SavingsStock({ stock }: { stock: SavingsStockDto }) {
   const { cash, investments } = stock
@@ -22,7 +24,20 @@ export function SavingsStock({ stock }: { stock: SavingsStockDto }) {
         <AccountListTotal
           totalCents={stock.totalCents}
           gainCents={stock.gainCents}
+          paidInCents={investments.totals.contributionsCents}
         />
+        {investments.totals.withoutContributionsCount > 0 &&
+          investments.totals.contributionsCents !== null && (
+            <p className="text-muted-foreground text-xs">
+              Versé et plus-value hors{' '}
+              {plural(
+                investments.totals.withoutContributionsCount,
+                'placement',
+                'placements',
+              )}{' '}
+              sans versements connus.
+            </p>
+          )}
       </CardHeader>
       <CardContent>
         <AccountList
