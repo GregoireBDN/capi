@@ -759,6 +759,21 @@ describe('ManualTransactionSheet with a meal-voucher card (#298)', () => {
     await user.click(
       within(paidWith).getByRole('radio', { name: 'Titres-restaurant' }),
     )
+    // Over the 25 € daily cap: refused on the card.
+    await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
+    await user.clear(within(dialog).getByLabelText('Montant'))
+    await user.type(within(dialog).getByLabelText('Montant'), '25,01')
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+    expect(
+      within(dialog).getByText(/25 € maximum par jour/),
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByRole('button', { name: 'Ajouter' }),
+    ).toBeDisabled()
+    await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
+    await user.clear(within(dialog).getByLabelText('Montant'))
+    await user.type(within(dialog).getByLabelText('Montant'), '9,80')
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
     await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
     await waitFor(() =>
       expect(api.transactionsControllerCreateManual).toHaveBeenCalledWith(

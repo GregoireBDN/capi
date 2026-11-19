@@ -201,6 +201,15 @@ describe.skipIf(!process.env.DATABASE_URL)(
             expect(voucherBalance).toBeGreaterThanOrEqual(0)
         }
         expect(voucherRows.at(-1)!.bookingDate < TODAY).toBe(true)
+        // Never more than 25 € of payments a day.
+        const paidByDay = new Map<string, number>()
+        for (const row of voucherRows.filter((r) => r.amountCents < 0)) {
+          paidByDay.set(
+            row.bookingDate,
+            (paidByDay.get(row.bookingDate) ?? 0) - row.amountCents,
+          )
+        }
+        expect(Math.max(...paidByDay.values())).toBeLessThanOrEqual(2_500)
         const credit = recurring.find(
           (r) => r.accountId === voucher.id && r.direction === 'credit',
         )

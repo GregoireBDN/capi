@@ -36,6 +36,7 @@ import {
   todayInParis,
 } from '#/recurring/dates'
 import { RecurringService } from '#/recurring/recurring.service'
+import { MEAL_VOUCHER_DAILY_CAP_CENTS } from '#/transactions/manual-transactions.service'
 import { MONTHLY_TARGET_KEY } from '#/savings/savings.service'
 
 /**
@@ -204,7 +205,8 @@ function workingDays(month: string): number {
 /**
  * The meal-voucher card (#298), entered by hand: the employer's credit on
  * the 2nd of each month (income), payments at restaurants and food shops
- * (expenses in their own categories) up to yesterday, never below zero.
+ * (expenses in their own categories) up to yesterday, never below zero nor
+ * over the daily cap.
  */
 function mealVoucherRows(
   months: readonly string[],
@@ -234,10 +236,14 @@ function mealVoucherRows(
       .map((day) => dayIn(month, day))
       .filter((day) => day <= yesterday)
       .sort()
+    const paidByDay = new Map<string, number>()
     for (const day of days) {
       const shop = random.pick(MEAL_VOUCHER_SHOPS)
       const cents = random.int(shop.min, shop.max)
-      if (cents > balance) continue
+      const paid = paidByDay.get(day) ?? 0
+      if (cents > balance || paid + cents > MEAL_VOUCHER_DAILY_CAP_CENTS)
+        continue
+      paidByDay.set(day, paid + cents)
       balance -= cents
       rows.push({
         bookingDate: day,

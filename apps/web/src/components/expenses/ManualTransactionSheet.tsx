@@ -136,6 +136,9 @@ const STEP_NAMES: Record<Step, string> = {
 /** Income category of the meal-voucher card's credits (#298). */
 const MEAL_VOUCHER_CATEGORY_SLUG = 'meal_vouchers'
 
+/** Meal vouchers pay at most 25 € a day (the legal cap, checked by the API). */
+export const MEAL_VOUCHER_DAILY_CAP_CENTS = 2_500
+
 /** Expense categories a meal-voucher card pays: « Payé avec » offers it. */
 const VOUCHER_PAID_SLUGS: ReadonlySet<string> = new Set([
   'restaurants_cafes',
@@ -422,6 +425,15 @@ export function ManualTransactionSheet({
       : date > today
         ? 'La date ne peut pas être dans le futur'
         : null
+  // One payment over the daily cap never goes on the card; the API also
+  // counts the day's other payments.
+  const voucherError =
+    chosenAccount?.type === 'meal_voucher' &&
+    kind === 'expense' &&
+    direction === 'out' &&
+    (parseEurosToCents(amount) ?? 0) > MEAL_VOUCHER_DAILY_CAP_CENTS
+      ? 'Les titres-restaurant paient 25 € maximum par jour : payez le reste avec un autre compte.'
+      : null
   const labelError =
     !categoryId && label.trim() === ''
       ? 'Sans catégorie, indiquez un libellé'
@@ -511,7 +523,8 @@ export function ManualTransactionSheet({
     setSubmitted(true)
     if (kind === 'expense' && !categoryId) return setStep('category')
     if (amountError) return setStep('amount')
-    if (amountError || dateError || labelError || !accountId) return
+    if (amountError || dateError || labelError || voucherError || !accountId)
+      return
     if (kind === 'expense' && !categoryId) return
     save.mutate()
   }
@@ -584,7 +597,8 @@ export function ManualTransactionSheet({
   const Description = isMobile ? SheetDescription : DialogDescription
   const submitLabel = expense ? 'Enregistrer' : 'Ajouter'
   const nextDisabled = step === 'category' && !categoryId && !allowNoCategory
-  const saveDisabled = (kind === 'expense' && !categoryId) || !accountId
+  const saveDisabled =
+    (kind === 'expense' && !categoryId) || !accountId || voucherError !== null
 
   /** What the earlier steps chose, at the top of the later ones. */
   const recap = (
@@ -845,7 +859,7 @@ export function ManualTransactionSheet({
             </Field>
 
             {paidWithShown && (
-              <Field>
+              <Field data-invalid={voucherError !== null}>
                 <FieldLabel id={`${id}-paid-with`}>
                   {kind === 'income' ? 'Crédité sur' : 'Payé avec'}
                 </FieldLabel>
@@ -855,6 +869,7 @@ export function ManualTransactionSheet({
                   value={accountId}
                   onChange={setAccountId}
                 />
+                {voucherError && <FieldError>{voucherError}</FieldError>}
               </Field>
             )}
 

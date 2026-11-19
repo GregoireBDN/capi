@@ -149,6 +149,9 @@ export function manualExpenseErrorMessage(error: unknown): string {
     if (error.apiMessage?.includes('label or a categoryId')) {
       return 'Choisissez une catégorie ou indiquez un libellé.'
     }
+    if (error.apiMessage?.includes('capped at 25')) {
+      return 'Plafond des titres-restaurant atteint : 25 € par jour, paiements déjà saisis ce jour-là compris.'
+    }
     if (error.apiMessage?.includes('split')) {
       return 'L’opération est répartie : annulez la répartition avant de changer son montant.'
     }

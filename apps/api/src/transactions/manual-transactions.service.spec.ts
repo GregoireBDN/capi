@@ -387,6 +387,73 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
+    it('caps the meal-voucher card at 25 € of payments a day (#298)', async () => {
+      await withFixture(
+        async ({ tx, service, groceries, salary, checking }) => {
+          const [card] = await tx
+            .insert(accountsTable)
+            .values({ name: 'Titres-restaurant', type: 'meal_voucher' })
+            .returning()
+          const pay = (amountCents: number, bookingDate = '2026-10-12') =>
+            service.create(
+              {
+                amountCents,
+                categoryId: groceries,
+                accountId: card.id,
+                bookingDate,
+              },
+              NOW,
+            )
+          const first = await pay(1_500)
+          await pay(1_000)
+          // 25 € reached: one cent more is refused, another day is not.
+          await expect(pay(1)).rejects.toThrow('capped at 25 €')
+          await expect(pay(2_600, '2026-10-13')).rejects.toBeInstanceOf(
+            BadRequestException,
+          )
+          await pay(2_500, '2026-10-13')
+          // An edit counts without its own previous amount.
+          await service.update(first.id, { amountCents: 1_500, note: 'x' }, NOW)
+          await expect(
+            service.update(first.id, { amountCents: 1_600 }, NOW),
+          ).rejects.toThrow('capped at 25 €')
+          await expect(
+            service.update(first.id, { bookingDate: '2026-10-13' }, NOW),
+          ).rejects.toThrow('capped at 25 €')
+          // Credits, refunds and other accounts are never capped.
+          await service.create(
+            {
+              amountCents: 20_000,
+              kind: 'income',
+              categoryId: salary,
+              accountId: card.id,
+              bookingDate: '2026-10-12',
+            },
+            NOW,
+          )
+          await service.create(
+            {
+              amountCents: 3_000,
+              direction: 'in',
+              categoryId: groceries,
+              accountId: card.id,
+              bookingDate: '2026-10-12',
+            },
+            NOW,
+          )
+          await service.create(
+            {
+              amountCents: 9_000,
+              categoryId: groceries,
+              accountId: checking,
+              bookingDate: '2026-10-12',
+            },
+            NOW,
+          )
+        },
+      )
+    })
+
     it('enters income and transfers with the sign of their direction', async () => {
       await withFixture(async ({ tx, service, salary }) => {
         const income = await service.create(
