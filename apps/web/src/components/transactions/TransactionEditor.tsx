@@ -490,7 +490,7 @@ export function TransactionEditor({
           {/* The amount goes under the name when both don't fit, so the
           name is never squeezed into broken words (#325). */}
           <div className="flex flex-wrap items-start justify-between gap-x-3">
-            <p className="min-w-[7rem] flex-1 font-medium break-words">
+            <p className="min-w-0 flex-[1_1_auto] font-medium break-words">
               {name}
             </p>
             <Amount
