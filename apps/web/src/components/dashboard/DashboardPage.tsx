@@ -133,7 +133,7 @@ function ReviewSection({
 interface DashboardPageProps {
   /**
    * Month followed by the page, from the URL; absent = the API's default
-   * (the previous month until it is closed, then the current one).
+   * (the current month).
    */
   month?: string
   onMonthChange?: (month: string | undefined) => void

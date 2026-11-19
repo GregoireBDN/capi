@@ -1,6 +1,5 @@
 import '#/load-env'
 import { ValidationPipe } from '@nestjs/common'
-import { eq } from 'drizzle-orm'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -627,59 +626,33 @@ describe.skipIf(!process.env.DATABASE_URL)(
         })
       })
 
-      it('opens on the previous month before any close, then on the current one once it is closed', async () => {
+      it('opens on the current month, whether the previous one is closed or not', async () => {
         await inRollback(async ({ tx, dashboard }) => {
-          const before = await dashboard.review(undefined, { now: NOW })
-          expect(before).toMatchObject({
-            month: '2026-10',
-            defaultMonth: '2026-10',
-            current: false,
-            netWorth: { date: '2026-10-31' },
+          const open = await dashboard.review(undefined, { now: NOW })
+          expect(open).toMatchObject({
+            month: '2026-11',
+            defaultMonth: '2026-11',
+            current: true,
+            netWorth: { date: '2026-11-05' },
           })
           await tx.insert(monthClosesTable).values({
             month: '2026-10',
             closedAt: new Date('2026-11-03T09:00:00Z'),
             report: {} as never,
           })
-          const after = await dashboard.review(undefined, { now: NOW })
-          expect(after).toMatchObject({
-            month: '2026-11',
-            defaultMonth: '2026-11',
-            current: true,
-          })
-          // A month asked for by name keeps the default it would have.
+          expect(await dashboard.review(undefined, { now: NOW })).toMatchObject(
+            {
+              month: '2026-11',
+              current: true,
+            },
+          )
+          // A past month asked for by name keeps the default.
           const october = await dashboard.review('2026-10', { now: NOW })
           expect(october).toMatchObject({
             month: '2026-10',
             defaultMonth: '2026-11',
             current: false,
-          })
-        })
-      })
-
-      it('opens on the oldest month left open since the first close', async () => {
-        await inRollback(async ({ tx, dashboard }) => {
-          const closedAt = new Date('2026-10-05T09:00:00Z')
-          await tx.insert(monthClosesTable).values([
-            // July is the first month closed: the history before it never
-            // was, and does not count.
-            { month: '2026-07', closedAt, report: {} as never },
-            // August reopened (ticks or notes kept, no close).
-            { month: '2026-08', closedAt: null, report: null },
-            { month: '2026-09', closedAt, report: {} as never },
-          ])
-          expect(await dashboard.defaultReviewMonth(NOW, tx)).toBe('2026-08')
-
-          await tx
-            .update(monthClosesTable)
-            .set({ closedAt, report: {} as never })
-            .where(eq(monthClosesTable.month, '2026-08'))
-          // September closed, October not yet.
-          expect(await dashboard.defaultReviewMonth(NOW, tx)).toBe('2026-10')
-          const review = await dashboard.review(undefined, { now: NOW })
-          expect(review).toMatchObject({
-            month: '2026-10',
-            defaultMonth: '2026-10',
+            netWorth: { date: '2026-10-31' },
           })
         })
       })
@@ -782,7 +755,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             monthlyTargetCents: 15_000,
           })
 
-          const review = await dashboard.review(undefined, { now: NOW })
+          const review = await dashboard.review('2026-10', { now: NOW })
 
           expect(review).toMatchObject({
             month: '2026-10',
@@ -862,7 +835,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             ])
           const now = new Date('2026-11-02T08:00:00Z')
 
-          const review = await dashboard.review(undefined, { now })
+          const review = await dashboard.review('2026-10', { now })
           expect(review.month).toBe('2026-10')
           expect(review.closed).toBe(false)
           expect(review.period).toMatchObject({

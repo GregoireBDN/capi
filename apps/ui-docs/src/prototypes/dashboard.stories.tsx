@@ -2364,8 +2364,8 @@ export const AccountsPhoneProposals: StoryObj = {
  * (pace mark, « + »). Where today's net worth lives while the current month
  * is shown is the open question: two variants.
  *
- * Default month (behaviour, not shown): the previous month while it is not
- * closed, then the current month once it is closed.
+ * Default month (behaviour, not shown): the current month, the owner's
+ * choice (plain to read; past months are one « ‹ » away).
  * ------------------------------------------------------------------------- */
 
 type Month321 = 'past' | 'current'

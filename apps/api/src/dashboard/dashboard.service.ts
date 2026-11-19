@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { and, eq, gte, isNotNull, lt, sql } from 'drizzle-orm'
+import { and, eq, gte, lt, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import {
   type AccountWithBalance,
@@ -230,37 +230,9 @@ export class DashboardService {
   }
 
   /**
-   * The month the dashboard opens on (#321, the owner's rule): the oldest
-   * past month left open since the first month ever closed in « Revue du
-   * mois », else the current month (Europe/Paris) once they are all closed.
-   * Before any close, the previous month: the history imported before the
-   * app was never closed, and is not what the owner reviews.
-   */
-  async defaultReviewMonth(
-    now: Date = new Date(),
-    executor: Executor = this.db,
-  ): Promise<string> {
-    const current = currentMonth(now)
-    const rows = await executor
-      .select({ month: schema.monthClosesTable.month })
-      .from(schema.monthClosesTable)
-      .where(
-        and(
-          isNotNull(schema.monthClosesTable.closedAt),
-          lt(schema.monthClosesTable.month, current),
-        ),
-      )
-    if (rows.length === 0) return shiftMonth(current, -1)
-    const closed = new Set(rows.map((row) => row.month))
-    // `YYYY-MM` strings sort as months.
-    let month = [...closed].sort()[0]
-    while (month < current && closed.has(month)) month = shiftMonth(month, 1)
-    return month
-  }
-
-  /**
-   * Review of a month, by default `defaultReviewMonth` (the oldest month
-   * left open, else the current one): the net worth at its end and how it moved (saved from the month's cash
+   * Review of a month, by default the current month in Europe/Paris (#321,
+   * the owner's choice: plain to read, past months one « ‹ » away): the net
+   * worth at its end and how it moved (saved from the month's cash
    * flow vs the rest: investments and anything not booked as income or
    * expense), its income and expenses, its spending against the budget, and
    * the accounts not updated up to its end. Transfers between the user's own
@@ -273,7 +245,7 @@ export class DashboardService {
       executor = this.db,
     }: { now?: Date; executor?: Executor } = {},
   ): Promise<MonthReviewDto> {
-    const defaultMonth = await this.defaultReviewMonth(now, executor)
+    const defaultMonth = currentMonth(now)
     const shown = month ?? defaultMonth
     const today = parisToday(now)
     // The current month (#321) is read so far: its net worth as of today.

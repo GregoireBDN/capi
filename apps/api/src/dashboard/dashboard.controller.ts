@@ -61,7 +61,7 @@ export class DashboardController {
   @ApiOperation({
     summary: 'Review of a month against its budget',
     description:
-      'Net worth at the month end and its change (saved from the month’s cash flow vs the rest), income, expenses and savings rate (transfers excluded), spending vs the budget with the categories furthest above and below their target, and the accounts not updated up to the month end. Default month (`defaultMonth`): the oldest past month left open since the first month ever closed, else the current month in Europe/Paris (the previous month before any close); the current month is read so far (net worth as of today).',
+      'Net worth at the month end and its change (saved from the month’s cash flow vs the rest), income, expenses and savings rate (transfers excluded), spending vs the budget with the categories furthest above and below their target, and the accounts not updated up to the month end. Default month (`defaultMonth`): the current month in Europe/Paris, read so far (net worth as of today).',
   })
   @ApiQuery({ type: MonthReviewQueryDto })
   @ApiOkResponse({ type: MonthReviewDto })

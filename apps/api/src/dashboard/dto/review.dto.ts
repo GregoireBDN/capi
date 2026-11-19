@@ -22,7 +22,7 @@ export class MonthReviewQueryDto {
     pattern: MONTH_PATTERN.source,
     example: '2026-10',
     description:
-      'Calendar month (YYYY-MM) to review. Default: the previous calendar month in Europe/Paris.',
+      'Calendar month (YYYY-MM) to review. Default: the current month in Europe/Paris.',
   })
   @IsOptional()
   @Matches(MONTH_PATTERN, { message: '$property must be YYYY-MM' })
@@ -181,7 +181,7 @@ export class MonthReviewDto {
     type: String,
     example: '2026-10',
     description:
-      'The month shown without `month`: the oldest past month left open since the first month ever closed, else the current month (Europe/Paris) once they are all closed; the previous month before any close.',
+      'The month shown without `month`: the current month in Europe/Paris.',
   })
   defaultMonth!: string
 
