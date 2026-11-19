@@ -243,13 +243,19 @@ function DonutChart({
       footer={
         <>
           {showLegend ? (
+            // One track that may be narrower than its content (`minmax(0,1fr)`)
+            // and rows that may shrink (`min-w-0`): otherwise a long label
+            // widens the row past the card, which clips the share (#320).
+            // Only the label gives way; the amount and the share, written in
+            // full with its « % », never shrink or wrap, and the share column
+            // (3em) fits « 88,8 % » at any font size so the amounts line up.
             <ul
               data-slot="chart-legend"
               aria-label="Légende"
-              className="grid gap-1.5 text-xs"
+              className="grid grid-cols-[minmax(0,1fr)] gap-1.5 text-xs"
             >
               {rows.map((row) => (
-                <li key={row.id} className="flex items-center gap-2">
+                <li key={row.id} className="flex min-w-0 items-center gap-2">
                   {(row.id === OTHER_ID ? otherIcon : row.icon) ?? (
                     <span
                       aria-hidden
@@ -257,14 +263,26 @@ function DonutChart({
                       style={{ backgroundColor: chartSeriesColor(row.id) }}
                     />
                   )}
-                  <span className="min-w-0 truncate text-muted-foreground">
+                  <span
+                    data-slot="chart-legend-label"
+                    title={row.label}
+                    className="min-w-0 flex-1 truncate text-muted-foreground"
+                  >
                     {row.label}
                   </span>
-                  <span className="ml-auto font-medium whitespace-nowrap text-foreground tabular-nums">
-                    {valueFormatter(row.value)}
-                  </span>
-                  <span className="w-12 text-right text-muted-foreground tabular-nums">
-                    {formatPercent(row.value / total)}
+                  <span className="flex shrink-0 items-baseline gap-1.5 whitespace-nowrap tabular-nums">
+                    <span
+                      data-slot="chart-legend-value"
+                      className="font-medium text-foreground"
+                    >
+                      {valueFormatter(row.value)}
+                    </span>
+                    <span
+                      data-slot="chart-legend-share"
+                      className="min-w-[3em] text-right text-muted-foreground"
+                    >
+                      {formatPercent(row.value / total)}
+                    </span>
                   </span>
                 </li>
               ))}
