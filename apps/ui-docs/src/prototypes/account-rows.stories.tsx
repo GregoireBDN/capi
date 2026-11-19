@@ -40,6 +40,19 @@ import { useEffect, type ReactNode } from 'react'
  *    own under them; wide rows keep the two columns. Built (`ItemListRow`
  *    `stackWhenNarrow`).
  *
+ * After seeing C in the app, the owner found four lines too many and too
+ * much data, with the badge off centre. Three more directions, two lines
+ * each, the badge centred, the gain in euros and « institution · date » left
+ * to the account page (a stale account shows its value's date in the
+ * warning colour instead of the rate), 8px gaps so a 20-character name fits:
+ *
+ * D. Nom puis chiffres : the name alone on the first line, the value and the
+ *    rate after it on the second.
+ * E. Taux aligné : as D, the value muted and the rate at the end of the line,
+ *    so the rates line up from row to row.
+ * F. Montant d’abord : the value in bold and the rate on the first line, the
+ *    name small under it.
+ *
  * Measured at 375px (22px root): the row's text column is 176px wide, a
  * 20-character name 186px, « 15 846,12 € » 95px and « +2 045,99 € · +14,8 % »
  * 148px, so A and B can't show such a name beside a figure: only C can.
@@ -222,13 +235,25 @@ function Badge({ kind }: { kind: Kind }) {
 }
 
 /** One row's frame: the whole row is the target, the chevron always last. */
-function RowLink({ kind, children }: { kind: Kind; children: ReactNode }) {
+function RowLink({
+  kind,
+  tight = false,
+  children,
+}: {
+  kind: Kind
+  /** D, E, F: 8px between badge, text and chevron, so a 20-character name fits at 375px. */
+  tight?: boolean
+  children: ReactNode
+}) {
   return (
     <li>
       <a
         href="#"
         onClick={(event) => event.preventDefault()}
-        className="hover:bg-muted/60 focus-visible:ring-ring flex min-h-11 items-center gap-3 rounded-lg px-2 py-2 text-sm outline-none focus-visible:ring-2"
+        className={cn(
+          'hover:bg-muted/60 focus-visible:ring-ring flex min-h-11 items-center rounded-lg py-2 text-sm outline-none focus-visible:ring-2',
+          tight ? 'gap-2 px-1.5' : 'gap-3 px-2',
+        )}
       >
         <Badge kind={kind} />
         {children}
@@ -358,6 +383,87 @@ function RowC({ row }: { row: Row }) {
       value={cents(row.value)}
       detail={detail || undefined}
     />
+  )
+}
+
+/** The value's date in the warning colour: the account is to update. */
+function staleDate(row: Row) {
+  return (
+    <span className="text-warning-foreground dark:text-warning inline-flex items-center gap-1 font-medium whitespace-nowrap">
+      <span aria-hidden className="bg-warning size-1.5 rounded-full" />
+      {row.subtitle.split(' · ').pop()?.replace(/^au /, '')}
+    </span>
+  )
+}
+
+/** D, E, F: the rate alone in its colour, or the stale date, or nothing. */
+function rateOrStale(row: Row) {
+  if (row.stale) return staleDate(row)
+  if (row.rate == null || row.gain == null) return null
+  return (
+    <span className={cn('whitespace-nowrap', tone(row.gain))}>
+      {pct.format(row.rate)}
+    </span>
+  )
+}
+
+/** D: the name alone on its line, then the value and the rate after it. */
+function RowD({ row }: { row: Row }) {
+  const detail = rateOrStale(row)
+  return (
+    <RowLink kind={row.kind} tight>
+      <span className="block min-w-0 flex-1">
+        <span className="block truncate font-medium">{row.name}</span>
+        <span className="flex flex-wrap items-baseline gap-x-2">
+          <span className="whitespace-nowrap tabular-nums">
+            {cents(row.value)}
+          </span>
+          {detail && <span className="text-xs tabular-nums">{detail}</span>}
+        </span>
+      </span>
+    </RowLink>
+  )
+}
+
+/** E: as D, the rate at the end of the line, aligned from row to row. */
+function RowE({ row }: { row: Row }) {
+  const detail = rateOrStale(row)
+  return (
+    <RowLink kind={row.kind} tight>
+      <span className="block min-w-0 flex-1">
+        <span className="block truncate font-medium">{row.name}</span>
+        <span className="flex flex-wrap items-baseline justify-between gap-x-2">
+          <span className="text-muted-foreground whitespace-nowrap tabular-nums">
+            {cents(row.value)}
+          </span>
+          {detail && (
+            <span className="ml-auto text-xs tabular-nums">{detail}</span>
+          )}
+        </span>
+      </span>
+    </RowLink>
+  )
+}
+
+/** F: the value first, the rate at its end, the name small under it. */
+function RowF({ row }: { row: Row }) {
+  const detail = rateOrStale(row)
+  return (
+    <RowLink kind={row.kind} tight>
+      <span className="block min-w-0 flex-1">
+        <span className="flex flex-wrap items-baseline justify-between gap-x-2">
+          <span className="font-semibold whitespace-nowrap tabular-nums">
+            {cents(row.value)}
+          </span>
+          {detail && (
+            <span className="ml-auto text-xs tabular-nums">{detail}</span>
+          )}
+        </span>
+        <span className="text-muted-foreground block truncate text-xs">
+          {row.name}
+        </span>
+      </span>
+    </RowLink>
   )
 }
 
@@ -500,6 +606,39 @@ export const C_Empile: StoryObj = {
       title="C. Empilé sur les lignes étroites"
       description="Sur une ligne étroite (< 464px, tous les téléphones), le nom (sur deux lignes au besoin) et « institution · date » prennent toute la largeur, la valeur et la plus-value passent dessous. Les lignes larges gardent les deux colonnes. C’est la version construite."
       View={RowC}
+    />
+  ),
+}
+
+export const D_NomPuisChiffres: StoryObj = {
+  name: 'D. Nom puis chiffres',
+  render: () => (
+    <Widths
+      title="D. Nom puis chiffres"
+      description="Deux lignes, pastille centrée : le nom seul en haut, puis la valeur et le taux en couleur. Plus-value en euros et « institution · date » sur la page du compte ; un compte à mettre à jour montre la date de sa valeur en orange."
+      View={RowD}
+    />
+  ),
+}
+
+export const E_TauxAligne: StoryObj = {
+  name: 'E. Taux aligné',
+  render: () => (
+    <Widths
+      title="E. Taux aligné"
+      description="Comme D, la valeur en gris et le taux au bout de la ligne, aligné d’un compte à l’autre."
+      View={RowE}
+    />
+  ),
+}
+
+export const F_MontantDabord: StoryObj = {
+  name: 'F. Montant d’abord',
+  render: () => (
+    <Widths
+      title="F. Montant d’abord"
+      description="La valeur en gras et le taux sur la première ligne, le nom en petit dessous."
+      View={RowF}
     />
   ),
 }
