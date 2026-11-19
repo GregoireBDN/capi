@@ -161,9 +161,10 @@ export const ActionOnWideCard: Story = {
 
 /** Distances, in px, between the card's edges and its first and last blocks. */
 function edgeSpacing(canvasElement: HTMLElement, cardIndex = 0) {
-  const card = canvasElement.querySelectorAll<HTMLElement>(
-    '[data-slot="card"]',
-  )[cardIndex]!
+  const card =
+    canvasElement.querySelectorAll<HTMLElement>('[data-slot="card"]')[
+      cardIndex
+    ]!
   const blocks = [...card.children] as HTMLElement[]
   const cardBox = card.getBoundingClientRect()
   return {
