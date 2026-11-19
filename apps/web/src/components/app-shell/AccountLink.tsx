@@ -47,7 +47,14 @@ export function AccountLink({ user, active, onNavigate }: AccountLinkProps) {
     <SidebarMenu className="flex-row items-center gap-1 group-data-[collapsible=icon]:flex-col">
       {/* A container: on a narrow column the chevron gives its room to the
           words (the gear already says where the entry goes). */}
-      <SidebarMenuItem className="@container min-w-0 flex-1 group-data-[collapsible=icon]:flex-none">
+      <SidebarMenuItem
+        className={cn(
+          '@container min-w-0 flex-1',
+          // Folded, no container: a size container's own width would count
+          // as 0, and the link would overflow the column (#352).
+          'group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:[container-type:normal]',
+        )}
+      >
         <SidebarMenuButton
           asChild
           isActive={active}
