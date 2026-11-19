@@ -90,13 +90,15 @@ export function manualBody(
 }
 
 /**
- * A manual expense counts in the envelopes, budgets, spending, dashboard
- * and transaction lists: refetch them all.
+ * A manual expense counts in the envelopes, budgets, spending, dashboard,
+ * transaction lists and account balances (a meal-voucher card's, #298):
+ * refetch them all.
  */
 export function afterManualExpenseChanged(queryClient: QueryClient) {
   return Promise.all(
     [
       envelopeKeys.all,
+      ['accounts'],
       ['budgets'],
       ['dashboard'],
       ['transactions'],

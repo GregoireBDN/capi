@@ -4,7 +4,7 @@ import { useState } from 'react'
 import type { ImportDetailDto } from '#/api'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { AccountSetupForm } from './AccountSetupForm'
-import { accountsQuery, isTransactional } from './api'
+import { accountsQuery, isBankAccount } from './api'
 import { genericErrorMessage } from './errors'
 import { ImportHistory } from './ImportHistory'
 import { ImportPreview } from './ImportPreview'
@@ -22,7 +22,7 @@ export function ImportPage() {
   const accounts = useQuery(accountsQuery)
   const [step, setStep] = useState<Step>({ name: 'upload' })
   const transactional = (accounts.data ?? []).filter(
-    (a) => isTransactional(a) && !a.archivedAt,
+    (a) => isBankAccount(a) && !a.archivedAt,
   )
 
   const openPreview = (detail: ImportDetailDto) => {

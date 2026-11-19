@@ -8,6 +8,7 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   life_insurance: 'Assurance vie',
   employee_savings: 'Épargne salariale',
   crypto: 'Crypto',
+  meal_voucher: 'Titres-restaurant',
 }
 
 const percentPoints = new Intl.NumberFormat('fr-FR', {

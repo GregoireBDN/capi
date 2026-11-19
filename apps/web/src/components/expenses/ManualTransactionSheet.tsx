@@ -64,6 +64,7 @@ import {
 } from './amount-entry'
 import type { AmountKey } from './amount-entry'
 import {
+  AccountChips,
   AmountKeypad,
   CategoryDot,
   CategoryChips,
@@ -132,6 +133,15 @@ const STEP_NAMES: Record<Step, string> = {
   details: 'Détails',
 }
 
+/** Income category of the meal-voucher card's credits (#298). */
+const MEAL_VOUCHER_CATEGORY_SLUG = 'meal_vouchers'
+
+/** Expense categories a meal-voucher card pays: « Payé avec » offers it. */
+const VOUCHER_PAID_SLUGS: ReadonlySet<string> = new Set([
+  'restaurants_cafes',
+  'groceries',
+])
+
 const TITLES: Record<TransactionKind, [add: string, edit: string]> = {
   expense: ['Ajouter une dépense', 'Modifier la dépense'],
   income: ['Ajouter un revenu', 'Modifier le revenu'],
@@ -145,6 +155,8 @@ interface ManualTransactionSheetProps {
   initialCategoryId?: string
   /** Kind preselected when adding (default: expense). */
   initialKind?: TransactionKind
+  /** Account preselected when adding (default: the first checking one). */
+  initialAccountId?: string
   /** Categories listed first (the envelopes followed this month). */
   suggestedCategoryIds?: readonly string[]
   /** The transaction entered by hand to edit; absent when adding one. */
@@ -175,6 +187,7 @@ export function ManualTransactionSheet({
   onOpenChange,
   initialCategoryId,
   initialKind = 'expense',
+  initialAccountId,
   suggestedCategoryIds = [],
   expense,
 }: ManualTransactionSheetProps) {
@@ -278,7 +291,7 @@ export function ManualTransactionSheet({
         ? expense.rawLabel
         : '',
     )
-    setAccountId(expense?.accountId ?? '')
+    setAccountId(expense?.accountId ?? initialAccountId ?? '')
     setIsOneOff(expense?.isOneOff ?? false)
     setNote(expense?.note ?? '')
     // Optional fields already used stay in view when editing.
@@ -292,7 +305,7 @@ export function ManualTransactionSheet({
     // An envelope already says the category; an edit starts at the end.
     setStep(expense ? 'details' : initialCategoryId ? 'amount' : 'category')
     setSubmitted(false)
-  }, [open, expense, initialCategoryId, initialKind])
+  }, [open, expense, initialCategoryId, initialKind, initialAccountId])
 
   // An expense needs a category: the most used one by default.
   // Other kinds may stay without one (the review queue). Functional updates:
@@ -330,6 +343,18 @@ export function ManualTransactionSheet({
   const categoryOf = (categoryKey: string) =>
     kindCategories.find((category) => category.id === categoryKey)
 
+  // The meal-voucher card (#298): its credit goes on it at once, and the
+  // categories it pays offer it as « Payé avec ».
+  const voucherAccounts = cashAccounts.filter(
+    (account) => account.type === 'meal_voucher' && !account.archivedAt,
+  )
+  function chooseAccountFor(categoryKey: string) {
+    if (expense || voucherAccounts.length === 0) return
+    if (categoryOf(categoryKey)?.slug === MEAL_VOUCHER_CATEGORY_SLUG) {
+      setAccountId(voucherAccounts[0].id)
+    }
+  }
+
   // A usual label fills its category too, and moves on to the amount when
   // that leaves a category (or the kind may go without one).
   function pickSuggestion(item: ManualSuggestionDto) {
@@ -339,7 +364,10 @@ export function ManualTransactionSheet({
       kindCategories.some((category) => category.id === item.categoryId)
         ? item.categoryId
         : null
-    if (usual) setCategoryId(usual)
+    if (usual) {
+      setCategoryId(usual)
+      chooseAccountFor(usual)
+    }
     if (usual || categoryId || allowNoCategory) setStep('amount')
   }
 
@@ -349,7 +377,28 @@ export function ManualTransactionSheet({
     cashAccounts.find((option) => option.type === 'checking') ??
     cashAccounts.at(0)
   )?.id
+  const chosenSlug = categoryOf(categoryId)?.slug
+  const paidWithShown =
+    voucherAccounts.length > 0 &&
+    kind !== 'transfer' &&
+    (chosenAccount?.type === 'meal_voucher' ||
+      (chosenSlug !== undefined &&
+        (kind === 'expense'
+          ? VOUCHER_PAID_SLUGS.has(chosenSlug)
+          : chosenSlug === MEAL_VOUCHER_CATEGORY_SLUG)))
+  const paidWithAccounts = [
+    ...new Map(
+      [
+        cashAccounts.find((option) => option.id === defaultAccountId),
+        chosenAccount,
+        ...voucherAccounts,
+      ]
+        .filter((option) => option !== undefined)
+        .map((option) => [option.id, option] as const),
+    ).values(),
+  ]
   const moreSummary = [
+    !paidWithShown &&
     cashAccounts.length > 1 &&
     chosenAccount &&
     chosenAccount.id !== defaultAccountId
@@ -508,6 +557,7 @@ export function ManualTransactionSheet({
 
   function chooseCategory(next: string) {
     setCategoryId(next)
+    chooseAccountFor(next)
     setStep('amount')
   }
 
@@ -793,6 +843,20 @@ export function ManualTransactionSheet({
               />
               {showDateError && <FieldError>{dateError}</FieldError>}
             </Field>
+
+            {paidWithShown && (
+              <Field>
+                <FieldLabel id={`${id}-paid-with`}>
+                  {kind === 'income' ? 'Crédité sur' : 'Payé avec'}
+                </FieldLabel>
+                <AccountChips
+                  labelId={`${id}-paid-with`}
+                  accounts={paidWithAccounts}
+                  value={accountId}
+                  onChange={setAccountId}
+                />
+              </Field>
+            )}
 
             <Field data-invalid={showLabelError}>
               <FieldLabel htmlFor={`${id}-label`}>Libellé</FieldLabel>

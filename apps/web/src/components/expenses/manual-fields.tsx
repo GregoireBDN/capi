@@ -5,7 +5,7 @@ import {
   ChevronRightIcon,
   DeleteIcon,
 } from 'lucide-react'
-import type { ManualSuggestionDto } from '#/api/types.gen'
+import type { AccountDto, ManualSuggestionDto } from '#/api/types.gen'
 import type { AmountKey } from './amount-entry'
 
 /**
@@ -364,5 +364,44 @@ export function AmountKeypad({
         </span>
       </Button>
     </div>
+  )
+}
+
+/**
+ * The account as chips (#298): « Payé avec » the bank account or the
+ * meal-voucher card, one tap, for the categories the card pays.
+ */
+export function AccountChips({
+  labelId,
+  accounts,
+  value,
+  onChange,
+}: {
+  labelId: string
+  accounts: readonly Pick<AccountDto, 'id' | 'name'>[]
+  value: string
+  onChange: (accountId: string) => void
+}) {
+  return (
+    <ToggleGroup
+      type="single"
+      spacing={1.5}
+      aria-labelledby={labelId}
+      className="flex-wrap"
+      value={value}
+      onValueChange={(next) => {
+        if (next) onChange(next)
+      }}
+    >
+      {accounts.map((account) => (
+        <ToggleGroupItem
+          key={account.id}
+          value={account.id}
+          className={cn(CHIP_CLASS, CHIP_ON, 'max-w-full')}
+        >
+          <span className="truncate">{account.name}</span>
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
   )
 }

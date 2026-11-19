@@ -41,6 +41,7 @@ import { ROUTES } from '#/lib/routes'
 import { AccountEditor } from './AccountEditor'
 import { todayInParis } from './dates'
 import { isInvestmentType, valueAgeText } from './labels'
+import { MealVoucherAccount } from './MealVoucherAccount'
 import { PasteHistorySheet } from './PasteHistorySheet'
 import { PerformanceTiles } from './PerformanceTiles'
 import { accountQuery, performanceQuery } from './queries'
@@ -187,6 +188,8 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
   const writable = current.archivedAt === null
   // A wallet: one value, one refresh, its keys and tokens (#269).
   const wallet = crypto && current.cryptoSource === 'wallet'
+  // A meal-voucher card: entered by hand, its entries first (#298).
+  const mealVoucher = current.type === 'meal_voucher'
   const openAdd = () => setEditor({ open: true })
   const headerActions: PageAction[] =
     wallet && writable
@@ -214,7 +217,7 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
       Coller un historique de valeurs
     </Button>
   )
-  const valueActions = writable && !crypto && (
+  const valueActions = writable && !crypto && !mealVoucher && (
     <div className="grid grid-cols-2 gap-2 @2xl:flex">
       {/* PEA, life insurance, employee savings: the value is typed by hand
           from each statement, so updating it is the page's main action. */}
@@ -279,7 +282,13 @@ export function AccountDetailPage({ accountId }: { accountId: string }) {
         />
       )}
 
-      {investment ? (
+      {mealVoucher ? (
+        <MealVoucherAccount
+          account={current}
+          writable={writable}
+          onCorrectBalance={openAdd}
+        />
+      ) : investment ? (
         data.valueCents === null ? (
           crypto ? null : (
             <Empty className="border">

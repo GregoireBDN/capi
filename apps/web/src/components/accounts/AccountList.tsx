@@ -58,6 +58,16 @@ const TYPE_WORDS: Record<AccountType, string[]> = {
   life_insurance: ['assurance vie', 'assurance-vie', 'per'],
   employee_savings: ['pee', 'perco', 'pereco', 'epargne salariale'],
   crypto: ['crypto', 'bitcoin', 'btc', 'ethereum', 'eth', 'wallet'],
+  meal_voucher: [
+    'titres-restaurant',
+    'titres restaurant',
+    'titre-restaurant',
+    'titre restaurant',
+    'tickets restaurant',
+    'ticket restaurant',
+    'ticket resto',
+    'carte resto',
+  ],
 }
 
 function normalize(text: string): string {
