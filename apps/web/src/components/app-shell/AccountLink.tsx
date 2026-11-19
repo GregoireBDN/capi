@@ -4,9 +4,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
   cn,
   useSidebar,
 } from '@finances/ui'
@@ -36,15 +33,18 @@ interface AccountLinkProps {
  *   Réglages since #300): a gear on the primary tint in the settings rows'
  *   32px square, « Réglages » as its title and who is signed in under it,
  *   then the chevron. Folded, the gear alone, « Réglages » as its tooltip.
- * - « Se déconnecter » (#353, direction « A. Bouton à côté »): an icon
- *   button on the same row (under the entry when folded), 44px and apart
- *   from it. One click on a computer; in the phone's navigation sheet,
- *   where it sits under the thumb, « Se déconnecter ? » first. The same
- *   sign-out as the Réglages row (`useSignOut`), which stays.
+ * - « Se déconnecter » (#353): on a computer, its own row under the entry,
+ *   its icon in the gear's column and its name in full (the owner's « Deux
+ *   lignes » on PR #355), so the open footer folds into two icons like the
+ *   pages above it; one click. In the phone's navigation sheet, an icon
+ *   button on the entry's row, 44px and apart from it, and « Se
+ *   déconnecter ? » first, since it sits under the thumb. The same sign-out
+ *   as the Réglages row (`useSignOut`), which stays.
  */
 export function AccountLink({ user, active, onNavigate }: AccountLinkProps) {
+  const { isMobile } = useSidebar()
   return (
-    <SidebarMenu className="flex-row items-center gap-1 group-data-[collapsible=icon]:flex-col">
+    <SidebarMenu className={cn('gap-1', isMobile && 'flex-row items-center')}>
       {/* A container: on a narrow column the chevron gives its room to the
           words (the gear already says where the entry goes). */}
       <SidebarMenuItem
@@ -98,23 +98,17 @@ export function AccountLink({ user, active, onNavigate }: AccountLinkProps) {
           </Link>
         </SidebarMenuButton>
       </SidebarMenuItem>
-      <SidebarMenuItem className="shrink-0">
-        <SignOutButton />
+      <SidebarMenuItem className={cn(isMobile && 'shrink-0')}>
+        {isMobile ? <PhoneSignOut /> : <ComputerSignOut />}
       </SidebarMenuItem>
     </SidebarMenu>
   )
 }
 
-/**
- * « Se déconnecter » beside the entry (#353). Its tooltip names it on a
- * computer; on phones (the navigation sheet) it asks first.
- */
-export function SignOutButton() {
-  const { isMobile } = useSidebar()
+/** Signs out once, tracking the wait (the response may take a while). */
+function useSignOutAction() {
   const signOut = useSignOut()
-  const [confirming, setConfirming] = useState(false)
   const [pending, setPending] = useState(false)
-
   async function run() {
     setPending(true)
     try {
@@ -123,59 +117,84 @@ export function SignOutButton() {
       setPending(false)
     }
   }
+  return { pending, run }
+}
 
-  const button = (
-    <button
-      type="button"
-      aria-label="Se déconnecter"
+/**
+ * The browser may hold the logout response while it clears its cache
+ * (`Clear-Site-Data`): a spinner shows that it is on its way.
+ */
+function SignOutIcon({ pending }: { pending: boolean }) {
+  return pending ? (
+    <LoaderCircleIcon aria-hidden className="animate-spin" />
+  ) : (
+    <LogOutIcon aria-hidden />
+  )
+}
+
+/**
+ * Computer: a row like a page's, its icon in the gear's 32px column so both
+ * rows line up; folded, an icon with « Se déconnecter » as its tooltip.
+ */
+function ComputerSignOut() {
+  const { pending, run } = useSignOutAction()
+  return (
+    <SidebarMenuButton
+      tooltip="Se déconnecter"
       disabled={pending}
       aria-busy={pending || undefined}
-      onClick={() => {
-        if (isMobile) setConfirming(true)
-        else void run()
-      }}
+      onClick={() => void run()}
       className={cn(
-        'text-muted-foreground flex size-8 items-center justify-center rounded-md transition-colors outline-none',
-        'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-        'focus-visible:ring-sidebar-ring focus-visible:ring-2 disabled:opacity-50',
-        '[&_svg]:size-[1.1rem]',
-        'group-data-[collapsible=icon]:size-(--rail-button) group-data-[collapsible=icon]:[&_svg]:size-[calc(var(--rail-icon)*0.8)]',
+        'text-muted-foreground',
+        'group-data-[collapsible=icon]:size-(--rail-button)! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!',
       )}
     >
-      {/* The browser may hold the logout response while it clears its
-          cache (`Clear-Site-Data`): show that it is on its way. */}
-      {pending ? (
-        <LoaderCircleIcon aria-hidden className="animate-spin" />
-      ) : (
-        <LogOutIcon aria-hidden />
-      )}
-    </button>
+      <span
+        aria-hidden
+        className="flex w-[32px] shrink-0 justify-center [&_svg]:size-[18px]! group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:[&_svg]:size-[calc(var(--rail-icon)*0.8)]!"
+      >
+        <SignOutIcon pending={pending} />
+      </span>
+      <span className="group-data-[collapsible=icon]:sr-only">
+        Se déconnecter
+      </span>
+    </SidebarMenuButton>
   )
+}
 
+/**
+ * Phone (the navigation sheet): an icon button beside the entry, then
+ * « Se déconnecter ? ». No tooltip: there is no hover on a phone.
+ */
+function PhoneSignOut() {
+  const { pending, run } = useSignOutAction()
+  const [confirming, setConfirming] = useState(false)
   return (
     <>
-      {isMobile ? (
-        // No hover on a phone: the confirmation names the action.
-        button
-      ) : (
-        <Tooltip>
-          <TooltipTrigger asChild>{button}</TooltipTrigger>
-          <TooltipContent side="right" align="center">
-            Se déconnecter
-          </TooltipContent>
-        </Tooltip>
-      )}
-      {isMobile && (
-        <ConfirmDialog
-          open={confirming}
-          onOpenChange={setConfirming}
-          onConfirm={run}
-          loading={pending}
-          title="Se déconnecter ?"
-          description="Vous devrez vous reconnecter pour revoir vos comptes."
-          confirmLabel="Se déconnecter"
-        />
-      )}
+      <button
+        type="button"
+        aria-label="Se déconnecter"
+        disabled={pending}
+        aria-busy={pending || undefined}
+        onClick={() => setConfirming(true)}
+        className={cn(
+          'text-muted-foreground flex size-8 items-center justify-center rounded-md transition-colors outline-none',
+          'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+          'focus-visible:ring-sidebar-ring focus-visible:ring-2 disabled:opacity-50',
+          '[&_svg]:size-[1.1rem]',
+        )}
+      >
+        <SignOutIcon pending={pending} />
+      </button>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        onConfirm={run}
+        loading={pending}
+        title="Se déconnecter ?"
+        description="Vous devrez vous reconnecter pour revoir vos comptes."
+        confirmLabel="Se déconnecter"
+      />
     </>
   )
 }

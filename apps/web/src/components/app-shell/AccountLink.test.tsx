@@ -109,13 +109,17 @@ describe('Sidebar footer on a computer (#352, #353)', () => {
     ).toBeInTheDocument()
   })
 
-  it('keeps the entry and the button two targets, in the footer', async () => {
+  it('puts « Se déconnecter » on its own row, named in full, under the entry', async () => {
     await renderShell()
     const link = settingsLink()
     const button = signOutButton()
 
-    expect(link).not.toContainElement(button)
-    expect(button).not.toContainElement(link)
+    // Two rows of the footer's list (the owner's « Deux lignes »).
+    expect(button).toHaveTextContent('Se déconnecter')
+    const rows = link.closest('ul')?.querySelectorAll(':scope > li')
+    expect(rows).toHaveLength(2)
+    expect(rows?.[0]).toContainElement(link)
+    expect(rows?.[1]).toContainElement(button)
     expect(link.closest('[data-sidebar=footer]')).toContainElement(button)
     // Outside the list of pages.
     expect(
