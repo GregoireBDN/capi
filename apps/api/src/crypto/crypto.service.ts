@@ -5,7 +5,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common'
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, max } from 'drizzle-orm'
 import {
   AccountsService,
   type AccountWithBalance,
@@ -15,6 +15,7 @@ import {
   accountsTable,
   balanceSnapshotsTable,
   cryptoHoldingsTable,
+  cryptoImportsTable,
   type SelectAccount,
   type SelectCryptoHolding,
 } from '#/database/schema'
@@ -23,6 +24,7 @@ import { CryptoPricesService, type RefreshMode } from './crypto-prices.service'
 import { formatDecimal, parseDecimal } from './decimal'
 import type {
   AccountHoldingsDto,
+  CryptoPortfolioDto,
   CryptoPriceDto,
   CryptoSettingsDto,
   CryptoSummaryDto,
@@ -32,6 +34,7 @@ import type {
   ValuationSnapshotDto,
   WalletSyncStatusDto,
 } from './dto/crypto.dto'
+import { aggregatePortfolio } from './portfolio'
 import { valuateHoldings } from './valuation'
 import {
   type WalletSyncStatus,
@@ -286,10 +289,125 @@ export class CryptoService {
     return this.summarize(true, now)
   }
 
-  private async summarize(
+  /** The open crypto accounts, valued with one batched price fetch. */
+  /**
+   * The Crypto page (#295): every open crypto account's holdings summed per
+   * asset, then the accounts with how fresh they are. Valued like `summary`.
+   */
+  portfolio(now: Date = new Date()): Promise<CryptoPortfolioDto> {
+    return this.buildPortfolio(false, now)
+  }
+
+  /**
+   * The section's one « Actualiser » (#295): reads every wallet on chain
+   * (when this server syncs wallets; each at most every 30 s), then fresh
+   * prices for every account and today's values.
+   */
+  async refreshPortfolio(now: Date = new Date()): Promise<CryptoPortfolioDto> {
+    if (this.walletSync.enabled) {
+      const wallets = await this.db
+        .select({ id: accountsTable.id })
+        .from(accountsTable)
+        .where(
+          and(
+            isNull(accountsTable.archivedAt),
+            eq(accountsTable.type, 'crypto'),
+            eq(accountsTable.cryptoSource, 'wallet'),
+          ),
+        )
+      for (const wallet of wallets)
+        await this.walletSync.syncNow(wallet.id, now)
+    }
+    return this.buildPortfolio(true, now)
+  }
+
+  private async buildPortfolio(
     force: boolean,
     now: Date,
-  ): Promise<CryptoSummaryDto> {
+  ): Promise<CryptoPortfolioDto> {
+    const { accounts, rows } = await this.valueOpenAccounts(force, now)
+    const { assets, totals } = aggregatePortfolio(
+      rows.map((row, i) => ({
+        accountId: row.accountId,
+        name: accounts[i].name,
+        lines: row.holdings,
+      })),
+    )
+    const updated = await this.lastFed(accounts)
+    let pricesAt: string | null = null
+    for (const row of rows) {
+      for (const holding of row.holdings) {
+        const at = holding.priceFetchedAt
+        if (at !== null && (pricesAt === null || at > pricesAt)) pricesAt = at
+      }
+    }
+    return {
+      assets,
+      totals,
+      accounts: rows.map((row, i) => {
+        const account = accounts[i]
+        const source = account.cryptoSource
+        return {
+          accountId: row.accountId,
+          name: account.name,
+          institution: account.institution,
+          source,
+          provider: account.cryptoProvider,
+          valueCents: row.totals.valueCents,
+          holdingCount: row.holdings.length,
+          missingPriceCount: row.totals.missingPriceCount,
+          updatedAt:
+            source === 'wallet'
+              ? (row.sync?.syncedAt ?? null)
+              : (updated.get(account.id)?.toISOString() ?? null),
+          sync: row.sync,
+        }
+      }),
+      priceApiEnabled: this.prices.enabled,
+      walletSyncEnabled: this.walletSync.enabled,
+      refreshFailed: rows.some((row) => row.refreshFailed),
+      pricesAt,
+      valued: rows.some((row) => row.snapshot !== null),
+    }
+  }
+
+  /**
+   * When each exchange's last export was committed and each manual
+   * account's last line was edited (wallets: their sync, read elsewhere).
+   */
+  private async lastFed(
+    accounts: readonly Pick<SelectAccount, 'id' | 'cryptoSource'>[],
+  ): Promise<Map<string, Date>> {
+    const result = new Map<string, Date>()
+    const exchanges = accounts
+      .filter((account) => account.cryptoSource === 'exchange')
+      .map((account) => account.id)
+    const others = accounts
+      .filter((account) => account.cryptoSource !== 'exchange')
+      .map((account) => account.id)
+    if (exchanges.length > 0) {
+      const rows = await this.db
+        .select({
+          accountId: cryptoImportsTable.accountId,
+          at: max(cryptoImportsTable.committedAt),
+        })
+        .from(cryptoImportsTable)
+        .where(inArray(cryptoImportsTable.accountId, exchanges))
+        .groupBy(cryptoImportsTable.accountId)
+      for (const row of rows) if (row.at) result.set(row.accountId, row.at)
+    }
+    if (others.length > 0) {
+      const rows = await this.db
+        .select({ accountId: h.accountId, at: max(h.updatedAt) })
+        .from(h)
+        .where(and(inArray(h.accountId, others), eq(h.origin, 'manual')))
+        .groupBy(h.accountId)
+      for (const row of rows) if (row.at) result.set(row.accountId, row.at)
+    }
+    return result
+  }
+
+  private async valueOpenAccounts(force: boolean, now: Date) {
     const accounts = await this.db
       .select()
       .from(accountsTable)
@@ -305,6 +423,14 @@ export class CryptoService {
       force || accounts.some((account) => this.valuationDue(account.id, now))
     const mode: RefreshMode = force ? 'force' : due ? 'auto' : 'none'
     const rows = await this.valuate(accounts, mode, due, now)
+    return { accounts, rows }
+  }
+
+  private async summarize(
+    force: boolean,
+    now: Date,
+  ): Promise<CryptoSummaryDto> {
+    const { accounts, rows } = await this.valueOpenAccounts(force, now)
 
     let invested = 0
     let investedKnown = rows.length > 0
@@ -435,6 +561,7 @@ export class CryptoService {
             priceEur: value.quote?.priceEur ?? null,
             priceSource: value.quote?.source ?? null,
             priceFetchedAt: value.quote?.fetchedAt.toISOString() ?? null,
+            priceChange24hPercent: value.quote?.change24hPercent ?? null,
             priceStale: value.priceStale,
             valueCents: value.valueCents,
             gainCents: value.gainCents,

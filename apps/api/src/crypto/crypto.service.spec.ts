@@ -409,6 +409,96 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
     })
   })
 
+  it('sums each asset over every account in the portfolio (#295)', async () => {
+    await inRollback(async ({ crypto, account, provider }) => {
+      const a = await account('crypto', 'Plateforme A')
+      const b = await account('crypto', 'Ledger B')
+      await crypto.create(
+        a,
+        { ...BTC, quantity: '0.1', investedCents: 400_000 },
+        NOW,
+      )
+      await crypto.create(
+        b,
+        {
+          ...BTC,
+          quantity: '0.05',
+          location: 'Ledger',
+          investedCents: 250_000,
+        },
+        NOW,
+      )
+      await crypto.create(b, { ...ETH, quantity: '1' }, NOW)
+      // Fiat typed by hand is not crypto.
+      await crypto.create(
+        a,
+        { assetId: 'euro-cash', symbol: 'EUR', name: 'Euro', quantity: '250' },
+        NOW,
+      )
+      // The provider gives each price with its change over 24 hours.
+      const quotes = vi.fn((ids: readonly string[]) =>
+        Promise.resolve(
+          new Map(
+            ids
+              .filter((id) => id in PRICES)
+              .map((id) => [
+                id,
+                {
+                  priceEur: PRICES[id],
+                  change24hPercent: id === 'bitcoin' ? '2.5' : '-1.23456',
+                },
+              ]),
+          ),
+        ),
+      )
+      ;(provider as unknown as PriceProvider).fetchEurQuotes = quotes
+      try {
+        const portfolio = await crypto.refreshPortfolio(later(30))
+        // One batched request, with the change.
+        expect(quotes).toHaveBeenCalledTimes(1)
+        const btc = portfolio.assets.find((x) => x.assetId === 'bitcoin')!
+        expect(btc).toMatchObject({
+          symbol: 'BTC',
+          quantity: '0.15',
+          // 600 005 + 300 002,5 rounded half to even: each line is rounded.
+          valueCents: 900_007,
+          investedCents: 650_000,
+          gainCents: 250_007,
+          change24hPercent: '2.5',
+        })
+        expect(btc.places.map((x) => [x.name, x.quantity])).toEqual([
+          ['Plateforme A', '0.1'],
+          ['Ledger B', '0.05'],
+        ])
+        const eth = portfolio.assets.find((x) => x.assetId === 'ethereum')!
+        // Stored with 4 decimals, rounded half to even.
+        expect(eth.change24hPercent).toBe('-1.2346')
+        expect(eth.investedCents).toBeNull()
+        expect(portfolio.assets.some((x) => x.symbol === 'EUR')).toBe(false)
+        const ours = portfolio.accounts.filter(
+          (x) => x.accountId === a || x.accountId === b,
+        )
+        expect(ours.map((x) => [x.name, x.source, x.holdingCount])).toEqual([
+          ['Plateforme A', 'manual', 2],
+          ['Ledger B', 'manual', 2],
+        ])
+        // Manual accounts: when a line was last edited.
+        expect(ours.every((x) => x.updatedAt !== null)).toBe(true)
+        expect(portfolio.valued).toBe(true)
+        expect(portfolio.walletSyncEnabled).toBe(false)
+
+        // A price typed by hand has no change.
+        await crypto.setManualPrice('bitcoin', '61000', later(31))
+        const manual = await crypto.portfolio(later(32))
+        expect(
+          manual.assets.find((x) => x.assetId === 'bitcoin'),
+        ).toMatchObject({ priceSource: 'manual', change24hPercent: null })
+      } finally {
+        delete (provider as unknown as PriceProvider).fetchEurQuotes
+      }
+    })
+  })
+
   it('refreshes every crypto account at once and writes their snapshots', async () => {
     await inRollback(async ({ crypto, investments, account, provider }) => {
       const a = await account('crypto', 'Wallet A')

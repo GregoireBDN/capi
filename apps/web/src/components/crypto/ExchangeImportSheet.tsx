@@ -46,7 +46,7 @@ const SHOWN_ROWS = 100
 const plural = (count: number, one: string, many: string) =>
   `${count.toLocaleString('fr-FR')} ${count > 1 ? many : one}`
 
-function isCsv(file: File): boolean {
+export function isCsv(file: File): boolean {
   return /\.csv$/i.test(file.name) || file.type.includes('csv')
 }
 
@@ -132,7 +132,7 @@ function HoldingRow({ holding }: { holding: CryptoImportHoldingDto }) {
   )
 }
 
-function Preview({
+export function Preview({
   detail,
   choices,
   onChoose,

@@ -44,6 +44,7 @@ function holding(overrides: Partial<ValuedHoldingDto> = {}): ValuedHoldingDto {
     priceSource: 'provider',
     priceFetchedAt: '2026-11-06T09:57:00Z',
     priceStale: false,
+    priceChange24hPercent: null,
     valueCents: 1_295_830,
     gainCents: 1_195_830,
     ...overrides,

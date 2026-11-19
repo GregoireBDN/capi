@@ -353,6 +353,7 @@ describe('sync_crypto_holdings', () => {
       priceSource: 'provider',
       priceFetchedAt: null,
       priceStale: false,
+      priceChange24hPercent: null,
       valueCents: null,
       gainCents: null,
       ...overrides,

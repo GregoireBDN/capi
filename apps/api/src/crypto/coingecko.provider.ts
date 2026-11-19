@@ -3,9 +3,11 @@ import {
   decimalFromJsonNumber,
   JSON_NUMBER_MARK,
   quoteJsonNumbers,
+  signedDecimalFromJsonNumber,
 } from './decimal'
 import {
   type CryptoAsset,
+  type EurQuote,
   type PriceProvider,
   PriceProviderError,
 } from './price-provider'
@@ -29,7 +31,11 @@ const jsonNumber = z
   .transform((value) => value.slice(JSON_NUMBER_MARK.length))
 const pricesSchema = z.record(
   z.string(),
-  z.looseObject({ eur: jsonNumber.optional() }),
+  z.looseObject({
+    eur: jsonNumber.optional(),
+    // Read leniently: a change we cannot read never drops the prices.
+    eur_24h_change: z.unknown().optional(),
+  }),
 )
 const searchSchema = z.looseObject({
   coins: z.array(
@@ -88,23 +94,43 @@ export class CoinGeckoPriceProvider
   async fetchEurPrices(
     assetIds: readonly string[],
   ): Promise<Map<string, string>> {
-    const prices = new Map<string, string>()
-    if (assetIds.length === 0) return prices
+    const quotes = await this.fetchEurQuotes(assetIds)
+    return new Map([...quotes].map(([id, quote]) => [id, quote.priceEur]))
+  }
+
+  /**
+   * EUR prices with their change over 24 hours (`include_24hr_change`, same
+   * single request: only the asset ids are sent).
+   */
+  async fetchEurQuotes(
+    assetIds: readonly string[],
+  ): Promise<Map<string, EurQuote>> {
+    const quotes = new Map<string, EurQuote>()
+    if (assetIds.length === 0) return quotes
     const body = await this.getJson('simple/price', {
       ids: assetIds.join(','),
       vs_currencies: 'eur',
       precision: 'full',
+      include_24hr_change: 'true',
     })
     const parsed = pricesSchema.safeParse(body)
     if (!parsed.success) throw new PriceProviderError('malformed')
     for (const id of assetIds) {
-      const literal = parsed.data[id]?.eur
+      const entry = parsed.data[id]
+      const literal = entry?.eur
       if (literal === undefined) continue
       const price = decimalFromJsonNumber(literal)
       if (price === null) throw new PriceProviderError('malformed')
-      prices.set(id, price)
+      const change = entry.eur_24h_change
+      quotes.set(id, {
+        priceEur: price,
+        change24hPercent:
+          typeof change === 'string' && change.startsWith(JSON_NUMBER_MARK)
+            ? signedDecimalFromJsonNumber(change.slice(JSON_NUMBER_MARK.length))
+            : null,
+      })
     }
-    return prices
+    return quotes
   }
 
   async searchAssets(query: string): Promise<CryptoAsset[]> {

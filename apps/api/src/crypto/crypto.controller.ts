@@ -39,6 +39,7 @@ import {
   AccountHoldingsDto,
   ASSET_ID_PATTERN,
   CryptoAssetDto,
+  CryptoPortfolioDto,
   CryptoPriceDto,
   CryptoSettingsDto,
   CryptoSummaryDto,
@@ -232,6 +233,30 @@ export class CryptoController {
   @ApiOkResponse({ type: CryptoSummaryDto })
   valuate(): Promise<CryptoSummaryDto> {
     return this.crypto.refreshAll()
+  }
+
+  @Get('portfolio')
+  @ApiOperation({
+    summary: 'The crypto portfolio: holdings summed per asset across accounts',
+    description:
+      'Every open crypto account valued like `summary` (one batched price request when the last valuation is older than the TTL), its holdings summed per price id with exact quantities, value, change over 24 hours, invested and gain where known (fiat lines left out), then the accounts with when their holdings were last fed. The price API only receives asset ids.',
+  })
+  @ApiOkResponse({ type: CryptoPortfolioDto })
+  portfolio(): Promise<CryptoPortfolioDto> {
+    return this.crypto.portfolio()
+  }
+
+  @Post('portfolio/refresh')
+  @HttpCode(200)
+  @TokenAccess('none')
+  @ApiOperation({
+    summary: 'Refresh the whole crypto section ("Actualiser")',
+    description:
+      "Reads every open wallet account on chain when this server syncs wallets (each at most every 30 s; a failing chain keeps its last lines and is reported in the account's `sync`), then asks fresh prices for every held asset in one request and writes today's values. Never fails because of a chain or the price API. Session only.",
+  })
+  @ApiOkResponse({ type: CryptoPortfolioDto })
+  refreshPortfolio(): Promise<CryptoPortfolioDto> {
+    return this.crypto.refreshPortfolio()
   }
 
   @Get('assets')

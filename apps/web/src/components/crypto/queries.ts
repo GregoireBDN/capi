@@ -8,11 +8,11 @@ import {
   accountHoldingsControllerSync,
   accountHoldingsControllerUpdate,
   accountHoldingsControllerValuate,
+  cryptoControllerPortfolio,
+  cryptoControllerRefreshPortfolio,
   cryptoControllerSearch,
   cryptoControllerSetPrice,
   cryptoControllerSettings,
-  cryptoControllerSummary,
-  cryptoControllerValuate,
   walletKeysControllerAdd,
   walletKeysControllerList,
   walletKeysControllerRemove,
@@ -35,7 +35,7 @@ export const cryptoKeys = {
   all: ['crypto'] as const,
   holdings: (accountId: string) => ['crypto', 'holdings', accountId] as const,
   assets: (query: string) => ['crypto', 'assets', query] as const,
-  summary: ['crypto', 'summary'] as const,
+  portfolio: ['crypto', 'portfolio'] as const,
   settings: ['crypto', 'settings'] as const,
   walletKeys: (accountId: string) =>
     ['crypto', 'wallet-keys', accountId] as const,
@@ -43,13 +43,18 @@ export const cryptoKeys = {
     ['crypto', 'wallet-tokens', accountId] as const,
 }
 
-/** Every open crypto account with its valued holdings (the Crypto page). */
-export const cryptoSummaryQuery = queryOptions({
-  queryKey: cryptoKeys.summary,
-  queryFn: () => unwrap(cryptoControllerSummary({ throwOnError: false })),
+/** The Crypto page (#295): every asset summed over the accounts. */
+export const cryptoPortfolioQuery = queryOptions({
+  queryKey: cryptoKeys.portfolio,
+  queryFn: () => unwrap(cryptoControllerPortfolio({ throwOnError: false })),
   // Price ages depend on "now"; the API rate-limits the actual refreshes.
   staleTime: 0,
 })
+
+/** « Actualiser » of the section: the wallets' chains, then the prices. */
+export function refreshPortfolio() {
+  return unwrap(cryptoControllerRefreshPortfolio({ throwOnError: false }))
+}
 
 /** What this server reads by itself (price API, wallet sync). */
 export const cryptoSettingsQuery = queryOptions({
@@ -57,11 +62,6 @@ export const cryptoSettingsQuery = queryOptions({
   queryFn: () => unwrap(cryptoControllerSettings({ throwOnError: false })),
   staleTime: 5 * 60_000,
 })
-
-/** "Actualiser les cours" of every crypto account, one batched request. */
-export function refreshAllPrices() {
-  return unwrap(cryptoControllerValuate({ throwOnError: false }))
-}
 
 export function holdingsQuery(accountId: string) {
   return queryOptions({

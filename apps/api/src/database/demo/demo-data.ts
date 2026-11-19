@@ -1060,6 +1060,8 @@ export async function generateDemoData(
     bitcoin: '82500.00',
     ethereum: '2950.00',
   }
+  // The change over 24 hours the Crypto page shows per asset (#295).
+  const changes: Record<string, string> = { bitcoin: '2.4', ethereum: '-1.8' }
   const btc = knownAsset('BTC')!
   const eth = knownAsset('ETH')!
   const [cryptoImport] = await db
@@ -1207,6 +1209,7 @@ export async function generateDemoData(
       Object.entries(prices).map(([assetId, priceEur]) => ({
         assetId,
         priceEur,
+        change24hPercent: changes[assetId] ?? null,
         source: 'manual' as const,
         fetchedAt: new Date(),
       })),
@@ -1215,6 +1218,7 @@ export async function generateDemoData(
       target: cryptoPricesTable.assetId,
       set: {
         priceEur: sql`excluded.price_eur`,
+        change24hPercent: sql`excluded.change_24h_percent`,
         source: 'manual',
         fetchedAt: new Date(),
       },

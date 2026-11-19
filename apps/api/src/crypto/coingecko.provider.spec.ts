@@ -50,11 +50,32 @@ describe('CoinGeckoPriceProvider', () => {
       ids: 'bitcoin,tiny-coin,other',
       vs_currencies: 'eur',
       precision: 'full',
+      include_24hr_change: 'true',
     })
     expect(prices).toEqual(
       new Map([
         ['bitcoin', '61234.123456789'],
         ['tiny-coin', '0.000000001234'],
+      ]),
+    )
+  })
+
+  it('reads each price with its signed change over 24 hours (#295)', async () => {
+    const client = provider(() =>
+      json(
+        '{"bitcoin":{"eur":61234.5,"eur_24h_change":-1.2345678901},"ethereum":{"eur":2950,"eur_24h_change":3.4e-2},"solana":{"eur":128.4,"eur_24h_change":null},"other":{"eur":1,"eur_24h_change":"oops"}}',
+      ),
+    )
+    const quotes = await client.fetchEurQuotes([
+      'bitcoin',
+      'ethereum',
+      'solana',
+    ])
+    expect(quotes).toEqual(
+      new Map([
+        ['bitcoin', { priceEur: '61234.5', change24hPercent: '-1.2345678901' }],
+        ['ethereum', { priceEur: '2950', change24hPercent: '0.034' }],
+        ['solana', { priceEur: '128.4', change24hPercent: null }],
       ]),
     )
   })

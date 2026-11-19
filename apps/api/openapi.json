@@ -5380,6 +5380,68 @@
         ]
       }
     },
+    "/api/crypto/portfolio": {
+      "get": {
+        "description": "Every open crypto account valued like `summary` (one batched price request when the last valuation is older than the TTL), its holdings summed per price id with exact quantities, value, change over 24 hours, invested and gain where known (fiat lines left out), then the accounts with when their holdings were last fed. The price API only receives asset ids.",
+        "operationId": "CryptoController_portfolio",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CryptoPortfolioDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "The crypto portfolio: holdings summed per asset across accounts",
+        "tags": [
+          "Crypto"
+        ]
+      }
+    },
+    "/api/crypto/portfolio/refresh": {
+      "post": {
+        "description": "Reads every open wallet account on chain when this server syncs wallets (each at most every 30 s; a failing chain keeps its last lines and is reported in the account's `sync`), then asks fresh prices for every held asset in one request and writes today's values. Never fails because of a chain or the price API. Session only.",
+        "operationId": "CryptoController_refreshPortfolio",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CryptoPortfolioDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Refresh the whole crypto section (\"Actualiser\")",
+        "tags": [
+          "Crypto"
+        ]
+      }
+    },
     "/api/crypto/assets": {
       "get": {
         "description": "Proxied to the price API search (only the search text is sent), or a built-in list of common assets when it is disabled or unreachable.",
@@ -12942,6 +13004,12 @@
             "format": "date-time",
             "nullable": true
           },
+          "priceChange24hPercent": {
+            "type": "string",
+            "nullable": true,
+            "description": "Change of the price over 24 hours in percent, signed exact decimal, as the price API gave it with the price; null for manual prices or without one.",
+            "example": "-1.25"
+          },
           "priceStale": {
             "type": "boolean",
             "description": "Price API price older than the cache TTL: the last refresh failed."
@@ -12970,6 +13038,7 @@
           "priceEur",
           "priceSource",
           "priceFetchedAt",
+          "priceChange24hPercent",
           "priceStale",
           "valueCents",
           "gainCents"
@@ -13398,6 +13467,296 @@
           "totals",
           "priceApiEnabled",
           "refreshFailed"
+        ]
+      },
+      "PortfolioPlaceDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Its locations summed.",
+            "example": "0.12345678"
+          },
+          "valueCents": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "accountId",
+          "name",
+          "quantity",
+          "valueCents"
+        ]
+      },
+      "PortfolioAssetDto": {
+        "type": "object",
+        "properties": {
+          "assetId": {
+            "type": "string",
+            "description": "Price provider asset id (CoinGecko id).",
+            "example": "bitcoin"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Exact sum over every account and location.",
+            "example": "0.12345678"
+          },
+          "priceEur": {
+            "type": "string",
+            "nullable": true,
+            "description": "Last known EUR price per unit (exact decimal), if any."
+          },
+          "priceSource": {
+            "type": "string",
+            "enum": [
+              "provider",
+              "manual",
+              null
+            ],
+            "nullable": true
+          },
+          "priceFetchedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "priceStale": {
+            "type": "boolean"
+          },
+          "change24hPercent": {
+            "type": "string",
+            "nullable": true,
+            "description": "Change of the price over 24 hours in percent (signed exact decimal); null for manual prices.",
+            "example": "2.4"
+          },
+          "valueCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Sum of its lines' values (each quantity × price rounded half to even); null without a price."
+          },
+          "change24hCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "What the value moved over 24 hours, from the price change."
+          },
+          "investedCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Sum of the invested amounts, only when every line has one."
+          },
+          "gainCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "priceable": {
+            "type": "boolean",
+            "description": "False for a token known by its contract only: it never gets a price."
+          },
+          "places": {
+            "description": "The accounts holding it, largest value first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortfolioPlaceDto"
+            }
+          }
+        },
+        "required": [
+          "assetId",
+          "symbol",
+          "name",
+          "quantity",
+          "priceEur",
+          "priceSource",
+          "priceFetchedAt",
+          "priceStale",
+          "change24hPercent",
+          "valueCents",
+          "change24hCents",
+          "investedCents",
+          "gainCents",
+          "priceable",
+          "places"
+        ]
+      },
+      "PortfolioTotalsDto": {
+        "type": "object",
+        "properties": {
+          "valueCents": {
+            "type": "integer",
+            "description": "Sum over the assets that have a price."
+          },
+          "change24hCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Sum of the change over 24 hours of the assets that have one; null if none."
+          },
+          "investedCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Invested in the priced assets whose cost is known; null if none."
+          },
+          "gainCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Value of those assets minus what was invested in them."
+          },
+          "withoutInvestedCount": {
+            "type": "integer",
+            "description": "Priced assets whose cost is unknown (out of the gain)."
+          },
+          "missingPriceCount": {
+            "type": "integer",
+            "description": "Assets waiting for a price (contract-only tokens excluded)."
+          },
+          "staleCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "valueCents",
+          "change24hCents",
+          "investedCents",
+          "gainCents",
+          "withoutInvestedCount",
+          "missingPriceCount",
+          "staleCount"
+        ]
+      },
+      "PortfolioAccountDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "institution": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoAccountSource"
+              }
+            ]
+          },
+          "provider": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CryptoExchangeProvider"
+              }
+            ]
+          },
+          "valueCents": {
+            "type": "integer",
+            "description": "Value of its priced holdings."
+          },
+          "holdingCount": {
+            "type": "integer"
+          },
+          "missingPriceCount": {
+            "type": "integer",
+            "description": "Its holdings waiting for a price."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When its holdings were last fed: an exchange's last committed export, a wallet's last sync, a manual account's last edited line. Null when never."
+          },
+          "sync": {
+            "nullable": true,
+            "description": "Wallet accounts only (null otherwise).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WalletSyncStatusDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "accountId",
+          "name",
+          "institution",
+          "source",
+          "provider",
+          "valueCents",
+          "holdingCount",
+          "missingPriceCount",
+          "updatedAt",
+          "sync"
+        ]
+      },
+      "CryptoPortfolioDto": {
+        "type": "object",
+        "properties": {
+          "assets": {
+            "description": "Priced assets by value, largest first, then those without a price by symbol. Fiat lines are left out.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortfolioAssetDto"
+            }
+          },
+          "totals": {
+            "$ref": "#/components/schemas/PortfolioTotalsDto"
+          },
+          "accounts": {
+            "description": "Open crypto accounts, in the accounts order.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortfolioAccountDto"
+            }
+          },
+          "priceApiEnabled": {
+            "type": "boolean"
+          },
+          "walletSyncEnabled": {
+            "type": "boolean"
+          },
+          "refreshFailed": {
+            "type": "boolean",
+            "description": "A price refresh was attempted in this request and failed."
+          },
+          "pricesAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the most recent price was fetched or typed."
+          },
+          "valued": {
+            "type": "boolean",
+            "description": "This request wrote today's value of at least one account (net worth changed)."
+          }
+        },
+        "required": [
+          "assets",
+          "totals",
+          "accounts",
+          "priceApiEnabled",
+          "walletSyncEnabled",
+          "refreshFailed",
+          "pricesAt",
+          "valued"
         ]
       },
       "CryptoAssetDto": {
