@@ -2523,7 +2523,7 @@ function Review321({
           className="h-auto shrink-0 gap-1.5 self-stretch border-transparent px-3 text-white"
           style={{
             backgroundColor: current
-              ? 'color-mix(in oklch, var(--primary) 70%, var(--muted-foreground))'
+              ? 'color-mix(in oklch, var(--info) 25%, var(--info-foreground))'
               : 'color-mix(in oklch, var(--warning) 25%, var(--warning-foreground))',
           }}
         >
@@ -2534,7 +2534,7 @@ function Review321({
         {current && (
           <p className="text-muted-foreground flex items-start gap-1.5 text-xs">
             <CalendarClockIcon aria-hidden className="mt-px size-3.5" />
-            Données jusqu’au 8 nov.
+            Mois en cours : données jusqu’au 8 nov.
           </p>
         )}
         <div className="@container grid gap-2">

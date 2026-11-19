@@ -13,6 +13,7 @@ import {
 } from '@finances/ui'
 import { Link } from '@tanstack/react-router'
 import {
+  CalendarClockIcon,
   CircleCheckIcon,
   ClockIcon,
   HourglassIcon,
@@ -21,7 +22,6 @@ import {
 import type { ReactNode } from 'react'
 import type { MonthReviewDto, ReviewMissingAccountDto } from '#/api/types.gen'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
-import { PeriodNote } from '#/components/PeriodNote'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
 import { FigureTile } from './FigureTile'
@@ -77,8 +77,7 @@ export function MonthReview({
         label: 'En cours',
         icon: <HourglassIcon className="size-[22px]" />,
         // A quiet tone: nothing to do about it yet.
-        color:
-          'color-mix(in oklch, var(--primary) 70%, var(--muted-foreground))',
+        color: 'color-mix(in oklch, var(--info) 25%, var(--info-foreground))',
       }
     : closed
       ? {
@@ -123,9 +122,8 @@ export function MonthReview({
           </Badge>
         </CardHeader>
 
-        {/* mb-0: the card's own padding is enough at its end. */}
         <CardContent className="@container space-y-5">
-          {current && <PeriodNote period={review.period} />}
+          {current && <SoFarNote dataUntil={review.period.dataUntil} />}
           {/* The current month's end has not come: nothing is late yet. */}
           {!current && missing.length > 0 && (
             <MissingAccounts accounts={missing} />
@@ -145,6 +143,23 @@ export function MonthReview({
         </CardContent>
       </Card>
     </section>
+  )
+}
+
+/**
+ * How far the current month's data goes. Not `PeriodNote`: the review
+ * compares nothing, so « comparées au … » would not be true.
+ */
+function SoFarNote({ dataUntil }: { dataUntil: string | null }) {
+  return (
+    <p className="text-muted-foreground flex items-start gap-1.5 text-xs">
+      <CalendarClockIcon aria-hidden className="mt-px size-3.5 shrink-0" />
+      <span>
+        {dataUntil === null
+          ? 'Mois en cours : aucune donnée encore'
+          : `Mois en cours : données jusqu’au ${formatShortDay(dataUntil)}`}
+      </span>
+    </p>
   )
 }
 
