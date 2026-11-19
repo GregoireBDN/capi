@@ -1,9 +1,16 @@
-import { Card, CardContent, CardDescription, CardHeader } from '@finances/ui'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  cn,
+} from '@finances/ui'
 import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react'
 import type { RecurringItemDto } from '#/api/types.gen'
 import { CategoryDot } from '#/components/budget/CategoryDot'
 import { formatCents } from '#/lib/money'
 import { plural } from '#/lib/plural'
+import { ROW_BUTTON, ROW_LIST } from '#/lib/row-list'
 import { formatDayMonth } from './format'
 import { ChargedAfterEndBadge } from './RecurringList'
 
@@ -49,14 +56,17 @@ export function EndedSection({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ul className="divide-y rounded-xl border">
+          <ul className={ROW_LIST}>
             {items.map((item) => (
               <li key={item.id}>
                 <button
                   type="button"
                   onClick={() => onEdit(item)}
                   aria-label={`Modifier ${item.name}`}
-                  className="hover:bg-muted/50 focus-visible:ring-ring/50 flex w-full min-w-0 items-start gap-2 p-3 text-left outline-none first:rounded-t-xl last:rounded-b-xl focus-visible:ring-[3px]"
+                  className={cn(
+                    ROW_BUTTON,
+                    'flex min-w-0 items-start gap-2 p-3',
+                  )}
                 >
                   <span className="mt-1.5 flex">
                     <CategoryDot color={item.categoryColor} />

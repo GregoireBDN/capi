@@ -315,6 +315,12 @@ describe('SpendingPage', () => {
     expect(
       links[1].querySelectorAll('[data-slot="spending-delta"]'),
     ).toHaveLength(1)
+    // Each row fills the space between the rules (#291): square, its focus
+    // ring inside it.
+    for (const link of links) {
+      expect(link.className).not.toMatch(/rounded/)
+      expect(link).toHaveClass('focus-visible:ring-inset')
+    }
   })
 
   it('shows each category with its icon, in the ranking and the legends (#287)', async () => {

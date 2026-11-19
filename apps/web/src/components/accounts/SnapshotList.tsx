@@ -10,6 +10,7 @@ import { PencilIcon } from 'lucide-react'
 import type { SnapshotDto } from '#/api/types.gen'
 import { formatCalendarDate, formatCents } from '#/lib/money'
 import { plural } from '#/lib/plural'
+import { DIVIDED_LIST, ROW_BUTTON } from '#/lib/row-list'
 
 interface SnapshotListProps {
   snapshots: SnapshotDto[]
@@ -77,9 +78,10 @@ export function SnapshotList({
       </CardHeader>
       {snapshots.length > 0 && (
         <CardContent>
-          <ul className="divide-y" aria-label="Valeurs enregistrées">
+          <ul className={DIVIDED_LIST} aria-label="Valeurs enregistrées">
             {newestFirst.map((snapshot) => {
-              const row = 'flex items-center gap-3 py-2.5 text-left text-sm'
+              const row =
+                'flex items-center gap-3 px-2 py-2.5 text-left text-sm'
               return (
                 <li key={snapshot.id}>
                   {onEdit ? (
@@ -87,10 +89,7 @@ export function SnapshotList({
                       type="button"
                       aria-label={`Modifier la valeur du ${formatCalendarDate(snapshot.date)}`}
                       onClick={() => onEdit(snapshot)}
-                      className={cn(
-                        row,
-                        'hover:bg-muted/50 focus-visible:ring-ring -mx-2 w-[calc(100%+1rem)] rounded-md px-2 outline-none focus-visible:ring-2',
-                      )}
+                      className={cn(ROW_BUTTON, row)}
                     >
                       <SnapshotDetails
                         snapshot={snapshot}
