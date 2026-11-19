@@ -10128,6 +10128,15 @@
             "type": "string",
             "nullable": true
           },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
           "budgetable": {
             "type": "boolean",
             "description": "Whether a budget can be set (an `expense` category)."
@@ -10142,6 +10151,7 @@
           "slug",
           "name",
           "color",
+          "icon",
           "budgetable",
           "spentCents"
         ]
@@ -11192,6 +11202,15 @@
             "nullable": true,
             "example": "#d97706"
           },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
           "spentCents": {
             "type": "integer",
             "description": "Positive integer cents: expenses minus the refunds filed in the same category. Negative when refunds exceed expenses."
@@ -11235,6 +11254,7 @@
           "slug",
           "name",
           "color",
+          "icon",
           "spentCents",
           "share",
           "transactionCount",
@@ -11364,6 +11384,15 @@
             "type": "string",
             "nullable": true
           },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
           "valuesCents": {
             "description": "One value per month of `months`. Positive integer cents: expenses minus the refunds filed in the same category. Negative when refunds exceed expenses.",
             "type": "array",
@@ -11383,6 +11412,7 @@
           "slug",
           "name",
           "color",
+          "icon",
           "valuesCents",
           "totalCents"
         ]

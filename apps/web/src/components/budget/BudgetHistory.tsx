@@ -4,6 +4,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CategoryIcon,
   cn,
   formatMonthLong,
   formatMonthShort,
@@ -19,7 +20,6 @@ import { CircleAlertIcon } from 'lucide-react'
 import type { BudgetHistoryDto, BudgetStatus } from '#/api/types.gen'
 import { formatCents } from '#/lib/money'
 import { formatBudgetAmount } from './amount'
-import { CategoryDot } from './CategoryDot'
 
 /** Dense cells: no cents on whole euros, exact otherwise. */
 const euros = formatBudgetAmount
@@ -100,7 +100,11 @@ export function BudgetHistory({ history }: { history: BudgetHistoryDto }) {
                   className="bg-card sticky left-0 z-10 max-w-28 font-normal @2xl:max-w-48"
                 >
                   <span className="flex items-center gap-2">
-                    <CategoryDot color={category.color} />
+                    <CategoryIcon
+                      icon={category.icon}
+                      color={category.color}
+                      size="sm"
+                    />
                     <span className="truncate">{category.name}</span>
                   </span>
                 </TableHead>

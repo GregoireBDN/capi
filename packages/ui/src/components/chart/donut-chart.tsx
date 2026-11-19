@@ -40,6 +40,8 @@ type DonutChartSlice = {
    * categorical slots in input order.
    */
   color?: string
+  /** Drawn instead of the colour swatch in the legend (e.g. a `CategoryIcon`). */
+  icon?: React.ReactNode
 }
 
 type DonutChartProps = {
@@ -53,6 +55,8 @@ type DonutChartProps = {
   minShare?: number
   /** Name of the grouped bucket (default `Autres`). */
   otherLabel?: string
+  /** Legend icon of the grouped bucket, when the slices have icons. */
+  otherIcon?: React.ReactNode
   /** Caption under the centre total (default `Total`). */
   centerLabel?: string
   /** Formats amounts in the legend, tooltip and table (default: cents → euros). */
@@ -74,7 +78,13 @@ type DonutChartProps = {
   className?: string
 }
 
-type DonutRow = { id: string; label: string; value: number; color: string }
+type DonutRow = {
+  id: string
+  label: string
+  value: number
+  color: string
+  icon?: React.ReactNode
+}
 
 /* ============================================================================
  * HELPERS
@@ -132,6 +142,7 @@ function groupDonutSlices(
     label: slice.label,
     value: slice.value,
     color: slice.color ?? slots.get(slice.id) ?? 'var(--chart-other)',
+    ...(slice.icon !== undefined ? { icon: slice.icon } : {}),
   }))
 
   if (folded.length === 0) return rows
@@ -170,6 +181,7 @@ function DonutChart({
   maxSlices = 6,
   minShare = 0.03,
   otherLabel = 'Autres',
+  otherIcon,
   centerLabel = 'Total',
   valueFormatter = formatEuros,
   centerFormatter = formatWholeEuros,
@@ -238,11 +250,13 @@ function DonutChart({
             >
               {rows.map((row) => (
                 <li key={row.id} className="flex items-center gap-2">
-                  <span
-                    aria-hidden
-                    className="size-2.5 shrink-0 rounded-[3px]"
-                    style={{ backgroundColor: chartSeriesColor(row.id) }}
-                  />
+                  {(row.id === OTHER_ID ? otherIcon : row.icon) ?? (
+                    <span
+                      aria-hidden
+                      className="size-2.5 shrink-0 rounded-[3px]"
+                      style={{ backgroundColor: chartSeriesColor(row.id) }}
+                    />
+                  )}
                   <span className="min-w-0 truncate text-muted-foreground">
                     {row.label}
                   </span>

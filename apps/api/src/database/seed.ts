@@ -15,7 +15,7 @@ async function seed() {
     const db = drizzle(client, { schema })
     const categories = await seedDefaultCategories(db)
     console.log(
-      `Default categories: ${categories.inserted} inserted, ${categories.skipped} already present, ${categories.deleted} deleted by the user.`,
+      `Default categories: ${categories.inserted} inserted, ${categories.skipped} already present, ${categories.deleted} deleted by the user, ${categories.iconsFilled} icons filled in.`,
     )
   } finally {
     await client.end()

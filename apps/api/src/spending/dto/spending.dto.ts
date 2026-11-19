@@ -11,6 +11,8 @@ import {
   Max,
   Min,
 } from 'class-validator'
+import { CATEGORY_ICON_DOC } from '#/categories/category-icons'
+import type { CategoryIcon } from '#/categories/category-icons'
 
 /** Full months before the selected one that the averages cover by default. */
 export const AVERAGE_MONTHS_DEFAULT = 6
@@ -138,6 +140,9 @@ export class CategorySpendingDto {
 
   @ApiProperty({ type: String, nullable: true, example: '#d97706' })
   color!: string | null
+
+  @ApiProperty(CATEGORY_ICON_DOC)
+  icon!: CategoryIcon | null
 
   @ApiProperty({ type: 'integer', description: SPENT_DOC })
   spentCents!: number
@@ -301,6 +306,9 @@ export class SpendingTrendSeriesDto {
 
   @ApiProperty({ type: String, nullable: true })
   color!: string | null
+
+  @ApiProperty(CATEGORY_ICON_DOC)
+  icon!: CategoryIcon | null
 
   @ApiProperty({
     type: 'integer',

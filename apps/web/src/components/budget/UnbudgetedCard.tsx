@@ -1,10 +1,16 @@
-import { Button, Card, CardContent, CardHeader, CardTitle } from '@finances/ui'
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CategoryIcon,
+} from '@finances/ui'
 import { Link } from '@tanstack/react-router'
-import { PlusIcon } from 'lucide-react'
+import { CircleHelpIcon, PlusIcon } from 'lucide-react'
 import type { UnbudgetedSpendingDto } from '#/api/types.gen'
 import { formatCents } from '#/lib/money'
 import { ROUTES } from '#/lib/routes'
-import { CategoryDot } from './CategoryDot'
 
 interface UnbudgetedCardProps {
   month: string
@@ -48,7 +54,12 @@ export function UnbudgetedCard({
                   // 44px hit area on touch screens, inside the row padding.
                   className="relative flex min-w-0 flex-1 items-center gap-2 text-sm hover:underline pointer-coarse:touch-hitbox"
                 >
-                  <CategoryDot color={row.color} />
+                  <CategoryIcon
+                    icon={row.icon}
+                    color={row.color}
+                    fallback={row.categoryId ? undefined : CircleHelpIcon}
+                    size="sm"
+                  />
                   <span className={row.name ? 'truncate' : 'truncate italic'}>
                     {name}
                   </span>

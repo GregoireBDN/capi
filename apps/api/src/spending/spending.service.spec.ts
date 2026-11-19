@@ -94,6 +94,7 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
               name: `Test ${slug}`,
               kind: 'expense' as const,
               color: `#00000${index}`,
+              icon: slug === 'groceries' ? ('shopping-cart' as const) : null,
             })),
             { slug: 'test_salary', name: 'Test salary', kind: 'income' },
             { slug: 'test_livret', name: 'Test livret', kind: 'transfer' },
@@ -221,6 +222,7 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
           slug: 'test_groceries',
           name: 'Test groceries',
           color: '#000000',
+          icon: 'shopping-cart',
           spentCents: 6_500,
           transactionCount: 2,
         })
@@ -274,6 +276,7 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
           slug: null,
           name: null,
           color: null,
+          icon: null,
           spentCents: 2_000,
           share: 2_000 / 11_000,
           transactionCount: 2,
@@ -769,6 +772,7 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
           categoryId: c.rent,
           name: 'Test rent',
           color: '#000001',
+          icon: null,
           valuesCents: [80_000, 80_000, 0],
           totalCents: 160_000,
         })
@@ -779,6 +783,7 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
           slug: null,
           name: null,
           color: null,
+          icon: null,
           // gifts in September; uncategorized in October; travel in November.
           valuesCents: [1_000, 9_000, 500],
           totalCents: 10_500,
@@ -860,6 +865,7 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
             slug: null,
             name: null,
             color: null,
+            icon: null,
             valuesCents: [0, 2_000],
             totalCents: 2_000,
           },

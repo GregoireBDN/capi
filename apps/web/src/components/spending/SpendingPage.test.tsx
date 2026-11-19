@@ -93,6 +93,7 @@ function spending(
     slug: 'groceries',
     name: 'Courses',
     color: '#d97706',
+    icon: 'shopping-cart',
     spentCents: 0,
     share: 0,
     transactionCount: 0,
@@ -133,6 +134,7 @@ const october: SpendingByCategoryDto = {
       slug: 'rent',
       name: 'Loyer',
       color: '#dc2626',
+      icon: 'house',
       spentCents: 70_000,
       share: 0.7,
       transactionCount: 1,
@@ -152,6 +154,7 @@ const october: SpendingByCategoryDto = {
       slug: null,
       name: null,
       color: null,
+      icon: null,
       spentCents: 5_000,
       share: 0.05,
       transactionCount: 2,
@@ -174,6 +177,7 @@ function trend(overrides: Partial<SpendingTrendDto> = {}): SpendingTrendDto {
         slug: 'rent',
         name: 'Loyer',
         color: '#dc2626',
+        icon: 'house',
         valuesCents: [70_000, 70_000, 70_000],
         totalCents: 210_000,
       },
@@ -316,6 +320,40 @@ describe('SpendingPage', () => {
     for (const link of links) {
       expect(link.className).not.toMatch(/rounded/)
       expect(link).toHaveClass('focus-visible:ring-inset')
+    }
+  })
+
+  it('shows each category with its icon, in the ranking and the legends (#287)', async () => {
+    renderPage({ month: '2026-10' })
+
+    const list = await screen.findByRole('list', {
+      name: 'Dépenses par catégorie',
+    })
+    const glyphs = within(list)
+      .getAllByRole('link')
+      .map((link) => {
+        const icon = link.querySelector('[data-slot="category-icon"]')
+        expect(icon).toHaveAttribute('aria-hidden', 'true')
+        return icon?.querySelector('svg')?.getAttribute('class')
+      })
+    expect(glyphs).toEqual([
+      expect.stringContaining('lucide-house'),
+      expect.stringContaining('lucide-shopping-cart'),
+      // No category: a question mark.
+      expect.stringContaining('lucide-circle-question-mark'),
+    ])
+    // Rent's colour tints its tile.
+    const rent = within(list)
+      .getAllByRole('link')[0]
+      .querySelector<HTMLElement>('[data-slot="category-icon"]')!
+    expect(rent.style.backgroundColor).toContain('rgb(220, 38, 38)')
+
+    // The donut and trend legends draw the icons too, no colour squares.
+    const legends = await screen.findAllByRole('list', { name: 'Légende' })
+    for (const legend of legends) {
+      expect(
+        legend.querySelectorAll('[data-slot="category-icon"]').length,
+      ).toBe(within(legend).getAllByRole('listitem').length)
     }
   })
 

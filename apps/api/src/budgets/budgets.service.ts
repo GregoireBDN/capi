@@ -188,6 +188,7 @@ export class BudgetsService {
           slug: category?.slug ?? null,
           name: category?.name ?? null,
           color: category?.color ?? null,
+          icon: category?.icon ?? null,
           budgetable: category?.kind === 'expense',
           spentCents: row.spentCents,
         }
