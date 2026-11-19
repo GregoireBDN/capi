@@ -94,7 +94,7 @@ The entry point is `apps/mcp/dist/index.js` (Node ≥ 22). Rebuild after pulling
 
 ### 2. Create a token
 
-In the app, open **Profil → Jetons d’accès**, create a token with the **Lecture seule** scope (questions only) or the **Lecture et écriture** scope (also the write tools) and, ideally, an expiry. It is shown once: copy it into your MCP client configuration (below), nowhere else. Revoke it from the same card if it leaks; its calls are listed under **Derniers appels**.
+In the app, open **Réglages → Claude et accès → Claude sur ce Mac**, choose **Lire seulement** (questions only) or **Lire et classer** (also the write tools), then a duration. The last step shows the token once, already inside a ready-to-paste `claude_desktop_config.json` and `claude mcp add` command (with the app's URL; give the path of `apps/mcp/dist/index.js` once, it is remembered on that device): copy one of them, nowhere else. Revoke it from its row in **Accès actifs** if it leaks; its detail lists what it did in plain words.
 
 ### 3. Configuration
 
@@ -164,7 +164,7 @@ Claude Desktop doesn't expand variables, so the token sits in that file: keep it
 
 - **Public surface, nothing else**: `POST /mcp` (stateless: one MCP server per request, JSON responses; `GET` / `DELETE` → 405), `/.well-known/oauth-protected-resource[/mcp]`, and `/.well-known/oauth-authorization-server`, `/oauth/register`, `/oauth/token`, `/oauth/revoke` relayed to the API's `/api/oauth/*` (form bodies converted to JSON, 16 KB at most). Any other path is 404: the API stays private.
 - **Tokens**: `/mcp` takes only OAuth access tokens (`fin_oat_…`) issued by the API for this resource, checked with `GET /api/oauth/token-info` (cached 30 s) and forwarded to the API, which applies the same scope rules as a personal access token. Without a valid token: `401` with `WWW-Authenticate: Bearer resource_metadata="…"`, which starts Claude's OAuth flow. A personal access token never works here.
-- **Consent** happens on the web app (`/oauth/authorize`, on the tailnet), in the owner's browser; read only unless "Autoriser les modifications" is ticked. Connections are listed and disconnected from **Profil → Applications connectées**.
+- **Consent** happens on the web app (`/oauth/authorize`, on the tailnet), in the owner's browser; read only unless "Autoriser les modifications" is ticked. Connections are listed with the tokens in **Réglages → Claude et accès → Accès actifs** and disconnected from their detail.
 - **Differences with stdio**: `preview_bank_import` takes the CSV text (`content`) only, never a `filePath` (the server would read its own disk); error messages talk about reconnecting the connector.
 - **Limits and logs**: 120 requests/min per client IP and per token here, plus the API's own limits; `Origin` other than the public origin → 403; the client IP comes from `X-Forwarded-For` only through `MCP_TRUSTED_PROXIES`. Logs hold the method, a fixed route label and the status.
 

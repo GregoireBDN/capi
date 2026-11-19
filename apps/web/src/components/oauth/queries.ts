@@ -6,6 +6,7 @@ import {
   oAuthConsentControllerDetails,
   oAuthConsentControllerGrants,
   oAuthConsentControllerRevokeGrant,
+  oAuthControllerMetadata,
 } from '#/api'
 import { ApiRequestError, unwrap } from '#/lib/queries'
 
@@ -41,6 +42,7 @@ export const oauthKeys = {
   details: (params: AuthorizeParams) => ['oauth', 'authorize', params] as const,
   grants: ['oauth', 'grants'] as const,
   audit: ['oauth', 'audit'] as const,
+  metadata: ['oauth', 'metadata'] as const,
 }
 
 export const authorizationDetailsQuery = (params: AuthorizeParams) =>
@@ -68,7 +70,8 @@ export const approveAuthorization = (
 export const denyAuthorization = (params: AuthorizeParams) =>
   unwrap(oAuthConsentControllerDeny({ body: params, throwOnError: false }))
 
-export const AUDIT_LIMIT = 20
+/** Calls read for an app's detail, filtered to the app (#329). */
+export const AUDIT_LIMIT = 200
 
 /**
  * Connected applications. A 404 means remote access is off on the server
@@ -97,6 +100,24 @@ export const oauthAuditQuery = queryOptions({
       }),
     ),
   staleTime: 0,
+})
+
+/**
+ * The connector's address for claude.ai (#329): the MCP adapter's public
+ * origin (the issuer) and `/mcp`.
+ */
+export const connectorUrlQuery = queryOptions({
+  queryKey: oauthKeys.metadata,
+  queryFn: async () => {
+    const metadata = await unwrap(
+      oAuthControllerMetadata({ throwOnError: false }),
+    )
+    const issuer = (metadata as { issuer?: unknown } | null)?.issuer
+    return typeof issuer === 'string'
+      ? `${issuer.replace(/\/+$/, '')}/mcp`
+      : null
+  },
+  staleTime: Infinity,
 })
 
 export const revokeGrant = (id: string) =>

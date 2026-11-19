@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { AccessTokensCard } from '#/components/access-tokens/AccessTokensCard'
+import { ClaudeAccessPage } from '#/components/access/ClaudeAccessPage'
 import { PageHeader } from '#/components/app-shell/PageHeader'
-import { ConnectedAppsCard } from '#/components/oauth/ConnectedAppsCard'
 import { useAuth } from '#/lib/auth-context'
 
 export const Route = createFileRoute('/_app/_settings/settings/access')({
@@ -10,9 +9,8 @@ export const Route = createFileRoute('/_app/_settings/settings/access')({
 })
 
 /**
- * Claude et accès (#300): the personal access tokens (the local MCP server,
- * scripts) and the apps connected through remote access (hidden while the
- * server has it off).
+ * Claude et accès (#300, reworked in #329): connect Claude (this Mac, the
+ * phone and claude.ai, a script) and every access in one list.
  */
 function AccessRoute() {
   const { user: guardUser } = Route.useRouteContext()
@@ -23,10 +21,9 @@ function AccessRoute() {
     <div className="@container space-y-6">
       <PageHeader
         title="Claude et accès"
-        description="Ce qui peut lire vos finances sans votre mot de passe : Claude et vos scripts."
+        description="Qui peut lire vos finances sans votre mot de passe."
       />
-      <AccessTokensCard email={email} />
-      <ConnectedAppsCard />
+      <ClaudeAccessPage email={email} />
     </div>
   )
 }

@@ -28,19 +28,15 @@ export function securitySummary(
 }
 
 /**
- * Claude et accès: the personal access tokens, then the connected apps when
- * remote access is on (`apps` is null when the server has it off).
+ * Claude et accès: every access in one count (#329), the personal access
+ * tokens and the connected apps (`apps` is null when the server has remote
+ * access off).
  */
 export function accessSummary(tokens: number, apps: number | null): string {
-  const parts = [countLabel(tokens, 'jeton', 'jetons', 'Aucun jeton')]
-  if (apps != null)
-    parts.push(
-      countLabel(
-        apps,
-        'app connectée',
-        'apps connectées',
-        'aucune app connectée',
-      ),
-    )
-  return parts.join(', ')
+  return countLabel(
+    tokens + (apps ?? 0),
+    'accès actif',
+    'accès actifs',
+    'Aucun accès',
+  )
 }
