@@ -19,6 +19,7 @@ const api = vi.hoisted(() => ({
   transactionsControllerUpdateManual: vi.fn(),
   transactionsControllerRemoveManual: vi.fn(),
   transactionsControllerManualSuggestions: vi.fn(),
+  transactionsControllerList: vi.fn(),
   accountsControllerList: vi.fn(),
   categoriesControllerList: vi.fn(),
 }))
@@ -731,6 +732,15 @@ describe('ManualTransactionSheet with a meal-voucher card (#298)', () => {
     api.transactionsControllerCreateManual.mockImplementation(() =>
       ok({ amountCents: -980, category: voucherCategories[0] }),
     )
+    // 15 € already paid with the card today: 10 € left under the cap.
+    api.transactionsControllerList.mockImplementation(() =>
+      ok({
+        items: [{ id: 'p1', amountCents: -1_500 }],
+        total: 1,
+        page: 1,
+        limit: 100,
+      }),
+    )
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     })
@@ -759,13 +769,32 @@ describe('ManualTransactionSheet with a meal-voucher card (#298)', () => {
     await user.click(
       within(paidWith).getByRole('radio', { name: 'Titres-restaurant' }),
     )
-    // Over the 25 € daily cap: refused on the card.
+    // What the card can still pay today is shown under the choice.
+    expect(
+      await within(dialog).findByText(
+        /Encore 10,00 € possibles aujourd’hui avec la carte/,
+      ),
+    ).toBeInTheDocument()
+    expect(api.transactionsControllerList).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.objectContaining({
+          accountId: VOUCHER,
+          from: '2026-11-13',
+          to: '2026-11-13',
+          kind: 'expense',
+        }),
+      }),
+    )
+    // Over what is left: refused on the card, said on the amount too.
     await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
     await user.clear(within(dialog).getByLabelText('Montant'))
-    await user.type(within(dialog).getByLabelText('Montant'), '25,01')
+    await user.type(within(dialog).getByLabelText('Montant'), '10,01')
+    expect(
+      within(dialog).getByText(/ne peut plus payer que 10,00 € aujourd’hui/),
+    ).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
     expect(
-      within(dialog).getByText(/25 € maximum par jour/),
+      within(dialog).getByText(/ne peut plus payer que 10,00 € aujourd’hui/),
     ).toBeInTheDocument()
     expect(
       within(dialog).getByRole('button', { name: 'Ajouter' }),

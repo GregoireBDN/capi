@@ -46,7 +46,12 @@ import {
 import { currentDay } from '#/lib/calendar'
 import { pickableCategories } from '#/lib/categories'
 import { formatCalendarDate, formatCents } from '#/lib/money'
-import { accountsQuery, categoriesQuery, isTransactional } from '#/lib/queries'
+import {
+  accountsQuery,
+  ApiRequestError,
+  categoriesQuery,
+  isTransactional,
+} from '#/lib/queries'
 import {
   afterManualExpenseChanged,
   createManualExpense,
@@ -55,6 +60,7 @@ import {
   manualExpenseErrorMessage,
   manualSuggestionsQuery,
   updateManualExpense,
+  voucherDayQuery,
 } from './queries'
 import {
   MAX_AMOUNT_CENTS,
@@ -70,6 +76,7 @@ import {
   CategoryChips,
   DateChips,
   HabitGrid,
+  previousDay,
 } from './manual-fields'
 import { splitTransaction } from '#/components/transactions/edits'
 
@@ -425,14 +432,48 @@ export function ManualTransactionSheet({
       : date > today
         ? 'La date ne peut pas être dans le futur'
         : null
-  // One payment over the daily cap never goes on the card; the API also
-  // counts the day's other payments.
-  const voucherError =
+  // A payment with the card (#298): what it can still pay that day under
+  // the 25 € cap (the day's other payments counted, this one's previous
+  // version left out), shown while the amount is typed and refused over it.
+  const onVoucher =
     chosenAccount?.type === 'meal_voucher' &&
     kind === 'expense' &&
-    direction === 'out' &&
-    (parseEurosToCents(amount) ?? 0) > MEAL_VOUCHER_DAILY_CAP_CENTS
-      ? 'Les titres-restaurant paient 25 € maximum par jour : payez le reste avec un autre compte.'
+    direction === 'out'
+  const voucherDayKey = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : today
+  const voucherDay = useQuery({
+    ...voucherDayQuery(accountId, voucherDayKey),
+    enabled: open && onVoucher,
+  })
+  const voucherLeft = Math.max(
+    0,
+    MEAL_VOUCHER_DAILY_CAP_CENTS -
+      (voucherDay.data ?? [])
+        .filter((payment) => payment.id !== expense?.id)
+        .reduce((total, payment) => total + payment.cents, 0),
+  )
+  const voucherWhen =
+    voucherDayKey === today
+      ? 'aujourd’hui'
+      : voucherDayKey === previousDay(today)
+        ? 'hier'
+        : `le ${formatCalendarDate(voucherDayKey)}`
+  const typedCents = parseEurosToCents(amount) ?? 0
+  const voucherError =
+    onVoucher && typedCents > voucherLeft
+      ? voucherLeft === 0
+        ? `La carte a déjà payé 25 € ${voucherWhen}, son plafond du jour : payez avec un autre compte.`
+        : `La carte ne peut plus payer que ${formatCents(voucherLeft)} ${voucherWhen} (25 € par jour) : payez le reste avec un autre compte.`
+      : null
+  const voucherHint =
+    onVoucher && voucherDay.isSuccess && voucherError === null
+      ? [
+          `Encore ${formatCents(voucherLeft)} possibles ${voucherWhen} avec la carte`,
+          chosenAccount.balanceCents !== null
+            ? `solde ${formatCents(chosenAccount.balanceCents)}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
       : null
   const labelError =
     !categoryId && label.trim() === ''
@@ -486,7 +527,18 @@ export function ManualTransactionSheet({
       onOpenChange(false)
       await afterManualExpenseChanged(queryClient)
     },
-    onError: (error) => toast.error(manualExpenseErrorMessage(error)),
+    onError: (error) => {
+      // Over the card's daily cap (another payment of the day entered
+      // elsewhere): refreshed, the day's total shows the error in place.
+      if (
+        error instanceof ApiRequestError &&
+        error.apiMessage?.includes('capped at 25')
+      ) {
+        void voucherDay.refetch()
+        return
+      }
+      toast.error(manualExpenseErrorMessage(error))
+    },
   })
 
   const remove = useMutation({
@@ -811,10 +863,16 @@ export function ManualTransactionSheet({
               </span>
               <span aria-hidden>€</span>
             </div>
-            {showAmountError && (
+            {showAmountError ? (
               <FieldError id={`${id}-amount-error`} className="text-center">
                 {amountError}
               </FieldError>
+            ) : voucherError ? (
+              <FieldError className="text-center">{voucherError}</FieldError>
+            ) : (
+              voucherHint && (
+                <p className="text-muted-foreground text-sm">{voucherHint}</p>
+              )
             )}
           </div>
           {keypad ? (
@@ -869,7 +927,13 @@ export function ManualTransactionSheet({
                   value={accountId}
                   onChange={setAccountId}
                 />
-                {voucherError && <FieldError>{voucherError}</FieldError>}
+                {voucherError ? (
+                  <FieldError>{voucherError}</FieldError>
+                ) : (
+                  voucherHint && (
+                    <FieldDescription>{voucherHint}</FieldDescription>
+                  )
+                )}
               </Field>
             )}
 
