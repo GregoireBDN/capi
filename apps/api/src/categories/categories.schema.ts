@@ -58,7 +58,13 @@ export const categorizationRulesTable = pgTable(
   'categorization_rules',
   {
     ...coreColumns,
+    /** Creation order: breaks ties of the computed order (#299). */
     position: integer('position').notNull(),
+    /**
+     * Explicit precedence (#299): higher first, before the computed « most
+     * specific first » order. 0 unless the owner made a rule win a conflict.
+     */
+    priority: integer('priority').notNull().default(0),
     enabled: boolean('enabled').notNull().default(true),
     // Conditions
     matchType: ruleMatchTypeEnum('match_type').notNull().default('contains'),

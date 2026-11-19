@@ -178,6 +178,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
           expect(first).toMatchObject({
             position: 0,
+            priority: 0,
             enabled: true,
             matchType: 'contains',
             accountId: null,
@@ -231,81 +232,259 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
-    describe('reorder', () => {
-      it('sets positions from the order of the ids', async () => {
-        await withFixture(async ({ service, groceries }) => {
-          const a = await service.create({
-            labelPattern: 'AAA',
+    describe('order (#299)', () => {
+      it('lists the rules most specific first, whatever their creation order', async () => {
+        await withFixture(async ({ service, groceries, salary }) => {
+          const broad = await service.create({
+            labelPattern: 'FAKEMART',
             categoryId: groceries,
           })
-          const b = await service.create({
-            labelPattern: 'BBB',
-            categoryId: groceries,
+          const longer = await service.create({
+            labelPattern: 'FAKEMART EXPRESS',
+            categoryId: salary,
           })
-          const c = await service.create({
-            labelPattern: 'CCC',
+          const withAmount = await service.create({
+            labelPattern: 'FAKEMART',
+            categoryId: salary,
+            maxAmountCents: -10_000,
+          })
+          const regex = await service.create({
+            matchType: 'regex',
+            labelPattern: '^CB',
             categoryId: groceries,
           })
 
-          const reordered = await service.reorder([c.id, a.id, b.id])
-
-          expect(reordered.map((r) => [r.id, r.position])).toEqual([
-            [c.id, 0],
-            [a.id, 1],
-            [b.id, 2],
+          expect(longer.rank).toBe(0)
+          expect(
+            (await service.list()).map((r) => [r.id, r.rank]),
+          ).toEqual([
+            [regex.id, 0],
+            [longer.id, 1],
+            [withAmount.id, 2],
+            [broad.id, 3],
           ])
+        })
+      })
+
+      it('puts a higher priority first, set on create or update', async () => {
+        await withFixture(async ({ service, groceries }) => {
+          const specific = await service.create({
+            labelPattern: 'FAKEMART EXPRESS',
+            categoryId: groceries,
+          })
+          const pinned = await service.create({
+            labelPattern: 'FAKEMART',
+            categoryId: groceries,
+            priority: 1,
+          })
+          expect(pinned).toMatchObject({ priority: 1, rank: 0 })
+
+          const updated = await service.update(pinned.id, { priority: 0 })
+          expect(updated.rank).toBe(1)
           expect((await service.list()).map((r) => r.id)).toEqual([
-            c.id,
-            a.id,
-            b.id,
+            specific.id,
+            pinned.id,
           ])
         })
       })
+    })
 
-      it('keeps a strict order: new rules go after the reordered ones', async () => {
-        await withFixture(async ({ service, groceries }) => {
-          const a = await service.create({
-            labelPattern: 'AAA',
-            categoryId: groceries,
+    describe('prefer', () => {
+      it('raises the priority just above the other rule, once', async () => {
+        await withFixture(async ({ service, groceries, salary }) => {
+          const specific = await service.create({
+            labelPattern: 'FAKEMART EXPRESS',
+            categoryId: salary,
+            priority: 2,
           })
-          const b = await service.create({
-            labelPattern: 'BBB',
-            categoryId: groceries,
-          })
-          await service.reorder([b.id, a.id])
-          await service.reorder([a.id, b.id])
-          const c = await service.create({
-            labelPattern: 'CCC',
+          const broad = await service.create({
+            labelPattern: 'FAKEMART',
             categoryId: groceries,
           })
 
-          const rules = await service.list()
-          expect(rules.map((r) => [r.id, r.position])).toEqual([
-            [a.id, 0],
-            [b.id, 1],
-            [c.id, 2],
-          ])
+          const preferred = await service.prefer(broad.id, specific.id)
+          expect(preferred).toMatchObject({ priority: 3, rank: 0 })
+
+          // Already first: unchanged.
+          const again = await service.prefer(broad.id, specific.id)
+          expect(again).toMatchObject({ priority: 3, rank: 0 })
+          const other = await service.prefer(specific.id, specific.id).catch(
+            (error: unknown) => error,
+          )
+          expect(other).toBeInstanceOf(BadRequestException)
+          await expect(
+            service.prefer(broad.id, '00000000-0000-4000-8000-000000000000'),
+          ).rejects.toThrow(/overRuleId does not match any rule/)
+          await expect(
+            service.prefer('00000000-0000-4000-8000-000000000000', broad.id),
+          ).rejects.toBeInstanceOf(NotFoundException)
         })
       })
+    })
 
-      it('rejects a list that is not exactly the current rules', async () => {
-        await withFixture(async ({ service, groceries }) => {
-          const a = await service.create({
-            labelPattern: 'AAA',
-            categoryId: groceries,
-          })
-          const b = await service.create({
-            labelPattern: 'BBB',
-            categoryId: groceries,
-          })
-          const unknown = '00000000-0000-4000-8000-000000000000'
+    describe('insights', () => {
+      const NOW = new Date('2026-06-15T10:00:00Z')
 
-          for (const ids of [[a.id], [a.id, b.id, unknown], [a.id, a.id]]) {
-            await expect(service.reorder(ids)).rejects.toThrow(
-              /every categorization rule exactly once/,
+      it('counts the matches of the last 12 months, and the conflicts', async () => {
+        await withFixture(
+          async ({ tx, service, accountId, groceries, salary, savings }) => {
+            const eats = await service.create({
+              labelPattern: 'FAKEEATS DELIVERY',
+              categoryId: salary,
+            })
+            const ride = await service.create({
+              labelPattern: 'FAKEEATS',
+              categoryId: savings,
+            })
+            // Same outcome as `eats`: overlapping, not a conflict.
+            const same = await service.create({
+              labelPattern: 'DELIVERY',
+              categoryId: salary,
+            })
+            const unused = await service.create({
+              labelPattern: 'NOTHING MATCHES THIS',
+              categoryId: groceries,
+            })
+            await tx.insert(transactionsTable).values([
+              transaction(accountId, {
+                bookingDate: '2026-06-01',
+                rawLabel: 'CB FAKEEATS DELIVERY 0106',
+                categoryId: salary,
+                ruleId: eats.id,
+              }),
+              transaction(accountId, {
+                bookingDate: '2026-05-01',
+                rawLabel: 'CB FAKEEATS DELIVERY 0105',
+                needsReview: true,
+              }),
+              transaction(accountId, {
+                bookingDate: '2026-04-01',
+                rawLabel: 'CB FAKEEATS 0104',
+                categoryId: savings,
+                ruleId: ride.id,
+              }),
+              // Filed by hand: counted as a match, never as a conflict.
+              transaction(accountId, {
+                bookingDate: '2026-03-01',
+                rawLabel: 'CB FAKEEATS DELIVERY 0103',
+                categoryId: groceries,
+              }),
+              // Older than 12 months: a conflict, not a match.
+              transaction(accountId, {
+                bookingDate: '2025-06-14',
+                rawLabel: 'CB FAKEEATS DELIVERY 1406',
+                needsReview: true,
+              }),
+            ])
+
+            const insights = await service.insights(NOW)
+
+            expect(insights.since).toBe('2025-06-15')
+            expect(
+              Object.fromEntries(
+                insights.rules.map((r) => [r.ruleId, r.matchCount]),
+              ),
+            ).toEqual({
+              [eats.id]: 3,
+              [ride.id]: 4,
+              [same.id]: 3,
+              [unused.id]: 0,
+            })
+            expect(insights.conflicts).toEqual([
+              { winnerRuleId: eats.id, loserRuleId: ride.id, count: 3 },
+            ])
+
+            // Making the broad rule win turns the conflict around.
+            await service.prefer(ride.id, eats.id)
+            const after = await service.insights(NOW)
+            expect(after.conflicts).toEqual(
+              expect.arrayContaining([
+                { winnerRuleId: ride.id, loserRuleId: eats.id, count: 3 },
+                { winnerRuleId: ride.id, loserRuleId: same.id, count: 3 },
+              ]),
             )
-          }
-          expect((await service.list()).map((r) => r.id)).toEqual([a.id, b.id])
+            expect(after.conflicts).toHaveLength(2)
+          },
+        )
+      })
+
+      it('leaves disabled rules out of the conflicts', async () => {
+        await withFixture(
+          async ({ tx, service, accountId, groceries, salary }) => {
+            await service.create({
+              labelPattern: 'FAKEMART EXPRESS',
+              categoryId: salary,
+              enabled: false,
+            })
+            await service.create({
+              labelPattern: 'FAKEMART',
+              categoryId: groceries,
+            })
+            await tx.insert(transactionsTable).values(
+              transaction(accountId, {
+                bookingDate: '2026-06-01',
+                rawLabel: 'CB FAKEMART EXPRESS',
+                needsReview: true,
+              }),
+            )
+            const insights = await service.insights(NOW)
+            expect(insights.conflicts).toEqual([])
+            expect(insights.rules.map((r) => r.matchCount)).toEqual([1, 1])
+          },
+        )
+      })
+    })
+
+    describe('matches', () => {
+      const NOW = new Date('2026-06-15T10:00:00Z')
+
+      it('lists what the conditions catch over 12 months, most recent first', async () => {
+        await withFixture(async ({ tx, service, accountId, groceries }) => {
+          const [manual, fresh] = await tx
+            .insert(transactionsTable)
+            .values([
+              transaction(accountId, {
+                bookingDate: '2026-02-01',
+                rawLabel: 'CB FAKEMART 0102',
+                categoryId: groceries,
+              }),
+              transaction(accountId, {
+                bookingDate: '2026-06-10',
+                rawLabel: 'CB FAKEMART 1006',
+                amountCents: -50_000,
+                needsReview: true,
+              }),
+              transaction(accountId, {
+                bookingDate: '2025-01-01',
+                rawLabel: 'CB FAKEMART 0101',
+              }),
+              transaction(accountId, {
+                bookingDate: '2026-06-11',
+                rawLabel: 'CB OTHER SHOP',
+              }),
+            ])
+            .returning()
+
+          const result = await service.matches(
+            { labelPattern: 'fakemart' },
+            NOW,
+          )
+          expect(result).toMatchObject({ since: '2025-06-15', total: 2 })
+          expect(
+            result.transactions.map((t) => [t.id, t.manual, t.categoryId]),
+          ).toEqual([
+            [fresh.id, false, null],
+            [manual.id, true, groceries],
+          ])
+
+          const big = await service.matches(
+            { labelPattern: 'fakemart', maxAmountCents: -10_000 },
+            NOW,
+          )
+          expect(big.transactions.map((t) => t.id)).toEqual([fresh.id])
+          await expect(
+            service.matches({ matchType: 'regex', labelPattern: '(' }, NOW),
+          ).rejects.toBeInstanceOf(BadRequestException)
         })
       })
     })
@@ -405,7 +584,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         )
       })
 
-      it('follows the order: the first matching rule wins, also after a reorder', async () => {
+      it('follows the computed order, then the priority a conflict fix sets', async () => {
         await withFixture(
           async ({ tx, service, accountId, groceries, salary }) => {
             const broad = await service.create({
@@ -417,12 +596,11 @@ describe.skipIf(!process.env.DATABASE_URL)(
               categoryId: salary,
               kind: 'expense',
             })
-            const disabled = await service.create({
-              labelPattern: 'FAKEMART',
+            await service.create({
+              labelPattern: 'FAKEMART CARTE 4XXX',
               categoryId: salary,
+              enabled: false,
             })
-            await service.reorder([disabled.id, broad.id, narrow.id])
-            await service.update(disabled.id, { enabled: false })
             const [row] = await tx
               .insert(transactionsTable)
               .values(transaction(accountId, { needsReview: true }))
@@ -430,16 +608,16 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
             await service.apply()
             expect(await reload(tx, row.id)).toMatchObject({
-              categoryId: groceries,
-              ruleId: broad.id,
-            })
-
-            await service.reorder([disabled.id, narrow.id, broad.id])
-            await service.apply()
-            expect(await reload(tx, row.id)).toMatchObject({
               categoryId: salary,
               ruleId: narrow.id,
               kind: 'expense',
+            })
+
+            await service.prefer(broad.id, narrow.id)
+            await service.apply()
+            expect(await reload(tx, row.id)).toMatchObject({
+              categoryId: groceries,
+              ruleId: broad.id,
             })
           },
         )
@@ -753,6 +931,58 @@ describe.skipIf(!process.env.DATABASE_URL)(
               ruleId: edited.id,
               needsReview: false,
             })
+          },
+        )
+      })
+
+      it('lists the conflicts of the previewed rule, won and lost', async () => {
+        await withFixture(
+          async ({ tx, service, accountId, groceries, salary, savings }) => {
+            const longer = await service.create({
+              labelPattern: 'FAKEMART EXPRESS',
+              categoryId: salary,
+            })
+            const shorter = await service.create({
+              labelPattern: 'MART',
+              categoryId: savings,
+            })
+            // Not involved: matches nothing the preview matches.
+            await service.create({
+              labelPattern: 'OTHER',
+              categoryId: savings,
+            })
+            await tx.insert(transactionsTable).values([
+              transaction(accountId, {
+                rawLabel: 'CB FAKEMART EXPRESS 0101',
+                needsReview: true,
+              }),
+              transaction(accountId, {
+                rawLabel: 'CB FAKEMART 0202',
+                needsReview: true,
+              }),
+              transaction(accountId, {
+                rawLabel: 'CB FAKEMART 0303',
+                needsReview: true,
+              }),
+            ])
+
+            const preview = await service.preview({
+              labelPattern: 'fakemart',
+              categoryId: groceries,
+            })
+            expect(preview.conflicts).toEqual([
+              {
+                winnerRuleId: '00000000-0000-0000-0000-000000000000',
+                loserRuleId: shorter.id,
+                // Not the row the longer rule wins.
+                count: 2,
+              },
+              {
+                winnerRuleId: longer.id,
+                loserRuleId: '00000000-0000-0000-0000-000000000000',
+                count: 1,
+              },
+            ])
           },
         )
       })

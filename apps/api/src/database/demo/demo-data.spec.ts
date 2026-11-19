@@ -5,8 +5,11 @@ import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import * as schema from '#/database/schema'
+import { categorize } from '#/categories/rules/categorize'
 import {
   accountsTable,
+  categoriesTable,
+  categorizationRulesTable,
   importsTable,
   recurringItemsTable,
   transactionSplitsTable,
@@ -249,6 +252,42 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const second = await seeded((tx) => digest(tx))
       expect(first.length).toBeGreaterThan(0)
       expect(second).toEqual(first)
+    })
+
+    it('files the same transactions with the computed rule order as with the old manual one (#299)', async () => {
+      const diff = await seeded(async (tx) => {
+        const rules = await tx.select().from(categorizationRulesTable)
+        const categoriesById = new Map(
+          (await tx.select().from(categoriesTable)).map((c) => [c.id, c]),
+        )
+        // The order before #299: `position` only.
+        const manualOrder = rules.map((rule) => ({
+          ...rule,
+          priority: -rule.position,
+        }))
+        const rows = await tx
+          .select({
+            accountId: transactionsTable.accountId,
+            rawLabel: transactionsTable.rawLabel,
+            merchant: transactionsTable.merchant,
+            amountCents: transactionsTable.amountCents,
+          })
+          .from(transactionsTable)
+        let changed = 0
+        for (const row of rows) {
+          const computed = categorize(row, rules, categoriesById)
+          const manual = categorize(row, manualOrder, categoriesById)
+          if (
+            computed?.categoryId !== manual?.categoryId ||
+            computed?.kind !== manual?.kind
+          ) {
+            changed++
+          }
+        }
+        return { rows: rows.length, changed }
+      })
+      expect(diff.rows).toBeGreaterThan(500)
+      expect(diff.changed).toBe(0)
     })
   },
 )

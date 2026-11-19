@@ -29,10 +29,14 @@ import { CategorizationRulesService } from './categorization-rules.service'
 import {
   ApplyCategorizationRulesResultDto,
   CategorizationRuleDto,
+  CategorizationRuleMatchesDto,
+  CategorizationRuleMatchesQueryDto,
   CategorizationRulePreviewDto,
+  CategorizationRulesInsightsDto,
   CreateCategorizationRuleDto,
+  MATCH_WINDOW_MONTHS,
+  PreferCategorizationRuleDto,
   PreviewCategorizationRuleDto,
-  ReorderCategorizationRulesDto,
   SuggestCategorizationRuleDto,
   SuggestedCategorizationRuleDto,
   UpdateCategorizationRuleDto,
@@ -60,7 +64,7 @@ export class CategorizationRulesController {
   @ApiOperation({
     summary: 'Create a rule',
     description:
-      'The rule is appended last (lowest priority). Existing transactions are only affected by `POST /categorization-rules/apply`.',
+      'Its place in the evaluation order is computed (`rank`: higher `priority`, then the most specific rule). Existing transactions are only affected by `POST /categorization-rules/apply`.',
   })
   @ApiBody({ type: CreateCategorizationRuleDto })
   @ApiCreatedResponse({ type: CategorizationRuleDto })
@@ -74,22 +78,49 @@ export class CategorizationRulesController {
     return this.rulesService.create(dto)
   }
 
-  @Post('reorder')
+  @Get('insights')
+  @ApiOperation({
+    summary: 'Match counts and conflicts of the rules',
+    description: `How many transactions of the last ${MATCH_WINDOW_MONTHS} months each rule's conditions match, and the pairs of enabled rules that match the same transactions (not filed by hand) with different outcomes, with the one that wins.`,
+  })
+  @ApiOkResponse({ type: CategorizationRulesInsightsDto })
+  insights(): Promise<CategorizationRulesInsightsDto> {
+    return this.rulesService.insights()
+  }
+
+  @Post('matches')
+  @TokenAccess('read')
   @HttpCode(200)
   @ApiOperation({
-    summary: 'Set the evaluation order',
+    summary: 'Transactions some rule conditions would match',
+    description: `The transactions of the last ${MATCH_WINDOW_MONTHS} months the conditions match, whatever their category (count and the most recent ones). Nothing is saved.`,
+  })
+  @ApiBody({ type: CategorizationRuleMatchesQueryDto })
+  @ApiOkResponse({ type: CategorizationRuleMatchesDto })
+  @ApiBadRequestResponse({ description: 'Invalid pattern or body.' })
+  matches(
+    @Body() dto: CategorizationRuleMatchesQueryDto,
+  ): Promise<CategorizationRuleMatchesDto> {
+    return this.rulesService.matches(dto)
+  }
+
+  @Post(':id/prefer')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Make a rule win over another',
     description:
-      'Takes every rule id exactly once; the first id gets the highest priority.',
+      'Raises the rule’s priority just above `overRuleId` when it comes after it in the evaluation order, so it wins the transactions both match. Existing transactions change with `POST /categorization-rules/apply`.',
   })
-  @ApiBody({ type: ReorderCategorizationRulesDto })
-  @ApiOkResponse({ type: [CategorizationRuleDto] })
-  @ApiBadRequestResponse({
-    description: 'The ids are not exactly the current rules.',
-  })
-  reorder(
-    @Body() dto: ReorderCategorizationRulesDto,
-  ): Promise<CategorizationRuleDto[]> {
-    return this.rulesService.reorder(dto.ids)
+  @ApiParam(ID_PARAM)
+  @ApiBody({ type: PreferCategorizationRuleDto })
+  @ApiOkResponse({ type: CategorizationRuleDto })
+  @ApiBadRequestResponse({ description: 'Unknown or same `overRuleId`.' })
+  @ApiNotFoundResponse()
+  prefer(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: PreferCategorizationRuleDto,
+  ): Promise<CategorizationRuleDto> {
+    return this.rulesService.prefer(id, dto.overRuleId)
   }
 
   @Post('suggest')
@@ -115,7 +146,7 @@ export class CategorizationRulesController {
   @ApiOperation({
     summary: 'Preview the effect of a new or edited rule',
     description:
-      'What saving this rule (appended last, or replacing `ruleId` at its position) and re-applying the rules would change: counts and the most recent changed transactions. Nothing is saved.',
+      'What saving this rule (new, or replacing `ruleId`) and re-applying the rules would change: counts, the most recent changed transactions and its conflicts with other rules. Nothing is saved.',
   })
   @ApiBody({ type: PreviewCategorizationRuleDto })
   @ApiOkResponse({ type: CategorizationRulePreviewDto })

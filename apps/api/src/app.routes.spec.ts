@@ -111,6 +111,7 @@ const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
   'POST /api/budgets/suggest': 'read',
   'POST /api/categorization-rules': 'write',
   'POST /api/categorization-rules/apply': 'write',
+  'POST /api/categorization-rules/matches': 'read',
   'POST /api/categorization-rules/preview': 'read',
   'POST /api/categorization-rules/suggest': 'read',
   // MCP bank import tools (#103): the preview → commit flow, nothing else.

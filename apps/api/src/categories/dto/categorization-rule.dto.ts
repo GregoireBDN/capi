@@ -2,9 +2,6 @@ import { applyDecorators } from '@nestjs/common'
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Transform } from 'class-transformer'
 import {
-  ArrayMaxSize,
-  ArrayUnique,
-  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -30,6 +27,9 @@ const RAW_LABEL_MAX = 1000
 
 /** Changed transactions listed by a rule preview. */
 export const PREVIEW_SAMPLE_SIZE = 20
+
+/** Match counts look this many months back (#299). */
+export const MATCH_WINDOW_MONTHS = 12
 
 const trim = () =>
   Transform(({ value }: { value: unknown }) =>
@@ -63,6 +63,12 @@ const KIND_DOC = {
     "Overrides the category's kind when set (e.g. `transfer` for a move to one of the user's own accounts).",
 } as const
 
+const PRIORITY_DOC =
+  'Explicit precedence (#299): rules with a higher priority are evaluated before the computed « most specific first » order. Default 0.'
+
+const PRIORITY_MIN = -1000
+const PRIORITY_MAX = 1000
+
 const COUNTERPART_DOC =
   'Destination account of the transfers the rule files (#296), set as their counterpart when they have none. Only on a rule whose outcome is a `transfer`.'
 
@@ -72,9 +78,20 @@ export class CategorizationRuleDto {
 
   @ApiProperty({
     type: 'integer',
-    description: 'Evaluation order: the first matching rule (lowest) wins.',
+    description:
+      'Creation order. Only breaks ties of the computed order (`rank`).',
   })
   position!: number
+
+  @ApiProperty({ type: 'integer', description: PRIORITY_DOC })
+  priority!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      '0-based place in the evaluation order (the first matching rule wins): higher `priority` first, then the most specific rule (regex, longer pattern, more account / amount conditions), then the oldest.',
+  })
+  rank!: number
 
   @ApiProperty({ type: Boolean })
   enabled!: boolean
@@ -135,6 +152,19 @@ export class CreateCategorizationRuleDto {
   @IsOptional()
   @IsBoolean()
   enabled?: boolean
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    default: 0,
+    minimum: PRIORITY_MIN,
+    maximum: PRIORITY_MAX,
+    description: PRIORITY_DOC,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(PRIORITY_MIN)
+  @Max(PRIORITY_MAX)
+  priority?: number
 
   @ApiPropertyOptional({ ...MATCH_TYPE_DOC, default: 'contains' })
   @IsOptional()
@@ -203,6 +233,18 @@ export class UpdateCategorizationRuleDto {
   @IsBoolean()
   enabled?: boolean
 
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: PRIORITY_MIN,
+    maximum: PRIORITY_MAX,
+    description: PRIORITY_DOC,
+  })
+  @NotNullIfPresent()
+  @IsInt()
+  @Min(PRIORITY_MIN)
+  @Max(PRIORITY_MAX)
+  priority?: number
+
   @ApiPropertyOptional(MATCH_TYPE_DOC)
   @NotNullIfPresent()
   @IsIn(RULE_MATCH_TYPES)
@@ -264,20 +306,6 @@ export class UpdateCategorizationRuleDto {
   @IsOptional()
   @IsUUID()
   counterpartAccountId?: string | null
-}
-
-export class ReorderCategorizationRulesDto {
-  @ApiProperty({
-    type: [String],
-    format: 'uuid',
-    description:
-      'Every rule id, in the new evaluation order (first = highest priority).',
-  })
-  @IsArray()
-  @ArrayUnique()
-  @ArrayMaxSize(10_000)
-  @IsUUID('all', { each: true })
-  ids!: string[]
 }
 
 export class SuggestCategorizationRuleDto {
@@ -468,4 +496,161 @@ export class CategorizationRulePreviewDto {
     description: `The changed transactions, most recent first, at most ${PREVIEW_SAMPLE_SIZE}.`,
   })
   transactions!: CategorizationRulePreviewTransactionDto[]
+
+  @ApiProperty({
+    type: () => [CategorizationRuleConflictDto],
+    description:
+      'Other rules that also match transactions this rule matches but file them differently (category or kind), with who wins. Transactions filed by hand are never counted.',
+  })
+  conflicts!: CategorizationRuleConflictDto[]
+}
+
+/**
+ * Two enabled rules matching the same transactions with different outcomes
+ * (category or kind): the first in the evaluation order wins them.
+ */
+export class CategorizationRuleConflictDto {
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    description:
+      'The rule that wins these transactions. In a preview, the id of a new rule is the nil UUID.',
+  })
+  winnerRuleId!: string
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    description: 'The rule that matches them too but loses.',
+  })
+  loserRuleId!: string
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Transactions both rules match (not filed by hand), all dates.',
+  })
+  count!: number
+}
+
+/** The conditions of a rule, to list what it would catch. */
+export class CategorizationRuleMatchesQueryDto {
+  @ApiPropertyOptional({ ...MATCH_TYPE_DOC, default: 'contains' })
+  @IsOptional()
+  @IsIn(RULE_MATCH_TYPES)
+  matchType?: RuleMatchType
+
+  @ApiProperty({ type: String, minLength: 1, maxLength: LABEL_PATTERN_MAX })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(LABEL_PATTERN_MAX)
+  labelPattern!: string
+
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  accountId?: string | null
+
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  @IsOptional()
+  @CentsValidators()
+  minAmountCents?: number | null
+
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  @IsOptional()
+  @CentsValidators()
+  maxAmountCents?: number | null
+}
+
+/** A transaction a rule's conditions match. */
+export class CategorizationRuleMatchDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string
+
+  @ApiProperty({ type: String, format: 'date' })
+  bookingDate!: string
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  accountId!: string
+
+  @ApiProperty({ type: String })
+  rawLabel!: string
+
+  @ApiProperty({ type: String, nullable: true })
+  merchant!: string | null
+
+  @ApiProperty({ type: 'integer', description: 'Signed integer cents.' })
+  amountCents!: number
+
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  categoryId!: string | null
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'Filed by hand (a category, no rule): rules never change it.',
+  })
+  manual!: boolean
+}
+
+export class CategorizationRuleMatchesDto {
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    description: `First day counted: ${MATCH_WINDOW_MONTHS} months before today (Europe/Paris).`,
+  })
+  since!: string
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Transactions booked since `since` the conditions match.',
+  })
+  total!: number
+
+  @ApiProperty({
+    type: [CategorizationRuleMatchDto],
+    description: `The most recent of them, at most ${PREVIEW_SAMPLE_SIZE}.`,
+  })
+  transactions!: CategorizationRuleMatchDto[]
+}
+
+/** How much a rule is used. */
+export class CategorizationRuleUsageDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  ruleId!: string
+
+  @ApiProperty({
+    type: 'integer',
+    description: `Transactions booked over the last ${MATCH_WINDOW_MONTHS} months its conditions match (any categorization, enabled or not).`,
+  })
+  matchCount!: number
+}
+
+export class CategorizationRulesInsightsDto {
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    description: `First day of the match counts: ${MATCH_WINDOW_MONTHS} months before today (Europe/Paris).`,
+  })
+  since!: string
+
+  @ApiProperty({ type: [CategorizationRuleUsageDto] })
+  rules!: CategorizationRuleUsageDto[]
+
+  @ApiProperty({
+    type: [CategorizationRuleConflictDto],
+    description:
+      'Pairs of enabled rules matching the same transactions (not filed by hand) with different outcomes, most transactions first.',
+  })
+  conflicts!: CategorizationRuleConflictDto[]
+}
+
+export class PreferCategorizationRuleDto {
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    description: 'The rule this one must now be evaluated before.',
+  })
+  @IsUUID()
+  overRuleId!: string
 }

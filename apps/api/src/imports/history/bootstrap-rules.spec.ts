@@ -62,6 +62,7 @@ function rule(
     createdAt: EPOCH,
     updatedAt: EPOCH,
     position: 0,
+    priority: 0,
     enabled: true,
     matchType: 'contains',
     labelPattern,

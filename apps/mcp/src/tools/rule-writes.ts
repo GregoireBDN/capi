@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type {
   ApplyCategorizationRulesResultDto,
+  CategorizationRuleConflictDto,
   CategorizationRuleDto,
   CategorizationRulePreviewDto,
   CreateCategorizationRuleDto,
@@ -19,12 +20,39 @@ import { confirmSchema, PREVIEW_FOOTER, PREVIEW_HEADER } from './write.js'
 
 const PATTERN_MAX = 255
 const SHOWN_CHANGES = 10
+const SHOWN_CONFLICTS = 5
+/** Id the API gives the unsaved rule in a preview. */
+const PREVIEW_RULE_ID = '00000000-0000-0000-0000-000000000000'
+
+/** `« UBER » → Transport` for an existing rule. */
+function ruleName(
+  rule: CategorizationRuleDto | undefined,
+  categoryName: (id: string) => string,
+): string {
+  if (!rule) return 'une règle supprimée'
+  return `« ${rule.labelPattern} » → ${categoryName(rule.categoryId)}`
+}
+
+/** One line per conflict of the previewed rule (the nil id). */
+function conflictLines(
+  conflicts: CategorizationRuleConflictDto[],
+  rules: CategorizationRuleDto[],
+  categoryName: (id: string) => string,
+): string[] {
+  const byId = new Map(rules.map((r) => [r.id, r]))
+  return conflicts.slice(0, SHOWN_CONFLICTS).map((conflict) => {
+    if (conflict.winnerRuleId === PREVIEW_RULE_ID) {
+      return `- ${conflict.count} opération(s) aussi reconnue(s) par la règle ${ruleName(byId.get(conflict.loserRuleId), categoryName)} : la nouvelle règle passerait avant (plus précise).`
+    }
+    return `- ${conflict.count} opération(s) resteraient à la règle ${ruleName(byId.get(conflict.winnerRuleId), categoryName)}, plus précise ou prioritaire.`
+  })
+}
 
 export const createRuleTool = defineTool({
   name: 'create_rule',
   title: 'Créer une règle de catégorisation',
   description:
-    'Create a categorization rule: transactions whose label contains `pattern` (or matches it as a regex) get `category`. Rules are evaluated in order and the new one comes last (lowest priority); transactions filed by hand are never overwritten. Without confirm: preview with how many transactions match and what re-applying the rules would change (samples). With confirm: true it creates the rule, once (an identical rule is not created again), and with applyToExisting also re-applies the rules to existing transactions.',
+    'Create a categorization rule: transactions whose label contains `pattern` (or matches it as a regex) get `category`. The first matching rule wins and the order is computed: most specific first (regex, then the longer pattern, then account / amount conditions), unless the owner gave a rule priority in the app; transactions filed by hand are never overwritten. Without confirm: preview with how many transactions match, what re-applying the rules would change (samples) and the conflicts with existing rules (transactions another rule also matches but files differently, and which rule wins). With confirm: true it creates the rule, once (an identical rule is not created again), and with applyToExisting also re-applies the rules to existing transactions.',
   write: { idempotent: true },
   inputSchema: {
     pattern: z
@@ -95,7 +123,7 @@ export const createRuleTool = defineTool({
     )
     if (existing) {
       return [
-        `Rien à créer : une règle identique existe déjà (position ${existing.position + 1}${existing.enabled ? '' : ', désactivée'}).`,
+        `Rien à créer : une règle identique existe déjà (rang ${existing.rank + 1} dans l'ordre d'évaluation${existing.enabled ? '' : ', désactivée'}).`,
         ...describe,
       ].join('\n')
     }
@@ -109,6 +137,7 @@ export const createRuleTool = defineTool({
       const names = new Map(categories.map((c) => [c.id, c.name]))
       const name = (id: string | null) =>
         id ? (names.get(id) ?? 'catégorie inconnue') : 'sans catégorie'
+      const conflicts = conflictLines(preview.conflicts, rules, name)
       const samples = preview.transactions
         .slice(0, SHOWN_CHANGES)
         .map(
@@ -117,7 +146,7 @@ export const createRuleTool = defineTool({
         )
       return [
         PREVIEW_HEADER,
-        `Règle qui serait créée (en dernière position, priorité la plus basse) :`,
+        `Règle qui serait créée (sa place dans l'ordre est calculée : la plus précise d'abord) :`,
         ...describe,
         '',
         `Opérations existantes correspondant au libellé : ${preview.matched}.`,
@@ -128,6 +157,14 @@ export const createRuleTool = defineTool({
           ? [
               `Exemples${preview.changed > samples.length ? ` (${samples.length} sur ${preview.changed})` : ''} :`,
               ...samples,
+            ]
+          : []),
+        ...(conflicts.length > 0
+          ? [
+              '',
+              `Conflits avec des règles existantes (mêmes opérations, autre catégorie) :`,
+              ...conflicts,
+              "Pour faire gagner une autre règle : « Faire gagner cette règle » sur la page Règles de l'application.",
             ]
           : []),
         '',
@@ -141,7 +178,7 @@ export const createRuleTool = defineTool({
       rule,
     )
     const lines = [
-      `Règle créée (position ${created.position + 1}, id ${created.id}) :`,
+      `Règle créée (rang ${created.rank + 1} dans l'ordre d'évaluation, id ${created.id}) :`,
       ...describe,
     ]
     if (args.applyToExisting) {

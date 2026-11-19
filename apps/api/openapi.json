@@ -1862,7 +1862,7 @@
         ]
       },
       "post": {
-        "description": "The rule is appended last (lowest priority). Existing transactions are only affected by `POST /categorization-rules/apply`.",
+        "description": "Its place in the evaluation order is computed (`rank`: higher `priority`, then the most specific rule). Existing transactions are only affected by `POST /categorization-rules/apply`.",
         "operationId": "CategorizationRulesController_create",
         "parameters": [],
         "requestBody": {
@@ -1904,37 +1904,21 @@
         ]
       }
     },
-    "/api/categorization-rules/reorder": {
-      "post": {
-        "description": "Takes every rule id exactly once; the first id gets the highest priority.",
-        "operationId": "CategorizationRulesController_reorder",
+    "/api/categorization-rules/insights": {
+      "get": {
+        "description": "How many transactions of the last 12 months each rule's conditions match, and the pairs of enabled rules that match the same transactions (not filed by hand) with different outcomes, with the one that wins.",
+        "operationId": "CategorizationRulesController_insights",
         "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReorderCategorizationRulesDto"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CategorizationRuleDto"
-                  }
+                  "$ref": "#/components/schemas/CategorizationRulesInsightsDto"
                 }
               }
             }
-          },
-          "400": {
-            "description": "The ids are not exactly the current rules."
           },
           "401": {
             "description": ""
@@ -1945,7 +1929,108 @@
             "token": []
           }
         ],
-        "summary": "Set the evaluation order",
+        "summary": "Match counts and conflicts of the rules",
+        "tags": [
+          "Categorization rules"
+        ]
+      }
+    },
+    "/api/categorization-rules/matches": {
+      "post": {
+        "description": "The transactions of the last 12 months the conditions match, whatever their category (count and the most recent ones). Nothing is saved.",
+        "operationId": "CategorizationRulesController_matches",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategorizationRuleMatchesQueryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategorizationRuleMatchesDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid pattern or body."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Transactions some rule conditions would match",
+        "tags": [
+          "Categorization rules"
+        ]
+      }
+    },
+    "/api/categorization-rules/{id}/prefer": {
+      "post": {
+        "description": "Raises the rule’s priority just above `overRuleId` when it comes after it in the evaluation order, so it wins the transactions both match. Existing transactions change with `POST /categorization-rules/apply`.",
+        "operationId": "CategorizationRulesController_prefer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferCategorizationRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategorizationRuleDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown or same `overRuleId`."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Make a rule win over another",
         "tags": [
           "Categorization rules"
         ]
@@ -1997,7 +2082,7 @@
     },
     "/api/categorization-rules/preview": {
       "post": {
-        "description": "What saving this rule (appended last, or replacing `ruleId` at its position) and re-applying the rules would change: counts and the most recent changed transactions. Nothing is saved.",
+        "description": "What saving this rule (new, or replacing `ruleId`) and re-applying the rules would change: counts, the most recent changed transactions and its conflicts with other rules. Nothing is saved.",
         "operationId": "CategorizationRulesController_preview",
         "parameters": [],
         "requestBody": {
@@ -7713,7 +7798,15 @@
           },
           "position": {
             "type": "integer",
-            "description": "Evaluation order: the first matching rule (lowest) wins."
+            "description": "Creation order. Only breaks ties of the computed order (`rank`)."
+          },
+          "priority": {
+            "type": "integer",
+            "description": "Explicit precedence (#299): rules with a higher priority are evaluated before the computed « most specific first » order. Default 0."
+          },
+          "rank": {
+            "type": "integer",
+            "description": "0-based place in the evaluation order (the first matching rule wins): higher `priority` first, then the most specific rule (regex, longer pattern, more account / amount conditions), then the oldest."
           },
           "enabled": {
             "type": "boolean"
@@ -7780,6 +7873,8 @@
         "required": [
           "id",
           "position",
+          "priority",
+          "rank",
           "enabled",
           "matchType",
           "labelPattern",
@@ -7800,6 +7895,13 @@
           "enabled": {
             "type": "boolean",
             "default": true
+          },
+          "priority": {
+            "type": "integer",
+            "default": 0,
+            "minimum": -1000,
+            "maximum": 1000,
+            "description": "Explicit precedence (#299): rules with a higher priority are evaluated before the computed « most specific first » order. Default 0."
           },
           "matchType": {
             "description": "`contains`: case-, accent- and punctuation-insensitive substring of the raw label or merchant. `regex`: case-insensitive regular expression tested against the raw label and merchant.",
@@ -7858,20 +7960,194 @@
           "categoryId"
         ]
       },
-      "ReorderCategorizationRulesDto": {
+      "CategorizationRuleUsageDto": {
         "type": "object",
         "properties": {
-          "ids": {
-            "description": "Every rule id, in the new evaluation order (first = highest priority).",
+          "ruleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "matchCount": {
+            "type": "integer",
+            "description": "Transactions booked over the last 12 months its conditions match (any categorization, enabled or not)."
+          }
+        },
+        "required": [
+          "ruleId",
+          "matchCount"
+        ]
+      },
+      "CategorizationRuleConflictDto": {
+        "type": "object",
+        "properties": {
+          "winnerRuleId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The rule that wins these transactions. In a preview, the id of a new rule is the nil UUID."
+          },
+          "loserRuleId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The rule that matches them too but loses."
+          },
+          "count": {
+            "type": "integer",
+            "description": "Transactions both rules match (not filed by hand), all dates."
+          }
+        },
+        "required": [
+          "winnerRuleId",
+          "loserRuleId",
+          "count"
+        ]
+      },
+      "CategorizationRulesInsightsDto": {
+        "type": "object",
+        "properties": {
+          "since": {
+            "type": "string",
+            "format": "date",
+            "description": "First day of the match counts: 12 months before today (Europe/Paris)."
+          },
+          "rules": {
             "type": "array",
             "items": {
-              "type": "string",
-              "format": "uuid"
+              "$ref": "#/components/schemas/CategorizationRuleUsageDto"
+            }
+          },
+          "conflicts": {
+            "description": "Pairs of enabled rules matching the same transactions (not filed by hand) with different outcomes, most transactions first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategorizationRuleConflictDto"
             }
           }
         },
         "required": [
-          "ids"
+          "since",
+          "rules",
+          "conflicts"
+        ]
+      },
+      "CategorizationRuleMatchesQueryDto": {
+        "type": "object",
+        "properties": {
+          "matchType": {
+            "description": "`contains`: case-, accent- and punctuation-insensitive substring of the raw label or merchant. `regex`: case-insensitive regular expression tested against the raw label and merchant.",
+            "default": "contains",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RuleMatchType"
+              }
+            ]
+          },
+          "labelPattern": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "minAmountCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "maxAmountCents": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "labelPattern"
+        ]
+      },
+      "CategorizationRuleMatchDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bookingDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rawLabel": {
+            "type": "string"
+          },
+          "merchant": {
+            "type": "string",
+            "nullable": true
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Signed integer cents."
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "manual": {
+            "type": "boolean",
+            "description": "Filed by hand (a category, no rule): rules never change it."
+          }
+        },
+        "required": [
+          "id",
+          "bookingDate",
+          "accountId",
+          "rawLabel",
+          "merchant",
+          "amountCents",
+          "categoryId",
+          "manual"
+        ]
+      },
+      "CategorizationRuleMatchesDto": {
+        "type": "object",
+        "properties": {
+          "since": {
+            "type": "string",
+            "format": "date",
+            "description": "First day counted: 12 months before today (Europe/Paris)."
+          },
+          "total": {
+            "type": "integer",
+            "description": "Transactions booked since `since` the conditions match."
+          },
+          "transactions": {
+            "description": "The most recent of them, at most 20.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategorizationRuleMatchDto"
+            }
+          }
+        },
+        "required": [
+          "since",
+          "total",
+          "transactions"
+        ]
+      },
+      "PreferCategorizationRuleDto": {
+        "type": "object",
+        "properties": {
+          "overRuleId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The rule this one must now be evaluated before."
+          }
+        },
+        "required": [
+          "overRuleId"
         ]
       },
       "SuggestCategorizationRuleDto": {
@@ -7975,6 +8251,13 @@
           "enabled": {
             "type": "boolean",
             "default": true
+          },
+          "priority": {
+            "type": "integer",
+            "default": 0,
+            "minimum": -1000,
+            "maximum": 1000,
+            "description": "Explicit precedence (#299): rules with a higher priority are evaluated before the computed « most specific first » order. Default 0."
           },
           "matchType": {
             "description": "`contains`: case-, accent- and punctuation-insensitive substring of the raw label or merchant. `regex`: case-insensitive regular expression tested against the raw label and merchant.",
@@ -8129,6 +8412,13 @@
             "items": {
               "$ref": "#/components/schemas/CategorizationRulePreviewTransactionDto"
             }
+          },
+          "conflicts": {
+            "description": "Other rules that also match transactions this rule matches but file them differently (category or kind), with who wins. Transactions filed by hand are never counted.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategorizationRuleConflictDto"
+            }
           }
         },
         "required": [
@@ -8136,7 +8426,8 @@
           "leavingReview",
           "released",
           "changed",
-          "transactions"
+          "transactions",
+          "conflicts"
         ]
       },
       "ApplyCategorizationRulesResultDto": {
@@ -8176,6 +8467,12 @@
         "properties": {
           "enabled": {
             "type": "boolean"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": -1000,
+            "maximum": 1000,
+            "description": "Explicit precedence (#299): rules with a higher priority are evaluated before the computed « most specific first » order. Default 0."
           },
           "matchType": {
             "description": "`contains`: case-, accent- and punctuation-insensitive substring of the raw label or merchant. `regex`: case-insensitive regular expression tested against the raw label and merchant.",

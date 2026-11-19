@@ -169,13 +169,68 @@ export function ruleMatches(
   return matchesSubject(rule, new MatchSubject(tx))
 }
 
-/** Ascending `position`, ties broken by id so the order is always the same. */
-export function compareRules(
-  a: Pick<SelectCategorizationRule, 'position' | 'id'>,
-  b: Pick<SelectCategorizationRule, 'position' | 'id'>,
-): number {
+/** The fields of a rule its place in the evaluation order depends on. */
+export type RuleOrderFields = Pick<
+  SelectCategorizationRule,
+  | 'id'
+  | 'priority'
+  | 'position'
+  | 'matchType'
+  | 'labelPattern'
+  | 'accountId'
+  | 'minAmountCents'
+  | 'maxAmountCents'
+>
+
+/**
+ * Length of the text a rule's pattern looks for: the folded pattern of a
+ * `contains` rule (so `Uber  Eats` and `UBER EATS` weigh the same), the raw
+ * pattern of a regex.
+ */
+function patternLength(rule: RuleOrderFields): number {
+  return rule.matchType === 'regex'
+    ? rule.labelPattern.length
+    : foldPattern(rule.labelPattern).length
+}
+
+/** Account and amount conditions set on a rule, 0 to 3. */
+function conditionCount(rule: RuleOrderFields): number {
+  return (
+    (rule.accountId === null ? 0 : 1) +
+    (rule.minAmountCents === null ? 0 : 1) +
+    (rule.maxAmountCents === null ? 0 : 1)
+  )
+}
+
+/**
+ * The evaluation order (#299), computed: the owner never has to place a rule.
+ *
+ * 1. Higher `priority` first: 0 by default, raised by « faire gagner cette
+ *    règle » or by hand under « Avancé », the explicit order for rare cases.
+ * 2. Most specific first: a regex before a `contains` pattern, then the
+ *    longer pattern (`UBER EATS` before `UBER`), then the rule with more
+ *    account / amount conditions.
+ * 3. Older first (`position`, the creation order), then id, so the order is
+ *    always the same.
+ */
+export function compareRules(a: RuleOrderFields, b: RuleOrderFields): number {
+  if (a.priority !== b.priority) return b.priority - a.priority
+  const regexA = a.matchType === 'regex' ? 1 : 0
+  const regexB = b.matchType === 'regex' ? 1 : 0
+  if (regexA !== regexB) return regexB - regexA
+  const lengthA = patternLength(a)
+  const lengthB = patternLength(b)
+  if (lengthA !== lengthB) return lengthB - lengthA
+  const conditionsA = conditionCount(a)
+  const conditionsB = conditionCount(b)
+  if (conditionsA !== conditionsB) return conditionsB - conditionsA
   if (a.position !== b.position) return a.position - b.position
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+}
+
+/** `rules` sorted in evaluation order (a copy). */
+export function sortRules<T extends RuleOrderFields>(rules: readonly T[]): T[] {
+  return [...rules].sort(compareRules)
 }
 
 /** Sorted copies of the rule lists passed in, so a batch sorts only once. */
@@ -189,15 +244,15 @@ function ordered(
 ): SelectCategorizationRule[] {
   let sorted = sortedRules.get(rules)
   if (!sorted) {
-    sorted = [...rules].sort(compareRules)
+    sorted = sortRules(rules)
     sortedRules.set(rules, sorted)
   }
   return sorted
 }
 
 /**
- * Applies the ordered rules to one transaction: the first enabled rule (lowest
- * `position`) whose every non-null condition matches wins.
+ * Applies the rules to one transaction in evaluation order (`compareRules`):
+ * the first enabled rule whose every non-null condition matches wins.
  *
  * - `contains`: case-, accent- and punctuation-insensitive substring of the raw
  *   label or of the merchant.
@@ -236,4 +291,33 @@ export function categorize(
     }
   }
   return null
+}
+
+/**
+ * Every enabled rule (with a known category) whose conditions hold for `tx`,
+ * in evaluation order: the first one is the rule `categorize` picks, the
+ * others are the rules it overrides. Pass the same `rules` array for a batch.
+ */
+export function matchingRules(
+  tx: CategorizableTransaction,
+  rules: readonly SelectCategorizationRule[],
+  categoriesById: ReadonlyMap<string, SelectCategory>,
+): SelectCategorizationRule[] {
+  const subject = new MatchSubject(tx)
+  return ordered(rules).filter(
+    (rule) =>
+      rule.enabled &&
+      categoriesById.has(rule.categoryId) &&
+      matchesSubject(rule, subject),
+  )
+}
+
+/** Category and kind a rule gives (its kind, else its category's). */
+export function ruleOutcome(
+  rule: Pick<SelectCategorizationRule, 'categoryId' | 'kind'>,
+  categoriesById: ReadonlyMap<string, SelectCategory>,
+): { categoryId: string; kind: TransactionKind } | null {
+  const category = categoriesById.get(rule.categoryId)
+  if (!category) return null
+  return { categoryId: category.id, kind: rule.kind ?? category.kind }
 }
