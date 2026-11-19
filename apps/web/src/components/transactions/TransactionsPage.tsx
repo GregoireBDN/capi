@@ -3,6 +3,7 @@ import {
   AlertDescription,
   AlertTitle,
   Button,
+  Card,
   Checkbox,
   EmptyState,
   NativeSelect,
@@ -67,15 +68,26 @@ interface TransactionsPageProps {
   ) => void
 }
 
+/** Rows being loaded, inside the list's card. */
 function ListSkeleton() {
   return (
-    <div className="space-y-2" aria-busy="true" aria-label="Chargement">
+    <div className="divide-y" aria-busy="true" aria-label="Chargement">
       {[0, 1, 2, 3, 4].map((i) => (
-        <Skeleton key={i} className="h-14 w-full rounded-lg" />
+        <div key={i} className="flex items-center gap-3 px-3 py-2.5">
+          <Skeleton className="size-8 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Skeleton className="h-3.5 w-2/3" />
+            <Skeleton className="h-3 w-1/3" />
+          </div>
+          <Skeleton className="h-3.5 w-16" />
+        </div>
       ))}
     </div>
   )
 }
+
+/** An empty state inside the list's card: the card is its frame. */
+const IN_CARD = 'border-0'
 
 /** "3 nov." stays as is, "3 nov. 2025" gets its full stop. */
 function sentenceEnd(text: string): string {
@@ -109,6 +121,7 @@ function EmptyList({
   if (filtered) {
     return (
       <EmptyState
+        className={IN_CARD}
         icon={<SearchXIcon />}
         title="Aucune opération ne correspond à ces filtres"
         description="Modifiez ou réinitialisez les filtres pour élargir la recherche."
@@ -139,6 +152,7 @@ function EmptyList({
   )
   return (
     <EmptyState
+      className={IN_CARD}
       icon={<ArrowLeftRightIcon />}
       title={
         allMonths
@@ -181,6 +195,7 @@ function ReviewDone({
 }) {
   return (
     <EmptyState
+      className={IN_CARD}
       icon={<CircleCheckBigIcon />}
       title={
         allMonths
@@ -340,175 +355,191 @@ export function TransactionsPage({
         <TransactionSummary summary={summary.data} />
       )}
 
-      {list.isPending && <ListSkeleton />}
+      {/* The list in a card (#327): its header (count, selection, sort),
+          the days, « Charger plus » at its end; empty, loading and error
+          states inside it. `overflow-clip`, not `hidden`: the day headings
+          stay sticky under the top bar. */}
+      <Card data-slot="transactions-card" className="gap-0 overflow-clip py-0">
+        {list.isPending && <ListSkeleton />}
 
-      {list.isError && (
-        <Alert variant="destructive">
-          <AlertTitle>Impossible de charger les opérations.</AlertTitle>
-          <AlertDescription>
-            <Button size="sm" outline onClick={() => void list.refetch()}>
-              Réessayer
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {list.isSuccess && items.length === 0 && reviewOnly && (
-        <ReviewDone
-          allMonths={search.month === ALL_MONTHS}
-          month={filters.month ?? shownMonth}
-          onAllDates={() => onSearchChange({ ...search, month: ALL_MONTHS })}
-          onLeave={() =>
-            onSearchChange(
-              compactSearch({
-                month: search.month === ALL_MONTHS ? undefined : search.month,
-                sort: search.sort,
-              }),
-            )
-          }
-        />
-      )}
-
-      {list.isSuccess && items.length === 0 && !reviewOnly && (
-        <EmptyList
-          filtered={filtered}
-          allMonths={search.month === ALL_MONTHS}
-          month={filters.month ?? shownMonth}
-          coverage={coverage.data}
-          onReset={() => onSearchChange({ month: search.month })}
-          onMonthChange={(month) =>
-            onSearchChange({
-              ...search,
-              month: month === shownMonth ? undefined : month,
-            })
-          }
-        />
-      )}
-
-      {list.isSuccess && items.length > 0 && (
-        <div className="space-y-2">
-          {/* Count and sort on one row, « Tout sélectionner » under them on
-              phones; all three on one row from 672px. */}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 @[672px]:gap-x-3 @[672px]:px-3">
-            <p className="text-sm font-medium" aria-live="polite">
-              {reviewing
-                ? plural(total, 'opération à revoir', 'opérations à revoir')
-                : plural(total, 'opération')}
-            </p>
-            <span
-              aria-hidden
-              className="text-muted-foreground hidden @[672px]:inline"
-            >
-              ·
-            </span>
-            <div className="order-last flex w-full items-center gap-2 @[672px]:order-none @[672px]:w-auto">
-              <Checkbox
-                id="transactions-select-all"
-                checked={
-                  allSelected
-                    ? true
-                    : selectedItems.length > 0
-                      ? 'indeterminate'
-                      : false
-                }
-                onCheckedChange={(checked) =>
-                  setSelected(
-                    checked === true
-                      ? new Set(items.map((item) => item.id))
-                      : new Set(),
-                  )
-                }
-              />
-              <label
-                htmlFor="transactions-select-all"
-                className="flex min-h-11 items-center text-sm"
-              >
-                Tout sélectionner
-              </label>
-            </div>
-            {list.isFetching && !list.isFetchingNextPage && (
-              <span className="text-muted-foreground text-xs">
-                Mise à jour…
-              </span>
-            )}
-            {canValidateAll && (
-              <Button
-                size="sm"
-                variant="success"
-                outline
-                iconStart={<CheckIcon />}
-                disabled={bulkBusy}
-                className="ml-auto"
-                onClick={() =>
-                  void applyBulk(toValidate, { needsReview: false })
-                }
-              >
-                Tout valider
+        {list.isError && (
+          <Alert variant="destructive" className="m-3 w-auto">
+            <AlertTitle>Impossible de charger les opérations.</AlertTitle>
+            <AlertDescription>
+              <Button size="sm" outline onClick={() => void list.refetch()}>
+                Réessayer
               </Button>
-            )}
-            <NativeSelect
-              aria-label="Tri"
-              size="sm"
-              value={sort}
-              onChange={(event) => {
-                const next = event.target.value as TransactionSort
-                onSearchChange(
-                  compactSearch({
-                    ...search,
-                    sort: next === 'date_desc' ? undefined : next,
-                  }),
-                )
-              }}
-              className={canValidateAll ? 'w-auto' : 'ml-auto w-auto'}
-            >
-              {SORTS.map((option) => (
-                <NativeSelectOption key={option} value={option}>
-                  {SORT_LABELS[option]}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
-          <TransactionList
-            items={items}
-            categories={categoryList}
-            groupByDate={sort === 'date_desc' || sort === 'date_asc'}
-            showAccount={
-              !search.account &&
-              visibleAccounts.filter((account) => account.archivedAt === null)
-                .length > 1
-            }
-            selected={selected}
-            onSelectedChange={toggle}
-            actionsFor={(item) => ({
-              onChange: (changes) =>
-                void actions.update(item, changes, {
-                  leaveReview: reviewing && leavesReview(changes),
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {list.isSuccess && items.length === 0 && reviewOnly && (
+          <ReviewDone
+            allMonths={search.month === ALL_MONTHS}
+            month={filters.month ?? shownMonth}
+            onAllDates={() => onSearchChange({ ...search, month: ALL_MONTHS })}
+            onLeave={() =>
+              onSearchChange(
+                compactSearch({
+                  month: search.month === ALL_MONTHS ? undefined : search.month,
+                  sort: search.sort,
                 }),
-              onUpdateManual: (changes) => actions.updateManual(item, changes),
-              onCorrect: (body) => void actions.correct(item, body),
-              onRestoreBank: () => void actions.restoreBank(item),
-              onSplit: (parts) => void actions.split(item, parts),
-              onUnsplit: () => void actions.unsplit(item),
-            })}
-            onValidate={
-              reviewing
-                ? (item) =>
-                    void actions.update(
-                      item,
-                      { needsReview: false },
-                      { leaveReview: true },
-                    )
-                : undefined
+              )
             }
-            remaining={total - items.length}
-            hasMore={list.hasNextPage}
-            loadingMore={list.isFetchingNextPage}
-            onLoadMore={() => {
-              if (!list.isFetchingNextPage) void list.fetchNextPage()
-            }}
           />
-        </div>
-      )}
+        )}
+
+        {list.isSuccess && items.length === 0 && !reviewOnly && (
+          <EmptyList
+            filtered={filtered}
+            allMonths={search.month === ALL_MONTHS}
+            month={filters.month ?? shownMonth}
+            coverage={coverage.data}
+            onReset={() => onSearchChange({ month: search.month })}
+            onMonthChange={(month) =>
+              onSearchChange({
+                ...search,
+                month: month === shownMonth ? undefined : month,
+              })
+            }
+          />
+        )}
+
+        {list.isSuccess && items.length > 0 && (
+          <>
+            {/* The card's header (#327): the select-all box in the column of
+                the rows' icons, the count, then the sort filling the rest of
+                the row (a row of its own on phones when it doesn't fit);
+                « Tout sélectionner » is spelled out from 672px. */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-3 py-1 @[672px]:gap-x-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="flex size-8 shrink-0 items-center justify-center">
+                  <Checkbox
+                    id="transactions-select-all"
+                    checked={
+                      allSelected
+                        ? true
+                        : selectedItems.length > 0
+                          ? 'indeterminate'
+                          : false
+                    }
+                    onCheckedChange={(checked) =>
+                      setSelected(
+                        checked === true
+                          ? new Set(items.map((item) => item.id))
+                          : new Set(),
+                      )
+                    }
+                  />
+                </span>
+                <label
+                  htmlFor="transactions-select-all"
+                  className="sr-only text-sm @[672px]:not-sr-only"
+                >
+                  Tout sélectionner
+                </label>
+                <span
+                  aria-hidden
+                  className="text-muted-foreground hidden @[672px]:inline"
+                >
+                  ·
+                </span>
+                <p
+                  className="flex min-h-11 items-center text-sm font-medium"
+                  aria-live="polite"
+                >
+                  {reviewing
+                    ? plural(total, 'opération à revoir', 'opérations à revoir')
+                    : plural(total, 'opération')}
+                </p>
+              </div>
+              {list.isFetching && !list.isFetchingNextPage && (
+                <span className="text-muted-foreground text-xs">
+                  Mise à jour…
+                </span>
+              )}
+              <div className="flex min-w-[min(100%,12rem)] flex-1 items-center justify-end gap-2">
+                {canValidateAll && (
+                  <Button
+                    size="sm"
+                    variant="success"
+                    outline
+                    iconStart={<CheckIcon />}
+                    disabled={bulkBusy}
+                    className="shrink-0"
+                    onClick={() =>
+                      void applyBulk(toValidate, { needsReview: false })
+                    }
+                  >
+                    Tout valider
+                  </Button>
+                )}
+                <NativeSelect
+                  aria-label="Tri"
+                  size="sm"
+                  value={sort}
+                  onChange={(event) => {
+                    const next = event.target.value as TransactionSort
+                    onSearchChange(
+                      compactSearch({
+                        ...search,
+                        sort: next === 'date_desc' ? undefined : next,
+                      }),
+                    )
+                  }}
+                  className="w-auto min-w-0 flex-1 @[672px]:flex-none"
+                >
+                  {SORTS.map((option) => (
+                    <NativeSelectOption key={option} value={option}>
+                      {SORT_LABELS[option]}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </div>
+            </div>
+            <TransactionList
+              items={items}
+              categories={categoryList}
+              groupByDate={sort === 'date_desc' || sort === 'date_asc'}
+              showAccount={
+                !search.account &&
+                visibleAccounts.filter((account) => account.archivedAt === null)
+                  .length > 1
+              }
+              selected={selected}
+              onSelectedChange={toggle}
+              actionsFor={(item) => ({
+                onChange: (changes) =>
+                  void actions.update(item, changes, {
+                    leaveReview: reviewing && leavesReview(changes),
+                  }),
+                onUpdateManual: (changes) =>
+                  actions.updateManual(item, changes),
+                onCorrect: (body) => void actions.correct(item, body),
+                onRestoreBank: () => void actions.restoreBank(item),
+                onSplit: (parts) => void actions.split(item, parts),
+                onUnsplit: () => void actions.unsplit(item),
+              })}
+              onValidate={
+                reviewing
+                  ? (item) =>
+                      void actions.update(
+                        item,
+                        { needsReview: false },
+                        { leaveReview: true },
+                      )
+                  : undefined
+              }
+              remaining={total - items.length}
+              hasMore={list.hasNextPage}
+              loadingMore={list.isFetchingNextPage}
+              onLoadMore={() => {
+                if (!list.isFetchingNextPage) void list.fetchNextPage()
+              }}
+            />
+          </>
+        )}
+      </Card>
 
       {selectedItems.length > 0 && (
         <BulkActionsBar
