@@ -1,4 +1,4 @@
-import { queryOptions } from '@tanstack/react-query'
+import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
 import {
   budgetsControllerEnvelopes,
@@ -18,15 +18,30 @@ import { ApiRequestError, unwrap } from '#/lib/queries'
 
 export const envelopeKeys = {
   all: ['envelopes'] as const,
+  month: (month: string | undefined) =>
+    ['envelopes', month ?? 'current'] as const,
 }
 
-/** Envelopes of the current month (Europe/Paris, decided by the API). */
-export const envelopesQuery = queryOptions({
-  queryKey: envelopeKeys.all,
-  queryFn: () => unwrap(budgetsControllerEnvelopes({ throwOnError: false })),
-  // Expenses are noted elsewhere too (other tab, phone): refetch on mount.
-  staleTime: 0,
-})
+/**
+ * Envelopes of `month`; without it, the current month (Europe/Paris,
+ * decided by the API).
+ */
+export function envelopesQuery(month?: string) {
+  return queryOptions({
+    queryKey: envelopeKeys.month(month),
+    queryFn: () =>
+      unwrap(
+        budgetsControllerEnvelopes({
+          ...(month ? { query: { month } } : {}),
+          throwOnError: false,
+        }),
+      ),
+    // Expenses are noted elsewhere too (other tab, phone): refetch on mount.
+    staleTime: 0,
+    // Switching month keeps the card in place until the new figures arrive.
+    placeholderData: keepPreviousData,
+  })
+}
 
 /**
  * Labels and categories offered first when entering a transaction of this

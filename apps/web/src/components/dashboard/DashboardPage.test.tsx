@@ -193,6 +193,8 @@ const history: DashboardHistoryDto = {
 
 const review: MonthReviewDto = {
   month: '2026-10',
+  defaultMonth: '2026-10',
+  current: false,
   nextMonth: '2026-11',
   period: {
     month: '2026-10',
@@ -306,18 +308,34 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-11-05T10:00:00Z'))
-  api.dashboardControllerReview.mockImplementation(() => ok(review))
+  api.dashboardControllerReview.mockImplementation(
+    (options?: { query?: { month?: string } }) => {
+      const month = options?.query?.month ?? review.defaultMonth
+      return ok(
+        month === review.month
+          ? review
+          : {
+              ...review,
+              month,
+              current: month === '2026-11',
+              period: { ...review.period, month },
+            },
+      )
+    },
+  )
   api.dashboardControllerOverview.mockImplementation(() => ok(overview))
   api.dashboardControllerHistory.mockImplementation(() => ok(history))
   api.forecastControllerForecast.mockImplementation(() => ok(forecast()))
-  api.budgetsControllerEnvelopes.mockImplementation(() =>
-    ok({
-      month: '2026-11',
-      today: '2026-11-05',
-      dayOfMonth: 5,
-      daysInMonth: 30,
-      items: [],
-    }),
+  api.budgetsControllerEnvelopes.mockImplementation(
+    (options?: { query?: { month?: string } }) =>
+      ok({
+        month: options?.query?.month ?? '2026-11',
+        current: options?.query?.month === undefined,
+        today: '2026-11-05',
+        dayOfMonth: options?.query?.month ? 31 : 5,
+        daysInMonth: 30,
+        items: [],
+      }),
   )
 })
 
@@ -379,27 +397,77 @@ describe('DashboardPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('follows the current month beside the review', async () => {
+  it('follows the review’s month with its budget, read only for a past month', async () => {
     renderPage()
 
-    const card = await screen.findByRole('region', { name: 'Ce mois-ci' })
+    const card = await screen.findByRole('region', { name: 'Budget' })
     expect(
-      await within(card).findByRole('link', {
-        name: 'Choisir les enveloppes',
-      }),
-    ).toHaveAttribute('href', '/budget')
-    expect(within(card).getByRole('link', { name: 'Budget' })).toHaveAttribute(
-      'href',
-      '/budget',
-    )
-    expect(
-      within(card).getByRole('button', { name: 'Ajouter une dépense' }),
+      await within(card).findByText('Aucune enveloppe suivie ce mois-là'),
     ).toBeInTheDocument()
+    expect(api.budgetsControllerEnvelopes).toHaveBeenCalledWith({
+      query: { month: '2026-10' },
+      throwOnError: false,
+    })
+    expect(within(card).getByRole('link', { name: 'Détail' })).toHaveAttribute(
+      'href',
+      '/budget?month=2026-10',
+    )
+    // A month that is over: no expense noted from it.
+    expect(
+      within(card).queryByRole('button', { name: 'Ajouter une dépense' }),
+    ).not.toBeInTheDocument()
     const reviewCard = screen.getByRole('region', { name: 'Bilan du mois' })
     expect(
       reviewCard.compareDocumentPosition(card) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
+    // The forecast is for the current month only.
+    expect(
+      screen.queryByRole('link', { name: /Fin de mois/ }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('reads the current month so far: en cours, its forecast, no close', async () => {
+    renderPage(undefined, { month: '2026-11' })
+
+    const reviewCard = await screen.findByRole('region', {
+      name: 'Bilan du mois',
+    })
+    expect(within(reviewCard).getByText('En cours')).toBeInTheDocument()
+    expect(
+      within(reviewCard).queryByRole('link', { name: 'Revue et clôture' }),
+    ).not.toBeInTheDocument()
+    // Nothing is late before the month end.
+    expect(
+      within(reviewCard).queryByRole('region', {
+        name: 'Comptes à mettre à jour',
+      }),
+    ).not.toBeInTheDocument()
+    // How it will end, in place of a second « à ce jour » net worth.
+    expect(
+      await within(reviewCard).findByRole('link', { name: /Fin de mois/ }),
+    ).toHaveAttribute('href', '/forecast')
+    expect(
+      within(reviewCard).queryByRole('region', { name: 'Patrimoine' }),
+    ).not.toBeInTheDocument()
+    expect(count(document.body, 'Patrimoine à ce jour')).toBe(1)
+
+    const card = screen.getByRole('region', { name: 'Budget' })
+    expect(
+      await within(card).findByRole('link', {
+        name: 'Choisir les enveloppes',
+      }),
+    ).toHaveAttribute('href', '/budget')
+    expect(api.budgetsControllerEnvelopes).toHaveBeenCalledWith({
+      throwOnError: false,
+    })
+    expect(within(card).getByRole('link', { name: 'Détail' })).toHaveAttribute(
+      'href',
+      '/budget?',
+    )
+    expect(
+      within(card).getByRole('button', { name: 'Ajouter une dépense' }),
+    ).toBeInTheDocument()
   })
 
   it('shows the change of net worth only when investments moved it', async () => {
@@ -547,20 +615,35 @@ describe('DashboardPage', () => {
     expect(count(card, '1 845 €')).toBe(1)
   })
 
-  it('moves between months, the previous month kept out of the URL', async () => {
+  it('moves up to the current month, the default kept out of the URL', async () => {
     const user = userEvent.setup()
     const onMonthChange = vi.fn()
-    renderPage(undefined, { month: '2026-10', onMonthChange })
+    renderPage(undefined, { month: '2026-09', onMonthChange })
     await screen.findByRole('region', { name: 'Bilan du mois' })
-
-    // October is the latest month that can be reviewed in November.
-    expect(screen.getByRole('button', { name: 'Mois suivant' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: 'Mois précédent' }))
-    expect(onMonthChange).toHaveBeenLastCalledWith('2026-09')
     expect(api.dashboardControllerReview).toHaveBeenCalledWith({
-      query: { month: '2026-10' },
+      query: { month: '2026-09' },
       throwOnError: false,
     })
+
+    // October is the default month: back to the bare URL.
+    await user.click(screen.getByRole('button', { name: 'Mois suivant' }))
+    expect(onMonthChange).toHaveBeenLastCalledWith(undefined)
+    await user.click(screen.getByRole('button', { name: 'Mois précédent' }))
+    expect(onMonthChange).toHaveBeenLastCalledWith('2026-08')
+  })
+
+  it('reaches the current month, and stops there', async () => {
+    const user = userEvent.setup()
+    const onMonthChange = vi.fn()
+    const { unmount } = renderPage(undefined, { onMonthChange })
+    await screen.findByRole('region', { name: 'Bilan du mois' })
+    await user.click(screen.getByRole('button', { name: 'Mois suivant' }))
+    expect(onMonthChange).toHaveBeenLastCalledWith('2026-11')
+    unmount()
+
+    renderPage(undefined, { month: '2026-11', onMonthChange })
+    await screen.findByText('En cours')
+    expect(screen.getByRole('button', { name: 'Mois suivant' })).toBeDisabled()
   })
 
   it('lists the accounts by group with their balance and date', async () => {
@@ -602,7 +685,10 @@ describe('DashboardPage', () => {
     const card = (await screen.findByText('Comptes')).closest(
       '[data-slot="card"]',
     ) as HTMLElement
-    expect(card).toHaveTextContent(`Patrimoine à ce jour${euros(1_623_456)}`)
+    // With its change since the last month end, the review's figure.
+    expect(card).toHaveTextContent(
+      text(`Patrimoine à ce jour${euros(1_623_456)}+235 € depuis le 31 oct.`),
+    )
     expect(
       within(card).getByRole('link', { name: 'Évolution' }),
     ).toHaveAttribute('href', '/net-worth')
@@ -700,12 +786,18 @@ describe('DashboardPage', () => {
     )
   })
 
-  it('sums up the end-of-month forecast as a row of « Ce mois-ci »', async () => {
-    renderPage()
-    const row = await screen.findByRole('link', { name: /Fin de mois/ })
-    expect(screen.getByRole('region', { name: 'Ce mois-ci' })).toContainElement(
-      row,
+  it('sums up the end-of-month forecast in the current month’s review', async () => {
+    renderPage(undefined, { month: '2026-11' })
+    // The review loads first, then the forecast it holds.
+    await screen.findByText('En cours')
+    const row = await screen.findByRole(
+      'link',
+      { name: /Fin de mois/ },
+      { timeout: 3_000 },
     )
+    expect(
+      screen.getByRole('region', { name: 'Bilan du mois' }),
+    ).toContainElement(row)
     expect(row).toHaveAttribute('href', '/forecast')
     expect(row).toHaveTextContent(euros(267_000))
     expect(row).toHaveTextContent(`Point bas ${euros(18_000)} le 29 nov.`)
@@ -718,7 +810,7 @@ describe('DashboardPage', () => {
         }),
       ),
     )
-    renderPage()
+    renderPage(undefined, { month: '2026-11' })
     expect(
       await screen.findByText(`Sous ${euros(50_000)} le dim. 29 nov.`),
     ).toBeInTheDocument()

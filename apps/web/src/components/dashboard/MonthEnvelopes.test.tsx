@@ -125,6 +125,7 @@ const accounts = [
 
 const envelopes: EnvelopesDto = {
   month: '2026-11',
+  current: true,
   today: '2026-11-13',
   dayOfMonth: 13,
   daysInMonth: 30,
@@ -160,13 +161,13 @@ const envelopes: EnvelopesDto = {
   ],
 }
 
-function renderCard() {
+function renderCard(month = '2026-11') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <MonthEnvelopes />
+      <MonthEnvelopes month={month} />
     </QueryClientProvider>,
   )
 }
@@ -195,7 +196,7 @@ describe('MonthEnvelopes', () => {
   it('shows each envelope against its target and the month’s pace', async () => {
     renderCard()
 
-    const card = await screen.findByRole('region', { name: 'Ce mois-ci' })
+    const card = await screen.findByRole('region', { name: 'Budget' })
     expect(await within(card).findByText(/Jour 13 sur 30/)).toBeInTheDocument()
     const outings = within(card).getByRole('meter', { name: 'Sorties' })
     expect(outings).toHaveAttribute('aria-valuenow', '9000')
@@ -539,6 +540,40 @@ describe('MonthEnvelopes', () => {
       within(dialog).getByText('La date ne peut pas être dans le futur'),
     ).toBeInTheDocument()
     expect(api.transactionsControllerCreateManual).not.toHaveBeenCalled()
+  })
+
+  it('reads a past month: spent against the target, no pace, nothing to add', async () => {
+    api.budgetsControllerEnvelopes.mockImplementation(() =>
+      ok({
+        ...envelopes,
+        month: '2026-10',
+        current: false,
+        dayOfMonth: 31,
+        daysInMonth: 31,
+        items: envelopes.items.map((item) => ({
+          ...item,
+          paceCents: item.targetCents,
+          aheadOfPace: false,
+        })),
+      }),
+    )
+    renderCard('2026-10')
+
+    const card = await screen.findByRole('region', { name: 'Budget' })
+    const outings = await within(card).findByRole('meter', { name: 'Sorties' })
+    expect(text(outings.getAttribute('aria-valuetext')!)).toBe('90 € sur 150 €')
+    expect(api.budgetsControllerEnvelopes).toHaveBeenCalledWith({
+      query: { month: '2026-10' },
+      throwOnError: false,
+    })
+    expect(text(card.textContent)).toContain('60 € sous l’objectif')
+    expect(card).not.toHaveTextContent(/Jour \d+/)
+    expect(card).not.toHaveTextContent('Reste')
+    expect(within(card).queryByRole('button')).not.toBeInTheDocument()
+    expect(within(card).getByRole('link', { name: 'Détail' })).toHaveAttribute(
+      'href',
+      '/budget?month=2026-10',
+    )
   })
 
   it('invites to choose envelopes when none is followed', async () => {

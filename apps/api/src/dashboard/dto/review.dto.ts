@@ -22,7 +22,7 @@ export class MonthReviewQueryDto {
     pattern: MONTH_PATTERN.source,
     example: '2026-10',
     description:
-      'Calendar month (YYYY-MM) to review. Default: the previous calendar month in Europe/Paris.',
+      'Calendar month (YYYY-MM) to review. Default: the current month in Europe/Paris.',
   })
   @IsOptional()
   @Matches(MONTH_PATTERN, { message: '$property must be YYYY-MM' })
@@ -30,7 +30,12 @@ export class MonthReviewQueryDto {
 }
 
 export class ReviewNetWorthDto {
-  @ApiProperty({ type: String, format: 'date', example: '2026-10-31' })
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    example: '2026-10-31',
+    description: 'The month end; today (Europe/Paris) for the current month.',
+  })
   date!: string
 
   @ApiProperty({
@@ -171,6 +176,21 @@ export class ReviewMissingAccountDto {
 export class MonthReviewDto {
   @ApiProperty({ type: String, example: '2026-10', description: 'YYYY-MM.' })
   month!: string
+
+  @ApiProperty({
+    type: String,
+    example: '2026-10',
+    description:
+      'The month shown without `month`: the current month in Europe/Paris.',
+  })
+  defaultMonth!: string
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      '`month` is the current month in Europe/Paris: read so far, net worth as of today, not closable yet.',
+  })
+  current!: boolean
 
   @ApiProperty({
     type: String,

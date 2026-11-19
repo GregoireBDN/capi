@@ -13,7 +13,7 @@ import { formatCents } from '#/lib/money'
 import { ROUTES } from '#/lib/routes'
 
 /**
- * The end of this month, at the top of « Ce mois-ci » (#262): one row with
+ * The end of this month, in the current month's review (#262, #321): one row with
  * a chevron, plainly the way to the forecast page. The projected
  * end-of-month balance of the checking accounts (saved threshold,
  * day-to-day spending estimated), then its low point or the date it goes

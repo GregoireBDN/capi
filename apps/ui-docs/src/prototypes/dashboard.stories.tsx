@@ -2353,3 +2353,378 @@ export const AccountsPhoneProposals: StoryObj = {
     </AppScale>
   ),
 }
+
+/* ---------------------------------------------------------------------------
+ * #321 — the dashboard follows one month
+ *
+ * The review's navigator reaches the current month and every card follows
+ * it. Past month: « À clôturer » / « Clôturé », the net worth at its end,
+ * the budget read only (no pace mark, no « + »). Current month: « En
+ * cours », how far the data goes, no close action, the budget as today
+ * (pace mark, « + »). Where today's net worth lives while the current month
+ * is shown is the open question: two variants.
+ *
+ * Default month (behaviour, not shown): the current month, the owner's
+ * choice (plain to read; past months are one « ‹ » away).
+ * ------------------------------------------------------------------------- */
+
+type Month321 = 'past' | 'current'
+type NetWorthPlace = 'comptes' | 'review'
+
+const MONTHS_321 = {
+  past: {
+    label: 'Octobre 2026',
+    short: 'oct. 2026',
+    income: 320_000,
+    expenses: -251_400,
+    budget: { spent: 207_100, target: 222_500 },
+  },
+  current: {
+    label: 'Novembre 2026',
+    short: 'nov. 2026',
+    income: 310_000,
+    expenses: -118_900,
+    budget: { spent: 96_300, target: 222_500 },
+  },
+} as const
+
+/** Today's net worth and the one at the end of October. */
+const NET_WORTH_OCT_END = 4_741_100
+
+/** The prototype's own controls: the month shown, and the variant. */
+function Chips321<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string
+  options: [T, string][]
+  value: T
+  onChange: (value: T) => void
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className="flex gap-2">
+      {options.map(([key, title]) => (
+        <button
+          key={key}
+          type="button"
+          role="radio"
+          aria-checked={value === key}
+          data-on={value === key}
+          className={CHIP}
+          onClick={() => onChange(key)}
+        >
+          {title}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function Tile321({
+  label,
+  value,
+  note,
+  tone,
+}: {
+  label: string
+  value: string
+  note?: string
+  tone?: 'good' | 'bad'
+}) {
+  return (
+    <div className="bg-muted/50 flex min-w-0 flex-col items-start rounded-xl px-3 py-2.5">
+      <p className="text-muted-foreground text-xs">{label}</p>
+      <p
+        className={cn(
+          'text-[clamp(1rem,11cqi,1.35rem)] font-semibold whitespace-nowrap tabular-nums',
+          tone === 'good' && 'text-chart-delta-good',
+          tone === 'bad' && 'text-chart-delta-bad',
+        )}
+      >
+        {value}
+      </p>
+      {note && <p className="text-muted-foreground text-xs">{note}</p>}
+    </div>
+  )
+}
+
+function Forecast321() {
+  return (
+    <a
+      href="#"
+      onClick={(event) => event.preventDefault()}
+      className="bg-muted/50 hover:bg-muted flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm"
+    >
+      <CalendarClockIcon
+        aria-hidden
+        className="text-muted-foreground hidden size-4 shrink-0 @[36rem]:block"
+      />
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-baseline justify-between gap-x-3 @[36rem]:justify-start">
+          <span>Fin de mois prévue</span>
+          <span className="font-semibold whitespace-nowrap tabular-nums">
+            5 561 €
+          </span>
+        </span>
+        <span className="text-muted-foreground block text-xs">
+          Point bas 2 729 € le 26 nov.
+        </span>
+      </span>
+      <ChevronRightIcon
+        aria-hidden
+        className="text-muted-foreground size-4 shrink-0"
+      />
+    </a>
+  )
+}
+
+function Review321({
+  month,
+  place,
+  onMonth,
+}: {
+  month: Month321
+  place: NetWorthPlace
+  onMonth: (month: Month321) => void
+}) {
+  const data = MONTHS_321[month]
+  const current = month === 'current'
+  const net = data.income + data.expenses
+  const left = data.budget.target - data.budget.spent
+  return (
+    <Card className="min-w-0">
+      <CardHeader className="@container flex flex-row flex-wrap items-center gap-2">
+        <PeriodStepper
+          aria-label="Mois du bilan"
+          className="w-auto flex-auto"
+          previous={{
+            label: 'Mois précédent',
+            onClick: () => onMonth('past'),
+            disabled: !current,
+          }}
+          next={{
+            label: 'Mois suivant',
+            onClick: () => onMonth('current'),
+            // The current month is the last one.
+            disabled: current,
+          }}
+        >
+          <PeriodStepperLabel
+            aria-label={`${data.label}, choisir un mois`}
+            text={data.label}
+            shortText={data.short}
+            sizers={['Septembre 2026', 'Novembre 2026']}
+            shortSizers={['sept. 2026', 'nov. 2026']}
+          />
+        </PeriodStepper>
+        <Badge
+          className="h-auto shrink-0 gap-1.5 self-stretch border-transparent px-3 text-white"
+          style={{
+            backgroundColor: current
+              ? 'color-mix(in oklch, var(--info) 25%, var(--info-foreground))'
+              : 'color-mix(in oklch, var(--warning) 25%, var(--warning-foreground))',
+          }}
+        >
+          {current ? 'En cours' : 'À clôturer'}
+        </Badge>
+      </CardHeader>
+      <CardContent className="@container mb-0 space-y-5">
+        {current && (
+          <p className="text-muted-foreground flex items-start gap-1.5 text-xs">
+            <CalendarClockIcon aria-hidden className="mt-px size-3.5" />
+            Mois en cours : données jusqu’au 8 nov.
+          </p>
+        )}
+        <div className="@container grid gap-2">
+          {!current ? (
+            <Tile321
+              label="Patrimoine au 31 oct."
+              value={euros(NET_WORTH_OCT_END)}
+            />
+          ) : place === 'review' ? (
+            <Tile321
+              label="Patrimoine à ce jour"
+              value={euros(TODAY_NET_WORTH)}
+              note={`${signedEuros(TODAY_NET_WORTH - NET_WORTH_OCT_END)} depuis le 31 oct.`}
+            />
+          ) : (
+            <Forecast321 />
+          )}
+          <div className="grid gap-2 @[36rem]:grid-cols-3">
+            <Tile321 label="Revenus" value={euros(data.income)} />
+            <Tile321 label="Dépenses" value={euros(-data.expenses)} />
+            <Tile321
+              label="Épargné"
+              value={signedEuros(net)}
+              note={`${percent(net / data.income)} des revenus`}
+              tone="good"
+            />
+          </div>
+        </div>
+        <div className="space-y-2 text-sm">
+          <p className="font-medium">Budget</p>
+          <ProgressMeter
+            label="Budget"
+            value={data.budget.spent}
+            target={data.budget.target}
+            valueFormatter={formatWholeEuros}
+            hideStatus
+          />
+          <p className="font-medium">Reste {euros(left)}</p>
+        </div>
+        {current ? (
+          place === 'review' ? (
+            <Forecast321 />
+          ) : null
+        ) : (
+          <Button iconStart={<ListChecksIcon />} className="w-full">
+            Revue et clôture
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function Budget321({ month }: { month: Month321 }) {
+  const current = month === 'current'
+  return (
+    <Card className="min-w-0">
+      <CardHead
+        title="Budget"
+        status={
+          current ? 'Jour 8 sur 30 · le trait marque le rythme' : undefined
+        }
+        link="Détail"
+      />
+      <CardContent className="mb-0 space-y-3">
+        <ul className="space-y-2">
+          {ENVELOPES.map((item) => {
+            const spent = current ? item.spent : item.target - 4_200
+            const pace = current ? item.pace : null
+            return (
+              <li
+                key={item.name}
+                className="space-y-2 rounded-xl border px-3 py-2.5 text-sm"
+              >
+                <span className="flex items-center gap-2.5">
+                  <span className="min-w-0 flex-1 truncate font-medium">
+                    {item.name}
+                  </span>
+                  {current && (
+                    <span
+                      aria-hidden
+                      className="bg-primary text-primary-foreground flex size-[40px] items-center justify-center rounded-full"
+                    >
+                      <PlusIcon className="size-[22px]" strokeWidth={2.5} />
+                    </span>
+                  )}
+                </span>
+                <ProgressMeter
+                  label={item.name}
+                  value={spent}
+                  target={item.target}
+                  valueFormatter={formatWholeEuros}
+                  hideStatus
+                  marker={
+                    pace === null
+                      ? undefined
+                      : { value: pace, label: 'rythme du mois' }
+                  }
+                />
+                <span className="block text-right text-xs font-medium">
+                  {current
+                    ? `Reste ${euros(item.target - spent)}`
+                    : `${euros(item.target - spent)} sous l’objectif`}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+        {current && (
+          <Button iconStart={<PlusIcon />} className="w-full">
+            Ajouter une dépense
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function Accounts321({
+  month,
+  place,
+}: {
+  month: Month321
+  place: NetWorthPlace
+}) {
+  // Variant « dans le bilan »: while the current month is shown, the
+  // review holds today's figure and « Comptes » only its parts.
+  const inReview = month === 'current' && place === 'review'
+  return (
+    <Card className="min-w-0">
+      <CardHead title="Comptes" link="Évolution" />
+      <CardContent className="@container mb-0 space-y-4">
+        <div className="grid gap-2">
+          {!inReview && (
+            <Tile321
+              label="Patrimoine à ce jour"
+              value={euros(TODAY_NET_WORTH)}
+              note={`${signedEuros(TODAY_NET_WORTH - NET_WORTH_OCT_END)} depuis le 31 oct.`}
+            />
+          )}
+          <div className="grid gap-2 @[36rem]:grid-cols-2">
+            <Tile321 label="Liquidités" value={euros(1_426_379)} />
+            <Tile321 label="Investissements" value={euros(3_477_325)} />
+          </div>
+        </div>
+        <AccountRows />
+      </CardContent>
+    </Card>
+  )
+}
+
+export const Month321_OneMonth: StoryObj = {
+  name: '#321 Un mois suivi',
+  render: function Render() {
+    const [month, setMonth] = useState<Month321>('past')
+    const [place, setPlace] = useState<NetWorthPlace>('comptes')
+    return (
+      <AppScale>
+        <div className="bg-background min-h-svh px-4 pb-10">
+          <div className="bg-muted/60 -mx-4 flex flex-wrap gap-2 overflow-x-auto px-4 py-2">
+            <Chips321
+              label="Mois"
+              options={[
+                ['past', 'Octobre (passé)'],
+                ['current', 'Novembre (en cours)'],
+              ]}
+              value={month}
+              onChange={setMonth}
+            />
+            <Chips321
+              label="« À ce jour »"
+              options={[
+                ['comptes', '1. Dans Comptes (construit)'],
+                ['review', '2. Dans le bilan'],
+              ]}
+              value={place}
+              onChange={setPlace}
+            />
+          </div>
+          <div className="@container mx-auto max-w-[80rem] space-y-6 pt-4">
+            <h1 className="text-xl font-semibold md:text-2xl">
+              Tableau de bord
+            </h1>
+            <Review321 month={month} place={place} onMonth={setMonth} />
+            <Budget321 month={month} />
+            <Accounts321 month={month} place={place} />
+            <ChartStub title="Revenus et dépenses" />
+          </div>
+        </div>
+      </AppScale>
+    )
+  },
+}

@@ -51,8 +51,8 @@ export function dashboardHistoryQuery(months = HISTORY_MONTHS) {
 }
 
 /**
- * Review of `month`; without it, the previous calendar month (decided by the
- * API in Europe/Paris).
+ * Review of `month`; without it, the current month (decided by the API in
+ * Europe/Paris, `defaultMonth`).
  */
 export function dashboardReviewQuery(month?: string) {
   return queryOptions({

@@ -15,6 +15,7 @@ import {
   Skeleton,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
+import type { UseQueryResult } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   ChevronRightIcon,
@@ -23,9 +24,10 @@ import {
   UploadIcon,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
+import type { MonthReviewDto } from '#/api/types.gen'
 import { NewAccountButton } from '#/components/accounts/AccountEditor'
 import { PageHeader } from '#/components/app-shell/PageHeader'
-import { currentMonth, shiftMonth } from '#/lib/calendar'
+import { currentMonth } from '#/lib/calendar'
 import { plural } from '#/lib/plural'
 import { ROUTES } from '#/lib/routes'
 import { AccountsList } from './AccountsList'
@@ -81,22 +83,23 @@ function OverviewSkeleton() {
 
 /** The month review, its loading and error states. */
 function ReviewSection({
-  month,
+  review,
   onMonthChange,
 }: {
-  month?: string
+  review: UseQueryResult<MonthReviewDto>
   onMonthChange?: (month: string | undefined) => void
 }) {
-  const review = useQuery(dashboardReviewQuery(month))
-  const latest = shiftMonth(currentMonth(), -1)
   if (review.data) {
+    const { defaultMonth, current } = review.data
     return (
       <MonthReview
         review={review.data}
-        latest={latest}
-        // The previous month is the default: kept out of the URL.
+        max={currentMonth()}
+        // While the current month is shown: how it will end (#321).
+        forecast={current ? <ForecastRow /> : undefined}
+        // The default month is kept out of the URL.
         onMonthChange={(target) =>
-          onMonthChange?.(target === latest ? undefined : target)
+          onMonthChange?.(target === defaultMonth ? undefined : target)
         }
       />
     )
@@ -128,20 +131,24 @@ function ReviewSection({
 }
 
 interface DashboardPageProps {
-  /** Month reviewed, from the URL; absent = the previous calendar month. */
+  /**
+   * Month followed by the page, from the URL; absent = the API's default
+   * (the current month).
+   */
   month?: string
   onMonthChange?: (month: string | undefined) => void
   banner?: ReactNode
 }
 
 /**
- * The financial situation at a glance, read once a month (#262): the review
- * of the last month (income, expenses, saved, net worth at its end, spending
- * against the budget, accounts left to update, the one action its state
- * calls for) and the end-of-month forecast; the envelopes followed during
- * the current month (« Ce mois-ci ») and the accounts with today's net
- * worth; then the monthly income and expenses. Every card has the same
- * header (`DashboardCardHeader`).
+ * The financial situation at a glance, read once a month (#262), following
+ * one month (#321), the one chosen in the review's navigator (up to the
+ * current month): its review (income, expenses, saved, net worth at its end
+ * or, while it runs, how it will end; spending against the budget, accounts
+ * left to update, the one action its state calls for) and its envelopes
+ * (« Budget »); then the accounts with today's net worth and its change
+ * since the last month end, and the monthly income and expenses. Every card
+ * has the same header (`DashboardCardHeader`).
  */
 export function DashboardPage({
   month,
@@ -149,6 +156,9 @@ export function DashboardPage({
   banner,
 }: DashboardPageProps) {
   const overview = useQuery(dashboardOverviewQuery())
+  const review = useQuery(dashboardReviewQuery(month))
+  // The month the page follows: the URL's, else the API's default.
+  const shown = month ?? review.data?.defaultMonth
   const history = useQuery(dashboardHistoryQuery())
   const data = overview.data
   const isEmpty = data !== undefined && data.accounts.length === 0
@@ -214,9 +224,9 @@ export function DashboardPage({
           {/* One card per row (owner's choice): last month, this month
               and its end, where I stand, then the history. Each card lays its
               content out for its own width. */}
-          <ReviewSection month={month} onMonthChange={onMonthChange} />
-          {/* This month: how it will end, then the envelopes. */}
-          <MonthEnvelopes figures={<ForecastRow />} />
+          <ReviewSection review={review} onMonthChange={onMonthChange} />
+          {/* The envelopes of the same month. */}
+          {shown && <MonthEnvelopes month={shown} />}
           <AccountsList accounts={data.accounts} netWorth={data.netWorth} />
 
           {/* Net worth over time is on its page (« Évolution » in Comptes). */}
