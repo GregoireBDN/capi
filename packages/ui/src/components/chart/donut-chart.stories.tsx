@@ -4,7 +4,13 @@ import { expect, within } from 'storybook/test'
 
 import { CategoryIcon } from '../category-icon'
 import { spendingByCategory } from './chart.fixtures'
-import { ChartFrame, DARK, findChartGraphic, MOBILE } from './chart.story-utils'
+import {
+  ChartFrame,
+  DARK,
+  expectKeyboardTooltip,
+  findChartGraphic,
+  MOBILE,
+} from './chart.story-utils'
 import { DonutChart, type DonutChartSlice } from './donut-chart'
 import { formatWholeEuros } from './format'
 
@@ -50,6 +56,37 @@ export const ByCategory: Story = {
     await expect(
       canvas.getByText(formatWholeEuros(178400).replace(/\s/g, ' ')),
     ).toBeVisible()
+  },
+}
+
+/** The tooltip floats above the centre total, never under it. */
+export const TooltipOverTotal: Story = {
+  play: async ({ canvasElement }) => {
+    const graphic = await findChartGraphic(
+      canvasElement,
+      /Dépenses de mars 2026/,
+    )
+    await expectKeyboardTooltip(canvasElement, graphic, ['%'])
+    const wrapper = canvasElement.querySelector<HTMLElement>(
+      '.recharts-tooltip-wrapper',
+    )
+    const overlay = canvasElement.querySelector<HTMLElement>(
+      '[data-slot="chart-overlay"]',
+    )
+    // Moved onto the centre, the tooltip is what the overlay's spot shows.
+    // Both ignore the pointer, which hit-testing would skip: turn it on.
+    const centre = overlay!.getBoundingClientRect()
+    wrapper!.style.transform = 'none'
+    wrapper!.style.left = `${centre.width / 2 - 20}px`
+    wrapper!.style.top = `${centre.height / 2 - 10}px`
+    for (const el of [overlay!, wrapper!, ...wrapper!.querySelectorAll('*')]) {
+      ;(el as HTMLElement).style.pointerEvents = 'auto'
+    }
+    const hit = document.elementFromPoint(
+      centre.left + centre.width / 2,
+      centre.top + centre.height / 2,
+    )
+    await expect(wrapper!.contains(hit)).toBe(true)
   },
 }
 

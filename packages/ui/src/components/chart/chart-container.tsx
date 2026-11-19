@@ -223,6 +223,9 @@ function ChartContainer({
               // Hover band behind the active category
               '[&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted',
               '[&_.recharts-curve.recharts-tooltip-cursor]:stroke-border',
+              // The tooltip floats above the centre overlay (the donut's
+              // total), which comes later in the DOM and would cover it.
+              '[&_.recharts-tooltip-wrapper]:z-10',
 
               // Focus: keyboard users get a visible ring on the chart graphic
               '[&_.recharts-surface]:outline-none',
