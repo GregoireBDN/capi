@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { PageBackLink } from '#/components/app-shell/PageBack'
 import { isMonth } from '#/lib/calendar'
+import { REVIEW_SEARCH } from '#/components/transactions/search'
 import { ROUTES } from '#/lib/routes'
 
 /**
@@ -27,7 +28,13 @@ export interface AccountSearch {
 
 const ORIGINS: Record<
   AccountOrigin,
-  { label: string; to: PageBackLink['to']; hasMonth: boolean }
+  {
+    label: string
+    to: PageBackLink['to']
+    hasMonth: boolean
+    /** The origin page's own search, e.g. Opérations filtered on « À revoir ». */
+    search?: PageBackLink['search']
+  }
 > = {
   accounts: { label: 'Comptes', to: ROUTES.accounts, hasMonth: false },
   savings: { label: 'Épargne', to: ROUTES.savings, hasMonth: true },
@@ -39,7 +46,13 @@ const ORIGINS: Record<
     to: ROUTES.monthReview,
     hasMonth: true,
   },
-  review: { label: 'À revoir', to: ROUTES.review, hasMonth: false },
+  // « À revoir » is a filter of Opérations since #322.
+  review: {
+    label: 'À revoir',
+    to: ROUTES.transactions,
+    hasMonth: false,
+    search: REVIEW_SEARCH,
+  },
 }
 
 const searchSchema = z.object({
@@ -65,7 +78,7 @@ export function accountBackLink({ from, month }: AccountSearch): PageBackLink {
   return {
     label: origin.label,
     to: origin.to,
-    search: month && origin.hasMonth ? { month } : undefined,
+    search: month && origin.hasMonth ? { month } : origin.search,
   }
 }
 

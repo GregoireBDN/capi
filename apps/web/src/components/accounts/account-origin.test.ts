@@ -40,9 +40,11 @@ describe('account origin (#324)', () => {
       label: 'Patrimoine',
       to: '/net-worth',
     })
+    // Opérations filtered on « À revoir » (#322).
     expect(accountBackLink({ from: 'review' })).toMatchObject({
       label: 'À revoir',
-      to: '/review',
+      to: '/transactions',
+      search: { review: true, month: 'all' },
     })
   })
 
