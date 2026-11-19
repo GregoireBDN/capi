@@ -24,9 +24,13 @@ import { InvestmentsService } from '#/investments/investments.service'
 import { RecurringService } from '#/recurring/recurring.service'
 import { SavingsService } from '#/savings/savings.service'
 import { TransactionsService } from '#/transactions/transactions.service'
-import { MonthParamDto, UpdateMonthCloseDto } from './dto/month-close.dto'
+import {
+  MonthParamDto,
+  type MonthReportDto,
+  UpdateMonthCloseDto,
+} from './dto/month-close.dto'
 import { monthClosesTable } from './month-close.schema'
-import { MonthCloseService } from './month-close.service'
+import { MonthCloseService, withIcons } from './month-close.service'
 
 /**
  * Integration checks against the dedicated test database (see
@@ -129,6 +133,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           slug: 'test_groceries',
           name: 'Test courses',
           kind: 'expense',
+          icon: 'shopping-cart',
         })
         .returning()
       const checking = await accounts.create({
@@ -226,6 +231,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             categoryId: groceries,
             name: 'Test courses',
             color: null,
+            icon: 'shopping-cart',
             kind: 'expense',
             amountCents: 30_000,
             previousAmountCents: 1_000,
@@ -548,5 +554,48 @@ describe('month close validation', () => {
     })
     await expect(body({ acknowledged: ['imports'] })).rejects.toThrow()
     await expect(body({ notes: null })).resolves.toEqual({ notes: null })
+  })
+})
+
+describe('withIcons', () => {
+  const category = {
+    categoryId: 'c1',
+    name: 'Test courses',
+    color: '#16a34a',
+    kind: 'expense' as const,
+    amountCents: 1_000,
+    previousAmountCents: 0,
+    targetCents: null,
+  }
+  const report = (categories: MonthReportDto['categories']) =>
+    ({
+      month: '2026-10',
+      flow: { incomeCents: 0, expenseCents: 0, netCents: 0 },
+      netWorthCents: null,
+      savingsTargetCents: null,
+      categories,
+      oneOffs: [],
+      notes: null,
+    }) as unknown as MonthReportDto
+
+  it('gives a report frozen before icons the current ones', () => {
+    const frozen = report([
+      category as MonthReportDto['categories'][number],
+      {
+        ...category,
+        categoryId: 'gone',
+      } as MonthReportDto['categories'][number],
+    ])
+    const live = report([{ ...category, icon: 'shopping-cart' }])
+    expect(withIcons(frozen, live).categories.map((c) => c.icon)).toEqual([
+      'shopping-cart',
+      null,
+    ])
+  })
+
+  it('keeps the icons a report was frozen with', () => {
+    const frozen = report([{ ...category, icon: 'utensils' }])
+    const live = report([{ ...category, icon: 'shopping-cart' }])
+    expect(withIcons(frozen, live)).toBe(frozen)
   })
 })

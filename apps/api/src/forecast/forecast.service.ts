@@ -1,10 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
 import { and, eq, gt, gte, inArray, lte, min } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
-import {
-  AccountsService,
-  isBankAccount,
-} from '#/accounts/accounts.service'
+import { AccountsService, isBankAccount } from '#/accounts/accounts.service'
 import { dataUntilByAccount } from '#/coverage/coverage'
 import { monthEnd, shiftMonth } from '#/dashboard/calendar'
 import { DatabaseService } from '#/database/database.service'
@@ -141,6 +138,7 @@ export class ForecastService {
             bookedDates: item.occurrences.map((o) => o.date),
             categoryName: item.categoryName,
             categoryColor: item.categoryColor,
+            categoryIcon: item.categoryIcon,
           },
           window,
           horizons.get(item.accountId) ?? null,

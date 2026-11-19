@@ -2,6 +2,7 @@ import {
   Button,
   Card,
   CardContent,
+  CategoryIcon,
   cn,
   Skeleton,
   EmptyState,
@@ -16,7 +17,6 @@ import { formatBudgetAmount } from '#/components/budget/amount'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
 import { envelopesQuery } from '#/components/expenses/queries'
 import { ROUTES } from '#/lib/routes'
-import { categoryIconComponent } from '#/components/categories/category-icons'
 import { DashboardCardHeader } from './DashboardCardHeader'
 
 /** Same warning level as the budget page (80 % of the target). */
@@ -144,8 +144,6 @@ function EnvelopeRow({
   onAdd: () => void
 }) {
   const over = item.remainingCents < 0
-  const Icon = categoryIconComponent(item.icon)
-  const color = item.color ?? 'var(--chart-other)'
   const ratio = item.targetCents > 0 ? item.spentCents / item.targetCents : 0
   const pace =
     item.targetCents > 0 ? Math.min(item.paceCents / item.targetCents, 1) : 0
@@ -159,15 +157,7 @@ function EnvelopeRow({
       >
         {/* Its category, and what a tap does. */}
         <span className="flex items-center gap-2.5">
-          <span
-            aria-hidden
-            className="flex size-[28px] shrink-0 items-center justify-center rounded-full text-white [&_svg]:size-[14px]"
-            style={{
-              backgroundColor: `color-mix(in srgb, ${color} 78%, black)`,
-            }}
-          >
-            <Icon />
-          </span>
+          <CategoryIcon icon={item.icon} color={item.color} />
           <span className="min-w-0 flex-1 truncate font-medium">
             {item.name}
           </span>

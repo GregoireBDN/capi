@@ -18,6 +18,7 @@ export function recurringItem(
     categorySlug: null,
     categoryName: null,
     categoryColor: null,
+    categoryIcon: null,
     isFixedCost: true,
     isSubscription: false,
     cadence: 'monthly',

@@ -16,10 +16,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
-import {
-  AccountsService,
-  isBankAccount,
-} from '#/accounts/accounts.service'
+import { AccountsService, isBankAccount } from '#/accounts/accounts.service'
 import { BudgetsService } from '#/budgets/budgets.service'
 import { dataUntilByAccount } from '#/coverage/coverage'
 import { currentMonth, monthEnd, shiftMonth } from '#/dashboard/calendar'
@@ -122,6 +119,27 @@ export function reportChanges(
     })
   }
   return changes
+}
+
+/**
+ * A frozen report with every category's icon: reports closed before icons
+ * existed (#288) take the one the category has now, from the live report
+ * (null when the category is gone).
+ */
+export function withIcons(
+  closed: MonthReportDto,
+  current: MonthReportDto,
+): MonthReportDto {
+  if (closed.categories.every((c) => c.icon !== undefined)) return closed
+  const icons = new Map(current.categories.map((c) => [c.categoryId, c.icon]))
+  return {
+    ...closed,
+    categories: closed.categories.map((c) =>
+      c.icon !== undefined
+        ? c
+        : { ...c, icon: icons.get(c.categoryId) ?? null },
+    ),
+  }
 }
 
 /**
@@ -273,7 +291,7 @@ export class MonthCloseService {
       close: closed,
     }
 
-    const closedReport = closed ? row.report : null
+    const closedReport = closed ? withIcons(row.report!, report) : null
     return {
       month,
       nextMonth: shiftMonth(month, 1),
@@ -439,6 +457,7 @@ export class MonthCloseService {
         categoryId: row.categoryId,
         name: row.name,
         color: row.color,
+        icon: row.icon,
         kind: row.kind,
         amountCents: 0,
         previousAmountCents: 0,
@@ -455,6 +474,7 @@ export class MonthCloseService {
         categoryId: item.categoryId,
         name: item.name,
         color: item.color,
+        icon: item.icon,
         kind: 'expense' as const,
         amountCents: 0,
         previousAmountCents: 0,
@@ -496,6 +516,7 @@ export class MonthCloseService {
         kind: sql<'income' | 'expense'>`${t.kind}`,
         name: c.name,
         color: c.color,
+        icon: c.icon,
         totalCents: sql<number>`sum(${t.amountCents})::bigint`.mapWith(Number),
       })
       .from(t)
@@ -507,7 +528,7 @@ export class MonthCloseService {
           lte(t.bookingDate, monthEnd(month)),
         ),
       )
-      .groupBy(bucket, t.categoryId, t.kind, c.name, c.color)
+      .groupBy(bucket, t.categoryId, t.kind, c.name, c.color, c.icon)
   }
 
   private async oneOffs(month: string, executor: Executor) {

@@ -72,6 +72,7 @@ const items: RecurringItemDto[] = [
     categoryId: subscriptions.id,
     categoryName: 'Abonnements',
     categoryColor: '#7c3aed',
+    categoryIcon: 'repeat',
     typicalAmountCents: 1_299,
     latestAmountCents: 1_299,
     previousAmountCents: 1_099,
@@ -210,6 +211,12 @@ describe('SubscriptionsPage', () => {
     expect(text(row.textContent)).toContain('12,99 € / mois')
     expect(text(row.textContent)).toContain('+2,00 € depuis mars')
     expect(text(row.textContent)).toContain('Prochain dans 5 jours')
+    // Its category's icon heads the row (#288).
+    expect(
+      row
+        .querySelector('[data-slot="category-icon"] svg')
+        ?.getAttribute('class'),
+    ).toContain('lucide-repeat')
 
     const yearly = screen.getByRole('button', {
       name: 'Modifier Cotisation carte',

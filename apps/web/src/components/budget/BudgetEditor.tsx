@@ -1,5 +1,6 @@
 import {
   Button,
+  CategoryIcon,
   ConfirmDialog,
   Field,
   FieldDescription,
@@ -37,6 +38,8 @@ const NOTE_MAX = 500
 export interface EditedBudget {
   categoryId: string
   name: string
+  color: string | null
+  icon: string | null
   targetCents: number
   note: string | null
   tracked: boolean
@@ -92,8 +95,8 @@ export function BudgetEditor({
 
   const monthText = formatMonth(month).toLowerCase()
   const amountError = targetError(amount)
-  const categoryName =
-    budget?.name ?? available.find((c) => c.id === categoryId)?.name ?? ''
+  const chosen = budget ?? available.find((c) => c.id === categoryId)
+  const categoryName = chosen?.name ?? ''
 
   const save = useMutation({
     mutationFn: () =>
@@ -147,7 +150,12 @@ export function BudgetEditor({
           }
         >
           <SheetHeader className="pb-0">
-            <SheetTitle>{title}</SheetTitle>
+            <SheetTitle className="flex items-center gap-2">
+              {budget && (
+                <CategoryIcon icon={budget.icon} color={budget.color} />
+              )}
+              <span className="min-w-0">{title}</span>
+            </SheetTitle>
             <SheetDescription>
               Objectif mensuel à partir de {monthText}. Les mois précédents
               gardent leur objectif.
@@ -157,18 +165,25 @@ export function BudgetEditor({
             {!budget && (
               <Field>
                 <FieldLabel htmlFor={`${id}-category`}>Catégorie</FieldLabel>
-                <NativeSelect
-                  id={`${id}-category`}
-                  className="w-full"
-                  value={categoryId}
-                  onChange={(event) => setCategoryId(event.target.value)}
-                >
-                  {available.map((category) => (
-                    <NativeSelectOption key={category.id} value={category.id}>
-                      {category.name}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
+                {/* The chosen category's icon beside the list (a native
+                    select can't draw one per option). */}
+                <div className="flex items-center gap-2">
+                  {chosen && (
+                    <CategoryIcon icon={chosen.icon} color={chosen.color} />
+                  )}
+                  <NativeSelect
+                    id={`${id}-category`}
+                    className="min-w-0 flex-1"
+                    value={categoryId}
+                    onChange={(event) => setCategoryId(event.target.value)}
+                  >
+                    {available.map((category) => (
+                      <NativeSelectOption key={category.id} value={category.id}>
+                        {category.name}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </div>
               </Field>
             )}
             <Field data-invalid={showError}>

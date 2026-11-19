@@ -18,6 +18,7 @@ export function forecastItem(
     isFixedCost: true,
     categoryName: 'Abonnements',
     categoryColor: '#7c3aed',
+    categoryIcon: 'repeat',
     ...overrides,
   }
 }

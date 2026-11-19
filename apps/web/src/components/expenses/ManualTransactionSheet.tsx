@@ -1,5 +1,6 @@
 import {
   Button,
+  CategoryIcon,
   ConfirmDialog,
   Dialog,
   DialogContent,
@@ -72,7 +73,6 @@ import type { AmountKey } from './amount-entry'
 import {
   AccountChips,
   AmountKeypad,
-  CategoryDot,
   CategoryChips,
   DateChips,
   HabitGrid,
@@ -646,7 +646,13 @@ export function ManualTransactionSheet({
   /** What the earlier steps chose, at the top of the later ones. */
   const recap = (
     <p className="text-muted-foreground flex min-w-0 items-center justify-center gap-1.5 text-sm">
-      {chosenCategory && <CategoryDot color={chosenCategory.color} />}
+      {chosenCategory && (
+        <CategoryIcon
+          icon={chosenCategory.icon}
+          color={chosenCategory.color}
+          size="sm"
+        />
+      )}
       <span className="truncate">
         {[categoryText, label.trim() || null].filter(Boolean).join(' · ')}
       </span>

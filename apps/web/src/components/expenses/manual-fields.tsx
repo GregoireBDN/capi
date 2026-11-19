@@ -1,4 +1,10 @@
-import { Button, ToggleGroup, ToggleGroupItem, cn } from '@finances/ui'
+import {
+  Button,
+  CategoryIcon,
+  ToggleGroup,
+  ToggleGroupItem,
+  cn,
+} from '@finances/ui'
 import {
   CalendarIcon,
   CheckIcon,
@@ -144,20 +150,6 @@ const TILE_CLASS = cn(
 /** Habits shown at most: two rows of two, so the keypad stays in view. */
 const HABITS_MAX = 4
 
-/** The colour dot of a category (muted when it has none). */
-export function CategoryDot({ color }: { color: string | null | undefined }) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        'size-2.5 shrink-0 rounded-full',
-        !color && 'bg-muted-foreground/40',
-      )}
-      style={color ? { backgroundColor: color } : undefined}
-    />
-  )
-}
-
 /**
  * "Habituels": the labels used before, each with its usual category, as a
  * grid of two columns (never cut by the sheet's edge, #245). A tap fills the
@@ -178,7 +170,7 @@ export function HabitGrid({
   /** A category of the kind, or undefined. */
   category: (
     categoryId: string,
-  ) => { name: string; color: string | null } | undefined
+  ) => { name: string; color: string | null; icon: string | null } | undefined
   onPick: (item: ManualSuggestionDto) => void
 }) {
   if (items.length === 0) return null
@@ -206,7 +198,11 @@ export function HabitGrid({
               </span>
               {usual && (
                 <span className="text-muted-foreground flex w-full min-w-0 items-center gap-1 text-xs">
-                  <CategoryDot color={usual.color} />
+                  <CategoryIcon
+                    icon={usual.icon}
+                    color={usual.color}
+                    size="sm"
+                  />
                   <span className="sr-only"> · </span>
                   <span className="truncate">{usual.name}</span>
                 </span>
@@ -237,7 +233,12 @@ export function CategoryChips({
 }: {
   labelId: string
   /** Ordered, most likely first. */
-  categories: readonly { id: string; name: string; color: string | null }[]
+  categories: readonly {
+    id: string
+    name: string
+    color: string | null
+    icon: string | null
+  }[]
   /** The chosen category id, or '' for none. */
   value: string
   allowNone: boolean
@@ -246,7 +247,7 @@ export function CategoryChips({
   const options = [
     ...categories,
     ...(allowNone
-      ? [{ id: NO_CATEGORY, name: 'Sans catégorie', color: null }]
+      ? [{ id: NO_CATEGORY, name: 'Sans catégorie', color: null, icon: null }]
       : []),
   ]
   const current = value === '' ? (allowNone ? NO_CATEGORY : '') : value
@@ -275,7 +276,11 @@ export function CategoryChips({
             }
           >
             {category.id !== NO_CATEGORY && (
-              <CategoryDot color={category.color} />
+              <CategoryIcon
+                icon={category.icon}
+                color={category.color}
+                size="sm"
+              />
             )}
             {category.name}
           </button>

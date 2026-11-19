@@ -63,6 +63,7 @@ function report(overrides: Partial<MonthReportDto> = {}): MonthReportDto {
         categoryId: GROCERIES_ID,
         name: 'Courses test',
         color: '#16a34a',
+        icon: 'shopping-cart',
         kind: 'expense',
         amountCents: 40_000,
         previousAmountCents: 30_000,

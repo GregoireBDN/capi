@@ -487,6 +487,7 @@ describe('subscriptions', () => {
     categorySlug: null,
     categoryName: 'Loisirs',
     categoryColor: null,
+    categoryIcon: null,
     isFixedCost: false,
     isSubscription: true,
     cadence: 'monthly',

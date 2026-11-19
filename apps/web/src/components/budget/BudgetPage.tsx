@@ -182,6 +182,8 @@ export function BudgetPage({
                 budget: {
                   categoryId: item.categoryId,
                   name: item.name,
+                  color: item.color,
+                  icon: item.icon,
                   targetCents: item.targetCents,
                   note: item.note,
                   tracked: item.tracked,

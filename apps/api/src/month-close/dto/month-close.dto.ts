@@ -8,6 +8,10 @@ import {
   Matches,
   MaxLength,
 } from 'class-validator'
+import {
+  CATEGORY_ICON_DOC,
+  type CategoryIcon,
+} from '#/categories/category-icons'
 import { MonthPeriodDto } from '#/coverage/dto/period.dto'
 import { MONTH_PATTERN } from '#/dashboard/calendar'
 import { MonthFlowDto } from '#/dashboard/dto/dashboard.dto'
@@ -120,6 +124,13 @@ export class ReportCategoryDto {
 
   @ApiProperty({ type: String, nullable: true })
   color!: string | null
+
+  @ApiProperty({
+    ...CATEGORY_ICON_DOC,
+    description:
+      'Icon shown with the category (a Lucide icon name). A report frozen before icons existed takes the category’s current one.',
+  })
+  icon!: CategoryIcon | null
 
   @ApiProperty({ enum: REPORT_CATEGORY_KINDS, enumName: 'ReportCategoryKind' })
   kind!: ReportCategoryKind

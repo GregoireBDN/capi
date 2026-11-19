@@ -9,11 +9,12 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CategoryIcon,
   cn,
   formatPercent,
   formatWholeEuros,
 } from '@finances/ui'
-import { DownloadIcon, TriangleAlertIcon } from 'lucide-react'
+import { CircleHelpIcon, DownloadIcon, TriangleAlertIcon } from 'lucide-react'
 import type {
   MonthCloseDto,
   MonthReportDto,
@@ -221,12 +222,8 @@ function Row({
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-3">
       <span className="flex min-w-[7rem] flex-1 items-center gap-2">
-        <span
-          aria-hidden
-          className="size-2.5 shrink-0 rounded-[3px]"
-          style={{ backgroundColor: category.color ?? 'var(--chart-other)' }}
-        />
-        <span className="break-words">{categoryName(category)}</span>
+        <ReportCategoryIcon category={category} />
+        <span className="min-w-0 break-words">{categoryName(category)}</span>
       </span>
       <span
         className={cn(
@@ -240,6 +237,18 @@ function Row({
   )
 }
 
+/** A category of the report, a question mark for the uncategorized. */
+function ReportCategoryIcon({ category }: { category: ReportCategoryDto }) {
+  return (
+    <CategoryIcon
+      icon={category.icon}
+      color={category.color}
+      fallback={category.categoryId === null ? CircleHelpIcon : undefined}
+      size="sm"
+    />
+  )
+}
+
 /** Spending per category, as bars scaled on the largest. */
 function SpendingBars({ expenses }: { expenses: ReportCategoryDto[] }) {
   const max = Math.max(...expenses.map((c) => c.amountCents))
@@ -250,8 +259,9 @@ function SpendingBars({ expenses }: { expenses: ReportCategoryDto[] }) {
         {expenses.map((c) => (
           <li key={c.categoryId ?? 'none'} className="space-y-1">
             <div className="flex flex-wrap justify-between gap-x-3">
-              <span className="min-w-[7rem] flex-1 break-words">
-                {categoryName(c)}
+              <span className="flex min-w-[7rem] flex-1 items-center gap-2">
+                <ReportCategoryIcon category={c} />
+                <span className="min-w-0 break-words">{categoryName(c)}</span>
               </span>
               <span className="ml-auto whitespace-nowrap tabular-nums">
                 {formatWholeEuros(c.amountCents)}

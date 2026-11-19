@@ -11,6 +11,10 @@ import {
   Min,
 } from 'class-validator'
 import {
+  CATEGORY_ICON_DOC,
+  type CategoryIcon,
+} from '#/categories/category-icons'
+import {
   ACCOUNT_TYPES,
   type AccountType,
   RECURRING_AMOUNT_TYPES,
@@ -170,6 +174,9 @@ export class ForecastItemDto {
 
   @ApiProperty({ type: String, nullable: true })
   categoryColor!: string | null
+
+  @ApiProperty(CATEGORY_ICON_DOC)
+  categoryIcon!: CategoryIcon | null
 }
 
 export class ForecastEstimateDto {

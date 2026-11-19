@@ -16,6 +16,10 @@ import {
   ValidateIf,
 } from 'class-validator'
 import {
+  CATEGORY_ICON_DOC,
+  type CategoryIcon,
+} from '#/categories/category-icons'
+import {
   RECURRING_AMOUNT_TYPES,
   RECURRING_CADENCES,
   RECURRING_DIRECTIONS,
@@ -236,6 +240,9 @@ export class RecurringItemDto {
 
   @ApiProperty({ type: String, nullable: true, example: '#7c3aed' })
   categoryColor!: string | null
+
+  @ApiProperty(CATEGORY_ICON_DOC)
+  categoryIcon!: CategoryIcon | null
 
   @ApiProperty({ type: Boolean })
   isFixedCost!: boolean

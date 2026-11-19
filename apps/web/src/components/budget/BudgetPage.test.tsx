@@ -340,11 +340,14 @@ describe('BudgetPage', () => {
     const outsideRows = within(outside).getAllByRole('listitem')
     expect(glyph(outsideRows[0])).toContain('lucide-car')
     expect(glyph(outsideRows[1])).toContain('lucide-circle-question-mark')
+    // One target per row sets a target (#288): the uncategorized row,
+    // which can't take a budget, has none.
     expect(
-      within(outside).getByRole('button', {
-        name: 'Ajouter un budget Transport',
+      within(outsideRows[0]).getByRole('button', {
+        name: 'Fixer un objectif pour Transport',
       }),
     ).toBeInTheDocument()
+    expect(within(outsideRows[1]).queryByRole('button')).toBeNull()
   })
 
   it('shows the month the API picks and how far its data goes', async () => {
@@ -446,7 +449,7 @@ describe('BudgetPage', () => {
 
     await user.click(
       await screen.findByRole('button', {
-        name: 'Ajouter un budget Transport',
+        name: 'Fixer un objectif pour Transport',
       }),
     )
     const dialog = await screen.findByRole('dialog')

@@ -4,6 +4,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CategoryIcon,
   Checkbox,
   cn,
   formatPercent,
@@ -361,9 +362,16 @@ function BudgetStep(props: StepsProps) {
               {budget.over.map((line) => (
                 <li
                   key={line.categoryId}
-                  className="flex flex-wrap justify-between gap-x-3"
+                  className="flex flex-wrap items-center justify-between gap-x-3"
                 >
-                  <span className="min-w-[7rem] flex-1">{line.name}</span>
+                  <span className="flex min-w-[7rem] flex-1 items-center gap-2">
+                    <CategoryIcon
+                      icon={line.icon}
+                      color={line.color}
+                      size="sm"
+                    />
+                    <span className="min-w-0 break-words">{line.name}</span>
+                  </span>
                   <span className="text-chart-delta-bad ml-auto whitespace-nowrap tabular-nums">
                     {formatWholeEuros(line.gapCents)} de trop
                   </span>

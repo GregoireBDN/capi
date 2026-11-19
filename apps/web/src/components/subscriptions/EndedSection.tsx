@@ -7,7 +7,7 @@ import {
 } from '@finances/ui'
 import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react'
 import type { RecurringItemDto } from '#/api/types.gen'
-import { CategoryDot } from '#/components/budget/CategoryDot'
+import { RecurringCategoryIcon } from './RecurringCategoryIcon'
 import { formatCents } from '#/lib/money'
 import { plural } from '#/lib/plural'
 import { ROW_BUTTON, ROW_LIST } from '#/lib/row-list'
@@ -68,9 +68,7 @@ export function EndedSection({
                     'flex min-w-0 items-start gap-2 p-3',
                   )}
                 >
-                  <span className="mt-1.5 flex">
-                    <CategoryDot color={item.categoryColor} />
-                  </span>
+                  <RecurringCategoryIcon item={item} />
                   <span className="min-w-0 flex-1 space-y-0.5">
                     <span className="flex flex-wrap items-baseline justify-between gap-x-2">
                       <span className="min-w-[7rem] flex-1 font-medium break-words">
