@@ -84,10 +84,10 @@ export const NAV_ITEMS: readonly NavItem[] = [
 ]
 
 /**
- * The sidebar's one settings entry, at the bottom above the account menu
- * (#261): opens the Réglages list (#300), whose sections have their own
- * screens under `/settings/…` (nested, so the entry stays highlighted), and
- * stays highlighted on the Catégories and Règles pages it opens too.
+ * The settings pages (#261, #300): the Réglages list, its sections' screens
+ * under `/settings/…` and the Catégories and Règles pages it opens. The
+ * sidebar reaches them through who is signed in (`AccountLink`), which is
+ * the current entry on all of them.
  */
 export const SETTINGS_ITEM: NavItem = {
   label: 'Réglages',

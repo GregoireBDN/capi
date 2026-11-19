@@ -25,7 +25,10 @@ const theme = vi.hoisted(() => ({
   setPreference: vi.fn(),
 }))
 
+const auth = vi.hoisted(() => ({ logout: vi.fn() }))
+
 vi.mock('#/api', () => api)
+vi.mock('#/lib/auth-context', () => ({ useAuth: () => auth }))
 vi.mock('#/lib/use-theme-preference', () => ({
   useThemePreference: () => theme,
 }))
@@ -70,7 +73,7 @@ async function renderPage() {
     path: '/settings',
     component: () => <SettingsPage user={USER} />,
   })
-  const others = SECTIONS.map(([, path]) =>
+  const others = [...SECTIONS.map(([, path]) => path), '/auth'].map((path) =>
     createRoute({
       getParentRoute: () => rootRoute,
       path,
@@ -181,5 +184,16 @@ describe('SettingsPage', () => {
       .click(screen.getByRole('radio', { name: 'Système' }))
 
     expect(theme.setPreference).not.toHaveBeenCalled()
+  })
+
+  it('signs out, then opens the sign-in page', async () => {
+    const router = await renderPage()
+
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Se déconnecter' }))
+
+    expect(auth.logout).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/auth'))
   })
 })

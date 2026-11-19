@@ -114,18 +114,6 @@ const SCENARIOS: Array<Scenario> = [
   },
   { name: 'net-worth', path: '/net-worth' },
   { name: 'shell-nav', path: '/dashboard', step: openNav },
-  {
-    name: 'shell-user-menu',
-    path: '/dashboard',
-    step: async (page) => {
-      if (
-        await page.getByRole('button', { name: 'Ouvrir le menu' }).isVisible()
-      )
-        await openNav(page)
-      await page.getByRole('button', { name: 'Menu du compte' }).click()
-      await page.getByRole('menu').waitFor()
-    },
-  },
   { name: 'spending', path: '/spending' },
   { name: 'transactions', path: '/transactions?month=all' },
   {

@@ -54,6 +54,10 @@ const user = {
 
 /** Renders the sidebar inside a real in-memory router at `path`. */
 async function renderAt(path: string) {
+  return (await renderAtWithRouter(path)).nav
+}
+
+async function renderAtWithRouter(path: string) {
   const rootRoute = createRootRoute({
     component: () => (
       <SidebarProvider>
@@ -91,9 +95,10 @@ async function renderAt(path: string) {
     history: createMemoryHistory({ initialEntries: [path] }),
   })
   render(<RouterProvider router={router} />)
-  return within(
+  const nav = within(
     await screen.findByRole('navigation', { name: 'Navigation principale' }),
   )
+  return { nav, router }
 }
 
 describe('AppSidebar', () => {
@@ -124,13 +129,14 @@ describe('AppSidebar', () => {
     expect(active).toHaveAttribute('aria-current', 'page')
     expect(active).toHaveAttribute('data-active', 'true')
 
-    for (const { label } of [...NAV_ITEMS, SETTINGS_ITEM].filter(
+    for (const { label } of NAV_ITEMS.filter(
       (item) => item.label !== 'Budget',
     )) {
       const link = screen.getByRole('link', { name: label })
       expect(link).not.toHaveAttribute('aria-current')
       expect(link).not.toHaveAttribute('data-active')
     }
+    expect(settingsLink()).not.toHaveAttribute('aria-current')
   })
 
   it('highlights "Dépenses" on the spending page', async () => {
@@ -193,58 +199,50 @@ describe('AppSidebar', () => {
     expect(screen.getByText('owner@example.test')).toBeInTheDocument()
   })
 
-  it('puts « Réglages » at the bottom, above the account menu', async () => {
+  it('makes who is signed in, at the bottom, the one link to Réglages (#300)', async () => {
     const nav = await renderAt('/dashboard')
-    const settingsLink = screen.getByRole('link', { name: 'Réglages' })
-    const accountMenu = screen.getByRole('button', { name: 'Menu du compte' })
+    const link = settingsLink()
 
-    expect(settingsLink).toHaveAttribute('href', '/settings')
-    // Outside the list of pages, after it and before who is signed in.
-    expect(nav.queryByRole('link', { name: 'Réglages' })).toBeNull()
+    expect(link).toHaveAttribute('href', '/settings')
+    expect(link).toHaveTextContent('Owner Test')
+    expect(link).toHaveTextContent('owner@example.test')
+    // Outside the list of pages, after it; no account menu any more.
+    expect(nav.queryByRole('link', { name: /Réglages/ })).toBeNull()
     expect(
-      nav
-        .getByRole('link', { name: 'Import' })
-        .compareDocumentPosition(settingsLink) &
+      nav.getByRole('link', { name: 'Import' }).compareDocumentPosition(link) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
     expect(
-      settingsLink.compareDocumentPosition(accountMenu) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
-  })
-
-  it.each(['/categories', '/rules', '/settings', '/settings/security'])(
-    'highlights « Réglages » on %s',
-    async (path) => {
-      await renderAt(path)
-      expect(screen.getByRole('link', { name: 'Réglages' })).toHaveAttribute(
-        'aria-current',
-        'page',
-      )
-      expect(screen.getAllByRole('link').filter(isCurrent)).toHaveLength(1)
-    },
-  )
-
-  it('has one settings link, account menu open (#261, #300)', async () => {
-    await renderAt('/dashboard')
-    await userEvent
-      .setup()
-      .click(screen.getByRole('button', { name: 'Menu du compte' }))
-    await screen.findByRole('menu')
-
-    // The open (modal) menu hides the rest of the page from the a11y tree;
-    // the menu's own « Réglages » is an item, not a link.
+      screen.queryByRole('button', { name: 'Menu du compte' }),
+    ).not.toBeInTheDocument()
     expect(document.querySelectorAll('a[href="/settings"]')).toHaveLength(1)
     for (const to of ['/categories', '/rules', '/profile']) {
       expect(document.querySelectorAll(`a[href="${to}"]`)).toHaveLength(0)
     }
-    for (const name of ['Catégories', 'Règles', 'Profil']) {
-      expect(
-        screen.queryByRole('link', { name, hidden: true }),
-      ).not.toBeInTheDocument()
-    }
+  })
+
+  it.each(['/categories', '/rules', '/settings', '/settings/security'])(
+    'highlights the account link on %s',
+    async (path) => {
+      await renderAt(path)
+      expect(settingsLink()).toHaveAttribute('aria-current', 'page')
+      expect(screen.getAllByRole('link').filter(isCurrent)).toHaveLength(1)
+    },
+  )
+
+  it('opens Réglages', async () => {
+    const { router } = await renderAtWithRouter('/dashboard')
+
+    await userEvent.setup().click(settingsLink())
+
+    expect(router.state.location.pathname).toBe('/settings')
   })
 })
+
+/** The sidebar's account row, named « Réglages, » then who. */
+function settingsLink() {
+  return screen.getByRole('link', { name: /^Réglages, / })
+}
 
 function isCurrent(link: HTMLElement) {
   return link.getAttribute('aria-current') === 'page'

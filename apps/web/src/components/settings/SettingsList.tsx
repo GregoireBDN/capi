@@ -168,3 +168,33 @@ export function SettingsControlRow({
     </li>
   )
 }
+
+/** A row that acts at once (no screen, no chevron), e.g. « Se déconnecter ». */
+export function SettingsButtonRow({
+  icon,
+  tone = 'muted',
+  title,
+  onClick,
+}: {
+  icon: LucideIcon
+  tone?: SettingsTone
+  title: string
+  onClick: () => void
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          ROW,
+          'min-h-12 hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-ring/50 outline-none focus-visible:ring-[3px] focus-visible:ring-inset',
+          'transition-colors',
+        )}
+      >
+        <SettingsIcon icon={icon} tone={tone} />
+        <RowText title={title} />
+      </button>
+    </li>
+  )
+}
