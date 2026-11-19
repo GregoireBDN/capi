@@ -54,7 +54,7 @@ export function DeleteAccountCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-destructive">
           <TriangleAlertIcon className="size-4" />
-          Zone dangereuse
+          Supprimer le compte
         </CardTitle>
         <CardDescription>
           La suppression de votre compte est définitive. Toutes vos données
@@ -72,7 +72,7 @@ export function DeleteAccountCard({
           variant="danger"
           loading={deleting}
           trigger={
-            <Button variant="danger" outline className="w-full sm:w-auto">
+            <Button variant="danger" outline className="w-full">
               Supprimer mon compte
             </Button>
           }

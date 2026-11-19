@@ -71,7 +71,7 @@ test('password reset form keeps its fields out of the URL', async ({
 })
 
 test('a native POST to a page route is harmless', async ({ request }) => {
-  for (const path of ['/auth', '/reset-password', '/profile']) {
+  for (const path of ['/auth', '/reset-password', '/settings/security']) {
     const response = await request.post(path, {
       form: { email: SYNTHETIC_EMAIL, password: SYNTHETIC_PASSWORD },
       maxRedirects: 0,
@@ -94,7 +94,7 @@ test('change-password form keeps its fields out of the URL', async ({
   })
   expect(login.ok()).toBe(true)
 
-  await page.goto('/profile')
+  await page.goto('/settings/security')
   // Signed-in pages may stream their content in after the shell: without
   // JavaScript the form can then not be shown at all, so nothing can be
   // submitted. When it is server-rendered, it must be safe like the others.

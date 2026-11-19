@@ -28,7 +28,7 @@ import {
   isNavEntryActive,
 } from './nav-items'
 import type { NavItem } from './nav-items'
-import { UserMenu } from './UserMenu'
+import { AccountLink } from './AccountLink'
 
 /**
  * Page icons a little larger than the menu default, and, folded, square
@@ -173,10 +173,14 @@ export function AppSidebar({ user }: { user: UserDto }) {
           </nav>
         </SidebarContent>
 
-        {/* Settings at the bottom, above who is signed in (#261). */}
+        {/* Who is signed in, at the bottom: the one link to Réglages
+            (#261, #300). */}
         <SidebarFooter>
-          <SidebarMenu>{renderItem(SETTINGS_ITEM)}</SidebarMenu>
-          <UserMenu user={user} onNavigate={closeMobileSheet} />
+          <AccountLink
+            user={user}
+            active={isNavEntryActive(pathname, SETTINGS_ITEM)}
+            onNavigate={closeMobileSheet}
+          />
         </SidebarFooter>
       </Sidebar>
     </TooltipProvider>

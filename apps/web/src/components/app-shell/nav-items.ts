@@ -5,14 +5,11 @@ import {
   InboxIcon,
   LandmarkIcon,
   LayoutDashboardIcon,
-  ListFilterIcon,
   PiggyBankIcon,
   RepeatIcon,
   SettingsIcon,
-  TagsIcon,
   TargetIcon,
   UploadIcon,
-  UserIcon,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { isMonth } from '#/lib/calendar'
@@ -31,9 +28,7 @@ export interface NavItem {
     | 'crypto'
     | 'accounts'
     | 'import'
-    | 'categories'
-    | 'rules'
-    | 'profile']
+    | 'settings']
   icon: LucideIcon
   /** Counter shown next to the label: the review queue size. */
   badge?: 'reviewCount'
@@ -89,25 +84,16 @@ export const NAV_ITEMS: readonly NavItem[] = [
 ]
 
 /**
- * The settings pages, reached from the one « Réglages » entry of the sidebar
- * and switched between with the tabs above them (`SettingsTabs`). A new
- * settings page goes here and under `routes/_app/_settings/`.
- */
-export const SETTINGS_TABS: readonly NavItem[] = [
-  { label: 'Profil', to: ROUTES.profile, icon: UserIcon },
-  { label: 'Catégories', to: ROUTES.categories, icon: TagsIcon },
-  { label: 'Règles', to: ROUTES.rules, icon: ListFilterIcon },
-]
-
-/**
- * The sidebar's one settings entry, at the bottom above the account menu:
- * opens the first settings page and stays highlighted on all of them (#261).
+ * The settings pages (#261, #300): the Réglages list, its sections' screens
+ * under `/settings/…` and the Catégories and Règles pages it opens. The
+ * sidebar reaches them through who is signed in (`AccountLink`), which is
+ * the current entry on all of them.
  */
 export const SETTINGS_ITEM: NavItem = {
   label: 'Réglages',
-  to: SETTINGS_TABS[0].to,
+  to: ROUTES.settings,
   icon: SettingsIcon,
-  alsoActiveOn: SETTINGS_TABS.slice(1).map((tab) => tab.to),
+  alsoActiveOn: [ROUTES.categories, ROUTES.rules],
 }
 
 /** A nav item is active on its own page and on any page nested below it. */

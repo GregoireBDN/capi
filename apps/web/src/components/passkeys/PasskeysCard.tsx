@@ -269,7 +269,7 @@ export function PasskeysCard({ email }: { email: string }) {
             type="button"
             variant="secondary"
             outline
-            className="w-full sm:w-auto"
+            className="w-full"
             loading={adding}
             onClick={() => void add()}
           >

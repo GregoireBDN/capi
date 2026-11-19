@@ -1,0 +1,160 @@
+import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
+import {
+  BotIcon,
+  ListFilterIcon,
+  LogOutIcon,
+  ShieldCheckIcon,
+  SunMoonIcon,
+  TagsIcon,
+  TriangleAlertIcon,
+  UserIcon,
+} from 'lucide-react'
+import { useId } from 'react'
+import type { UserDto } from '#/api/types.gen'
+import { accessTokensQuery } from '#/components/access-tokens/queries'
+import { PageHeader } from '#/components/app-shell/PageHeader'
+import { grantsQuery } from '#/components/oauth/queries'
+import { passkeysQuery } from '#/components/passkeys/queries'
+import { rulesQuery } from '#/components/rules/queries'
+import { sessionsQuery } from '#/components/sessions/queries'
+import { useAuth } from '#/lib/auth-context'
+import { categoriesQuery } from '#/lib/queries'
+import { ROUTES } from '#/lib/routes'
+import {
+  SettingsButtonRow,
+  SettingsControlRow,
+  SettingsGroup,
+  SettingsLinkRow,
+} from './SettingsList'
+import { ThemeChoice } from './ThemeChoice'
+import { accessSummary, countLabel, securitySummary } from './settings-summary'
+
+/**
+ * Réglages (#300): one list of sections, like iOS Settings, each row with
+ * its current state and opening its own screen (the theme is chosen in
+ * place). Replaces the former Profil page, ten cards in one scroll.
+ */
+export function SettingsPage({ user }: { user: UserDto }) {
+  const themeId = useId()
+  const { logout } = useAuth()
+  const navigate = useNavigate()
+
+  async function signOut() {
+    await logout()
+    await navigate({ to: ROUTES.auth })
+  }
+  const passkeys = useQuery(passkeysQuery)
+  const sessions = useQuery(sessionsQuery)
+  const categories = useQuery(categoriesQuery)
+  const rules = useQuery(rulesQuery)
+  const tokens = useQuery(accessTokensQuery)
+  const grants = useQuery(grantsQuery)
+
+  const activeCategories = categories.data?.filter((c) => !c.archivedAt)
+
+  return (
+    <div className="@container space-y-6">
+      <PageHeader title="Réglages" />
+
+      <div className="space-y-5">
+        <SettingsGroup label="Compte et sécurité">
+          <SettingsLinkRow
+            to={ROUTES.settingsAccount}
+            icon={UserIcon}
+            tone="primary"
+            title="Compte"
+            state={user.name}
+          />
+          <SettingsControlRow
+            icon={SunMoonIcon}
+            tone="info"
+            title="Apparence"
+            titleId={themeId}
+          >
+            <ThemeChoice labelledBy={themeId} />
+          </SettingsControlRow>
+          <SettingsLinkRow
+            to={ROUTES.settingsSecurity}
+            icon={ShieldCheckIcon}
+            tone="success"
+            title="Sécurité"
+            state={securitySummary(
+              passkeys.data?.length,
+              sessions.data?.length,
+            )}
+          />
+        </SettingsGroup>
+
+        <SettingsGroup label="Classement">
+          <SettingsLinkRow
+            to={ROUTES.categories}
+            icon={TagsIcon}
+            tone="warning"
+            title="Catégories"
+            state={
+              activeCategories
+                ? countLabel(
+                    activeCategories.length,
+                    'catégorie',
+                    'catégories',
+                    'Aucune catégorie',
+                  )
+                : null
+            }
+          />
+          <SettingsLinkRow
+            to={ROUTES.rules}
+            icon={ListFilterIcon}
+            tone="warning"
+            title="Règles"
+            state={
+              rules.data
+                ? countLabel(
+                    rules.data.length,
+                    'règle',
+                    'règles',
+                    'Aucune règle',
+                  )
+                : null
+            }
+          />
+        </SettingsGroup>
+
+        <SettingsGroup label="Accès">
+          <SettingsLinkRow
+            to={ROUTES.settingsAccess}
+            icon={BotIcon}
+            tone="primary"
+            title="Claude et accès"
+            state={
+              tokens.data && !grants.isPending
+                ? accessSummary(tokens.data.length, grants.data?.length ?? null)
+                : null
+            }
+          />
+        </SettingsGroup>
+
+        {/* Here since the sidebar's account row became the link to
+            Réglages (#300); the account deletion stays last, alone. */}
+        <SettingsGroup label="Session">
+          <SettingsButtonRow
+            icon={LogOutIcon}
+            title="Se déconnecter"
+            onClick={() => void signOut()}
+          />
+        </SettingsGroup>
+
+        <SettingsGroup label="Zone dangereuse">
+          <SettingsLinkRow
+            to={ROUTES.settingsDanger}
+            icon={TriangleAlertIcon}
+            tone="danger"
+            title="Zone dangereuse"
+            state="Supprimer le compte"
+          />
+        </SettingsGroup>
+      </div>
+    </div>
+  )
+}
