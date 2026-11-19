@@ -27,8 +27,8 @@ interface PageHeaderProps {
    */
   actions?: readonly PageAction[]
   /**
-   * The page a sub-page goes back to (an account → « Épargne »): « ‹ Label »
-   * on its own line above the title (`PageBack`).
+   * The page a sub-page goes back to (an account → « Épargne »): in the top
+   * bar on phones, a chip above the title from `md` up (`PageBack`).
    */
   back?: PageBackLink
 }
