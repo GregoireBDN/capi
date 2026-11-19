@@ -19,6 +19,7 @@ import { JWT_GUARD_TEST_PROVIDERS } from '#/auth/guards/jwt-guard.testing'
 import { AccountSnapshotsController } from './account-snapshots.controller'
 import { InvestmentsController } from './investments.controller'
 import { InvestmentsService } from './investments.service'
+import { MovementsService } from './movements.service'
 
 /**
  * The HTTP boundary: parameter and body validation, auth. The service is
@@ -47,6 +48,7 @@ describe('Snapshots and investments controllers (HTTP)', () => {
       providers: [
         ...JWT_GUARD_TEST_PROVIDERS,
         { provide: InvestmentsService, useValue: service },
+        { provide: MovementsService, useValue: {} },
       ],
     }).compile()
     app = moduleRef.createNestApplication<NestFastifyApplication>(

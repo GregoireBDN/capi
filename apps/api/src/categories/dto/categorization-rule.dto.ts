@@ -63,6 +63,9 @@ const KIND_DOC = {
     "Overrides the category's kind when set (e.g. `transfer` for a move to one of the user's own accounts).",
 } as const
 
+const COUNTERPART_DOC =
+  'Destination account of the transfers the rule files (#296), set as their counterpart when they have none. Only on a rule whose outcome is a `transfer`.'
+
 export class CategorizationRuleDto {
   @ApiProperty({ type: String, format: 'uuid' })
   id!: string
@@ -111,6 +114,14 @@ export class CategorizationRuleDto {
     description: 'Merchant name given to matching transactions, when set.',
   })
   merchant!: string | null
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: COUNTERPART_DOC,
+  })
+  counterpartAccountId!: string | null
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date
@@ -170,6 +181,16 @@ export class CreateCategorizationRuleDto {
   @IsString()
   @MaxLength(MERCHANT_MAX)
   merchant?: string | null
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: COUNTERPART_DOC,
+  })
+  @IsOptional()
+  @IsUUID()
+  counterpartAccountId?: string | null
 }
 
 /**
@@ -233,6 +254,16 @@ export class UpdateCategorizationRuleDto {
   @IsString()
   @MaxLength(MERCHANT_MAX)
   merchant?: string | null
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: COUNTERPART_DOC,
+  })
+  @IsOptional()
+  @IsUUID()
+  counterpartAccountId?: string | null
 }
 
 export class ReorderCategorizationRulesDto {

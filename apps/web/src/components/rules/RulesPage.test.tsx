@@ -105,6 +105,7 @@ function rule(
     categoryId: GROCERIES.id,
     kind: null,
     merchant: null,
+    counterpartAccountId: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
@@ -543,6 +544,19 @@ describe('bodyFromForm', () => {
         merchant: null,
         kind: 'transfer',
       }),
+    })
+  })
+
+  it('sends a destination account only with transfers (#296)', () => {
+    const withDestination = { ...form, counterpartAccountId: 'acc-pea' }
+    expect(bodyFromForm({ ...withDestination, kind: 'transfer' })).toEqual({
+      body: expect.objectContaining({ counterpartAccountId: 'acc-pea' }),
+    })
+    expect(bodyFromForm(withDestination, 'transfer')).toEqual({
+      body: expect.objectContaining({ counterpartAccountId: 'acc-pea' }),
+    })
+    expect(bodyFromForm(withDestination, 'expense')).toEqual({
+      body: expect.objectContaining({ counterpartAccountId: null }),
     })
   })
 

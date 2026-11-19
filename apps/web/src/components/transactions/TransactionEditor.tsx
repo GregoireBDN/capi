@@ -1,6 +1,8 @@
 import { Button, cn, Input, Switch, Textarea, useIsMobile } from '@finances/ui'
+import { useQuery } from '@tanstack/react-query'
 import {
   ArrowLeftRightIcon,
+  ArrowRightIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CheckIcon,
@@ -16,6 +18,7 @@ import type { LucideIcon } from 'lucide-react'
 import { useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import type {
+  AccountDto,
   CategoryDto,
   CorrectTransactionDto,
   TransactionDto,
@@ -27,10 +30,12 @@ import {
 } from '#/components/categories/category-icons'
 import { pickableCategories } from '#/lib/categories'
 import { formatCalendarDate } from '#/lib/money'
+import { accountsQuery } from '#/lib/queries'
 import { Amount } from './Amount'
 import type { TransactionChanges } from './changes'
 import { ImportedCorrection } from './ImportedCorrection'
 import {
+  counterpartLabel,
   displayLabel,
   KIND_GROUP_LABELS,
   KIND_LABELS,
@@ -42,7 +47,14 @@ import { SplitEditor } from './SplitEditor'
 const NOTE_MAX = 2000
 
 /** Screens of the editor: the list of settings, then one per choice. */
-type Screen = 'list' | 'category' | 'note' | 'split' | 'correct' | 'kind'
+type Screen =
+  | 'list'
+  | 'category'
+  | 'note'
+  | 'split'
+  | 'correct'
+  | 'kind'
+  | 'counterpart'
 
 interface TransactionEditorProps {
   item: TransactionDto
@@ -310,6 +322,68 @@ function KindScreen({
 }
 
 /**
+ * The owner's other account a transfer goes to or comes from (#296): every
+ * open account but the transaction's own, then « Aucun ».
+ */
+function CounterpartScreen({
+  item,
+  onPick,
+}: {
+  item: TransactionDto
+  onPick: (accountId: string | null) => void
+}) {
+  const accounts = useQuery(accountsQuery)
+  const others = (accounts.data ?? []).filter(
+    (account: AccountDto) => account.id !== item.accountId,
+  )
+  const options: { id: string | null; name: string }[] = [
+    ...others.map((account) => ({ id: account.id, name: account.name })),
+    { id: null, name: 'Aucun' },
+  ]
+  return (
+    <div className="space-y-2">
+      <p className="text-muted-foreground text-xs">
+        {item.amountCents < 0
+          ? 'Le compte où cet argent est allé.'
+          : 'Le compte d’où vient cet argent.'}{' '}
+        Les virements liés à un placement font ses versements.
+      </p>
+      {accounts.isPending ? (
+        <p className="text-muted-foreground text-sm">Chargement…</p>
+      ) : (
+        <div
+          role="radiogroup"
+          aria-label={counterpartLabel(item)}
+          className={GROUP}
+        >
+          {options.map((option) => {
+            const current = option.id === item.counterpartAccountId
+            return (
+              <button
+                key={option.id ?? 'none'}
+                type="button"
+                role="radio"
+                aria-checked={current}
+                onClick={() => onPick(option.id)}
+                className={cn(ROW, 'justify-between')}
+              >
+                <span className="min-w-0 truncate py-2">{option.name}</span>
+                {current && (
+                  <CheckIcon
+                    className="size-[0.8rem] shrink-0"
+                    aria-hidden="true"
+                  />
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
  * The editor of one transaction (#280), like a settings list: the frequent
  * settings first (category, note, one-off, review), the rarer ones below
  * (split, correction, type); each choice opens its own screen with
@@ -414,6 +488,22 @@ export function TransactionEditor({
       </div>
     )
   }
+  if (screen === 'counterpart') {
+    return (
+      <div className="space-y-3">
+        <ScreenHeader title={counterpartLabel(item)} onBack={back} />
+        <CounterpartScreen
+          item={item}
+          onPick={(counterpartAccountId) => {
+            back()
+            if (counterpartAccountId !== item.counterpartAccountId) {
+              onChange({ counterpartAccountId })
+            }
+          }}
+        />
+      </div>
+    )
+  }
   if (screen === 'kind') {
     return (
       <div className="space-y-3">
@@ -476,6 +566,14 @@ export function TransactionEditor({
           value={categoryValue}
           onClick={() => setScreen(split && onSplit ? 'split' : 'category')}
         />
+        {item.kind === 'transfer' && (
+          <SettingButton
+            icon={ArrowRightIcon}
+            label={counterpartLabel(item)}
+            value={item.counterpartAccountName ?? 'Choisir'}
+            onClick={() => setScreen('counterpart')}
+          />
+        )}
         <SettingButton
           icon={StickyNoteIcon}
           label="Note"

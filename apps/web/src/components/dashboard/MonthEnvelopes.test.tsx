@@ -569,6 +569,8 @@ describe('ManualTransactionSheet (editing)', () => {
     manual: true,
     originalAmountCents: null,
     originalBookingDate: null,
+    counterpartAccountId: null,
+    counterpartAccountName: null,
     splits: [],
     createdAt: STAMP,
     updatedAt: STAMP,

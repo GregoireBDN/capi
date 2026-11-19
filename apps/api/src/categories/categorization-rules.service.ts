@@ -73,6 +73,8 @@ type RuleFields = Pick<
   | 'minAmountCents'
   | 'maxAmountCents'
   | 'categoryId'
+  | 'kind'
+  | 'counterpartAccountId'
 >
 
 interface CategorizationChange {
@@ -82,6 +84,7 @@ interface CategorizationChange {
   kind: TransactionKind
   merchant: string | null
   needsReview: boolean
+  counterpartAccountId: string | null
 }
 
 interface ApplyCounts {
@@ -120,6 +123,7 @@ function newRuleValues(dto: CreateCategorizationRuleDto) {
     categoryId: dto.categoryId,
     kind: dto.kind ?? null,
     merchant: nullIfBlank(dto.merchant) ?? null,
+    counterpartAccountId: dto.counterpartAccountId ?? null,
   } satisfies Omit<InsertCategorizationRule, 'position'>
 }
 
@@ -283,6 +287,7 @@ export class CategorizationRulesService {
         'maxAmountCents',
         'categoryId',
         'kind',
+        'counterpartAccountId',
       ] as const) {
         if (dto[key] !== undefined) {
           Object.assign(changes, { [key]: dto[key] })
@@ -439,6 +444,12 @@ export class CategorizationRulesService {
               kind: result.kind,
               merchant: result.merchant,
               needsReview: row.categoryId === null ? false : row.needsReview,
+              // A link set earlier (by hand, a match or a rule) is kept; a
+              // transaction that stops being a transfer loses it.
+              counterpartAccountId:
+                result.kind === 'transfer'
+                  ? (row.counterpartAccountId ?? result.counterpartAccountId)
+                  : null,
             }
           : {
               id: row.id,
@@ -452,6 +463,10 @@ export class CategorizationRulesService {
                   : defaultKind(row.amountCents),
               merchant: row.merchant,
               needsReview: true,
+              counterpartAccountId:
+                row.categoryId === null && row.kind === 'transfer'
+                  ? row.counterpartAccountId
+                  : null,
             }
         counts.scanned++
         if (result) counts.matched++
@@ -461,7 +476,8 @@ export class CategorizationRulesService {
           next.ruleId !== row.ruleId ||
           next.kind !== row.kind ||
           next.merchant !== row.merchant ||
-          next.needsReview !== row.needsReview
+          next.needsReview !== row.needsReview ||
+          next.counterpartAccountId !== row.counterpartAccountId
         ) {
           changes.push(next)
         }
@@ -491,6 +507,7 @@ export class CategorizationRulesService {
           ruleId: transactionsTable.ruleId,
           kind: transactionsTable.kind,
           needsReview: transactionsTable.needsReview,
+          counterpartAccountId: transactionsTable.counterpartAccountId,
         })
         .from(transactionsTable)
         .where(
@@ -523,7 +540,7 @@ export class CategorizationRulesService {
     const values = sql.join(
       changes.map(
         (c) =>
-          sql`(${c.id}::uuid, ${c.categoryId}::uuid, ${c.ruleId}::uuid, ${c.kind}::transaction_kind, ${c.merchant}::varchar, ${c.needsReview}::boolean)`,
+          sql`(${c.id}::uuid, ${c.categoryId}::uuid, ${c.ruleId}::uuid, ${c.kind}::transaction_kind, ${c.merchant}::varchar, ${c.needsReview}::boolean, ${c.counterpartAccountId}::uuid)`,
       ),
       sql`, `,
     )
@@ -534,8 +551,9 @@ export class CategorizationRulesService {
           kind = v.kind,
           merchant = v.merchant,
           needs_review = v.needs_review,
+          counterpart_account_id = v.counterpart_account_id,
           updated_at = now()
-      from (values ${values}) as v(id, category_id, rule_id, kind, merchant, needs_review)
+      from (values ${values}) as v(id, category_id, rule_id, kind, merchant, needs_review, counterpart_account_id)
       where t.id = v.id
     `)
   }
@@ -557,7 +575,32 @@ export class CategorizationRulesService {
       )
     }
 
-    await this.assertCategoryExists(executor, rule.categoryId)
+    const categoryKind = await this.assertCategoryExists(
+      executor,
+      rule.categoryId,
+    )
+    if (rule.counterpartAccountId != null) {
+      if ((rule.kind ?? categoryKind) !== 'transfer') {
+        throw new BadRequestException(
+          'counterpartAccountId is only for a rule filing transfers',
+        )
+      }
+      if (rule.counterpartAccountId === rule.accountId) {
+        throw new BadRequestException(
+          'counterpartAccountId must differ from accountId',
+        )
+      }
+      const [account] = await executor
+        .select({ id: accountsTable.id })
+        .from(accountsTable)
+        .where(eq(accountsTable.id, rule.counterpartAccountId))
+        .limit(1)
+      if (!account) {
+        throw new BadRequestException(
+          'counterpartAccountId does not match any account',
+        )
+      }
+    }
     if (rule.accountId != null) {
       const [account] = await executor
         .select({ id: accountsTable.id })
@@ -570,14 +613,18 @@ export class CategorizationRulesService {
     }
   }
 
-  private async assertCategoryExists(executor: Executor, categoryId: string) {
+  private async assertCategoryExists(
+    executor: Executor,
+    categoryId: string,
+  ): Promise<TransactionKind> {
     const [category] = await executor
-      .select({ id: categoriesTable.id })
+      .select({ id: categoriesTable.id, kind: categoriesTable.kind })
       .from(categoriesTable)
       .where(eq(categoriesTable.id, categoryId))
       .limit(1)
     if (!category) {
       throw new BadRequestException('categoryId does not match any category')
     }
+    return category.kind
   }
 }

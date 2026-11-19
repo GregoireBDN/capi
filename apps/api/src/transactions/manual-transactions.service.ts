@@ -203,6 +203,14 @@ export class ManualTransactionsService {
       }
       if (dto.isOneOff !== undefined) set.isOneOff = dto.isOneOff
       if (dto.note !== undefined) set.note = dto.note
+      // A transfer link (#296) needs a transfer, from another account.
+      if (
+        (set.kind !== undefined && set.kind !== 'transfer') ||
+        (set.accountId !== undefined &&
+          set.accountId === current.counterpartAccountId)
+      ) {
+        set.counterpartAccountId = null
+      }
       if (Object.keys(set).length === 0) {
         throw new BadRequestException('Nothing to update')
       }
@@ -345,6 +353,7 @@ export class ManualTransactionsService {
         accountId: transactionsTable.accountId,
         bookingDate: transactionsTable.bookingDate,
         kind: transactionsTable.kind,
+        counterpartAccountId: transactionsTable.counterpartAccountId,
       })
       .from(transactionsTable)
       .where(

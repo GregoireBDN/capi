@@ -104,6 +104,8 @@ export const transaction: TransactionDto = {
   manual: false,
   originalAmountCents: null,
   originalBookingDate: null,
+  counterpartAccountId: null,
+  counterpartAccountName: null,
   splits: [],
   createdAt: stamp,
   updatedAt: stamp,

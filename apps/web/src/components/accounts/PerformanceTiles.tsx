@@ -6,6 +6,7 @@ import {
 } from '@finances/ui'
 import type { AccountPerformanceDto } from '#/api/types.gen'
 import { formatCalendarDate, formatCents } from '#/lib/money'
+import { plural } from '#/lib/plural'
 
 const dash = () => '—'
 
@@ -43,6 +44,10 @@ export function PerformanceTiles({
     valueDate,
     contributionsCents,
     contributionsDate,
+    contributionsSource,
+    typedContributionsCents,
+    linkedTransfersCount,
+    linkedAfterValueCents,
     gainCents,
     returnRate,
     sincePrevious,
@@ -124,16 +129,39 @@ export function PerformanceTiles({
       <ul className="text-muted-foreground space-y-1 px-1 text-xs">
         {withContributions && contributionsCents === null && (
           <li>
-            Versements inconnus : renseignez-les sur une valeur pour calculer la
-            plus-value.
+            Versements inconnus : renseignez-les sur une valeur, ou liez à ce
+            compte les virements qui l’alimentent (Opérations, « Vers »), pour
+            calculer la plus-value.
           </li>
         )}
-        {contributionsDate !== null && contributionsDate !== valueDate && (
+        {withContributions && contributionsSource === 'links' && (
           <li>
-            Versements connus au {formatCalendarDate(contributionsDate)} : la
-            dernière valeur n’en indique pas.
+            {performance.type === 'crypto'
+              ? `Investi : le coût d’achat des cryptos reçues d’une plateforme (${plural(linkedTransfersCount, 'retrait', 'retraits')}, au prix moyen).`
+              : `Versements calculés à partir de ${plural(linkedTransfersCount, 'virement lié', 'virements liés')}.`}
           </li>
         )}
+        {withContributions && typedContributionsCents !== null && (
+          <li>
+            Les relevés indiquent {formatCents(typedContributionsCents)} de
+            versements : un virement manque peut-être ou n’est pas lié.
+          </li>
+        )}
+        {withContributions && linkedAfterValueCents !== 0 && (
+          <li>
+            {formatCents(Math.abs(linkedAfterValueCents))}{' '}
+            {linkedAfterValueCents > 0 ? 'versés' : 'retirés'} depuis la
+            dernière valeur : ils compteront avec la prochaine.
+          </li>
+        )}
+        {contributionsSource !== 'links' &&
+          contributionsDate !== null &&
+          contributionsDate !== valueDate && (
+            <li>
+              Versements connus au {formatCalendarDate(contributionsDate)} : la
+              dernière valeur n’en indique pas.
+            </li>
+          )}
         {returnRate !== null && (
           <li>
             Rendement simple : plus-value rapportée aux versements nets, sans

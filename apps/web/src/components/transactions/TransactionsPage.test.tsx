@@ -123,6 +123,8 @@ function transaction(
     manual: false,
     originalAmountCents: null,
     originalBookingDate: null,
+    counterpartAccountId: null,
+    counterpartAccountName: null,
     splits: [],
     createdAt: '2026-11-01T00:00:00.000Z',
     updatedAt: '2026-11-01T00:00:00.000Z',
@@ -683,6 +685,57 @@ describe('TransactionsPage', () => {
     expect(
       screen.queryByRole('region', { name: 'Créer une règle' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('links a transfer to the account it goes to (#296)', async () => {
+    const { user } = setup()
+    await waitForRows()
+    const pea = accounts[1]
+    api.transactionsControllerUpdate.mockReturnValue(
+      ok({
+        ...transferRow,
+        counterpartAccountId: pea.id,
+        counterpartAccountName: pea.name,
+      }),
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: 'Modifier VIR LIVRET TEST' }),
+    )
+    const editor = await screen.findByRole('dialog')
+    await user.click(within(editor).getByRole('button', { name: /^Vers/ }))
+    const choices = within(editor).getByRole('radiogroup', { name: 'Vers' })
+    // Every other account, never the transaction's own.
+    expect(
+      within(choices)
+        .getAllByRole('radio')
+        .map((radio) => radio.textContent),
+    ).toEqual(['PEA test', 'Aucun'])
+    await user.click(within(choices).getByRole('radio', { name: 'PEA test' }))
+
+    expect(api.transactionsControllerUpdate).toHaveBeenCalledWith({
+      path: { id: transferRow.id },
+      body: { counterpartAccountId: pea.id },
+      throwOnError: false,
+    })
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'Vers PEA test',
+        expect.anything(),
+      ),
+    )
+    // Back on the list of settings, which shows the link.
+    expect(
+      within(editor).getByRole('button', { name: /^Vers/ }),
+    ).toHaveTextContent('PEA test')
+    await user.keyboard('{Escape}')
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole('button', { name: 'Modifier VIR LIVRET TEST' })
+          .closest('li'),
+      ).toHaveTextContent('Vers PEA test'),
+    )
   })
 
   it('edits from a settings list, one screen per choice (#280)', async () => {

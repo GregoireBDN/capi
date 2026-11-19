@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
@@ -19,13 +19,14 @@ import {
   updateManualExpense,
 } from '#/components/expenses/queries'
 import { plural } from '#/lib/plural'
+import { accountsQuery } from '#/lib/queries'
 import {
   refreshReviewCount,
   scheduleReviewCountRefresh,
 } from '#/lib/review-count'
 import { applyChanges } from './changes'
 import type { BulkChanges, TransactionChanges } from './changes'
-import { KIND_LABELS, displayLabel } from './labels'
+import { KIND_LABELS, counterpartLabel, displayLabel } from './labels'
 import {
   afterTransactionsChanged,
   patchCachedTransactions,
@@ -45,10 +46,19 @@ import type { RuleOffer } from './RuleOfferBanner'
 export const UNDO_TOAST_MS = 8000
 
 function describeChange(
+  item: TransactionDto,
   changes: TransactionChanges,
   category: CategoryDto | undefined,
+  accountNames: ReadonlyMap<string, string>,
 ): string {
   if (category) return `Classée dans « ${category.name} »`
+  if (changes.counterpartAccountId !== undefined) {
+    const name =
+      changes.counterpartAccountId === null
+        ? undefined
+        : accountNames.get(changes.counterpartAccountId)
+    return name ? `${counterpartLabel(item)} ${name}` : 'Plus liée à un compte'
+  }
   if (changes.kind) return `Type : ${KIND_LABELS[changes.kind]}`
   if (changes.isOneOff !== undefined) {
     return changes.isOneOff
@@ -92,6 +102,14 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
   const categoriesById = useMemo(
     () => new Map(categories.map((category) => [category.id, category])),
     [categories],
+  )
+  const accounts = useQuery(accountsQuery)
+  const accountNames = useMemo(
+    () =>
+      new Map(
+        (accounts.data ?? []).map((account) => [account.id, account.name]),
+      ),
+    [accounts.data],
   )
 
   async function optimistic(updated: readonly TransactionDto[]) {
@@ -271,7 +289,9 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
       changes.categoryId != null
         ? categoriesById.get(changes.categoryId)
         : undefined
-    await optimistic([applyChanges(item, changes, categoriesById)])
+    await optimistic([
+      applyChanges(item, changes, categoriesById, accountNames),
+    ])
     const { data } = await transactionsControllerUpdate({
       path: { id: item.id },
       body: changes,
@@ -284,9 +304,20 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     }
     patchCachedTransactions(queryClient, [data])
     settled()
+    // A transfer's link makes the contributions of an investment (#296).
+    if (
+      changes.counterpartAccountId !== undefined ||
+      (item.counterpartAccountId !== null &&
+        (changes.kind !== undefined || changes.categoryId !== undefined))
+    ) {
+      void queryClient.invalidateQueries({ queryKey: ['investments'] })
+      void queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey.includes('performance'),
+      })
+    }
     const noteOnly = Object.keys(changes).every((key) => key === 'note')
     toastUndoable(
-      describeChange(changes, category),
+      describeChange(item, changes, category, accountNames),
       displayLabel(item),
       () => void undo([item], noteOnly),
     )

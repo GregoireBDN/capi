@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNull, lte, ne, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import {
   AccountsService,
@@ -15,18 +15,27 @@ import {
   accountsTable,
   balanceSnapshotsTable,
   INVESTMENT_ACCOUNT_TYPES,
+  cryptoMovementsTable,
   type SelectBalanceSnapshot,
+  transactionsTable,
 } from '#/database/schema'
+import type { AccountType } from '#/database/schema/domain-enums'
 import { parisToday } from './days'
 import type {
   AccountPerformanceDto,
   BulkSnapshotRowDto,
   BulkSnapshotsResultDto,
+  InvestmentFlowsDto,
   InvestmentsSummaryDto,
   SnapshotDto,
   UpsertSnapshotDto,
 } from './dto/snapshot.dto'
-import { computePerformance, simpleReturn } from './performance'
+import {
+  computePerformance,
+  type LinkedFlow,
+  linkedContributions,
+  simpleReturn,
+} from './performance'
 
 type Db = PostgresJsDatabase<typeof schema>
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
@@ -166,12 +175,27 @@ export class InvestmentsService {
     now: Date = new Date(),
   ): Promise<AccountPerformanceDto> {
     const account = await this.accounts.findOne(accountId, this.db)
-    const snapshots = await this.snapshotsOf(this.db, accountId)
+    const [snapshots, flows] = await Promise.all([
+      this.snapshotsOf(this.db, accountId),
+      this.linkedFlows(this.db, [account]),
+    ])
+    const accountFlows = flows.get(accountId) ?? []
+    const history =
+      linkedContributions(snapshots, accountFlows, account.type) ?? snapshots
     return {
       accountId,
       type: account.type,
-      ...computePerformance(snapshots, account.type, parisToday(now)),
+      ...computePerformance(
+        snapshots,
+        account.type,
+        parisToday(now),
+        accountFlows,
+      ),
       snapshots,
+      contributionsHistory: history.map((point) => ({
+        date: point.date,
+        contributionsCents: point.contributionsCents,
+      })),
     }
   }
 
@@ -205,6 +229,7 @@ export class InvestmentsService {
               ),
             )
             .orderBy(asc(s.date))
+    const flows = await this.linkedFlows(this.db, accounts)
     const byAccount = new Map<string, typeof snapshots>()
     for (const snapshot of snapshots) {
       const list = byAccount.get(snapshot.accountId) ?? []
@@ -223,6 +248,7 @@ export class InvestmentsService {
         byAccount.get(account.id) ?? [],
         account.type,
         today,
+        flows.get(account.id) ?? [],
       )
       if (figures.valueCents === null) withoutValueCount++
       else {
@@ -258,6 +284,173 @@ export class InvestmentsService {
       },
       accounts: rows,
     }
+  }
+
+  /**
+   * Where the invested money went (#296): the transfers linked to the
+   * investment accounts booked from `from` to `to`, per account and per
+   * month. Archived accounts count too: the money did go there.
+   */
+  async flows(from: string, to: string): Promise<InvestmentFlowsDto> {
+    const t = transactionsTable
+    const rows = await this.db
+      .select({
+        accountId: accountsTable.id,
+        name: accountsTable.name,
+        type: accountsTable.type,
+        position: accountsTable.position,
+        bookingDate: t.bookingDate,
+        amountCents: t.amountCents,
+      })
+      .from(t)
+      .innerJoin(accountsTable, eq(accountsTable.id, t.counterpartAccountId))
+      .where(
+        and(
+          eq(t.kind, 'transfer'),
+          ne(t.accountId, t.counterpartAccountId),
+          inArray(accountsTable.type, [...INVESTMENT_ACCOUNT_TYPES]),
+          gte(t.bookingDate, from),
+          lte(t.bookingDate, to),
+        ),
+      )
+    const accounts = new Map<
+      string,
+      InvestmentFlowsDto['accounts'][number] & { position: number }
+    >()
+    const months = new Map<string, Map<string, number>>()
+    let depositsCents = 0
+    let withdrawalsCents = 0
+    for (const row of rows) {
+      // Money leaving the bank account goes into the investment one.
+      const cents = -row.amountCents
+      let account = accounts.get(row.accountId)
+      if (!account) {
+        account = {
+          accountId: row.accountId,
+          name: row.name,
+          type: row.type,
+          position: row.position,
+          depositsCents: 0,
+          withdrawalsCents: 0,
+          netCents: 0,
+          count: 0,
+        }
+        accounts.set(row.accountId, account)
+      }
+      if (cents >= 0) {
+        account.depositsCents += cents
+        depositsCents += cents
+      } else {
+        account.withdrawalsCents -= cents
+        withdrawalsCents -= cents
+      }
+      account.netCents += cents
+      account.count++
+      const month = row.bookingDate.slice(0, 7)
+      const perAccount = months.get(month) ?? new Map<string, number>()
+      perAccount.set(
+        row.accountId,
+        (perAccount.get(row.accountId) ?? 0) + cents,
+      )
+      months.set(month, perAccount)
+    }
+    return {
+      from,
+      to,
+      depositsCents,
+      withdrawalsCents,
+      netCents: depositsCents - withdrawalsCents,
+      accounts: [...accounts.values()]
+        .sort(
+          (a, b) =>
+            b.depositsCents - a.depositsCents ||
+            a.position - b.position ||
+            a.accountId.localeCompare(b.accountId),
+        )
+        .map(({ position: _position, ...account }) => account),
+      months: [...months.entries()]
+        .sort(([a], [b]) => b.localeCompare(a))
+        .map(([month, perAccount]) => ({
+          month,
+          netCents: [...perAccount.values()].reduce((sum, c) => sum + c, 0),
+          accounts: [...perAccount.entries()].map(([accountId, netCents]) => ({
+            accountId,
+            netCents,
+          })),
+        })),
+    }
+  }
+
+  /**
+   * What makes each account's contributions (#296), oldest first: money
+   * paid into (positive) or taken out of it by the bank transfers linked to
+   * it, or, for a crypto account, the cost of the coins withdrawn to it from
+   * an exchange (none when one of those costs is unknown: the invested
+   * amount would be wrong).
+   */
+  private async linkedFlows(
+    executor: Executor,
+    accounts: readonly { id: string; type: AccountType }[],
+  ): Promise<Map<string, LinkedFlow[]>> {
+    const byAccount = new Map<string, LinkedFlow[]>()
+    const accountIds = accounts
+      .filter((account) => account.type !== 'crypto')
+      .map((account) => account.id)
+    const cryptoIds = accounts
+      .filter((account) => account.type === 'crypto')
+      .map((account) => account.id)
+    if (cryptoIds.length > 0) {
+      const cm = cryptoMovementsTable
+      const received = await executor
+        .select({
+          accountId: cm.counterpartAccountId,
+          occurredAt: cm.occurredAt,
+          costCents: cm.costCents,
+        })
+        .from(cm)
+        .where(
+          and(
+            inArray(cm.counterpartAccountId, cryptoIds),
+            eq(cm.kind, 'withdrawal'),
+            ne(cm.accountId, cm.counterpartAccountId),
+          ),
+        )
+        .orderBy(asc(cm.occurredAt), asc(cm.id))
+      const unknown = new Set<string>()
+      for (const row of received) {
+        if (row.costCents === null) unknown.add(row.accountId!)
+        const list = byAccount.get(row.accountId!) ?? []
+        list.push({
+          date: parisToday(row.occurredAt),
+          amountCents: row.costCents ?? 0,
+        })
+        byAccount.set(row.accountId!, list)
+      }
+      for (const id of unknown) byAccount.delete(id)
+    }
+    if (accountIds.length === 0) return byAccount
+    const t = transactionsTable
+    const rows = await executor
+      .select({
+        accountId: t.counterpartAccountId,
+        date: t.bookingDate,
+        amountCents: t.amountCents,
+      })
+      .from(t)
+      .where(
+        and(
+          inArray(t.counterpartAccountId, accountIds),
+          eq(t.kind, 'transfer'),
+          ne(t.accountId, t.counterpartAccountId),
+        ),
+      )
+      .orderBy(asc(t.bookingDate), asc(t.id))
+    for (const row of rows) {
+      const list = byAccount.get(row.accountId!) ?? []
+      list.push({ date: row.date, amountCents: -row.amountCents })
+      byAccount.set(row.accountId!, list)
+    }
+    return byAccount
   }
 
   private async snapshotsOf(

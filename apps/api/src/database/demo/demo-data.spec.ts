@@ -85,10 +85,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
         )
 
         const counts = result.counts
-        expect(counts.accounts).toBe(7)
+        expect(counts.accounts).toBe(8)
         expect(counts.transactions).toBeGreaterThan(400)
         expect(counts.reviewQueue).toBeGreaterThan(0)
         expect(counts.splits).toBe(1)
+        // Every checking ↔ Livret A transfer has its two sides linked.
+        expect(counts.linkedTransferPairs).toBeGreaterThan(10)
         expect(counts.recurringItems).toBeGreaterThan(5)
 
         const accounts = await tx.select().from(accountsTable)
@@ -152,6 +154,14 @@ describe.skipIf(!process.env.DATABASE_URL)(
           )
         expect(moves.length).toBeGreaterThan(20)
         expect(new Set(moves.map((m) => m.kind))).toEqual(new Set(['transfer']))
+        // Each one is linked to the owner's other account (#296).
+        const unlinked = await tx
+          .select({ id: transactionsTable.id })
+          .from(transactionsTable)
+          .where(
+            sql`(${transactionsTable.rawLabel} like 'VIR SEPA %LIVRET A' or ${transactionsTable.rawLabel} like 'VIR SEPA %COMPTE COURANT' or ${transactionsTable.rawLabel} = 'VIR SEPA VERS PEA') and ${transactionsTable.counterpartAccountId} is null`,
+          )
+        expect(unlinked).toEqual([])
 
         // The split sums exactly to its transaction.
         const parts = await tx

@@ -146,6 +146,18 @@ export class TransactionDto {
   })
   kind!: TransactionKind
 
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Transfers only (#296): the owner’s other account the money goes to (amount < 0) or comes from (amount > 0).',
+  })
+  counterpartAccountId!: string | null
+
+  @ApiProperty({ type: String, nullable: true })
+  counterpartAccountName!: string | null
+
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
   categoryId!: string | null
 
@@ -290,6 +302,16 @@ export class TransactionFiltersQueryDto {
   @IsOptional()
   @IsUUID()
   categoryId?: string
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    description:
+      'Only the transfers linked to this account (#296): money sent to it or received from it.',
+  })
+  @IsOptional()
+  @IsUUID()
+  counterpartAccountId?: string
 
   @ApiPropertyOptional({
     type: Boolean,
@@ -499,6 +521,17 @@ export class UpdateTransactionDto extends TransactionChangesDto {
   @IsString()
   @MaxLength(NOTE_MAX)
   note?: string | null
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Links a transfer to the owner’s other account it goes to or comes from (#296); `null` unlinks it. Only on a transfer (or with `kind: transfer`), never the transaction’s own account. A kind other than `transfer` unlinks it.',
+  })
+  @IsOptional()
+  @IsUUID()
+  counterpartAccountId?: string | null
 }
 
 export class BulkUpdateTransactionsDto extends TransactionChangesDto {

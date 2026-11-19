@@ -35,7 +35,7 @@ import { formatCalendarDate } from '#/lib/money'
 import { Amount } from './Amount'
 import { CategoryMenu } from './CategoryMenu'
 import type { TransactionChanges } from './changes'
-import { displayLabel, secondaryLabel } from './labels'
+import { counterpartLabel, displayLabel, secondaryLabel } from './labels'
 import { TransactionEditor } from './TransactionEditor'
 
 /**
@@ -252,6 +252,12 @@ export function TransactionRow({
           <span className="max-w-full truncate @xl:hidden">
             <span aria-hidden="true">{'·\u00a0'}</span>
             {item.accountName}
+          </span>
+        )}
+        {transfer && item.counterpartAccountName && (
+          <span className="max-w-full truncate">
+            <span aria-hidden="true">{'·\u00a0'}</span>
+            {counterpartLabel(item)} {item.counterpartAccountName}
           </span>
         )}
         {raw && (

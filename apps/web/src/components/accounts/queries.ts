@@ -13,6 +13,7 @@ import {
   accountSnapshotsControllerPerformance,
   accountSnapshotsControllerRemove,
   accountSnapshotsControllerUpsert,
+  investmentsControllerFlows,
   investmentsControllerSummary,
 } from '#/api'
 import type {
@@ -36,6 +37,7 @@ export const accountKeys = {
     [...referenceKeys.accounts, id, 'balance-history'] as const,
   monthFlows: (id: string) =>
     [...referenceKeys.accounts, id, 'month-flows'] as const,
+  flows: ['investments', 'flows'] as const,
 }
 
 export function accountQuery(id: string) {
@@ -85,6 +87,12 @@ export function monthFlowsQuery(id: string) {
     staleTime: 0,
   })
 }
+/** Where the invested money went over the last 12 months (#296). */
+export const investmentFlowsQuery = queryOptions({
+  queryKey: accountKeys.flows,
+  queryFn: () => unwrap(investmentsControllerFlows({ throwOnError: false })),
+  staleTime: 0,
+})
 
 export const investmentsSummaryQuery = queryOptions({
   queryKey: accountKeys.investments,

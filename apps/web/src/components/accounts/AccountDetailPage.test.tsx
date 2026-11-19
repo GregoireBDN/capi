@@ -130,6 +130,10 @@ function performance(
     valueDate: '2026-09-30',
     contributionsCents: 1_020_000,
     contributionsDate: '2026-09-30',
+    contributionsSource: 'typed',
+    typedContributionsCents: null,
+    linkedTransfersCount: 0,
+    linkedAfterValueCents: 0,
     gainCents: 230_000,
     returnRate: 230_000 / 1_020_000,
     sincePrevious: {
@@ -150,6 +154,10 @@ function performance(
     staleAfterDays: 100,
     stale: false,
     snapshots,
+    contributionsHistory: snapshots.map((s) => ({
+      date: s.date,
+      contributionsCents: s.contributionsCents,
+    })),
     ...overrides,
   }
 }
@@ -441,6 +449,8 @@ describe('AccountDetailPage', () => {
         manual: false,
         originalAmountCents: null,
         originalBookingDate: null,
+        counterpartAccountId: null,
+        counterpartAccountName: null,
         splits: [],
         createdAt: '2026-11-05T00:00:00.000Z',
         updatedAt: '2026-11-05T00:00:00.000Z',
