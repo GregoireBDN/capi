@@ -300,6 +300,8 @@ const RULES: readonly RuleSpec[] = [
   { pattern: 'NETFLIX', slug: 'subscriptions' },
   { pattern: 'SPOTIFY', slug: 'subscriptions' },
   { pattern: 'VIDEOPASS', slug: 'subscriptions' },
+  { pattern: 'NUAGEHOST', slug: 'subscriptions', merchant: 'NuageHost VPS' },
+  { pattern: 'SECURIX', slug: 'subscriptions', merchant: 'Securix Antivirus' },
   { pattern: 'BASIC FIT', slug: 'leisure' },
   { pattern: 'FONCIA', slug: 'rent', merchant: 'Foncia' },
   { pattern: 'EDF', slug: 'energy' },
@@ -460,6 +462,25 @@ function checkingMonth(
       bookingDate: videoDate,
       amountCents: -999,
       rawLabel: `PAIEMENT CB ${ddmm(videoDate)} PARIS VIDEOPASS ${CARD}`,
+    })
+  }
+  // Prepaid subscriptions (#314), declared after the detection: a VPS paid
+  // for 24 months, and an antivirus paid for 12 whose renewal is due at the
+  // end of this month (its reminder shows).
+  if (fromEnd === 10) {
+    const vpsDate = dayIn(month, 8)
+    rows.push({
+      bookingDate: vpsDate,
+      amountCents: -18_000,
+      rawLabel: `PAIEMENT CB ${ddmm(vpsDate)} NUAGEHOST VPS ${CARD}`,
+    })
+  }
+  if (fromEnd === 12) {
+    const antivirusDate = dayIn(month, 28)
+    rows.push({
+      bookingDate: antivirusDate,
+      amountCents: -5_999,
+      rawLabel: `PAIEMENT CB ${ddmm(antivirusDate)} SECURIX ANTIVIRUS ${CARD}`,
     })
   }
   rows.push({
@@ -1415,6 +1436,24 @@ export async function generateDemoData(
       .update(recurringItemsTable)
       .set({ endedOn })
       .where(eq(recurringItemsTable.id, item.id))
+  }
+  // The prepaid plans (#314), declared from their payment as in the app.
+  const recurring = new RecurringService({ db } as never)
+  for (const [pattern, termMonths] of [
+    ['NUAGEHOST', 24],
+    ['SECURIX', 12],
+  ] as const) {
+    const [payment] = await db
+      .select({ id: transactionsTable.id })
+      .from(transactionsTable)
+      .where(sql`${transactionsTable.rawLabel} like ${`%${pattern}%`}`)
+      .limit(1)
+    if (payment) {
+      await recurring.declarePrepaid(
+        { transactionId: payment.id, termMonths },
+        today,
+      )
+    }
   }
   const [{ count: recurringItems }] = await db
     .select({ count: sql<number>`count(*)::int` })

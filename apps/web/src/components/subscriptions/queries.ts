@@ -3,12 +3,18 @@ import type { QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   recurringControllerConfirm,
+  recurringControllerDeclarePrepaid,
   recurringControllerDetect,
   recurringControllerList,
+  recurringControllerRemove,
   recurringControllerSummary,
   recurringControllerUpdate,
 } from '#/api'
-import type { UpdateRecurringItemDto } from '#/api/types.gen'
+import type {
+  DeclarePrepaidDto,
+  PrepaidDeclarationDto,
+  UpdateRecurringItemDto,
+} from '#/api/types.gen'
 import { ApiRequestError, unwrap } from '#/lib/queries'
 
 export const recurringKeys = {
@@ -53,6 +59,66 @@ export function afterRecurringChanged(queryClient: QueryClient) {
   return queryClient.invalidateQueries({ queryKey: recurringKeys.all })
 }
 
+/** Declares an expense as the upfront payment of a prepaid subscription. */
+export function declarePrepaid(body: DeclarePrepaidDto) {
+  return unwrap(
+    recurringControllerDeclarePrepaid({ body, throwOnError: false }),
+  )
+}
+
+/** Removes a prepaid item (the undo of a declaration that created it). */
+export function removePrepaidItem(id: string) {
+  return unwrap(
+    recurringControllerRemove({ path: { id }, throwOnError: false }),
+  )
+}
+
+/**
+ * A prepaid subscription changes budgets, averages, the forecast and its
+ * transactions' rows: refetch them all.
+ */
+export function afterPrepaidChanged(queryClient: QueryClient) {
+  return Promise.all([
+    afterRecurringChanged(queryClient),
+    queryClient.invalidateQueries({ queryKey: ['transactions'] }),
+    queryClient.invalidateQueries({ queryKey: ['budgets'] }),
+    queryClient.invalidateQueries({ queryKey: ['forecast'] }),
+  ])
+}
+
+/**
+ * Success toast of a prepaid declaration (#314) whose « Annuler » removes
+ * the item it created, or puts back the existing item's status and term.
+ */
+export function undoablePrepaidToast(
+  queryClient: QueryClient,
+  { item, previousStatus }: PrepaidDeclarationDto,
+  previousTermMonths: number | null = null,
+) {
+  void afterPrepaidChanged(queryClient)
+  let undone = false
+  toast.success(`${item.name} : abonnement prépayé ${item.termMonths} mois`, {
+    duration: UNDO_TOAST_MS,
+    action: {
+      label: 'Annuler',
+      onClick: () => {
+        if (undone) return
+        undone = true
+        const undo =
+          previousStatus === null
+            ? removePrepaidItem(item.id)
+            : updateRecurringItem(item.id, {
+                status: previousStatus,
+                termMonths: previousTermMonths,
+              })
+        void undo
+          .then(() => afterPrepaidChanged(queryClient))
+          .catch(() => toast.error('Impossible d’annuler la modification.'))
+      },
+    },
+  })
+}
+
 /** How long a toast offers « Annuler ». */
 export const UNDO_TOAST_MS = 8_000
 
@@ -90,6 +156,8 @@ export function recurringErrorMessage(error: unknown): string {
   }
   if (error.status === 401) return 'Votre session a expiré. Reconnectez-vous.'
   if (error.status === 404) return 'Cet élément n’existe plus.'
+  if (error.status === 409)
+    return 'Ce paiement est déjà celui d’un abonnement prépayé.'
   if (error.status === 400) return 'Modification refusée : vérifiez les champs.'
   if (error.status === 429)
     return 'Trop de requêtes. Réessayez dans un instant.'

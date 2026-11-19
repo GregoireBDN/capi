@@ -53,7 +53,9 @@ import {
   formatChargedAfterEnd,
   formatDayMonth,
   formatEnd,
+  formatPrepaid,
 } from './format'
+import { PrepaidTermControl } from './PrepaidTermControl'
 import {
   afterRecurringChanged,
   recurringErrorMessage,
@@ -137,6 +139,7 @@ export function RecurringEditor({
   const [isFixedCost, setIsFixedCost] = useState(false)
   const [cadence, setCadence] = useState<RecurringCadence>('monthly')
   const [notes, setNotes] = useState('')
+  const [termMonths, setTermMonths] = useState<number | null>(null)
   const [allCategories, setAllCategories] = useState(false)
 
   // Fresh form on every opening.
@@ -148,6 +151,7 @@ export function RecurringEditor({
     setIsFixedCost(item.isFixedCost)
     setCadence(item.cadence)
     setNotes(item.notes ?? '')
+    setTermMonths(item.termMonths)
   }, [item])
 
   const save = useMutation({
@@ -192,7 +196,9 @@ export function RecurringEditor({
       name: name.trim(),
       categoryId: categoryId || null,
       isFixedCost,
-      cadence,
+      // A prepaid item renews by its term: its cadence is left alone.
+      ...(termMonths === null && { cadence }),
+      ...(termMonths !== item!.termMonths && { termMonths }),
       notes: notes.trim() || null,
     }
   }
@@ -241,10 +247,18 @@ export function RecurringEditor({
                 {formatAmountPerPeriod(item)}
               </p>
               <SheetDescription>
-                {item.nextExpectedDate &&
-                (item.endedOn === null || item.nextExpectedDate < item.endedOn)
-                  ? `Prochain le ${formatDayMonth(item.nextExpectedDate, today)} · `
-                  : `Dernier le ${formatDayMonth(item.lastSeenDate, today)} · `}
+                {item.termMonths
+                  ? `${formatPrepaid(item)} le ${formatDayMonth(item.lastSeenDate, today)} · ${
+                      item.renewalDate &&
+                      (item.endedOn === null || item.renewalDate < item.endedOn)
+                        ? `renouvellement le ${formatDayMonth(item.renewalDate, today)} · `
+                        : ''
+                    }`
+                  : item.nextExpectedDate &&
+                      (item.endedOn === null ||
+                        item.nextExpectedDate < item.endedOn)
+                    ? `Prochain le ${formatDayMonth(item.nextExpectedDate, today)} · `
+                    : `Dernier le ${formatDayMonth(item.lastSeenDate, today)} · `}
                 {formatCents(item.yearlyCostCents)} par an · {item.accountName}
               </SheetDescription>
             </SheetHeader>
@@ -300,40 +314,54 @@ export function RecurringEditor({
                 />
                 {nameError && <FieldError>{nameError}</FieldError>}
               </Field>
-              <div className="space-y-1.5">
-                <p id={`${id}-cadence`} className="text-sm font-medium">
-                  Fréquence
-                </p>
-                <ToggleGroup
-                  type="single"
-                  spacing={1.5}
-                  aria-labelledby={`${id}-cadence`}
-                  // Sized to their content, wrapping, start-aligned.
-                  className="flex-wrap justify-start"
-                  value={cadence}
-                  onValueChange={(next) => {
-                    if (next) setCadence(next as RecurringCadence)
-                  }}
-                >
-                  {CADENCES.map((value) => (
-                    <ToggleGroupItem
-                      key={value}
-                      value={value}
-                      aria-label={CADENCE_LABELS[value]}
-                      className={cn(CHIP_CLASS, CHIP_ON)}
-                    >
-                      {CADENCE_SHORT_LABELS[value]}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
-                <p className="text-muted-foreground text-xs">
-                  Détectée :{' '}
-                  {CADENCE_LABELS[item.detectedCadence].toLowerCase()}
-                  {cadence !== item.detectedCadence
-                    ? ' (vous l’avez changée)'
-                    : ''}
-                </p>
-              </div>
+              {item.direction === 'debit' && (
+                <PrepaidTermControl
+                  value={termMonths}
+                  onChange={setTermMonths}
+                  allowNone
+                  amountCents={
+                    item.termMonths
+                      ? item.typicalAmountCents
+                      : item.latestAmountCents
+                  }
+                />
+              )}
+              {termMonths === null && (
+                <div className="space-y-1.5">
+                  <p id={`${id}-cadence`} className="text-sm font-medium">
+                    Fréquence
+                  </p>
+                  <ToggleGroup
+                    type="single"
+                    spacing={1.5}
+                    aria-labelledby={`${id}-cadence`}
+                    // Sized to their content, wrapping, start-aligned.
+                    className="flex-wrap justify-start"
+                    value={cadence}
+                    onValueChange={(next) => {
+                      if (next) setCadence(next as RecurringCadence)
+                    }}
+                  >
+                    {CADENCES.map((value) => (
+                      <ToggleGroupItem
+                        key={value}
+                        value={value}
+                        aria-label={CADENCE_LABELS[value]}
+                        className={cn(CHIP_CLASS, CHIP_ON)}
+                      >
+                        {CADENCE_SHORT_LABELS[value]}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                  <p className="text-muted-foreground text-xs">
+                    Détectée :{' '}
+                    {CADENCE_LABELS[item.detectedCadence].toLowerCase()}
+                    {cadence !== item.detectedCadence
+                      ? ' (vous l’avez changée)'
+                      : ''}
+                  </p>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <p id={`${id}-category`} className="text-sm font-medium">
                   Catégorie

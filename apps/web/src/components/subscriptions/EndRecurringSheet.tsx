@@ -41,15 +41,19 @@ function isCalendarDate(value: string): boolean {
 
 /**
  * The day after the next expected charge (that charge still goes through),
- * when it is still to come; null otherwise.
+ * when it is still to come; null otherwise. A prepaid subscription (#314) is
+ * paid until its renewal: it ends on the renewal date, which is then not
+ * charged.
  */
 export function afterNextCharge(
-  item: Pick<RecurringItemDto, 'nextExpectedDate'>,
+  item: Pick<RecurringItemDto, 'nextExpectedDate'> &
+    Partial<Pick<RecurringItemDto, 'termMonths'>>,
   today: string,
 ): string | null {
-  return item.nextExpectedDate && item.nextExpectedDate >= today
-    ? addDays(item.nextExpectedDate, 1)
-    : null
+  if (!item.nextExpectedDate || item.nextExpectedDate < today) return null
+  return item.termMonths
+    ? item.nextExpectedDate
+    : addDays(item.nextExpectedDate, 1)
 }
 
 interface EndRecurringSheetProps {
@@ -134,8 +138,9 @@ export function EndRecurringSheet({
                 {editing ? 'Modifier la date de fin' : `Résilier ${item.name}`}
               </SheetTitle>
               <SheetDescription>
-                À partir de la date de fin, plus aucun prélèvement n’est attendu
-                : il sort de la prévision et des totaux.
+                {item.termMonths
+                  ? 'Payé jusqu’à son renouvellement : résilié à cette date, il n’est pas renouvelé et sort ensuite de la prévision et des totaux.'
+                  : 'À partir de la date de fin, plus aucun prélèvement n’est attendu : il sort de la prévision et des totaux.'}
               </SheetDescription>
             </SheetHeader>
             <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
@@ -170,8 +175,10 @@ export function EndRecurringSheet({
                       )}
                     >
                       <span>
-                        Après la prochaine échéance (
-                        {formatDayMonth(item.nextExpectedDate, today)})
+                        {item.termMonths
+                          ? 'Au renouvellement'
+                          : 'Après la prochaine échéance'}{' '}
+                        ({formatDayMonth(item.nextExpectedDate, today)})
                       </span>
                     </ToggleGroupItem>
                   )}

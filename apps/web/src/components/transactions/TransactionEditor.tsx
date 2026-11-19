@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   ArrowLeftRightIcon,
   ArrowRightIcon,
+  CalendarClockIcon,
   ChevronLeftIcon,
   CheckIcon,
   FlagIcon,
@@ -35,6 +36,7 @@ import {
   CategoryAvatar,
   categoryIconComponent,
 } from '#/components/categories/category-icons'
+import { PrepaidScreen } from '#/components/subscriptions/PrepaidScreen'
 import { pickableCategories } from '#/lib/categories'
 import { formatCalendarDate } from '#/lib/money'
 import { accountsQuery } from '#/lib/queries'
@@ -62,6 +64,7 @@ type Screen =
   | 'correct'
   | 'kind'
   | 'counterpart'
+  | 'prepaid'
 
 interface TransactionEditorProps {
   item: TransactionDto
@@ -452,6 +455,14 @@ export function TransactionEditor({
       </div>
     )
   }
+  if (screen === 'prepaid') {
+    return (
+      <div className="space-y-3">
+        <ScreenHeader title="Abonnement prépayé" onBack={back} />
+        <PrepaidScreen item={item} onDone={back} />
+      </div>
+    )
+  }
   if (screen === 'kind') {
     return (
       <div className="space-y-3">
@@ -553,6 +564,18 @@ export function TransactionEditor({
             icon={SplitIcon}
             label="Répartir"
             onClick={() => setScreen('split')}
+          />
+        )}
+        {item.kind === 'expense' && item.amountCents < 0 && (
+          <SettingRow
+            icon={CalendarClockIcon}
+            label="Abonnement prépayé"
+            value={
+              item.prepaidItemId && item.prepaidTermMonths
+                ? `${item.prepaidTermMonths} mois`
+                : 'Non'
+            }
+            onClick={() => setScreen('prepaid')}
           />
         )}
         {item.manual

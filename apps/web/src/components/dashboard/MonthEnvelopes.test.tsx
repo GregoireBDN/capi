@@ -608,6 +608,8 @@ describe('ManualTransactionSheet (editing)', () => {
     isOneOff: false,
     note: null,
     manual: true,
+    prepaidItemId: null,
+    prepaidTermMonths: null,
     originalAmountCents: null,
     originalBookingDate: null,
     counterpartAccountId: null,

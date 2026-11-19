@@ -10,7 +10,12 @@ import {
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { RepeatIcon, ScanSearchIcon, UploadIcon } from 'lucide-react'
+import {
+  CalendarClockIcon,
+  RepeatIcon,
+  ScanSearchIcon,
+  UploadIcon,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { RecurringItemDto } from '#/api/types.gen'
@@ -27,11 +32,13 @@ import {
   recurringListQuery,
   recurringSummaryQuery,
 } from './queries'
+import { AddPrepaidSheet } from './AddPrepaidSheet'
 import { EndedSection } from './EndedSection'
 import { EndRecurringSheet } from './EndRecurringSheet'
 import { RecurringEditor } from './RecurringEditor'
 import { RecurringKpis } from './RecurringKpis'
 import { RecurringList } from './RecurringList'
+import { RenewalReminders } from './RenewalReminders'
 import { SuggestionsSection } from './SuggestionsSection'
 import { UpcomingTimeline } from './UpcomingTimeline'
 
@@ -59,6 +66,7 @@ export function SubscriptionsPage() {
   const categories = useQuery(categoriesQuery)
   const [editing, setEditing] = useState<RecurringItemDto | null>(null)
   const [ending, setEnding] = useState<RecurringItemDto | null>(null)
+  const [addingPrepaid, setAddingPrepaid] = useState(false)
 
   const detect = useMutation({
     // `automatic`: run on its own when the page has nothing to show.
@@ -117,6 +125,13 @@ export function SubscriptionsPage() {
       <PageHeader
         title="Abonnements"
         description="Abonnements, charges fixes et revenus qui reviennent chaque semaine, mois ou année."
+        actions={[
+          {
+            label: 'Ajouter un abonnement prépayé',
+            icon: <CalendarClockIcon />,
+            onSelect: () => setAddingPrepaid(true),
+          },
+        ]}
       />
 
       {list.isPending && <PageSkeleton />}
@@ -172,6 +187,12 @@ export function SubscriptionsPage() {
         <>
           <div className="flex justify-end">{analyse}</div>
           {summary.isSuccess && <RecurringKpis summary={summary.data} />}
+
+          <RenewalReminders
+            items={list.data ?? []}
+            today={today}
+            onEnd={setEnding}
+          />
 
           {groups.suggestions.length > 0 && (
             <SuggestionsSection
@@ -260,6 +281,11 @@ export function SubscriptionsPage() {
           setEditing(null)
           setEnding(item)
         }}
+      />
+      <AddPrepaidSheet
+        open={addingPrepaid}
+        onOpenChange={setAddingPrepaid}
+        today={today}
       />
       <EndRecurringSheet
         item={ending}

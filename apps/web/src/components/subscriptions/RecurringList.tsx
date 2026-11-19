@@ -13,11 +13,14 @@ import { ROW_BUTTON, ROW_LIST } from '#/lib/row-list'
 import {
   CADENCE_LABELS,
   formatAmountPerPeriod,
+  daysBetween,
   formatChargedAfterEnd,
+  formatDayMonth,
   formatEnd,
+  formatPrepaid,
   formatPriceChange,
   formatRelativeDay,
-  nextPeriod,
+  periodAfter,
 } from './format'
 
 interface RecurringListProps {
@@ -34,11 +37,29 @@ function NextDate({ item, today }: { item: RecurringItemDto; today: string }) {
   if (!item.nextExpectedDate) return null
   const { endedOn } = item
   if (endedOn !== null && item.nextExpectedDate >= endedOn)
-    return <>Plus de prélèvement attendu</>
+    return item.termMonths ? (
+      <>
+        Payé jusqu’au {formatDayMonth(item.nextExpectedDate, today)}, pas de
+        renouvellement
+      </>
+    ) : (
+      <>Plus de prélèvement attendu</>
+    )
   const late = item.nextExpectedDate < today
+  if (item.termMonths) {
+    // A renewal is years away: its date says more than « dans 412 jours ».
+    const soon = Math.abs(daysBetween(today, item.nextExpectedDate)) <= 30
+    return (
+      <>
+        Renouvellement{' '}
+        {soon
+          ? formatRelativeDay(item.nextExpectedDate, today)
+          : `le ${formatDayMonth(item.nextExpectedDate, today)}`}
+      </>
+    )
+  }
   const last =
-    endedOn !== null &&
-    nextPeriod(item.nextExpectedDate, item.cadence) >= endedOn
+    endedOn !== null && periodAfter(item, item.nextExpectedDate) >= endedOn
   return (
     <>
       {late ? 'Attendu ' : 'Prochain '}
@@ -134,13 +155,21 @@ export function RecurringList({
                   </span>
                   <span className="text-muted-foreground flex flex-wrap justify-between gap-x-2 text-xs">
                     <span className="truncate">
-                      {CADENCE_LABELS[item.cadence]}
+                      {item.termMonths
+                        ? `Prépayé ${item.termMonths} mois`
+                        : CADENCE_LABELS[item.cadence]}
                       {item.categoryName ? ` · ${item.categoryName}` : ''}
                     </span>
-                    {item.cadence !== 'monthly' && (
+                    {item.termMonths ? (
                       <span className="ml-auto shrink-0 tabular-nums">
-                        ≈ {formatCents(item.monthlyEquivalentCents)} / mois
+                        {formatPrepaid(item)}
                       </span>
+                    ) : (
+                      item.cadence !== 'monthly' && (
+                        <span className="ml-auto shrink-0 tabular-nums">
+                          ≈ {formatCents(item.monthlyEquivalentCents)} / mois
+                        </span>
+                      )
                     )}
                   </span>
                   <span className="flex flex-wrap justify-between gap-x-2 text-xs">

@@ -472,6 +472,8 @@ describe('AccountDetailPage', () => {
         isOneOff: false,
         note: null,
         manual: false,
+        prepaidItemId: null,
+        prepaidTermMonths: null,
         originalAmountCents: null,
         originalBookingDate: null,
         counterpartAccountId: null,

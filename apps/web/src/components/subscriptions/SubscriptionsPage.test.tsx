@@ -241,6 +241,75 @@ describe('SubscriptionsPage', () => {
     expect(within(timeline).queryByText('Vidéo Exemple')).toBeNull()
   })
 
+  it('shows a prepaid plan monthly, and its renewal to keep or cancel (#314)', async () => {
+    const user = userEvent.setup()
+    const plan = recurringItem({
+      id: 'p1',
+      name: 'Hébergeur Exemple',
+      isSubscription: true,
+      categoryName: 'Abonnements',
+      cadence: 'yearly',
+      termMonths: 24,
+      typicalAmountCents: 18_000,
+      latestAmountCents: 18_000,
+      monthlyEquivalentCents: 750,
+      yearlyCostCents: 9_000,
+      lastSeenDate: '2024-11-20',
+      nextExpectedDate: '2026-11-20',
+      renewalDate: '2026-11-20',
+      renewalReminder: true,
+    })
+    api.recurringControllerList.mockImplementation(() => ok([...items, plan]))
+    api.recurringControllerUpdate.mockImplementation(() =>
+      ok({ ...plan, renewalReminder: false }),
+    )
+    renderPage()
+    const row = await screen.findByRole('button', {
+      name: 'Modifier Hébergeur Exemple',
+    })
+    expect(text(row.textContent)).toContain('7,50 € / mois')
+    expect(text(row.textContent)).toContain('Prépayé 24 mois')
+    expect(text(row.textContent)).toContain('payé 180,00 € pour 24 mois')
+    expect(text(row.textContent)).toContain('Renouvellement dans 14 jours')
+    // The renewal is among the upcoming debits.
+    const timeline = screen.getByRole('list', {
+      name: 'Prochains prélèvements',
+    })
+    expect(within(timeline).getByText('Hébergeur Exemple')).toBeInTheDocument()
+
+    const reminders = screen.getByRole('region', {
+      name: 'Renouvellements à décider',
+    })
+    expect(text(reminders.textContent)).toContain(
+      'Hébergeur Exemple se renouvelle dans 14 jours',
+    )
+    expect(text(reminders.textContent)).toContain('180,00 € pour 24 mois')
+    await user.click(within(reminders).getByRole('button', { name: 'Garder' }))
+    await waitFor(() =>
+      expect(api.recurringControllerUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { id: 'p1' },
+          body: { keepRenewal: true },
+        }),
+      ),
+    )
+    expect(toast.success).toHaveBeenCalledWith(
+      expect.stringContaining('Hébergeur Exemple gardé'),
+      expect.objectContaining({ action: expect.anything() }),
+    )
+
+    // « Résilier » opens the cancellation, set to the renewal date.
+    await user.click(
+      within(reminders).getByRole('button', { name: 'Résilier' }),
+    )
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Résilier Hébergeur Exemple',
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Date de fin')).toHaveValue('2026-11-20')
+  })
+
   it('confirms or dismisses a suggestion', async () => {
     const user = userEvent.setup()
     renderPage()

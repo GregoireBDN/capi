@@ -51,6 +51,9 @@ export function recurringItem(
     endedOn: null,
     ended: false,
     chargedAfterEnd: null,
+    termMonths: null,
+    renewalDate: null,
+    renewalReminder: false,
     ...overrides,
   }
 }

@@ -13,6 +13,7 @@ import {
   HandIcon,
   PencilLineIcon,
   SparkleIcon,
+  CalendarClockIcon,
   StickyNoteIcon,
   TagIcon,
 } from 'lucide-react'
@@ -95,6 +96,13 @@ function Flags({ item }: { item: TransactionDto }) {
     item.originalAmountCents !== null || item.originalBookingDate !== null
   const flags: { on: boolean; icon: LucideIcon; label: string }[] = [
     { on: item.isOneOff, icon: SparkleIcon, label: 'Ponctuelle' },
+    {
+      on: item.prepaidItemId !== null,
+      icon: CalendarClockIcon,
+      label: item.prepaidTermMonths
+        ? `Abonnement prépayé ${item.prepaidTermMonths} mois`
+        : 'Abonnement prépayé',
+    },
     { on: item.manual, icon: HandIcon, label: 'Saisie à la main' },
     {
       on: corrected,
