@@ -95,6 +95,8 @@ const PUBLIC_ROUTES = [
  * only change hand-entered lines of manual-source crypto accounts, 403
  * otherwise, `CryptoService.assertTokenMayWrite`). Account creation stays
  * session-only.
+ * close_months (#342) uses `POST /api/month-close/:month/close`; reopening,
+ * ticking steps and notes stay session-only.
  * The others were opened with the tokens for scripts and later tools.
  */
 const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
@@ -117,6 +119,8 @@ const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
   // MCP bank import tools (#103): the preview → commit flow, nothing else.
   'POST /api/imports/:id/commit': 'write',
   'POST /api/imports/preview': 'write',
+  // #342: close_months (MCP); reopen stays session-only.
+  'POST /api/month-close/:month/close': 'write',
   'POST /api/recurring/confirm': 'write',
   'POST /api/recurring/detect': 'write',
   'POST /api/savings/goals': 'write',
@@ -539,6 +543,47 @@ describe('API route audit', () => {
           })
           expect(res.statusCode, `${method} ${url}`).toBe(status)
         }
+      })
+    })
+
+    it('lets a write token close a past month, never reopen it (#342)', async () => {
+      await asOwner(async ({ id }) => {
+        const tokens = app.get(AccessTokensService, { strict: false })
+        const read = await tokens.create(id, { name: 'Read', scope: 'read' })
+        const write = await tokens.create(id, { name: 'Write', scope: 'write' })
+        const calls = [
+          [read.token, 'GET', '/api/month-close', 200],
+          [read.token, 'GET', '/api/month-close/2020-01', 200],
+          [read.token, 'POST', '/api/month-close/2020-01/close', 403],
+          [write.token, 'POST', '/api/month-close/2020-01/close', 200],
+          [write.token, 'POST', '/api/month-close/2020-01/close', 409],
+          [write.token, 'POST', '/api/month-close/2020-01/reopen', 403],
+          [read.token, 'POST', '/api/month-close/2020-01/reopen', 403],
+          [write.token, 'PATCH', '/api/month-close/2020-01', 403],
+          // Not over yet: the current month and later ones are refused.
+          [write.token, 'POST', '/api/month-close/2999-01/close', 400],
+        ] as const
+        for (const [token, method, url, status] of calls) {
+          const res = await app.inject({
+            method,
+            url,
+            remoteAddress: nextIp(),
+            headers: { authorization: `Bearer ${token}` },
+            payload: method === 'GET' ? undefined : {},
+          })
+          expect(res.statusCode, `${method} ${url}`).toBe(status)
+        }
+        const list = await app.inject({
+          method: 'GET',
+          url: '/api/month-close',
+          remoteAddress: nextIp(),
+          headers: { authorization: `Bearer ${read.token}` },
+        })
+        expect(
+          (list.json() as { closed: { month: string }[] }).closed.map(
+            (row) => row.month,
+          ),
+        ).toEqual(['2020-01'])
       })
     })
 

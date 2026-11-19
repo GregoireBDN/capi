@@ -693,6 +693,7 @@ describe('month-end review', () => {
     expect(text).toContain('month_close_status (month 2026-10)')
     expect(text).toContain('set_budget_targets (month 2026-11)')
     expect(text).toContain('confirm: true')
+    expect(text).toContain('close_months (month 2026-10) sans confirm')
 
     const chosen = await client.getPrompt({
       name: 'revue_du_mois',

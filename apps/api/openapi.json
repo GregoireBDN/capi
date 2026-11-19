@@ -6690,6 +6690,37 @@
         ]
       }
     },
+    "/api/month-close": {
+      "get": {
+        "description": "Every month closed in the review, oldest first.",
+        "operationId": "MonthCloseController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthCloseListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Closed months",
+        "tags": [
+          "Month close"
+        ]
+      }
+    },
     "/api/month-close/{month}": {
       "get": {
         "description": "Each step and whether it is done: imports up to date per cash account (missing days, running-balance gaps), review queue of the month empty, recurring items confirmed and the month’s price changes seen, budget seen, savings seen, investment values updated, month closed. The report as the data stands now and, once closed, the report frozen then with the figures changed since.",
@@ -6792,7 +6823,7 @@
     },
     "/api/month-close/{month}/close": {
       "post": {
-        "description": "Freezes the month’s report (totals per category, income, expenses, savings, net worth, notes). Only a month before the current one (Europe/Paris) can be closed.",
+        "description": "Freezes the month’s report (totals per category, income, expenses, savings, net worth, notes). Only a month before the current one (Europe/Paris) can be closed. Open to write tokens; reopening is session-only.",
         "operationId": "MonthCloseController_close",
         "parameters": [
           {
@@ -15950,6 +15981,38 @@
             "description": "Archive (true) or restore (false) the goal."
           }
         }
+      },
+      "ClosedMonthDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "closedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "month",
+          "closedAt"
+        ]
+      },
+      "MonthCloseListDto": {
+        "type": "object",
+        "properties": {
+          "closed": {
+            "description": "Every closed month, oldest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClosedMonthDto"
+            }
+          }
+        },
+        "required": [
+          "closed"
+        ]
       },
       "AcknowledgeableStep": {
         "type": "string",

@@ -531,3 +531,23 @@ export class MonthCloseDto {
   })
   changes!: ReportChangeDto[]
 }
+
+/* ==========================================================================
+ * LIST
+ * ========================================================================= */
+
+export class ClosedMonthDto {
+  @ApiProperty({ type: String, example: '2026-10' })
+  month!: string
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  closedAt!: string
+}
+
+export class MonthCloseListDto {
+  @ApiProperty({
+    type: [ClosedMonthDto],
+    description: 'Every closed month, oldest first.',
+  })
+  closed!: ClosedMonthDto[]
+}

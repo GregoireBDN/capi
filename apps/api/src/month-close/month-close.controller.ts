@@ -19,11 +19,13 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
+import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import { MONTH_PATTERN } from '#/dashboard/calendar'
 import {
   CloseMonthDto,
   MonthCloseDto,
+  MonthCloseListDto,
   MonthParamDto,
   UpdateMonthCloseDto,
 } from './dto/month-close.dto'
@@ -37,9 +39,10 @@ const MONTH_PARAM = {
 } as const
 
 /**
- * Guided month-end review (#75). Reading is open to read tokens; ticking
- * steps, notes, closing and reopening are session-only (the default for
- * mutating routes).
+ * Guided month-end review (#75). Reading is open to read tokens; closing is
+ * open to write tokens (#342, the MCP's `close_months`); ticking steps, notes
+ * and reopening are session-only (the default for mutating routes), so undoing
+ * a close stays in the app.
  */
 @ApiTags('Month close')
 @ApiCookieAuth('token')
@@ -48,6 +51,16 @@ const MONTH_PARAM = {
 @Controller('month-close')
 export class MonthCloseController {
   constructor(private readonly monthClose: MonthCloseService) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'Closed months',
+    description: 'Every month closed in the review, oldest first.',
+  })
+  @ApiOkResponse({ type: MonthCloseListDto })
+  list(): Promise<MonthCloseListDto> {
+    return this.monthClose.listClosed()
+  }
 
   @Get(':month')
   @ApiOperation({
@@ -80,10 +93,13 @@ export class MonthCloseController {
 
   @Post(':month/close')
   @HttpCode(200)
+  // #342: the MCP's `close_months` closes past months after the owner agreed
+  // to its preview; reopening stays session-only.
+  @TokenAccess('write')
   @ApiOperation({
     summary: 'Close the month',
     description:
-      'Freezes the month’s report (totals per category, income, expenses, savings, net worth, notes). Only a month before the current one (Europe/Paris) can be closed.',
+      'Freezes the month’s report (totals per category, income, expenses, savings, net worth, notes). Only a month before the current one (Europe/Paris) can be closed. Open to write tokens; reopening is session-only.',
   })
   @ApiParam(MONTH_PARAM)
   @ApiBody({ type: CloseMonthDto })
