@@ -45,13 +45,24 @@ const user = { id: '00000000-0000-0000-0000-000000000001', name: 'Owner Test' }
 const api = {
   refreshCalls: 0,
   rejectRefresh: false,
+  /** A transient status every `me` / refresh answers with (#292). */
+  meStatus: undefined as number | undefined,
+  refreshStatus: undefined as number | undefined,
 }
+
+/** Rate limited or failing, with no wait asked (keeps the test fast). */
+const transient = (status: number) =>
+  Response.json(
+    { statusCode: status },
+    { status, headers: { 'retry-after': '0' } },
+  )
 
 const fetchMock = vi.fn(
   async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(input instanceof Request ? input.url : input)
     const cookie = new Headers(init?.headers).get('cookie') ?? ''
     if (url.pathname === '/api/auth/me') {
+      if (api.meStatus) return transient(api.meStatus)
       return /(^|; )token=(valid|rotated)(;|$)/.test(cookie)
         ? Response.json(user)
         : Response.json({ statusCode: 401 }, { status: 401 })
@@ -59,6 +70,7 @@ const fetchMock = vi.fn(
     if (url.pathname === '/api/auth/refresh') {
       api.refreshCalls++
       await new Promise((resolve) => setTimeout(resolve, 5))
+      if (api.refreshStatus) return transient(api.refreshStatus)
       if (api.rejectRefresh || !cookie.includes('refresh_token=r0')) {
         return Response.json({ statusCode: 401 }, { status: 401 })
       }
@@ -106,6 +118,8 @@ describe('requireUser during SSR', () => {
     forgetRefreshes()
     api.refreshCalls = 0
     api.rejectRefresh = false
+    api.meStatus = undefined
+    api.refreshStatus = undefined
     fetchMock.mockClear()
     vi.stubGlobal('fetch', fetchMock)
     vi.stubEnv('API_URL', 'http://api.test:4000')
@@ -158,6 +172,38 @@ describe('requireUser during SSR', () => {
     expect(result).toBe('/auth')
     expect(setCookies).toEqual([])
   })
+
+  it.each([429, 503])(
+    'shows the error page, never /auth, when `me` answers %i (#292)',
+    async (status) => {
+      api.meStatus = status
+
+      const { result } = await onPageRequest(
+        'token=valid; refresh_token=r0',
+        () => redirectTarget(requireUser).catch((error: unknown) => error),
+      )
+
+      expect(result).toMatchObject({ name: 'SessionUnavailableError', status })
+      expect(api.refreshCalls).toBe(0)
+    },
+  )
+
+  it.each([429, 503])(
+    'shows the error page, never /auth, when the refresh answers %i (#292)',
+    async (status) => {
+      api.refreshStatus = status
+
+      const { result, setCookies } = await onPageRequest(
+        'token=expired; refresh_token=r0',
+        () => redirectTarget(requireUser).catch((error: unknown) => error),
+      )
+
+      expect(result).toMatchObject({ name: 'SessionUnavailableError', status })
+      // Retried once.
+      expect(api.refreshCalls).toBe(2)
+      expect(setCookies).toEqual([])
+    },
+  )
 
   it('redirects to /auth without calling the API refresh when there are no cookies', async () => {
     const { result } = await onPageRequest(undefined, () =>

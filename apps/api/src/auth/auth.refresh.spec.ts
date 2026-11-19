@@ -242,8 +242,42 @@ describe('AuthService sessions', () => {
       expect(mockDb.insert).not.toHaveBeenCalled()
     })
 
-    it('detects reuse: an already-revoked token burns the whole family', async () => {
-      const revoke: { where?: unknown } = {}
+    it.each([
+      ['rotated after the grace', 'rotated', 2 * 60_000],
+      ['revoked before reasons were kept', null, 5000],
+    ])(
+      'detects reuse: a token %s burns the whole family',
+      async (_label, revokedReason, ago) => {
+        const revoke: { set?: unknown } = {}
+        mockDb.select.mockReturnValue(
+          buildChain([
+            {
+              id: 'rt-1',
+              userId: 'user-1',
+              familyId: 'fam-1',
+              expiresAt: new Date(Date.now() + 60_000),
+              revokedAt: new Date(Date.now() - ago),
+              revokedReason,
+            },
+          ]),
+        )
+        mockDb.update.mockReturnValue(buildChain([{ id: 'rt-2' }], revoke))
+
+        await expect(service.rotateRefreshToken('reused')).rejects.toThrow(
+          UnauthorizedException,
+        )
+        // The family was revoked (defence against a stolen token)...
+        expect(mockDb.update).toHaveBeenCalledTimes(1)
+        expect(revoke.set).toEqual({
+          revokedAt: expect.any(Date),
+          revokedReason: 'reuse',
+        })
+        // ...and no new session was issued.
+        expect(mockDb.insert).not.toHaveBeenCalled()
+      },
+    )
+
+    it('refuses a token of a session ended by logout without touching it', async () => {
       mockDb.select.mockReturnValue(
         buildChain([
           {
@@ -251,18 +285,16 @@ describe('AuthService sessions', () => {
             userId: 'user-1',
             familyId: 'fam-1',
             expiresAt: new Date(Date.now() + 60_000),
-            revokedAt: new Date(Date.now() - 5000),
+            revokedAt: new Date(Date.now() - 1000),
+            revokedReason: 'logout',
           },
         ]),
       )
-      mockDb.update.mockReturnValue(buildChain([{}], revoke))
 
-      await expect(service.rotateRefreshToken('reused')).rejects.toThrow(
+      await expect(service.rotateRefreshToken('ended')).rejects.toThrow(
         UnauthorizedException,
       )
-      // The family was revoked (defence against a stolen token)...
-      expect(mockDb.update).toHaveBeenCalledTimes(1)
-      // ...and no new session was issued.
+      expect(mockDb.update).not.toHaveBeenCalled()
       expect(mockDb.insert).not.toHaveBeenCalled()
     })
   })
@@ -291,7 +323,10 @@ describe('AuthService sessions', () => {
       ).rejects.toThrow(UnauthorizedException)
       // The whole family is revoked, nothing new is issued.
       expect(mockDb.update).toHaveBeenCalledTimes(1)
-      expect(revoke.set).toEqual({ revokedAt: expect.any(Date) })
+      expect(revoke.set).toEqual({
+        revokedAt: expect.any(Date),
+        revokedReason: 'lifetime',
+      })
       expect(mockDb.insert).not.toHaveBeenCalled()
     })
 
@@ -323,7 +358,8 @@ describe('AuthService sessions', () => {
       expect(mockDb.insert).not.toHaveBeenCalled()
     })
 
-    it('treats a token revoked by a concurrent rotation as reuse', async () => {
+    it('treats a token revoked by a concurrent rotation as reuse once a successor was used', async () => {
+      // The token, then a used successor (the grace doesn't apply).
       mockDb.select.mockReturnValue(buildChain([row(now)]))
       // The conditional revocation matches no row: another rotation won.
       mockDb.update

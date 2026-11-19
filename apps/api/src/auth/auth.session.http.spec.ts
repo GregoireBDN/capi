@@ -1,15 +1,18 @@
 import fastifyCookie from '@fastify/cookie'
-import { ValidationPipe } from '@nestjs/common'
+import { Logger, ValidationPipe } from '@nestjs/common'
 import type { NestFastifyApplication } from '@nestjs/platform-fastify'
 import { Test } from '@nestjs/testing'
 import * as bcrypt from 'bcryptjs'
-import { and, eq, isNull } from 'drizzle-orm'
+import { eq, isNull } from 'drizzle-orm'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { AppModule } from '#/app.module'
 import { refreshTokensTable } from '#/auth/auth.schema'
-import { SESSION_MAX_LIFETIME_MS } from '#/auth/auth.constants'
+import {
+  SESSION_MAX_LIFETIME_MS,
+  SESSION_REFRESH_REUSE_GRACE_MS,
+} from '#/auth/auth.constants'
 import { createFastifyAdapter } from '#/config/fastify-adapter'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
@@ -204,47 +207,165 @@ describe.skipIf(!process.env.DATABASE_URL)('Session lifetime (HTTP)', () => {
     })
   })
 
+  /** Live tokens of the only family in the test. */
+  const familyTokens = (tx: Db) =>
+    tx
+      .select({
+        id: refreshTokensTable.id,
+        parentId: refreshTokensTable.parentId,
+        revokedAt: refreshTokensTable.revokedAt,
+        revokedReason: refreshTokensTable.revokedReason,
+      })
+      .from(refreshTokensTable)
+
+  /** Moves every rotation back in time, past the grace. */
+  const rotatedAgo = (tx: Db, ms: number) =>
+    tx
+      .update(refreshTokensTable)
+      .set({ revokedAt: new Date(Date.now() - ms) })
+      .where(eq(refreshTokensTable.revokedReason, 'rotated'))
+
   describe('atomic rotation', () => {
-    it('gives at most one new token to two concurrent refreshes of one token', async () => {
-      await asOwner(async (tx) => {
+    it('leaves one usable branch after two concurrent refreshes of one token', async () => {
+      await asOwner(async () => {
         const token = await signIn()
-        const [familyRow] = await tx
-          .select({ familyId: refreshTokensTable.familyId })
-          .from(refreshTokensTable)
 
         const responses = await Promise.all([refresh(token), refresh(token)])
 
-        const statuses = responses.map((r) => r.statusCode).sort()
-        expect(statuses.filter((s) => s === 200).length).toBeLessThanOrEqual(1)
-        expect(statuses).toContain(401)
-        // The loser is reuse: the family is burned, so at most one token of
-        // it is still usable, and no token is ever usable twice.
-        const live = await tx
-          .select({ id: refreshTokensTable.id })
-          .from(refreshTokensTable)
-          .where(
-            and(
-              eq(refreshTokensTable.familyId, familyRow.familyId),
-              isNull(refreshTokensTable.revokedAt),
-            ),
-          )
-        expect(live.length).toBeLessThanOrEqual(1)
-        expect((await refresh(token)).statusCode).toBe(401)
+        // The loser is a retry within the grace: both get a successor
+        // (siblings), never the same one.
+        expect(responses.map((r) => r.statusCode)).toEqual([200, 200])
+        const [a, b] = responses.map((r) => refreshTokenOf(r)!)
+        expect(a).not.toBe(b)
+        // The browser keeps one of them; renewing it drops the other, whose
+        // later use is reuse.
+        const kept = await refresh(a)
+        expect(kept.statusCode).toBe(200)
+        expect((await refresh(b)).statusCode).toBe(401)
+        expect((await refresh(refreshTokenOf(kept)!)).statusCode).toBe(401)
       })
     })
 
-    it('still detects reuse of a rotated token and burns the family', async () => {
+    it('still detects reuse of a rotated token once its successor was used', async () => {
       await asOwner(async (tx) => {
         const token = await signIn()
         const first = await refresh(token)
         expect(first.statusCode).toBe(200)
         const next = refreshTokenOf(first)!
+        const second = await refresh(next)
+        expect(second.statusCode).toBe(200)
 
         expect((await refresh(token)).statusCode).toBe(401)
         // The legitimate successor is revoked too.
-        expect((await refresh(next)).statusCode).toBe(401)
+        expect((await refresh(refreshTokenOf(second)!)).statusCode).toBe(401)
+        expect(await liveTokens(tx)).toEqual([])
+        expect(
+          (await familyTokens(tx)).filter((t) => t.revokedReason === 'reuse'),
+        ).toHaveLength(1)
+      })
+    })
+
+    it('detects reuse of a rotated token presented after the grace', async () => {
+      await asOwner(async (tx) => {
+        const token = await signIn()
+        const first = await refresh(token)
+        expect(first.statusCode).toBe(200)
+        await rotatedAgo(tx, SESSION_REFRESH_REUSE_GRACE_MS + 1000)
+
+        expect((await refresh(token)).statusCode).toBe(401)
+        expect((await refresh(refreshTokenOf(first)!)).statusCode).toBe(401)
         expect(await liveTokens(tx)).toEqual([])
       })
+    })
+  })
+
+  describe('lost refresh response (#292)', () => {
+    it('renews the previous token again within the grace instead of signing out', async () => {
+      await asOwner(async (tx) => {
+        const token = await signIn()
+        // The response carrying `lost` never reached the browser...
+        const lost = refreshTokenOf(await refresh(token))!
+
+        // ...which presents its previous token again.
+        const retry = await refresh(token)
+        expect(retry.statusCode).toBe(200)
+        const kept = refreshTokenOf(retry)!
+        expect(kept).not.toBe(lost)
+        expect(retry.cookies.some((c) => c.name === 'token')).toBe(true)
+
+        // The session goes on from the token the browser kept; the lost one
+        // is dropped, and presenting it later is reuse.
+        const next = await refresh(kept)
+        expect(next.statusCode).toBe(200)
+        const rows = await familyTokens(tx)
+        expect(rows.filter((t) => t.revokedAt === null)).toHaveLength(1)
+        expect(rows.map((t) => t.revokedReason ?? 'live').sort()).toEqual([
+          'live',
+          'rotated',
+          'rotated',
+          'superseded',
+        ])
+        expect((await refresh(lost)).statusCode).toBe(401)
+        expect(await liveTokens(tx)).toEqual([])
+      })
+    })
+
+    it('keeps the family time limits for a retry within the grace', async () => {
+      await asOwner(async (tx) => {
+        const token = await signIn()
+        await refresh(token)
+        await signedInAgo(tx, SESSION_MAX_LIFETIME_MS + 60_000)
+
+        expect((await refresh(token)).statusCode).toBe(401)
+        expect(await liveTokens(tx)).toEqual([])
+      })
+    })
+
+    it('refuses a token of a logged-out session, even within the grace', async () => {
+      await asOwner(async (tx) => {
+        const token = await signIn()
+        const next = refreshTokenOf(await refresh(token))!
+        const out = await call('/api/auth/logout', {
+          cookie: `refresh_token=${next}`,
+        })
+        expect(out.statusCode).toBe(201)
+
+        expect((await refresh(token)).statusCode).toBe(401)
+        expect(await liveTokens(tx)).toEqual([])
+        expect(
+          (await familyTokens(tx)).map((t) => t.revokedReason).sort(),
+        ).toEqual(['logout', 'rotated'])
+      })
+    })
+  })
+
+  describe('logging (#292)', () => {
+    it('logs why a refresh was refused, with the reason only', async () => {
+      const warn = vi.spyOn(Logger.prototype, 'warn')
+      try {
+        await asOwner(async (tx) => {
+          const token = await signIn()
+          const next = refreshTokenOf(await refresh(token))!
+          await rotatedAgo(tx, SESSION_REFRESH_REUSE_GRACE_MS + 1000)
+          await refresh(token)
+          await refresh(next)
+          await refresh('0'.repeat(64))
+          await call('/api/auth/refresh')
+
+          const messages = warn.mock.calls.map((args) => args[0])
+          expect(messages).toEqual([
+            'Session refresh refused: reuse',
+            'Session refresh refused: revoked',
+            'Session refresh refused: unknown',
+            'Session refresh refused: no cookie',
+          ])
+          const logged = JSON.stringify(warn.mock.calls)
+          expect(logged).not.toContain(token)
+          expect(logged).not.toContain(next)
+        })
+      } finally {
+        warn.mockRestore()
+      }
     })
   })
 })

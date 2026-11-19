@@ -8,8 +8,9 @@ export const SESSION_SIGN_IN_METHODS = [
 ] as const
 
 /**
- * One active session (refresh-token family) of the owner. Never carries a
- * refresh token or its hash.
+ * One active session (refresh-token family) of the owner, or one recently
+ * ended by reuse detection (`reuseDetectedAt`, #292). Never carries a refresh
+ * token or its hash.
  */
 export class SessionDto {
   @ApiProperty({
@@ -58,4 +59,13 @@ export class SessionDto {
     description: 'The session making this request.',
   })
   current!: boolean
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'Set on a session ended by reuse detection (a refresh token presented again after it was renewed) in the last 30 days, listed so the owner sees it happened; `expiresAt` is then the same time. Null for an active session.',
+  })
+  reuseDetectedAt!: string | null
 }

@@ -393,6 +393,12 @@ describe.skipIf(!process.env.DATABASE_URL)('Passkeys (HTTP)', () => {
           cookiesOf(refreshed)['token'],
         )
         expect(renewed.auth_time).toBe(claims.auth_time)
+        // Once the successor is used, the old token is reuse (#292: before
+        // that, a retry within the grace is not).
+        const next = await call('POST', '/api/auth/refresh', {
+          cookie: `refresh_token=${cookiesOf(refreshed)['refresh_token']}`,
+        })
+        expect(next.statusCode).toBe(200)
         const reused = await call('POST', '/api/auth/refresh', {
           cookie: `refresh_token=${cookies['refresh_token']}`,
         })

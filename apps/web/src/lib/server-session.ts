@@ -1,4 +1,5 @@
 import type { UserDto } from '#/api/types.gen'
+import { isTransientStatus, retryDelayMs, sleep } from '#/lib/session-errors'
 
 /**
  * Server-side session resolution for SSR guards and the `/api` proxy.
@@ -58,17 +59,25 @@ export const REFRESH_PATH = '/api/auth/refresh'
  */
 export const REFRESH_GRACE_MS = 10_000
 
+/** Wait before the one retry of a 429 / 5xx during SSR (`Retry-After` capped). */
+export const SSR_RETRY_BASE_MS = 300
+export const SSR_RETRY_MAX_MS = 2_000
+
 export interface ApiTarget {
   /** Origin of the API as seen from the web server, e.g. `http://api:4000`. */
   apiUrl: string
   /** Injectable for tests; defaults to the global `fetch`. */
   fetch?: typeof fetch
+  /** Injectable for tests; defaults to a timer. */
+  sleep?: (ms: number) => Promise<void>
 }
 
 /** Result of a `POST /api/auth/refresh`, replayable to several callers. */
 export interface RefreshOutcome {
   ok: boolean
   status: number
+  /** The API's `Retry-After`, when it answered 429 / 503 with one. */
+  retryAfter?: string | null
   /** Raw `Set-Cookie` header values returned by the API. */
   setCookies: string[]
   contentType: string | null
@@ -84,6 +93,13 @@ export interface ServerSession {
    * request (the incoming one, or the refreshed one after a rotation).
    */
   cookieHeader: string | undefined
+  /**
+   * Set when the API could not say whether anyone is signed in (429, 5xx,
+   * unreachable; the status, 0 without an answer): the caller forwards
+   * `setCookies`, then throws a `SessionUnavailableError` instead of
+   * redirecting to `/auth` (#292).
+   */
+  unavailable?: number
 }
 
 /** Parses a `Cookie` request header; the first occurrence of a name wins. */
@@ -251,6 +267,7 @@ async function requestRefresh(
     return {
       ok: res.ok,
       status: res.status,
+      retryAfter: res.headers.get('retry-after'),
       setCookies: res.headers.getSetCookie(),
       contentType: res.headers.get('content-type'),
       body: await res.text(),
@@ -274,21 +291,60 @@ export function forgetRefreshes(): void {
   refreshes.clear()
 }
 
-async function fetchMe(
+interface MeOutcome {
+  status: number
+  user: UserDto | null
+  retryAfter?: string | null
+}
+
+async function fetchMeOnce(
   cookieHeader: string | undefined,
   target: ApiTarget,
-): Promise<{ status: number; user: UserDto | null }> {
+): Promise<MeOutcome> {
   const doFetch = target.fetch ?? fetch
   try {
     const res = await doFetch(new URL(ME_PATH, target.apiUrl), {
       headers: cookieHeader ? { cookie: cookieHeader } : {},
       redirect: 'manual',
     })
-    if (!res.ok) return { status: res.status, user: null }
+    if (!res.ok) {
+      return {
+        status: res.status,
+        user: null,
+        retryAfter: res.headers.get('retry-after'),
+      }
+    }
     return { status: res.status, user: (await res.json()) as UserDto }
   } catch {
-    return { status: 502, user: null }
+    return { status: 0, user: null }
   }
+}
+
+/** Waits as a transient failure asks (its `Retry-After`, capped). */
+function waitBeforeRetry(
+  retryAfter: string | null | undefined,
+  target: ApiTarget,
+): Promise<void> {
+  const headers = new Headers(retryAfter ? { 'retry-after': retryAfter } : {})
+  return (target.sleep ?? sleep)(
+    retryDelayMs({ headers }, SSR_RETRY_BASE_MS, SSR_RETRY_MAX_MS),
+  )
+}
+
+/** `GET /api/auth/me`, retried once after a 429 / 5xx / no answer. */
+async function fetchMe(
+  cookieHeader: string | undefined,
+  target: ApiTarget,
+): Promise<MeOutcome> {
+  const first = await fetchMeOnce(cookieHeader, target)
+  if (first.user || !isRetryable(first.status)) return first
+  await waitBeforeRetry(first.retryAfter, target)
+  return fetchMeOnce(cookieHeader, target)
+}
+
+/** No answer (0) or a transient status: worth one more try, never « signed out ». */
+function isRetryable(status: number): boolean {
+  return status === 0 || isTransientStatus(status)
 }
 
 /**
@@ -298,8 +354,11 @@ async function fetchMe(
  * - valid access token → the user, nothing to forward;
  * - missing/expired access token + refresh token → rotate, then retry with the new
  *   access token; the rotated `Set-Cookie` values are returned for forwarding;
- * - no usable cookie, or a rejected refresh → `user: null` (the guard
- *   redirects to `/auth` before rendering anything).
+ * - no usable cookie, or a refresh the API refused (401) → `user: null` (the
+ *   guard redirects to `/auth` before rendering anything);
+ * - the API rate-limited, failing or unreachable, on `me` or on the refresh
+ *   (after one retry) → `unavailable`: the guard shows the error page, never
+ *   the login page (#292).
  */
 export async function resolveServerSession(
   cookieHeader: string | undefined,
@@ -311,15 +370,25 @@ export async function resolveServerSession(
   if (findCookie(cookies, ACCESS_COOKIES)) {
     const me = await fetchMe(cookieHeader, target)
     if (me.user) return { user: me.user, setCookies: [], cookieHeader }
-    // Only an auth failure is worth a refresh; an API outage is not.
-    if (me.status !== 401) return anonymous
+    // Only an auth failure is worth a refresh, or means signed out.
+    if (me.status !== 401) return { ...anonymous, unavailable: me.status }
   }
 
   const refreshCookie = findCookie(cookies, REFRESH_COOKIES)
   if (!refreshCookie) return anonymous
 
-  const refreshed = await refreshSession(refreshCookie, target)
-  if (!refreshed.ok) return anonymous
+  let refreshed = await refreshSession(refreshCookie, target)
+  if (!refreshed.ok && isRetryable(refreshed.status)) {
+    // Its response may have been lost after the API rotated the token: the
+    // API accepts the same token again within its grace.
+    await waitBeforeRetry(refreshed.retryAfter, target)
+    refreshed = await refreshSession(refreshCookie, target)
+  }
+  if (!refreshed.ok) {
+    return isRetryable(refreshed.status)
+      ? { ...anonymous, unavailable: refreshed.status }
+      : anonymous
+  }
 
   const nextCookieHeader = applySetCookies(cookieHeader, refreshed.setCookies)
   const me = await fetchMe(nextCookieHeader, target)
@@ -329,5 +398,6 @@ export async function resolveServerSession(
     // revoked now, so the browser must not keep presenting it.
     setCookies: refreshed.setCookies,
     cookieHeader: nextCookieHeader,
+    ...(me.user || me.status === 401 ? {} : { unavailable: me.status }),
   }
 }
