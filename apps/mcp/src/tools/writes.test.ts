@@ -14,6 +14,7 @@ import {
   checking,
   groceries,
   livret,
+  mealVoucher,
   pea,
   period,
   restaurants,
@@ -22,7 +23,7 @@ import {
 } from '../test/fixtures.js'
 import { connect, jsonError } from '../test/mock-api.js'
 
-const accounts = [checking, livret, pea]
+const accounts = [checking, livret, pea, mealVoucher]
 const categories = [groceries, restaurants, salary]
 const ID_1 = '00000000-0000-4000-8000-0000000000a1'
 const ID_2 = '00000000-0000-4000-8000-0000000000a2'
@@ -108,6 +109,24 @@ describe('add_transaction', () => {
     })
     expect(text).toContain('Opération ajoutée')
     expect(text).toContain('Pour annuler')
+  })
+
+  it('pays with the meal-voucher card (#298)', async () => {
+    const { call, writes } = await connect(routes())
+    const { isError } = await call('add_transaction', {
+      amount: '14,90',
+      category: 'Restaurants',
+      account: 'titres',
+      confirm: true,
+    })
+    expect(isError).toBe(false)
+    expect(writes()[0]?.body).toMatchObject({
+      amountCents: 1490,
+      direction: 'out',
+      kind: 'expense',
+      categoryId: restaurants.id,
+      accountId: mealVoucher.id,
+    })
   })
 
   it('takes the sign of the amount over the default direction', async () => {
