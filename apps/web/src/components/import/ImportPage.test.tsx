@@ -191,7 +191,9 @@ describe('ImportPage — preview', () => {
     expect(
       within(rows).getByText(/Même montant, 1 jour d’écart/),
     ).toBeInTheDocument()
-    const decision = within(rows).getByRole('group', { name: /Décision pour/ })
+    const decision = within(rows).getByRole('radiogroup', {
+      name: /Décision pour/,
+    })
     expect(
       within(decision).getByRole('radio', { name: 'Ignorer' }),
     ).toBeChecked()

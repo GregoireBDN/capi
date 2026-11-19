@@ -679,6 +679,54 @@ describe('SpendingPage', () => {
     expect(changes.at(-1)).toEqual({})
   })
 
+  it('switches the comparison with the arrow keys, never to nothing', async () => {
+    const user = userEvent.setup()
+    const { changes } = renderPage()
+
+    const control = await screen.findByRole('radiogroup', {
+      name: 'Comparer chaque catégorie avec',
+    })
+    const previous = within(control).getByRole('radio', {
+      name: 'Mois précédent',
+    })
+    expect(previous).toHaveAttribute('aria-checked', 'true')
+
+    // Pressing the selected segment again keeps it.
+    await user.click(previous)
+    expect(previous).toHaveAttribute('aria-checked', 'true')
+    expect(changes).toEqual([])
+
+    // An arrow key moves to « Moyenne » and selects it (?cmp=avg).
+    await user.keyboard('{ArrowRight}')
+    const average = within(control).getByRole('radio', { name: 'Moyenne' })
+    expect(average).toHaveFocus()
+    expect(changes.at(-1)).toMatchObject({ cmp: 'avg' })
+    expect(average).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('keeps « Moyenne » disabled without averaged months', async () => {
+    const user = userEvent.setup()
+    api.spendingControllerByCategory.mockReturnValue(
+      ok({ ...october, averageMonths: 0 }),
+    )
+    const { changes } = renderPage()
+
+    const control = await screen.findByRole('radiogroup', {
+      name: 'Comparer chaque catégorie avec',
+    })
+    expect(
+      within(control).getByRole('radio', { name: 'Moyenne' }),
+    ).toBeDisabled()
+    const previous = within(control).getByRole('radio', {
+      name: 'Mois précédent',
+    })
+    await user.click(previous)
+    await user.keyboard('{ArrowRight}')
+    expect(previous).toHaveFocus()
+    expect(previous).toHaveAttribute('aria-checked', 'true')
+    expect(changes).toEqual([])
+  })
+
   it('says where the data stops when the month has none yet', async () => {
     api.spendingControllerByCategory.mockReturnValue(
       ok({

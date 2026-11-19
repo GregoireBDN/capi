@@ -20,9 +20,9 @@ import {
   formatPercent,
   formatWholeEuros,
   LineChart,
+  SegmentedControl,
+  SegmentedControlItem,
   Skeleton,
-  ToggleGroup,
-  ToggleGroupItem,
 } from '@finances/ui'
 import type { ChartConfig } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
@@ -72,9 +72,6 @@ const CHART_HEIGHT = 240
 const CONFIG = {
   netWorthCents: { label: 'Patrimoine net', color: 'var(--chart-savings)' },
 } satisfies ChartConfig
-
-const SELECTED =
-  'data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary'
 
 const shortMonthYear = new Intl.DateTimeFormat('fr-FR', {
   month: 'short',
@@ -400,22 +397,25 @@ function HistoryCard({
             Données jusqu’au {formatShortDay(coverage.dataUntil)}
           </p>
         )}
-        <ToggleGroup
-          type="single"
-          variant="outline"
-          size="sm"
-          aria-label="Période du graphique"
-          value={period}
-          onValueChange={(next) => {
-            if (next) onPeriodChange(next as NetWorthPeriod)
-          }}
-        >
-          {NET_WORTH_PERIODS.map((item) => (
-            <ToggleGroupItem key={item} value={item} className={SELECTED}>
-              {NET_WORTH_PERIOD_LABELS[item]}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+        {/* Three labels on a 320px phone: sized on the row's width. */}
+        <div className="@container">
+          <SegmentedControl
+            fullWidth
+            aria-label="Période du graphique"
+            value={period}
+            onValueChange={onPeriodChange}
+          >
+            {NET_WORTH_PERIODS.map((item) => (
+              <SegmentedControlItem
+                key={item}
+                value={item}
+                className="px-1.5 text-[min(0.875rem,7cqi)]"
+              >
+                {NET_WORTH_PERIOD_LABELS[item]}
+              </SegmentedControlItem>
+            ))}
+          </SegmentedControl>
+        </div>
         {series.length < 2 ? (
           <EmptyState
             variant="inline"

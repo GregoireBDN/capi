@@ -478,10 +478,10 @@ describe('MonthEnvelopes', () => {
     )
     const dialog = await screen.findByRole('dialog')
     expect(
-      within(dialog).queryByRole('group', { name: 'Sens' }),
+      within(dialog).queryByRole('radiogroup', { name: 'Sens' }),
     ).not.toBeInTheDocument()
     await user.click(within(dialog).getByRole('radio', { name: 'Virement' }))
-    const direction = within(dialog).getByRole('group', { name: 'Sens' })
+    const direction = within(dialog).getByRole('radiogroup', { name: 'Sens' })
     expect(
       within(direction).getByRole('radio', { name: 'Sortie' }),
     ).toHaveAttribute('aria-checked', 'true')
