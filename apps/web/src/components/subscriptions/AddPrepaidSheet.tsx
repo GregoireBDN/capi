@@ -42,7 +42,9 @@ import {
 
 const NAME_MAX = 255
 const STEP_COUNT = 3
-/** Debits listed before a search: the largest of the last 13 months. */
+/** Debits read: the largest of the last 13 months (or of the search). */
+const CANDIDATES_READ = 100
+/** Debits listed, one per payee. */
 const CANDIDATES_SHOWN = 30
 
 type Screen = 'payment' | 'term' | 'review'
@@ -59,7 +61,7 @@ function candidatesQuery(q: string, today: string) {
             from: addDays(addMonths(today, -13), 1),
             to: today,
             sort: 'amount_asc',
-            limit: CANDIDATES_SHOWN,
+            limit: CANDIDATES_READ,
             ...(q.trim() ? { q: q.trim() } : {}),
           },
           throwOnError: false,
@@ -67,6 +69,30 @@ function candidatesQuery(q: string, today: string) {
       ),
     staleTime: 30_000,
   }
+}
+
+/**
+ * The debits not paying a prepaid plan yet, the largest of each payee only
+ * (twelve rents would hide the rest), largest first.
+ */
+export function largestPerPayee(
+  transactions: readonly TransactionDto[],
+): TransactionDto[] {
+  const seen = new Set<string>()
+  const result: TransactionDto[] = []
+  for (const transaction of [...transactions].sort(
+    (a, b) => a.amountCents - b.amountCents,
+  )) {
+    if (transaction.amountCents >= 0 || transaction.prepaidItemId !== null) {
+      continue
+    }
+    const payee = displayLabel(transaction).toLowerCase()
+    if (seen.has(payee)) continue
+    seen.add(payee)
+    result.push(transaction)
+    if (result.length === CANDIDATES_SHOWN) break
+  }
+  return result
 }
 
 /**
@@ -113,10 +139,7 @@ export function AddPrepaidSheet({
     ...candidatesQuery(search, today),
     enabled: open && screen === 'payment',
   })
-  const debits = (candidates.data?.items ?? []).filter(
-    (transaction) =>
-      transaction.amountCents < 0 && transaction.prepaidItemId === null,
-  )
+  const debits = largestPerPayee(candidates.data?.items ?? [])
 
   const add = useMutation({
     mutationFn: () =>
@@ -160,8 +183,8 @@ export function AddPrepaidSheet({
             />
           </div>
           <p className="text-muted-foreground text-sm">
-            Le paiement fait en une fois pour plusieurs mois. Les plus gros des
-            13 derniers mois d’abord.
+            Le paiement fait en une fois pour plusieurs mois. Le plus gros de
+            chaque bénéficiaire sur 13 mois, les plus gros d’abord.
           </p>
           {candidates.isPending ? (
             <div className="space-y-2" aria-busy="true">
@@ -263,9 +286,11 @@ export function AddPrepaidSheet({
             </dd>
             <dt className="text-muted-foreground">Payé</dt>
             <dd className="text-right tabular-nums">
-              {formatCents(amountCents)} pour {termMonths} mois, le{' '}
+              {formatCents(amountCents)} le{' '}
               {formatDayMonth(payment.bookingDate, today)}
             </dd>
+            <dt className="text-muted-foreground">Durée</dt>
+            <dd className="text-right">{termMonths} mois</dd>
             <dt className="text-muted-foreground">Renouvellement</dt>
             <dd className="text-right">
               {formatDayMonth(

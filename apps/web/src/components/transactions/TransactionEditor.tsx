@@ -569,7 +569,8 @@ export function TransactionEditor({
         {item.kind === 'expense' && item.amountCents < 0 && (
           <SettingRow
             icon={CalendarClockIcon}
-            label="Abonnement prépayé"
+            // Short: « 24 mois » stays whole beside it on a phone.
+            label="Prépayé"
             value={
               item.prepaidItemId && item.prepaidTermMonths
                 ? `${item.prepaidTermMonths} mois`
