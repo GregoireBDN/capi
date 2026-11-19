@@ -558,14 +558,14 @@ describe('RulesPage', () => {
     const advanced = within(sheet).getByRole('button', { name: /Avancé/ })
     expect(advanced.getAttribute('aria-expanded')).toBe('false')
     expect(advanced.textContent).toContain('compte Compte test')
-    expect(within(sheet).queryByLabelText('Montant minimum')).toBeNull()
+    expect(within(sheet).queryByLabelText('Au moins')).toBeNull()
     await user.click(advanced)
     // -50 € to -1 €: money out from 1 to 50 €, typed unsigned (#326).
-    expect(within(sheet).getByLabelText('Montant minimum')).toHaveProperty(
+    expect(within(sheet).getByLabelText('Au moins')).toHaveProperty(
       'value',
       '1',
     )
-    expect(within(sheet).getByLabelText('Montant maximum')).toHaveProperty(
+    expect(within(sheet).getByLabelText('Au plus')).toHaveProperty(
       'value',
       '50',
     )

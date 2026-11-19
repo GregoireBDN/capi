@@ -521,28 +521,44 @@ export function RuleEditorSheet({
                         Entrée
                       </SegmentedControlItem>
                     </SegmentedControl>
-                    <div className="grid grid-cols-2 gap-2">
-                      <AmountField
-                        id={`${id}-min`}
-                        aria-label="Montant minimum"
-                        placeholder="De"
-                        maxCents={RULE_MAX_AMOUNT_CENTS}
-                        value={form.minAmount}
-                        aria-invalid={errors.amount ? true : undefined}
-                        onValueChange={(minAmount) =>
-                          change({ minAmount, keptAmounts: null })
-                        }
-                      />
-                      <AmountField
-                        aria-label="Montant maximum"
-                        placeholder="À"
-                        maxCents={RULE_MAX_AMOUNT_CENTS}
-                        value={form.maxAmount}
-                        aria-invalid={errors.amount ? true : undefined}
-                        onValueChange={(maxAmount) =>
-                          change({ maxAmount, keptAmounts: null })
-                        }
-                      />
+                    {/* One field per row (#326 feedback): wide enough on phones. */}
+                    <div className="mt-2 space-y-3">
+                      <div className="space-y-1.5">
+                        <FieldLabel
+                          htmlFor={`${id}-min`}
+                          className="text-muted-foreground font-normal"
+                        >
+                          Au moins
+                        </FieldLabel>
+                        <AmountField
+                          id={`${id}-min`}
+                          placeholder="Pas de minimum"
+                          maxCents={RULE_MAX_AMOUNT_CENTS}
+                          value={form.minAmount}
+                          aria-invalid={errors.amount ? true : undefined}
+                          onValueChange={(minAmount) =>
+                            change({ minAmount, keptAmounts: null })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <FieldLabel
+                          htmlFor={`${id}-max`}
+                          className="text-muted-foreground font-normal"
+                        >
+                          Au plus
+                        </FieldLabel>
+                        <AmountField
+                          id={`${id}-max`}
+                          placeholder="Pas de maximum"
+                          maxCents={RULE_MAX_AMOUNT_CENTS}
+                          value={form.maxAmount}
+                          aria-invalid={errors.amount ? true : undefined}
+                          onValueChange={(maxAmount) =>
+                            change({ maxAmount, keptAmounts: null })
+                          }
+                        />
+                      </div>
                     </div>
                     {form.keptAmounts ? (
                       <div className="space-y-2">
@@ -564,8 +580,8 @@ export function RuleEditorSheet({
                     ) : (
                       <FieldDescription>
                         {form.amountSign === 'out'
-                          ? 'Montant débité, en euros, bornes comprises.'
-                          : 'Montant crédité, en euros, bornes comprises.'}
+                          ? 'Montant débité, bornes comprises.'
+                          : 'Montant crédité, bornes comprises.'}
                       </FieldDescription>
                     )}
                     {errors.amount && <FieldError>{errors.amount}</FieldError>}
