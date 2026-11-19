@@ -541,6 +541,51 @@ describe('API route audit', () => {
       })
     })
 
+    it('deletes a finance account only with a fresh session, never with a token (#297)', async () => {
+      await asOwner(async ({ id, cookie, tx }) => {
+        const [account] = await tx
+          .insert(schema.accountsTable)
+          .values({ name: 'Compte test', type: 'checking', position: 9_999 })
+          .returning({ id: schema.accountsTable.id })
+        const url = `/api/accounts/${account.id}`
+        const tokens = app.get(AccessTokensService, { strict: false })
+        const write = await tokens.create(id, { name: 'Write', scope: 'write' })
+        for (const [method, path] of [
+          ['DELETE', url],
+          ['GET', `${url}/deletion-preview`],
+        ] as const) {
+          const res = await app.inject({
+            method,
+            url: path,
+            remoteAddress: nextIp(),
+            headers: { authorization: `Bearer ${write.token}` },
+          })
+          expect(res.statusCode, `${method} ${path}`).toBe(403)
+        }
+
+        // Signed in an hour ago: the session is no longer fresh.
+        const stale = app.get(JwtService, { strict: false }).sign({
+          sub: id,
+          auth_time: Math.floor(Date.now() / 1000) - 3_600,
+        })
+        const refused = await send('DELETE', url, `token=${stale}`)
+        expect(refused.statusCode).toBe(403)
+        expect(refused.body).toContain('Recent authentication required')
+        // The preview only reads: a session that is not fresh may see it.
+        const preview = await send(
+          'GET',
+          `${url}/deletion-preview`,
+          `token=${stale}`,
+        )
+        expect(preview.statusCode).toBe(200)
+        expect(preview.json()).toMatchObject({ transactions: 0 })
+
+        expect((await send('DELETE', url, cookie)).statusCode).toBe(204)
+        expect((await send('GET', url, cookie)).statusCode).toBe(404)
+        expect((await send('DELETE', url, cookie)).statusCode).toBe(404)
+      })
+    })
+
     it('deletes the signed-in owner account', async () => {
       await asOwner(async ({ id, cookie, tx }) => {
         const res = await send('DELETE', '/api/profile', cookie)

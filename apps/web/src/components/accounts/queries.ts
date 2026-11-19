@@ -2,8 +2,10 @@ import { queryOptions } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
 import {
   accountsControllerCreate,
+  accountsControllerDeletionPreview,
   accountsControllerFindOne,
   accountsControllerList,
+  accountsControllerRemove,
   accountsControllerUpdate,
   accountSnapshotsControllerBulk,
   accountSnapshotsControllerPerformance,
@@ -108,6 +110,27 @@ export const archivedAccountsQuery = queryOptions({
 
 export function createAccount(body: CreateAccountDto) {
   return unwrap(accountsControllerCreate({ body, throwOnError: false }))
+}
+
+/** What deleting the account would remove (#297), counted afresh each time. */
+export function deletionPreviewQuery(id: string) {
+  return queryOptions({
+    queryKey: [...accountKeys.detail(id), 'deletion-preview'] as const,
+    queryFn: () =>
+      unwrap(
+        accountsControllerDeletionPreview({
+          path: { id },
+          throwOnError: false,
+        }),
+      ),
+    staleTime: 0,
+    gcTime: 0,
+  })
+}
+
+/** Deletes the account and all its data; needs a fresh session (`needsReauth`). */
+export function deleteAccount(id: string) {
+  return unwrap(accountsControllerRemove({ path: { id }, throwOnError: false }))
 }
 
 export function updateAccount(id: string, body: UpdateAccountDto) {

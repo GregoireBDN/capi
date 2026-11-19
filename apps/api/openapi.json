@@ -2295,7 +2295,7 @@
         ]
       },
       "patch": {
-        "description": "Rename, reorder, archive or restore. Accounts are never deleted: archive them instead.",
+        "description": "Rename, reorder, archive or restore. Archiving keeps the history; `DELETE` removes the account and its data.",
         "operationId": "AccountsController_update",
         "parameters": [
           {
@@ -2345,6 +2345,44 @@
           }
         ],
         "summary": "Update an account",
+        "tags": [
+          "Accounts"
+        ]
+      },
+      "delete": {
+        "description": "In one database transaction: its transactions and splits, imports, recurring items, snapshots, crypto data, account-scoped rules and savings goal links, then the account. Budgets and categories are untouched; closed months keep their frozen report. Cannot be undone. Session only, with a fresh session (a password or passkey sign-in within the last 5 minutes).",
+        "operationId": "AccountsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "403": {
+            "description": "Recent authentication required, or called with an access token."
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Delete an account and everything that belongs to it",
         "tags": [
           "Accounts"
         ]
@@ -2405,6 +2443,50 @@
           }
         ],
         "summary": "Turn a manual crypto account into an exchange or a wallet",
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
+    "/api/accounts/{id}/deletion-preview": {
+      "get": {
+        "description": "For the confirmation of `DELETE /api/accounts/:id`: transactions, imports, snapshots, crypto data, recurring items, account-scoped rules and savings goal links, plus the closed months holding data of the account (their frozen report keeps its figures). Session only.",
+        "operationId": "AccountsController_deletionPreview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeletionPreviewDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Count what deleting an account would remove",
         "tags": [
           "Accounts"
         ]
@@ -8072,6 +8154,67 @@
         },
         "required": [
           "cryptoSource"
+        ]
+      },
+      "AccountDeletionPreviewDto": {
+        "type": "object",
+        "properties": {
+          "transactions": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Transactions of the account, imported or entered by hand."
+          },
+          "imports": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Bank imports and crypto exchange imports of the account."
+          },
+          "snapshots": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Balance or value snapshots."
+          },
+          "cryptoHoldings": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Crypto holding lines (imported, synced or typed by hand)."
+          },
+          "walletKeys": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Wallet public keys and tokens read for the account."
+          },
+          "recurringItems": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Recurring items (subscriptions, fixed costs) found on the account."
+          },
+          "rules": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Categorization rules limited to this account."
+          },
+          "savingsGoals": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Savings goals counting this account (the goals themselves stay)."
+          },
+          "closedMonths": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Closed months with data of this account: their frozen report keeps its figures."
+          }
+        },
+        "required": [
+          "transactions",
+          "imports",
+          "snapshots",
+          "cryptoHoldings",
+          "walletKeys",
+          "recurringItems",
+          "rules",
+          "savingsGoals",
+          "closedMonths"
         ]
       },
       "ImportUploadSource": {

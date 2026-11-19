@@ -290,3 +290,41 @@ export class UpdateAccountDto {
   @IsBoolean()
   archived?: boolean
 }
+
+const count = (description: string) =>
+  ApiProperty({ type: 'integer', minimum: 0, description })
+
+/**
+ * What deleting an account takes with it (#297), for the confirmation. Budgets
+ * and categories are never touched; closed months keep their frozen report.
+ */
+export class AccountDeletionPreviewDto {
+  @count('Transactions of the account, imported or entered by hand.')
+  transactions!: number
+
+  @count('Bank imports and crypto exchange imports of the account.')
+  imports!: number
+
+  @count('Balance or value snapshots.')
+  snapshots!: number
+
+  @count('Crypto holding lines (imported, synced or typed by hand).')
+  cryptoHoldings!: number
+
+  @count('Wallet public keys and tokens read for the account.')
+  walletKeys!: number
+
+  @count('Recurring items (subscriptions, fixed costs) found on the account.')
+  recurringItems!: number
+
+  @count('Categorization rules limited to this account.')
+  rules!: number
+
+  @count('Savings goals counting this account (the goals themselves stay).')
+  savingsGoals!: number
+
+  @count(
+    'Closed months with data of this account: their frozen report keeps its figures.',
+  )
+  closedMonths!: number
+}

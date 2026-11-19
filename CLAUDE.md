@@ -53,6 +53,7 @@ These rules are non-negotiable. Code, tests and reviews must enforce them.
 - Account types: `checking`, `savings`, `brokerage` (PEA), `life_insurance`, `employee_savings`, `crypto`.
 - **Transactional accounts** (checking, savings) are fed by imports; their balance comes from transactions.
 - **Investment accounts** (brokerage, life_insurance, employee_savings, crypto) are tracked by **dated value snapshots**. For crypto, the value can also be derived from holdings × price.
+- **Archive or delete** (#297): archiving (`PATCH /api/accounts/:id` `archived`) is the default for an account that was used, keeping its history. `DELETE /api/accounts/:id` (session only `@TokenAccess('none')`, fresh session `FreshAuthGuard`; no MCP tool) removes, in one DB transaction, its transactions with their splits, imports, recurring items, snapshots and savings goal links, then the account, whose crypto data (holdings, wallet keys and tokens, scans, exchange imports and movements) and account-scoped rules cascade. Budgets and categories are untouched; closed months keep their frozen report (their `changes` show the difference). `GET /api/accounts/:id/deletion-preview` counts all of it plus the closed months holding its data. The web: « Archiver ou supprimer » at the end of `AccountEditor` (archive first), then `DeleteAccountScreen` in the same sheet: the counts, « Définitif », the account's name to type (case and spacing ignored), `ReauthSheet` on the fresh-session 403, a toast and back to « Comptes ». No undo.
 
 ### Crypto prices
 
