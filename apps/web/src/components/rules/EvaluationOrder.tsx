@@ -13,13 +13,12 @@ import { useDragOrder } from './use-drag-order'
 
 /**
  * « Avancé », folded at the end of the page (#299, the owner's « A. Liste
- * numérotée », prototypes in `apps/ui-docs/src/prototypes/rules-order.stories.tsx`):
- * the rules in evaluation order, each a row like the rule list (its rank,
- * the text, its category, a priority badge when set) that opens the rule,
- * whose priority changes the order. Each row has a handle to drag it
- * elsewhere (finger or mouse, or ↑ / ↓ on the focused handle), which sets
- * the fewest priorities giving that order; then « Réappliquer toutes les
- * règles ».
+ * numérotée »): the rules in evaluation order, each a row like the rule
+ * list (its rank, the text, its category, a priority badge when set) that
+ * opens the rule, whose priority changes the order. Each row has a handle
+ * to drag it elsewhere (finger or mouse, or ↑ / ↓ on the focused handle),
+ * which sets the fewest priorities giving that order; then « Réappliquer
+ * toutes les règles ».
  */
 export function EvaluationOrder({
   rules,

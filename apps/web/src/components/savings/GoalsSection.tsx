@@ -62,10 +62,9 @@ const TONE: Record<GoalTone, string> = {
 }
 
 /**
- * One goal in three lines (owner's « A. Lignes compactes », prototypes in
- * `apps/ui-docs/src/prototypes/savings-goals.stories.tsx`): its name and
- * status, its bar, then what is left · its deadline and the %. The whole
- * goal opens its editor.
+ * One goal in three lines (owner's « A. Lignes compactes », chosen in
+ * PR #349): its name and status, its bar, then what is left · its deadline
+ * and the %. The whole goal opens its editor.
  */
 function GoalItem({
   goal,
