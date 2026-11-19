@@ -6,12 +6,14 @@ import type {
 } from '#/database/schema/domain-enums'
 import {
   addDays,
+  addMonths,
   dayOfMonth,
   daysBetween,
   isLastDayOfMonth,
   maxDate,
 } from '#/recurring/dates'
 import { CADENCE_SPECS, nextExpectedDate } from '#/recurring/detect'
+import { PREPAID_RENEWAL_WINDOW_DAYS } from '#/recurring/prepaid'
 
 /**
  * End-of-month cash-flow projection. Pure functions only: no I/O, no
@@ -36,6 +38,11 @@ export interface ForecastRecurringItem {
    * it. Null when the item is not cancelled.
    */
   endedOn: string | null
+  /**
+   * Prepaid term in months (#314): the next occurrence is the renewal
+   * (`nextExpectedDate`), then one every term. Null or absent otherwise.
+   */
+  termMonths?: number | null
   /** Dates of the latest booked occurrences of the series. */
   bookedDates: readonly string[]
   categoryName: string | null
@@ -102,7 +109,8 @@ export function projectionStart(
  * (the data goes past the expected date by more than the tolerance without
  * it). A late one still within the tolerance is applied on the first
  * projected day. Nothing is expected on or after the item's cancellation
- * date (`endedOn`).
+ * date (`endedOn`). A prepaid item (`termMonths`) expects its renewal, within
+ * `PREPAID_RENEWAL_WINDOW_DAYS`, then one every term.
  */
 export function expectedOccurrences(
   item: ForecastRecurringItem,
@@ -110,7 +118,11 @@ export function expectedOccurrences(
   horizon: string | null,
 ): ExpectedItem[] {
   if (item.nextExpectedDate === null) return []
-  const { toleranceDays } = CADENCE_SPECS[item.cadence]
+  const termMonths = item.termMonths ?? null
+  const toleranceDays =
+    termMonths === null
+      ? CADENCE_SPECS[item.cadence].toleranceDays
+      : PREPAID_RENEWAL_WINDOW_DAYS
   // Month-end series stay at month end (Jan 31 → Feb 28 → Mar 31).
   const anchor = isLastDayOfMonth(item.nextExpectedDate)
     ? 31
@@ -120,7 +132,10 @@ export function expectedOccurrences(
   for (
     let expected = item.nextExpectedDate;
     expected <= monthEnd && (item.endedOn === null || expected < item.endedOn);
-    expected = nextExpectedDate(expected, item.cadence, anchor)
+    expected =
+      termMonths === null
+        ? nextExpectedDate(expected, item.cadence, anchor)
+        : addMonths(expected, termMonths, anchor)
   ) {
     const missed =
       horizon !== null && daysBetween(expected, horizon) > toleranceDays

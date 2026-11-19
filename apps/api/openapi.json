@@ -3189,9 +3189,97 @@
         ]
       }
     },
+    "/api/recurring/prepaid": {
+      "post": {
+        "description": "Makes an expense the upfront payment of a subscription paid for `termMonths` (#314): the recurring item of its account and merchant becomes, or is created as, a confirmed prepaid item. Its monthly cost is the payment ÷ the term, its renewal the payment date + the term; later charges of the merchant around the renewal date are linked to it. Session only.",
+        "operationId": "RecurringController_declarePrepaid",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclarePrepaidDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrepaidDeclarationDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, a transaction that is not an expense, or a label without a merchant."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown transaction."
+          },
+          "409": {
+            "description": "The transaction already pays a prepaid subscription."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Declare a prepaid subscription",
+        "tags": [
+          "Recurring"
+        ]
+      }
+    },
     "/api/recurring/{id}": {
+      "delete": {
+        "description": "Undoes a declaration that created the item: its payments are unlinked. Prepaid items only. Session only.",
+        "operationId": "RecurringController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "The item is not prepaid."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown item."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Remove a prepaid item",
+        "tags": [
+          "Recurring"
+        ]
+      },
       "patch": {
-        "description": "Confirm or dismiss it, rename it, change its category, fixed-cost flag, cadence or notes, cancel it from a date (`endedOn`, confirmed items only) or reactivate it (`endedOn: null`). Omitted fields are kept.",
+        "description": "Confirm or dismiss it, rename it, change its category, fixed-cost flag, cadence or notes, cancel it from a date (`endedOn`, confirmed items only) or reactivate it (`endedOn: null`), set or clear its prepaid term (`termMonths`), keep its coming renewal (`keepRenewal`). Omitted fields are kept.",
         "operationId": "RecurringController_update",
         "parameters": [
           {
@@ -3226,13 +3314,13 @@
             }
           },
           "400": {
-            "description": "Invalid body, unknown category, or `endedOn` on an item that is not confirmed."
+            "description": "Invalid body, unknown category, `endedOn` on an item that is not confirmed, `keepRenewal` on an item that is not prepaid, or a term on a credit or an item without a debit."
           },
           "401": {
             "description": ""
           },
           "403": {
-            "description": "Access token with `endedOn`: cancelling stays in the app (session only)."
+            "description": "Access token with `endedOn`, `termMonths` or `keepRenewal`: cancelling, the prepaid term and renewals stay in the app (session only)."
           },
           "404": {
             "description": "Unknown item."
@@ -10240,11 +10328,11 @@
           },
           "yearlyCostCents": {
             "type": "integer",
-            "description": "Typical amount × occurrences per year."
+            "description": "Typical amount × occurrences per year; for a prepaid item, amount × 12 ÷ term (half to even)."
           },
           "monthlyEquivalentCents": {
             "type": "integer",
-            "description": "Yearly cost / 12, rounded to the cent."
+            "description": "Yearly cost / 12, rounded to the cent; for a prepaid item, amount ÷ term (half to even)."
           },
           "previousAmountCents": {
             "type": "integer",
@@ -10326,6 +10414,25 @@
             "example": "2026-11-06",
             "nullable": true,
             "description": "Latest occurrence booked on or after `endedOn` (a cancellation that did not go through); null otherwise."
+          },
+          "termMonths": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 60,
+            "example": 24,
+            "nullable": true,
+            "description": "Prepaid term in months (#314): paid upfront for the term (`typicalAmountCents`, the latest payment). Null for an item charged every period."
+          },
+          "renewalDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-06",
+            "nullable": true,
+            "description": "Prepaid items: the latest payment + the term (also `nextExpectedDate`). Null otherwise."
+          },
+          "renewalReminder": {
+            "type": "boolean",
+            "description": "Prepaid items: the renewal is at most 30 days away, the item is not cancelled and the owner has not kept it yet: remind them to keep or cancel it."
           }
         },
         "required": [
@@ -10368,7 +10475,10 @@
           "notes",
           "endedOn",
           "ended",
-          "chargedAfterEnd"
+          "chargedAfterEnd",
+          "termMonths",
+          "renewalDate",
+          "renewalReminder"
         ]
       },
       "RecurringTotalDto": {
@@ -10508,6 +10618,58 @@
           "confirmedCount"
         ]
       },
+      "DeclarePrepaidDto": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The upfront payment: an expense (money out)."
+          },
+          "termMonths": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 60,
+            "example": 24,
+            "description": "Months the payment covers."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Default: the merchant, or the existing item’s name."
+          },
+          "isFixedCost": {
+            "type": "boolean",
+            "description": "Default: true for a new item, kept for an existing one."
+          }
+        },
+        "required": [
+          "transactionId",
+          "termMonths"
+        ]
+      },
+      "PrepaidDeclarationDto": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/RecurringItemDto"
+          },
+          "previousStatus": {
+            "nullable": true,
+            "description": "Status of the item before the declaration; null when it was created (undo: `DELETE /recurring/:id`).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecurringStatus"
+              }
+            ]
+          }
+        },
+        "required": [
+          "item",
+          "previousStatus"
+        ]
+      },
       "UpdateRecurringItemDto": {
         "type": "object",
         "properties": {
@@ -10554,6 +10716,18 @@
             "example": "2026-11-06",
             "nullable": true,
             "description": "Cancellation (« Résilier »), confirmed items only: the first day no charge is expected any more (past, today or future). Null reactivates the item. Refused to access tokens."
+          },
+          "termMonths": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 60,
+            "example": 24,
+            "nullable": true,
+            "description": "Prepaid term in months (#314): the subscription is paid upfront for the term. Set on an item without payments linked, its latest debit becomes the payment. Null makes it an ordinary item again (its payments are unlinked)."
+          },
+          "keepRenewal": {
+            "type": "boolean",
+            "description": "« Garder » (true): the owner keeps the coming renewal of a prepaid item, whose reminder then goes away; false shows it again."
           }
         }
       },
@@ -10731,6 +10905,17 @@
             "type": "boolean",
             "description": "Entered by hand (no import), replaced by its bank row on import."
           },
+          "prepaidItemId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Prepaid subscription this expense pays upfront (#314): counted in its month, left out of averages like a one-off."
+          },
+          "prepaidTermMonths": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Term in months of that prepaid subscription."
+          },
           "originalAmountCents": {
             "type": "integer",
             "nullable": true,
@@ -10778,6 +10963,8 @@
           "isOneOff",
           "note",
           "manual",
+          "prepaidItemId",
+          "prepaidTermMonths",
           "originalAmountCents",
           "originalBookingDate",
           "splits",
@@ -11186,6 +11373,32 @@
           }
         }
       },
+      "BudgetPrepaidDto": {
+        "type": "object",
+        "properties": {
+          "recurringItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Paid this month for the term, in positive cents."
+          },
+          "termMonths": {
+            "type": "integer",
+            "example": 24
+          }
+        },
+        "required": [
+          "recurringItemId",
+          "name",
+          "amountCents",
+          "termMonths"
+        ]
+      },
       "BudgetStatus": {
         "type": "string",
         "enum": [
@@ -11246,7 +11459,14 @@
           },
           "spentExcludingOneOffsCents": {
             "type": "integer",
-            "description": "`spentCents` without the one-off transactions."
+            "description": "`spentCents` without the one-off transactions (nor the prepaid subscription payments)."
+          },
+          "prepaid": {
+            "description": "Prepaid subscriptions paid this month in the category (#314), in `spentCents`: « dont 180,00 € prépayés pour 24 mois ».",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetPrepaidDto"
+            }
           },
           "remainingCents": {
             "type": "integer",
@@ -11278,6 +11498,7 @@
           "tracked",
           "spentCents",
           "spentExcludingOneOffsCents",
+          "prepaid",
           "remainingCents",
           "percentUsed",
           "status"

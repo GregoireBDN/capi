@@ -400,6 +400,7 @@ describe('budget_status', () => {
         tracked: true,
         spentCents: 25000,
         spentExcludingOneOffsCents: 25000,
+        prepaid: [],
         remainingCents: -5000,
         percentUsed: 125,
         status: 'over',
@@ -610,6 +611,9 @@ describe('subscriptions', () => {
     endedOn: null,
     ended: false,
     chargedAfterEnd: null,
+    termMonths: null,
+    renewalDate: null,
+    renewalReminder: false,
   }
   const total = { monthlyCents: 1399, yearlyCents: 16788, count: 1 }
   const summaryDto: RecurringSummaryDto = {
@@ -680,6 +684,36 @@ describe('subscriptions', () => {
     expect(text).toContain('Abonnements résiliés (hors totaux) :')
     expect(text).toContain(
       '- Vidéo résiliée : résilié, fin le 01/11/2026 · dernier prélèvement 05/11/2026 · 167,88 € / an avant la fin · prélevé après la résiliation le 05/11/2026, à vérifier',
+    )
+  })
+  it('shows a prepaid plan’s term, monthly equivalent and renewal (#314)', async () => {
+    const { call } = await connect({
+      '/api/recurring/summary': summaryDto,
+      '/api/recurring': [
+        {
+          ...item,
+          id: 'r4',
+          name: 'Hébergeur VPS',
+          cadence: 'yearly',
+          typicalAmountCents: 18000,
+          monthlyEquivalentCents: 750,
+          yearlyCostCents: 9000,
+          priceChangeCents: null,
+          priceChangedOn: null,
+          nextExpectedDate: '2026-12-07',
+          termMonths: 24,
+          renewalDate: '2026-12-07',
+          renewalReminder: true,
+        },
+      ],
+    })
+    const { text } = await call('subscriptions', { upcoming_days: 30 })
+    expect(text).toContain(
+      '- Hébergeur VPS : 180,00 € (prépayé pour 24 mois, abonnement) · 7,50 € / mois, 90,00 € / an · renouvellement le 07/12/2026',
+    )
+    expect(text).toContain('[renouvellement à décider')
+    expect(text).toContain(
+      '- 07/12/2026 · Hébergeur VPS · 180,00 € (renouvellement pour 24 mois) · Compte courant',
     )
   })
 })

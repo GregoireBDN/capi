@@ -39,6 +39,8 @@ describe('RecurringController (HTTP)', () => {
     summary: vi.fn(),
     update: vi.fn(),
     confirm: vi.fn(),
+    declarePrepaid: vi.fn(),
+    remove: vi.fn(),
   }
 
   beforeAll(async () => {
@@ -88,10 +90,15 @@ describe('RecurringController (HTTP)', () => {
     service.summary.mockResolvedValue({ suggestedCount: 0 })
     service.update.mockResolvedValue({ id: ITEM_ID })
     service.confirm.mockResolvedValue({ confirmedCount: 1 })
+    service.declarePrepaid.mockResolvedValue({
+      item: { id: ITEM_ID },
+      previousStatus: null,
+    })
+    service.remove.mockResolvedValue(undefined)
   })
 
   function request(
-    method: 'GET' | 'POST' | 'PATCH',
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
     url: string,
     payload?: object,
     headers: Record<string, string> = { cookie },
@@ -105,6 +112,8 @@ describe('RecurringController (HTTP)', () => {
     ['GET', '/recurring/summary'],
     ['POST', '/recurring/confirm'],
     ['PATCH', `/recurring/${ITEM_ID}`],
+    ['POST', '/recurring/prepaid'],
+    ['DELETE', `/recurring/${ITEM_ID}`],
   ] as const)('%s %s requires authentication', async (method, url) => {
     const response = await request(method, url, {}, {})
     expect(response.statusCode).toBe(401)
@@ -257,6 +266,84 @@ describe('RecurringController (HTTP)', () => {
     it('rejects an invalid id', async () => {
       const response = await request('PATCH', '/recurring/nope', {})
       expect(response.statusCode).toBe(400)
+    })
+  })
+
+  describe('prepaid subscriptions (#314)', () => {
+    const TRANSACTION_ID = '22222222-2222-4222-8222-222222222222'
+
+    it('declares a payment with its term', async () => {
+      const response = await request('POST', '/recurring/prepaid', {
+        transactionId: TRANSACTION_ID,
+        termMonths: 24,
+        name: ' Hébergeur ',
+      })
+      expect(response.statusCode).toBe(200)
+      expect(service.declarePrepaid).toHaveBeenCalledWith({
+        transactionId: TRANSACTION_ID,
+        termMonths: 24,
+        name: 'Hébergeur',
+      })
+    })
+
+    it.each([
+      [{ transactionId: TRANSACTION_ID }],
+      [{ transactionId: TRANSACTION_ID, termMonths: 1 }],
+      [{ transactionId: TRANSACTION_ID, termMonths: 61 }],
+      [{ transactionId: TRANSACTION_ID, termMonths: 12.5 }],
+      [{ transactionId: 'nope', termMonths: 12 }],
+    ])('rejects %j', async (body) => {
+      const response = await request('POST', '/recurring/prepaid', body)
+      expect(response.statusCode).toBe(400)
+      expect(service.declarePrepaid).not.toHaveBeenCalled()
+    })
+
+    it('passes the term and the kept renewal', async () => {
+      for (const body of [
+        { termMonths: 36 },
+        { termMonths: null },
+        { keepRenewal: true },
+      ]) {
+        const response = await request('PATCH', `/recurring/${ITEM_ID}`, body)
+        expect(response.statusCode).toBe(200)
+        expect(service.update).toHaveBeenLastCalledWith(ITEM_ID, body)
+      }
+    })
+
+    it('keeps the term, renewals, declaring and removing to the session', async () => {
+      const headers = { authorization: `Bearer ${WRITE_TOKEN}` }
+      for (const body of [{ termMonths: 12 }, { keepRenewal: true }]) {
+        const refused = await request(
+          'PATCH',
+          `/recurring/${ITEM_ID}`,
+          body,
+          headers,
+        )
+        expect(refused.statusCode).toBe(403)
+      }
+      const declare = await request(
+        'POST',
+        '/recurring/prepaid',
+        { transactionId: TRANSACTION_ID, termMonths: 12 },
+        headers,
+      )
+      expect(declare.statusCode).toBe(403)
+      const remove = await request(
+        'DELETE',
+        `/recurring/${ITEM_ID}`,
+        undefined,
+        headers,
+      )
+      expect(remove.statusCode).toBe(403)
+      expect(service.update).not.toHaveBeenCalled()
+      expect(service.declarePrepaid).not.toHaveBeenCalled()
+      expect(service.remove).not.toHaveBeenCalled()
+    })
+
+    it('removes a prepaid item', async () => {
+      const response = await request('DELETE', `/recurring/${ITEM_ID}`)
+      expect(response.statusCode).toBe(204)
+      expect(service.remove).toHaveBeenCalledWith(ITEM_ID)
     })
   })
 })

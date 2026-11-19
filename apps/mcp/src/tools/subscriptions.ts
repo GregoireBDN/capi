@@ -11,21 +11,27 @@ import { CADENCE_LABELS } from './labels.js'
 import { defineTool } from './tool.js'
 
 function itemKind(item: RecurringItemDto): string {
+  const cadence =
+    item.termMonths === null
+      ? CADENCE_LABELS[item.cadence]
+      : `prépayé pour ${item.termMonths} mois`
   const kinds = [
     item.isSubscription ? 'abonnement' : null,
     item.isFixedCost ? 'charge fixe' : null,
     item.amountType === 'variable' ? 'montant variable' : null,
   ].filter(Boolean)
-  return [CADENCE_LABELS[item.cadence], ...kinds].join(', ')
+  return [cadence, ...kinds].join(', ')
 }
 
 function itemLine(item: RecurringItemDto): string {
   const parts = [
     `${euros(item.typicalAmountCents)} (${itemKind(item)})`,
     `${euros(item.monthlyEquivalentCents)} / mois, ${euros(item.yearlyCostCents)} / an`,
-    item.nextExpectedDate
-      ? `prochain ${frenchDate(item.nextExpectedDate)}`
-      : null,
+    item.renewalDate
+      ? `renouvellement le ${frenchDate(item.renewalDate)}`
+      : item.nextExpectedDate
+        ? `prochain ${frenchDate(item.nextExpectedDate)}`
+        : null,
     item.categoryName,
     item.accountName,
   ].filter(Boolean)
@@ -39,7 +45,10 @@ function itemLine(item: RecurringItemDto): string {
     item.endedOn && !item.ended
       ? ` [résilié, plus de prélèvement à partir du ${frenchDate(item.endedOn)}]`
       : ''
-  return `- ${item.name} : ${parts.join(' · ')}${priceChange}${suggested}${ending}`
+  const reminder = item.renewalReminder
+    ? ' [renouvellement à décider : garder ou résilier dans l’application]'
+    : ''
+  return `- ${item.name} : ${parts.join(' · ')}${priceChange}${suggested}${ending}${reminder}`
 }
 
 /** A cancelled item (`ended`): its end date and any charge after it. */
@@ -54,7 +63,7 @@ export const subscriptionsTool = defineTool({
   name: 'subscriptions',
   title: 'Abonnements et prélèvements à venir',
   description:
-    'Recurring debits (subscriptions and fixed costs) with their monthly and yearly cost, recurring income, and the debits expected in the next days. Items detected but not confirmed by the owner are flagged; dismissed and inactive ones are left out. Subscriptions cancelled by the owner are listed apart with their end date (and flagged when charged after it); one cancelled from a future date still counts until then.',
+    'Recurring debits (subscriptions and fixed costs) with their monthly and yearly cost, recurring income, and the debits expected in the next days. Prepaid subscriptions (paid upfront for 12, 24 or 36 months...) show their term, their monthly equivalent (payment ÷ term) and their renewal date. Items detected but not confirmed by the owner are flagged; dismissed and inactive ones are left out. Subscriptions cancelled by the owner are listed apart with their end date (and flagged when charged after it); one cancelled from a future date still counts until then.',
   inputSchema: {
     upcoming_days: z
       .number()
@@ -116,7 +125,7 @@ export const subscriptionsTool = defineTool({
       ...(upcoming.length > 0
         ? upcoming.map(
             (i) =>
-              `- ${frenchDate(i.nextExpectedDate)} · ${i.name} · ${euros(i.typicalAmountCents)}${i.amountType === 'variable' ? ' (variable)' : ''} · ${i.accountName}${i.status === 'suggested' ? ' [non confirmé]' : ''}`,
+              `- ${frenchDate(i.nextExpectedDate)} · ${i.name} · ${euros(i.typicalAmountCents)}${i.amountType === 'variable' ? ' (variable)' : ''}${i.termMonths === null ? '' : ` (renouvellement pour ${i.termMonths} mois)`} · ${i.accountName}${i.status === 'suggested' ? ' [non confirmé]' : ''}`,
           )
         : ['- aucun']),
     )

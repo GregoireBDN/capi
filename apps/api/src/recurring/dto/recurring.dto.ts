@@ -7,11 +7,14 @@ import {
   IsBoolean,
   IsIn,
   IsISO8601,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   Matches,
+  Max,
   MaxLength,
+  Min,
   MinLength,
   ValidateIf,
 } from 'class-validator'
@@ -29,6 +32,7 @@ import {
   type RecurringDirection,
   type RecurringStatus,
 } from '#/database/schema/domain-enums'
+import { PREPAID_TERM_MAX_MONTHS, PREPAID_TERM_MIN_MONTHS } from '../prepaid'
 
 export const RECURRING_NAME_MAX = 255
 export const RECURRING_NOTES_MAX = 1000
@@ -57,6 +61,12 @@ const AMOUNT_TYPE_DOC = {
 const STATUS_DOC = {
   enum: RECURRING_STATUSES,
   enumName: 'RecurringStatus',
+} as const
+const TERM_DOC = {
+  type: 'integer',
+  minimum: PREPAID_TERM_MIN_MONTHS,
+  maximum: PREPAID_TERM_MAX_MONTHS,
+  example: 24,
 } as const
 const DATE_DOC = {
   type: String,
@@ -155,6 +165,66 @@ export class UpdateRecurringItemDto {
   })
   @IsISO8601({ strict: true })
   endedOn?: string | null
+
+  @ApiPropertyOptional({
+    ...TERM_DOC,
+    nullable: true,
+    description:
+      'Prepaid term in months (#314): the subscription is paid upfront for the term. Set on an item without payments linked, its latest debit becomes the payment. Null makes it an ordinary item again (its payments are unlinked).',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(PREPAID_TERM_MIN_MONTHS)
+  @Max(PREPAID_TERM_MAX_MONTHS)
+  termMonths?: number | null
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    description:
+      '« Garder » (true): the owner keeps the coming renewal of a prepaid item, whose reminder then goes away; false shows it again.',
+  })
+  @ValidateIf((_o: object, value: unknown) => value !== undefined)
+  @IsBoolean()
+  keepRenewal?: boolean
+}
+
+export class DeclarePrepaidDto {
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    description: 'The upfront payment: an expense (money out).',
+  })
+  @IsUUID()
+  transactionId!: string
+
+  @ApiProperty({ ...TERM_DOC, description: 'Months the payment covers.' })
+  @IsInt()
+  @Min(PREPAID_TERM_MIN_MONTHS)
+  @Max(PREPAID_TERM_MAX_MONTHS)
+  termMonths!: number
+
+  @ApiPropertyOptional({
+    type: String,
+    minLength: 1,
+    maxLength: RECURRING_NAME_MAX,
+    description: 'Default: the merchant, or the existing item’s name.',
+  })
+  @ValidateIf((_o: object, value: unknown) => value !== undefined)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MinLength(1)
+  @MaxLength(RECURRING_NAME_MAX)
+  name?: string
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    description: 'Default: true for a new item, kept for an existing one.',
+  })
+  @ValidateIf((_o: object, value: unknown) => value !== undefined)
+  @IsBoolean()
+  isFixedCost?: boolean
 }
 
 export class ConfirmRecurringItemsDto {
@@ -286,13 +356,15 @@ export class RecurringItemDto {
 
   @ApiProperty({
     type: 'integer',
-    description: 'Typical amount × occurrences per year.',
+    description:
+      'Typical amount × occurrences per year; for a prepaid item, amount × 12 ÷ term (half to even).',
   })
   yearlyCostCents!: number
 
   @ApiProperty({
     type: 'integer',
-    description: 'Yearly cost / 12, rounded to the cent.',
+    description:
+      'Yearly cost / 12, rounded to the cent; for a prepaid item, amount ÷ term (half to even).',
   })
   monthlyEquivalentCents!: number
 
@@ -380,6 +452,42 @@ export class RecurringItemDto {
       'Latest occurrence booked on or after `endedOn` (a cancellation that did not go through); null otherwise.',
   })
   chargedAfterEnd!: string | null
+
+  @ApiProperty({
+    ...TERM_DOC,
+    nullable: true,
+    description:
+      'Prepaid term in months (#314): paid upfront for the term (`typicalAmountCents`, the latest payment). Null for an item charged every period.',
+  })
+  termMonths!: number | null
+
+  @ApiProperty({
+    ...DATE_DOC,
+    nullable: true,
+    description:
+      'Prepaid items: the latest payment + the term (also `nextExpectedDate`). Null otherwise.',
+  })
+  renewalDate!: string | null
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'Prepaid items: the renewal is at most 30 days away, the item is not cancelled and the owner has not kept it yet: remind them to keep or cancel it.',
+  })
+  renewalReminder!: boolean
+}
+
+export class PrepaidDeclarationDto {
+  @ApiProperty({ type: RecurringItemDto })
+  item!: RecurringItemDto
+
+  @ApiProperty({
+    ...STATUS_DOC,
+    nullable: true,
+    description:
+      'Status of the item before the declaration; null when it was created (undo: `DELETE /recurring/:id`).',
+  })
+  previousStatus!: RecurringStatus | null
 }
 
 export class RecurringDetectResultDto {

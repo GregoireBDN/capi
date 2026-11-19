@@ -1,10 +1,23 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common'
-import { and, asc, eq, inArray, ne, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  ne,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type { CategoryIcon } from '#/categories/category-icons'
 import { DatabaseService } from '#/database/database.service'
@@ -17,6 +30,7 @@ import {
   transactionsTable,
 } from '#/database/schema'
 import type { RecurringStatus } from '#/database/schema/domain-enums'
+import { normalizeLabel } from '#/imports/normalize/label'
 import { daysBetween, todayInParis } from './dates'
 import {
   accountHorizons,
@@ -41,8 +55,18 @@ import {
   type RecurringItemDto,
   type RecurringSummaryDto,
   type RecurringTotalDto,
+  type DeclarePrepaidDto,
+  type PrepaidDeclarationDto,
   type UpdateRecurringItemDto,
 } from './dto/recurring.dto'
+import {
+  matchRenewals,
+  prepaidActive,
+  prepaidMonthlyCents,
+  prepaidYearlyCents,
+  renewalDate,
+  renewalReminderDue,
+} from './prepaid'
 
 type Db = PostgresJsDatabase<typeof schema>
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
@@ -87,6 +111,14 @@ const transactionColumns = {
   kind: transactionsTable.kind,
   categoryId: transactionsTable.categoryId,
   isOneOff: transactionsTable.isOneOff,
+}
+
+/** A payment linked to a prepaid item (#314). */
+interface PrepaidPayment {
+  transactionId: string
+  date: string
+  /** Positive cents. */
+  amountCents: number
 }
 
 function emptyTotal(): RecurringTotalDto {
@@ -178,6 +210,8 @@ export class RecurringService {
         const item = byKey.get(series.key)
         if (item) {
           if (item.status !== 'suggested' || series.active) keep.add(series.key)
+          // A prepaid item's stats come from its payments (`attachRenewals`).
+          if (item.termMonths !== null) continue
           await tx
             .update(recurringItemsTable)
             .set(snapshot)
@@ -222,6 +256,9 @@ export class RecurringService {
             stale.map((item) => item.id),
           ),
         )
+      }
+      for (const item of existing) {
+        if (item.termMonths !== null) await this.attachRenewals(tx, item)
       }
       const [{ count }] = await tx
         .select({ count: sql<number>`count(*)::int` })
@@ -308,7 +345,9 @@ export class RecurringService {
 
   /**
    * Confirm, dismiss, rename, recategorize, override the cadence, cancel
-   * (`endedOn`, confirmed items only: 400 otherwise), ...
+   * (`endedOn`, confirmed items only: 400 otherwise), set or clear the
+   * prepaid term (`termMonths`), keep the coming renewal (`keepRenewal`),
+   * ...
    */
   async update(
     id: string,
@@ -325,6 +364,14 @@ export class RecurringService {
       (dto.status ?? item.status) !== 'confirmed'
     ) {
       throw new BadRequestException('Only a confirmed item can be cancelled')
+    }
+    const termMonths =
+      dto.termMonths === undefined ? item.termMonths : dto.termMonths
+    if (dto.keepRenewal !== undefined && termMonths === null) {
+      throw new BadRequestException('Only a prepaid item has a renewal')
+    }
+    if (dto.termMonths != null && item.direction !== 'debit') {
+      throw new BadRequestException('Only a debit can be prepaid')
     }
 
     if (dto.categoryId) {
@@ -349,18 +396,188 @@ export class RecurringService {
     }
     if (dto.notes !== undefined) changes.notes = dto.notes
     if (dto.endedOn !== undefined) changes.endedOn = dto.endedOn
-    if (Object.keys(changes).length > 0) {
-      await this.db
-        .update(recurringItemsTable)
-        .set(changes)
-        .where(eq(recurringItemsTable.id, id))
+    if (dto.termMonths !== undefined) {
+      changes.termMonths = dto.termMonths
+      if (dto.termMonths !== item.termMonths) changes.renewalKeptOn = null
     }
+    await this.db.transaction(async (tx) => {
+      if (dto.termMonths === null && item.termMonths !== null) {
+        await tx
+          .update(transactionsTable)
+          .set({ prepaidItemId: null })
+          .where(eq(transactionsTable.prepaidItemId, id))
+      }
+      if (dto.termMonths != null && item.termMonths === null) {
+        await this.linkLatestDebit(tx, item)
+      }
+      if (dto.keepRenewal !== undefined) {
+        changes.renewalKeptOn = dto.keepRenewal
+          ? await this.currentRenewal(tx, id, termMonths!)
+          : null
+      }
+      if (Object.keys(changes).length > 0) {
+        await tx
+          .update(recurringItemsTable)
+          .set(changes)
+          .where(eq(recurringItemsTable.id, id))
+      }
+      if (dto.termMonths != null) {
+        await this.attachRenewals(tx, { ...item, termMonths: dto.termMonths })
+      }
+    })
     const [updated] = await this.items(
       eq(recurringItemsTable.id, id),
       this.db,
       today,
     )
     return updated
+  }
+
+  /**
+   * Declares the expense `transactionId` as the upfront payment of a
+   * subscription prepaid for `termMonths` (#314): the item of its account +
+   * merchant becomes (or is created as) a confirmed prepaid item, with no
+   * need for a second occurrence. Later charges of the merchant around the
+   * renewal date are linked too. 400 for anything but an expense, 409 when
+   * the transaction already pays a prepaid item.
+   */
+  async declarePrepaid(
+    dto: DeclarePrepaidDto,
+    today: string = todayInParis(),
+  ): Promise<PrepaidDeclarationDto> {
+    const { itemId, previousStatus } = await this.db.transaction(async (tx) => {
+      const [transaction] = await tx
+        .select({
+          id: transactionsTable.id,
+          accountId: transactionsTable.accountId,
+          bookingDate: transactionsTable.bookingDate,
+          amountCents: transactionsTable.amountCents,
+          rawLabel: transactionsTable.rawLabel,
+          merchant: transactionsTable.merchant,
+          kind: transactionsTable.kind,
+          categoryId: transactionsTable.categoryId,
+          prepaidItemId: transactionsTable.prepaidItemId,
+        })
+        .from(transactionsTable)
+        .where(eq(transactionsTable.id, dto.transactionId))
+        .for('update')
+      if (!transaction) throw new NotFoundException('Transaction not found')
+      if (transaction.kind !== 'expense' || transaction.amountCents >= 0) {
+        throw new BadRequestException(
+          'Only an expense can be a prepaid subscription',
+        )
+      }
+      if (transaction.prepaidItemId !== null) {
+        throw new ConflictException(
+          'This transaction already pays a prepaid subscription',
+        )
+      }
+      const normalized = normalizeLabel(
+        transaction.rawLabel,
+        transaction.amountCents,
+      )
+      const merchantKey = (normalized.merchantKey ?? '').slice(0, 255)
+      if (!merchantKey) {
+        throw new BadRequestException('No merchant found in this label')
+      }
+      const amountCents = -transaction.amountCents
+      const [existing] = await tx
+        .select()
+        .from(recurringItemsTable)
+        .where(
+          and(
+            eq(recurringItemsTable.accountId, transaction.accountId),
+            eq(recurringItemsTable.merchantKey, merchantKey),
+            eq(recurringItemsTable.direction, 'debit'),
+          ),
+        )
+        .for('update')
+
+      let item: SelectRecurringItem
+      if (existing) {
+        const [updated] = await tx
+          .update(recurringItemsTable)
+          .set({
+            status: 'confirmed',
+            termMonths: dto.termMonths,
+            renewalKeptOn:
+              existing.termMonths === dto.termMonths
+                ? existing.renewalKeptOn
+                : null,
+            ...(dto.name !== undefined && { name: dto.name }),
+            ...(dto.isFixedCost !== undefined && {
+              isFixedCost: dto.isFixedCost,
+            }),
+          })
+          .where(eq(recurringItemsTable.id, existing.id))
+          .returning()
+        item = updated
+      } else {
+        const [inserted] = await tx
+          .insert(recurringItemsTable)
+          .values({
+            accountId: transaction.accountId,
+            merchantKey,
+            direction: 'debit',
+            name: (
+              dto.name ??
+              transaction.merchant ??
+              normalized.merchant ??
+              merchantKey
+            ).slice(0, 255),
+            categoryId: transaction.categoryId,
+            status: 'confirmed',
+            isFixedCost: dto.isFixedCost ?? true,
+            // Detection columns: the term is what counts for a prepaid item.
+            cadence: 'yearly',
+            amountType: 'fixed',
+            typicalAmountCents: amountCents,
+            confidence: 1,
+            lastSeenDate: transaction.bookingDate,
+            nextExpectedDate: renewalDate(
+              transaction.bookingDate,
+              dto.termMonths,
+            ),
+            termMonths: dto.termMonths,
+          })
+          .returning()
+        item = inserted
+      }
+      await tx
+        .update(transactionsTable)
+        .set({ prepaidItemId: item.id })
+        .where(eq(transactionsTable.id, transaction.id))
+      await this.attachRenewals(tx, item)
+      return {
+        itemId: item.id,
+        previousStatus: existing ? existing.status : null,
+      }
+    })
+    const [item] = await this.items(
+      eq(recurringItemsTable.id, itemId),
+      this.db,
+      today,
+    )
+    return { item, previousStatus }
+  }
+
+  /**
+   * Removes a prepaid item (the undo of a declaration that created it): its
+   * payments are unlinked. 400 for an item that is not prepaid.
+   */
+  async remove(id: string): Promise<void> {
+    const [item] = await this.db
+      .select({ termMonths: recurringItemsTable.termMonths })
+      .from(recurringItemsTable)
+      .where(eq(recurringItemsTable.id, id))
+    if (!item) throw new NotFoundException('Recurring item not found')
+    if (item.termMonths === null) {
+      throw new BadRequestException('Only a prepaid item can be removed')
+    }
+    // `transactions.prepaid_item_id` is set null by its foreign key.
+    await this.db
+      .delete(recurringItemsTable)
+      .where(eq(recurringItemsTable.id, id))
   }
 
   /** Confirms several items at once ("Tout confirmer"); unknown ids are ignored. */
@@ -379,6 +596,163 @@ export class RecurringService {
   }
 
   // --- Helpers --------------------------------------------------------------
+
+  /**
+   * Links to a prepaid item the charges of its merchant that renew it
+   * (`matchRenewals`: the closest to each renewal date, within the window),
+   * then stores its stats snapshot from its payments.
+   */
+  private async attachRenewals(
+    executor: Executor,
+    item: Pick<
+      SelectRecurringItem,
+      'id' | 'accountId' | 'merchantKey' | 'termMonths'
+    >,
+  ): Promise<void> {
+    if (item.termMonths === null) return
+    const payments = await executor
+      .select({
+        date: transactionsTable.bookingDate,
+        amountCents: transactionsTable.amountCents,
+      })
+      .from(transactionsTable)
+      .where(eq(transactionsTable.prepaidItemId, item.id))
+      .orderBy(asc(transactionsTable.bookingDate), asc(transactionsTable.id))
+    const latest = payments.at(-1)
+    if (!latest) return
+    const rows = await executor
+      .select({
+        id: transactionsTable.id,
+        date: transactionsTable.bookingDate,
+        amountCents: transactionsTable.amountCents,
+        rawLabel: transactionsTable.rawLabel,
+      })
+      .from(transactionsTable)
+      .where(
+        and(
+          eq(transactionsTable.accountId, item.accountId),
+          isNull(transactionsTable.prepaidItemId),
+          eq(transactionsTable.kind, 'expense'),
+          lt(transactionsTable.amountCents, 0),
+          gt(transactionsTable.bookingDate, latest.date),
+        ),
+      )
+    const candidates = rows.filter(
+      (row) =>
+        normalizeLabel(row.rawLabel, row.amountCents).merchantKey ===
+        item.merchantKey,
+    )
+    const renewals = matchRenewals(latest.date, item.termMonths, candidates)
+    if (renewals.length > 0) {
+      await executor
+        .update(transactionsTable)
+        .set({ prepaidItemId: item.id })
+        .where(
+          inArray(
+            transactionsTable.id,
+            renewals.map((r) => r.id),
+          ),
+        )
+    }
+    const last = renewals.length
+      ? candidates.find((c) => c.id === renewals.at(-1)!.id)!
+      : latest
+    await executor
+      .update(recurringItemsTable)
+      .set({
+        amountType: 'fixed',
+        typicalAmountCents: -last.amountCents,
+        confidence: 1,
+        lastSeenDate: last.date,
+        nextExpectedDate: renewalDate(last.date, item.termMonths),
+      })
+      .where(eq(recurringItemsTable.id, item.id))
+  }
+
+  /**
+   * Makes the latest debit of an item's series its prepaid payment, when
+   * the term is set on an item without one. 400 when it has no debit.
+   */
+  private async linkLatestDebit(
+    executor: Executor,
+    item: SelectRecurringItem,
+  ): Promise<void> {
+    const [linked] = await executor
+      .select({ id: transactionsTable.id })
+      .from(transactionsTable)
+      .where(eq(transactionsTable.prepaidItemId, item.id))
+      .limit(1)
+    if (linked) return
+    const transactions = await executor
+      .select(transactionColumns)
+      .from(transactionsTable)
+      .where(
+        and(
+          eq(transactionsTable.accountId, item.accountId),
+          isNull(transactionsTable.prepaidItemId),
+        ),
+      )
+    const group = groupTransactions(transactions).get(
+      seriesKey(item.accountId, item.merchantKey, item.direction),
+    )
+    const latest = group?.occurrences.at(-1)
+    if (!latest) {
+      throw new BadRequestException('No payment found for this item')
+    }
+    await executor
+      .update(transactionsTable)
+      .set({ prepaidItemId: item.id })
+      .where(eq(transactionsTable.id, latest.transactionId))
+  }
+
+  /** The renewal date of a prepaid item, from its latest payment. */
+  private async currentRenewal(
+    executor: Executor,
+    id: string,
+    termMonths: number,
+  ): Promise<string | null> {
+    const [{ last }] = await executor
+      .select({
+        last: sql<string | null>`max(${transactionsTable.bookingDate})`,
+      })
+      .from(transactionsTable)
+      .where(eq(transactionsTable.prepaidItemId, id))
+    return last === null ? null : renewalDate(last, termMonths)
+  }
+
+  /** Payments of the prepaid items among `itemIds`, oldest first. */
+  private async prepaidPayments(
+    executor: Executor,
+    itemIds: readonly string[],
+  ): Promise<Map<string, PrepaidPayment[]>> {
+    const payments = new Map<string, PrepaidPayment[]>()
+    if (itemIds.length === 0) return payments
+    const rows = await executor
+      .select({
+        itemId: transactionsTable.prepaidItemId,
+        transactionId: transactionsTable.id,
+        date: transactionsTable.bookingDate,
+        amountCents: transactionsTable.amountCents,
+      })
+      .from(transactionsTable)
+      .where(
+        and(
+          isNotNull(transactionsTable.prepaidItemId),
+          inArray(transactionsTable.prepaidItemId, [...itemIds]),
+        ),
+      )
+      .orderBy(asc(transactionsTable.bookingDate), asc(transactionsTable.id))
+    for (const row of rows) {
+      const list = payments.get(row.itemId!) ?? []
+      list.push({
+        transactionId: row.transactionId,
+        date: row.date,
+        amountCents: Math.abs(row.amountCents),
+      })
+      payments.set(row.itemId!, list)
+    }
+    return payments
+  }
 
   private async items(
     where: SQL | undefined,
@@ -407,9 +781,16 @@ export class RecurringService {
       .where(inArray(transactionsTable.accountId, accountIds))
     const groups = groupTransactions(transactions)
     const horizons = accountHorizons(transactions, today)
+    const payments = await this.prepaidPayments(
+      executor,
+      rows
+        .filter((row) => row.item.termMonths !== null)
+        .map((row) => row.item.id),
+    )
     return rows.map((row) =>
       this.toDto(
         row,
+        payments.get(row.item.id) ?? [],
         groups.get(
           seriesKey(
             row.item.accountId,
@@ -425,11 +806,15 @@ export class RecurringService {
 
   private toDto(
     row: ItemRow,
+    payments: readonly PrepaidPayment[],
     group: TransactionGroup | undefined,
     asOf: string,
     today: string,
   ): RecurringItemDto {
     const { item } = row
+    if (item.termMonths !== null) {
+      return this.toPrepaidDto(row, item.termMonths, payments, asOf, today)
+    }
     const cadence = item.cadenceOverride ?? item.cadence
     const stats: SeriesStats | null = group?.occurrences.length
       ? describeSeries(group.occurrences, cadence, asOf)
@@ -496,6 +881,99 @@ export class RecurringService {
       ended: endedOn !== null && endedOn <= today,
       chargedAfterEnd:
         endedOn === null ? null : chargedAfterEnd(endedOn, stats, lastSeenDate),
+      termMonths: null,
+      renewalDate: null,
+      renewalReminder: false,
+    }
+  }
+
+  /**
+   * A prepaid item (#314) from its payments: the latest one is the price,
+   * spread over the term for the monthly and yearly costs, and the renewal
+   * is its date + the term. Without payments (all deleted), the stored
+   * snapshot stands for them.
+   */
+  private toPrepaidDto(
+    row: ItemRow,
+    termMonths: number,
+    payments: readonly PrepaidPayment[],
+    asOf: string,
+    today: string,
+  ): RecurringItemDto {
+    const { item } = row
+    const latest = payments.at(-1)
+    const amountCents = latest?.amountCents ?? item.typicalAmountCents
+    const lastSeenDate = latest?.date ?? item.lastSeenDate
+    const renewalOn = renewalDate(lastSeenDate, termMonths)
+    const amounts = payments.map((p) => p.amountCents)
+    const previous = payments.at(-2)
+    const priceChangeCents =
+      previous && previous.amountCents !== amountCents
+        ? amountCents - previous.amountCents
+        : null
+    const { endedOn } = item
+    return {
+      id: item.id,
+      accountId: item.accountId,
+      accountName: row.accountName,
+      merchantKey: item.merchantKey,
+      searchText: item.merchantKey,
+      name: item.name,
+      direction: item.direction,
+      status: item.status,
+      categoryId: item.categoryId,
+      categorySlug: row.categorySlug,
+      categoryName: row.categoryName,
+      categoryColor: row.categoryColor,
+      categoryIcon: row.categoryIcon,
+      isFixedCost: item.isFixedCost,
+      isSubscription: row.categorySlug === SUBSCRIPTIONS_SLUG,
+      cadence: item.cadenceOverride ?? item.cadence,
+      detectedCadence: item.cadence,
+      cadenceOverridden: item.cadenceOverride !== null,
+      amountType: 'fixed',
+      typicalAmountCents: amountCents,
+      latestAmountCents: amountCents,
+      minAmountCents: amounts.length ? Math.min(...amounts) : amountCents,
+      maxAmountCents: amounts.length ? Math.max(...amounts) : amountCents,
+      yearlyCostCents: prepaidYearlyCents(amountCents, termMonths),
+      monthlyEquivalentCents: prepaidMonthlyCents(amountCents, termMonths),
+      previousAmountCents:
+        priceChangeCents === null ? null : previous!.amountCents,
+      priceChangeCents,
+      priceChangedOn: priceChangeCents === null ? null : lastSeenDate,
+      confidence: 1,
+      active: prepaidActive(renewalOn, asOf),
+      firstSeenDate: payments[0]?.date ?? lastSeenDate,
+      lastSeenDate,
+      nextExpectedDate: renewalOn,
+      occurrenceCount: payments.length,
+      occurrences: payments
+        .slice(-RECURRING_OCCURRENCES_SHOWN)
+        .reverse()
+        .map(({ transactionId, date, amountCents }) => ({
+          transactionId,
+          date,
+          amountCents,
+        })),
+      amountRuns: amountRuns(payments),
+      notes: item.notes,
+      endedOn,
+      ended: endedOn !== null && endedOn <= today,
+      chargedAfterEnd:
+        endedOn === null
+          ? null
+          : chargedAfterEnd(endedOn, { occurrences: payments }, lastSeenDate),
+      termMonths,
+      renewalDate: renewalOn,
+      renewalReminder:
+        item.status === 'confirmed' &&
+        renewalReminderDue({
+          renewalOn,
+          endedOn,
+          renewalKeptOn: item.renewalKeptOn,
+          today,
+        }),
     }
   }
 }
@@ -507,7 +985,7 @@ export class RecurringService {
  */
 export function chargedAfterEnd(
   endedOn: string,
-  stats: Pick<SeriesStats, 'occurrences'> | null,
+  stats: { occurrences: readonly { date: string }[] } | null,
   lastSeenDate: string,
 ): string | null {
   const dates = stats

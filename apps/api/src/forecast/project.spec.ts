@@ -244,6 +244,54 @@ describe('expectedOccurrences', () => {
   })
 })
 
+describe('expectedOccurrences of a prepaid plan (#314)', () => {
+  const plan = item({
+    name: 'Hébergeur test',
+    cadence: 'yearly',
+    termMonths: 24,
+    typicalAmountCents: 18_000,
+    nextExpectedDate: '2026-11-20',
+    bookedDates: ['2024-11-20'],
+  })
+
+  it('expects the renewal when it falls in the window, once', () => {
+    const occurrences = expectedOccurrences(plan, NOVEMBER, '2026-11-05')
+    expect(occurrences).toHaveLength(1)
+    expect(occurrences[0]).toMatchObject({
+      date: '2026-11-20',
+      amountCents: -18_000,
+    })
+    // Renewing in December: nothing this month.
+    expect(
+      expectedOccurrences(
+        { ...plan, nextExpectedDate: '2026-12-03' },
+        NOVEMBER,
+        '2026-11-05',
+      ),
+    ).toEqual([])
+  })
+
+  it('expects nothing on or after a cancellation at the renewal', () => {
+    expect(
+      expectedOccurrences(
+        { ...plan, endedOn: '2026-11-20' },
+        NOVEMBER,
+        '2026-11-05',
+      ),
+    ).toEqual([])
+  })
+
+  it('treats a renewal charge booked within 30 days as paid', () => {
+    expect(
+      expectedOccurrences(
+        { ...plan, bookedDates: ['2024-11-20', '2026-10-28'] },
+        NOVEMBER,
+        '2026-11-05',
+      ),
+    ).toEqual([])
+  })
+})
+
 describe('projectionStart', () => {
   it('starts the day after the known data, today at the latest', () => {
     expect(projectionStart('2026-11-16', '2026-10-31')).toBe('2026-11-01')

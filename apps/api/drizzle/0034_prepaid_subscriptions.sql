@@ -1,0 +1,8 @@
+DROP VIEW "public"."transaction_lines";--> statement-breakpoint
+ALTER TABLE "transactions" ADD COLUMN "prepaid_item_id" uuid;--> statement-breakpoint
+ALTER TABLE "recurring_items" ADD COLUMN "term_months" smallint;--> statement-breakpoint
+ALTER TABLE "recurring_items" ADD COLUMN "renewal_kept_on" date;--> statement-breakpoint
+ALTER TABLE "transactions" ADD CONSTRAINT "transactions_prepaid_item_id_recurring_items_id_fk" FOREIGN KEY ("prepaid_item_id") REFERENCES "public"."recurring_items"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "transactions_prepaid_item_id_index" ON "transactions" USING btree ("prepaid_item_id");--> statement-breakpoint
+ALTER TABLE "recurring_items" ADD CONSTRAINT "recurring_items_term_months_range" CHECK ("recurring_items"."term_months" is null or ("recurring_items"."term_months" >= 2 and "recurring_items"."term_months" <= 60));--> statement-breakpoint
+CREATE VIEW "public"."transaction_lines" AS (select t.id, s.id as split_id, t.account_id, t.import_id, t.booking_date, case when s.id is null then t.amount_cents else s.amount_cents end as amount_cents, t.raw_label, t.merchant, t.kind, case when s.id is null then t.category_id else s.category_id end as category_id, t.needs_review, (t.is_one_off or t.prepaid_item_id is not null) as is_one_off, t.manual, t.prepaid_item_id from transactions t left join transaction_splits s on s.transaction_id = t.id);

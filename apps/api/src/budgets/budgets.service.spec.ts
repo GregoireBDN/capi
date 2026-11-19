@@ -9,6 +9,7 @@ import {
   accountsTable,
   budgetsTable,
   categoriesTable,
+  recurringItemsTable,
   type InsertTransaction,
   recurringItemsTable,
   transactionSplitsTable,
@@ -756,6 +757,66 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
           expect(await storedRows(tx, groceries)).toEqual([])
         },
       )
+    })
+
+    it('leaves a prepaid subscription payment out, names it on the budget (#314)', async () => {
+      await withFixture(async ({ tx, service, checking, leisure }) => {
+        await service.upsert(leisure, '2026-01', { monthlyTargetCents: 4_500 })
+        const [plan] = await tx
+          .insert(recurringItemsTable)
+          .values({
+            accountId: checking,
+            merchantKey: 'HEBERGEUR EXEMPLE',
+            direction: 'debit',
+            name: 'Hébergeur test',
+            categoryId: leisure,
+            status: 'confirmed',
+            isFixedCost: true,
+            cadence: 'yearly',
+            amountType: 'fixed',
+            typicalAmountCents: 18_000,
+            confidence: 1,
+            lastSeenDate: '2026-09-07',
+            termMonths: 24,
+          })
+          .returning()
+        await insert(tx, [
+          ...['2026-08-10', '2026-09-10', '2026-10-10'].map((bookingDate) =>
+            transaction(checking, {
+              categoryId: leisure,
+              bookingDate,
+              amountCents: -4_000,
+            }),
+          ),
+          transaction(checking, {
+            categoryId: leisure,
+            bookingDate: '2026-09-07',
+            amountCents: -18_000,
+            prepaidItemId: plan.id,
+          }),
+        ])
+        // The average spreads nothing: 40 € a month, not 100 €.
+        const suggestion = await service.suggest('2026-11', 3)
+        expect(suggestion.items).toEqual([
+          expect.objectContaining({ categoryId: leisure, averageCents: 4_000 }),
+        ])
+        // The month it was paid counts it, and says why it is over.
+        const september = await service.month('2026-09')
+        expect(september.items[0]).toMatchObject({
+          spentCents: 22_000,
+          spentExcludingOneOffsCents: 4_000,
+          status: 'over',
+          prepaid: [
+            {
+              recurringItemId: plan.id,
+              name: 'Hébergeur test',
+              amountCents: 18_000,
+              termMonths: 24,
+            },
+          ],
+        })
+        expect((await service.month('2026-10')).items[0].prepaid).toEqual([])
+      })
     })
 
     it('does not dilute a short history with empty months', async () => {

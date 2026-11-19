@@ -33,6 +33,7 @@ import {
   type IncomeSuggestionsDto,
   type BudgetLineDto,
   type BudgetMonthDto,
+  type BudgetPrepaidDto,
   type BudgetSuggestionsDto,
   type EnvelopeDto,
   type EnvelopesDto,
@@ -166,12 +167,14 @@ export class BudgetsService {
   ): Promise<BudgetMonthDto> {
     const period = await resolvePeriod(executor, requested, { now })
     const { month } = period
-    const [rows, spending, categories, income, credits] = await Promise.all([
-      this.budgetRows(executor, month),
-      this.spending(executor, month, month),
-      this.categories(executor),
-      this.income(executor, month, month),
-      this.incomeCredits(executor),
+    const [rows, spending, categories, income, credits, prepaid] =
+      await Promise.all([
+        this.budgetRows(executor, month),
+        this.spending(executor, month, month),
+        this.categories(executor),
+        this.income(executor, month, month),
+        this.incomeCredits(executor),
+        this.prepaid(executor, month),
     ])
     const inEffect = targetsInEffect(rows, month)
     const targets = ofKind(inEffect, categories, 'expense')
@@ -195,6 +198,7 @@ export class BudgetsService {
         tracked: target.tracked ?? false,
         spentCents,
         spentExcludingOneOffsCents: spent?.spentExcludingOneOffsCents ?? 0,
+        prepaid: prepaid.get(categoryId) ?? [],
         remainingCents: target.monthlyTargetCents - spentCents,
         percentUsed: percentUsed(spentCents, target.monthlyTargetCents),
         status: budgetStatus(spentCents, target.monthlyTargetCents),
@@ -830,6 +834,58 @@ export class BudgetsService {
         ),
       )
       .groupBy(month, t.categoryId)
+  }
+
+  /**
+   * Prepaid subscription payments (#314) of `month` per category: they count
+   * in its spending, the budget page names them.
+   */
+  private async prepaid(
+    executor: Executor,
+    month: string,
+  ): Promise<Map<string, BudgetPrepaidDto[]>> {
+    const t = transactionLinesView
+    const rows = await executor
+      .select({
+        categoryId: t.categoryId,
+        recurringItemId: recurringItemsTable.id,
+        name: recurringItemsTable.name,
+        termMonths: recurringItemsTable.termMonths,
+        amountCents: spentSum(),
+      })
+      .from(t)
+      .innerJoin(
+        recurringItemsTable,
+        eq(recurringItemsTable.id, t.prepaidItemId),
+      )
+      .where(
+        and(
+          eq(t.kind, 'expense'),
+          gte(t.bookingDate, firstDay(month)),
+          lt(t.bookingDate, firstDay(shiftMonth(month, 1))),
+        ),
+      )
+      .groupBy(
+        t.categoryId,
+        recurringItemsTable.id,
+        recurringItemsTable.name,
+        recurringItemsTable.termMonths,
+      )
+      .orderBy(asc(recurringItemsTable.name))
+    const result = new Map<string, BudgetPrepaidDto[]>()
+    for (const row of rows) {
+      if (row.categoryId === null || row.termMonths === null) continue
+      if (row.amountCents <= 0) continue
+      const list = result.get(row.categoryId) ?? []
+      list.push({
+        recurringItemId: row.recurringItemId,
+        name: row.name,
+        amountCents: row.amountCents,
+        termMonths: row.termMonths,
+      })
+      result.set(row.categoryId, list)
+    }
+    return result
   }
 
   private async categories(

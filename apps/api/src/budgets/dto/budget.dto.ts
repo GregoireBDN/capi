@@ -260,6 +260,23 @@ class BudgetCategoryFields {
   icon!: CategoryIcon | null
 }
 
+export class BudgetPrepaidDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  recurringItemId!: string
+
+  @ApiProperty({ type: String })
+  name!: string
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Paid this month for the term, in positive cents.',
+  })
+  amountCents!: number
+
+  @ApiProperty({ type: 'integer', example: 24 })
+  termMonths!: number
+}
+
 export class BudgetLineDto extends BudgetCategoryFields {
   @ApiProperty({ type: 'integer', description: 'Monthly target in cents.' })
   targetCents!: number
@@ -288,9 +305,17 @@ export class BudgetLineDto extends BudgetCategoryFields {
 
   @ApiProperty({
     type: 'integer',
-    description: '`spentCents` without the one-off transactions.',
+    description:
+      '`spentCents` without the one-off transactions (nor the prepaid subscription payments).',
   })
   spentExcludingOneOffsCents!: number
+
+  @ApiProperty({
+    type: [BudgetPrepaidDto],
+    description:
+      'Prepaid subscriptions paid this month in the category (#314), in `spentCents`: « dont 180,00 € prépayés pour 24 mois ».',
+  })
+  prepaid!: BudgetPrepaidDto[]
 
   @ApiProperty({
     type: 'integer',
