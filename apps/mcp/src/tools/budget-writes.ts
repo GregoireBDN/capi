@@ -28,11 +28,14 @@ interface PlannedTarget {
   currentTracked: boolean | null
 }
 
+/** Planned income (#315) or a spending target, in words. */
+const isIncome = (p: PlannedTarget) => p.category.kind === 'income'
+
 export const setBudgetTargetsTool = defineTool({
   name: 'set_budget_targets',
   title: 'Fixer des cibles de budget',
   description:
-    'Set the monthly budget target of one or several expense categories from `month` on (later months that already have their own target keep it; earlier months are untouched). Use budget_suggestions and budget_history to prepare them. Without confirm: preview per category (current → new, unchanged ones skipped). With confirm: true applies only the targets that differ.',
+    'Set the monthly budget of one or several categories from `month` on (later months that already have their own amount keep it; earlier months are untouched): a spending target for an expense category, the planned income for an income category (salary, benefits; never tracked). Transfer categories are refused. Use budget_status (the planned income carried over or proposed from the confirmed recurring credits), budget_suggestions and budget_history to prepare them. Without confirm: preview per category (current → new, unchanged ones skipped) and what the plan leaves to save. With confirm: true applies only the amounts that differ.',
   write: { idempotent: true },
   inputSchema: {
     month: z
@@ -48,18 +51,18 @@ export const setBudgetTargetsTool = defineTool({
           category: z
             .string()
             .max(100)
-            .describe('Expense category name or slug.'),
+            .describe('Expense or income category name or slug.'),
           amount: z
             .string()
             .max(20)
             .describe(
-              'Monthly target in euros as text, e.g. "350" or "42,50".',
+              'Monthly target (expense) or planned income (income) in euros as text, e.g. "350" or "42,50".',
             ),
           tracked: z
             .boolean()
             .optional()
             .describe(
-              'Follow it during the month on the dashboard ("suivre pendant le mois"). Default: unchanged.',
+              'Expense categories only: follow it during the month on the dashboard ("suivre pendant le mois"). Default: unchanged.',
             ),
         }),
       )
@@ -74,13 +77,35 @@ export const setBudgetTargetsTool = defineTool({
       listCategories(api),
       api.get<BudgetMonthDto>('/api/budgets', { month }),
     ])
-    const current = new Map(budget.items.map((line) => [line.categoryId, line]))
+    const current = new Map<string, { cents: number; tracked: boolean | null }>(
+      [
+        ...budget.items.map(
+          (line) =>
+            [
+              line.categoryId,
+              { cents: line.targetCents, tracked: line.tracked },
+            ] as const,
+        ),
+        ...budget.income.items.map(
+          (line) =>
+            [
+              line.categoryId,
+              { cents: line.plannedCents, tracked: null },
+            ] as const,
+        ),
+      ],
+    )
     const planned: PlannedTarget[] = []
     for (const target of args.targets) {
       const category = pickCategory(categories, target.category)
-      if (!category || category.kind !== 'expense') {
+      if (!category || category.kind === 'transfer') {
         throw new ToolInputError(
-          `« ${target.category} » n'est pas une catégorie de dépenses : seules les dépenses ont un budget. Rien n'a été modifié.`,
+          `« ${target.category} » n'est pas une catégorie de dépenses ou de revenus : les virements entre vos comptes n'ont pas de budget. Rien n'a été modifié.`,
+        )
+      }
+      if (category.kind === 'income' && target.tracked === true) {
+        throw new ToolInputError(
+          `${category.name} est un revenu : il n'est pas suivi pendant le mois. Rien n'a été modifié.`,
         )
       }
       if (planned.some((p) => p.category.id === category.id)) {
@@ -98,8 +123,8 @@ export const setBudgetTargetsTool = defineTool({
       planned.push({
         category,
         cents: parsed.cents,
-        tracked: target.tracked,
-        currentCents: line?.targetCents ?? null,
+        tracked: category.kind === 'income' ? undefined : target.tracked,
+        currentCents: line?.cents ?? null,
         currentTracked: line?.tracked ?? null,
       })
     }
@@ -118,8 +143,13 @@ export const setBudgetTargetsTool = defineTool({
             : ', plus suivie pendant le mois'
           : ''
       const from =
-        p.currentCents === null ? 'pas de cible' : euros(p.currentCents)
-      return `- ${p.category.name} : ${from} → ${euros(p.cents)}${tracked}`
+        p.currentCents === null
+          ? isIncome(p)
+            ? 'pas prévu'
+            : 'pas de cible'
+          : euros(p.currentCents)
+      const kind = isIncome(p) ? ' (revenu prévu)' : ''
+      return `- ${p.category.name}${kind} : ${from} → ${euros(p.cents)}${tracked}`
     }
     const unchangedLine =
       unchanged.length > 0
@@ -133,13 +163,53 @@ export const setBudgetTargetsTool = defineTool({
       return `Rien à modifier : ces cibles sont déjà en place pour ${frenchMonth(month)}.`
     }
     if (args.confirm !== true) {
-      const total = planned.reduce((sum, p) => sum + p.cents, 0)
+      const expenses = planned.filter((p) => !isIncome(p))
+      const income = planned.filter(isIncome)
+      const total = (list: PlannedTarget[]) =>
+        list.reduce((sum, p) => sum + p.cents, 0)
+      // The plan once applied: the month's other lines stay as they are.
+      const after = (
+        kind: 'expense' | 'income',
+        lines: { categoryId: string; cents: number }[],
+      ) => {
+        const asked = planned.filter((p) => p.category.kind === kind)
+        const others = lines.filter(
+          (line) => !asked.some((p) => p.category.id === line.categoryId),
+        )
+        return total(asked) + others.reduce((sum, l) => sum + l.cents, 0)
+      }
+      const plannedIncome = after(
+        'income',
+        budget.income.items.map((l) => ({
+          categoryId: l.categoryId,
+          cents: l.plannedCents,
+        })),
+      )
+      const budgeted = after(
+        'expense',
+        budget.items.map((l) => ({
+          categoryId: l.categoryId,
+          cents: l.targetCents,
+        })),
+      )
       return [
         PREVIEW_HEADER,
-        `Cibles mensuelles qui seraient fixées ${scope} (les mois suivants qui ont déjà leur propre cible la gardent) :`,
+        `Montants mensuels qui seraient fixés ${scope} (les mois suivants qui ont déjà leur propre montant le gardent) :`,
         ...changes.map(changeLine),
         ...unchangedLine,
-        `Total des cibles demandées : ${euros(total)} par mois.`,
+        ...(expenses.length > 0
+          ? [`Total des cibles demandées : ${euros(total(expenses))} par mois.`]
+          : []),
+        ...(income.length > 0
+          ? [
+              `Total des revenus prévus demandés : ${euros(total(income))} par mois.`,
+            ]
+          : []),
+        ...(plannedIncome > 0
+          ? [
+              `Le budget de ${frenchMonth(month)} serait alors : revenus prévus ${euros(plannedIncome)} − dépenses prévues ${euros(budgeted)} = à épargner ${euros(plannedIncome - budgeted)}.`,
+            ]
+          : []),
         '',
         PREVIEW_FOOTER,
       ].join('\n')
@@ -176,7 +246,7 @@ export const setBudgetTargetsTool = defineTool({
       }))
     const added = applied.filter((p) => p.currentCents === null)
     return [
-      `${applied.length} cible(s) fixée(s) ${scope} :`,
+      `${applied.length} montant(s) fixé(s) ${scope} :`,
       ...applied.map(changeLine),
       ...unchangedLine,
       '',
@@ -187,7 +257,7 @@ export const setBudgetTargetsTool = defineTool({
         : []),
       ...(added.length > 0
         ? [
-            `Sans cible avant (${added.map((p) => p.category.name).join(', ')}) : pour les retirer, arrêtez le budget dans l'application (page Budget) ; aucun outil MCP ne supprime.`,
+            `Sans montant avant (${added.map((p) => p.category.name).join(', ')}) : pour les retirer, arrêtez le budget dans l'application (page Budget) ; aucun outil MCP ne supprime.`,
           ]
         : []),
     ].join('\n')

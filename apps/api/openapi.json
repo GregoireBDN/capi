@@ -4108,7 +4108,7 @@
     },
     "/api/budgets": {
       "get": {
-        "description": "Per budgeted category: target in effect, spent (expense transactions of the category, refunds deducted, transfers never counted), remaining, share used and status; totals; the spending outside budgeted categories; and how far the month’s data goes (`period`). Without `month`: the current month when it has data, else the month the data stops in.",
+        "description": "Planned income vs received (`income`, `income` lines of each planned category, transfers never), the balance of the plan (`plan.toSaveCents`) and, per budgeted expense category: target in effect, spent (expense transactions of the category, refunds deducted, transfers never counted), remaining, share used and status; totals; the spending outside budgeted categories; and how far the month’s data goes (`period`). Without `month`: the current month when it has data, else the month the data stops in.",
         "operationId": "BudgetsController_month",
         "parameters": [
           {
@@ -4314,9 +4314,55 @@
         ]
       }
     },
+    "/api/budgets/income-suggestions": {
+      "get": {
+        "description": "The plan in effect (carried over from the month before) for the income categories that have one, else the confirmed recurring credits (salary, benefits) of each income category at their typical amount, rounded to the euro. Nothing is saved.",
+        "operationId": "BudgetsController_incomeSuggestions",
+        "parameters": [
+          {
+            "description": "Month the plan is for (YYYY-MM). Default: the current month in Europe/Paris.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-11",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncomeSuggestionsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid month."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Prepare the planned income of a month",
+        "tags": [
+          "Budgets"
+        ]
+      }
+    },
     "/api/budgets/{categoryId}": {
       "put": {
-        "description": "Applies from `effectiveFrom` (default: the current month) on; earlier months keep their target. Only expense categories can have a budget.",
+        "description": "Applies from `effectiveFrom` (default: the current month) on; earlier months keep their target. An expense category gets a spending target, an income category a planned income (never `tracked`); a transfer category is refused.",
         "operationId": "BudgetsController_upsert",
         "parameters": [
           {
@@ -4351,7 +4397,7 @@
             }
           },
           "400": {
-            "description": "Not an expense category, or invalid body."
+            "description": "A transfer category, `tracked` on an income category, or invalid body."
           },
           "401": {
             "description": ""
@@ -11365,6 +11411,167 @@
           "top"
         ]
       },
+      "IncomeLineStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "received",
+          "short",
+          "missing",
+          "so_far"
+        ],
+        "description": "`pending`: nothing to say yet; `received`: the plan came in; `short`: less came in; `missing`: nothing came in although due; `so_far`: partial month without a known date."
+      },
+      "BudgetIncomeLineDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "example": "#d97706"
+          },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
+          "plannedCents": {
+            "type": "integer",
+            "description": "Planned income of the month, in cents."
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "example": "2026-11",
+            "description": "Month the planned amount in effect was set from."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "receivedCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Received in the month (so far for a partial one), in cents: `income` lines of the category (splits count). Transfers never count. Null for a month without data."
+          },
+          "expectedByNowCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Partial month only, for a category with a confirmed recurring credit whose day is known: what should have come in by the data’s last day. Null otherwise."
+          },
+          "expectedOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Partial or empty month: next day a recurring credit of the category is expected after the data’s last day."
+          },
+          "status": {
+            "description": "`pending`: nothing to say yet; `received`: the plan came in; `short`: less came in; `missing`: nothing came in although due; `so_far`: partial month without a known date.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IncomeLineStatus"
+              }
+            ]
+          }
+        },
+        "required": [
+          "categoryId",
+          "slug",
+          "name",
+          "color",
+          "icon",
+          "plannedCents",
+          "effectiveFrom",
+          "note",
+          "receivedCents",
+          "expectedByNowCents",
+          "expectedOn",
+          "status"
+        ]
+      },
+      "BudgetIncomeTotalsDto": {
+        "type": "object",
+        "properties": {
+          "plannedCents": {
+            "type": "integer",
+            "description": "Sum of the planned income."
+          },
+          "receivedCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Received in the planned categories; null for a month without data."
+          },
+          "unplannedCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Income received outside the planned categories (uncategorized included); null for a month without data."
+          },
+          "lineCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "plannedCents",
+          "receivedCents",
+          "unplannedCents",
+          "lineCount"
+        ]
+      },
+      "BudgetIncomeDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Planned income lines, largest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetIncomeLineDto"
+            }
+          },
+          "totals": {
+            "$ref": "#/components/schemas/BudgetIncomeTotalsDto"
+          }
+        },
+        "required": [
+          "items",
+          "totals"
+        ]
+      },
+      "BudgetPlanDto": {
+        "type": "object",
+        "properties": {
+          "plannedIncomeCents": {
+            "type": "integer"
+          },
+          "budgetedExpensesCents": {
+            "type": "integer",
+            "description": "Sum of the expense targets of the month."
+          },
+          "toSaveCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "« À épargner »: planned income − budgeted expenses (negative when the plan spends more than it brings in). Null without planned income."
+          }
+        },
+        "required": [
+          "plannedIncomeCents",
+          "budgetedExpensesCents",
+          "toSaveCents"
+        ]
+      },
       "BudgetMonthDto": {
         "type": "object",
         "properties": {
@@ -11382,17 +11589,38 @@
             ]
           },
           "items": {
-            "description": "Budgeted categories, highest share used first.",
+            "description": "Budgeted expense categories, highest share used first.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/BudgetLineDto"
             }
           },
           "totals": {
-            "$ref": "#/components/schemas/BudgetTotalsDto"
+            "description": "Totals of the expense targets.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BudgetTotalsDto"
+              }
+            ]
           },
           "unbudgeted": {
             "$ref": "#/components/schemas/UnbudgetedSpendingDto"
+          },
+          "income": {
+            "description": "Planned income (« Revenus prévus ») vs received.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BudgetIncomeDto"
+              }
+            ]
+          },
+          "plan": {
+            "description": "The balance of the plan: what it leaves to save.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BudgetPlanDto"
+              }
+            ]
           }
         },
         "required": [
@@ -11400,7 +11628,9 @@
           "period",
           "items",
           "totals",
-          "unbudgeted"
+          "unbudgeted",
+          "income",
+          "plan"
         ]
       },
       "EnvelopeDto": {
@@ -11598,6 +11828,73 @@
           "months"
         ]
       },
+      "BudgetHistoryIncomeCellDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "example": "2026-11"
+          },
+          "plannedCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Planned income in effect, null when none that month."
+          },
+          "receivedCents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "plannedCents",
+          "receivedCents"
+        ]
+      },
+      "BudgetHistoryIncomeCategoryDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "example": "#d97706"
+          },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
+          "months": {
+            "description": "Oldest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetHistoryIncomeCellDto"
+            }
+          }
+        },
+        "required": [
+          "categoryId",
+          "slug",
+          "name",
+          "color",
+          "icon",
+          "months"
+        ]
+      },
       "BudgetHistoryTotalDto": {
         "type": "object",
         "properties": {
@@ -11622,13 +11919,29 @@
                 "$ref": "#/components/schemas/BudgetStatus"
               }
             ]
+          },
+          "plannedIncomeCents": {
+            "type": "integer",
+            "description": "Sum of the planned income."
+          },
+          "receivedIncomeCents": {
+            "type": "integer",
+            "description": "Income received in the planned categories."
+          },
+          "plannedSavingsCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Planned income − expense targets; null without planned income."
           }
         },
         "required": [
           "month",
           "targetCents",
           "spentCents",
-          "status"
+          "status",
+          "plannedIncomeCents",
+          "receivedIncomeCents",
+          "plannedSavingsCents"
         ]
       },
       "BudgetHistoryDto": {
@@ -11648,6 +11961,13 @@
               "$ref": "#/components/schemas/BudgetHistoryCategoryDto"
             }
           },
+          "income": {
+            "description": "Income categories planned in at least one month of the window, by name.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetHistoryIncomeCategoryDto"
+            }
+          },
           "totals": {
             "description": "Oldest first.",
             "type": "array",
@@ -11659,6 +11979,7 @@
         "required": [
           "months",
           "categories",
+          "income",
           "totals"
         ]
       },
@@ -11749,6 +12070,83 @@
           "items"
         ]
       },
+      "IncomeSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "example": "#d97706"
+          },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
+          "suggestedCents": {
+            "type": "integer",
+            "description": "Planned income suggested for the month, in cents rounded to the euro."
+          },
+          "currentPlannedCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Planned income in effect for `month`, if any."
+          },
+          "sources": {
+            "description": "Where the amount comes from: the recurring credits’ names, or empty when it is the plan of the month before.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "categoryId",
+          "slug",
+          "name",
+          "color",
+          "icon",
+          "suggestedCents",
+          "currentPlannedCents",
+          "sources"
+        ]
+      },
+      "IncomeSuggestionsDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "example": "2026-11",
+            "description": "Month the plan is for."
+          },
+          "items": {
+            "description": "The plan in effect (carried over from the month before) for the income categories that have one, else the confirmed recurring credits of the category at their typical amount (monthly equivalent); largest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncomeSuggestionDto"
+            }
+          }
+        },
+        "required": [
+          "month",
+          "items"
+        ]
+      },
       "UpsertBudgetDto": {
         "type": "object",
         "properties": {
@@ -11757,7 +12155,7 @@
             "minimum": 1,
             "maximum": 1000000000,
             "example": 40000,
-            "description": "Monthly target in integer cents."
+            "description": "Monthly target in integer cents: a spending target for an expense category, the planned income for an income category."
           },
           "effectiveFrom": {
             "type": "string",
@@ -11773,7 +12171,7 @@
           },
           "tracked": {
             "type": "boolean",
-            "description": "Envelope: follow the category during the month on the dashboard (« Budget »). Omitted: kept from the target in effect."
+            "description": "Envelope: follow the category during the month on the dashboard (« Budget »). Omitted: kept from the target in effect. Expense categories only: true is refused for an income category."
           }
         },
         "required": [
@@ -16257,6 +16655,78 @@
           "chargedAfterEnd"
         ]
       },
+      "CloseIncomeLineDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
+          "plannedCents": {
+            "type": "integer"
+          },
+          "receivedCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IncomeLineStatus"
+              }
+            ]
+          }
+        },
+        "required": [
+          "categoryId",
+          "name",
+          "color",
+          "icon",
+          "plannedCents",
+          "receivedCents",
+          "status"
+        ]
+      },
+      "CloseIncomeDto": {
+        "type": "object",
+        "properties": {
+          "plannedCents": {
+            "type": "integer"
+          },
+          "receivedCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "shortfalls": {
+            "description": "Planned income lines that did not come in as planned (`missing` or `short`).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloseIncomeLineDto"
+            }
+          }
+        },
+        "required": [
+          "plannedCents",
+          "receivedCents",
+          "shortfalls"
+        ]
+      },
       "CloseGoalDto": {
         "type": "object",
         "properties": {
@@ -16392,7 +16862,7 @@
           "targetCents": {
             "type": "integer",
             "nullable": true,
-            "description": "Monthly budget target (expense categories), null when none."
+            "description": "Monthly budget target of an expense category, planned income of an income category; null when none."
           }
         },
         "required": [
@@ -16437,6 +16907,39 @@
           "categoryName"
         ]
       },
+      "ReportPlanDto": {
+        "type": "object",
+        "properties": {
+          "plannedIncomeCents": {
+            "type": "integer",
+            "description": "Sum of the planned income."
+          },
+          "receivedIncomeCents": {
+            "type": "integer",
+            "description": "Income received in the planned categories."
+          },
+          "budgetedExpensesCents": {
+            "type": "integer",
+            "description": "Sum of the expense targets."
+          },
+          "plannedSavingsCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Planned income − budgeted expenses; null without planned income."
+          },
+          "actualSavingsCents": {
+            "type": "integer",
+            "description": "Saved in the month: income − expenses (transfers excluded), the flow’s net."
+          }
+        },
+        "required": [
+          "plannedIncomeCents",
+          "receivedIncomeCents",
+          "budgetedExpensesCents",
+          "plannedSavingsCents",
+          "actualSavingsCents"
+        ]
+      },
       "MonthReportDto": {
         "type": "object",
         "properties": {
@@ -16479,6 +16982,16 @@
           "notes": {
             "type": "string",
             "nullable": true
+          },
+          "plan": {
+            "nullable": true,
+            "description": "Planned vs received income and planned vs actual savings; null in a report frozen before planned income existed.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportPlanDto"
+              }
+            ]
           }
         },
         "required": [
@@ -16488,7 +17001,8 @@
           "savingsTargetCents",
           "categories",
           "oneOffs",
-          "notes"
+          "notes",
+          "plan"
         ]
       },
       "ReportChangeField": {
@@ -16607,6 +17121,14 @@
           "budget": {
             "$ref": "#/components/schemas/ReviewBudgetDto"
           },
+          "income": {
+            "description": "Planned income vs received (#315).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CloseIncomeDto"
+              }
+            ]
+          },
           "savings": {
             "$ref": "#/components/schemas/CloseSavingsDto"
           },
@@ -16653,6 +17175,7 @@
           "reviewQueue",
           "recurring",
           "budget",
+          "income",
           "savings",
           "investments",
           "report",

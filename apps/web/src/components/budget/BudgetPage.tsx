@@ -25,6 +25,8 @@ import { BudgetSummary } from './BudgetSummary'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { MonthToolbar } from '#/components/month/MonthToolbar'
 import { budgetHistoryQuery, budgetMonthQuery } from './queries'
+import { IncomePlanCard } from './IncomePlanCard'
+import { IncomeSuggestionsSheet } from './IncomeSuggestionsSheet'
 import { SuggestionsSheet } from './SuggestionsSheet'
 import { UnbudgetedCard } from './UnbudgetedCard'
 
@@ -36,7 +38,12 @@ interface BudgetPageProps {
 
 type EditorState =
   | { open: false }
-  | { open: true; budget?: EditedBudget; categoryId?: string }
+  | {
+      open: true
+      kind: 'expense' | 'income'
+      budget?: EditedBudget
+      categoryId?: string
+    }
 
 function PageSkeleton() {
   return (
@@ -50,9 +57,11 @@ function PageSkeleton() {
 }
 
 /**
- * Monthly budget: targets per expense category vs the month's spending
- * (transfers never count), overruns flagged, targets edited from the month
- * shown on, suggestions from past spending, and the last months' history.
+ * Monthly budget, both sides: the planned income vs what came in and what
+ * the plan leaves to save (#315), then the targets per expense category vs
+ * the month's spending (transfers never count), overruns flagged, targets
+ * edited from the month shown on, suggestions from past spending, and the
+ * last months' history.
  */
 export function BudgetPage({
   month: monthParam,
@@ -70,14 +79,20 @@ export function BudgetPage({
   const categories = useQuery(categoriesQuery)
   const [editor, setEditor] = useState<EditorState>({ open: false })
   const [suggestOpen, setSuggestOpen] = useState(false)
+  const [prepareOpen, setPrepareOpen] = useState(false)
 
   const available = useMemo(() => {
-    const budgeted = new Set(budget.data?.items.map((item) => item.categoryId))
-    return (categories.data ?? [])
-      .filter(
-        (c) => c.kind === 'expense' && !c.archivedAt && !budgeted.has(c.id),
-      )
+    const budgeted = new Set([
+      ...(budget.data?.items.map((item) => item.categoryId) ?? []),
+      ...(budget.data?.income.items.map((item) => item.categoryId) ?? []),
+    ])
+    const free = (categories.data ?? [])
+      .filter((c) => !c.archivedAt && !budgeted.has(c.id))
       .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+    return {
+      expense: free.filter((c) => c.kind === 'expense'),
+      income: free.filter((c) => c.kind === 'income'),
+    }
   }, [budget.data, categories.data])
 
   const empty = budget.isSuccess && budget.data.items.length === 0
@@ -93,7 +108,7 @@ export function BudgetPage({
     <div className="@container space-y-6">
       <PageHeader
         title="Budget"
-        description="Vos dépenses du mois par rapport à vos objectifs."
+        description="Vos revenus et dépenses du mois par rapport au plan."
       />
 
       <MonthToolbar
@@ -113,8 +128,8 @@ export function BudgetPage({
               </Button>
               <Button
                 iconStart={<PlusIcon />}
-                disabled={available.length === 0}
-                onClick={() => setEditor({ open: true })}
+                disabled={available.expense.length === 0}
+                onClick={() => setEditor({ open: true, kind: 'expense' })}
               >
                 Ajouter
               </Button>
@@ -134,6 +149,35 @@ export function BudgetPage({
             </Button>
           </AlertDescription>
         </Alert>
+      )}
+
+      {budget.isSuccess && (
+        <IncomePlanCard
+          month={month}
+          income={budget.data.income}
+          plan={budget.data.plan}
+          onPrepare={() => setPrepareOpen(true)}
+          onAdd={
+            available.income.length > 0
+              ? () => setEditor({ open: true, kind: 'income' })
+              : undefined
+          }
+          onEdit={(line) =>
+            setEditor({
+              open: true,
+              kind: 'income',
+              budget: {
+                categoryId: line.categoryId,
+                name: line.name,
+                color: line.color,
+                icon: line.icon,
+                targetCents: line.plannedCents,
+                note: line.note,
+                tracked: false,
+              },
+            })
+          }
+        />
       )}
 
       {empty && (
@@ -161,8 +205,8 @@ export function BudgetPage({
               outline
               variant="secondary"
               iconStart={<PlusIcon />}
-              disabled={available.length === 0}
-              onClick={() => setEditor({ open: true })}
+              disabled={available.expense.length === 0}
+              onClick={() => setEditor({ open: true, kind: 'expense' })}
             >
               Ajouter un budget
             </Button>
@@ -171,7 +215,10 @@ export function BudgetPage({
       )}
 
       {budget.isSuccess && !empty && (
-        <>
+        <section aria-labelledby="budget-expenses" className="space-y-3">
+          <h2 id="budget-expenses" className="text-base font-semibold">
+            Dépenses prévues
+          </h2>
           <BudgetSummary data={budget.data} />
           <BudgetList
             month={month}
@@ -179,6 +226,7 @@ export function BudgetPage({
             onEdit={(item) =>
               setEditor({
                 open: true,
+                kind: 'expense',
                 budget: {
                   categoryId: item.categoryId,
                   name: item.name,
@@ -191,14 +239,16 @@ export function BudgetPage({
               })
             }
           />
-        </>
+        </section>
       )}
 
       {budget.isSuccess && (
         <UnbudgetedCard
           month={month}
           unbudgeted={budget.data.unbudgeted}
-          onAdd={(categoryId) => setEditor({ open: true, categoryId })}
+          onAdd={(categoryId) =>
+            setEditor({ open: true, kind: 'expense', categoryId })
+          }
         />
       )}
 
@@ -212,11 +262,21 @@ export function BudgetPage({
         month={month}
         budget={editor.open ? editor.budget : undefined}
         initialCategoryId={editor.open ? editor.categoryId : undefined}
-        available={available}
+        kind={editor.open ? editor.kind : 'expense'}
+        available={
+          editor.open && editor.kind === 'income'
+            ? available.income
+            : available.expense
+        }
       />
       <SuggestionsSheet
         open={suggestOpen}
         onOpenChange={setSuggestOpen}
+        month={month}
+      />
+      <IncomeSuggestionsSheet
+        open={prepareOpen}
+        onOpenChange={setPrepareOpen}
         month={month}
       />
     </div>

@@ -12,6 +12,7 @@ import * as schema from '#/database/schema'
 import {
   budgetsTable,
   categoriesTable,
+  recurringItemsTable,
   transactionLinesView,
   transactionsTable,
 } from '#/database/schema'
@@ -26,6 +27,10 @@ import {
 import {
   type BudgetDto,
   type BudgetHistoryDto,
+  type BudgetIncomeDto,
+  type BudgetIncomeLineDto,
+  type IncomeSuggestionDto,
+  type IncomeSuggestionsDto,
   type BudgetLineDto,
   type BudgetMonthDto,
   type BudgetSuggestionsDto,
@@ -37,6 +42,14 @@ import {
 } from './dto/budget.dto'
 import { parisToday } from '#/investments/days'
 import { monthEnd } from '#/dashboard/calendar'
+import { monthlyEquivalentCents } from '#/recurring/detect'
+import type { MonthPeriod } from '#/coverage/period'
+import {
+  creditRunsIn,
+  expectedByNow,
+  type IncomeCredit,
+  incomeLineStatus,
+} from './income'
 import { firstDay, monthRange, shiftMonth } from './months'
 
 type Db = PostgresJsDatabase<typeof schema>
@@ -64,6 +77,14 @@ interface SpendingRow {
   spentExcludingOneOffsCents: number
 }
 
+/** Income of one category (null = uncategorized) in one month. */
+interface IncomeRow {
+  month: string
+  categoryId: string | null
+  /** Signed cents: Σ amount of the `income` lines (positive when received). */
+  receivedCents: number
+}
+
 /** `-coalesce(sum(amount) [filter (where ...)], 0)` as a JS number of cents. */
 function spentSum(condition?: SQL) {
   const amount = transactionLinesView.amountCents
@@ -87,9 +108,21 @@ function toMonth(date: string): string {
   return date.slice(0, 7)
 }
 
+/** The budget rows in effect whose category is of `kind`. */
+function ofKind<T extends { categoryId: string }>(
+  targets: Map<string, T>,
+  categories: Map<string, CategoryInfo>,
+  kind: 'expense' | 'income',
+): Map<string, T> {
+  return new Map(
+    [...targets].filter(([id]) => categories.get(id)?.kind === kind),
+  )
+}
+
 /**
  * Monthly budgets: effective-dated targets per expense category, compared
- * with the month's spending.
+ * with the month's spending, and the planned income per income category
+ * (#315), compared with what came in.
  *
  * Spending of a category in a month = − Σ `amountCents` of its `expense`
  * transactions booked that month, so refunds filed in the category reduce
@@ -133,12 +166,15 @@ export class BudgetsService {
   ): Promise<BudgetMonthDto> {
     const period = await resolvePeriod(executor, requested, { now })
     const { month } = period
-    const [rows, spending, categories] = await Promise.all([
+    const [rows, spending, categories, income, credits] = await Promise.all([
       this.budgetRows(executor, month),
       this.spending(executor, month, month),
       this.categories(executor),
+      this.income(executor, month, month),
+      this.incomeCredits(executor),
     ])
-    const targets = targetsInEffect(rows, month)
+    const inEffect = targetsInEffect(rows, month)
+    const targets = ofKind(inEffect, categories, 'expense')
     const spentBy = new Map(spending.map((row) => [row.categoryId, row]))
 
     const items: BudgetLineDto[] = []
@@ -195,10 +231,26 @@ export class BudgetsService {
       })
       .sort((a, b) => b.spentCents - a.spentCents)
 
+    const incomeSide = incomeLines(
+      period,
+      ofKind(inEffect, categories, 'income'),
+      categories,
+      income,
+      credits,
+    )
+    const plannedIncomeCents = incomeSide.totals.plannedCents
+
     return {
       month,
       period,
       items,
+      income: incomeSide,
+      plan: {
+        plannedIncomeCents,
+        budgetedExpensesCents: targetCents,
+        toSaveCents:
+          incomeSide.items.length > 0 ? plannedIncomeCents - targetCents : null,
+      },
       totals: {
         targetCents,
         spentCents,
@@ -272,7 +324,7 @@ export class BudgetsService {
     const items: EnvelopeDto[] = []
     for (const [categoryId, target] of targetsInEffect(rows, month)) {
       const category = categories.get(categoryId)
-      if (!target.tracked || !category) continue
+      if (!target.tracked || category?.kind !== 'expense') continue
       const spentCents = spentBy.get(categoryId)?.spentCents ?? 0
       const pace = paceCents(target.monthlyTargetCents, dayOfMonth, daysInMonth)
       items.push({
@@ -312,14 +364,35 @@ export class BudgetsService {
     executor: Executor = this.db,
   ): Promise<BudgetHistoryDto> {
     const months = monthRange(last, count)
-    const [rows, spending, categories] = await Promise.all([
+    const [rows, spending, categories, income] = await Promise.all([
       this.budgetRows(executor, last),
       this.spending(executor, months[0], last),
       this.categories(executor),
+      this.income(executor, months[0], last),
     ])
-    const targetsByMonth = new Map(
+    const inEffect = new Map(
       months.map((month) => [month, targetsInEffect(rows, month)]),
     )
+    const targetsByMonth = new Map(
+      months.map((month) => [
+        month,
+        ofKind(inEffect.get(month)!, categories, 'expense'),
+      ]),
+    )
+    const plannedByMonth = new Map(
+      months.map((month) => [
+        month,
+        ofKind(inEffect.get(month)!, categories, 'income'),
+      ]),
+    )
+    const received = new Map(
+      income.map((row) => [
+        `${row.month}|${row.categoryId}`,
+        row.receivedCents,
+      ]),
+    )
+    const receivedIn = (month: string, categoryId: string) =>
+      received.get(`${month}|${categoryId}`) ?? 0
     const spent = new Map(
       spending.map((row) => [`${row.month}|${row.categoryId}`, row.spentCents]),
     )
@@ -357,21 +430,54 @@ export class BudgetsService {
         }),
       }))
 
+    const planned = new Set<string>()
+    for (const lines of plannedByMonth.values()) {
+      for (const categoryId of lines.keys()) planned.add(categoryId)
+    }
+    const incomeCategories = [...planned]
+      .map((categoryId) => categories.get(categoryId)!)
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+      .map((category) => ({
+        categoryId: category.id,
+        slug: category.slug,
+        name: category.name,
+        color: category.color,
+        icon: category.icon,
+        months: months.map((month) => ({
+          month,
+          plannedCents:
+            plannedByMonth.get(month)!.get(category.id)?.monthlyTargetCents ??
+            null,
+          receivedCents: receivedIn(month, category.id),
+        })),
+      }))
+
     const totals = months.map((month) => {
-      const targets = [...targetsByMonth.get(month)!.values()].filter(
-        (target) => categories.has(target.categoryId),
-      )
+      const targets = [...targetsByMonth.get(month)!.values()]
       const targetCents = sum(targets.map((t) => t.monthlyTargetCents))
       const spentCents = sum(targets.map((t) => spentIn(month, t.categoryId)))
+      const lines = [...plannedByMonth.get(month)!.values()]
+      const plannedIncomeCents = sum(lines.map((l) => l.monthlyTargetCents))
       return {
         month,
         targetCents,
         spentCents,
         status: targetCents > 0 ? budgetStatus(spentCents, targetCents) : null,
+        plannedIncomeCents,
+        receivedIncomeCents: sum(
+          lines.map((l) => receivedIn(month, l.categoryId)),
+        ),
+        plannedSavingsCents:
+          lines.length > 0 ? plannedIncomeCents - targetCents : null,
       }
     })
 
-    return { months, categories: historyCategories, totals }
+    return {
+      months,
+      categories: historyCategories,
+      income: incomeCategories,
+      totals,
+    }
   }
 
   /**
@@ -462,10 +568,16 @@ export class BudgetsService {
     dto: Pick<UpsertBudgetDto, 'monthlyTargetCents' | 'note' | 'tracked'>,
   ): Promise<BudgetDto> {
     return this.db.transaction(async (tx) => {
-      await this.requireExpenseCategory(tx, categoryId)
+      const kind = await this.requireBudgetableCategory(tx, categoryId)
+      if (kind === 'income' && dto.tracked === true) {
+        throw new BadRequestException(
+          'Planned income is not followed during the month',
+        )
+      }
       const start = firstDay(effectiveFrom)
       let note = dto.note
-      let tracked = dto.tracked
+      // Income has no envelope.
+      let tracked = kind === 'income' ? false : dto.tracked
       if (note === undefined || tracked === undefined) {
         const [inEffect] = await tx
           .select({ note: budgetsTable.note, tracked: budgetsTable.tracked })
@@ -544,16 +656,142 @@ export class BudgetsService {
     })
   }
 
-  private async requireExpenseCategory(executor: Executor, id: string) {
+  /**
+   * Expense categories take a spending target, income categories a planned
+   * income; transfers between the owner's accounts are neither (400).
+   */
+  private async requireBudgetableCategory(
+    executor: Executor,
+    id: string,
+  ): Promise<'expense' | 'income'> {
     const [category] = await executor
       .select({ kind: categoriesTable.kind })
       .from(categoriesTable)
       .where(eq(categoriesTable.id, id))
       .limit(1)
     if (!category) throw new NotFoundException('Category not found')
-    if (category.kind !== 'expense') {
-      throw new BadRequestException('Only expense categories can have a budget')
+    if (category.kind === 'transfer') {
+      throw new BadRequestException(
+        'Only expense and income categories can have a budget',
+      )
     }
+    return category.kind
+  }
+
+  /**
+   * The income side of next month's plan: the plan in effect for `month`
+   * (carried over from the month before) for the income categories that have
+   * one, else their confirmed recurring credits at their typical amount
+   * (monthly equivalent, rounded to the euro). Nothing is saved.
+   */
+  async suggestIncome(
+    month: string,
+    executor: Executor = this.db,
+  ): Promise<IncomeSuggestionsDto> {
+    const [rows, categories, credits] = await Promise.all([
+      this.budgetRows(executor, month),
+      this.categories(executor),
+      this.incomeCredits(executor),
+    ])
+    const planned = ofKind(targetsInEffect(rows, month), categories, 'income')
+    const byCategory = new Map<string, IncomeSuggestionDto>()
+    const entry = (category: CategoryInfo): IncomeSuggestionDto => {
+      const existing = byCategory.get(category.id)
+      if (existing) return existing
+      const created: IncomeSuggestionDto = {
+        categoryId: category.id,
+        slug: category.slug,
+        name: category.name,
+        color: category.color,
+        icon: category.icon,
+        suggestedCents: 0,
+        currentPlannedCents:
+          planned.get(category.id)?.monthlyTargetCents ?? null,
+        sources: [],
+      }
+      byCategory.set(category.id, created)
+      return created
+    }
+    for (const line of planned.values()) {
+      const category = categories.get(line.categoryId)!
+      entry(category).suggestedCents = line.monthlyTargetCents
+    }
+    for (const credit of credits) {
+      const category = categories.get(credit.categoryId)
+      if (category?.kind !== 'income' || planned.has(category.id)) continue
+      if (category.archivedAt || !creditRunsIn(credit, month)) continue
+      const item = entry(category)
+      item.suggestedCents += monthlyEquivalentCents(
+        credit.typicalAmountCents,
+        credit.cadence,
+      )
+      item.sources.push(credit.name)
+    }
+    const items = [...byCategory.values()]
+      .map((item) =>
+        item.currentPlannedCents === null
+          ? { ...item, suggestedCents: roundToEuro(item.suggestedCents) }
+          : item,
+      )
+      .filter((item) => item.suggestedCents > 0)
+      .sort(
+        (a, b) =>
+          b.suggestedCents - a.suggestedCents ||
+          a.name.localeCompare(b.name, 'fr'),
+      )
+    return { month, items }
+  }
+
+  /** Income per month and category (null = uncategorized), `first`–`last`. */
+  private async income(
+    executor: Executor,
+    first: string,
+    last: string,
+  ): Promise<IncomeRow[]> {
+    // Lines: a split transaction counts in each of its categories; only
+    // `income`, so transfers and refunds filed in expenses never count.
+    const t = transactionLinesView
+    const month = sql<string>`to_char(${t.bookingDate}, 'YYYY-MM')`
+    return executor
+      .select({
+        month,
+        categoryId: t.categoryId,
+        receivedCents:
+          sql<number>`coalesce(sum(${t.amountCents}), 0)::bigint`.mapWith(
+            Number,
+          ),
+      })
+      .from(t)
+      .where(
+        and(
+          eq(t.kind, 'income'),
+          gte(t.bookingDate, firstDay(first)),
+          lt(t.bookingDate, firstDay(shiftMonth(last, 1))),
+        ),
+      )
+      .groupBy(month, t.categoryId)
+  }
+
+  /** Confirmed recurring credits with a category (salary, benefits). */
+  private async incomeCredits(executor: Executor): Promise<IncomeCredit[]> {
+    const r = recurringItemsTable
+    const rows = await executor
+      .select({
+        categoryId: r.categoryId,
+        name: r.name,
+        cadence: sql<
+          IncomeCredit['cadence']
+        >`coalesce(${r.cadenceOverride}, ${r.cadence})`,
+        typicalAmountCents: r.typicalAmountCents,
+        lastSeenDate: r.lastSeenDate,
+        nextExpectedDate: r.nextExpectedDate,
+        endedOn: r.endedOn,
+      })
+      .from(r)
+      .where(and(eq(r.status, 'confirmed'), eq(r.direction, 'credit')))
+    return rows.flatMap((row) =>
+      row.categoryId === null ? [] : [{ ...row, categoryId: row.categoryId }],
+    )
   }
 
   /** Every budget row that can be in effect up to `last` (a small table). */
@@ -609,6 +847,78 @@ export class BudgetsService {
       })
       .from(categoriesTable)
     return new Map(rows.map((row) => [row.id, row]))
+  }
+}
+
+/**
+ * The income side of a month: each planned line with what came in (null for
+ * a month without data), its like-for-like reading in a partial month, and
+ * the income received outside the plan.
+ */
+function incomeLines(
+  period: MonthPeriod,
+  planned: Map<string, BudgetRow & { monthlyTargetCents: number }>,
+  categories: Map<string, CategoryInfo>,
+  income: readonly IncomeRow[],
+  credits: readonly IncomeCredit[],
+): BudgetIncomeDto {
+  const known = period.status !== 'empty'
+  const receivedBy = new Map(
+    income.map((row) => [row.categoryId, row.receivedCents]),
+  )
+  const items: BudgetIncomeLineDto[] = [...planned.values()]
+    .map((line) => {
+      const category = categories.get(line.categoryId)!
+      const plannedCents = line.monthlyTargetCents
+      const receivedCents = known ? (receivedBy.get(category.id) ?? 0) : null
+      const expected =
+        period.status === 'complete'
+          ? { expectedByNowCents: null, expectedOn: null }
+          : expectedByNow(
+              credits.filter((c) => c.categoryId === category.id),
+              period.month,
+              plannedCents,
+              period.status === 'partial' ? period.dataUntil : null,
+            )
+      const expectedByNowCents =
+        period.status === 'partial' ? expected.expectedByNowCents : null
+      return {
+        categoryId: category.id,
+        slug: category.slug,
+        name: category.name,
+        color: category.color,
+        icon: category.icon,
+        plannedCents,
+        effectiveFrom: toMonth(line.effectiveFrom),
+        note: line.note,
+        receivedCents,
+        expectedByNowCents,
+        expectedOn: expected.expectedOn,
+        status: incomeLineStatus(
+          period.status,
+          plannedCents,
+          receivedCents,
+          expectedByNowCents,
+        ),
+      }
+    })
+    .sort(
+      (a, b) =>
+        b.plannedCents - a.plannedCents || a.name.localeCompare(b.name, 'fr'),
+    )
+  const unplanned = income
+    .filter((row) => row.categoryId === null || !planned.has(row.categoryId))
+    .map((row) => row.receivedCents)
+  return {
+    items,
+    totals: {
+      plannedCents: sum(items.map((item) => item.plannedCents)),
+      receivedCents: known
+        ? sum(items.map((item) => item.receivedCents ?? 0))
+        : null,
+      unplannedCents: known ? sum(unplanned) : null,
+      lineCount: items.length,
+    },
   }
 }
 

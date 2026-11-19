@@ -10,6 +10,8 @@ import {
   budgetsTable,
   categoriesTable,
   type InsertTransaction,
+  recurringItemsTable,
+  transactionSplitsTable,
   transactionsTable,
 } from '#/database/schema'
 import { BudgetsService } from './budgets.service'
@@ -56,6 +58,7 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
       .transaction(async (tx) => {
         await tx.delete(budgetsTable)
         await tx.delete(transactionsTable)
+        await tx.delete(recurringItemsTable)
         const [checking, savings] = await tx
           .insert(accountsTable)
           .values([
@@ -458,13 +461,24 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
       })
     })
 
-    it('only accepts existing expense categories', async () => {
+    it('accepts expense and income categories, never transfers (#315)', async () => {
       await withFixture(async ({ service, salary, livret }) => {
-        for (const categoryId of [salary, livret]) {
-          await expect(
-            service.upsert(categoryId, '2026-11', { monthlyTargetCents: 100 }),
-          ).rejects.toBeInstanceOf(BadRequestException)
-        }
+        await expect(
+          service.upsert(livret, '2026-11', { monthlyTargetCents: 100 }),
+        ).rejects.toBeInstanceOf(BadRequestException)
+        // Income has no envelope.
+        await expect(
+          service.upsert(salary, '2026-11', {
+            monthlyTargetCents: 100,
+            tracked: true,
+          }),
+        ).rejects.toBeInstanceOf(BadRequestException)
+        await expect(
+          service.upsert(salary, '2026-11', { monthlyTargetCents: 210_000 }),
+        ).resolves.toMatchObject({
+          monthlyTargetCents: 210_000,
+          tracked: false,
+        })
         await expect(
           service.upsert(UNKNOWN_ID, '2026-11', { monthlyTargetCents: 100 }),
         ).rejects.toBeInstanceOf(NotFoundException)
@@ -613,7 +627,27 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
             status: 'ok',
           },
         ])
-        expect(history.totals).toEqual([
+        // Nothing planned on the income side.
+        const noIncome = {
+          plannedIncomeCents: 0,
+          receivedIncomeCents: 0,
+          plannedSavingsCents: null,
+        }
+        expect(history.income).toEqual([])
+        expect(
+          history.totals.map((total) => ({
+            ...total,
+            ...noIncome,
+          })),
+        ).toEqual(history.totals)
+        expect(
+          history.totals.map(({ month, targetCents, spentCents, status }) => ({
+            month,
+            targetCents,
+            spentCents,
+            status,
+          })),
+        ).toEqual([
           { month: '2026-08', targetCents: 0, spentCents: 0, status: null },
           {
             month: '2026-09',
@@ -1010,6 +1044,330 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
       await withFixture(async ({ tx, service, groceries }) => {
         await service.upsert(groceries, '2026-10', { monthlyTargetCents: 100 })
         expect((await service.envelopes(undefined, tx, NOW)).items).toEqual([])
+      })
+    })
+  })
+
+  describe('planned income (#315)', () => {
+    async function otherIncome(tx: Tx) {
+      const [row] = await tx
+        .insert(categoriesTable)
+        .values({ slug: 'test_family', name: 'Test famille', kind: 'income' })
+        .returning()
+      return row.id
+    }
+
+    function credit(
+      accountId: string,
+      categoryId: string,
+      overrides: Partial<typeof recurringItemsTable.$inferInsert> = {},
+    ): typeof recurringItemsTable.$inferInsert {
+      return {
+        accountId,
+        merchantKey: `TEST CREDIT ${categoryId}`,
+        direction: 'credit',
+        name: 'Test employeur',
+        categoryId,
+        status: 'confirmed',
+        isFixedCost: false,
+        cadence: 'monthly',
+        amountType: 'fixed',
+        typicalAmountCents: 210_000,
+        confidence: 0.9,
+        lastSeenDate: '2026-10-27',
+        nextExpectedDate: '2026-11-27',
+        ...overrides,
+      }
+    }
+
+    it('carries a planned income over with its note, apart from the expenses', async () => {
+      await withFixture(async ({ service, salary, groceries }) => {
+        await service.upsert(salary, '2026-09', {
+          monthlyTargetCents: 210_000,
+          note: 'estimation, à corriger avec la fiche de paie',
+        })
+        await service.upsert(groceries, '2026-09', {
+          monthlyTargetCents: 40_000,
+        })
+
+        const november = await service.month(
+          '2026-11',
+          undefined,
+          new Date('2026-12-15T10:00:00Z'),
+        )
+        expect(november.items.map((item) => item.categoryId)).toEqual([
+          groceries,
+        ])
+        expect(november.income.items).toEqual([
+          expect.objectContaining({
+            categoryId: salary,
+            plannedCents: 210_000,
+            effectiveFrom: '2026-09',
+            note: 'estimation, à corriger avec la fiche de paie',
+          }),
+        ])
+        expect(november.plan).toEqual({
+          plannedIncomeCents: 210_000,
+          budgetedExpensesCents: 40_000,
+          toSaveCents: 170_000,
+        })
+        // A month with only an income line still counts as budgeted.
+        expect(await service.hasBudget('2026-12')).toBe(true)
+        // The envelopes and the history's expense side stay expenses only.
+        const history = await service.history('2026-11', 2)
+        expect(history.categories.map((c) => c.categoryId)).toEqual([groceries])
+        expect(history.income).toEqual([
+          expect.objectContaining({
+            categoryId: salary,
+            months: [
+              { month: '2026-10', plannedCents: 210_000, receivedCents: 0 },
+              { month: '2026-11', plannedCents: 210_000, receivedCents: 0 },
+            ],
+          }),
+        ])
+        expect(history.totals[1]).toMatchObject({
+          targetCents: 40_000,
+          plannedIncomeCents: 210_000,
+          plannedSavingsCents: 170_000,
+        })
+      })
+    })
+
+    it('reads what came in from income lines only: splits count, transfers and refunds never', async () => {
+      await withFixture(
+        async ({
+          tx,
+          service,
+          checking,
+          savings,
+          salary,
+          livret,
+          groceries,
+        }) => {
+          const family = await otherIncome(tx)
+          await service.upsert(salary, '2026-10', {
+            monthlyTargetCents: 210_000,
+          })
+          await service.upsert(family, '2026-10', {
+            monthlyTargetCents: 25_000,
+          })
+          const [split] = await tx
+            .insert(transactionsTable)
+            .values(
+              transaction(checking, {
+                bookingDate: '2026-10-27',
+                amountCents: 230_000,
+                kind: 'income',
+                categoryId: salary,
+              }),
+            )
+            .returning()
+          await tx.insert(transactionSplitsTable).values([
+            {
+              transactionId: split.id,
+              categoryId: salary,
+              amountCents: 205_000,
+              position: 0,
+            },
+            {
+              transactionId: split.id,
+              categoryId: family,
+              amountCents: 25_000,
+              position: 1,
+            },
+          ])
+          await insert(tx, [
+            // A move from the owner's savings: never income.
+            transaction(checking, {
+              bookingDate: '2026-10-10',
+              amountCents: 50_000,
+              kind: 'transfer',
+              categoryId: livret,
+            }),
+            transaction(savings, {
+              bookingDate: '2026-10-10',
+              amountCents: -50_000,
+              kind: 'transfer',
+              categoryId: livret,
+            }),
+            // A refund filed in an expense category stays there.
+            transaction(checking, {
+              bookingDate: '2026-10-12',
+              amountCents: 3_000,
+              categoryId: groceries,
+            }),
+            // Income outside the plan.
+            transaction(checking, {
+              bookingDate: '2026-10-31',
+              amountCents: 1_500,
+              kind: 'income',
+            }),
+          ])
+
+          const october = await service.month(
+            '2026-10',
+            undefined,
+            new Date('2026-11-15T10:00:00Z'),
+          )
+          expect(october.period.status).toBe('complete')
+          expect(
+            october.income.items.map((item) => [
+              item.categoryId,
+              item.receivedCents,
+              item.status,
+            ]),
+          ).toEqual([
+            [salary, 205_000, 'short'],
+            [family, 25_000, 'received'],
+          ])
+          expect(october.income.totals).toEqual({
+            plannedCents: 235_000,
+            receivedCents: 230_000,
+            unplannedCents: 1_500,
+            lineCount: 2,
+          })
+        },
+      )
+    })
+
+    it('compares a partial month like for like where the day is known', async () => {
+      await withFixture(
+        async ({ tx, service, checking, salary, groceries }) => {
+          const family = await otherIncome(tx)
+          const [benefits] = await tx
+            .insert(categoriesTable)
+            .values({
+              slug: 'test_benefits',
+              name: 'Test aides',
+              kind: 'income',
+            })
+            .returning()
+          for (const [categoryId, cents] of [
+            [salary, 210_000],
+            [family, 25_000],
+            [benefits.id, 35_000],
+          ] as const) {
+            await service.upsert(categoryId, '2026-11', {
+              monthlyTargetCents: cents,
+            })
+          }
+          await tx.insert(recurringItemsTable).values([
+            // Salary on the 27th: not due yet on the 9th.
+            credit(checking, salary),
+            // Benefits on the 5th: due, nothing came in.
+            credit(checking, benefits.id, {
+              name: 'Test CAF',
+              typicalAmountCents: 35_000,
+              lastSeenDate: '2026-10-05',
+              nextExpectedDate: '2026-11-05',
+            }),
+          ])
+          await insert(tx, [
+            transaction(checking, {
+              bookingDate: '2026-11-03',
+              amountCents: 10_000,
+              kind: 'income',
+              categoryId: family,
+            }),
+            transaction(checking, {
+              bookingDate: '2026-11-09',
+              amountCents: -2_000,
+              categoryId: groceries,
+            }),
+          ])
+          const now = new Date('2026-11-19T10:00:00Z')
+
+          const november = await service.month('2026-11', undefined, now)
+          expect(november.period).toMatchObject({
+            status: 'partial',
+            dataUntil: '2026-11-09',
+          })
+          const line = (id: string) =>
+            november.income.items.find((item) => item.categoryId === id)
+          expect(line(salary)).toMatchObject({
+            receivedCents: 0,
+            expectedByNowCents: 0,
+            expectedOn: '2026-11-27',
+            status: 'pending',
+          })
+          expect(line(benefits.id)).toMatchObject({
+            receivedCents: 0,
+            expectedByNowCents: 35_000,
+            expectedOn: null,
+            status: 'missing',
+          })
+          // No known date: « reçu à ce jour ».
+          expect(line(family)).toMatchObject({
+            receivedCents: 10_000,
+            expectedByNowCents: null,
+            status: 'so_far',
+          })
+
+          // An empty month shows the plan without « reçu ».
+          const december = await service.month('2026-12', undefined, now)
+          expect(december.period.status).toBe('empty')
+          expect(december.income.totals.receivedCents).toBeNull()
+          expect(
+            december.income.items.find((item) => item.categoryId === salary),
+          ).toMatchObject({
+            receivedCents: null,
+            expectedOn: '2026-12-27',
+            status: 'pending',
+          })
+        },
+      )
+    })
+
+    it('prepares the income from the plan in effect, else the confirmed recurring credits', async () => {
+      await withFixture(async ({ tx, service, checking, salary }) => {
+        const family = await otherIncome(tx)
+        await tx.insert(recurringItemsTable).values([
+          credit(checking, salary, { typicalAmountCents: 209_960 }),
+          // Quarterly: its monthly equivalent.
+          credit(checking, family, {
+            merchantKey: 'TEST QUARTERLY',
+            name: 'Test famille trimestre',
+            cadence: 'quarterly',
+            typicalAmountCents: 30_000,
+            lastSeenDate: '2026-10-02',
+            nextExpectedDate: '2027-01-02',
+          }),
+          // Suggested and stale series are left out.
+          credit(checking, family, {
+            merchantKey: 'TEST SUGGESTED',
+            status: 'suggested',
+          }),
+          credit(checking, family, {
+            merchantKey: 'TEST STALE',
+            lastSeenDate: '2026-05-27',
+            nextExpectedDate: '2026-06-27',
+          }),
+        ])
+
+        const fresh = await service.suggestIncome('2026-12')
+        expect(fresh.items).toEqual([
+          expect.objectContaining({
+            categoryId: salary,
+            suggestedCents: 210_000,
+            currentPlannedCents: null,
+            sources: ['Test employeur'],
+          }),
+          expect.objectContaining({
+            categoryId: family,
+            suggestedCents: 10_000,
+            sources: ['Test famille trimestre'],
+          }),
+        ])
+
+        // The plan of the month before wins over the credits.
+        await service.upsert(salary, '2026-11', { monthlyTargetCents: 200_000 })
+        const carried = await service.suggestIncome('2026-12')
+        expect(carried.items[0]).toMatchObject({
+          categoryId: salary,
+          suggestedCents: 200_000,
+          currentPlannedCents: 200_000,
+          sources: [],
+        })
       })
     })
   })

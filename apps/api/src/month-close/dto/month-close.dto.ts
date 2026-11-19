@@ -20,6 +20,10 @@ import {
   ReviewMissingAccountDto,
 } from '#/dashboard/dto/review.dto'
 import { ACCOUNT_TYPES, type AccountType } from '#/database/schema/domain-enums'
+import {
+  INCOME_LINE_STATUSES,
+  type IncomeLineStatus,
+} from '#/budgets/dto/budget.dto'
 
 /** The steps of the review, in order. */
 export const MONTH_CLOSE_STEPS = [
@@ -151,9 +155,40 @@ export class ReportCategoryDto {
   @ApiProperty({
     type: 'integer',
     nullable: true,
-    description: 'Monthly budget target (expense categories), null when none.',
+    description:
+      'Monthly budget target of an expense category, planned income of an income category; null when none.',
   })
   targetCents!: number | null
+}
+
+/** The month's plan against what happened (#315). */
+export class ReportPlanDto {
+  @ApiProperty({ type: 'integer', description: 'Sum of the planned income.' })
+  plannedIncomeCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Income received in the planned categories.',
+  })
+  receivedIncomeCents!: number
+
+  @ApiProperty({ type: 'integer', description: 'Sum of the expense targets.' })
+  budgetedExpensesCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Planned income − budgeted expenses; null without planned income.',
+  })
+  plannedSavingsCents!: number | null
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Saved in the month: income − expenses (transfers excluded), the flow’s net.',
+  })
+  actualSavingsCents!: number
 }
 
 export class ReportOneOffDto {
@@ -216,6 +251,14 @@ export class MonthReportDto {
 
   @ApiProperty({ type: String, nullable: true })
   notes!: string | null
+
+  @ApiProperty({
+    type: ReportPlanDto,
+    nullable: true,
+    description:
+      'Planned vs received income and planned vs actual savings; null in a report frozen before planned income existed.',
+  })
+  plan!: ReportPlanDto | null
 }
 
 export class ReportChangeDto {
@@ -448,6 +491,44 @@ export class CloseSavingsDto {
   goals!: CloseGoalDto[]
 }
 
+export class CloseIncomeLineDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  categoryId!: string
+
+  @ApiProperty({ type: String })
+  name!: string
+
+  @ApiProperty({ type: String, nullable: true })
+  color!: string | null
+
+  @ApiProperty(CATEGORY_ICON_DOC)
+  icon!: CategoryIcon | null
+
+  @ApiProperty({ type: 'integer' })
+  plannedCents!: number
+
+  @ApiProperty({ type: 'integer', nullable: true })
+  receivedCents!: number | null
+
+  @ApiProperty({ enum: INCOME_LINE_STATUSES, enumName: 'IncomeLineStatus' })
+  status!: IncomeLineStatus
+}
+
+export class CloseIncomeDto {
+  @ApiProperty({ type: 'integer' })
+  plannedCents!: number
+
+  @ApiProperty({ type: 'integer', nullable: true })
+  receivedCents!: number | null
+
+  @ApiProperty({
+    type: [CloseIncomeLineDto],
+    description:
+      'Planned income lines that did not come in as planned (`missing` or `short`).',
+  })
+  shortfalls!: CloseIncomeLineDto[]
+}
+
 export class CloseInvestmentsDto {
   @ApiProperty({
     type: [ReviewMissingAccountDto],
@@ -504,6 +585,12 @@ export class MonthCloseDto {
 
   @ApiProperty({ type: ReviewBudgetDto })
   budget!: ReviewBudgetDto
+
+  @ApiProperty({
+    type: CloseIncomeDto,
+    description: 'Planned income vs received (#315).',
+  })
+  income!: CloseIncomeDto
 
   @ApiProperty({ type: CloseSavingsDto })
   savings!: CloseSavingsDto

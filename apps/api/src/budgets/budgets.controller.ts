@@ -40,6 +40,8 @@ import {
   BudgetSuggestQueryDto,
   EnvelopesDto,
   EnvelopesQueryDto,
+  IncomeSuggestionsDto,
+  IncomeSuggestQueryDto,
   UpsertBudgetDto,
 } from './dto/budget.dto'
 import { currentParisMonth } from './months'
@@ -62,7 +64,7 @@ export class BudgetsController {
   @ApiOperation({
     summary: 'Targets vs spending for a month',
     description:
-      'Per budgeted category: target in effect, spent (expense transactions of the category, refunds deducted, transfers never counted), remaining, share used and status; totals; the spending outside budgeted categories; and how far the month’s data goes (`period`). Without `month`: the current month when it has data, else the month the data stops in.',
+      'Planned income vs received (`income`, `income` lines of each planned category, transfers never), the balance of the plan (`plan.toSaveCents`) and, per budgeted expense category: target in effect, spent (expense transactions of the category, refunds deducted, transfers never counted), remaining, share used and status; totals; the spending outside budgeted categories; and how far the month’s data goes (`period`). Without `month`: the current month when it has data, else the month the data stops in.',
   })
   // Explicit: the spec is generated without decorator metadata (tsx), so
   // Swagger cannot infer the query DTO from the parameter type.
@@ -122,18 +124,34 @@ export class BudgetsController {
     )
   }
 
+  @Get('income-suggestions')
+  @ApiOperation({
+    summary: 'Prepare the planned income of a month',
+    description:
+      'The plan in effect (carried over from the month before) for the income categories that have one, else the confirmed recurring credits (salary, benefits) of each income category at their typical amount, rounded to the euro. Nothing is saved.',
+  })
+  @ApiQuery({ type: IncomeSuggestQueryDto })
+  @ApiOkResponse({ type: IncomeSuggestionsDto })
+  @ApiBadRequestResponse({ description: 'Invalid month.' })
+  incomeSuggestions(
+    @Query() query: IncomeSuggestQueryDto,
+  ): Promise<IncomeSuggestionsDto> {
+    return this.budgetsService.suggestIncome(query.month ?? currentParisMonth())
+  }
+
   @Put(':categoryId')
   @TokenAccess('write')
   @ApiOperation({
     summary: 'Set the monthly target of a category',
     description:
-      'Applies from `effectiveFrom` (default: the current month) on; earlier months keep their target. Only expense categories can have a budget.',
+      'Applies from `effectiveFrom` (default: the current month) on; earlier months keep their target. An expense category gets a spending target, an income category a planned income (never `tracked`); a transfer category is refused.',
   })
   @ApiParam(CATEGORY_PARAM)
   @ApiBody({ type: UpsertBudgetDto })
   @ApiOkResponse({ type: BudgetDto })
   @ApiBadRequestResponse({
-    description: 'Not an expense category, or invalid body.',
+    description:
+      'A transfer category, `tracked` on an income category, or invalid body.',
   })
   @ApiNotFoundResponse({ description: 'Unknown category.' })
   upsert(

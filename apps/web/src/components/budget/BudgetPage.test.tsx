@@ -9,6 +9,7 @@ import type {
   BudgetMonthDto,
   BudgetSuggestionsDto,
   CategoryDto,
+  IncomeSuggestionsDto,
 } from '#/api/types.gen'
 import { BudgetPage } from './BudgetPage'
 
@@ -17,6 +18,7 @@ const api = vi.hoisted(() => ({
   budgetsControllerMonth: vi.fn(),
   budgetsControllerHistory: vi.fn(),
   budgetsControllerSuggest: vi.fn(),
+  budgetsControllerIncomeSuggestions: vi.fn(),
   budgetsControllerUpsert: vi.fn(),
   budgetsControllerRemove: vi.fn(),
 }))
@@ -83,6 +85,7 @@ const transport: CategoryDto = {
   icon: 'car',
 }
 const salary = category(4, 'Salaire', 'income')
+const family = category(5, 'Famille', 'income')
 
 function line(
   c: CategoryDto,
@@ -161,6 +164,35 @@ const monthData: BudgetMonthDto = {
       },
     ],
   },
+  income: {
+    items: [
+      {
+        categoryId: salary.id,
+        slug: salary.slug,
+        name: salary.name,
+        color: salary.color,
+        icon: null,
+        plannedCents: 210_000,
+        effectiveFrom: '2026-09',
+        note: 'Estimation, à corriger avec la fiche de paie',
+        receivedCents: 205_000,
+        expectedByNowCents: null,
+        expectedOn: null,
+        status: 'short',
+      },
+    ],
+    totals: {
+      plannedCents: 210_000,
+      receivedCents: 205_000,
+      unplannedCents: 1_500,
+      lineCount: 1,
+    },
+  },
+  plan: {
+    plannedIncomeCents: 210_000,
+    budgetedExpensesCents: 50_000,
+    toSaveCents: 160_000,
+  },
 }
 
 const emptyMonth: BudgetMonthDto = {
@@ -174,6 +206,26 @@ const emptyMonth: BudgetMonthDto = {
     overCount: 0,
   },
   unbudgeted: { totalCents: 0, categoryCount: 0, top: [] },
+  income: {
+    items: [],
+    totals: {
+      plannedCents: 0,
+      receivedCents: 0,
+      unplannedCents: 0,
+      lineCount: 0,
+    },
+  },
+  plan: {
+    plannedIncomeCents: 0,
+    budgetedExpensesCents: 0,
+    toSaveCents: null,
+  },
+}
+
+const noIncome = {
+  plannedIncomeCents: 0,
+  receivedIncomeCents: 0,
+  plannedSavingsCents: null,
 }
 
 const history: BudgetHistoryDto = {
@@ -201,18 +253,37 @@ const history: BudgetHistoryDto = {
       ],
     },
   ],
+  income: [],
   totals: [
     {
       month: '2026-09',
       targetCents: 10_000,
       spentCents: 9_000,
       status: 'warning',
+      ...noIncome,
     },
     {
       month: '2026-10',
       targetCents: 10_000,
       spentCents: 15_000,
       status: 'over',
+      ...noIncome,
+    },
+  ],
+}
+
+const incomeSuggestions: IncomeSuggestionsDto = {
+  month: '2026-10',
+  items: [
+    {
+      categoryId: salary.id,
+      slug: salary.slug,
+      name: salary.name,
+      color: salary.color,
+      icon: null,
+      suggestedCents: 210_000,
+      currentPlannedCents: null,
+      sources: ['Acme'],
     },
   ],
 }
@@ -281,11 +352,14 @@ describe('BudgetPage', () => {
     vi.setSystemTime(new Date('2026-11-15T10:00:00Z'))
     for (const fn of Object.values(api)) fn.mockReset()
     api.categoriesControllerList.mockImplementation(() =>
-      ok([groceries, leisure, transport, salary]),
+      ok([groceries, leisure, transport, salary, family]),
     )
     api.budgetsControllerMonth.mockImplementation(() => ok(monthData))
     api.budgetsControllerHistory.mockImplementation(() => ok(history))
     api.budgetsControllerSuggest.mockImplementation(() => ok(suggestions))
+    api.budgetsControllerIncomeSuggestions.mockImplementation(() =>
+      ok(incomeSuggestions),
+    )
     api.budgetsControllerUpsert.mockImplementation(
       ({ body }: { body: { monthlyTargetCents: number } }) =>
         ok({ id: 'b', monthlyTargetCents: body.monthlyTargetCents }),
@@ -348,6 +422,97 @@ describe('BudgetPage', () => {
       }),
     ).toBeInTheDocument()
     expect(within(outsideRows[1]).queryByRole('button')).toBeNull()
+  })
+
+  it('shows the planned income, what came in and what the plan leaves to save (#315)', async () => {
+    renderPage()
+
+    const card = await screen.findByRole('region', { name: 'Revenus prévus' })
+    const rows = within(card).getAllByRole('listitem')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toHaveAttribute('data-status', 'short')
+    expect(text(rows[0].textContent)).toContain('2 100,00 €')
+    expect(text(rows[0].textContent)).toContain(
+      'Reçu 2 050,00 € · manque 50,00 €',
+    )
+    expect(text(rows[0].textContent)).toContain(
+      'Estimation, à corriger avec la fiche de paie',
+    )
+    expect(
+      within(rows[0]).getByRole('link', { name: 'Revenus Salaire' }),
+    ).toHaveAttribute(
+      'href',
+      `/transactions?month=2026-10&category=${salary.id}&kind=income`,
+    )
+    expect(text(card.textContent)).toContain('hors plan 15,00 €')
+
+    const balance = card.querySelector('[aria-label="Équilibre du budget"]')
+    expect(text(balance?.textContent ?? '')).toBe(
+      'Revenus prévus2 100,00 €Dépenses prévues500,00 €À épargner1 600,00 €',
+    )
+  })
+
+  it('edits a planned income without the envelope switch', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Modifier le revenu prévu Salaire',
+      }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    expect(
+      within(dialog).queryByRole('switch', { name: 'Suivre pendant le mois' }),
+    ).not.toBeInTheDocument()
+    const amount = within(dialog).getByLabelText('Prévu par mois')
+    expect(amount).toHaveValue('2100')
+    await user.clear(amount)
+    await user.type(amount, '2080')
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Enregistrer' }),
+    )
+    await waitFor(() =>
+      expect(api.budgetsControllerUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { categoryId: salary.id },
+          body: expect.objectContaining({
+            monthlyTargetCents: 208_000,
+            effectiveFrom: '2026-10',
+            tracked: undefined,
+          }),
+        }),
+      ),
+    )
+  })
+
+  it('prepares the income from the recurring credits when none is planned', async () => {
+    api.budgetsControllerMonth.mockImplementation(() => ok(emptyMonth))
+    const user = userEvent.setup()
+    renderPage()
+
+    const card = await screen.findByRole('region', { name: 'Revenus prévus' })
+    expect(within(card).getByText('Aucun revenu prévu')).toBeInTheDocument()
+    await user.click(
+      within(card).getByRole('button', { name: 'Préparer les revenus' }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText('D’après Acme')).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('Prévu Salaire')).toHaveValue('2100')
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Enregistrer 1 revenu' }),
+    )
+    await waitFor(() =>
+      expect(api.budgetsControllerUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { categoryId: salary.id },
+          body: expect.objectContaining({
+            monthlyTargetCents: 210_000,
+            effectiveFrom: '2026-10',
+          }),
+        }),
+      ),
+    )
   })
 
   it('shows the month the API picks and how far its data goes', async () => {

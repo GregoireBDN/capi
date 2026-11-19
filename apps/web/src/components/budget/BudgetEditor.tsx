@@ -53,6 +53,11 @@ interface BudgetEditorProps {
   available: readonly CategoryDto[]
   /** Category preselected when adding. */
   initialCategoryId?: string
+  /**
+   * `expense`: a spending target; `income`: a planned income (#315), with
+   * no « Suivre pendant le mois ».
+   */
+  kind?: 'expense' | 'income'
 }
 
 /**
@@ -67,7 +72,9 @@ export function BudgetEditor({
   budget,
   available,
   initialCategoryId,
+  kind = 'expense',
 }: BudgetEditorProps) {
+  const income = kind === 'income'
   const isMobile = useIsMobile()
   const queryClient = useQueryClient()
   const id = useId()
@@ -102,11 +109,13 @@ export function BudgetEditor({
         month,
         parseEurosToCents(amount)!,
         note.trim() || null,
-        tracked,
+        income ? undefined : tracked,
       ),
     onSuccess: async (saved) => {
       toast.success(
-        `Budget ${categoryName} : ${formatCents(saved.monthlyTargetCents)} par mois`,
+        income
+          ? `Revenu prévu ${categoryName} : ${formatCents(saved.monthlyTargetCents)} par mois`
+          : `Budget ${categoryName} : ${formatCents(saved.monthlyTargetCents)} par mois`,
       )
       onOpenChange(false)
       await afterBudgetsChanged(queryClient)
@@ -117,7 +126,11 @@ export function BudgetEditor({
   const remove = useMutation({
     mutationFn: () => removeBudget(categoryId, month),
     onSuccess: async () => {
-      toast.success(`Budget ${categoryName} arrêté à partir de ${monthText}`)
+      toast.success(
+        income
+          ? `Revenu ${categoryName} retiré du plan à partir de ${monthText}`
+          : `Budget ${categoryName} arrêté à partir de ${monthText}`,
+      )
       setConfirmOpen(false)
       onOpenChange(false)
       await afterBudgetsChanged(queryClient)
@@ -133,7 +146,13 @@ export function BudgetEditor({
   }
 
   const showError = submitted && amountError !== null
-  const title = budget ? `Budget ${budget.name}` : 'Ajouter un budget'
+  const title = income
+    ? budget
+      ? `Revenu prévu ${budget.name}`
+      : 'Ajouter un revenu prévu'
+    : budget
+      ? `Budget ${budget.name}`
+      : 'Ajouter un budget'
 
   return (
     <>
@@ -154,8 +173,9 @@ export function BudgetEditor({
               <span className="min-w-0">{title}</span>
             </SheetTitle>
             <SheetDescription>
-              Objectif mensuel à partir de {monthText}. Les mois précédents
-              gardent leur objectif.
+              {income
+                ? `Montant attendu chaque mois à partir de ${monthText}. Les mois précédents gardent le leur.`
+                : `Objectif mensuel à partir de ${monthText}. Les mois précédents gardent leur objectif.`}
             </SheetDescription>
           </SheetHeader>
           <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
@@ -185,11 +205,11 @@ export function BudgetEditor({
             )}
             <Field data-invalid={showError}>
               <FieldLabel htmlFor={`${id}-amount`}>
-                Objectif par mois
+                {income ? 'Prévu par mois' : 'Objectif par mois'}
               </FieldLabel>
               <AmountField
                 id={`${id}-amount`}
-                placeholder="350"
+                placeholder={income ? '2100' : '350'}
                 value={amount}
                 aria-invalid={showError}
                 onValueChange={(typed) => setAmount(typed)}
@@ -206,25 +226,29 @@ export function BudgetEditor({
                 onChange={(event) => setNote(event.target.value)}
               />
               <FieldDescription>
-                Facultative, par ex. « dépense fixe ».
+                {income
+                  ? 'Facultative, par ex. « estimation, à corriger avec la fiche de paie ».'
+                  : 'Facultative, par ex. « dépense fixe ».'}
               </FieldDescription>
             </Field>
-            <div className="flex items-start gap-3">
-              <Switch
-                id={`${id}-tracked`}
-                checked={tracked}
-                onCheckedChange={setTracked}
-              />
-              <div className="space-y-0.5">
-                <Label htmlFor={`${id}-tracked`} className="font-normal">
-                  Suivre pendant le mois
-                </Label>
-                <p className="text-muted-foreground text-xs">
-                  Affiché sur le tableau de bord, avec les dépenses notées à la
-                  main avant l’import du relevé.
-                </p>
+            {!income && (
+              <div className="flex items-start gap-3">
+                <Switch
+                  id={`${id}-tracked`}
+                  checked={tracked}
+                  onCheckedChange={setTracked}
+                />
+                <div className="space-y-0.5">
+                  <Label htmlFor={`${id}-tracked`} className="font-normal">
+                    Suivre pendant le mois
+                  </Label>
+                  <p className="text-muted-foreground text-xs">
+                    Affiché sur le tableau de bord, avec les dépenses notées à
+                    la main avant l’import du relevé.
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
             <div className="flex flex-col-reverse gap-2 sm:flex-row">
               {budget && (
                 <Button
@@ -233,7 +257,7 @@ export function BudgetEditor({
                   outline
                   onClick={() => setConfirmOpen(true)}
                 >
-                  Arrêter ce budget
+                  {income ? 'Retirer du plan' : 'Arrêter ce budget'}
                 </Button>
               )}
               <Button
@@ -252,9 +276,17 @@ export function BudgetEditor({
         <ConfirmDialog
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
-          title={`Arrêter le budget ${budget.name} ?`}
-          description={`Plus d’objectif à partir de ${monthText}, ni les mois suivants. Les mois précédents gardent le leur.`}
-          confirmLabel="Arrêter le budget"
+          title={
+            income
+              ? `Retirer ${budget.name} du plan ?`
+              : `Arrêter le budget ${budget.name} ?`
+          }
+          description={
+            income
+              ? `Plus de revenu prévu à partir de ${monthText}, ni les mois suivants. Les mois précédents gardent le leur.`
+              : `Plus d’objectif à partir de ${monthText}, ni les mois suivants. Les mois précédents gardent le leur.`
+          }
+          confirmLabel={income ? 'Retirer du plan' : 'Arrêter le budget'}
           variant="danger"
           loading={remove.isPending}
           onConfirm={() => remove.mutate()}

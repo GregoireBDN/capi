@@ -1314,6 +1314,22 @@ export async function generateDemoData(
     monthlyTargetCents: 50_000,
     tracked: true,
   })
+  // Planned income (#315): the salary and the meal-voucher credit; benefits
+  // and interest stay outside the plan.
+  budgetValues.push(
+    {
+      categoryId: category('salary').id,
+      effectiveFrom: firstMonth,
+      monthlyTargetCents: 298_500,
+      note: 'Estimation, à corriger avec la fiche de paie',
+    },
+    {
+      categoryId: category('meal_vouchers').id,
+      effectiveFrom: firstMonth,
+      monthlyTargetCents: 19_000,
+      note: 'Selon les jours travaillés',
+    },
+  )
   await db.insert(budgetsTable).values(budgetValues)
 
   // Savings target and goals.

@@ -59,12 +59,23 @@ export function MonthReport({ review }: { review: MonthCloseDto }) {
     )
     .slice(0, HIGHLIGHTS)
   const overBudget = report.categories
-    .filter((c) => c.targetCents !== null && c.amountCents > c.targetCents)
+    .filter(
+      (c) =>
+        c.kind === 'expense' &&
+        c.targetCents !== null &&
+        c.amountCents > c.targetCents,
+    )
     .sort(
       (a, b) =>
         b.amountCents - b.targetCents! - (a.amountCents - a.targetCents!),
     )
     .slice(0, HIGHLIGHTS)
+  const incomeShort = report.categories.filter(
+    (c) =>
+      c.kind === 'income' &&
+      c.targetCents !== null &&
+      c.amountCents < c.targetCents,
+  )
 
   return (
     <section aria-labelledby="month-report-title" className="min-w-0">
@@ -94,6 +105,25 @@ export function MonthReport({ review }: { review: MonthCloseDto }) {
           {review.changes.length > 0 && <Changes changes={review.changes} />}
 
           <Totals report={report} />
+
+          {report.plan && <PlanVsActual report={report} />}
+
+          {incomeShort.length > 0 && (
+            <Highlight title="Revenus en dessous du prévu">
+              {incomeShort.map((c) => (
+                <Row
+                  key={`${c.kind}-${c.categoryId}`}
+                  category={c}
+                  value={
+                    c.amountCents <= 0
+                      ? 'pas reçu'
+                      : `${formatWholeEuros(c.targetCents! - c.amountCents)} de moins`
+                  }
+                  tone="bad"
+                />
+              ))}
+            </Highlight>
+          )}
 
           {increases.length > 0 && (
             <Highlight title="Plus fortes hausses">
@@ -190,6 +220,55 @@ function Totals({ report }: { report: MonthReportDto }) {
         </div>
       ))}
     </dl>
+  )
+}
+
+/**
+ * The plan against the month (#315): planned vs received income, planned
+ * vs actual savings. Left out of reports frozen before planned income.
+ */
+function PlanVsActual({ report }: { report: MonthReportDto }) {
+  const plan = report.plan!
+  const rows = [
+    {
+      label: 'Revenus',
+      planned: plan.plannedIncomeCents,
+      actual: plan.receivedIncomeCents,
+    },
+    ...(plan.plannedSavingsCents === null
+      ? []
+      : [
+          {
+            label: 'Épargne',
+            planned: plan.plannedSavingsCents,
+            actual: plan.actualSavingsCents,
+          },
+        ]),
+  ]
+  if (plan.plannedIncomeCents === 0) return null
+  return (
+    <div className="space-y-1">
+      <p className="font-medium">Prévu et réalisé</p>
+      <ul className="space-y-1" aria-label="Prévu et réalisé">
+        {rows.map((row) => (
+          <li
+            key={row.label}
+            className="flex flex-wrap items-baseline justify-between gap-x-3"
+          >
+            <span className="min-w-[7rem] flex-1">{row.label}</span>
+            <span className="ml-auto whitespace-nowrap tabular-nums">
+              <span className="font-medium">
+                {formatWholeEuros(row.actual)}
+              </span>
+              <span className="text-muted-foreground">
+                {' '}
+                / {formatWholeEuros(row.planned)} prévus
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

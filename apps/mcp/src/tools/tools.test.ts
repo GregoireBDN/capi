@@ -417,6 +417,20 @@ describe('budget_status', () => {
       warningCount: 0,
     },
     unbudgeted: { totalCents: 0, categoryCount: 0, top: [] },
+    income: {
+      items: [],
+      totals: {
+        plannedCents: 0,
+        receivedCents: 0,
+        unplannedCents: 0,
+        lineCount: 0,
+      },
+    },
+    plan: {
+      plannedIncomeCents: 0,
+      budgetedExpensesCents: 20000,
+      toSaveCents: null,
+    },
   }
   const envelopes: EnvelopesDto = {
     month: '2026-11',
@@ -455,6 +469,84 @@ describe('budget_status', () => {
     expect(text).toContain(
       'rythme régulier à ce jour 93,33 € (en avance sur le rythme)',
     )
+  })
+
+  it('shows the planned income and what the plan leaves to save (#315)', async () => {
+    const { call } = await connect({
+      '/api/budgets': {
+        ...budget,
+        income: {
+          items: [
+            {
+              categoryId: salary.id,
+              slug: salary.slug,
+              name: salary.name,
+              color: null,
+              icon: null,
+              plannedCents: 210000,
+              effectiveFrom: '2026-09',
+              note: 'Estimation',
+              receivedCents: 0,
+              expectedByNowCents: 0,
+              expectedOn: '2026-11-27',
+              status: 'pending',
+            },
+          ],
+          totals: {
+            plannedCents: 210000,
+            receivedCents: 0,
+            unplannedCents: 1500,
+            lineCount: 1,
+          },
+        },
+        plan: {
+          plannedIncomeCents: 210000,
+          budgetedExpensesCents: 20000,
+          toSaveCents: 190000,
+        },
+      },
+      '/api/budgets/envelopes': envelopes,
+    })
+    const { text } = await call('budget_status')
+    expect(text).toContain(
+      'Revenus prévus : 2 100,00 €, reçus 0,00 € · hors plan 15,00 €.',
+    )
+    expect(text).toContain(
+      '- Salaire : prévu 2 100,00 € — attendu le 27/11/2026 · note : Estimation',
+    )
+    expect(text).toContain(
+      "À épargner d'après le budget : 2 100,00 € de revenus prévus − 200,00 € de dépenses prévues = 1 900,00 €.",
+    )
+  })
+
+  it('proposes the income to plan from the confirmed recurring credits', async () => {
+    const { call, calls } = await connect({
+      '/api/budgets': budget,
+      '/api/budgets/envelopes': envelopes,
+      '/api/budgets/income-suggestions': {
+        month: '2026-11',
+        items: [
+          {
+            categoryId: salary.id,
+            slug: salary.slug,
+            name: salary.name,
+            color: null,
+            icon: null,
+            suggestedCents: 210000,
+            currentPlannedCents: null,
+            sources: ['Acme'],
+          },
+        ],
+      },
+    })
+    const { text } = await call('budget_status')
+    expect(text).toContain('Aucun revenu prévu pour ce mois.')
+    expect(text).toContain('- Salaire : 2 100,00 € (Acme)')
+    expect(
+      calls
+        .find((c) => c.url.pathname === '/api/budgets/income-suggestions')
+        ?.url.searchParams.get('month'),
+    ).toBe('2026-11')
   })
 
   it('leaves the envelopes out for another month', async () => {
