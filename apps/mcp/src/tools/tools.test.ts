@@ -356,6 +356,21 @@ describe('spending', () => {
       totalsCents: [10500, 12000],
       averageCents: 10500,
       averageMonths: 1,
+      details: [
+        {
+          month: '2026-09',
+          status: 'complete',
+          throughDay: null,
+          topCategories: [],
+        },
+        {
+          month: '2026-10',
+          status: 'partial',
+          throughDay: 12,
+          topCategories: [],
+        },
+      ],
+      sameDaysAverageCents: 4000,
     }
     const { call } = await connect({ '/api/spending/trend': data })
     const { text } = await call('spending_history', { months: 2 })

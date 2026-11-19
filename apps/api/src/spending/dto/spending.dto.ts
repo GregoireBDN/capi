@@ -1,5 +1,6 @@
 import { applyDecorators } from '@nestjs/common'
 import { MonthPeriodDto } from '#/coverage/dto/period.dto'
+import { PERIOD_STATUSES, type PeriodStatus } from '#/coverage/period'
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Transform, Type } from 'class-transformer'
 import {
@@ -22,6 +23,8 @@ export const TREND_MONTHS_DEFAULT = 12
 export const TREND_MONTHS_MAX = 36
 /** Categories drawn on their own in the trend; the rest folds into "other". */
 export const TREND_TOP_CATEGORIES = 5
+/** Categories named for each month of the trend (its largest ones). */
+export const TREND_MONTH_TOP_CATEGORIES = 3
 
 /** `YYYY-MM` with a real month. */
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/
@@ -321,6 +324,56 @@ export class SpendingTrendSeriesDto {
   totalCents!: number
 }
 
+/** One of the largest categories of a month of the trend. */
+export class SpendingTrendTopCategoryDto {
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'Null for the bucket of expenses without a category.',
+  })
+  categoryId!: string | null
+
+  @ApiProperty({ type: String, nullable: true })
+  name!: string | null
+
+  @ApiProperty({ type: String, nullable: true })
+  color!: string | null
+
+  @ApiProperty(CATEGORY_ICON_DOC)
+  icon!: CategoryIcon | null
+
+  @ApiProperty({ type: 'integer', description: SPENT_DOC })
+  spentCents!: number
+}
+
+/** How far a month of the trend goes, and where its money went. */
+export class SpendingTrendMonthDto {
+  @ApiProperty({ type: String, example: '2026-10', description: 'YYYY-MM.' })
+  month!: string
+
+  @ApiProperty({
+    enum: PERIOD_STATUSES,
+    enumName: 'PeriodStatus',
+    description:
+      '`complete`, `partial` (only its first `throughDay` days are known) or `empty` (the data stops before it), as in `MonthPeriodDto`.',
+  })
+  status!: PeriodStatus
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: 'Day the figures go up to when `partial`, null otherwise.',
+  })
+  throughDay!: number | null
+
+  @ApiProperty({
+    type: [SpendingTrendTopCategoryDto],
+    description: `The month's ${TREND_MONTH_TOP_CATEGORIES} largest categories (every category counted, whatever the filter), largest first; only those with spending.`,
+  })
+  topCategories!: SpendingTrendTopCategoryDto[]
+}
+
 export class SpendingTrendDto {
   @ApiProperty({
     type: [String],
@@ -356,4 +409,18 @@ export class SpendingTrendDto {
 
   @ApiProperty({ type: 'integer', description: 'Months in that average.' })
   averageMonths!: number
+
+  @ApiProperty({
+    type: [SpendingTrendMonthDto],
+    description: 'One per month of `months`, in the same order.',
+  })
+  details!: SpendingTrendMonthDto[]
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'When a month shown is `partial`: the average over the same complete months as `averageCents` of their first `throughDay` days only, so the partial month is compared like for like. Null otherwise, or without a complete month.',
+  })
+  sameDaysAverageCents!: number | null
 }

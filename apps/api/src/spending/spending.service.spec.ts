@@ -846,6 +846,92 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
       })
     })
 
+    it('dates each month, names its largest categories and averages the same days', async () => {
+      await withFixture(async (f) => {
+        const c = f.category
+        await insert(f.tx, [
+          row(f.checking, '2026-09-02', -50_000, { categoryId: c.rent }),
+          row(f.checking, '2026-09-20', -10_000, { categoryId: c.groceries }),
+          row(f.checking, '2026-10-02', -50_000, { categoryId: c.rent }),
+          row(f.checking, '2026-10-03', -6_000, { categoryId: c.groceries }),
+          row(f.checking, '2026-10-04', -4_000, { categoryId: c.leisure }),
+          row(f.checking, '2026-10-04', -3_000), // uncategorized
+          row(f.checking, '2026-10-25', -8_000, { categoryId: c.groceries }),
+          row(f.checking, '2026-10-26', -20_000, {
+            categoryId: c.health,
+            isOneOff: true,
+          }),
+          row(f.checking, '2026-11-03', -2_000, { categoryId: c.groceries }),
+        ])
+
+        const result = await f.service.trend({ months: 3 })
+
+        expect(
+          result.details.map((d) => [d.month, d.status, d.throughDay]),
+        ).toEqual([
+          ['2026-09', 'complete', null],
+          ['2026-10', 'complete', null],
+          ['2026-11', 'partial', 3],
+        ])
+        // October: the one-off is left out, groceries count both rows.
+        expect(result.details[1].topCategories).toEqual([
+          expect.objectContaining({
+            categoryId: c.rent,
+            name: 'Test rent',
+            spentCents: 50_000,
+          }),
+          expect.objectContaining({
+            categoryId: c.groceries,
+            spentCents: 14_000,
+          }),
+          expect.objectContaining({ categoryId: c.leisure, spentCents: 4_000 }),
+        ])
+        expect(result.details[2].topCategories).toEqual([
+          expect.objectContaining({
+            categoryId: c.groceries,
+            spentCents: 2_000,
+          }),
+        ])
+        // September 60 000, October 71 000; their 3 first days 50 000 and 56 000.
+        expect(result.averageCents).toBe(65_500)
+        expect(result.sameDaysAverageCents).toBe(53_000)
+
+        const groceries = await f.service.trend({
+          months: 3,
+          categoryId: c.groceries,
+        })
+        // September: none by the 3rd; October: 6 000.
+        expect(groceries.sameDaysAverageCents).toBe(3_000)
+        // The largest categories stay those of every category.
+        expect(groceries.details[1].topCategories[0].categoryId).toBe(c.rent)
+
+        const withOneOffs = await f.service.trend({
+          months: 3,
+          includeOneOffs: true,
+        })
+        expect(withOneOffs.details[1].topCategories[1]).toMatchObject({
+          categoryId: c.health,
+          spentCents: 20_000,
+        })
+      })
+    })
+
+    it('has no same-days average without a partial month', async () => {
+      await withFixture(async (f) => {
+        await insert(f.tx, [
+          row(f.checking, '2026-10-31', -2_000, {
+            categoryId: f.category.groceries,
+          }),
+        ])
+        const result = await f.service.trend({ month: '2026-10', months: 2 })
+        expect(result.details.map((d) => d.status)).toEqual([
+          'complete',
+          'complete',
+        ])
+        expect(result.sameDaysAverageCents).toBeNull()
+      })
+    })
+
     it('shows the uncategorized bucket on its own', async () => {
       await withFixture(async (f) => {
         await insert(f.tx, [

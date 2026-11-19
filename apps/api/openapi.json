@@ -12043,6 +12043,81 @@
           "totalCents"
         ]
       },
+      "SpendingTrendTopCategoryDto": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Null for the bucket of expenses without a category."
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          },
+          "spentCents": {
+            "type": "integer",
+            "description": "Positive integer cents: expenses minus the refunds filed in the same category. Negative when refunds exceed expenses."
+          }
+        },
+        "required": [
+          "categoryId",
+          "name",
+          "color",
+          "icon",
+          "spentCents"
+        ]
+      },
+      "SpendingTrendMonthDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "example": "2026-10",
+            "description": "YYYY-MM."
+          },
+          "status": {
+            "description": "`complete`, `partial` (only its first `throughDay` days are known) or `empty` (the data stops before it), as in `MonthPeriodDto`.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PeriodStatus"
+              }
+            ]
+          },
+          "throughDay": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Day the figures go up to when `partial`, null otherwise."
+          },
+          "topCategories": {
+            "description": "The month's 3 largest categories (every category counted, whatever the filter), largest first; only those with spending.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpendingTrendTopCategoryDto"
+            }
+          }
+        },
+        "required": [
+          "month",
+          "status",
+          "throughDay",
+          "topCategories"
+        ]
+      },
       "SpendingTrendDto": {
         "type": "object",
         "properties": {
@@ -12082,6 +12157,18 @@
           "averageMonths": {
             "type": "integer",
             "description": "Months in that average."
+          },
+          "details": {
+            "description": "One per month of `months`, in the same order.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpendingTrendMonthDto"
+            }
+          },
+          "sameDaysAverageCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "When a month shown is `partial`: the average over the same complete months as `averageCents` of their first `throughDay` days only, so the partial month is compared like for like. Null otherwise, or without a complete month."
           }
         },
         "required": [
@@ -12090,7 +12177,9 @@
           "series",
           "totalsCents",
           "averageCents",
-          "averageMonths"
+          "averageMonths",
+          "details",
+          "sameDaysAverageCents"
         ]
       },
       "SnapshotDto": {
