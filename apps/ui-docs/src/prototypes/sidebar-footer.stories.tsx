@@ -611,6 +611,230 @@ function Before() {
   )
 }
 
+/* ---------------------------------------------------------------------------
+ * Computer footer (owner's feedback on PR #355, 19/11): open, the entry and
+ * « Se déconnecter » share one row; folded, they stack: two layouts for one
+ * footer. Three ways to make open and folded read alike. The phone keeps
+ * its one row with « Se déconnecter ? ».
+ * ------------------------------------------------------------------------- */
+
+type DesktopOption = 'rows' | 'menu' | 'none'
+
+const DESKTOP_OPTIONS: {
+  value: DesktopOption
+  title: string
+  summary: string
+}[] = [
+  {
+    value: 'rows',
+    title: '1. Deux lignes (recommandé)',
+    summary:
+      'Ouvert : « Réglages », puis « Se déconnecter » en toutes lettres sur la ligne suivante, comme une entrée du menu. Replié : les deux icônes. Une ligne ouverte = une icône repliée, comme les pages.',
+  },
+  {
+    value: 'menu',
+    title: '2. Une ligne, menu replié',
+    summary:
+      'Ouvert : une ligne, le bouton à droite. Replié : la roue seule ; un clic ouvre « Réglages » / « Se déconnecter ». Déconnexion en deux clics une fois replié.',
+  },
+  {
+    value: 'none',
+    title: '3. Une ligne, rien replié',
+    summary:
+      'Ouvert : une ligne, le bouton à droite. Replié : la roue seule, pas de déconnexion (déplier le menu ou passer par Réglages).',
+  },
+]
+
+/** « Réglages » and who, the gear in its tinted square (#352, A). */
+function SettingsEntry({ folded }: { folded: boolean }) {
+  if (folded)
+    return (
+      <RailTip label="Réglages">
+        <button type="button" className={RAIL} aria-label="Réglages">
+          <Square className="size-[36px]">
+            <SettingsIcon />
+          </Square>
+        </button>
+      </RailTip>
+    )
+  return (
+    <button type="button" className={ROW}>
+      <Square>
+        <SettingsIcon />
+      </Square>
+      <span className="min-w-0 flex-1 leading-tight">
+        <span className="block font-medium">Réglages</span>
+        <span className="text-muted-foreground block text-xs">
+          {OWNER.name}
+        </span>
+      </span>
+      <ChevronRightIcon className="text-muted-foreground size-4 shrink-0" />
+    </button>
+  )
+}
+
+/** « Se déconnecter » as an icon button (options 2 and 3, open). */
+function SignOutIcon({ rail = false }: { rail?: boolean }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label="Se déconnecter"
+          className={cn(
+            rail
+              ? RAIL
+              : 'hover:bg-sidebar-accent flex size-8 shrink-0 items-center justify-center rounded-md',
+            'text-muted-foreground hover:text-foreground [&>svg]:size-[18px]',
+          )}
+        >
+          <LogOutIcon />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side={rail ? 'right' : 'top'}>
+        Se déconnecter
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+function DesktopFooterMock({
+  option,
+  folded,
+}: {
+  option: DesktopOption
+  folded: boolean
+}) {
+  // Shown open, so the picture says what a click does; a click closes it.
+  const [menuOpen, setMenuOpen] = useState(true)
+
+  let footer: ReactNode
+  if (option === 'rows') {
+    footer = folded ? (
+      <>
+        <SettingsEntry folded />
+        <SignOutIcon rail />
+      </>
+    ) : (
+      <>
+        <SettingsEntry folded={false} />
+        <button
+          type="button"
+          className={cn(ROW, 'text-muted-foreground hover:text-foreground')}
+        >
+          {/* The icon in the gear's 32px column, so both rows line up. */}
+          <span className="flex w-[32px] shrink-0 justify-center [&>svg]:size-[18px]">
+            <LogOutIcon />
+          </span>
+          Se déconnecter
+        </button>
+      </>
+    )
+  } else if (folded && option === 'menu') {
+    footer = (
+      <div className="relative">
+        <button
+          type="button"
+          className={cn(RAIL, menuOpen && 'bg-sidebar-accent')}
+          aria-label="Réglages et déconnexion"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <Square className="size-[36px]">
+            <SettingsIcon />
+          </Square>
+        </button>
+        {menuOpen && (
+          <div className="bg-popover text-popover-foreground absolute bottom-0 left-[calc(100%+0.5rem)] z-10 w-60 rounded-lg border p-1 shadow-lg">
+            <div className="text-muted-foreground px-2 py-1.5 text-xs">
+              {OWNER.name}
+            </div>
+            <div className={ROW}>
+              <SettingsIcon className="size-4" /> Réglages
+            </div>
+            <div className={ROW}>
+              <LogOutIcon className="size-4" /> Se déconnecter
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  } else if (folded) {
+    footer = <SettingsEntry folded />
+  } else {
+    footer = (
+      <div className="flex items-center gap-1">
+        <SettingsEntry folded={false} />
+        <SignOutIcon />
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        'bg-sidebar text-sidebar-foreground relative flex min-h-[540px] flex-col rounded-xl border',
+        folded ? 'w-[72px]' : 'w-[300px]',
+      )}
+    >
+      <div
+        className={cn(
+          'flex items-center gap-2 p-3 font-semibold',
+          folded && 'justify-center',
+        )}
+      >
+        <span className="bg-primary size-7 shrink-0 rounded-md" />
+        {!folded && 'Finances'}
+      </div>
+      <div className="flex-1 space-y-0.5 p-2">
+        {NAV.map(({ label, icon: Icon }) =>
+          folded ? (
+            <RailTip key={label} label={label}>
+              <span className={cn(RAIL, '[&>svg]:size-[26px]')}>
+                <Icon />
+              </span>
+            </RailTip>
+          ) : (
+            <div key={label} className={cn(ROW, '[&>svg]:size-[1.1rem]')}>
+              <Icon /> {label}
+            </div>
+          ),
+        )}
+      </div>
+      <div className="flex flex-col gap-1 border-t p-2">{footer}</div>
+    </div>
+  )
+}
+
+function DesktopOptions() {
+  return (
+    <AppScale>
+      <TooltipProvider delayDuration={200}>
+        <div className="bg-background text-foreground min-h-screen p-4">
+          <Themes>
+            <div className="flex flex-wrap items-start gap-8">
+              {DESKTOP_OPTIONS.map(({ value, title, summary }) => (
+                <figure key={value} className="w-[396px] space-y-3">
+                  <figcaption className="min-h-[7.5rem] space-y-1">
+                    <div className="text-sm font-semibold">{title}</div>
+                    <p className="text-muted-foreground text-xs text-pretty">
+                      {summary}
+                    </p>
+                  </figcaption>
+                  <div className="flex items-start gap-3">
+                    <DesktopFooterMock option={value} folded={false} />
+                    <DesktopFooterMock option={value} folded />
+                  </div>
+                </figure>
+              ))}
+            </div>
+          </Themes>
+        </div>
+      </TooltipProvider>
+    </AppScale>
+  )
+}
+
 type Story = StoryObj
 
 /** Recommended: entry A with sign-out A. Switch with the chips. */
@@ -629,4 +853,10 @@ export const EntryCWithTopBar: Story = {
 export const BeforeFooter: Story = {
   name: 'Before (#300)',
   render: () => <Before />,
+}
+
+/** The computer's footer, open and folded (feedback on PR #355). */
+export const ComputerOptions: Story = {
+  name: 'Computer: open and folded (3 options)',
+  render: () => <DesktopOptions />,
 }
