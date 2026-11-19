@@ -1,24 +1,46 @@
-import { Outlet, createFileRoute } from '@tanstack/react-router'
-import { SettingsTabs } from '#/components/app-shell/SettingsTabs'
+import {
+  Link,
+  Outlet,
+  createFileRoute,
+  useRouterState,
+} from '@tanstack/react-router'
+import { Button } from '@finances/ui'
+import { ChevronLeftIcon } from 'lucide-react'
+import { ROUTES } from '#/lib/routes'
 
 /**
- * Settings pages (pathless): Profil, Catégories and Règles keep their URLs
- * and share the tabs that switch between them, under the sidebar's one
- * « Réglages » entry (#261). The tabs stay on screen while the page
- * scrolls, just under the top bar on phones.
+ * Settings pages (pathless, #261 then #300): the Réglages list
+ * (`/settings`), its sections' screens (`/settings/…`), Catégories and
+ * Règles. Every page but the list opens with « ‹ Réglages », back to it: a
+ * stack of screens, on phones as on wide pages.
  */
 export const Route = createFileRoute('/_app/_settings')({
   component: SettingsLayout,
 })
 
 function SettingsLayout() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const isList =
+    pathname === ROUTES.settings || pathname === `${ROUTES.settings}/`
+
   return (
-    <div className="space-y-6">
-      {/* Into the page's top padding (`py-6 md:py-10` in `_app.tsx`): the
-          tabs start near the top, then stick there over the content. */}
-      <div className="bg-background sticky top-(--app-top-bar,3rem) z-10 -mt-6 pt-2 md:-mt-10 md:pt-3">
-        <SettingsTabs />
-      </div>
+    <div>
+      {!isList && (
+        // Into the page's top padding (`py-6 md:py-10` in `_app.tsx`), so
+        // the title stays where it is on the other pages.
+        <Button
+          asChild
+          variant="secondary"
+          ghost
+          size="sm"
+          className="-mt-4 mb-2 -ml-2 md:-mt-6"
+        >
+          <Link to={ROUTES.settings}>
+            <ChevronLeftIcon />
+            Réglages
+          </Link>
+        </Button>
+      )}
       <Outlet />
     </div>
   )

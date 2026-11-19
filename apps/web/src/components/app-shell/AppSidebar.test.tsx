@@ -18,7 +18,6 @@ import { AppSidebar } from './AppSidebar'
 import {
   NAV_ITEMS,
   SETTINGS_ITEM,
-  SETTINGS_TABS,
   isNavEntryActive,
   isNavItemActive,
 } from './nav-items'
@@ -78,7 +77,8 @@ async function renderAt(path: string) {
     '/import',
     '/categories',
     '/rules',
-    '/profile',
+    '/settings',
+    '/settings/security',
   ].map((p) =>
     createRoute({
       getParentRoute: () => rootRoute,
@@ -198,7 +198,7 @@ describe('AppSidebar', () => {
     const settingsLink = screen.getByRole('link', { name: 'Réglages' })
     const accountMenu = screen.getByRole('button', { name: 'Menu du compte' })
 
-    expect(settingsLink).toHaveAttribute('href', '/profile')
+    expect(settingsLink).toHaveAttribute('href', '/settings')
     // Outside the list of pages, after it and before who is signed in.
     expect(nav.queryByRole('link', { name: 'Réglages' })).toBeNull()
     expect(
@@ -213,7 +213,7 @@ describe('AppSidebar', () => {
     ).toBeTruthy()
   })
 
-  it.each(['/categories', '/rules', '/profile'])(
+  it.each(['/categories', '/rules', '/settings', '/settings/security'])(
     'highlights « Réglages » on %s',
     async (path) => {
       await renderAt(path)
@@ -225,16 +225,17 @@ describe('AppSidebar', () => {
     },
   )
 
-  it('has one settings entry, account menu open (#261)', async () => {
+  it('has one settings link, account menu open (#261, #300)', async () => {
     await renderAt('/dashboard')
     await userEvent
       .setup()
       .click(screen.getByRole('button', { name: 'Menu du compte' }))
     await screen.findByRole('menu')
 
-    // The open (modal) menu hides the rest of the page from the a11y tree.
-    expect(document.querySelectorAll('a[href="/profile"]')).toHaveLength(1)
-    for (const { to } of SETTINGS_TABS.slice(1)) {
+    // The open (modal) menu hides the rest of the page from the a11y tree;
+    // the menu's own « Réglages » is an item, not a link.
+    expect(document.querySelectorAll('a[href="/settings"]')).toHaveLength(1)
+    for (const to of ['/categories', '/rules', '/profile']) {
       expect(document.querySelectorAll(`a[href="${to}"]`)).toHaveLength(0)
     }
     for (const name of ['Catégories', 'Règles', 'Profil']) {
@@ -260,7 +261,15 @@ describe('isNavItemActive', () => {
 
 describe('isNavEntryActive', () => {
   it('matches every settings page for « Réglages »', () => {
-    for (const { to } of SETTINGS_TABS)
+    for (const to of [
+      '/settings',
+      '/settings/account',
+      '/settings/security',
+      '/settings/access',
+      '/settings/danger',
+      '/categories',
+      '/rules',
+    ])
       expect(isNavEntryActive(to, SETTINGS_ITEM)).toBe(true)
     expect(isNavEntryActive('/dashboard', SETTINGS_ITEM)).toBe(false)
   })

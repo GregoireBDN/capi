@@ -201,7 +201,7 @@ export function ChangePasswordCard({ email }: { email: string }) {
           <div className="flex justify-end">
             <Button
               type="submit"
-              className="w-full sm:w-auto"
+              className="w-full"
               loading={isSubmitting}
               disabled={!hydrated}
             >

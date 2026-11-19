@@ -198,7 +198,11 @@ const SCENARIOS: Array<Scenario> = [
   },
   { name: 'accounts', path: '/accounts' },
   { name: 'accounts-actions', path: '/accounts', step: openPageActions },
-  { name: 'profile', path: '/profile' },
+  { name: 'settings', path: '/settings' },
+  { name: 'settings-account', path: '/settings/account' },
+  { name: 'settings-security', path: '/settings/security' },
+  { name: 'settings-access', path: '/settings/access' },
+  { name: 'settings-danger', path: '/settings/danger' },
   ...['checking', 'brokerage', 'life_insurance', 'crypto'].map((type) => ({
     name: `account-${type}`,
     path: '/accounts',

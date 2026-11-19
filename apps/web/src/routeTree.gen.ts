@@ -34,6 +34,11 @@ import { Route as AppSettingsProfileRouteImport } from './routes/_app/_settings/
 import { Route as AppSettingsRulesRouteImport } from './routes/_app/_settings/rules'
 import { Route as AppAccountsIndexRouteImport } from './routes/_app/accounts.index'
 import { Route as AppAccountsAccountIdRouteImport } from './routes/_app/accounts.$accountId'
+import { Route as AppSettingsSettingsIndexRouteImport } from './routes/_app/_settings/settings.index'
+import { Route as AppSettingsSettingsAccessRouteImport } from './routes/_app/_settings/settings.access'
+import { Route as AppSettingsSettingsAccountRouteImport } from './routes/_app/_settings/settings.account'
+import { Route as AppSettingsSettingsDangerRouteImport } from './routes/_app/_settings/settings.danger'
+import { Route as AppSettingsSettingsSecurityRouteImport } from './routes/_app/_settings/settings.security'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -158,6 +163,36 @@ const AppAccountsAccountIdRoute = AppAccountsAccountIdRouteImport.update({
   path: '/accounts/$accountId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsSettingsIndexRoute =
+  AppSettingsSettingsIndexRouteImport.update({
+    id: '/settings/',
+    path: '/settings/',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsSettingsAccessRoute =
+  AppSettingsSettingsAccessRouteImport.update({
+    id: '/settings/access',
+    path: '/settings/access',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsSettingsAccountRoute =
+  AppSettingsSettingsAccountRouteImport.update({
+    id: '/settings/account',
+    path: '/settings/account',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsSettingsDangerRoute =
+  AppSettingsSettingsDangerRouteImport.update({
+    id: '/settings/danger',
+    path: '/settings/danger',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsSettingsSecurityRoute =
+  AppSettingsSettingsSecurityRouteImport.update({
+    id: '/settings/security',
+    path: '/settings/security',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -183,6 +218,11 @@ export interface FileRoutesByFullPath {
   '/rules': typeof AppSettingsRulesRoute
   '/accounts/$accountId': typeof AppAccountsAccountIdRoute
   '/accounts/': typeof AppAccountsIndexRoute
+  '/settings/access': typeof AppSettingsSettingsAccessRoute
+  '/settings/account': typeof AppSettingsSettingsAccountRoute
+  '/settings/danger': typeof AppSettingsSettingsDangerRoute
+  '/settings/security': typeof AppSettingsSettingsSecurityRoute
+  '/settings/': typeof AppSettingsSettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -208,6 +248,11 @@ export interface FileRoutesByTo {
   '/rules': typeof AppSettingsRulesRoute
   '/accounts/$accountId': typeof AppAccountsAccountIdRoute
   '/accounts': typeof AppAccountsIndexRoute
+  '/settings/access': typeof AppSettingsSettingsAccessRoute
+  '/settings/account': typeof AppSettingsSettingsAccountRoute
+  '/settings/danger': typeof AppSettingsSettingsDangerRoute
+  '/settings/security': typeof AppSettingsSettingsSecurityRoute
+  '/settings': typeof AppSettingsSettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -236,6 +281,11 @@ export interface FileRoutesById {
   '/_app/_settings/rules': typeof AppSettingsRulesRoute
   '/_app/accounts/$accountId': typeof AppAccountsAccountIdRoute
   '/_app/accounts/': typeof AppAccountsIndexRoute
+  '/_app/_settings/settings/access': typeof AppSettingsSettingsAccessRoute
+  '/_app/_settings/settings/account': typeof AppSettingsSettingsAccountRoute
+  '/_app/_settings/settings/danger': typeof AppSettingsSettingsDangerRoute
+  '/_app/_settings/settings/security': typeof AppSettingsSettingsSecurityRoute
+  '/_app/_settings/settings/': typeof AppSettingsSettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -263,6 +313,11 @@ export interface FileRouteTypes {
     | '/rules'
     | '/accounts/$accountId'
     | '/accounts/'
+    | '/settings/access'
+    | '/settings/account'
+    | '/settings/danger'
+    | '/settings/security'
+    | '/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -288,6 +343,11 @@ export interface FileRouteTypes {
     | '/rules'
     | '/accounts/$accountId'
     | '/accounts'
+    | '/settings/access'
+    | '/settings/account'
+    | '/settings/danger'
+    | '/settings/security'
+    | '/settings'
   id:
     | '__root__'
     | '/'
@@ -315,6 +375,11 @@ export interface FileRouteTypes {
     | '/_app/_settings/rules'
     | '/_app/accounts/$accountId'
     | '/_app/accounts/'
+    | '/_app/_settings/settings/access'
+    | '/_app/_settings/settings/account'
+    | '/_app/_settings/settings/danger'
+    | '/_app/_settings/settings/security'
+    | '/_app/_settings/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -504,6 +569,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAccountsAccountIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/_settings/settings/': {
+      id: '/_app/_settings/settings/'
+      path: '/settings'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AppSettingsSettingsIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/_settings/settings/access': {
+      id: '/_app/_settings/settings/access'
+      path: '/settings/access'
+      fullPath: '/settings/access'
+      preLoaderRoute: typeof AppSettingsSettingsAccessRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/_settings/settings/account': {
+      id: '/_app/_settings/settings/account'
+      path: '/settings/account'
+      fullPath: '/settings/account'
+      preLoaderRoute: typeof AppSettingsSettingsAccountRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/_settings/settings/danger': {
+      id: '/_app/_settings/settings/danger'
+      path: '/settings/danger'
+      fullPath: '/settings/danger'
+      preLoaderRoute: typeof AppSettingsSettingsDangerRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/_settings/settings/security': {
+      id: '/_app/_settings/settings/security'
+      path: '/settings/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof AppSettingsSettingsSecurityRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
   }
 }
 
@@ -511,12 +611,22 @@ interface AppSettingsRouteChildren {
   AppSettingsCategoriesRoute: typeof AppSettingsCategoriesRoute
   AppSettingsProfileRoute: typeof AppSettingsProfileRoute
   AppSettingsRulesRoute: typeof AppSettingsRulesRoute
+  AppSettingsSettingsAccessRoute: typeof AppSettingsSettingsAccessRoute
+  AppSettingsSettingsAccountRoute: typeof AppSettingsSettingsAccountRoute
+  AppSettingsSettingsDangerRoute: typeof AppSettingsSettingsDangerRoute
+  AppSettingsSettingsSecurityRoute: typeof AppSettingsSettingsSecurityRoute
+  AppSettingsSettingsIndexRoute: typeof AppSettingsSettingsIndexRoute
 }
 
 const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsCategoriesRoute: AppSettingsCategoriesRoute,
   AppSettingsProfileRoute: AppSettingsProfileRoute,
   AppSettingsRulesRoute: AppSettingsRulesRoute,
+  AppSettingsSettingsAccessRoute: AppSettingsSettingsAccessRoute,
+  AppSettingsSettingsAccountRoute: AppSettingsSettingsAccountRoute,
+  AppSettingsSettingsDangerRoute: AppSettingsSettingsDangerRoute,
+  AppSettingsSettingsSecurityRoute: AppSettingsSettingsSecurityRoute,
+  AppSettingsSettingsIndexRoute: AppSettingsSettingsIndexRoute,
 }
 
 const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(

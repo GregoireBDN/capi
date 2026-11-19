@@ -27,6 +27,10 @@ const user = {
 } as UserDto
 
 async function openMenu() {
+  return (await openMenuWithRouter()).menu
+}
+
+async function openMenuWithRouter() {
   const rootRoute = createRootRoute({
     component: () => (
       <SidebarProvider>
@@ -43,11 +47,11 @@ async function openMenu() {
   await userEvent
     .setup()
     .click(await screen.findByRole('button', { name: 'Menu du compte' }))
-  return screen.findByRole('menu')
+  return { menu: await screen.findByRole('menu'), router }
 }
 
 describe('UserMenu', () => {
-  it('holds only the theme choice and sign-out', async () => {
+  it('holds Réglages, the theme choice and sign-out', async () => {
     const menu = await openMenu()
 
     expect(
@@ -55,19 +59,17 @@ describe('UserMenu', () => {
     ).toEqual(['Clair', 'Sombre', 'Système'])
     expect(
       screen.getAllByRole('menuitem').map((item) => item.textContent),
-    ).toEqual(['Se déconnecter'])
+    ).toEqual(['Réglages', 'Se déconnecter'])
     expect(menu).toHaveTextContent('Thème')
   })
 
-  it('links to no settings page, which live under « Réglages » (#261)', async () => {
-    const menu = await openMenu()
+  it('opens the Réglages list (#300)', async () => {
+    const { router } = await openMenuWithRouter()
 
-    expect(menu.querySelectorAll('a')).toHaveLength(0)
-    for (const href of ['/profile', '/categories', '/rules']) {
-      expect(menu.querySelector(`[href="${href}"]`)).toBeNull()
-    }
-    for (const name of ['Profil', 'Catégories', 'Règles']) {
-      expect(screen.queryByText(name)).not.toBeInTheDocument()
-    }
+    await userEvent
+      .setup()
+      .click(screen.getByRole('menuitem', { name: 'Réglages' }))
+
+    expect(router.state.location.pathname).toBe('/settings')
   })
 })

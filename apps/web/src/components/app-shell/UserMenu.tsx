@@ -17,6 +17,7 @@ import {
   LogOutIcon,
   MonitorIcon,
   MoonIcon,
+  SettingsIcon,
   SunIcon,
 } from 'lucide-react'
 import type { UserDto } from '#/api/types.gen'
@@ -47,9 +48,8 @@ interface UserMenuProps {
 }
 
 /**
- * Sidebar footer: who is signed in, plus theme and logout. The settings pages
- * (Profil, Catégories, Règles) are reached from the « Réglages »
- * entry just above this menu, not from it (#261).
+ * Sidebar footer: who is signed in, then Réglages (the list of #300, also the
+ * sidebar entry just above), the theme and logout.
  */
 export function UserMenu({ user, onNavigate }: UserMenuProps) {
   const { logout } = useAuth()
@@ -93,6 +93,16 @@ export function UserMenu({ user, onNavigate }: UserMenuProps) {
             align="start"
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56"
           >
+            <DropdownMenuItem
+              onSelect={() => {
+                onNavigate?.()
+                void navigate({ to: ROUTES.settings })
+              }}
+            >
+              <SettingsIcon />
+              Réglages
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuLabel>Thème</DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={mode}
