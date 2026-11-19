@@ -71,7 +71,6 @@ async function renderAtWithRouter(path: string) {
     '/spending',
     '/transactions',
     '/transactions/$id',
-    '/review',
     '/budget',
     '/subscriptions',
     '/savings',
@@ -112,7 +111,6 @@ describe('AppSidebar', () => {
       ['Tableau de bord', '/dashboard'],
       ['Dépenses', '/spending'],
       ['Opérations', '/transactions'],
-      ['À revoir', '/review'],
       ['Budget', '/budget'],
       ['Abonnements', '/subscriptions'],
       ['Épargne', '/savings'],
@@ -166,31 +164,47 @@ describe('AppSidebar', () => {
     )
   })
 
-  it('shows the review queue size next to "À revoir"', async () => {
+  it('shows the number to review on « Opérations », opening the filter (#322)', async () => {
     reviewCountIs(7)
-    const nav = await renderAt('/dashboard')
+    const { nav, router } = await renderAtWithRouter('/dashboard')
 
-    const badge = await nav.findByTestId('nav-badge-/review')
-    expect(badge).toHaveTextContent('7 opérations à revoir')
+    const badge = await nav.findByTestId('nav-badge-/transactions')
+    expect(badge).toHaveAccessibleName('7 opérations à revoir')
     expect(reviewCount).toHaveBeenCalled()
-    // The link's own name stays "À revoir".
-    expect(nav.getByRole('link', { name: 'À revoir' })).toHaveAttribute(
+    // No « À revoir » entry any more; the item keeps its own link.
+    expect(
+      nav.queryByRole('link', { name: 'À revoir' }),
+    ).not.toBeInTheDocument()
+    expect(nav.getByRole('link', { name: 'Opérations' })).toHaveAttribute(
       'href',
-      '/review',
+      '/transactions',
     )
+
+    await userEvent.click(
+      nav.getByRole('link', { name: '7 opérations à revoir' }),
+    )
+    await vi.waitFor(() =>
+      expect(router.state.location.pathname).toBe('/transactions'),
+    )
+    expect(router.state.location.search).toEqual({
+      review: true,
+      month: 'all',
+    })
   })
 
   it('updates the badge when the queue changes and hides it when empty', async () => {
     reviewCountIs(2)
-    const nav = await renderAt('/review')
-    expect(await nav.findByTestId('nav-badge-/review')).toHaveTextContent('2')
+    const nav = await renderAt('/transactions')
+    expect(await nav.findByTestId('nav-badge-/transactions')).toHaveTextContent(
+      '2',
+    )
 
     act(() => setReviewCount(1))
-    expect(nav.getByTestId('nav-badge-/review')).toHaveTextContent(
+    expect(nav.getByTestId('nav-badge-/transactions')).toHaveAccessibleName(
       '1 opération à revoir',
     )
     act(() => setReviewCount(0))
-    expect(nav.queryByTestId('nav-badge-/review')).not.toBeInTheDocument()
+    expect(nav.queryByTestId('nav-badge-/transactions')).not.toBeInTheDocument()
   })
 
   it('shows who is signed in', async () => {

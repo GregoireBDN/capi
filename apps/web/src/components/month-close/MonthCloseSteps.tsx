@@ -148,10 +148,11 @@ function FixLink({ children, ...link }: { children: ReactNode } & LinkTarget) {
 
 type LinkTarget =
   | {
-      to:
-        | typeof ROUTES.import
-        | typeof ROUTES.review
-        | typeof ROUTES.subscriptions
+      to: typeof ROUTES.import | typeof ROUTES.subscriptions
+    }
+  | {
+      to: typeof ROUTES.transactions
+      search: { review: true; month: string }
     }
   | {
       to: typeof ROUTES.budget | typeof ROUTES.savings
@@ -253,7 +254,14 @@ function ReviewQueueStep({ review }: { review: MonthCloseDto }) {
           ? 'Toutes les opérations du mois sont rangées.'
           : `${plural(count, 'opération', 'opérations')} du mois à revoir.`}
       </p>
-      {count > 0 && <FixLink to={ROUTES.review}>Revoir</FixLink>}
+      {count > 0 && (
+        <FixLink
+          to={ROUTES.transactions}
+          search={{ review: true, month: review.month }}
+        >
+          Revoir
+        </FixLink>
+      )}
     </>
   )
 }

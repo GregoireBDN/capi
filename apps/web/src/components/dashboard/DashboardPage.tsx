@@ -34,6 +34,7 @@ import { AccountsList } from './AccountsList'
 import { CashFlowChart, ChartCardSkeleton } from './DashboardCharts'
 import { ForecastRow } from './ForecastCard'
 import { MonthEnvelopes } from './MonthEnvelopes'
+import { REVIEW_SEARCH } from '#/components/transactions/search'
 import { MonthReview } from './MonthReview'
 import {
   dashboardHistoryQuery,
@@ -45,7 +46,8 @@ import {
 function ReviewCallout({ count }: { count: number }) {
   return (
     <Link
-      to={ROUTES.review}
+      to={ROUTES.transactions}
+      search={REVIEW_SEARCH}
       className="bg-card hover:bg-muted/60 focus-visible:ring-ring flex min-h-11 items-center gap-3 rounded-xl border px-4 py-2 text-sm outline-none focus-visible:ring-2"
     >
       <InboxIcon

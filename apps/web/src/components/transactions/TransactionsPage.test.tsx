@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
@@ -35,6 +41,7 @@ const api = vi.hoisted(() => ({
   categorizationRulesControllerCreate: vi.fn(),
   categorizationRulesControllerApply: vi.fn(),
   coverageControllerCoverage: vi.fn(),
+  investmentsControllerSummary: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), {
@@ -286,6 +293,7 @@ beforeEach(() => {
   )
   api.transactionsControllerList.mockReturnValue(listOf(rows))
   api.transactionsControllerSummary.mockReturnValue(ok(summary))
+  api.investmentsControllerSummary.mockReturnValue(ok({ accounts: [] }))
   api.transactionsControllerReviewCount.mockReturnValue(ok({ count: 1 }))
   api.categorizationRulesControllerSuggest.mockReturnValue(
     ok({
@@ -1007,6 +1015,167 @@ describe('TransactionsPage', () => {
       screen.getByRole('button', { name: 'Réinitialiser les filtres' }),
     )
     expect(onChange).toHaveBeenLastCalledWith({ month: '2026-09' }, undefined)
+  })
+
+  describe('« À revoir » (#322)', () => {
+    const filed = transaction(5, {
+      bookingDate: '2026-10-12',
+      rawLabel: 'PRLV SEPA FAKE TELECOM',
+      merchant: 'Faketel',
+      amountCents: -1_999,
+      categoryId: groceries.id,
+      category: { ...groceries },
+      needsReview: true,
+    })
+    const review: TransactionsSearch = { review: true, month: 'all' }
+
+    it('counts what is left, without totals, and validates a row with undo', async () => {
+      api.transactionsControllerList.mockReturnValue(listOf([filed, shopRow]))
+      const { user } = setup(review)
+      await screen.findByText(filed.rawLabel)
+
+      expect(lastQuery(api.transactionsControllerList)).toMatchObject({
+        needsReview: true,
+      })
+      expect(lastQuery(api.transactionsControllerList)).not.toHaveProperty(
+        'month',
+      )
+      expect(screen.getByText('2 opérations à revoir')).toBeInTheDocument()
+      // No totals strip while reviewing.
+      expect(screen.queryByText('Revenus')).not.toBeInTheDocument()
+
+      // « Valider » on the filed row; the uncategorized one is filed first.
+      expect(
+        screen.queryByRole('button', { name: 'Valider Fakemart' }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Classer Fakemart' }),
+      ).toBeInTheDocument()
+
+      api.transactionsControllerUpdate.mockReturnValue(
+        ok({ ...filed, needsReview: false }),
+      )
+      api.transactionsControllerList.mockReturnValue(listOf([shopRow]))
+      await user.click(screen.getByRole('button', { name: 'Valider Faketel' }))
+
+      expect(api.transactionsControllerUpdate).toHaveBeenCalledWith({
+        path: { id: filed.id },
+        body: { needsReview: false },
+        throwOnError: false,
+      })
+      // It leaves the list at once.
+      expect(
+        screen.queryByRole('listitem', { name: 'Faketel' }),
+      ).not.toBeInTheDocument()
+      expect(screen.getByText('1 opération à revoir')).toBeInTheDocument()
+      await waitFor(() =>
+        expect(toast.success).toHaveBeenCalledWith(
+          'Opération validée',
+          expect.objectContaining({ description: 'Faketel' }),
+        ),
+      )
+
+      // « Annuler » puts it back in review, and in the list.
+      api.transactionsControllerUpdate.mockReturnValue(ok(filed))
+      api.transactionsControllerList.mockReturnValue(listOf([filed, shopRow]))
+      lastToastAction().onClick()
+      await waitFor(() =>
+        expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            path: { id: filed.id },
+            body: expect.objectContaining({ needsReview: true }),
+          }),
+        ),
+      )
+      await screen.findByRole('listitem', { name: 'Faketel' })
+    })
+
+    it('takes a row filed in a category out of the list', async () => {
+      api.transactionsControllerList.mockReturnValue(listOf([filed, shopRow]))
+      const { user } = setup(review)
+      await screen.findByText(filed.rawLabel)
+      api.transactionsControllerUpdate.mockReturnValue(
+        ok({
+          ...shopRow,
+          categoryId: groceries.id,
+          category: { ...groceries },
+          needsReview: false,
+        }),
+      )
+      api.transactionsControllerList.mockReturnValue(listOf([filed]))
+
+      // « Classer » opens the editor on the categories: two taps.
+      await user.click(screen.getByRole('button', { name: 'Classer Fakemart' }))
+      const editor = await screen.findByRole('dialog')
+      await user.click(within(editor).getByRole('button', { name: 'Courses' }))
+
+      expect(api.transactionsControllerUpdate).toHaveBeenCalledWith({
+        path: { id: shopRow.id },
+        body: { categoryId: groceries.id },
+        throwOnError: false,
+      })
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('listitem', { name: 'Fakemart' }),
+        ).not.toBeInTheDocument(),
+      )
+      // The rule offer stays.
+      expect(
+        screen.getByRole('region', { name: 'Créer une règle' }),
+      ).toBeInTheDocument()
+    })
+
+    it('validates every row at once when they all have a category', async () => {
+      const other = {
+        ...filed,
+        id: shopRow.id,
+        rawLabel: 'CB FAKE BAKERY',
+        merchant: null,
+      }
+      api.transactionsControllerList.mockReturnValue(listOf([filed, shopRow]))
+      setup(review)
+      await screen.findByText(filed.rawLabel)
+      // One row without a category: no « Tout valider ».
+      expect(
+        screen.queryByRole('button', { name: 'Tout valider' }),
+      ).not.toBeInTheDocument()
+      cleanup()
+
+      api.transactionsControllerList.mockReturnValue(listOf([filed, other]))
+      const { user } = setup(review)
+      await screen.findByText(other.rawLabel)
+      api.transactionsControllerBulkUpdate.mockReturnValue(ok({ updated: 2 }))
+      api.transactionsControllerList.mockReturnValue(listOf([]))
+
+      await user.click(screen.getByRole('button', { name: 'Tout valider' }))
+      expect(api.transactionsControllerBulkUpdate).toHaveBeenCalledWith({
+        body: { needsReview: false, ids: [filed.id, other.id] },
+        throwOnError: false,
+      })
+      await waitFor(() =>
+        expect(toast.success).toHaveBeenCalledWith(
+          '2 opérations validées',
+          expect.anything(),
+        ),
+      )
+      expect(await screen.findByText('Tout est à jour')).toBeInTheDocument()
+    })
+
+    it('says when nothing is left to review, and leads back to the list', async () => {
+      api.transactionsControllerList.mockReturnValue(listOf([]))
+      const { user, onChange } = setup({ review: true, month: '2026-10' })
+
+      await screen.findByText('Rien à revoir en octobre 2026')
+      await user.click(
+        screen.getByRole('button', { name: 'Voir toutes les dates' }),
+      )
+      expect(onChange).toHaveBeenLastCalledWith(review, undefined)
+      await screen.findByText('Tout est à jour')
+      await user.click(
+        screen.getByRole('button', { name: 'Voir les opérations' }),
+      )
+      expect(onChange).toHaveBeenLastCalledWith({}, undefined)
+    })
   })
 
   describe('editing in place (#74)', () => {

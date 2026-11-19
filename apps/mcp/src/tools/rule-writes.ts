@@ -151,7 +151,7 @@ export const createRuleTool = defineTool({
         '',
         `Opérations existantes correspondant au libellé : ${preview.matched}.`,
         args.applyToExisting
-          ? `En réappliquant les règles (applyToExisting) : ${preview.changed} opération(s) changeraient de catégorie, ${preview.leavingReview} sortiraient de « À revoir », ${preview.released} perdraient leur catégorie de règle.`
+          ? `En réappliquant les règles (applyToExisting) : ${preview.changed} opération(s) changeraient de catégorie, ${preview.leavingReview} ne seraient plus à revoir, ${preview.released} perdraient leur catégorie de règle.`
           : `Les opérations existantes ne changeraient pas (applyToExisting non demandé) ; réappliquer les règles en changerait ${preview.changed}.`,
         ...(samples.length > 0
           ? [

@@ -14,6 +14,13 @@ import { currentMonth, isMonth } from '#/lib/calendar'
 
 /** `month` value that lifts the month restriction. */
 export const ALL_MONTHS = 'all'
+/**
+ * « À revoir » (#322): the transactions to review, every date (the queue is
+ * not monthly). Where the sidebar badge, the dashboard, imports and the PWA
+ * shortcut lead; `/review` redirects here.
+ */
+export const REVIEW_SEARCH = { review: true, month: ALL_MONTHS } as const
+
 /** `category` value for transactions without a category. */
 export const UNCATEGORIZED = 'none'
 

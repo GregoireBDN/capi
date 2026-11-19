@@ -2,7 +2,6 @@ import {
   ArrowLeftRightIcon,
   BitcoinIcon,
   ChartPieIcon,
-  InboxIcon,
   LandmarkIcon,
   LayoutDashboardIcon,
   PiggyBankIcon,
@@ -21,7 +20,6 @@ export interface NavItem {
     | 'dashboard'
     | 'spending'
     | 'transactions'
-    | 'review'
     | 'budget'
     | 'subscriptions'
     | 'savings'
@@ -30,7 +28,10 @@ export interface NavItem {
     | 'import'
     | 'settings']
   icon: LucideIcon
-  /** Counter shown next to the label: the review queue size. */
+  /**
+   * Counter shown next to the label: the transactions to review, opening
+   * Opérations filtered on « À revoir » (#322).
+   */
   badge?: 'reviewCount'
   /** Other pages on which the item is shown as the current one. */
   alsoActiveOn?: readonly string[]
@@ -68,11 +69,10 @@ export function carriedMonth(
 export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Tableau de bord', to: ROUTES.dashboard, icon: LayoutDashboardIcon },
   { label: 'Dépenses', to: ROUTES.spending, icon: ChartPieIcon },
-  { label: 'Opérations', to: ROUTES.transactions, icon: ArrowLeftRightIcon },
   {
-    label: 'À revoir',
-    to: ROUTES.review,
-    icon: InboxIcon,
+    label: 'Opérations',
+    to: ROUTES.transactions,
+    icon: ArrowLeftRightIcon,
     badge: 'reviewCount',
   },
   { label: 'Budget', to: ROUTES.budget, icon: TargetIcon },

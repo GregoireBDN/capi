@@ -209,7 +209,7 @@ describe('categorize_transactions', () => {
     expect(text).toContain('APERÇU')
     expect(text).toContain('2 opération(s) changeraient')
     expect(text).toContain(
-      `CB BOULANGERIE TEST · Compte courant (id ${ID_1}) : sans catégorie → Courses (sort de « À revoir »)`,
+      `CB BOULANGERIE TEST · Compte courant (id ${ID_1}) : sans catégorie → Courses (n’est plus à revoir)`,
     )
     expect(text).toContain('Déjà dans Courses, rien à faire : 1 opération(s).')
     expect(writes()).toHaveLength(0)
@@ -794,6 +794,7 @@ describe('month-end review', () => {
     expect(calls[0]?.url.searchParams.get('needsReview')).toBe('true')
     expect(text).toContain('1 opération(s) à revoir en novembre 2026')
     expect(text).toContain(`id ${ID_1}`)
+    expect(text).toContain('Opérations, filtre « À revoir »')
   })
 
   it('budget_suggestions reads the suggestions without saving', async () => {

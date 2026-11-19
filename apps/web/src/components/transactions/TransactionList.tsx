@@ -18,6 +18,8 @@ interface TransactionListProps {
   onSelectedChange: (id: string, selected: boolean) => void
   /** Edits of one transaction (category, note, amount, split, ...). */
   actionsFor: (item: TransactionDto) => TransactionRowActions
+  /** « Valider » of a row, while the list is filtered on « À revoir ». */
+  onValidate?: (item: TransactionDto) => void
   remaining: number
   hasMore: boolean
   loadingMore: boolean
@@ -38,6 +40,7 @@ export function TransactionList({
   selected,
   onSelectedChange,
   actionsFor,
+  onValidate,
   remaining,
   hasMore,
   loadingMore,
@@ -72,18 +75,23 @@ export function TransactionList({
       {...actionsFor(item)}
       showDate={!groupByDate}
       showAccount={showAccount}
+      onValidate={onValidate && (() => onValidate(item))}
     />
   )
 
   return (
-    <div className="space-y-4">
+    <div>
       {groupByDate ? (
         groupByDay(items).map((group) => {
           const heading = formatDay(group.date)
           return (
-            <section key={group.date} aria-label={heading}>
+            <section
+              key={group.date}
+              aria-label={heading}
+              className="not-first:[&>h2]:border-t"
+            >
               {/* under the top bar (AppTopBar, h-12) when it shows */}
-              <h2 className="bg-background/95 sticky top-(--app-top-bar,3rem) z-[1] flex items-baseline justify-between gap-3 border-b px-3 py-1.5 text-xs font-medium backdrop-blur">
+              <h2 className="bg-muted/70 text-muted-foreground sticky top-(--app-top-bar,3rem) z-[1] flex items-baseline justify-between gap-3 border-b px-3 py-1.5 text-xs font-medium backdrop-blur">
                 <time dateTime={group.date}>{heading}</time>
                 {group.hasTotal && (
                   <span
@@ -94,18 +102,18 @@ export function TransactionList({
                   </span>
                 )}
               </h2>
-              <ul className="divide-y">{group.items.map(row)}</ul>
+              <ul className="divide-y px-1">{group.items.map(row)}</ul>
             </section>
           )
         })
       ) : (
-        <ul className="divide-y" aria-label="Opérations">
+        <ul className="divide-y px-1" aria-label="Opérations">
           {items.map(row)}
         </ul>
       )}
 
       {hasMore && (
-        <div ref={sentinel} className="flex justify-center">
+        <div ref={sentinel} className="flex justify-center border-t p-3">
           <Button
             outline
             variant="secondary"

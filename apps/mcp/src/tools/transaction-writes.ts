@@ -176,7 +176,7 @@ export const addTransactionTool = defineTool({
       `- ${frenchDate(date)} · ${signedEuros(signedCents)} · ${label}`,
       `- Compte : ${account.name}`,
       `- Type : ${KIND_LABELS[kind]}${kind === 'transfer' ? ' (jamais compté comme revenu ou dépense)' : ''}`,
-      `- Catégorie : ${category ? category.name : 'aucune (ira dans « À revoir »)'}`,
+      `- Catégorie : ${category ? category.name : 'aucune (à revoir dans Opérations)'}`,
       args.oneOff ? '- Ponctuelle (hors moyennes)' : null,
       args.note ? `- Note : ${args.note}` : null,
     ].filter((line): line is string => line !== null)
@@ -281,7 +281,7 @@ export const categorizeTransactionsTool = defineTool({
           : ''
       const extras = [
         t.ruleId ? 'classée par une règle' : null,
-        t.needsReview && category ? 'sort de « À revoir »' : null,
+        t.needsReview && category ? 'n’est plus à revoir' : null,
         t.splits.length > 0 && category
           ? `ventilation en ${t.splits.length} parts supprimée`
           : null,

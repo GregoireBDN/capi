@@ -137,10 +137,10 @@ const SCENARIOS: Array<Scenario> = [
     path: '/transactions?month=all',
     step: clickFirst(/^Sélectionner /, 'checkbox'),
   },
-  { name: 'review', path: '/review' },
+  { name: 'review', path: '/transactions?review=true&month=all' },
   {
     name: 'review-bulk',
-    path: '/review',
+    path: '/transactions?review=true&month=all',
     step: clickFirst(/^Sélectionner /, 'checkbox'),
   },
   { name: 'budget', path: '/budget' },

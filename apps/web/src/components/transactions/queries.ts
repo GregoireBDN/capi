@@ -1,5 +1,5 @@
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
-import type { InfiniteData, QueryClient } from '@tanstack/react-query'
+import type { InfiniteData, Query, QueryClient } from '@tanstack/react-query'
 import {
   transactionsControllerList,
   transactionsControllerSummary,
@@ -27,7 +27,8 @@ export const transactionKeys = {
 
 /**
  * Pages of transactions for the filters. Always refetched on mount
- * (`staleTime: 0`): the review queue changes transactions outside this cache.
+ * (`staleTime: 0`): other pages (entry sheet, rules, imports) change
+ * transactions outside this cache.
  */
 export function transactionListQuery(
   filters: TransactionFilters,
@@ -98,4 +99,49 @@ export function afterTransactionsChanged(queryClient: QueryClient) {
     queryKey: transactionKeys.lists,
     refetchType: 'none',
   })
+}
+
+/** Lists filtered on « À revoir » (`needsReview`). */
+const reviewLists = {
+  queryKey: transactionKeys.lists,
+  predicate: (query: Query) =>
+    (query.queryKey[2] as TransactionFilters | undefined)?.needsReview === true,
+}
+
+/**
+ * Takes transactions out of the lists filtered on « À revoir » at once
+ * (validated or filed, #322), their totals with them. The lists are
+ * refetched once the change is saved (`refetchReviewLists`), so the pages
+ * after them never skip a row.
+ */
+export function dropFromReviewLists(
+  queryClient: QueryClient,
+  ids: readonly string[],
+) {
+  const gone = new Set(ids)
+  queryClient.setQueriesData<InfiniteData<TransactionListDto>>(
+    reviewLists,
+    (data) => {
+      if (!data) return data
+      const removed = data.pages.reduce(
+        (count, page) =>
+          count + page.items.filter((item) => gone.has(item.id)).length,
+        0,
+      )
+      if (removed === 0) return data
+      return {
+        ...data,
+        pages: data.pages.map((page) => ({
+          ...page,
+          items: page.items.filter((item) => !gone.has(item.id)),
+          total: Math.max(0, page.total - removed),
+        })),
+      }
+    },
+  )
+}
+
+/** Brings the lists filtered on « À revoir » back in line with the server. */
+export function refetchReviewLists(queryClient: QueryClient) {
+  void queryClient.invalidateQueries(reviewLists)
 }
