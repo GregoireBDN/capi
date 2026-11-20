@@ -24,6 +24,11 @@ interface IncomePlanCardProps {
   plan: BudgetPlanDto
   onEdit: (line: BudgetIncomeLineDto) => void
   onAdd?: () => void
+  /**
+   * « Ajouter un revenu » is in the page's « ⋮ » (#386): the filled card
+   * leaves it out (its empty state keeps it).
+   */
+  addInPageMenu?: boolean
   onPrepare: () => void
 }
 
@@ -104,6 +109,7 @@ export function IncomePlanCard({
   plan,
   onEdit,
   onAdd,
+  addInPageMenu = false,
   onPrepare,
 }: IncomePlanCardProps) {
   const { items, totals } = income
@@ -219,7 +225,7 @@ export function IncomePlanCard({
             <PlanBalance plan={plan} />
 
             <div className="flex flex-wrap gap-2 *:grow @[672px]:*:grow-0">
-              {onAdd && (
+              {onAdd && !addInPageMenu && (
                 <Button
                   outline
                   variant="secondary"

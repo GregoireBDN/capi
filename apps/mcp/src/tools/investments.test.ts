@@ -571,6 +571,7 @@ describe('sync_crypto_holdings', () => {
       snapshot: null,
       priceApiEnabled: true,
       refreshFailed: false,
+      refreshDue: false,
       sync: null,
     })
     return {

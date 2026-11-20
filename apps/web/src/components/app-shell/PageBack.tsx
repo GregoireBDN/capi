@@ -1,4 +1,3 @@
-import { useIsMobile } from '@finances/ui'
 import { Link } from '@tanstack/react-router'
 import type { LinkProps } from '@tanstack/react-router'
 import { ChevronLeftIcon } from 'lucide-react'
@@ -17,17 +16,16 @@ export interface PageBackLink {
 /**
  * The way back from a sub-page, the one back link of the app (the owner's
  * « A », #293, kept for every page in #324: accounts and the settings
- * screens): on phones « ‹ Comptes » in the top bar, in place of the logo (the
- * menu stays); from `md` up a rounded chip above the title. The server
- * renders the chip (hidden below md); it moves into the top bar once
+ * screens): « ‹ Comptes » in the header (`AppHeader`, #386), in place of the
+ * logo on phones and after it from `md` up. The server renders it visually
+ * hidden (still reachable without JavaScript); it moves into the header once
  * hydrated, like the page actions. Render it first on the page.
  */
 export function PageBack({ label, to, params, search }: PageBackLink) {
-  const isMobile = useIsMobile()
   const slot = usePageBackSlot()
   const link = { to, params, search } as LinkProps
 
-  if (isMobile && slot !== null) {
+  if (slot !== null) {
     return createPortal(
       <Link
         {...link}
@@ -40,14 +38,12 @@ export function PageBack({ label, to, params, search }: PageBackLink) {
     )
   }
   return (
-    <div className="mb-3 flex max-md:hidden">
-      <Link
-        {...link}
-        className="bg-muted text-foreground hover:bg-muted/70 focus-visible:ring-ring/50 relative inline-flex h-9 w-fit items-center gap-1 rounded-full pr-3.5 pl-2 text-sm font-medium outline-none focus-visible:ring-[3px] pointer-coarse:touch-hitbox"
-      >
-        <ChevronLeftIcon aria-hidden className="size-4" />
-        {label}
-      </Link>
-    </div>
+    <Link
+      {...link}
+      className="focus:bg-background focus:text-primary sr-only focus:not-sr-only focus:mb-3 focus:inline-flex focus:rounded-lg focus:px-2 focus:py-1"
+    >
+      <span aria-hidden>‹ </span>
+      {label}
+    </Link>
   )
 }

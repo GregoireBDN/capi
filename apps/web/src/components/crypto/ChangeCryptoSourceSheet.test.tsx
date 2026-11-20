@@ -77,6 +77,7 @@ function holdings(list: Partial<ValuedHoldingDto>[] = []): AccountHoldingsDto {
     snapshot: null,
     priceApiEnabled: true,
     refreshFailed: false,
+    refreshDue: false,
     sync: null,
   }
 }

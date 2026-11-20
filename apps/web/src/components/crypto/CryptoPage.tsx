@@ -1,3 +1,4 @@
+import { useInShell } from '#/components/app-shell/page-actions'
 import {
   Alert,
   AlertDescription,
@@ -8,7 +9,6 @@ import {
   CardContent,
   cn,
   EmptyState,
-  Skeleton,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -40,6 +40,7 @@ import { accountLinkSearch } from '#/components/accounts/account-origin'
 import { AddCryptoSheet } from './AddCryptoSheet'
 import { AssetBadge } from './AssetBadge'
 import { holdingErrorMessage } from './errors'
+import { pricesSettling, staleShown, useLiveRefresh } from './live-refresh'
 import { formatPrice, formatPriceAge, formatQuantity } from './format'
 import {
   accountFreshness,
@@ -52,6 +53,7 @@ import {
   cryptoPortfolioQuery,
   refreshPortfolio,
 } from './queries'
+import { PortfolioSkeleton } from './skeletons'
 import { shareText, splitParts } from './wallet-assets'
 import { SplitBar, StatusLine } from './WalletAccount'
 
@@ -86,24 +88,34 @@ function withoutCostText(symbols: readonly string[]): string | null {
 function PortfolioStatus({
   data,
   refreshing,
+  live,
   now,
 }: {
   data: CryptoPortfolioDto
+  /** « Actualiser » is running. */
   refreshing: boolean
+  /** The live step after the stored values is running (#381). */
+  live: boolean
   now: Date
 }) {
   const failedWallets = data.accounts.filter(
     (account) => account.source === 'wallet' && account.sync?.failedAt,
   )
+  const syncing = data.accounts.some((account) => account.sync?.syncing)
   const { totals } = data
+  const busy = refreshing || live || syncing
   return (
     <div className="space-y-0.5">
-      {refreshing ? (
+      {busy ? (
+        // In place of the freshness line: the same height, nothing jumps.
         <StatusLine icon={<LoaderCircleIcon className="animate-spin" />}>
-          {data.walletSyncEnabled &&
+          {refreshing &&
+          data.walletSyncEnabled &&
           data.accounts.some((account) => account.source === 'wallet')
             ? 'Lecture des wallets et des cours…'
-            : 'Actualisation des cours…'}
+            : syncing && !live && !refreshing
+              ? 'Lecture des wallets…'
+              : 'Actualisation des cours…'}
         </StatusLine>
       ) : !data.priceApiEnabled ? (
         <StatusLine icon={<PencilLineIcon />}>
@@ -127,7 +139,7 @@ function PortfolioStatus({
           {`${account.name} non lu : soldes de la lecture précédente.`}
         </StatusLine>
       ))}
-      {(data.refreshFailed || totals.staleCount > 0) && (
+      {staleShown(data, busy) && (
         <StatusLine icon={<TriangleAlertIcon />} warning>
           Cours non actualisés : les derniers connus sont utilisés.
         </StatusLine>
@@ -151,10 +163,12 @@ function PortfolioStatus({
 function PortfolioSummary({
   data,
   refreshing,
+  live,
   now,
 }: {
   data: CryptoPortfolioDto
   refreshing: boolean
+  live: boolean
   now: Date
 }) {
   const id = useId()
@@ -164,7 +178,10 @@ function PortfolioSummary({
   const without = withoutCostText(totals.withoutInvestedSymbols)
   return (
     <Card role="region" aria-labelledby={id} className="min-w-0">
-      <CardContent className="@container space-y-4 pt-5">
+      <CardContent
+        className="@container space-y-4 pt-5"
+        aria-busy={refreshing || live}
+      >
         <div className="space-y-1">
           <h2 id={id} className="text-muted-foreground text-sm">
             Valeur de vos cryptos
@@ -187,7 +204,12 @@ function PortfolioSummary({
             </p>
           )}
         </div>
-        <PortfolioStatus data={data} refreshing={refreshing} now={now} />
+        <PortfolioStatus
+          data={data}
+          refreshing={refreshing}
+          live={live}
+          now={now}
+        />
         {parts.length > 1 && splitTotal > 0 && (
           <SplitBar parts={parts} totalCents={splitTotal} />
         )}
@@ -201,11 +223,14 @@ function AssetRow({
   asset,
   color,
   totalCents,
+  settling,
   now,
 }: {
   asset: PortfolioAssetDto
   color?: string
   totalCents: number
+  /** The live step is due or running: a stale price is not news yet. */
+  settling: boolean
   now: Date
 }) {
   const [open, setOpen] = useState(false)
@@ -314,7 +339,7 @@ function AssetRow({
               asset.priceSource === 'manual' ? 'cours manuel, ' : 'cours '
             }${formatPriceAge(asset.priceFetchedAt, now)}`}
             {change !== null && ` · ${changePercentText(change)} sur 24 h`}
-            {asset.priceStale && (
+            {asset.priceStale && !settling && (
               <Badge variant="warning" outline>
                 Non à jour
               </Badge>
@@ -347,7 +372,15 @@ function AssetRow({
 }
 
 /** One row per asset across every account (#295), those without price last. */
-function AssetsCard({ data, now }: { data: CryptoPortfolioDto; now: Date }) {
+function AssetsCard({
+  data,
+  settling,
+  now,
+}: {
+  data: CryptoPortfolioDto
+  settling: boolean
+  now: Date
+}) {
   const priced = data.assets.filter((asset) => asset.valueCents !== null)
   const unpriced = data.assets.filter((asset) => asset.valueCents === null)
   const total = priced.reduce((sum, asset) => sum + (asset.valueCents ?? 0), 0)
@@ -373,6 +406,7 @@ function AssetsCard({ data, now }: { data: CryptoPortfolioDto; now: Date }) {
                 asset={asset}
                 color={colors.get(asset.assetId)}
                 totalCents={total}
+                settling={settling}
                 now={now}
               />
             ))}
@@ -389,6 +423,7 @@ function AssetsCard({ data, now }: { data: CryptoPortfolioDto; now: Date }) {
                   key={asset.assetId}
                   asset={asset}
                   totalCents={total}
+                  settling={settling}
                   now={now}
                 />
               ))}
@@ -471,6 +506,7 @@ function AccountsCard({
   now: Date
   onAdd: () => void
 }) {
+  const inShell = useInShell()
   return (
     <Card role="region" aria-label="Où sont mes cryptos" className="min-w-0">
       <DashboardCardHeader title="Où sont mes cryptos" />
@@ -480,15 +516,19 @@ function AccountsCard({
             <AccountRow key={account.accountId} account={account} now={now} />
           ))}
         </ul>
-        <Button
-          className="w-full"
-          variant="secondary"
-          outline
-          iconStart={<PlusIcon />}
-          onClick={onAdd}
-        >
-          Ajouter une plateforme ou un wallet
-        </Button>
+        {/* Inside the shell, « Ajouter des cryptos » of the page's « ⋮ »
+            does it (#386). */}
+        {!inShell && (
+          <Button
+            className="w-full"
+            variant="secondary"
+            outline
+            iconStart={<PlusIcon />}
+            onClick={onAdd}
+          >
+            Ajouter une plateforme ou un wallet
+          </Button>
+        )}
       </CardContent>
     </Card>
   )
@@ -503,7 +543,15 @@ function AccountsCard({
  */
 export function CryptoPage() {
   const queryClient = useQueryClient()
+  // Stored values at once (#381; from the cache when coming back), then
+  // the live step: due prices and wallet syncs, in place.
   const portfolio = useQuery(cryptoPortfolioQuery)
+  const live = useLiveRefresh({
+    target: 'portfolio',
+    queryKey: cryptoKeys.portfolio,
+    data: portfolio.data,
+    run: () => refreshPortfolio('auto'),
+  })
   const [adding, setAdding] = useState(false)
   const now = new Date()
 
@@ -540,7 +588,8 @@ export function CryptoPage() {
         title="Crypto"
         description="Vos cryptos, toutes plateformes et wallets confondus."
         actions={
-          accounts.length === 0
+          // While the first answer comes, « Ajouter » is there already.
+          data !== undefined && accounts.length === 0
             ? []
             : [
                 ...(canRefresh
@@ -554,8 +603,9 @@ export function CryptoPage() {
                     ]
                   : []),
                 {
-                  label: 'Ajouter',
-                  icon: <PlusIcon />,
+                  // Named in full: it is an item of the page's « ⋮ » (#386).
+                  label: 'Ajouter des cryptos',
+                  icon: <CoinsIcon />,
                   primary: true,
                   onSelect: () => setAdding(true),
                 },
@@ -563,12 +613,7 @@ export function CryptoPage() {
         }
       />
 
-      {portfolio.isPending && (
-        <div className="space-y-3" aria-busy="true" aria-label="Chargement">
-          <Skeleton className="h-32 w-full rounded-xl" />
-          <Skeleton className="h-48 w-full rounded-xl" />
-        </div>
-      )}
+      {portfolio.isPending && <PortfolioSkeleton />}
 
       {portfolio.isError && (
         <Alert variant="destructive">
@@ -602,9 +647,14 @@ export function CryptoPage() {
               <PortfolioSummary
                 data={data}
                 refreshing={refresh.isPending}
+                live={live}
                 now={now}
               />
-              <AssetsCard data={data} now={now} />
+              <AssetsCard
+                data={data}
+                settling={pricesSettling(data, live || refresh.isPending)}
+                now={now}
+              />
             </>
           ) : (
             <Card>

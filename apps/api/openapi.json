@@ -6395,7 +6395,7 @@
     },
     "/api/accounts/{id}/holdings": {
       "get": {
-        "description": "When the last valuation is older than the price cache TTL, prices are refreshed first (if the price API is enabled) and today's balance snapshot is written. A failing price API never fails the request: the last known prices are used and flagged stale.",
+        "description": "From the database only (#381): no price request, no chain read. Prices older than the cache TTL are flagged stale; `refreshDue` says whether `POST .../valuate?mode=auto` would refresh something.",
         "operationId": "AccountHoldingsController_list",
         "parameters": [
           {
@@ -6503,9 +6503,22 @@
     },
     "/api/accounts/{id}/holdings/valuate": {
       "post": {
-        "description": "Asks the price API for every held asset (each at most every 15 s), values the holdings and upserts today's balance snapshot when every holding has a price. Contributions are the sum of the invested amounts when every holding has one, null otherwise.",
+        "description": "`force`: asks the price API for every held asset (each at most every 15 s). `auto` (#381): reads the wallet when its sync is due and asks the prices older than the TTL only. Then values the holdings (today's live value, never stored, #366). A failing price API or chain never fails the request.",
         "operationId": "AccountHoldingsController_valuate",
         "parameters": [
+          {
+            "name": "mode",
+            "required": false,
+            "in": "query",
+            "description": "`force` (default, « Actualiser »): everything now. `auto` (#381): what is due only, the live step a page fires after showing the stored values.",
+            "schema": {
+              "enum": [
+                "auto",
+                "force"
+              ],
+              "type": "string"
+            }
+          },
           {
             "name": "id",
             "required": true,
@@ -6542,7 +6555,7 @@
             "token": []
           }
         ],
-        "summary": "Refresh prices and write today's snapshot",
+        "summary": "Refresh prices, then today's live value",
         "tags": [
           "Crypto"
         ]
@@ -6746,7 +6759,7 @@
     },
     "/api/crypto/summary": {
       "get": {
-        "description": "Non-archived crypto accounts, valued with one batched price request (refreshed when the last valuation is older than the TTL).",
+        "description": "Non-archived crypto accounts, valued at the stored prices (database only, #381).",
         "operationId": "CryptoController_summary",
         "parameters": [],
         "responses": {
@@ -6808,7 +6821,7 @@
     },
     "/api/crypto/portfolio": {
       "get": {
-        "description": "Every open crypto account valued like `summary` (one batched price request when the last valuation is older than the TTL), its holdings summed per price id with exact quantities, value, change over 24 hours, invested and gain where known (fiat lines left out), then the accounts with when their holdings were last fed. The price API only receives asset ids.",
+        "description": "From the database only (#381): no price request, no chain read. Every open crypto account valued at the last known prices (flagged stale after the cache TTL), its holdings summed per price id with exact quantities, value, change over 24 hours, invested and gain where known (fiat lines left out), then the accounts with when their holdings were last fed. `refreshDue` says whether `POST /crypto/portfolio/refresh?mode=auto` would refresh something.",
         "operationId": "CryptoController_portfolio",
         "parameters": [],
         "responses": {
@@ -6839,9 +6852,23 @@
     },
     "/api/crypto/portfolio/refresh": {
       "post": {
-        "description": "Reads every open wallet account on chain when this server syncs wallets (each at most every 30 s; a failing chain keeps its last lines and is reported in the account's `sync`), then asks fresh prices for every held asset in one request and writes today's values. Never fails because of a chain or the price API. Session only.",
+        "description": "`force` (default): reads every open wallet account on chain when this server syncs wallets (each at most every 30 s; a failing chain keeps its last lines and is reported in the account's `sync`), then asks fresh prices for every held asset in one request. `auto` (#381, fired by the page after it shows the stored portfolio): only the wallets due a sync (waiting 5 s at most, the rest going on in the background with `sync.syncing`) and the prices older than the TTL. Then today's live values, never stored. Never fails because of a chain or the price API. Session only; the price API only receives asset ids.",
         "operationId": "CryptoController_refreshPortfolio",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "mode",
+            "required": false,
+            "in": "query",
+            "description": "`force` (default, « Actualiser »): everything now. `auto` (#381): what is due only, the live step a page fires after showing the stored values.",
+            "schema": {
+              "enum": [
+                "auto",
+                "force"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -16921,6 +16948,10 @@
             "format": "date-time",
             "nullable": true,
             "description": "When every failed chain may be asked again (latest end of their rate-limit backoffs); null when nothing waits."
+          },
+          "syncing": {
+            "type": "boolean",
+            "description": "A sync of this wallet is running on the server (one a refresh started that outlived its wait): its lines change when it ends (#381)."
           }
         },
         "required": [
@@ -16928,7 +16959,8 @@
           "syncedAt",
           "failedAt",
           "failedChains",
-          "retryAt"
+          "retryAt",
+          "syncing"
         ]
       },
       "AccountHoldingsDto": {
@@ -16953,7 +16985,7 @@
           },
           "snapshot": {
             "nullable": true,
-            "description": "Today's balance snapshot written by this request (null when none was written).",
+            "description": "Today's live value at the stored prices, never stored (#366); null while a holding has no price or the account was never valued.",
             "type": "object",
             "allOf": [
               {
@@ -16977,6 +17009,10 @@
                 "$ref": "#/components/schemas/WalletSyncStatusDto"
               }
             ]
+          },
+          "refreshDue": {
+            "type": "boolean",
+            "description": "A live refresh (`mode=auto`) would do something now (#381): a price older than the cache TTL not asked since, or a wallet due a sync. The page fires it after showing these stored values."
           }
         },
         "required": [
@@ -16987,7 +17023,8 @@
           "snapshot",
           "priceApiEnabled",
           "refreshFailed",
-          "sync"
+          "sync",
+          "refreshDue"
         ]
       },
       "SaveHoldingDto": {
@@ -17140,7 +17177,7 @@
           },
           "snapshot": {
             "nullable": true,
-            "description": "Today's balance snapshot written by this request (null when none was written).",
+            "description": "Today's live value at the stored prices, never stored (#366); null while a holding has no price or the account was never valued.",
             "type": "object",
             "allOf": [
               {
@@ -17165,6 +17202,10 @@
               }
             ]
           },
+          "refreshDue": {
+            "type": "boolean",
+            "description": "A live refresh (`mode=auto`) would do something now (#381): a price older than the cache TTL not asked since, or a wallet due a sync. The page fires it after showing these stored values."
+          },
           "name": {
             "type": "string"
           },
@@ -17182,6 +17223,7 @@
           "priceApiEnabled",
           "refreshFailed",
           "sync",
+          "refreshDue",
           "name",
           "institution"
         ]
@@ -17497,7 +17539,11 @@
           },
           "valued": {
             "type": "boolean",
-            "description": "This request wrote today's value of at least one account (net worth changed)."
+            "description": "At least one account has today's live value (every holding priced; never stored, #366)."
+          },
+          "refreshDue": {
+            "type": "boolean",
+            "description": "A live refresh (`POST /crypto/portfolio/refresh?mode=auto`) would do something now (#381): a price older than the cache TTL not asked since, or a wallet due a sync. Per-asset staleness is `assets[].priceStale`."
           }
         },
         "required": [
@@ -17508,7 +17554,8 @@
           "walletSyncEnabled",
           "refreshFailed",
           "pricesAt",
-          "valued"
+          "valued",
+          "refreshDue"
         ]
       },
       "CryptoAssetDto": {

@@ -137,7 +137,7 @@ export function RulesPage() {
         actions={[
           {
             label: 'Nouvelle règle',
-            icon: <PlusIcon />,
+            icon: <WandSparklesIcon />,
             primary: true,
             onSelect: newRule,
             disabled: !rules.isSuccess,

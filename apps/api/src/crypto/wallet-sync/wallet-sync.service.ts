@@ -121,6 +121,8 @@ export interface WalletSyncStatus {
   failedChains: ChainFailure[]
   /** When every failed chain may be asked again (latest backoff end). */
   retryAt: Date | null
+  /** A sync of this account is running (in the background, #381). */
+  syncing: boolean
 }
 
 interface Line {
@@ -232,11 +234,7 @@ export class WalletSyncService {
           isNull(a.archivedAt),
         ),
       )
-    const at = now.getTime()
-    const due = wallets.filter(({ id }) => {
-      const last = this.attempts.get(id)
-      return last === undefined || at - last >= this.options.intervalMs
-    })
+    const due = wallets.filter(({ id }) => this.syncDueFor(id, now))
     if (due.length === 0) return
     const work = (async () => {
       for (const { id } of due) await this.run(id, now, 'background')
@@ -255,6 +253,16 @@ export class WalletSyncService {
           )
         })
     }
+  }
+
+  /**
+   * Whether `syncDue` would read this wallet account (#381): sync on, no
+   * sync running, the last attempt older than the interval. Memory only.
+   */
+  syncDueFor(accountId: string, now: Date): boolean {
+    if (!this.enabled || this.inFlight.has(accountId)) return false
+    const last = this.attempts.get(accountId)
+    return last === undefined || now.getTime() - last >= this.options.intervalMs
   }
 
   /**
@@ -314,6 +322,7 @@ export class WalletSyncService {
             // In memory only, and stale once a sync read every chain.
             failedChains: row.failedAt ? failedChains : [],
             retryAt: row.failedAt ? retryAt : null,
+            syncing: this.inFlight.has(row.id),
           },
         ]
       }),

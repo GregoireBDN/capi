@@ -1,3 +1,4 @@
+import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   Button,
   Card,
@@ -6,9 +7,10 @@ import {
   CardHeader,
   CardTitle,
   Skeleton,
+  cn,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
-import { PlusIcon } from 'lucide-react'
+import { PlusIcon, TagIcon } from 'lucide-react'
 import { useState } from 'react'
 import type { CategoryDto, TransactionKind } from '#/api/types.gen'
 import { PageHeader } from '#/components/app-shell/PageHeader'
@@ -124,9 +126,17 @@ export function CategoriesPage() {
   const all = categories.data ?? []
   const active = all.filter((category) => !category.archivedAt)
   const archived = all.filter((category) => category.archivedAt)
+  // In the page's « ⋮ » inside the shell (#386), not a bar at the bottom.
+  const inMenu = useRegisterPageAction({
+    label: 'Ajouter une catégorie',
+    icon: <TagIcon />,
+    primary: true,
+    disabled: !categories.isSuccess,
+    onSelect: () => setAdding(true),
+  })
 
   return (
-    <div className="@container space-y-6 pb-24">
+    <div className={cn('@container space-y-6', !inMenu && 'pb-24')}>
       <PageHeader
         title="Catégories"
         description="Touchez un nom pour le renommer, son icône pour changer sa couleur et son icône. Une catégorie archivée n’est plus proposée mais garde son historique."
@@ -170,19 +180,21 @@ export function CategoriesPage() {
         </div>
       )}
 
-      <div
-        data-sticky-bottom-bar
-        className="sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex justify-end"
-      >
-        <Button
-          className="w-full shadow-lg sm:w-auto"
-          onClick={() => setAdding(true)}
-          disabled={!categories.isSuccess}
+      {!inMenu && (
+        <div
+          data-sticky-bottom-bar
+          className="sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex justify-end"
         >
-          <PlusIcon />
-          Ajouter une catégorie
-        </Button>
-      </div>
+          <Button
+            className="w-full shadow-lg sm:w-auto"
+            onClick={() => setAdding(true)}
+            disabled={!categories.isSuccess}
+          >
+            <PlusIcon />
+            Ajouter une catégorie
+          </Button>
+        </div>
+      )}
 
       <AddCategorySheet open={adding} onOpenChange={setAdding} />
       <DeleteCategoryDialog

@@ -1,3 +1,4 @@
+import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   Alert,
   AlertDescription,
@@ -16,11 +17,12 @@ import {
   EmptyHeader,
   EmptyTitle,
   formatWholeEuros,
-  Skeleton,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ChevronRightIcon,
+  CoinsIcon,
+  LoaderCircleIcon,
   PlusIcon,
   RefreshCwIcon,
   Trash2Icon,
@@ -40,6 +42,7 @@ import { holdingErrorMessage } from './errors'
 import { formatPriceAge, formatQuantity } from './format'
 import { AssetBadge } from './AssetBadge'
 import { HoldingEditor } from './HoldingEditor'
+import { pricesSettling, staleShown, useLiveRefresh } from './live-refresh'
 import {
   afterHoldingsChanged,
   cryptoKeys,
@@ -47,6 +50,7 @@ import {
   refreshPrices,
   removeHolding,
 } from './queries'
+import { RowsCardSkeleton } from './skeletons'
 import { DERIVED_ORIGIN_LABELS, isContractAsset } from './sources'
 
 const signedWholeEuros = new Intl.NumberFormat('fr-FR', {
@@ -104,7 +108,14 @@ function holdingPlace(
 }
 
 /** What ends the second line: the gain, or why there is no value. */
-function HoldingStatus({ holding }: { holding: ValuedHoldingDto }) {
+function HoldingStatus({
+  holding,
+  settling,
+}: {
+  holding: ValuedHoldingDto
+  /** The live step is due or running: a stale price is not news yet. */
+  settling: boolean
+}) {
   if (holding.priceEur === null) {
     // A token added by its contract has no price to look up (#269).
     return isContractAsset(holding.assetId) ? (
@@ -115,7 +126,7 @@ function HoldingStatus({ holding }: { holding: ValuedHoldingDto }) {
       </span>
     )
   }
-  if (holding.priceStale) {
+  if (holding.priceStale && !settling) {
     return (
       <span className="text-warning-foreground dark:text-warning shrink-0">
         non à jour
@@ -145,10 +156,12 @@ function HoldingStatus({ holding }: { holding: ValuedHoldingDto }) {
 function HoldingRow({
   holding,
   mixed,
+  settling,
 }: {
   holding: ValuedHoldingDto
   /** The list holds both derived and manual lines. */
   mixed: boolean
+  settling: boolean
 }) {
   // The badge and the quantity say which coin: the first line says where
   // it is held when that tells two lines apart, else the coin's name.
@@ -177,7 +190,7 @@ function HoldingRow({
           <span className="min-w-0 flex-1 truncate tabular-nums">
             {details}
           </span>
-          <HoldingStatus holding={holding} />
+          <HoldingStatus holding={holding} settling={settling} />
         </span>
       </span>
     </>
@@ -187,12 +200,18 @@ function HoldingRow({
 /** Prices not refreshed, or holdings without a price. */
 export function PriceAlerts({
   refreshFailed,
+  refreshDue = false,
+  refreshing = false,
   totals,
 }: {
   refreshFailed: boolean
+  /** A live refresh is due (#381): stale prices are not news yet. */
+  refreshDue?: boolean
+  /** A refresh is running. */
+  refreshing?: boolean
   totals: HoldingsTotalsDto
 }) {
-  const stale = refreshFailed || totals.staleCount > 0
+  const stale = staleShown({ refreshDue, refreshFailed, totals }, refreshing)
   return (
     <>
       {stale && (
@@ -231,8 +250,11 @@ export function HoldingList({
   onEdit,
   onDelete,
   label = 'Avoirs',
+  settling = false,
 }: {
   holdings: readonly ValuedHoldingDto[]
+  /** The live step is due or running (#381). */
+  settling?: boolean
   onEdit?: (holding: ValuedHoldingDto) => void
   /** Lines typed by hand that can only be deleted (on a wallet, #269). */
   onDelete?: (holding: ValuedHoldingDto) => void
@@ -259,7 +281,11 @@ export function HoldingList({
                 onClick={() => onEdit(holding)}
                 className={cn(ROW_BUTTON, row)}
               >
-                <HoldingRow holding={holding} mixed={mixed} />
+                <HoldingRow
+                  holding={holding}
+                  mixed={mixed}
+                  settling={settling}
+                />
                 <ChevronRightIcon
                   aria-hidden
                   className="text-muted-foreground size-4 shrink-0"
@@ -267,7 +293,11 @@ export function HoldingList({
               </button>
             ) : onDelete && holding.origin === 'manual' ? (
               <div className={row}>
-                <HoldingRow holding={holding} mixed={mixed} />
+                <HoldingRow
+                  holding={holding}
+                  mixed={mixed}
+                  settling={settling}
+                />
                 <Button
                   size="sm"
                   iconOnly
@@ -281,7 +311,11 @@ export function HoldingList({
               </div>
             ) : (
               <div className={row}>
-                <HoldingRow holding={holding} mixed={mixed} />
+                <HoldingRow
+                  holding={holding}
+                  mixed={mixed}
+                  settling={settling}
+                />
               </div>
             )}
           </li>
@@ -308,12 +342,27 @@ export function HoldingsPanel({
   source?: CryptoAccountSource
 }) {
   const queryClient = useQueryClient()
+  // Stored lines and prices at once (#381), then the live step: the prices
+  // older than the TTL, in place.
   const holdings = useQuery(holdingsQuery(accountId))
+  const live = useLiveRefresh({
+    target: accountId,
+    queryKey: cryptoKeys.holdings(accountId),
+    data: holdings.data,
+    run: () => refreshPrices(accountId, 'auto'),
+  })
   const [editor, setEditor] = useState<EditorState>({ open: false })
   const [deleting, setDeleting] = useState<ValuedHoldingDto>()
   const now = new Date()
   // A wallet's holdings come from the chain: nothing is typed there (#269).
   const wallet = source === 'wallet'
+  const openAdd = () => setEditor({ open: true })
+  // In the page's « ⋮ » inside the shell (#386).
+  const inMenu = useRegisterPageAction(
+    writable && !wallet
+      ? { label: 'Ajouter un avoir', icon: <CoinsIcon />, onSelect: openAdd }
+      : null,
+  )
 
   // Fresh prices or lines: the summary and the curve's live point follow.
   useEffect(() => {
@@ -348,7 +397,9 @@ export function HoldingsPanel({
 
   if (holdings.isPending) {
     return (
-      <Skeleton className="h-48 w-full rounded-xl" aria-label="Chargement" />
+      <div role="status" aria-busy="true" aria-label="Chargement des avoirs">
+        <RowsCardSkeleton title="Avoirs" rows={3} />
+      </div>
     )
   }
   if (holdings.isError) {
@@ -367,25 +418,38 @@ export function HoldingsPanel({
   const data = holdings.data
   const { totals } = data
   const priceAge = oldestPriceAge(data.holdings, now)
-  const openAdd = () => setEditor({ open: true })
+  const refreshing = live || refresh.isPending
+  const settling = pricesSettling(data, refreshing)
 
   return (
     <section aria-label="Avoirs crypto" className="space-y-3">
-      <PriceAlerts refreshFailed={data.refreshFailed} totals={totals} />
+      <PriceAlerts
+        refreshFailed={data.refreshFailed}
+        refreshDue={data.refreshDue}
+        refreshing={refreshing}
+        totals={totals}
+      />
 
       <Card className="min-w-0">
         <CardHeader>
           <CardTitle>Avoirs</CardTitle>
-          <CardDescription>
+          <CardDescription aria-live="polite">
             {[
               wallet ? 'Lus sur la blockchain' : null,
               data.priceApiEnabled
                 ? 'Cours mis à jour automatiquement'
                 : 'Cours saisis à la main',
-              priceAge,
+              // In place of the price age while the prices are asked.
+              live ? 'actualisation…' : priceAge,
             ]
               .filter(Boolean)
               .join(' · ')}
+            {live && (
+              <LoaderCircleIcon
+                aria-hidden
+                className="ml-1.5 inline size-3.5 animate-spin align-[-0.125em]"
+              />
+            )}
           </CardDescription>
           {writable && !wallet && data.holdings.length > 0 && (
             <div className="grid gap-2 pt-2 @md:grid-cols-2 @2xl:flex">
@@ -401,9 +465,11 @@ export function HoldingsPanel({
                   Actualiser les cours
                 </Button>
               )}
-              <Button size="sm" iconStart={<PlusIcon />} onClick={openAdd}>
-                Ajouter un avoir
-              </Button>
+              {!inMenu && (
+                <Button size="sm" iconStart={<PlusIcon />} onClick={openAdd}>
+                  Ajouter un avoir
+                </Button>
+              )}
             </div>
           )}
         </CardHeader>
@@ -446,6 +512,7 @@ export function HoldingsPanel({
           ) : (
             <HoldingList
               holdings={data.holdings}
+              settling={settling}
               onEdit={
                 writable && !wallet
                   ? (holding) => setEditor({ open: true, holding })

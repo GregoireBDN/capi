@@ -1,3 +1,4 @@
+import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   AreaChart,
   Badge,
@@ -89,6 +90,8 @@ import {
 } from './wallet-assets'
 import type { Range, SplitPart, WalletAsset } from './wallet-assets'
 import { chainFailureText } from './wallet-sync-status'
+import { pricesSettling, staleShown, useLiveRefresh } from './live-refresh'
+import { RowsCardSkeleton, ValueCardSkeleton } from './skeletons'
 
 /**
  * « Actualiser » of a wallet account (#269): reads the chains (when the
@@ -160,22 +163,30 @@ export function StatusLine({
 function WalletStatusLines({
   data,
   refreshing,
+  live,
   now,
 }: {
   data: AccountHoldingsDto
+  /** « Actualiser » is running. */
   refreshing: boolean
+  /** The live step after the stored values is running (#381). */
+  live: boolean
   now: Date
 }) {
   const sync = data.sync
   const failed = syncFailed(data)
   const failures = failed && sync ? sync.failedChains : []
   const { totals } = data
+  // A sync the live step left running in the background (#381).
+  const syncing = sync?.syncing ?? false
+  const busy = refreshing || live || syncing
 
   let freshness: ReactNode
-  if (refreshing) {
+  if (busy) {
+    // In place of the freshness line: the same height, nothing jumps.
     freshness = (
       <StatusLine icon={<LoaderCircleIcon className="animate-spin" />}>
-        {!sync?.enabled
+        {!sync?.enabled || (live && !refreshing && !syncing)
           ? 'Actualisation des cours…'
           : sync.syncedAt === null
             ? 'Premier scan de vos clés : il peut prendre quelques minutes.'
@@ -227,7 +238,7 @@ function WalletStatusLines({
           ))}
         </ul>
       )}
-      {(data.refreshFailed || totals.staleCount > 0) && (
+      {staleShown(data, busy) && (
         <StatusLine icon={<TriangleAlertIcon />} warning>
           Cours non actualisés : les derniers connus sont utilisés.
         </StatusLine>
@@ -311,6 +322,7 @@ function AssetRow({
   color,
   totalCents,
   mixed,
+  settling,
   now,
   onDelete,
 }: {
@@ -319,6 +331,8 @@ function AssetRow({
   totalCents: number
   /** The wallet holds lines typed by hand beside the synced ones. */
   mixed: boolean
+  /** The live step is due or running: a stale price is not news yet. */
+  settling: boolean
   now: Date
   /** Lines typed by hand can only be deleted (#269). */
   onDelete?: (line: ValuedHoldingDto) => void
@@ -430,7 +444,7 @@ function AssetRow({
         {price && (
           <p className="flex flex-wrap items-center gap-1.5 tabular-nums">
             {price}
-            {asset.priced?.priceStale && (
+            {asset.priced?.priceStale && !settling && (
               <Badge variant="warning" outline>
                 Non à jour
               </Badge>
@@ -465,12 +479,14 @@ function WalletHoldings({
   data,
   assets,
   writable,
+  settling,
   now,
 }: {
   accountId: string
   data: AccountHoldingsDto
   assets: readonly WalletAsset[]
   writable: boolean
+  settling: boolean
   now: Date
 }) {
   const queryClient = useQueryClient()
@@ -506,6 +522,7 @@ function WalletHoldings({
   const rowProps = {
     totalCents: total,
     mixed,
+    settling,
     now,
     onDelete: writable ? setDeleting : undefined,
   }
@@ -896,6 +913,16 @@ function WalletSettings({
   const [adding, setAdding] = useState(false)
   const isMobile = useIsMobile()
   const list = keys.data ?? []
+  // In the page's « ⋮ » inside the shell (#386).
+  const inMenu = useRegisterPageAction(
+    writable
+      ? {
+          label: 'Ajouter une clé',
+          icon: <KeyRoundIcon />,
+          onSelect: () => setAdding(true),
+        }
+      : null,
+  )
   const evmChains = [
     ...new Set(
       list.filter((key) => key.family === 'evm').flatMap((key) => key.chains),
@@ -958,7 +985,7 @@ function WalletSettings({
             </ItemListGroup>
           </ItemList>
         )}
-        {writable && (
+        {writable && !inMenu && (
           <Button
             className="w-full"
             outline
@@ -1053,7 +1080,15 @@ export function WalletAccount({
   onEditInvested: () => void
 }) {
   const queryClient = useQueryClient()
+  // Stored balances and prices at once (#381), then the live step: the
+  // chains when due, the prices older than the TTL, in place.
   const holdings = useQuery(holdingsQuery(account.id))
+  const live = useLiveRefresh({
+    target: account.id,
+    queryKey: cryptoKeys.holdings(account.id),
+    data: holdings.data,
+    run: () => refreshPrices(account.id, 'auto'),
+  })
   const now = new Date()
 
   // Fresh prices or balances: the summary and the curve's live point follow.
@@ -1067,9 +1102,14 @@ export function WalletAccount({
 
   if (holdings.isPending) {
     return (
-      <div className="space-y-6" aria-busy="true" aria-label="Chargement">
-        <Skeleton className="h-36 w-full rounded-xl" />
-        <Skeleton className="h-48 w-full rounded-xl" />
+      <div
+        className="space-y-6"
+        role="status"
+        aria-busy="true"
+        aria-label="Chargement du wallet"
+      >
+        <ValueCardSkeleton label="Valeur du wallet" bar={false} />
+        <RowsCardSkeleton title="Avoirs" rows={3} />
       </div>
     )
   }
@@ -1101,7 +1141,12 @@ export function WalletAccount({
         label="Valeur du wallet"
         valueCents={nothingRead ? null : data.totals.valueCents}
         status={
-          <WalletStatusLines data={data} refreshing={refreshing} now={now} />
+          <WalletStatusLines
+            data={data}
+            refreshing={refreshing}
+            live={live}
+            now={now}
+          />
         }
         onEditInvested={onEditInvested}
       />
@@ -1110,6 +1155,7 @@ export function WalletAccount({
         data={data}
         assets={assets}
         writable={writable}
+        settling={pricesSettling(data, live || refreshing)}
         now={now}
       />
       {/* Bank → exchange → Ledger, with the cost the coins left with (#296). */}

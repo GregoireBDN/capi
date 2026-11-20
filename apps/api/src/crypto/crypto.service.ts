@@ -48,8 +48,14 @@ const s = balanceSnapshotsTable
 
 type CryptoAccount = Pick<
   SelectAccount,
-  'id' | 'name' | 'institution' | 'archivedAt'
+  'id' | 'name' | 'institution' | 'archivedAt' | 'cryptoSource'
 >
+
+/**
+ * A live refresh (#381): `auto` does what is due (prices older than the TTL,
+ * wallets not read within their interval), `force` everything (« Actualiser »).
+ */
+export type LiveRefreshMode = 'auto' | 'force'
 
 function toHoldingDto(row: SelectCryptoHolding): HoldingDto {
   return {
@@ -80,6 +86,7 @@ function syncStatusDto(
       retryAt: failure.retryAt?.toISOString() ?? null,
     })),
     retryAt: status.retryAt?.toISOString() ?? null,
+    syncing: status.syncing,
   }
 }
 
@@ -108,14 +115,17 @@ function isUniqueViolation(error: unknown): boolean {
  * prices) and stores nothing (#366): its stored values are the `computed`
  * points of the daily close (`CryptoDailyCloseService`), one per day, which
  * balances, performance and the net worth read through the usual snapshot
- * path. Prices are refreshed when an account is read and its last
- * valuation is older than the price TTL, and on demand.
+ * path.
+ *
+ * Reads (`holdings`, `portfolio`, `summary`) answer from the database only
+ * (#381): stored holdings, last known prices (flagged stale after the TTL),
+ * last sync times, and `refreshDue` when a live refresh would do something.
+ * The network (prices, wallet chains) is only asked by the refreshes, which
+ * the pages fire after their first render (`auto`) or on « Actualiser »
+ * (`force`).
  */
 @Injectable()
 export class CryptoService {
-  /** Last price refresh per account (epoch ms), for the automatic one. */
-  private readonly valuedAt = new Map<string, number>()
-
   constructor(
     private readonly database: DatabaseService,
     private readonly accounts: AccountsService,
@@ -132,9 +142,7 @@ export class CryptoService {
     now: Date = new Date(),
   ): Promise<AccountHoldingsDto> {
     const account = await this.cryptoAccount(accountId)
-    const due =
-      account.archivedAt === null && this.valuationDue(account.id, now)
-    const [result] = await this.valuate([account], due ? 'auto' : 'none', now)
+    const [result] = await this.valuate([account], 'none', now)
     return result
   }
 
@@ -153,13 +161,18 @@ export class CryptoService {
     return result.snapshot
   }
 
-  /** "Actualiser les cours": fresh prices, then today's live value. */
+  /**
+   * "Actualiser les cours" (`force`), or the live step a page fires after
+   * showing the stored values (`auto`, #381: the wallet's sync and the
+   * prices only when due), then today's live value.
+   */
   async refresh(
     accountId: string,
     now: Date = new Date(),
+    mode: LiveRefreshMode = 'force',
   ): Promise<AccountHoldingsDto> {
     const account = await this.writableCryptoAccount(accountId)
-    const [result] = await this.valuate([account], 'force', now)
+    const [result] = await this.valuate([account], mode, now)
     return result
   }
 
@@ -284,9 +297,9 @@ export class CryptoService {
     }
   }
 
-  /** Every non-archived crypto account, valued with one batched price fetch. */
+  /** Every non-archived crypto account, valued at the stored prices. */
   summary(now: Date = new Date()): Promise<CryptoSummaryDto> {
-    return this.summarize(false, now)
+    return this.summarize('none', now)
   }
 
   /**
@@ -294,24 +307,32 @@ export class CryptoService {
    * request, then today's live value of each account.
    */
   refreshAll(now: Date = new Date()): Promise<CryptoSummaryDto> {
-    return this.summarize(true, now)
+    return this.summarize('force', now)
   }
 
   /**
    * The Crypto page (#295): every open crypto account's holdings summed per
-   * asset, then the accounts with how fresh they are. Valued like `summary`.
+   * asset, then the accounts with how fresh they are. From the database
+   * only (#381): no price request, no chain read.
    */
   portfolio(now: Date = new Date()): Promise<CryptoPortfolioDto> {
-    return this.buildPortfolio(false, now)
+    return this.buildPortfolio('none', now)
   }
 
   /**
-   * The section's one « Actualiser » (#295): reads every wallet on chain
-   * (when this server syncs wallets; each at most every 30 s), then fresh
-   * prices for every account and today's live values.
+   * The section's one « Actualiser » (#295, `force`): reads every wallet on
+   * chain (when this server syncs wallets; each at most every 30 s), then
+   * fresh prices for every account and today's live values. `auto` (#381) is
+   * the live step the page fires after showing the stored values: the
+   * wallets due a sync (waiting `BACKGROUND_SYNC_WAIT_MS` at most, the rest
+   * going on in the background, `sync.syncing`) and the prices older than
+   * the TTL.
    */
-  async refreshPortfolio(now: Date = new Date()): Promise<CryptoPortfolioDto> {
-    if (this.walletSync.enabled) {
+  async refreshPortfolio(
+    now: Date = new Date(),
+    mode: LiveRefreshMode = 'force',
+  ): Promise<CryptoPortfolioDto> {
+    if (mode === 'force' && this.walletSync.enabled) {
       const wallets = await this.db
         .select({ id: accountsTable.id })
         .from(accountsTable)
@@ -325,14 +346,14 @@ export class CryptoService {
       for (const wallet of wallets)
         await this.walletSync.syncNow(wallet.id, now)
     }
-    return this.buildPortfolio(true, now)
+    return this.buildPortfolio(mode, now)
   }
 
   private async buildPortfolio(
-    force: boolean,
+    mode: RefreshMode,
     now: Date,
   ): Promise<CryptoPortfolioDto> {
-    const { accounts, rows } = await this.valueOpenAccounts(force, now)
+    const { accounts, rows } = await this.valueOpenAccounts(mode, now)
     const invested = await this.accountInvested(
       accounts.map((account) => account.id),
       parisToday(now),
@@ -380,6 +401,7 @@ export class CryptoService {
       refreshFailed: rows.some((row) => row.refreshFailed),
       pricesAt,
       valued: rows.some((row) => row.snapshot !== null),
+      refreshDue: rows.some((row) => row.refreshDue),
     }
   }
 
@@ -419,7 +441,7 @@ export class CryptoService {
     return result
   }
 
-  private async valueOpenAccounts(force: boolean, now: Date) {
+  private async valueOpenAccounts(mode: RefreshMode, now: Date) {
     const accounts = await this.db
       .select()
       .from(accountsTable)
@@ -431,18 +453,15 @@ export class CryptoService {
         asc(accountsTable.createdAt),
         asc(accountsTable.id),
       )
-    const due =
-      force || accounts.some((account) => this.valuationDue(account.id, now))
-    const mode: RefreshMode = force ? 'force' : due ? 'auto' : 'none'
     const rows = await this.valuate(accounts, mode, now)
     return { accounts, rows }
   }
 
   private async summarize(
-    force: boolean,
+    mode: RefreshMode,
     now: Date,
   ): Promise<CryptoSummaryDto> {
-    const { accounts, rows } = await this.valueOpenAccounts(force, now)
+    const { accounts, rows } = await this.valueOpenAccounts(mode, now)
 
     let invested = 0
     let investedKnown = rows.length > 0
@@ -508,7 +527,6 @@ export class CryptoService {
     // A valuation that refreshes prices first reads the wallets due a sync;
     // one that outlives the wait fetches the prices of what it found.
     if (mode !== 'none') {
-      for (const id of ids) this.valuedAt.set(id, now.getTime())
       await this.walletSync.syncDue(ids, now, (late) =>
         this.pricesAfterSync(late, now),
       )
@@ -588,6 +606,16 @@ export class CryptoService {
         priceApiEnabled: this.prices.enabled,
         refreshFailed,
         sync: syncStatusDto(syncStatuses.get(account.id)),
+        // What a live refresh would do now (#381), known without asking.
+        refreshDue:
+          account.archivedAt === null &&
+          ((account.cryptoSource === 'wallet' &&
+            this.walletSync.syncDueFor(account.id, now)) ||
+            this.prices.refreshDue(
+              holdings.map((row) => row.assetId),
+              quotes,
+              now,
+            )),
       })
     }
     return results
@@ -659,11 +687,6 @@ export class CryptoService {
       .from(s)
       .where(inArray(s.accountId, [...ids]))
     return new Set(rows.map((row) => row.accountId))
-  }
-
-  private valuationDue(accountId: string, now: Date): boolean {
-    const last = this.valuedAt.get(accountId)
-    return last === undefined || now.getTime() - last > this.prices.ttlMs
   }
 
   private values(dto: SaveHoldingDto) {

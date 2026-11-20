@@ -31,6 +31,7 @@ const sync = (patch: Partial<NonNullable<PortfolioAccountDto['sync']>>) => ({
   failedAt: null,
   failedChains: [],
   retryAt: null,
+  syncing: false,
   ...patch,
 })
 
@@ -80,6 +81,19 @@ describe('accountFreshness', () => {
         NOW,
       ).warning,
     ).toBe('à mettre à jour')
+  })
+
+  it('says a wallet is being read while its sync runs (#381)', () => {
+    expect(
+      accountFreshness(
+        account({
+          source: 'wallet',
+          updatedAt: '2026-11-19T09:54:00Z',
+          sync: sync({ syncedAt: '2026-11-19T09:54:00Z', syncing: true }),
+        }),
+        NOW,
+      ),
+    ).toEqual({ text: 'Wallet · lecture en cours…', warning: null })
   })
 
   it('says when a wallet was read, or why not', () => {

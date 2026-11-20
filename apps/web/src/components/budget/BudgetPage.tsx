@@ -1,3 +1,4 @@
+import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   Alert,
   AlertDescription,
@@ -12,7 +13,12 @@ import {
   Skeleton,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
-import { PlusIcon, SparklesIcon, TargetIcon } from 'lucide-react'
+import {
+  BanknoteArrowUpIcon,
+  PlusIcon,
+  SparklesIcon,
+  TargetIcon,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { currentMonth, formatMonth } from '#/lib/calendar'
@@ -96,6 +102,28 @@ export function BudgetPage({
   }, [budget.data, categories.data])
 
   const empty = budget.isSuccess && budget.data.items.length === 0
+  // The page's « add » are in its « ⋮ » (#386): a budget line, a planned
+  // income.
+  const inMenu = useRegisterPageAction(
+    budget.isSuccess && !empty
+      ? {
+          label: 'Ajouter un budget',
+          icon: <TargetIcon />,
+          primary: true,
+          disabled: available.expense.length === 0,
+          onSelect: () => setEditor({ open: true, kind: 'expense' }),
+        }
+      : null,
+  )
+  useRegisterPageAction(
+    budget.isSuccess && available.income.length > 0
+      ? {
+          label: 'Ajouter un revenu',
+          icon: <BanknoteArrowUpIcon />,
+          onSelect: () => setEditor({ open: true, kind: 'income' }),
+        }
+      : null,
+  )
   // The default month stays out of the URL.
   const go = (target: string) =>
     onMonthChange(
@@ -126,13 +154,15 @@ export function BudgetPage({
               >
                 Proposer
               </Button>
-              <Button
-                iconStart={<PlusIcon />}
-                disabled={available.expense.length === 0}
-                onClick={() => setEditor({ open: true, kind: 'expense' })}
-              >
-                Ajouter
-              </Button>
+              {!inMenu && (
+                <Button
+                  iconStart={<PlusIcon />}
+                  disabled={available.expense.length === 0}
+                  onClick={() => setEditor({ open: true, kind: 'expense' })}
+                >
+                  Ajouter
+                </Button>
+              )}
             </div>
           )
         }
@@ -157,6 +187,7 @@ export function BudgetPage({
           income={budget.data.income}
           plan={budget.data.plan}
           onPrepare={() => setPrepareOpen(true)}
+          addInPageMenu={inMenu}
           onAdd={
             available.income.length > 0
               ? () => setEditor({ open: true, kind: 'income' })

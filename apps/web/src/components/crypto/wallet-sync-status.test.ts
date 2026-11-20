@@ -18,6 +18,7 @@ const failed: WalletSyncStatusDto = {
     { chain: 'bsc', reason: 'rate_limited', retryAt: '2026-11-07T08:00:00Z' },
   ],
   retryAt: '2026-11-07T08:00:00Z',
+  syncing: false,
 }
 
 describe('wallet sync status texts', () => {
