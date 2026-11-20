@@ -2,7 +2,7 @@
 
 Audit of the PostgreSQL model against the product's needs (#362, 20/11/2026). It describes the model as it is on `main` after migration `0034_prepaid_subscriptions`, maps the needs onto it and ranks what strains. The target model and the migration path are in [ADR 0005](../adr/0005-data-model-consolidation.md).
 
-**Since the audit.** #367 (R3, R4, R7, migration `0038_db_hygiene`) moved the rules marked « code » below into check constraints, added the generated bank columns and their index, and turned every time stamp into `timestamptz` with `updated_at` kept by a trigger; this document marks those places « DB (#367) ».
+**Since the audit.** #367 (R3, R4, R7, migration `0039_db_hygiene`) moved the rules marked « code » below into check constraints, added the generated bank columns and their index, and turned every time stamp into `timestamptz` with `updated_at` kept by a trigger; this document marks those places « DB (#367) ».
 
 Open work taken into account: #357 (split part's kind, PR #363: the view reads a part's category kind, no column), #358 (crypto invested base, in progress: `accounts.invested_base_cents` / `invested_base_on`), #359 (contacts, money owed to the owner, prototypes in PR #361), #360 (one set of investment figures, prototypes).
 
@@ -349,7 +349,7 @@ Measured on the ×20 synthetic copy (15 300 transactions, 8 accounts), `EXPLAIN 
 | Label search (`ilike`)                                                             | index scan on date, filter                                                                          | 0.2 ms (frequent word); a rare word scans the table |
 | Transfer matching (opposite amounts, ±3 days)                                      | seq scan of one side                                                                                | 3.0 ms                                              |
 
-After #367 (same ×20 copy, `0038` applied, before = the `coalesce` form on the same data):
+After #367 (same ×20 copy, `0039` applied, before = the `coalesce` form on the same data):
 
 | Read                                                                | Plan after                                                                   | Before → after |
 | ------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------- |
