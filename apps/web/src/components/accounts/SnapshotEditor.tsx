@@ -7,6 +7,8 @@ import {
   FieldLabel,
   Input,
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -23,11 +25,13 @@ import { ChevronDownIcon } from 'lucide-react'
 import { useSignedText } from '#/components/amount/use-signed-text'
 import type { SnapshotDto } from '#/api/types.gen'
 import {
-  FORM_SHEET_BOTTOM,
+  editorSide,
+  FORM_SHEET_SCREEN,
   FORM_SHEET_FORM,
   FORM_SHEET_SIDE,
   FormSheetBody,
   FormSheetFooter,
+  FormSheetPhoneActions,
 } from '#/components/sheets/form-sheet'
 import { formatCalendarDate, formatCents } from '#/lib/money'
 import { centsToInput, parseAmountToCents } from './amount'
@@ -57,6 +61,9 @@ interface FormErrors {
   value?: string
   contributions?: string
 }
+
+const DESCRIPTION =
+  'Valeur du compte en fin de journée, d’après un relevé ou votre espace client.'
 
 function validate(
   date: string,
@@ -181,23 +188,43 @@ export function SnapshotEditor({
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
-          side={isMobile ? 'bottom' : 'right'}
-          className={isMobile ? FORM_SHEET_BOTTOM : FORM_SHEET_SIDE}
+          side={editorSide(isMobile)}
+          className={isMobile ? FORM_SHEET_SCREEN : FORM_SHEET_SIDE}
           // A new value is what is typed: the date is today's.
+          // A new value is what is typed: the date is today's. Not on a
+          // phone, which opens without the keyboard (#385).
           onOpenAutoFocus={(event) => {
-            if (snapshot) return
+            if (snapshot || isMobile) return
             event.preventDefault()
             valueRef.current?.focus()
           }}
         >
-          <SheetHeader>
-            <SheetTitle>{title}</SheetTitle>
-            <SheetDescription>
-              Valeur du compte en fin de journée, d’après un relevé ou votre
-              espace client.
-            </SheetDescription>
-          </SheetHeader>
-          <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
+          {isMobile ? (
+            <SheetBar
+              title={title}
+              description={DESCRIPTION}
+              action={
+                <SheetBarAction
+                  type="submit"
+                  form={`${id}-form`}
+                  label="Enregistrer"
+                  loading={save.isPending}
+                  disabled={value.trim() === ''}
+                />
+              }
+            />
+          ) : (
+            <SheetHeader>
+              <SheetTitle>{title}</SheetTitle>
+              <SheetDescription>{DESCRIPTION}</SheetDescription>
+            </SheetHeader>
+          )}
+          <form
+            id={`${id}-form`}
+            noValidate
+            onSubmit={submit}
+            className={FORM_SHEET_FORM}
+          >
             <FormSheetBody>
               {!snapshot && (
                 <Field data-invalid={shown.date !== undefined}>
@@ -275,6 +302,18 @@ export function SnapshotEditor({
                     Facultative, par ex. « relevé annuel ».
                   </FieldDescription>
                 </Field>
+              )}
+              {snapshot && (
+                <FormSheetPhoneActions>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    outline
+                    onClick={() => setConfirmOpen(true)}
+                  >
+                    Supprimer cette valeur
+                  </Button>
+                </FormSheetPhoneActions>
               )}
             </FormSheetBody>
             <FormSheetFooter>

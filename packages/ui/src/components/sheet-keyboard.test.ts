@@ -4,6 +4,7 @@ import {
   keyboardAccessoryAllowance,
   keyboardInset,
   revealEndScrollTop,
+  revealFieldScrollTop,
   scrollParentWithin,
 } from './sheet-keyboard'
 
@@ -150,5 +151,51 @@ describe('scrollParentWithin', () => {
     const body = box('body', sheet, 'auto', 200, 200)
     const field = box('amount', body, 'visible')
     expect(scrollParentWithin(field, sheet, overflow)).toBeNull()
+  })
+})
+
+describe('revealFieldScrollTop', () => {
+  it('leaves a field already above the keyboard where it is', () => {
+    expect(
+      revealFieldScrollTop({
+        scrollTop: 0,
+        focusTop: 120,
+        focusBottom: 164,
+        visibleHeight: 400,
+      }),
+    ).toBe(0)
+  })
+
+  it('scrolls a field hidden by the keyboard just above it', () => {
+    expect(
+      revealFieldScrollTop({
+        scrollTop: 40,
+        focusTop: 500,
+        focusBottom: 544,
+        visibleHeight: 400,
+      }),
+    ).toBe(40 + 544 + 16 - 400)
+  })
+
+  it('keeps the top of a field taller than the room left in view', () => {
+    expect(
+      revealFieldScrollTop({
+        scrollTop: 0,
+        focusTop: 300,
+        focusBottom: 800,
+        visibleHeight: 400,
+      }),
+    ).toBe(300 - 16)
+  })
+
+  it('brings back a field scrolled above the top', () => {
+    expect(
+      revealFieldScrollTop({
+        scrollTop: 200,
+        focusTop: -50,
+        focusBottom: -6,
+        visibleHeight: 400,
+      }),
+    ).toBe(200 - 50 - 16)
   })
 })

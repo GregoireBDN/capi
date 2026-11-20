@@ -18,6 +18,7 @@ import {
   FORM_SHEET_FORM,
   FormSheetBody,
   FormSheetFooter,
+  FormSheetPhoneActions,
 } from '#/components/sheets/form-sheet'
 import { useAuth } from '#/lib/auth-context'
 import { needsReauth } from '#/lib/reauth'
@@ -192,9 +193,20 @@ export function DeleteAccountScreen({
               <FieldError>Le nom ne correspond pas.</FieldError>
             )}
           </Field>
+          {/* A phone: the bar's ‹ goes back, the deletion ends the page. */}
+          <FormSheetPhoneActions>
+            <Button
+              type="submit"
+              variant="danger"
+              className="font-medium"
+              disabled={!matches || !preview.isSuccess}
+              loading={deleting}
+            >
+              Supprimer définitivement
+            </Button>
+          </FormSheetPhoneActions>
         </FormSheetBody>
-        {/* Above the keyboard while the name is typed (#323); « Retour »
-            on a line of its own when both don't fit. */}
+        {/* « Retour » on a line of its own when both don't fit. */}
         <FormSheetFooter className="flex-row-reverse flex-wrap">
           <Button
             type="submit"

@@ -72,6 +72,32 @@ export function revealEndScrollTop({
   return Math.max(scrollTop, Math.min(end, keepFocus))
 }
 
+/**
+ * Scroll position of a full-screen editor's body (#385) that brings the
+ * focused field out from under the keyboard, and nothing else: a field
+ * already in view leaves the body where it is, so the keyboard opening moves
+ * nothing on screen. `focusTop` / `focusBottom` are the field's edges and
+ * `visibleHeight` the height of the body left above the keyboard (and its
+ * accessory bar), all relative to the body's visible top.
+ */
+export function revealFieldScrollTop({
+  scrollTop,
+  focusTop,
+  focusBottom,
+  visibleHeight,
+}: {
+  scrollTop: number
+  focusTop: number
+  focusBottom: number
+  visibleHeight: number
+}): number {
+  if (focusTop < 0) return Math.max(0, scrollTop + focusTop - FOCUS_MARGIN_PX)
+  const overflow = focusBottom + FOCUS_MARGIN_PX - visibleHeight
+  if (overflow <= 0) return scrollTop
+  // A field taller than what is left (a textarea): its top stays in view.
+  return scrollTop + Math.min(overflow, Math.max(0, focusTop - FOCUS_MARGIN_PX))
+}
+
 /** What `scrollParentWithin` reads from an element. */
 export interface ScrollBox {
   parentElement: ScrollBox | null

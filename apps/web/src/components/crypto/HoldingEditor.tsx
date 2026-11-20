@@ -11,6 +11,8 @@ import {
   InputGroupInput,
   InputGroupText,
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
   SheetDescription,
   SheetTitle,
@@ -30,7 +32,9 @@ import {
   FORM_SHEET_SIDE,
   FormSheetBody,
   FormSheetFooter,
-  STEPPED_SHEET_BOTTOM,
+  FormSheetPhoneActions,
+  editorSide,
+  FORM_SHEET_SCREEN,
 } from '#/components/sheets/form-sheet'
 import { AssetBadge } from './AssetBadge'
 import { holdingErrorMessage } from './errors'
@@ -352,45 +356,72 @@ export function HoldingEditor({
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
-          side={isMobile ? 'bottom' : 'right'}
-          className={isMobile ? STEPPED_SHEET_BOTTOM : FORM_SHEET_SIDE}
+          side={editorSide(isMobile)}
+          className={isMobile ? FORM_SHEET_SCREEN : FORM_SHEET_SIDE}
           onOpenAutoFocus={(event) => {
             event.preventDefault()
             focusStep(isMobile)
           }}
         >
           <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
-            <SheetTitle className="sr-only">{title}</SheetTitle>
-            <SheetDescription className="sr-only">
-              Quantité détenue sur ce compte.
-            </SheetDescription>
+            {isMobile ? (
+              <SheetBar
+                title={HOLDING_STEP_NAMES[step]}
+                description={`${title} · étape ${stepIndex + 1} sur ${steps.length}`}
+                onBack={
+                  stepIndex > 0
+                    ? () => setStep(steps[stepIndex - 1])
+                    : undefined
+                }
+                action={
+                  <SheetBarAction
+                    type="submit"
+                    label={last ? 'Enregistrer' : 'Suivant'}
+                    icon={
+                      last ? undefined : (
+                        <ChevronRightIcon aria-hidden strokeWidth={2.6} />
+                      )
+                    }
+                    loading={last && save.isPending}
+                    disabled={step === 'asset' && !asset}
+                  />
+                }
+              />
+            ) : (
+              <>
+                <SheetTitle className="sr-only">{title}</SheetTitle>
+                <SheetDescription className="sr-only">
+                  Quantité détenue sur ce compte.
+                </SheetDescription>
 
-            {/* Where we are, and the way back; clear of the close button. */}
-            <div className="flex min-h-14 shrink-0 items-center gap-1 py-2 pr-12 pl-2">
-              {stepIndex > 0 ? (
-                <Button
-                  type="button"
-                  ghost
-                  variant="secondary"
-                  onClick={() => setStep(steps[stepIndex - 1])}
-                >
-                  <ChevronLeftIcon aria-hidden />
-                  Retour
-                </Button>
-              ) : (
-                <span className="w-2" />
-              )}
-              <h3
-                ref={headingRef}
-                tabIndex={-1}
-                className="min-w-0 flex-1 truncate text-base font-semibold outline-none"
-              >
-                {HOLDING_STEP_NAMES[step]}
-                <span className="text-muted-foreground ml-1.5 text-sm font-normal">
-                  {stepIndex + 1}/{steps.length}
-                </span>
-              </h3>
-            </div>
+                {/* Where we are, and the way back; clear of the close button. */}
+                <div className="flex min-h-14 shrink-0 items-center gap-1 py-2 pr-12 pl-2">
+                  {stepIndex > 0 ? (
+                    <Button
+                      type="button"
+                      ghost
+                      variant="secondary"
+                      onClick={() => setStep(steps[stepIndex - 1])}
+                    >
+                      <ChevronLeftIcon aria-hidden />
+                      Retour
+                    </Button>
+                  ) : (
+                    <span className="w-2" />
+                  )}
+                  <h3
+                    ref={headingRef}
+                    tabIndex={-1}
+                    className="min-w-0 flex-1 truncate text-base font-semibold outline-none"
+                  >
+                    {HOLDING_STEP_NAMES[step]}
+                    <span className="text-muted-foreground ml-1.5 text-sm font-normal">
+                      {stepIndex + 1}/{steps.length}
+                    </span>
+                  </h3>
+                </div>
+              </>
+            )}
 
             <FormSheetBody ref={fieldRef}>
               {step === 'asset' && (
@@ -553,6 +584,18 @@ export function HoldingEditor({
                     />
                   </Field>
                 </>
+              )}
+              {holding && (
+                <FormSheetPhoneActions>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    outline
+                    onClick={() => setConfirmOpen(true)}
+                  >
+                    Supprimer la ligne
+                  </Button>
+                </FormSheetPhoneActions>
               )}
             </FormSheetBody>
 

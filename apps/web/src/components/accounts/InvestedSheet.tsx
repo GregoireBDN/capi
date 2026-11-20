@@ -8,6 +8,8 @@ import {
   SegmentedControl,
   SegmentedControlItem,
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
   SheetDescription,
   SheetTitle,
@@ -30,7 +32,9 @@ import {
   FORM_SHEET_SIDE,
   FormSheetBody,
   FormSheetFooter,
-  STEPPED_SHEET_BOTTOM,
+  FormSheetPhoneActions,
+  editorSide,
+  FORM_SHEET_SCREEN,
 } from '#/components/sheets/form-sheet'
 import { formatCalendarDate, formatCents } from '#/lib/money'
 import { formatShortDay } from '#/lib/period'
@@ -171,45 +175,72 @@ export function InvestedSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
-        className={isMobile ? STEPPED_SHEET_BOTTOM : FORM_SHEET_SIDE}
+        side={editorSide(isMobile)}
+        className={isMobile ? FORM_SHEET_SCREEN : FORM_SHEET_SIDE}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           focusStep()
         }}
       >
         <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
-          <SheetTitle className="sr-only">{title}</SheetTitle>
-          <SheetDescription className="sr-only">
-            {account.name}
-          </SheetDescription>
+          {isMobile ? (
+            <SheetBar
+              title={STEP_NAMES[step]}
+              description={`${account.name} · étape ${stepIndex + 1} sur 2`}
+              onBack={step === 'day' ? () => setStep('amount') : undefined}
+              action={
+                <SheetBarAction
+                  type="submit"
+                  label={step === 'day' ? 'Enregistrer' : 'Suivant'}
+                  icon={
+                    step === 'day' ? undefined : (
+                      <ChevronRightIcon aria-hidden strokeWidth={2.6} />
+                    )
+                  }
+                  disabled={
+                    step === 'amount'
+                      ? amountError !== null
+                      : amountError !== null || dayError !== null
+                  }
+                  loading={step === 'day' && save.isPending}
+                />
+              }
+            />
+          ) : (
+            <>
+              <SheetTitle className="sr-only">{title}</SheetTitle>
+              <SheetDescription className="sr-only">
+                {account.name}
+              </SheetDescription>
 
-          {/* Where we are, and the way back; clear of the close button. */}
-          <div className="flex min-h-14 shrink-0 items-center gap-1 py-2 pr-12 pl-2">
-            {step === 'day' ? (
-              <Button
-                type="button"
-                ghost
-                variant="secondary"
-                onClick={() => setStep('amount')}
-              >
-                <ChevronLeftIcon aria-hidden />
-                Retour
-              </Button>
-            ) : (
-              <span className="w-2" />
-            )}
-            <h3
-              ref={headingRef}
-              tabIndex={-1}
-              className="min-w-0 flex-1 truncate text-base font-semibold outline-none"
-            >
-              {STEP_NAMES[step]}
-              <span className="text-muted-foreground ml-1.5 text-sm font-normal">
-                {stepIndex + 1}/2
-              </span>
-            </h3>
-          </div>
+              {/* Where we are, and the way back; clear of the close button. */}
+              <div className="flex min-h-14 shrink-0 items-center gap-1 py-2 pr-12 pl-2">
+                {step === 'day' ? (
+                  <Button
+                    type="button"
+                    ghost
+                    variant="secondary"
+                    onClick={() => setStep('amount')}
+                  >
+                    <ChevronLeftIcon aria-hidden />
+                    Retour
+                  </Button>
+                ) : (
+                  <span className="w-2" />
+                )}
+                <h3
+                  ref={headingRef}
+                  tabIndex={-1}
+                  className="min-w-0 flex-1 truncate text-base font-semibold outline-none"
+                >
+                  {STEP_NAMES[step]}
+                  <span className="text-muted-foreground ml-1.5 text-sm font-normal">
+                    {stepIndex + 1}/2
+                  </span>
+                </h3>
+              </div>
+            </>
+          )}
 
           <FormSheetBody ref={fieldRef}>
             {step === 'amount' ? (
@@ -291,6 +322,19 @@ export function InvestedSheet({
                   </p>
                 )}
               </>
+            )}
+            {step === 'amount' && current && (
+              <FormSheetPhoneActions>
+                <Button
+                  type="button"
+                  variant="danger"
+                  outline
+                  disabled={save.isPending}
+                  onClick={() => save.mutate(null)}
+                >
+                  Retirer le montant investi
+                </Button>
+              </FormSheetPhoneActions>
             )}
           </FormSheetBody>
 

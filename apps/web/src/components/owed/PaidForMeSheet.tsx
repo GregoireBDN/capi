@@ -1,5 +1,6 @@
 import {
   Button,
+  cn,
   Field,
   FieldLabel,
   Input,
@@ -7,10 +8,7 @@ import {
   SegmentedControlItem,
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
   SheetTitle,
-  cn,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -21,7 +19,9 @@ import { AmountField } from '#/components/amount/AmountField'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
 import { CategoryChips, DateChips } from '#/components/expenses/manual-fields'
 import {
-  FORM_SHEET_BOTTOM,
+  editorSide,
+  FORM_SHEET_SCREEN,
+  EditorHeader,
   FORM_SHEET_FORM,
   FORM_SHEET_SIDE,
   FormSheetBody,
@@ -73,15 +73,10 @@ export function PaidForMeSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
-        className={isMobile ? FORM_SHEET_BOTTOM : FORM_SHEET_SIDE}
+        side={editorSide(isMobile)}
+        className={isMobile ? FORM_SHEET_SCREEN : FORM_SHEET_SIDE}
       >
-        <SheetHeader>
-          <SheetTitle>Payé pour moi</SheetTitle>
-          <SheetDescription>
-            Quelqu’un a payé : seule votre part compte dans vos dépenses.
-          </SheetDescription>
-        </SheetHeader>
+        {!open && <SheetTitle className="sr-only">Payé pour moi</SheetTitle>}
         {open && (
           <PaidForMeForm initial={initial} onDone={() => onOpenChange(false)} />
         )}
@@ -168,6 +163,26 @@ function PaidForMeForm({
   })
 
   const name = person?.name ?? '…'
+  const isMobile = useIsMobile()
+  const summary = (
+    <div
+      aria-live="polite"
+      className={cn(
+        'flex min-h-11 items-center justify-between gap-3 rounded-md px-3',
+        over ? 'bg-destructive/10' : 'bg-muted/60',
+      )}
+    >
+      <span className="font-semibold break-normal">Je dois à {name}</span>
+      <span
+        className={cn(
+          'font-semibold whitespace-nowrap tabular-nums',
+          over && 'text-destructive',
+        )}
+      >
+        {over ? 'plus que l’addition' : formatCents(mine)}
+      </span>
+    </div>
+  )
   return (
     <form
       className={FORM_SHEET_FORM}
@@ -176,6 +191,16 @@ function PaidForMeForm({
         if (ok) save.mutate()
       }}
     >
+      <EditorHeader
+        title="Payé pour moi"
+        description="Quelqu’un a payé : seule votre part compte dans vos dépenses."
+        action={{
+          type: 'submit',
+          label: 'Ajouter',
+          disabled: !ok,
+          loading: save.isPending,
+        }}
+      />
       <FormSheetBody>
         <PeoplePicker
           single
@@ -294,24 +319,15 @@ function PaidForMeForm({
           comptera pas comme une dépense.
         </p>
       </FormSheetBody>
-      <FormSheetFooter className="flex-col">
-        <div
-          aria-live="polite"
-          className={cn(
-            'flex min-h-11 items-center justify-between gap-3 rounded-md px-3',
-            over ? 'bg-destructive/10' : 'bg-muted/60',
-          )}
-        >
-          <span className="font-semibold break-normal">Je dois à {name}</span>
-          <span
-            className={cn(
-              'font-semibold whitespace-nowrap tabular-nums',
-              over && 'text-destructive',
-            )}
-          >
-            {over ? 'plus que l’addition' : formatCents(mine)}
-          </span>
+      {/* « Je dois à … », live: on a phone it stays at the bottom, the
+          keyboard covering it while a field is typed (#385). */}
+      {isMobile && (
+        <div className="flex shrink-0 border-t px-4 py-3 [&>div]:flex-1">
+          {summary}
         </div>
+      )}
+      <FormSheetFooter className="flex-col">
+        {summary}
         <Button
           type="submit"
           className="w-full"

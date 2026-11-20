@@ -12,9 +12,6 @@ import {
   RadioGroupItem,
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -31,7 +28,9 @@ import {
 } from '#/components/budget/amount'
 import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import {
-  FORM_SHEET_BOTTOM,
+  EditorHeader,
+  editorSide,
+  FORM_SHEET_SCREEN,
   FORM_SHEET_FORM,
   FORM_SHEET_SIDE,
   FormSheetBody,
@@ -233,19 +232,33 @@ export function GoalEditor({
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
-          side={isMobile ? 'bottom' : 'right'}
-          className={isMobile ? FORM_SHEET_BOTTOM : FORM_SHEET_SIDE}
+          side={editorSide(isMobile)}
+          className={isMobile ? FORM_SHEET_SCREEN : FORM_SHEET_SIDE}
         >
-          <SheetHeader>
-            <SheetTitle>
-              {goal ? `Objectif ${goal.name}` : 'Ajouter un objectif'}
-            </SheetTitle>
-            <SheetDescription>
-              Montant à atteindre, échéance facultative et ce qui compte comme
-              déjà épargné.
-            </SheetDescription>
-          </SheetHeader>
-          <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
+          <EditorHeader
+            title={
+              <>{goal ? `Objectif ${goal.name}` : 'Ajouter un objectif'}</>
+            }
+            description={
+              <>
+                Montant à atteindre, échéance facultative et ce qui compte comme
+                déjà épargné.
+              </>
+            }
+            action={{
+              type: 'submit',
+              form: `${id}-form`,
+              label: 'Enregistrer',
+              loading: save.isPending,
+              disabled: busy,
+            }}
+          />
+          <form
+            id={`${id}-form`}
+            noValidate
+            onSubmit={submit}
+            className={FORM_SHEET_FORM}
+          >
             <FormSheetBody>
               <Field data-invalid={shown.name !== undefined}>
                 <FieldLabel htmlFor={`${id}-name`}>Nom</FieldLabel>

@@ -9,6 +9,8 @@ import {
   NativeSelect,
   NativeSelectOption,
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -35,7 +37,8 @@ import {
 import type { CryptoSourceValues } from '#/components/crypto/CryptoSourceFields'
 import type { WalletKeyErrors } from '#/components/crypto/WalletKeyFields'
 import {
-  FORM_SHEET_BOTTOM,
+  editorSide,
+  FORM_SHEET_SCREEN,
   FORM_SHEET_FORM,
   FORM_SHEET_SIDE,
   FormSheetBody,
@@ -416,32 +419,49 @@ export function AccountEditor({
 
   const option = optionOf(values.type)
   const archived = account?.archivedAt != null
+  const deleting = !creating && screen === 'delete'
+  const title = creating
+    ? 'Nouveau compte'
+    : deleting
+      ? `Supprimer « ${account.name} » ?`
+      : 'Modifier le compte'
+  const description = creating
+    ? 'Compte bancaire, livret, titres-restaurant, placement ou crypto.'
+    : deleting
+      ? 'Le compte et toutes ses données.'
+      : account.type === 'crypto'
+        ? 'Nom affiché dans l’application.'
+        : 'Nom et établissement affichés dans l’application.'
 
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
-          side={isMobile ? 'bottom' : 'right'}
-          className={isMobile ? FORM_SHEET_BOTTOM : FORM_SHEET_SIDE}
+          side={editorSide(isMobile)}
+          className={isMobile ? FORM_SHEET_SCREEN : FORM_SHEET_SIDE}
         >
-          <SheetHeader>
-            <SheetTitle>
-              {creating
-                ? 'Nouveau compte'
-                : screen === 'delete'
-                  ? `Supprimer « ${account.name} » ?`
-                  : 'Modifier le compte'}
-            </SheetTitle>
-            <SheetDescription>
-              {creating
-                ? 'Compte bancaire, livret, titres-restaurant, placement ou crypto.'
-                : screen === 'delete'
-                  ? 'Le compte et toutes ses données.'
-                  : account.type === 'crypto'
-                    ? 'Nom affiché dans l’application.'
-                    : 'Nom et établissement affichés dans l’application.'}
-            </SheetDescription>
-          </SheetHeader>
+          {isMobile ? (
+            <SheetBar
+              title={title}
+              description={description}
+              onBack={deleting ? () => setScreen('edit') : undefined}
+              action={
+                deleting ? undefined : (
+                  <SheetBarAction
+                    type="submit"
+                    form={`${id}-form`}
+                    label={creating ? 'Créer le compte' : 'Enregistrer'}
+                    loading={creating ? create.isPending : rename.isPending}
+                  />
+                )
+              }
+            />
+          ) : (
+            <SheetHeader>
+              <SheetTitle>{title}</SheetTitle>
+              <SheetDescription>{description}</SheetDescription>
+            </SheetHeader>
+          )}
           {!creating && screen === 'delete' ? (
             <DeleteAccountScreen
               account={account}
@@ -449,7 +469,12 @@ export function AccountEditor({
               onDeleted={() => afterDelete(account)}
             />
           ) : (
-            <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
+            <form
+              id={`${id}-form`}
+              noValidate
+              onSubmit={submit}
+              className={FORM_SHEET_FORM}
+            >
               <FormSheetBody>
                 {creating && (
                   <Field>

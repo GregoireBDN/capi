@@ -10,9 +10,6 @@ import {
   RadioCardGroup,
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -25,7 +22,9 @@ import { LARGE_AMOUNT_CENTS } from '#/components/amount/signed-amount'
 import { useSignedText } from '#/components/amount/use-signed-text'
 import type { AccountDto } from '#/api/types.gen'
 import {
-  FORM_SHEET_BOTTOM,
+  EditorHeader,
+  editorSide,
+  FORM_SHEET_SCREEN,
   FORM_SHEET_FORM,
   FORM_SHEET_SIDE,
   FormSheetBody,
@@ -214,21 +213,23 @@ export function AddInvestmentSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
+        side={editorSide(isMobile)}
         className={
-          isMobile ? FORM_SHEET_BOTTOM : cn(FORM_SHEET_SIDE, 'sm:max-w-lg')
+          isMobile ? FORM_SHEET_SCREEN : cn(FORM_SHEET_SIDE, 'sm:max-w-lg')
         }
       >
         {created ? (
           <>
-            <SheetHeader>
-              <SheetTitle>Historique de « {created.name} »</SheetTitle>
-              <SheetDescription>
-                Facultatif : collez ou saisissez ses valeurs de fin de mois
-                passées, une ligne par date, pour que l’évolution de votre
-                patrimoine soit juste dès aujourd’hui.
-              </SheetDescription>
-            </SheetHeader>
+            <EditorHeader
+              title={<>Historique de « {created.name} »</>}
+              description={
+                <>
+                  Facultatif : collez ou saisissez ses valeurs de fin de mois
+                  passées, une ligne par date, pour que l’évolution de votre
+                  patrimoine soit juste dès aujourd’hui.
+                </>
+              }
+            />
             {/* A body of its own: it starts at its top, not where the first
                 step was scrolled to. */}
             <FormSheetBody>
@@ -242,13 +243,27 @@ export function AddInvestmentSheet({
           </>
         ) : (
           <>
-            <SheetHeader>
-              <SheetTitle>Ajouter un placement</SheetTitle>
-              <SheetDescription>
-                Suivi par sa valeur, d’après vos relevés ou votre espace client.
-              </SheetDescription>
-            </SheetHeader>
-            <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
+            <EditorHeader
+              title={<>Ajouter un placement</>}
+              description={
+                <>
+                  Suivi par sa valeur, d’après vos relevés ou votre espace
+                  client.
+                </>
+              }
+              action={{
+                type: 'submit',
+                form: `${id}-form`,
+                label: 'Ajouter',
+                loading: create.isPending,
+              }}
+            />
+            <form
+              id={`${id}-form`}
+              noValidate
+              onSubmit={submit}
+              className={FORM_SHEET_FORM}
+            >
               <FormSheetBody>
                 <fieldset className="space-y-2">
                   <legend

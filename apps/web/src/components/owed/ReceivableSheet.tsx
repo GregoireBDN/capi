@@ -5,6 +5,7 @@ import {
   FieldLabel,
   Input,
   Sheet,
+  SheetBar,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -28,7 +29,8 @@ import { AmountField } from '#/components/amount/AmountField'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
 import { displayLabel } from '#/components/transactions/labels'
 import {
-  FORM_SHEET_BOTTOM,
+  editorSide,
+  FORM_SHEET_SCREEN,
   FORM_SHEET_SIDE,
   FormSheetBody,
 } from '#/components/sheets/form-sheet'
@@ -67,8 +69,8 @@ export function ReceivableSheet({
   return (
     <Sheet open={item !== null} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
-        className={isMobile ? FORM_SHEET_BOTTOM : FORM_SHEET_SIDE}
+        side={editorSide(isMobile)}
+        className={isMobile ? FORM_SHEET_SCREEN : FORM_SHEET_SIDE}
       >
         {item && (
           <ReceivableContent
@@ -89,6 +91,7 @@ function ReceivableContent({
   item: ReceivableDto
   onClose: () => void
 }) {
+  const isMobile = useIsMobile()
   const queryClient = useQueryClient()
   const [screen, setScreen] = useState<Screen>('main')
   const owedToMe = item.direction === 'owed_to_me'
@@ -165,7 +168,20 @@ function ReceivableContent({
     onError: (error) => toast.error(owedErrorMessage(error)),
   })
 
-  const header = (
+  const title =
+    screen === 'link'
+      ? 'Lier un remboursement'
+      : screen === 'other'
+        ? 'Réglé autrement'
+        : item.label
+  const owedText = `${owedToMe ? `${who} vous doit` : `Vous devez à ${who}`} ${formatCents(item.leftCents)}`
+  const header = isMobile ? (
+    <SheetBar
+      title={title}
+      description={owedText}
+      onBack={screen !== 'main' ? () => setScreen('main') : undefined}
+    />
+  ) : (
     <SheetHeader>
       <SheetTitle className="flex items-center gap-1">
         {screen !== 'main' && (
