@@ -121,15 +121,12 @@ describe('App shell sidebar (≥ md)', () => {
     expect(
       within(header()).queryByRole('button', { name: /le menu$/ }),
     ).toHaveClass('md:hidden')
-    // Logo, search, quick entry and account in the header.
+    // Logo, quick entry and account in the header.
     expect(
       within(header()).getByRole('link', { name: 'Finances' }),
     ).toHaveAttribute('href', '/dashboard')
-    expect(
-      within(header()).getByRole('searchbox', {
-        name: 'Rechercher une opération',
-      }),
-    ).toBeInTheDocument()
+    // No search: Opérations has its own (#386).
+    expect(within(header()).queryByRole('searchbox')).not.toBeInTheDocument()
     expect(
       within(header()).getByRole('button', { name: 'Ajouter une dépense' }),
     ).toBeInTheDocument()
@@ -146,22 +143,6 @@ describe('App shell sidebar (≥ md)', () => {
     })
     expect(skip).toHaveAttribute('href', '#main-content')
     expect(document.getElementById('main-content')?.tagName).toBe('MAIN')
-  })
-
-  it('searches the transactions of every date from the header', async () => {
-    const ue = userEvent.setup()
-    const router = await renderShell(true)
-
-    const field = within(header()).getByRole('searchbox', {
-      name: 'Rechercher une opération',
-    })
-    await ue.type(field, 'loyer')
-    // Enter in the lone field submits it (jsdom doesn't do it by itself).
-    fireEvent.submit(field.closest('form') as HTMLFormElement)
-
-    await screen.findByRole('heading', { name: 'Opérations' })
-    expect(router.state.location.pathname).toBe('/transactions')
-    expect(router.state.location.search).toEqual({ q: 'loyer', month: 'all' })
   })
 
   it('keeps a dot on Opérations for the transactions to review while folded', async () => {

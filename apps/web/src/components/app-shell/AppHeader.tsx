@@ -1,11 +1,9 @@
-import { Link, useNavigate } from '@tanstack/react-router'
-import { Button, Input, useSidebar } from '@finances/ui'
-import { MenuIcon, PlusIcon, SearchIcon } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { Button, useSidebar } from '@finances/ui'
+import { MenuIcon, PlusIcon } from 'lucide-react'
 import { useState } from 'react'
-import type { FormEvent } from 'react'
 import type { UserDto } from '#/api/types.gen'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
-import { ALL_MONTHS } from '#/components/transactions/search'
 import { plural } from '#/lib/plural'
 import { useReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
@@ -22,10 +20,10 @@ import { useSetPageActionsSlot, useSetPageBackSlot } from './page-actions'
  * - The logo, back to the dashboard; a sub-page's way back (`PageBack`,
  *   « ‹ Comptes ») takes its place on phones and follows it from `md` up.
  * - Phones: the page's other actions (`PageHeader`; its main action stays
- *   beside the title). From `md` up: a search box opening Opérations on
- *   every date (an icon below `lg`) and « + Ajouter une dépense » (the
- *   quick entry, on an expense: its usual use; the kind can be changed in
- *   it). « Opération » alone did not say what it added (the owner, #386).
+ *   beside the title). From `md` up: « + Ajouter une dépense » (the quick
+ *   entry, on an expense: its usual use; the kind can be changed in it).
+ *   « Opération » alone did not say what it added, and a search box here
+ *   was unclear beside Opérations' own (the owner, #386): no search.
  * - The avatar: the account menu (`AccountMenu`).
  *
  * `h-12` on every width: sticky elements below it use `top-(--app-top-bar)`
@@ -101,7 +99,6 @@ export function AppHeader({ user }: { user: UserDto }) {
           data-page-actions
           className="flex items-center gap-1 empty:hidden"
         />
-        <HeaderSearch />
         <Button
           type="button"
           variant="primary"
@@ -126,66 +123,5 @@ export function AppHeader({ user }: { user: UserDto }) {
         />
       )}
     </header>
-  )
-}
-
-/**
- * From `md` up: search the transactions of every date (Opérations' own
- * search, `?q=`). A field from `lg`, an icon opening Opérations below. A
- * plain GET form, so it also works before hydration.
- */
-function HeaderSearch() {
-  const navigate = useNavigate()
-  const [query, setQuery] = useState('')
-
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const q = query.trim()
-    void navigate({
-      to: ROUTES.transactions,
-      search: q === '' ? { month: ALL_MONTHS } : { q, month: ALL_MONTHS },
-    })
-  }
-
-  return (
-    <>
-      <form
-        role="search"
-        action={ROUTES.transactions}
-        method="get"
-        onSubmit={onSubmit}
-        className="relative max-lg:hidden"
-      >
-        <SearchIcon
-          aria-hidden
-          className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
-        />
-        <input type="hidden" name="month" value={ALL_MONTHS} />
-        <Input
-          type="search"
-          name="q"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          aria-label="Rechercher une opération"
-          placeholder="Rechercher"
-          className="w-[clamp(10rem,18vw,15rem)] pl-8"
-        />
-      </form>
-      <Button
-        asChild
-        variant="secondary"
-        ghost
-        iconOnly
-        className="max-md:hidden lg:hidden"
-      >
-        <Link
-          to={ROUTES.transactions}
-          search={{ month: ALL_MONTHS }}
-          aria-label="Rechercher une opération"
-        >
-          <SearchIcon />
-        </Link>
-      </Button>
-    </>
   )
 }
