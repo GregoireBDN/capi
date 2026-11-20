@@ -17,7 +17,8 @@ import { useId, useState } from 'react'
 import { toast } from 'sonner'
 import { AmountField } from '#/components/amount/AmountField'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
-import { CategoryChips, DateChips } from '#/components/expenses/manual-fields'
+import { CategoryField } from '#/components/categories/CategoryPicker'
+import { DateChips } from '#/components/expenses/manual-fields'
 import {
   editorSide,
   FORM_SHEET_SCREEN,
@@ -27,7 +28,6 @@ import {
   FormSheetBody,
 } from '#/components/sheets/form-sheet'
 import { currentDay } from '#/lib/calendar'
-import { pickableCategories } from '#/lib/categories'
 import { formatCents } from '#/lib/money'
 import { categoriesQuery } from '#/lib/queries'
 import { PeoplePicker, personRef } from './PeoplePicker'
@@ -106,10 +106,6 @@ function PaidForMeForm({
   const [mode, setMode] = useState<ShareMode>('equal')
   const [people, setPeople] = useState(3)
   const [typed, setTyped] = useState('')
-
-  const expenseCategories = pickableCategories(categories.data ?? []).filter(
-    (category) => category.kind === 'expense',
-  )
 
   const billCents = parseEurosToCents(bill) ?? 0
   const mine =
@@ -208,13 +204,14 @@ function PaidForMeForm({
           onPick={setPerson}
         />
         <Field>
-          <FieldLabel id={`${id}-category`}>Catégorie</FieldLabel>
-          <CategoryChips
-            labelId={`${id}-category`}
-            categories={expenseCategories}
-            value={categoryId}
-            allowNone={false}
-            onChoose={setCategoryId}
+          <FieldLabel htmlFor={`${id}-category`}>Catégorie</FieldLabel>
+          <CategoryField
+            id={`${id}-category`}
+            label="Catégorie"
+            categories={categories.data ?? []}
+            kinds={['expense']}
+            value={categoryId || null}
+            onPick={setCategoryId}
           />
         </Field>
         <Field>

@@ -17,6 +17,7 @@ import type {
   CategorizationRulesInsightsDto,
   CategoryDto,
 } from '#/api/types.gen'
+import { pickCategory } from '#/test/category-picker'
 import { bodyFromForm, formFromRule } from './RuleEditorSheet'
 import { amountFieldsOf, boundsOf } from './rule-form'
 import { groupRules, RulesPage } from './RulesPage'
@@ -428,9 +429,9 @@ describe('RulesPage', () => {
     )
     await user.click(next)
 
-    // Step 2: a category chip moves on.
+    // Step 2: a category of the picker moves on.
     expect(stepHeading(sheet)).toBe('2. Catégorie')
-    await user.click(within(sheet).getByRole('button', { name: 'Cafés' }))
+    await pickCategory(user, 'Cafés')
 
     // Step 3: the sentence and what changes, then save.
     expect(stepHeading(sheet)).toBe('3. Vérifier')

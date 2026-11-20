@@ -1,8 +1,24 @@
-import { render, screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render as baseRender, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { CategoryDto, TransactionDto } from '#/api/types.gen'
+import {
+  categoryField,
+  chooseCategory,
+  pickCategory,
+} from '#/test/category-picker'
 import { SplitEditor } from './SplitEditor'
+
+/** With a query client: the category picker reads the most used. */
+function render(ui: React.ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  return baseRender(
+    <QueryClientProvider client={client}>{ui}</QueryClientProvider>,
+  )
+}
 
 /** Synthetic data only. */
 function category(
@@ -78,9 +94,10 @@ describe('SplitEditor (#357)', () => {
     const amount1 = screen.getByLabelText('Montant de la part 1')
     await user.clear(amount1)
     await user.type(amount1, '40')
-    await user.selectOptions(
-      screen.getByLabelText('Catégorie de la part 2'),
-      restaurants.id,
+    await chooseCategory(
+      user,
+      categoryField('Catégorie de la part 2'),
+      restaurants.name,
     )
     await user.type(screen.getByLabelText('Montant de la part 2'), '20')
     expect(screen.getByText('Remboursement')).toBeInTheDocument()
@@ -113,9 +130,10 @@ describe('SplitEditor (#357)', () => {
         onCancel={() => {}}
       />,
     )
-    await user.selectOptions(
-      screen.getByLabelText('Catégorie de la part 2'),
-      restaurants.id,
+    await chooseCategory(
+      user,
+      categoryField('Catégorie de la part 2'),
+      restaurants.name,
     )
     expect(screen.queryByText('Remboursement')).not.toBeInTheDocument()
   })
@@ -134,10 +152,10 @@ describe('SplitEditor (#357)', () => {
     const amount1 = screen.getByLabelText('Montant de la part 1')
     await user.clear(amount1)
     await user.type(amount1, '40')
-    await user.selectOptions(
-      screen.getByLabelText('Catégorie de la part 2'),
-      moves.id,
-    )
+    // The picker opens on the part's kind: the transfers are a tile away.
+    await user.click(categoryField('Catégorie de la part 2'))
+    await user.click(screen.getByRole('radio', { name: 'Virement' }))
+    await pickCategory(user, moves.name)
     await user.type(screen.getByLabelText('Montant de la part 2'), '20')
     await user.click(
       screen.getByRole('button', { name: 'Enregistrer la répartition' }),

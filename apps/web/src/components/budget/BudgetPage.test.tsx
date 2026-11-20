@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
+import { categoryField, pickCategory } from '#/test/category-picker'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -622,12 +623,17 @@ describe('BudgetPage', () => {
       }),
     )
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByLabelText('Catégorie')).toHaveValue(transport.id)
+    const field = categoryField('Catégorie', dialog)
+    expect(field).toHaveTextContent('Transport')
     // Only expense categories without a budget are offered.
-    const options = within(dialog)
-      .getAllByRole('option')
-      .map((option) => option.textContent)
-    expect(options).toEqual(['Transport'])
+    await user.click(field)
+    const list = await screen.findByRole('radiogroup', { name: 'Catégorie' })
+    expect(
+      within(list)
+        .getAllByRole('radio')
+        .map((option) => option.textContent),
+    ).toEqual(['Transport'])
+    await pickCategory(user, 'Transport')
     await user.type(within(dialog).getByLabelText('Objectif par mois'), '80')
     await user.click(
       within(dialog).getByRole('button', { name: 'Enregistrer' }),

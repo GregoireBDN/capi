@@ -83,18 +83,31 @@ const categories = [
   category(GROCERIES, 'Courses', 'expense'),
 ]
 
-/** Names of the category chips of the sheet. */
-function categoryNames(dialog: HTMLElement) {
-  return within(within(dialog).getByRole('radiogroup', { name: 'Catégorie' }))
-    .getAllByRole('radio')
-    .map((radio) => radio.textContent)
+/** A row of the category picker: its label, then its detail. */
+function rowText(radio: HTMLElement) {
+  return [
+    radio.querySelector('[data-slot=option-label]')?.textContent,
+    radio.querySelector('[data-slot=option-detail]')?.textContent,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }
 
-/** Name of the category chip chosen, if any. */
-function chosenCategory(dialog: HTMLElement) {
-  return within(within(dialog).getByRole('radiogroup', { name: 'Catégorie' }))
+/** The rows of a group of the picker (« Les plus utilisées »…). */
+function groupNames(dialog: HTMLElement, group: string) {
+  return within(within(dialog).getByRole('group', { name: group }))
     .getAllByRole('radio')
-    .find((radio) => radio.getAttribute('aria-checked') === 'true')?.textContent
+    .map(rowText)
+}
+
+/** Name of the category chosen in the list of all, if any. */
+function chosenCategory(dialog: HTMLElement) {
+  const chosen = within(
+    within(dialog).getByRole('group', { name: 'Toutes les catégories' }),
+  )
+    .getAllByRole('radio')
+    .find((radio) => radio.getAttribute('aria-checked') === 'true')
+  return chosen?.querySelector('[data-slot=option-label]')?.textContent
 }
 
 function optionNames(select: HTMLElement) {
@@ -258,11 +271,19 @@ describe('MonthEnvelopes', () => {
       within(dialog).queryByRole('group', { name: 'Pavé numérique' }),
     ).not.toBeInTheDocument()
 
-    // Back to the category: envelopes first, then the other expense
-    // categories; never income.
+    // Back to the category: the envelopes first, then every expense
+    // category A–Z; never income.
     await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
     await waitFor(() => expect(chosenCategory(dialog)).toBe('Sorties'))
-    expect(categoryNames(dialog)).toEqual(['Shopping', 'Sorties', 'Courses'])
+    expect(groupNames(dialog, 'Les plus utilisées')).toEqual([
+      'Shopping',
+      'Sorties',
+    ])
+    expect(groupNames(dialog, 'Toutes les catégories')).toEqual([
+      'Courses',
+      'Shopping',
+      'Sorties',
+    ])
     await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
 
     // The amount is required before moving on.
@@ -375,8 +396,8 @@ describe('MonthEnvelopes', () => {
       // A usual merchant: one tap for the label and its category.
       await user.click(
         within(
-          await within(dialog).findByRole('list', { name: 'Habituels' }),
-        ).getByRole('button', { name: /Boulangerie test/ }),
+          await within(dialog).findByRole('group', { name: 'Habituels' }),
+        ).getByRole('radio', { name: /Boulangerie test/ }),
       )
       const amount = within(dialog).getByLabelText('Montant')
       // A plain field on the phone's decimal keyboard (#385): no keypad.
@@ -401,7 +422,7 @@ describe('MonthEnvelopes', () => {
       expect(api.transactionsControllerCreateManual).not.toHaveBeenCalled()
       await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
       expect(
-        within(dialog).getByRole('list', { name: 'Habituels' }),
+        within(dialog).getByRole('group', { name: 'Habituels' }),
       ).toBeVisible()
       await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
       await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
@@ -447,8 +468,8 @@ describe('MonthEnvelopes', () => {
       const dialog = await screen.findByRole('dialog')
       await user.click(
         within(
-          await within(dialog).findByRole('list', { name: 'Habituels' }),
-        ).getByRole('button', { name: /Boulangerie test/ }),
+          await within(dialog).findByRole('group', { name: 'Habituels' }),
+        ).getByRole('radio', { name: /Boulangerie test/ }),
       )
       const amount = within(dialog).getByLabelText('Montant')
       // Its ✓ only closes the keyboard: without an amount, nothing moves.
@@ -487,29 +508,30 @@ describe('MonthEnvelopes', () => {
     })
     // The most used category by default, listed after the envelopes.
     await waitFor(() => expect(chosenCategory(dialog)).toBe('Courses'))
-    expect(categoryNames(dialog)).toEqual(['Shopping', 'Sorties', 'Courses'])
-    const habits = within(dialog).getByRole('list', { name: 'Habituels' })
-    expect(
-      within(habits)
-        .getAllByRole('button')
-        .map((button) => button.textContent),
-    ).toEqual([
+    expect(groupNames(dialog, 'Les plus utilisées')).toEqual([
+      'Shopping',
+      'Sorties',
+      'Courses',
+    ])
+    const habits = within(dialog).getByRole('group', { name: 'Habituels' })
+    expect(groupNames(dialog, 'Habituels')).toEqual([
       'Boulangerie test · Courses',
       'Cinéma test · Sorties',
       'Marché test',
     ])
 
     // A tap fills the label and its usual category, and moves on.
-    await user.click(within(habits).getByRole('button', { name: /Cinéma/ }))
+    await user.click(within(habits).getByRole('radio', { name: /Cinéma/ }))
     expect(within(dialog).getByText('Sorties · Cinéma test')).toBeVisible()
     await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
-    expect(chosenCategory(dialog)).toBe('Sorties')
+    // The habit shows chosen, its category in the steps.
+    expect(currentStep(dialog)).toBe('1. Sorties')
     expect(
-      within(dialog).getByRole('button', { name: /Cinéma/ }),
-    ).toHaveAttribute('aria-pressed', 'true')
+      within(dialog).getByRole('radio', { name: /^Cinéma test/ }),
+    ).toHaveAttribute('aria-checked', 'true')
     // A label without a usual category keeps the chosen one.
     await user.click(
-      within(dialog).getByRole('button', { name: 'Marché test' }),
+      within(dialog).getByRole('radio', { name: /^Marché test/ }),
     )
     expect(within(dialog).getByText('Sorties · Marché test')).toBeVisible()
 
@@ -720,7 +742,9 @@ describe('ManualTransactionSheet (editing)', () => {
     await user.type(amount, '27')
     // Once the lists are loaded, the expense's own category is kept.
     await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
-    await waitFor(() => expect(categoryNames(dialog)).toHaveLength(3))
+    await waitFor(() =>
+      expect(groupNames(dialog, 'Toutes les catégories')).toHaveLength(3),
+    )
     expect(chosenCategory(dialog)).toBe('Sorties')
     await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
     await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))

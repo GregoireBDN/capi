@@ -16,7 +16,7 @@ import {
   todayInParis,
   upcomingDebits,
 } from './format'
-import { categoryChoices } from './RecurringEditor'
+import { usualCategoryIds } from './RecurringEditor'
 import { recurringItem } from './test-fixtures'
 
 /** Testing Library-style: `Intl` emits narrow no-break spaces. */
@@ -283,7 +283,7 @@ describe('subscriptions format helpers', () => {
   })
 })
 
-describe('categoryChoices', () => {
+describe('usualCategoryIds', () => {
   /** Synthetic categories only. */
   const category = (slug: string, kind: CategoryDto['kind'] = 'expense') => ({
     id: slug,
@@ -304,24 +304,11 @@ describe('categoryChoices', () => {
     category('salary', 'income'),
   ]
 
-  it('offers the current and usual categories first, the rest on demand', () => {
-    const few = categoryChoices(categories, 'debit', 'leisure', false)
-    expect(few.shown.map((c) => c.slug)).toEqual([
-      'leisure',
+  it('offers the usual categories of the direction, in their order', () => {
+    expect(usualCategoryIds(categories, 'debit')).toEqual([
       'subscriptions',
       'rent',
     ])
-    expect(few.hiddenCount).toBe(1)
-    const all = categoryChoices(categories, 'debit', 'leisure', true)
-    expect(all.shown.map((c) => c.slug)).toEqual([
-      'leisure',
-      'subscriptions',
-      'rent',
-      'groceries',
-    ])
-    // Credits get income categories.
-    expect(
-      categoryChoices(categories, 'credit', '', false).shown.map((c) => c.slug),
-    ).toEqual(['salary'])
+    expect(usualCategoryIds(categories, 'credit')).toEqual(['salary'])
   })
 })

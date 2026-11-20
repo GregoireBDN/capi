@@ -1,12 +1,4 @@
-import {
-  Badge,
-  cn,
-  NativeSelect,
-  NativeSelectOptGroup,
-  NativeSelectOption,
-  SegmentedControl,
-  SegmentedControlItem,
-} from '@finances/ui'
+import { Badge, cn, SegmentedControl, SegmentedControlItem } from '@finances/ui'
 import type {
   CategoryDto,
   ConflictAction,
@@ -14,7 +6,7 @@ import type {
   ImportRowStatus,
 } from '#/api'
 import { formatCents } from '#/lib/money'
-import { pickableCategories } from '#/lib/categories'
+import { CategoryField } from '#/components/categories/CategoryPicker'
 import { formatDate } from './format'
 
 const STATUS: Record<
@@ -88,12 +80,6 @@ export function ManualMatchNote({ row }: { row: ImportPreviewRowDto }) {
   )
 }
 
-const KIND_GROUPS = [
-  { kind: 'expense', label: 'Dépenses' },
-  { kind: 'income', label: 'Revenus' },
-  { kind: 'transfer', label: 'Mouvements' },
-] as const
-
 interface CategorySelectProps {
   row: ImportPreviewRowDto
   categories: CategoryDto[]
@@ -114,35 +100,15 @@ export function CategorySelect({
   onChange,
 }: CategorySelectProps) {
   return (
-    <NativeSelect
-      size="sm"
-      className="w-full"
-      aria-label={`Catégorie de « ${row.rawLabel} »`}
-      value={value ?? ''}
+    <CategoryField
+      label={`Catégorie de « ${row.rawLabel} »`}
+      placeholder="À catégoriser"
+      categories={categories}
+      value={value}
       disabled={disabled}
-      onChange={(event) => {
-        if (event.target.value) onChange(event.target.value)
-      }}
-    >
-      {value === null && (
-        <NativeSelectOption value="">À catégoriser</NativeSelectOption>
-      )}
-      {KIND_GROUPS.map((group) => {
-        const options = pickableCategories(categories, value).filter(
-          (c) => c.kind === group.kind,
-        )
-        if (options.length === 0) return null
-        return (
-          <NativeSelectOptGroup key={group.kind} label={group.label}>
-            {options.map((c) => (
-              <NativeSelectOption key={c.id} value={c.id}>
-                {c.name}
-              </NativeSelectOption>
-            ))}
-          </NativeSelectOptGroup>
-        )
-      })}
-    </NativeSelect>
+      onPick={onChange}
+      className="h-8 text-sm"
+    />
   )
 }
 

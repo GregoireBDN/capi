@@ -7,8 +7,6 @@ import {
   FieldError,
   FieldLabel,
   Label,
-  NativeSelect,
-  NativeSelectOption,
   Sheet,
   SheetContent,
   Switch,
@@ -19,6 +17,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { AmountField } from '#/components/amount/AmountField'
+import { CategoryField } from '#/components/categories/CategoryPicker'
+import { TRANSACTION_KINDS } from '#/components/transactions/labels'
 import type { CategoryDto } from '#/api/types.gen'
 import { formatMonth } from '#/lib/calendar'
 import { formatCents } from '#/lib/money'
@@ -197,28 +197,16 @@ export function BudgetEditor({
               {!budget && (
                 <Field>
                   <FieldLabel htmlFor={`${id}-category`}>Catégorie</FieldLabel>
-                  {/* The chosen category's icon beside the list (a native
-                    select can't draw one per option). */}
-                  <div className="flex items-center gap-2">
-                    {chosen && (
-                      <CategoryIcon icon={chosen.icon} color={chosen.color} />
+                  <CategoryField
+                    id={`${id}-category`}
+                    label="Catégorie"
+                    categories={available}
+                    kinds={TRANSACTION_KINDS.filter((option) =>
+                      available.some((category) => category.kind === option),
                     )}
-                    <NativeSelect
-                      id={`${id}-category`}
-                      className="min-w-0 flex-1"
-                      value={categoryId}
-                      onChange={(event) => setCategoryId(event.target.value)}
-                    >
-                      {available.map((category) => (
-                        <NativeSelectOption
-                          key={category.id}
-                          value={category.id}
-                        >
-                          {category.name}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                  </div>
+                    value={categoryId || null}
+                    onPick={setCategoryId}
+                  />
                 </Field>
               )}
               <Field data-invalid={showError}>
