@@ -10,6 +10,7 @@ import {
   Spinner,
 } from '@finances/ui'
 import { EllipsisVerticalIcon } from 'lucide-react'
+import { CountPill, IconDot } from './badges'
 import { PageBack } from './PageBack'
 import type { PageBackLink } from './PageBack'
 import {
@@ -116,15 +117,13 @@ function PageActionsMenu({ actions }: { actions: readonly PageAction[] }) {
     ...actions.filter((action) => !action.primary),
   ]
   const busy = actions.some((action) => action.loading)
-  // What waits behind the items (#393), on the « ⋮ » too: seen without
-  // opening the menu, said to screen readers after its name.
+  // Something waits behind an item (#393): a dot on the « ⋮ », seen
+  // without opening the menu (its number is on the item), said to screen
+  // readers after the button's name.
   const counted = actions.filter(
     (action) => action.count && action.count.value > 0,
   )
-  const total = counted.reduce(
-    (sum, action) => sum + (action.count?.value ?? 0),
-    0,
-  )
+  const waiting = counted.length > 0
   const countId = useId()
   return (
     <DropdownMenu>
@@ -135,21 +134,17 @@ function PageActionsMenu({ actions }: { actions: readonly PageAction[] }) {
           ghost
           iconOnly
           aria-label="Actions de la page"
-          aria-describedby={total > 0 ? countId : undefined}
+          aria-describedby={waiting ? countId : undefined}
           title="Actions de la page"
           className="relative [&_svg]:size-[1.1rem]"
         >
           {busy ? <Spinner /> : <EllipsisVerticalIcon />}
-          {total > 0 && (
-            <span
+          {waiting && (
+            <IconDot
               data-testid="page-actions-count"
-              className="bg-primary text-primary-foreground pointer-events-none absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] leading-none font-semibold tabular-nums"
-            >
-              <span aria-hidden>{countText(total)}</span>
-              <span id={countId} className="sr-only">
-                {counted.map((action) => action.count?.label).join(', ')}
-              </span>
-            </span>
+              labelId={countId}
+              label={counted.map((action) => action.count?.label).join(', ')}
+            />
           )}
         </Button>
       </DropdownMenuTrigger>
@@ -167,19 +162,15 @@ function PageActionsMenu({ actions }: { actions: readonly PageAction[] }) {
             {action.loading ? <Spinner /> : action.icon}
             {action.label}
             {action.count && action.count.value > 0 && (
-              <span className="bg-primary text-primary-foreground ml-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-medium tabular-nums">
-                <span aria-hidden>{countText(action.count.value)}</span>
-                <span className="sr-only">, {action.count.label}</span>
-              </span>
+              <CountPill
+                value={action.count.value}
+                label={action.count.label}
+                className="ml-auto"
+              />
             )}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
   )
-}
-
-/** A count as a badge shows it: « 99+ » past 99. */
-function countText(value: number): string {
-  return value > 99 ? '99+' : String(value)
 }

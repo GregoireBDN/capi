@@ -23,6 +23,7 @@ import { REVIEW_SEARCH } from '#/components/transactions/search'
 import { plural } from '#/lib/plural'
 import { useReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
+import { COUNT_PILL, IconDot } from './badges'
 import {
   NAV_GROUPS,
   carriedMonth,
@@ -122,22 +123,23 @@ export function AppSidebar() {
               'opérations à revoir',
             )}
             title="Voir les opérations à revoir"
-            className="bg-primary text-primary-foreground focus-visible:ring-sidebar-ring touch-hitbox absolute top-1/2 right-1 flex h-5 min-w-5 -translate-y-1/2 items-center justify-center rounded-full px-1 text-xs font-medium tabular-nums outline-none select-none hover:opacity-90 focus-visible:ring-2 group-data-[collapsible=icon]:hidden"
+            className={cn(
+              COUNT_PILL,
+              'focus-visible:ring-sidebar-ring touch-hitbox absolute top-1/2 right-2 -translate-y-1/2 outline-none select-none hover:opacity-90 focus-visible:ring-2 group-data-[collapsible=icon]:hidden',
+            )}
           >
             {/* In a span: the link's 44px touch area (::after) must not
                 count as text sticking out of the badge. */}
             <span>{count > 99 ? '99+' : count}</span>
           </Link>
         )}
-        {/* Folded, a dot on the icon's top-right corner says there is
-            something to review: placed from the centre of the 44px button,
-            where the 1.1rem icon sits, ringed in the sidebar's colour so it
-            reads apart from the glyph (#393). */}
+        {/* Folded, the dot every icon button with something waiting has
+            (`IconDot`, #393), centred on the 44px button and its icon. */}
         {count !== null && count > 0 && (
-          <span
+          <IconDot
             aria-hidden
             data-testid="nav-review-dot"
-            className="bg-primary ring-sidebar pointer-events-none absolute top-[calc(50%-0.7rem)] left-[calc(50%+0.2rem)] hidden size-[0.45rem] rounded-full ring-2 group-data-[collapsible=icon]:block"
+            className="hidden group-data-[collapsible=icon]:block"
           />
         )}
       </SidebarMenuItem>

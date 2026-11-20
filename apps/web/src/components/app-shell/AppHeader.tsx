@@ -5,6 +5,7 @@ import type { UserDto } from '#/api/types.gen'
 import { plural } from '#/lib/plural'
 import { useReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
+import { IconDot } from './badges'
 import { AccountMenu } from './AccountMenu'
 import { useSetPageActionsSlot, useSetPageBackSlot } from './page-actions'
 
@@ -58,20 +59,14 @@ export function AppHeader({ user }: { user: UserDto }) {
       >
         <MenuIcon />
         {showReviewDot && (
-          <span
+          <IconDot
             data-testid="menu-review-count"
-            title={plural(
+            label={plural(
               reviewCount,
               'opération à revoir',
               'opérations à revoir',
             )}
-            className="bg-primary text-primary-foreground absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] leading-none font-semibold tabular-nums"
-          >
-            <span aria-hidden>{reviewCount > 99 ? '99+' : reviewCount}</span>
-            <span className="sr-only">
-              {plural(reviewCount, 'opération à revoir', 'opérations à revoir')}
-            </span>
-          </span>
+          />
         )}
       </Button>
       <Link

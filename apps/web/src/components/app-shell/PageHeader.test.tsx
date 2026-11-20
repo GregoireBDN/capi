@@ -147,9 +147,12 @@ describe('PageHeader', () => {
       name: 'Actions de la page',
     })
     expect(more).toHaveAccessibleDescription('7 opérations à revoir')
+    // A dot on « ⋮ », the number on the item only (the owner).
     expect(
-      within(topBar()).getByTestId('page-actions-count'),
-    ).toHaveTextContent(/^7/)
+      within(topBar())
+        .getByTestId('page-actions-count')
+        .querySelector('[aria-hidden]'),
+    ).toBeEmptyDOMElement()
     await user.click(more)
     expect(
       screen.getByRole('menuitem', {

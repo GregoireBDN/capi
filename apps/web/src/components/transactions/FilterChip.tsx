@@ -5,6 +5,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@finances/ui'
+import { CountPill } from '#/components/app-shell/badges'
 import { CheckIcon, ChevronDownIcon, XIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
@@ -247,18 +248,13 @@ export function ToggleChip({
         CHIP,
         pressed ? CHIP_ON : CHIP_OFF,
         'pointer-coarse:touch-hitbox relative px-3',
-        counted && 'border-primary/50 text-primary hover:bg-primary/10 pr-1',
+        counted && 'border-primary/50 text-primary hover:bg-primary/10 pr-2',
         hideWhenOff && !pressed && !counted && 'hidden @[672px]:inline-flex',
       )}
     >
       {label}
       {pressed && <XIcon aria-hidden className="size-4" />}
-      {counted && (
-        <span className="bg-primary text-primary-foreground flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums">
-          <span aria-hidden>{count.value > 99 ? '99+' : count.value}</span>
-          <span className="sr-only">, {count.label}</span>
-        </span>
-      )}
+      {counted && <CountPill value={count.value} label={count.label} />}
     </button>
   )
 }
