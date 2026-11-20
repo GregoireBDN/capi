@@ -31,6 +31,7 @@ import { PageHeader } from '#/components/app-shell/PageHeader'
 import type { PageAction } from '#/components/app-shell/page-actions'
 import { CryptoSourceCard } from '#/components/crypto/CryptoSourceCard'
 import { HoldingsPanel } from '#/components/crypto/HoldingsPanel'
+import { PendingCard } from '#/components/crypto/PendingCard'
 import {
   CryptoHistory,
   useWalletRefresh,
@@ -274,16 +275,7 @@ export function AccountDetailPage({
           today={today}
           refreshing={walletRefresh.isPending}
           onTokensChanged={walletRefresh.refresh}
-          onEditInvested={() => setInvestedOpen(true)}
         />
-        {writable && (
-          <InvestedSheet
-            open={investedOpen}
-            onOpenChange={setInvestedOpen}
-            account={current}
-            performance={data}
-          />
-        )}
       </div>
     )
   }
@@ -320,9 +312,12 @@ export function AccountDetailPage({
                 : `Au ${formatCalendarDate(data.valueDate)}, ${formatAge(data.daysSinceLatest)}`
               : undefined
           }
-          onEditInvested={() => setInvestedOpen(true)}
+          onEditInvested={crypto ? undefined : () => setInvestedOpen(true)}
         />
       )}
+
+      {/* Coins from or to somewhere the app can't see (#373). */}
+      {crypto && <PendingCard accountId={current.id} writable={writable} />}
 
       {crypto && (
         <HoldingsPanel
@@ -433,7 +428,8 @@ export function AccountDetailPage({
               }
             />
           )}
-          {investment && (
+          {/* A crypto account's cost follows its coins (#373). */}
+          {investment && !crypto && (
             <InvestedSheet
               open={investedOpen}
               onOpenChange={setInvestedOpen}

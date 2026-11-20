@@ -169,9 +169,14 @@ function portfolio(
       gainCents: 268_625,
       withoutInvestedCount: 1,
       withoutInvestedSymbols: ['ETH'],
-      unknown: [],
-      fiatCents: 0,
-      realised: { yearCents: 0, totalCents: 0, count: 0, unknownCount: 0 },
+      unknown: [{ assetId: 'ethereum', symbol: 'ETH', quantity: '0.3' }],
+      fiatCents: 100_000,
+      realised: {
+        yearCents: 200_000,
+        totalCents: 250_000,
+        count: 2,
+        unknownCount: 0,
+      },
       missingPriceCount: 0,
       staleCount: 0,
     },
@@ -261,13 +266,23 @@ describe('CryptoPage', () => {
     })
     expect(text(summary.textContent)).toContain('7 691,25 €')
     expect(text(summary.textContent)).toContain('+143,30 € sur 24 h')
-    // ETH's cost is unknown: the gain is over BTC only, and says so.
+    // Like an account (#373, the owner's « A. Comme un compte »): what the
+    // coins cost (the euros waiting left out), the result and what sales
+    // realised; ETH's cost is unknown, named apart.
+    expect(text(summary.textContent)).toContain('Investi3 120 €')
+    expect(text(summary.textContent)).toContain('Résultat+2 686 €+86,1 %')
+    expect(text(summary.textContent)).toContain('Réalisé+2 000 €en 2026')
     expect(text(summary.textContent)).toContain(
-      'Investi 4 120,00 € · résultat +2 686,25 € (hors ETH)',
+      'Hors 0,3 ETH sans coût connu : à préciser sur la page du compte.',
     )
+    // The euros waiting are a part of the split, not a line of their own.
+    expect(
+      within(summary).getByRole('img', { name: /Euros 12 %$/ }),
+    ).toBeInTheDocument()
+    expect(text(summary.textContent)).not.toContain('Dont 1 000')
     expect(text(summary.textContent)).toContain('Cours il y a 3 min')
     expect(
-      within(summary).getByRole('img', { name: /^Répartition : BTC 88 %/ }),
+      within(summary).getByRole('img', { name: /^Répartition : BTC 78 %/ }),
     ).toBeInTheDocument()
   })
 
@@ -291,18 +306,18 @@ describe('CryptoPage', () => {
       `/accounts/${LEDGER_ID}`,
       `/accounts/${EXCHANGE_ID}`,
     ])
-    expect(text(places.textContent)).toContain('Ledger test · 0,06 BTC')
+    // Each place with its share of the asset.
+    expect(text(links[0].textContent)).toBe(
+      'Ledger test4 950,00 €0,06 BTC73 % de vos BTC',
+    )
     const btc = rows[0].closest('li')!
-    expect(text(btc.textContent)).toContain(
-      '1 BTC = 82 500,00 € · cours il y a 3 min · +2,4 % sur 24 h',
-    )
-    expect(text(btc.textContent)).toContain(
-      'Investi 4 120,00 € · résultat +2 686,25 €',
-    )
+    expect(text(btc.textContent)).toContain('Investi4 120,00 €')
+    expect(text(btc.textContent)).toContain('Résultat+2 686,25 €')
+    expect(text(btc.textContent)).toContain('Cours82 500,00 €il y a 3 min')
 
     await user.click(rows[1])
     expect(
-      screen.getByText('Coût inconnu : pas de résultat calculé.'),
+      screen.getByText('Coût inconnu : à préciser sur la page du compte.'),
     ).toBeInTheDocument()
   })
 
@@ -532,7 +547,8 @@ describe('CryptoPage', () => {
         name: 'Valeur de vos cryptos',
       })
       expect(text(summary.textContent)).toContain('Lecture des wallets…')
-      expect(screen.getByText('Wallet · lecture en cours…')).toBeVisible()
+      const accounts = screen.getByRole('list', { name: 'Comptes crypto' })
+      expect(text(accounts.textContent)).toContain('Wallet · lecture en cours…')
     })
   })
 })
