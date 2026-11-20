@@ -98,6 +98,56 @@ export function revealFieldScrollTop({
   return scrollTop + Math.min(overflow, Math.max(0, focusTop - FOCUS_MARGIN_PX))
 }
 
+/** Input types that open no keyboard (a picker, a button, a box). */
+const NO_KEYBOARD_INPUTS = new Set([
+  'button',
+  'checkbox',
+  'color',
+  'date',
+  'datetime-local',
+  'file',
+  'hidden',
+  'image',
+  'month',
+  'radio',
+  'range',
+  'reset',
+  'submit',
+  'time',
+  'week',
+])
+
+/** What `opensKeyboard` reads from an element. */
+export interface FieldLike {
+  tagName: string
+  type?: string
+  readOnly?: boolean
+  inputMode?: string
+  isContentEditable?: boolean
+}
+
+/** Whether focusing this element brings the on-screen keyboard up. */
+export function opensKeyboard(element: FieldLike | null | undefined): boolean {
+  if (!element) return false
+  if (element.inputMode === 'none') return false
+  if (element.isContentEditable) return true
+  const tag = element.tagName.toUpperCase()
+  if (tag === 'TEXTAREA') return !element.readOnly
+  if (tag !== 'INPUT') return false
+  return !element.readOnly && !NO_KEYBOARD_INPUTS.has(element.type ?? 'text')
+}
+
+/**
+ * Height to expect from a keyboard not up yet: the last one seen, else a
+ * phone's (about 42 % of the screen with its suggestion bar).
+ */
+export function expectedKeyboardHeight(
+  lastSeen: number,
+  innerHeight: number,
+): number {
+  return lastSeen > 0 ? lastSeen : Math.round(innerHeight * 0.42)
+}
+
 /** What `scrollParentWithin` reads from an element. */
 export interface ScrollBox {
   parentElement: ScrollBox | null

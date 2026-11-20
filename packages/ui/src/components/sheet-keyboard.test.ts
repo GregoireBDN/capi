@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  expectedKeyboardHeight,
   isKeyboardOpen,
   keyboardAccessoryAllowance,
   keyboardInset,
+  opensKeyboard,
   revealEndScrollTop,
   revealFieldScrollTop,
   scrollParentWithin,
@@ -197,5 +199,36 @@ describe('revealFieldScrollTop', () => {
         visibleHeight: 400,
       }),
     ).toBe(200 - 50 - 16)
+  })
+})
+
+describe('opensKeyboard', () => {
+  it('is true for text fields and text areas', () => {
+    expect(opensKeyboard({ tagName: 'INPUT', type: 'text' })).toBe(true)
+    expect(opensKeyboard({ tagName: 'INPUT', type: 'email' })).toBe(true)
+    expect(opensKeyboard({ tagName: 'TEXTAREA' })).toBe(true)
+  })
+
+  it('is false for pickers, buttons, read-only fields and inputMode none', () => {
+    expect(opensKeyboard({ tagName: 'INPUT', type: 'date' })).toBe(false)
+    expect(opensKeyboard({ tagName: 'INPUT', type: 'checkbox' })).toBe(false)
+    expect(opensKeyboard({ tagName: 'BUTTON' })).toBe(false)
+    expect(
+      opensKeyboard({ tagName: 'INPUT', type: 'text', readOnly: true }),
+    ).toBe(false)
+    expect(
+      opensKeyboard({ tagName: 'INPUT', type: 'text', inputMode: 'none' }),
+    ).toBe(false)
+    expect(opensKeyboard(null)).toBe(false)
+  })
+})
+
+describe('expectedKeyboardHeight', () => {
+  it('is the last keyboard seen', () => {
+    expect(expectedKeyboardHeight(336, 844)).toBe(336)
+  })
+
+  it('is a phone keyboard before any was seen', () => {
+    expect(expectedKeyboardHeight(0, 844)).toBe(354)
   })
 })

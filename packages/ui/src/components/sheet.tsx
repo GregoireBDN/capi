@@ -6,9 +6,11 @@ import * as React from 'react'
 
 import { Button } from './button'
 import {
+  expectedKeyboardHeight,
   isKeyboardOpen,
   keyboardAccessoryAllowance,
   keyboardInset,
+  opensKeyboard,
   revealEndScrollTop,
   revealFieldScrollTop,
   scrollParentWithin,
@@ -157,6 +159,9 @@ function SheetOverlay({ className, ...props }: SheetOverlayProps) {
  * sheet, or a body inside it with the actions in a footer) so the field stays
  * in view and, as far as it allows, the end too.
  */
+/** The last keyboard seen (px), to expect the next one before it is up. */
+let lastKeyboardPx = 0
+
 function useKeyboardInset(
   node: HTMLElement | null,
   mode: 'sheet' | 'screen' | null,
@@ -212,12 +217,7 @@ function useKeyboardInset(
       node.style.setProperty('--keyboard-inset', `${inset}px`)
       const open = isKeyboardOpen(inset)
       node.toggleAttribute('data-keyboard-open', open)
-      // iOS may pan the page to reveal a field low on the screen: a
-      // full-screen editor follows the visible area, so its bar stays put.
-      node.style.setProperty(
-        '--viewport-offset',
-        `${open ? Math.max(0, Math.round(viewport.offsetTop)) : 0}px`,
-      )
+      if (open) lastKeyboardPx = inset + Math.round(viewport.offsetTop)
       // The keyboard opened or changed height (decimal → text): the sheet
       // was resized under the focused field. Not on a scroll of the visual
       // viewport, so the user's own scrolling is left alone.
@@ -228,12 +228,54 @@ function useKeyboardInset(
       wasOpen = open
       lastInset = inset
     }
+    // A full-screen editor (#385): as a field is tapped, before the keyboard
+    // comes up, its body gets room at its end for the keyboard to come and,
+    // if the keyboard is going to hide the field, scrolls it just above
+    // where the keyboard will be. iOS then finds the field in view and does
+    // not pan the whole page to reveal it (which showed the page under the
+    // editor): the tap moves the content once, the keyboard moves nothing.
+    const onFocusIn = (event: FocusEvent) => {
+      const field = event.target
+      if (!(field instanceof HTMLElement) || !opensKeyboard(field)) return
+      if (wasOpen) return
+      const expected = expectedKeyboardHeight(
+        lastKeyboardPx,
+        window.innerHeight,
+      )
+      node.style.setProperty('--keyboard-expected', `${expected}px`)
+      node.toggleAttribute('data-keyboard-expected', true)
+      const scroller = scrollParentWithin<HTMLElement>(field, node)
+      if (!scroller) return
+      const accessory =
+        parseFloat(node.style.getPropertyValue('--keyboard-accessory')) || 0
+      const box = scroller.getBoundingClientRect()
+      const rect = field.getBoundingClientRect()
+      scroller.scrollTop = revealFieldScrollTop({
+        scrollTop: scroller.scrollTop,
+        focusTop: rect.top - box.top,
+        focusBottom: rect.bottom - box.top,
+        visibleHeight:
+          Math.min(box.bottom, window.innerHeight - expected - accessory) -
+          box.top,
+      })
+    }
+    const onFocusOut = (event: FocusEvent) => {
+      const next = event.relatedTarget
+      if (next instanceof HTMLElement && opensKeyboard(next)) return
+      node.toggleAttribute('data-keyboard-expected', false)
+    }
     const onResize = () => update(true)
     const onScroll = () => update(false)
     update(true)
     viewport.addEventListener('resize', onResize)
     viewport.addEventListener('scroll', onScroll)
+    if (mode === 'screen') {
+      node.addEventListener('focusin', onFocusIn)
+      node.addEventListener('focusout', onFocusOut)
+    }
     return () => {
+      node.removeEventListener('focusin', onFocusIn)
+      node.removeEventListener('focusout', onFocusOut)
       cancelAnimationFrame(frame)
       viewport.removeEventListener('resize', onResize)
       viewport.removeEventListener('scroll', onScroll)
@@ -322,19 +364,19 @@ function SheetContent({
             'data-[side=bottom]:data-keyboard-open:pb-(--keyboard-accessory,84px)',
 
             // Side: Screen (#385): the whole screen, never moved by the
-            // keyboard, which covers its end; it only follows iOS panning
-            // the page (--viewport-offset, see useKeyboardInset).
-            'data-[side=screen]:inset-x-0',
-            'data-[side=screen]:top-(--viewport-offset,0px)',
-            'data-[side=screen]:bottom-[calc(0px-var(--viewport-offset,0px))]',
+            // keyboard, which covers its end.
+            'data-[side=screen]:inset-0',
             'data-[side=screen]:gap-0',
             'data-[side=screen]:pt-[env(safe-area-inset-top)]',
             'data-[side=screen]:pb-[env(safe-area-inset-bottom)]',
             'data-[side=screen]:pl-[env(safe-area-inset-left)]',
             'data-[side=screen]:pr-[env(safe-area-inset-right)]',
-            // While the keyboard is open, the end of what scrolls (the
-            // sheet, or a body marked `data-sheet-scroll`) gets room to come
-            // out from under it, unseen: nothing on screen moves.
+            // From the tap on a field until the keyboard closes, the end of
+            // what scrolls (the sheet, or a body marked `data-sheet-scroll`)
+            // gets room to come out from under it, unseen: nothing on screen
+            // moves (see useKeyboardInset).
+            'data-[side=screen]:data-keyboard-expected:not-data-keyboard-open:data-sheet-scroll:pb-[calc(var(--keyboard-expected,0px)+var(--keyboard-accessory,0px)+1rem)]',
+            'data-[side=screen]:data-keyboard-expected:not-data-keyboard-open:[&_[data-sheet-scroll]]:pb-[calc(var(--keyboard-expected,0px)+var(--keyboard-accessory,0px)+1rem)]',
             'data-[side=screen]:data-keyboard-open:data-sheet-scroll:pb-[calc(var(--keyboard-inset,0px)+var(--keyboard-accessory,0px)+1rem)]',
             'data-[side=screen]:data-keyboard-open:[&_[data-sheet-scroll]]:pb-[calc(var(--keyboard-inset,0px)+var(--keyboard-accessory,0px)+1rem)]',
 
@@ -462,6 +504,58 @@ function SheetHeader({ className, ...props }: SheetHeaderProps) {
  * the main action as a round button (`SheetBarAction`), then the
  * description under it.
  */
+/*
+ * #385, throwaway: the bar's styles the owner compares on the phone
+ * (« Ronds » first chosen, then found heavy in the app). The chosen one
+ * stays, the switch and the others go.
+ */
+type SheetBarStyle = 'ronds' | 'pastilles' | 'discret' | 'grand'
+const SHEET_BAR_STYLE_KEY = 'proto-385-bar'
+const SHEET_BAR_STYLES: readonly SheetBarStyle[] = [
+  'ronds',
+  'pastilles',
+  'discret',
+  'grand',
+]
+
+function readSheetBarStyle(): SheetBarStyle {
+  try {
+    const stored = localStorage.getItem(SHEET_BAR_STYLE_KEY)
+    return SHEET_BAR_STYLES.includes(stored as SheetBarStyle)
+      ? (stored as SheetBarStyle)
+      : 'ronds'
+  } catch {
+    return 'ronds'
+  }
+}
+
+function useSheetBarStyle(): SheetBarStyle {
+  const [style, setStyle] = React.useState<SheetBarStyle>('ronds')
+  React.useEffect(() => {
+    setStyle(readSheetBarStyle())
+    const sync = () => setStyle(readSheetBarStyle())
+    window.addEventListener('storage', sync)
+    window.addEventListener('proto-385-bar', sync)
+    return () => {
+      window.removeEventListener('storage', sync)
+      window.removeEventListener('proto-385-bar', sync)
+    }
+  }, [])
+  return style
+}
+
+/** #385, throwaway: sets the bar's style for this browser. */
+function setSheetBarStyle(style: SheetBarStyle) {
+  try {
+    localStorage.setItem(SHEET_BAR_STYLE_KEY, style)
+  } catch {
+    // Kept for this page only.
+  }
+  window.dispatchEvent(new Event('proto-385-bar'))
+}
+
+const SheetBarStyleContext = React.createContext<SheetBarStyle>('ronds')
+
 function SheetBar({
   title,
   description,
@@ -472,52 +566,109 @@ function SheetBar({
   className,
   ...props
 }: SheetBarProps) {
+  const style = useSheetBarStyle()
   const round = 'size-[40px] rounded-full [&_svg]:size-[18px]'
-  return (
-    <div
-      data-slot="sheet-bar"
-      className={cn('shrink-0 border-b', className)}
-      {...props}
-    >
-      <div className="flex min-h-[56px] items-center gap-2 px-3 py-2">
-        {onBack ? (
-          <Button
-            variant="secondary"
-            iconOnly
-            className={round}
-            aria-label={backLabel}
-            onClick={onBack}
-          >
-            <ChevronLeftIcon aria-hidden />
-          </Button>
-        ) : (
-          <SheetPrimitive.Close asChild>
-            <Button
-              variant="secondary"
-              iconOnly
-              className={round}
-              aria-label={closeLabel}
-            >
-              <XIcon aria-hidden />
-            </Button>
-          </SheetPrimitive.Close>
+  const leave = (() => {
+    if (style === 'pastilles') {
+      const pill = (
+        <Button
+          variant="secondary"
+          pill
+          className="h-[36px] px-3.5 text-[15px]"
+          onClick={onBack}
+        >
+          {onBack ? backLabel : 'Annuler'}
+        </Button>
+      )
+      return onBack ? (
+        pill
+      ) : (
+        <SheetPrimitive.Close asChild>{pill}</SheetPrimitive.Close>
+      )
+    }
+    const icon = onBack ? (
+      <ChevronLeftIcon aria-hidden />
+    ) : (
+      <XIcon aria-hidden />
+    )
+    const button = (
+      <Button
+        variant="secondary"
+        ghost={style !== 'ronds'}
+        iconOnly
+        className={cn(
+          round,
+          style !== 'ronds' &&
+            '-ml-1 text-muted-foreground [&_svg]:size-[22px]',
         )}
-        <SheetTitle className="min-w-0 flex-1 truncate text-center">
-          {title}
-        </SheetTitle>
-        {action ?? <span aria-hidden className="size-[40px] shrink-0" />}
+        aria-label={onBack ? backLabel : closeLabel}
+        onClick={onBack}
+      >
+        {icon}
+      </Button>
+    )
+    return onBack ? (
+      button
+    ) : (
+      <SheetPrimitive.Close asChild>{button}</SheetPrimitive.Close>
+    )
+  })()
+  const end = action ?? <span aria-hidden className="size-[40px] shrink-0" />
+
+  return (
+    <SheetBarStyleContext.Provider value={style}>
+      <div
+        data-slot="sheet-bar"
+        data-bar-style={style}
+        className={cn('shrink-0 border-b', className)}
+        {...props}
+      >
+        {style === 'grand' ? (
+          <>
+            <div className="flex min-h-[52px] items-center gap-2 px-3 pt-2">
+              {leave}
+              <span className="flex-1" />
+              {end}
+            </div>
+            <SheetTitle className="px-4 pt-1 text-[24px] leading-tight font-semibold text-balance">
+              {title}
+            </SheetTitle>
+          </>
+        ) : (
+          <div className="flex min-h-[56px] items-center gap-2 px-3 py-2">
+            {leave}
+            <SheetTitle
+              className={cn(
+                // Two lines at most, sized in px (the app's root is 22px).
+                'line-clamp-2 min-w-0 flex-1 text-[17px] leading-tight break-normal',
+                style === 'discret' ? 'text-left font-semibold' : 'text-center',
+              )}
+            >
+              {title}
+            </SheetTitle>
+            {end}
+          </div>
+        )}
+        {description && (
+          <SheetDescription
+            className={cn(
+              'px-4 pb-3 text-[15px] leading-snug',
+              style === 'grand' && 'pt-1',
+            )}
+          >
+            {description}
+          </SheetDescription>
+        )}
+        {!description && style === 'grand' && <div className="h-3" />}
       </div>
-      {description && (
-        <SheetDescription className="px-4 pb-3">{description}</SheetDescription>
-      )}
-    </div>
+    </SheetBarStyleContext.Provider>
   )
 }
 
 /**
  * Sheet Bar Action
- * The round main action of a `SheetBar` (a check mark by default): filled
- * once it can be used, greyed out before (`disabled`).
+ * The main action of a `SheetBar` (a check mark by default): filled once it
+ * can be used, greyed out before (`disabled`).
  */
 function SheetBarAction({
   label,
@@ -526,6 +677,26 @@ function SheetBarAction({
   className,
   ...props
 }: SheetBarActionProps) {
+  const style = React.useContext(SheetBarStyleContext)
+  const greyed =
+    'disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100'
+  if (style !== 'ronds') {
+    return (
+      <Button
+        pill
+        loading={loading}
+        iconEnd={icon}
+        className={cn(
+          'h-[36px] shrink-0 px-3.5 text-[15px] font-semibold [&_svg]:size-[18px]',
+          greyed,
+          className,
+        )}
+        {...props}
+      >
+        {label}
+      </Button>
+    )
+  }
   return (
     <Button
       iconOnly
@@ -534,7 +705,7 @@ function SheetBarAction({
       title={label}
       className={cn(
         'size-[40px] rounded-full [&_svg]:size-[20px]',
-        'disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100',
+        greyed,
         className,
       )}
       {...props}
@@ -609,6 +780,7 @@ function SheetDescription({ className, ...props }: SheetDescriptionProps) {
  * ========================================================================= */
 
 export {
+  setSheetBarStyle,
   Sheet,
   SheetBar,
   SheetBarAction,
@@ -620,6 +792,7 @@ export {
   SheetTitle,
   SheetTrigger,
   type SheetBarActionProps,
+  type SheetBarStyle,
   type SheetBarProps,
   type SheetCloseProps,
   type SheetContentProps,
