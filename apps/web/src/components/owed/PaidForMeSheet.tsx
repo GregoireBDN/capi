@@ -102,20 +102,22 @@ export interface PaidForMeFilled {
 }
 
 /**
- * Where the sheet goes after `from` (or opens, without it): the first step
- * still to fill in, so a hand-over skips what it brought; « Ma part » once
- * everything before it is there.
+ * Where the sheet opens: the first step still to fill in, so a hand-over
+ * skips what it brought; « Ma part » once everything before it is there.
+ * From then on each step moves on to the next one in order, filled or not
+ * (the owner, #394).
  */
-export function nextPaidForMeStep(
-  filled: PaidForMeFilled,
-  from?: PaidForMeStep,
-): PaidForMeStep {
-  const start = from ? PAID_FOR_ME_STEPS.indexOf(from) + 1 : 0
+export function firstPaidForMeStep(filled: PaidForMeFilled): PaidForMeStep {
   return (
-    PAID_FOR_ME_STEPS.slice(start).find(
-      (step) => step !== 'share' && !filled[step],
-    ) ?? 'share'
+    PAID_FOR_ME_STEPS.find((step) => step !== 'share' && !filled[step]) ??
+    'share'
   )
+}
+
+/** The step after `step`, in order (« Ma part » is the last). */
+export function nextPaidForMeStep(step: PaidForMeStep): PaidForMeStep {
+  const index = PAID_FOR_ME_STEPS.indexOf(step)
+  return PAID_FOR_ME_STEPS[Math.min(index + 1, PAID_FOR_ME_STEPS.length - 1)]
 }
 
 /**
@@ -190,7 +192,7 @@ function PaidForMeForm({
     bill: billCents > 0 && dateOk,
   }
   const [step, setStep] = useState<PaidForMeStep>(() =>
-    nextPaidForMeStep(filled),
+    firstPaidForMeStep(filled),
   )
   const stepIndex = PAID_FOR_ME_STEPS.indexOf(step)
 
@@ -220,9 +222,9 @@ function PaidForMeForm({
     else headingRef.current?.focus({ preventScroll: true })
   }, [step])
 
-  /** Moves on from the step shown once it is filled in. */
-  function moveOn(next: PaidForMeFilled = filled) {
-    setStep(nextPaidForMeStep(next, step))
+  /** Moves on from the step shown to the next one, in order. */
+  function moveOn() {
+    setStep(nextPaidForMeStep(step))
   }
 
   const createdCategory = useMutation({
@@ -238,7 +240,7 @@ function PaidForMeForm({
         queryKey: categoriesQuery.queryKey,
       })
       setCategoryId(created.id)
-      moveOn({ ...filled, category: true })
+      moveOn()
     },
     onError: (error) => toast.error(categoryErrorMessage(error)),
   })
@@ -404,10 +406,6 @@ function PaidForMeForm({
 
       {step === 'person' && (
         <FormSheetBody>
-          <p className="text-muted-foreground text-sm">
-            Quelqu’un a payé pour vous : seule votre part comptera dans vos
-            dépenses.
-          </p>
           <PeoplePicker
             single
             label="Qui a payé ?"
@@ -415,7 +413,7 @@ function PaidForMeForm({
             chosen={person ? [person] : []}
             onPick={(picked) => {
               setPerson(picked)
-              moveOn({ ...filled, person: true })
+              moveOn()
             }}
           />
         </FormSheetBody>
@@ -428,7 +426,7 @@ function PaidForMeForm({
           value={categoryId || null}
           onPick={(picked) => {
             setCategoryId(picked)
-            moveOn({ ...filled, category: true })
+            moveOn()
           }}
           onCreate={(newName) => createdCategory.mutate(newName)}
           creating={createdCategory.isPending}

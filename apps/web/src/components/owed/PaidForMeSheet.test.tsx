@@ -5,7 +5,11 @@ import type { CategoryDto, ContactDto, TransactionDto } from '#/api/types.gen'
 import { ok, renderWithClient } from '#/components/import/test-fixtures'
 import { currentDay } from '#/lib/calendar'
 import { pickCategory } from '#/test/category-picker'
-import { nextPaidForMeStep, PaidForMeSheet } from './PaidForMeSheet'
+import {
+  firstPaidForMeStep,
+  nextPaidForMeStep,
+  PaidForMeSheet,
+} from './PaidForMeSheet'
 
 const api = vi.hoisted(() => ({
   contactsControllerList: vi.fn(),
@@ -74,7 +78,7 @@ describe('PaidForMeSheet in four steps (#394)', () => {
     expect(stepShown()).toBe('Étape 1 sur 4 : Qui a payé')
     expect(screen.getByRole('button', { name: 'Suivant' })).toBeDisabled()
     // A tap moves on.
-    await user.click(await screen.findByRole('button', { name: /Sam/ }))
+    await user.click(await screen.findByRole('radio', { name: /Sam/ }))
     expect(stepShown()).toBe('Étape 2 sur 4 : Catégorie')
 
     await pickCategory(user, 'Restaurants')
@@ -145,7 +149,7 @@ describe('PaidForMeSheet in four steps (#394)', () => {
     )
   })
 
-  it('skips the steps a hand-over filled: the quick entry opens at who paid, then my part', async () => {
+  it('opens a hand-over at its first empty step, then goes in order, « Suivant » on what is filled', async () => {
     const user = userEvent.setup()
     renderWithClient(
       <PaidForMeSheet
@@ -160,16 +164,23 @@ describe('PaidForMeSheet in four steps (#394)', () => {
       />,
     )
     expect(stepShown()).toBe('Étape 1 sur 4 : Qui a payé')
-    await user.click(await screen.findByRole('button', { name: /Sam/ }))
+    await user.click(await screen.findByRole('radio', { name: /Sam/ }))
+    // The category handed over is there: « Suivant » moves on.
+    expect(stepShown()).toBe('Étape 2 sur 4 : Catégorie')
+    await user.click(screen.getByRole('button', { name: 'Suivant' }))
+    expect(stepShown()).toBe('Étape 3 sur 4 : Addition')
+    expect(screen.getByLabelText('Addition payée par Sam')).toHaveValue('45')
+    expect(screen.getByLabelText('Libellé')).toHaveValue('Marché')
+    await user.click(screen.getByRole('button', { name: 'Suivant' }))
     expect(stepShown()).toBe('Étape 4 sur 4 : Ma part')
     expect(screen.getByText('Je dois à Sam').parentElement).toHaveTextContent(
       /22,50/,
     )
-    // « Retour » goes back one step, the bill still there.
-    await user.click(screen.getByRole('button', { name: 'Retour' }))
-    expect(stepShown()).toBe('Étape 3 sur 4 : Addition')
-    expect(screen.getByLabelText('Addition payée par Sam')).toHaveValue('45')
-    expect(screen.getByLabelText('Libellé')).toHaveValue('Marché')
+    // Choosing someone else again goes on to the category, in order.
+    await user.click(screen.getByRole('button', { name: /1\. Sam/ }))
+    expect(stepShown()).toBe('Étape 1 sur 4 : Qui a payé')
+    await user.click(screen.getByRole('radio', { name: /Sam/ }))
+    expect(stepShown()).toBe('Étape 2 sur 4 : Catégorie')
   })
 
   it('opens at the category from a person’s page', async () => {
@@ -215,25 +226,19 @@ describe('PaidForMeSheet in four steps (#394)', () => {
   })
 })
 
-describe('nextPaidForMeStep', () => {
+describe('the steps’ order', () => {
   const none = { person: false, category: false, bill: false }
   it('opens at the first step to fill in', () => {
-    expect(nextPaidForMeStep(none)).toBe('person')
-    expect(nextPaidForMeStep({ ...none, person: true })).toBe('category')
+    expect(firstPaidForMeStep(none)).toBe('person')
+    expect(firstPaidForMeStep({ ...none, person: true })).toBe('category')
     expect(
-      nextPaidForMeStep({ person: true, category: true, bill: true }),
+      firstPaidForMeStep({ person: true, category: true, bill: true }),
     ).toBe('share')
   })
-  it('moves on past the steps already filled', () => {
-    expect(
-      nextPaidForMeStep({ person: true, category: true, bill: true }, 'person'),
-    ).toBe('share')
-    expect(
-      nextPaidForMeStep(
-        { person: true, category: false, bill: true },
-        'person',
-      ),
-    ).toBe('category')
-    expect(nextPaidForMeStep({ ...none, person: true }, 'bill')).toBe('share')
+  it('then moves on in order, filled or not', () => {
+    expect(nextPaidForMeStep('person')).toBe('category')
+    expect(nextPaidForMeStep('category')).toBe('bill')
+    expect(nextPaidForMeStep('bill')).toBe('share')
+    expect(nextPaidForMeStep('share')).toBe('share')
   })
 })
