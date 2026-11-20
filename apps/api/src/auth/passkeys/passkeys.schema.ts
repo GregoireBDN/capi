@@ -34,7 +34,7 @@ export const webauthnCredentialsTable = pgTable('webauthn_credentials', {
   backedUp: boolean('backed_up').notNull().default(false),
   /** Shown in the profile, editable. */
   name: varchar('name', { length: 100 }).notNull(),
-  lastUsedAt: timestamp('last_used_at'),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
 })
 
 export const WEBAUTHN_CHALLENGE_PURPOSES = [
@@ -64,7 +64,7 @@ export const webauthnChallengesTable = pgTable(
     userId: uuid('user_id').references(() => usersTable.id, {
       onDelete: 'cascade',
     }),
-    expiresAt: timestamp('expires_at').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   },
   (table) => [index('webauthn_challenges_expires_at_idx').on(table.expiresAt)],
 )

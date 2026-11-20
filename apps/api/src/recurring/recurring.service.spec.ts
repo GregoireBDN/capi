@@ -19,6 +19,7 @@ import {
 } from '#/database/schema'
 import { addMonths } from './dates'
 import { amountRuns, RecurringService } from './recurring.service'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Integration checks against the migrated test database. Each test runs in a
@@ -100,15 +101,18 @@ describe.skipIf(!process.env.DATABASE_URL)(
           )
           const insert = async (rows: Partial<InsertTransaction>[]) => {
             await tx.insert(transactionsTable).values(
-              rows.map((row) => ({
-                accountId: checking.id,
-                bookingDate: '2026-01-01',
-                amountCents: -100,
-                rawLabel: 'PRLV SEPA DIVERS',
-                kind: 'expense' as const,
-                dedupeHash: `recurring-spec-${++sequence}`,
-                ...row,
-              })),
+              await bankRows(
+                tx,
+                rows.map((row) => ({
+                  accountId: checking.id,
+                  bookingDate: '2026-01-01',
+                  amountCents: -100,
+                  rawLabel: 'PRLV SEPA DIVERS',
+                  kind: 'expense' as const,
+                  dedupeHash: `recurring-spec-${++sequence}`,
+                  ...row,
+                })),
+              ),
             )
           }
           await fn({
@@ -537,6 +541,14 @@ describe.skipIf(!process.env.DATABASE_URL)(
               endedOn: '2026-11-14',
             }),
           ).rejects.toBeInstanceOf(BadRequestException)
+          // Dismissed, it loses its end date (a database rule since #367).
+          const dismissed = await f.service.update(item.id, {
+            status: 'dismissed',
+          })
+          expect(dismissed).toMatchObject({
+            status: 'dismissed',
+            endedOn: null,
+          })
         })
       })
     })

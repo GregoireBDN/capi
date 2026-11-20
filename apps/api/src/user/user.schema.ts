@@ -10,7 +10,7 @@ export const usersTable = pgTable('users', {
   name: varchar('name', { length: 255 }).notNull(),
   passwordHash: varchar('password_hash', { length: 255 }),
   theme: themeEnum('theme').notNull().default('auto'),
-  emailVerifiedAt: timestamp('email_verified_at'),
+  emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
 })
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({

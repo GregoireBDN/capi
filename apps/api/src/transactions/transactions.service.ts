@@ -473,8 +473,8 @@ export class TransactionsService {
       await tx
         .update(transactionsTable)
         .set({
-          amountCents: sql`coalesce(${transactionsTable.originalAmountCents}, ${transactionsTable.amountCents})`,
-          bookingDate: sql`coalesce(${transactionsTable.originalBookingDate}, ${transactionsTable.bookingDate})`,
+          amountCents: sql`${transactionsTable.bankAmountCents}`,
+          bookingDate: sql`${transactionsTable.bankBookingDate}`,
           originalAmountCents: null,
           originalBookingDate: null,
         })

@@ -252,7 +252,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const second = await seeded((tx) => digest(tx))
       expect(first.length).toBeGreaterThan(0)
       expect(second).toEqual(first)
-    })
+      // Seeds twice: over the 5 s default on a loaded machine.
+    }, 15_000)
 
     it('files the same transactions with the computed rule order as with the old manual one (#299)', async () => {
       const diff = await seeded(async (tx) => {

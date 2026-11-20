@@ -15,6 +15,7 @@ import {
   ListAccountsQueryDto,
   UpdateAccountDto,
 } from './dto/account.dto'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Integration checks against the migrated database (see
@@ -154,29 +155,31 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService (database)', () => {
     await inRollback(async ({ tx, service }) => {
       const account = await service.create({ name: 'Test', type: 'checking' })
       // Inserted in reverse order: the end-of-day balance is found by chaining.
-      await tx.insert(transactionsTable).values([
-        transaction(account.id, {
-          bookingDate: '2026-10-02',
-          amountCents: -500,
-          balanceAfterCents: 9_000,
-        }),
-        transaction(account.id, {
-          bookingDate: '2026-10-02',
-          amountCents: -500,
-          balanceAfterCents: 9_500,
-        }),
-        transaction(account.id, {
-          bookingDate: '2026-10-01',
-          amountCents: 10_000,
-          balanceAfterCents: 10_000,
-        }),
-        // Entered by hand after the last export: no running balance.
-        transaction(account.id, {
-          bookingDate: '2026-10-05',
-          amountCents: -250,
-          balanceAfterCents: null,
-        }),
-      ])
+      await tx.insert(transactionsTable).values(
+        await bankRows(tx, [
+          transaction(account.id, {
+            bookingDate: '2026-10-02',
+            amountCents: -500,
+            balanceAfterCents: 9_000,
+          }),
+          transaction(account.id, {
+            bookingDate: '2026-10-02',
+            amountCents: -500,
+            balanceAfterCents: 9_500,
+          }),
+          transaction(account.id, {
+            bookingDate: '2026-10-01',
+            amountCents: 10_000,
+            balanceAfterCents: 10_000,
+          }),
+          // Entered by hand after the last export: no running balance.
+          transaction(account.id, {
+            bookingDate: '2026-10-05',
+            amountCents: -250,
+            balanceAfterCents: null,
+          }),
+        ]),
+      )
 
       const listed = (await service.list()).find((a) => a.id === account.id)
       expect(listed).toMatchObject({
@@ -189,16 +192,18 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService (database)', () => {
   it('sums the amounts when no row has a running balance', async () => {
     await inRollback(async ({ tx, service }) => {
       const account = await service.create({ name: 'Test', type: 'savings' })
-      await tx.insert(transactionsTable).values([
-        transaction(account.id, {
-          amountCents: 20_000,
-          bookingDate: '2026-09-01',
-        }),
-        transaction(account.id, {
-          amountCents: -5_000,
-          bookingDate: '2026-09-15',
-        }),
-      ])
+      await tx.insert(transactionsTable).values(
+        await bankRows(tx, [
+          transaction(account.id, {
+            amountCents: 20_000,
+            bookingDate: '2026-09-01',
+          }),
+          transaction(account.id, {
+            amountCents: -5_000,
+            bookingDate: '2026-09-15',
+          }),
+        ]),
+      )
       expect(await service.findOne(account.id)).toMatchObject({
         balanceCents: 15_000,
         balanceDate: '2026-09-15',
@@ -209,16 +214,18 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService (database)', () => {
   it('returns no balance when the latest balances do not chain', async () => {
     await inRollback(async ({ tx, service }) => {
       const account = await service.create({ name: 'Test', type: 'checking' })
-      await tx.insert(transactionsTable).values([
-        transaction(account.id, {
-          amountCents: -100,
-          balanceAfterCents: 1_000,
-        }),
-        transaction(account.id, {
-          amountCents: -100,
-          balanceAfterCents: 5_000,
-        }),
-      ])
+      await tx.insert(transactionsTable).values(
+        await bankRows(tx, [
+          transaction(account.id, {
+            amountCents: -100,
+            balanceAfterCents: 1_000,
+          }),
+          transaction(account.id, {
+            amountCents: -100,
+            balanceAfterCents: 5_000,
+          }),
+        ]),
+      )
       expect(await service.findOne(account.id)).toMatchObject({
         balanceCents: null,
         balanceDate: null,
@@ -229,26 +236,28 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService (database)', () => {
   it('anchors history without running balances on the latest snapshot', async () => {
     await inRollback(async ({ tx, service }) => {
       const account = await service.create({ name: 'Test', type: 'checking' })
-      await tx.insert(transactionsTable).values([
-        // Before the snapshot: already part of the statement balance.
-        transaction(account.id, {
-          bookingDate: '2026-08-10',
-          amountCents: -700,
-        }),
-        transaction(account.id, {
-          bookingDate: '2026-08-31',
-          amountCents: -300,
-        }),
-        // After the snapshot.
-        transaction(account.id, {
-          bookingDate: '2026-09-03',
-          amountCents: -1_200,
-        }),
-        transaction(account.id, {
-          bookingDate: '2026-09-04',
-          amountCents: 500,
-        }),
-      ])
+      await tx.insert(transactionsTable).values(
+        await bankRows(tx, [
+          // Before the snapshot: already part of the statement balance.
+          transaction(account.id, {
+            bookingDate: '2026-08-10',
+            amountCents: -700,
+          }),
+          transaction(account.id, {
+            bookingDate: '2026-08-31',
+            amountCents: -300,
+          }),
+          // After the snapshot.
+          transaction(account.id, {
+            bookingDate: '2026-09-03',
+            amountCents: -1_200,
+          }),
+          transaction(account.id, {
+            bookingDate: '2026-09-04',
+            amountCents: 500,
+          }),
+        ]),
+      )
       await tx.insert(balanceSnapshotsTable).values([
         { accountId: account.id, date: '2026-07-31', valueCents: 1 },
         { accountId: account.id, date: '2026-08-31', valueCents: 50_000 },
@@ -273,34 +282,36 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService (database)', () => {
         name: 'Only snapshot',
         type: 'savings',
       })
-      await tx.insert(transactionsTable).values([
-        // Running balance on 10-05 is newer than the 09-30 snapshot.
-        transaction(running.id, {
-          bookingDate: '2026-10-05',
-          amountCents: -100,
-          balanceAfterCents: 7_000,
-        }),
-        transaction(running.id, {
-          bookingDate: '2026-10-06',
-          amountCents: -50,
-        }),
-        // Snapshot on 10-31 is newer than the 10-05 running balance.
-        transaction(snapshotted.id, {
-          bookingDate: '2026-10-05',
-          amountCents: -100,
-          balanceAfterCents: 7_000,
-        }),
-        transaction(snapshotted.id, {
-          bookingDate: '2026-11-02',
-          amountCents: -40,
-        }),
-        // Same day: the snapshot (statement) wins.
-        transaction(tie.id, {
-          bookingDate: '2026-10-31',
-          amountCents: 100,
-          balanceAfterCents: 3_000,
-        }),
-      ])
+      await tx.insert(transactionsTable).values(
+        await bankRows(tx, [
+          // Running balance on 10-05 is newer than the 09-30 snapshot.
+          transaction(running.id, {
+            bookingDate: '2026-10-05',
+            amountCents: -100,
+            balanceAfterCents: 7_000,
+          }),
+          transaction(running.id, {
+            bookingDate: '2026-10-06',
+            amountCents: -50,
+          }),
+          // Snapshot on 10-31 is newer than the 10-05 running balance.
+          transaction(snapshotted.id, {
+            bookingDate: '2026-10-05',
+            amountCents: -100,
+            balanceAfterCents: 7_000,
+          }),
+          transaction(snapshotted.id, {
+            bookingDate: '2026-11-02',
+            amountCents: -40,
+          }),
+          // Same day: the snapshot (statement) wins.
+          transaction(tie.id, {
+            bookingDate: '2026-10-31',
+            amountCents: 100,
+            balanceAfterCents: 3_000,
+          }),
+        ]),
+      )
       await tx.insert(balanceSnapshotsTable).values([
         { accountId: running.id, date: '2026-09-30', valueCents: 1 },
         { accountId: snapshotted.id, date: '2026-10-31', valueCents: 8_000 },

@@ -808,6 +808,8 @@ export class CategorizationRulesService {
           merchant = v.merchant,
           needs_review = v.needs_review,
           counterpart_account_id = v.counterpart_account_id,
+          -- Only an expense pays a prepaid subscription (#314).
+          prepaid_item_id = case when v.kind = 'expense' then t.prepaid_item_id end,
           updated_at = now()
       from (values ${values}) as v(id, category_id, rule_id, kind, merchant, needs_review, counterpart_account_id)
       where t.id = v.id

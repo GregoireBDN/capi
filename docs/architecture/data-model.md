@@ -2,39 +2,41 @@
 
 Audit of the PostgreSQL model against the product's needs (#362, 20/11/2026). It describes the model as it is on `main` after migration `0034_prepaid_subscriptions`, maps the needs onto it and ranks what strains. The target model and the migration path are in [ADR 0005](../adr/0005-data-model-consolidation.md).
 
+**Since the audit.** #367 (R3, R4, R7, migration `0038_db_hygiene`) moved the rules marked « code » below into check constraints, added the generated bank columns and their index, and turned every time stamp into `timestamptz` with `updated_at` kept by a trigger; this document marks those places « DB (#367) ».
+
 Open work taken into account: #357 (split part's kind, PR #363: the view reads a part's category kind, no column), #358 (crypto invested base, in progress: `accounts.invested_base_cents` / `invested_base_on`), #359 (contacts, money owed to the owner, prototypes in PR #361), #360 (one set of investment figures, prototypes).
 
 **How it was checked.** Schemas (`apps/api/src/**/*.schema.ts`), the 35 migrations (`apps/api/drizzle/0000` → `0034`) and the services that enforce the rules. Queries were run on a throwaway database seeded with `pnpm db:demo --reset` (synthetic data only), then on a ×20 synthetic copy of its transactions (15 300 rows, several times the owner's volume) for the query plans. No production data was read.
 
 ## 1. What the app manages
 
-| Concept                                      | Where it lives                                                                                                                                                                                                            | Invariants, and who enforces them                                                                                                       |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **Money moved**: bank rows                   | `transactions` (`import_id` set, `manual = false`), `imports`                                                                                                                                                             | dedupe hash unique per account (DB); bank values kept when corrected (`original_*`, code); continuity with `balance_after_cents` (code) |
-| Manual entries                               | `transactions` (`manual = true`, `import_id` null, `manual:<uuid>` hash)                                                                                                                                                  | never in the future, meal-voucher daily cap, replaced by the matching bank row (code)                                                   |
-| Transfers                                    | `transactions.kind = 'transfer'` + `counterpart_account_id`; `crypto_movements.counterpart_account_id`                                                                                                                    | never income or expense (code, everywhere); counterpart ≠ own account (DB); counterpart only on transfers (code)                        |
-| Refunds                                      | an `expense` row with a positive amount in an expense category                                                                                                                                                            | reduces the category's spending (code: budgets, spending)                                                                               |
-| Splits                                       | `transaction_splits` + the `transaction_lines` view                                                                                                                                                                       | 2–20 parts, same sign, sum = amount (code); largest part's category copied on the transaction (code)                                    |
-| Shares owed by others (#359)                 | not modelled yet (filed as income in « Remboursements »)                                                                                                                                                                  | —                                                                                                                                       |
-| **Classification**: category                 | `transactions.category_id`, `transaction_splits.category_id`, `categories`                                                                                                                                                | category kind fixed once used (code)                                                                                                    |
-| Kind                                         | `transactions.kind`, `categories.kind`, `categorization_rules.kind` (override), part kind from its category (#357)                                                                                                        | none in the DB; the code sets `kind = rule.kind ?? category.kind` or `dto.kind ?? category.kind`                                        |
-| One-off, review, note                        | `transactions.is_one_off`, `needs_review`, `note`; prepaid payments count as one-off in the view                                                                                                                          | uncategorized ⇒ in review (code)                                                                                                        |
-| Rules                                        | `categorization_rules`                                                                                                                                                                                                    | computed order: `priority`, specificity, `position` (code)                                                                              |
-| **Value held**: cash balance                 | computed from `transactions` (bank values) anchored on `balance_after_cents` or a `balance_snapshots` row                                                                                                                 | code (`AccountsService.loadBalances`)                                                                                                   |
-| Investment value                             | `balance_snapshots.value_cents`, one per account and day (DB unique)                                                                                                                                                      | crypto: today's snapshot written by each valuation (code)                                                                               |
-| Crypto holdings                              | `crypto_holdings` (origins `import`, `sync`, `manual`)                                                                                                                                                                    | each origin replaced only by its own writer (code); quantity ≥ 0 (DB)                                                                   |
-| Invested amount                              | `balance_snapshots.contributions_cents` (typed or computed), linked transfers (`transactions.counterpart_account_id`), `crypto_holdings.invested_cents`, `crypto_movements.cost_cents`, `accounts.invested_base_*` (#358) | merged by `investments/performance.ts` and `crypto/valuation.ts` (code)                                                                 |
-| **Plans**: budgets and planned income        | `budgets` (effective-dated, carried over)                                                                                                                                                                                 | first of month, target > 0 (DB); transfer categories refused, income never tracked (code)                                               |
-| Envelopes                                    | `budgets.tracked`                                                                                                                                                                                                         | code                                                                                                                                    |
-| Savings goals and target                     | `savings_goals`, `savings_goal_accounts`, `app_settings` (`savings.monthly_target_cents`)                                                                                                                                 | target > 0 (DB)                                                                                                                         |
-| Recurring items, prepaid plans, cancellation | `recurring_items` (+ `transactions.prepaid_item_id`)                                                                                                                                                                      | detection never overwrites the owner's columns (code); term 2–60 (DB)                                                                   |
-| Forecast, coverage                           | computed only (`forecast/`, `coverage/`)                                                                                                                                                                                  | —                                                                                                                                       |
-| **Closings**: month close                    | `month_closes` (`report` jsonb frozen at the close, `report_version`)                                                                                                                                                     | closed ⇔ report ⇔ report version (DB); ticks only on `recurring`, `budget`, `savings` (code)                                            |
-| **Access** (not finance)                     | `users`, sessions, passkeys, tokens, OAuth                                                                                                                                                                                | see their ADRs                                                                                                                          |
+| Concept                                      | Where it lives                                                                                                                                                                                                            | Invariants, and who enforces them                                                                                                                                                                                     |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Money moved**: bank rows                   | `transactions` (`import_id` set, `manual = false`), `imports`                                                                                                                                                             | dedupe hash unique per account (DB); `manual` ⇔ no import ⇔ `manual:` hash (DB, #367); bank values kept when corrected (`original_*`, code; read through `bank_*`, DB) ; continuity with `balance_after_cents` (code) |
+| Manual entries                               | `transactions` (`manual = true`, `import_id` null, `manual:<uuid>` hash)                                                                                                                                                  | never in the future, meal-voucher daily cap, replaced by the matching bank row (code)                                                                                                                                 |
+| Transfers                                    | `transactions.kind = 'transfer'` + `counterpart_account_id`; `crypto_movements.counterpart_account_id`                                                                                                                    | never income or expense (code, everywhere); counterpart ≠ own account (DB); counterpart only on transfers (DB, #367)                                                                                                  |
+| Refunds                                      | an `expense` row with a positive amount in an expense category                                                                                                                                                            | reduces the category's spending (code: budgets, spending)                                                                                                                                                             |
+| Splits                                       | `transaction_splits` + the `transaction_lines` view                                                                                                                                                                       | 2–20 parts, same sign, sum = amount (code); largest part's category copied on the transaction (code)                                                                                                                  |
+| Shares owed by others (#359)                 | not modelled yet (filed as income in « Remboursements »)                                                                                                                                                                  | —                                                                                                                                                                                                                     |
+| **Classification**: category                 | `transactions.category_id`, `transaction_splits.category_id`, `categories`                                                                                                                                                | category kind fixed once used (code)                                                                                                                                                                                  |
+| Kind                                         | `transactions.kind`, `categories.kind`, `categorization_rules.kind` (override), part kind from its category (#357)                                                                                                        | none in the DB; the code sets `kind = rule.kind ?? category.kind` or `dto.kind ?? category.kind`                                                                                                                      |
+| One-off, review, note                        | `transactions.is_one_off`, `needs_review`, `note`; prepaid payments count as one-off in the view                                                                                                                          | uncategorized ⇒ in review (code)                                                                                                                                                                                      |
+| Rules                                        | `categorization_rules`                                                                                                                                                                                                    | computed order: `priority`, specificity, `position` (code)                                                                                                                                                            |
+| **Value held**: cash balance                 | computed from `transactions` (bank values) anchored on `balance_after_cents` or a `balance_snapshots` row                                                                                                                 | code (`AccountsService.loadBalances`)                                                                                                                                                                                 |
+| Investment value                             | `balance_snapshots.value_cents`, one per account and day (DB unique)                                                                                                                                                      | crypto: today's snapshot written by each valuation (code)                                                                                                                                                             |
+| Crypto holdings                              | `crypto_holdings` (origins `import`, `sync`, `manual`)                                                                                                                                                                    | each origin replaced only by its own writer (code); quantity ≥ 0 (DB)                                                                                                                                                 |
+| Invested amount                              | `balance_snapshots.contributions_cents` (typed or computed), linked transfers (`transactions.counterpart_account_id`), `crypto_holdings.invested_cents`, `crypto_movements.cost_cents`, `accounts.invested_base_*` (#358) | merged by `investments/performance.ts` and `crypto/valuation.ts` (code)                                                                                                                                               |
+| **Plans**: budgets and planned income        | `budgets` (effective-dated, carried over)                                                                                                                                                                                 | first of month, target > 0 (DB); transfer categories refused, income never tracked (code)                                                                                                                             |
+| Envelopes                                    | `budgets.tracked`                                                                                                                                                                                                         | code                                                                                                                                                                                                                  |
+| Savings goals and target                     | `savings_goals`, `savings_goal_accounts`, `app_settings` (`savings.monthly_target_cents`)                                                                                                                                 | target > 0 (DB)                                                                                                                                                                                                       |
+| Recurring items, prepaid plans, cancellation | `recurring_items` (+ `transactions.prepaid_item_id`)                                                                                                                                                                      | detection never overwrites the owner's columns (code); term 2–60, debits only, `ended_on` on confirmed only (DB)                                                                                                      |
+| Forecast, coverage                           | computed only (`forecast/`, `coverage/`)                                                                                                                                                                                  | —                                                                                                                                                                                                                     |
+| **Closings**: month close                    | `month_closes` (`report` jsonb frozen at the close, `report_version`)                                                                                                                                                     | closed ⇔ report ⇔ report version (DB); ticks only on `recurring`, `budget`, `savings` (DB, #367)                                                                                                                      |
+| **Access** (not finance)                     | `users`, sessions, passkeys, tokens, OAuth                                                                                                                                                                                | see their ADRs                                                                                                                                                                                                        |
 
 ## 2. Entity-relationship diagrams
 
-Columns shown are the ones that carry meaning; every table also has `id` (uuid), `created_at` and `updated_at` (`coreColumns`).
+Columns shown are the ones that carry meaning; every table also has `id` (uuid), `created_at` and `updated_at` (`coreColumns`, `timestamptz`; `updated_at` kept by the `set_updated_at()` trigger, #367).
 
 ### Ledger, classification and plans
 
@@ -63,7 +65,7 @@ erDiagram
     account_type type
     varchar institution
     int position
-    timestamp archived_at
+    timestamptz archived_at
     crypto_account_source crypto_source
     crypto_exchange_provider crypto_provider
     timestamptz crypto_synced_at
@@ -83,6 +85,8 @@ erDiagram
     bool manual
     bigint original_amount_cents "bank value when corrected"
     date original_booking_date "bank value when corrected"
+    bigint bank_amount_cents "generated: original or own"
+    date bank_booking_date "generated: original or own"
     varchar dedupe_hash "unique per account"
   }
   transaction_splits {
@@ -95,7 +99,7 @@ erDiagram
     date period_start
     date period_end
     jsonb preview "null once committed"
-    timestamp committed_at
+    timestamptz committed_at
   }
   categories {
     varchar slug "unique"
@@ -103,7 +107,7 @@ erDiagram
     transaction_kind kind
     varchar color
     varchar icon
-    timestamp archived_at
+    timestamptz archived_at
   }
   deleted_default_categories {
     varchar slug "unique"
@@ -153,7 +157,7 @@ erDiagram
     date target_date
     savings_goal_source source
     bigint manual_amount_cents
-    timestamp archived_at
+    timestamptz archived_at
   }
   app_settings {
     varchar key "unique"
@@ -163,7 +167,7 @@ erDiagram
     varchar month "YYYY-MM, unique"
     text notes
     text_array acknowledged
-    timestamp closed_at
+    timestamptz closed_at
     jsonb report "frozen MonthReportDto"
     smallint report_version "shape of report"
   }
@@ -181,7 +185,7 @@ erDiagram
   crypto_wallet_keys ||--o{ crypto_bitcoin_scans : "key_id (cascade)"
   crypto_bitcoin_scans ||--o{ crypto_bitcoin_scan_addresses : "scan_id (cascade)"
   accounts ||--o{ crypto_wallet_tokens : "account_id (cascade)"
-  accounts ||--o{ crypto_imports : "account_id (cascade)"
+  accounts ||--o{ crypto_imports : "account_id (restrict)"
   crypto_imports ||--o{ crypto_movements : "import_id (cascade)"
   accounts ||--o{ crypto_movements : "account_id (cascade)"
   accounts |o--o{ crypto_movements : "counterpart_account_id (set null)"
@@ -237,7 +241,7 @@ erDiagram
     varchar file_hash
     timestamptz period_start
     timestamptz period_end
-    jsonb preview "kept after commit"
+    jsonb preview "null once committed"
     timestamptz committed_at
   }
   crypto_movements {
@@ -281,10 +285,10 @@ These 13 tables are covered by `CLAUDE.md` (Auth, Passkeys, Personal access toke
 
 ### Ledger
 
-- **`accounts`** — the owner's accounts, seven types. Crypto columns: `crypto_source` iff `type = 'crypto'` (DB), `crypto_provider` iff source `exchange` (DB); `crypto_synced_at` / `crypto_sync_failed_at` are sync state with no check. Archive rather than delete; delete is one DB transaction across every dependant (code, `DELETE /api/accounts/:id`).
-- **`transactions`** — bank rows, manual entries and the spreadsheet history in one table. Unique `(account_id, dedupe_hash)` (DB). Counterpart ≠ own account (DB). Code only: counterpart only on transfers, prepaid link only on expenses, `manual` ⇔ no import ⇔ `manual:` hash, corrections only on bank rows (`original_*` set once, never on manual rows), uncategorized ⇒ `needs_review`, `kind` agrees with the category.
+- **`accounts`** — the owner's accounts, seven types. Crypto columns: `crypto_source` iff `type = 'crypto'` (DB), `crypto_provider` iff source `exchange` (DB); `crypto_synced_at` / `crypto_sync_failed_at` only on crypto accounts (DB, #367). Archive rather than delete; delete is one DB transaction across every dependant (code, `DELETE /api/accounts/:id`).
+- **`transactions`** — bank rows, manual entries and the spreadsheet history in one table. Unique `(account_id, dedupe_hash)` (DB). Counterpart ≠ own account (DB). Since #367 (DB): counterpart only on transfers, prepaid link only on expenses, `manual` ⇔ no import ⇔ `manual:` hash, corrections only on bank rows (`original_*` never on manual rows); `bank_amount_cents` / `bank_booking_date` are generated stored columns (the original of a corrected row, else its own), read by every reader of bank data, with the partial index `(account_id, bank_booking_date) where not manual`; a partial index on `needs_review`. Code only: `original_*` set once, uncategorized ⇒ `needs_review`, `kind` agrees with the category.
 - **`transaction_splits`** — parts of a split transaction. Unique `(transaction_id, position)` (DB). Code only: 2–20 parts, same sign as the transaction, never 0, sum = amount, the transaction's category = largest part's, its amount locked while split, a whole-transaction category ends the split.
-- **`imports`** — one uploaded bank file (CIC CSV) or one account's share of the spreadsheet history. `preview` jsonb while pending, null once committed (code). Undoing deletes its transactions (code, plus `ON DELETE CASCADE`).
+- **`imports`** — one uploaded bank file (CIC CSV) or one account's share of the spreadsheet history. `preview` jsonb while pending, null once committed (code). Accounts restrict their deletion (the account deletion deletes them first). Undoing deletes its transactions (code, plus `ON DELETE CASCADE`).
 
 ### Classification
 
@@ -294,12 +298,12 @@ These 13 tables are covered by `CLAUDE.md` (Auth, Passkeys, Personal access toke
 
 ### Plans and closings
 
-- **`budgets`** — effective-dated monthly targets per category (expense targets and planned income, #315): first of month and target > 0 (DB), unique `(category_id, effective_from)` (DB). Code only: no transfer category, income lines never `tracked`. The schema comment still says « Only expense categories » (stale since #315).
-- **`recurring_items`** — one detected series per account + merchant key + direction. Detection columns (cadence, amount type, typical amount, confidence, last seen, next expected) are a snapshot refreshed by each run and recomputed by the list endpoint; the owner's columns (name, category, fixed cost, cadence override, notes, status, `ended_on`, `term_months`, `renewal_kept_on`) are never touched by detection (code). Code only: `ended_on` only on `confirmed`, prepaid only on debits.
+- **`budgets`** — effective-dated monthly targets per category (expense targets and planned income, #315): first of month and target > 0 (DB), unique `(category_id, effective_from)` (DB). Code only: no transfer category, income lines never `tracked`.
+- **`recurring_items`** — one detected series per account + merchant key + direction. Detection columns (cadence, amount type, typical amount, confidence, last seen, next expected) are a snapshot refreshed by each run and recomputed by the list endpoint; the owner's columns (name, category, fixed cost, cadence override, notes, status, `ended_on`, `term_months`, `renewal_kept_on`) are never touched by detection (code). `ended_on` only on `confirmed`, prepaid only on debits (DB, #367); leaving `confirmed` clears `ended_on`.
 - **`balance_snapshots`** — dated value of an account, unique per account and day (DB). Two roles: statement balances of cash accounts (anchors of the balance) and values of investment accounts. `contributions_cents` holds typed statement figures for PEA-like accounts **and** computed costs for crypto accounts.
-- **`savings_goals`**, **`savings_goal_accounts`** — goals and the accounts whose balances make them up. Code only: `manual_amount_cents` used iff `source = 'manual'`.
+- **`savings_goals`**, **`savings_goal_accounts`** — goals and the accounts whose balances make them up. `manual_amount_cents` set iff `source = 'manual'` (DB, #367).
 - **`app_settings`** — key / jsonb value; one key today (`savings.monthly_target_cents`).
-- **`month_closes`** — one row per month touched by the review: ticks, notes, close time and the frozen `report` (DB: month format, closed ⇔ report ⇔ `report_version`). The report is versioned (#369, R6): `upgradeReport` (`month-close/report-version.ts`) turns any stored version into the current DTO where it is read, filling what an older shape lacks (version 1 → 2: icons from the live categories, `plan: null`), never recomputing a figure.
+- **`month_closes`** — one row per month touched by the review: ticks, notes, close time and the frozen `report` (DB: month format, closed ⇔ report ⇔ `report_version`, ticks among `recurring`, `budget`, `savings` since #367). The report is versioned (#369, R6): `upgradeReport` (`month-close/report-version.ts`) turns any stored version into the current DTO where it is read, filling what an older shape lacks (version 1 → 2: icons from the live categories, `plan: null`), never recomputing a figure.
 
 ### Crypto
 
@@ -308,7 +312,7 @@ These 13 tables are covered by `CLAUDE.md` (Auth, Passkeys, Personal access toke
 - **`crypto_asset_aliases`** — ticker → price id for tickers outside the built-in table.
 - **`crypto_wallet_keys`**, **`crypto_wallet_tokens`** — what a wallet account reads; public key unique (DB), chains not empty (DB), contract fields all or none (DB).
 - **`crypto_bitcoin_scans`**, **`crypto_bitcoin_scan_addresses`** — resumable scan state per key and address type; addresses are derived again, never stored.
-- **`crypto_imports`**, **`crypto_movements`** — exchange exports and their signed lines; unique `(account_id, dedupe_hash)` (DB). `cost_cents` of withdrawals is computed (average cost) and rewritten whenever holdings are recomputed.
+- **`crypto_imports`**, **`crypto_movements`** — exchange exports and their signed lines; unique `(account_id, dedupe_hash)` (DB). The preview is dropped at commit like a bank import's and accounts restrict their deletion (#367). `cost_cents` of withdrawals is computed (average cost) and rewritten whenever holdings are recomputed.
 
 ### Access
 
@@ -345,6 +349,14 @@ Measured on the ×20 synthetic copy (15 300 transactions, 8 accounts), `EXPLAIN 
 | Label search (`ilike`)                                                             | index scan on date, filter                                                                          | 0.2 ms (frequent word); a rare word scans the table |
 | Transfer matching (opposite amounts, ±3 days)                                      | seq scan of one side                                                                                | 3.0 ms                                              |
 
+After #367 (same ×20 copy, `0038` applied, before = the `coalesce` form on the same data):
+
+| Read                                                                | Plan after                                                                   | Before → after |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------- |
+| Balance anchors (latest bank day per account, then that day's rows) | one backward read of `(account_id, bank_booking_date) where not manual` each | 25.1 → 0.9 ms  |
+| Dedupe range of one account (bank date between)                     | index scan on `(account_id, bank_booking_date)`, 48 rows read                | 5.6 → 0.2 ms   |
+| Continuity: latest bank day before a file                           | index scan backward, `limit 1`                                               | 7.3 → 0.16 ms  |
+
 Nothing is slow at the owner's scale (a few thousand rows a year). Two patterns will grow with the history: every read of **bank** values goes through `coalesce(original_*, …)`, which no index serves (balances, coverage, dedupe, month-close gaps), and boolean filters such as the review queue have no partial index.
 
 ## 6. Findings, ranked by impact
@@ -353,15 +365,15 @@ Impact: **C** correctness, **S** simplicity, **F** upcoming features, **P** perf
 
 1. **The kind has two sources, and two rules after #357.** (C, F) `transactions.kind` can disagree with its category's kind: rules can override it (`categorization_rules.kind`), the editor's « Type » sets it independently, the spreadsheet import takes it from `Groupe`. Budgets and spending then drop « income filed in an expense category » silently. #357 makes a split part's kind follow its category while an unsplit row keeps its own kind: the same transaction counts differently once split in one part. #359 (the owner's part net of what others owe) builds on these lines. In the demo data the 6 rules with a kind override all repeat their category's kind. → **R1**.
 2. **« Invested » has five sources and one overloaded column.** (C, F) Typed contributions on snapshots, transfers linked to the account, holdings' `invested_cents`, withdrawals' `cost_cents`, and the #358 base on the account. For crypto, every valuation writes the computed cost into `balance_snapshots.contributions_cents`, the column the owner types statement figures into, so a typed value lasts one day (#358). #360 asks for one figure per account. → **R2**.
-3. **The same fact is stored two or three times without a constraint.** (C) `manual` ⇔ `import_id is null` ⇔ hash `manual:…`; counterpart only on transfers; prepaid link only on expenses; corrections only on bank rows; `ended_on` only on confirmed items; goal manual amount iff manual source; crypto sync columns only on crypto accounts; `month_closes.acknowledged` values. All hold in the demo data, all rely on every write path remembering them. → **R3**.
-4. **Bank values are read through a `coalesce`.** (S, P) The bank's amount and date of a corrected row live in `original_*` only when they differ, so balances, coverage, dedupe, continuity and the month-close gaps all go through `bankAmountCents` / `bankBookingDate`: easy to forget (a read of `booking_date` silently takes the corrected date) and unusable by indexes (§ 5). → **R4**.
+3. **The same fact is stored two or three times without a constraint.** (C) `manual` ⇔ `import_id is null` ⇔ hash `manual:…`; counterpart only on transfers; prepaid link only on expenses; corrections only on bank rows; `ended_on` only on confirmed items; goal manual amount iff manual source; crypto sync columns only on crypto accounts; `month_closes.acknowledged` values. All hold in the demo data, all rely on every write path remembering them. → **R3**, done in #367.
+4. **Bank values are read through a `coalesce`.** (S, P) The bank's amount and date of a corrected row live in `original_*` only when they differ, so balances, coverage, dedupe, continuity and the month-close gaps all go through `bankAmountCents` / `bankBookingDate`: easy to forget (a read of `booking_date` silently takes the corrected date) and unusable by indexes (§ 5). → **R4**, done in #367.
 5. **Undoing an import deletes the owner's edits on its rows.** (C) `DELETE /api/imports/:id` removes the transactions it wrote, with their category, note, splits, corrections, links, and the manual entries they had absorbed by reconciliation. A re-import brings the bank rows back, not the edits. → **R5**.
 6. **The frozen month report has no version.** (S, F) Compatibility is patched where it is read (`withIcons`, `plan ?? null`); #357 and #359 change what totals mean, and months closed before must keep theirs. → **R6**, done in #369 (`report_version`, `upgradeReport`).
-7. **Time stamps mix two types.** (S) 29 `timestamp` columns without time zone (every `created_at` / `updated_at`, `archived_at`, `closed_at`, `committed_at`, all auth expiries) and 10 `timestamptz` (crypto). Instants without a zone depend on the session's `TimeZone`. `updated_at` is maintained only by Drizzle's `$onUpdate`, which raw `sql` updates skip, yet it is read as data: a manual crypto account's « dernière modification » is `max(crypto_holdings.updated_at)`. → **R7**.
+7. **Time stamps mix two types.** (S) 29 `timestamp` columns without time zone (every `created_at` / `updated_at`, `archived_at`, `closed_at`, `committed_at`, all auth expiries) and 10 `timestamptz` (crypto). Instants without a zone depend on the session's `TimeZone`. `updated_at` is maintained only by Drizzle's `$onUpdate`, which raw `sql` updates skip, yet it is read as data: a manual crypto account's « dernière modification » is `max(crypto_holdings.updated_at)`. → **R7**, done in #367.
 8. **Account polymorphism.** (S, F) Four crypto columns on `accounts` (#358 adds two). They are guarded by checks, every foreign key in the model points at `accounts`, and every page lists accounts of all types together: one table per type would turn ~15 foreign keys polymorphic for no gain. Keep one table; make the #358 base generic (R2) and guard the per-type columns (R3).
 9. **Transfers are linked to an account, not to the other row.** (S) The two sides of a cash transfer each name the other account, with no reference to each other; the pair is found again by amount and date when needed. A pair table does not fit: transfers to investment accounts have one side only (those accounts have no transactions; 29 of the demo's 59 linked transfer rows go to a PEA or a crypto exchange, the other 30 are 15 checking ↔ Livret A pairs). Keep `counterpart_account_id`; an optional `counterpart_transaction_id` can come when a feature needs the pair (editing one side, the forecast of a pending transfer). No refactor now.
 10. **Optional splits read through a view, or a table of lines?** (S, F) With #357 the view gives each line its kind; #359 needs the owner's part per line (a share owed on a split expense must say which part it reduces). A primary `transaction_lines` table (every transaction has at least one line) would give every line a stable id, but every categorizing write path (rules apply, PATCH, bulk update, import commit, reconciliation, manual entries, history import, demo, category deletion) would have to write it, for ~1 split in 765 rows in the demo. Keep the view as the single read model, defined in one place. → **R8** (the view as the contract, receivables naming a part when the expense is split).
-11. **Two import pipelines.** (S) `imports` and `crypto_imports` have the same life cycle (pending preview, commit, undo) but different targets (transactions vs movements), dedupe and period types (dates vs instants). Merging them would add a type switch to every column. Keep two; align the details: the crypto preview is kept after commit while the bank one is cleared, and accounts cascade to `crypto_imports` but restrict on `imports`. Folded into R3.
+11. **Two import pipelines.** (S) `imports` and `crypto_imports` have the same life cycle (pending preview, commit, undo) but different targets (transactions vs movements), dedupe and period types (dates vs instants). Merging them would add a type switch to every column. Keep two; align the details: the crypto preview is kept after commit while the bank one is cleared, and accounts cascade to `crypto_imports` but restrict on `imports`. Folded into R3, done in #367.
 12. **Recurring items mix detected stats and the owner's decisions in one row.** (S) The detector refreshes its columns and never touches the owner's; the list endpoint recomputes the stats anyway. It works and the split is documented; #359 adds the share columns as owner columns. No refactor; R3 adds the missing checks.
 13. **Rules, budgets, categories.** (S) `position` is only the creation order now (#299) and duplicates `created_at`; harmless, left as is. Budgets' effective dating works well and is the model to copy (R2's dated base). `deleted_default_categories` is a small, clear tombstone table: keep. Months are `varchar` `YYYY-MM` in `month_closes` and first-of-month `date` in `budgets`: two spellings of one notion, not worth a migration; new tables use `date` first of month.
 14. **Indexes.** (P) Fine at today's scale (§ 5). R4 makes bank-date reads indexable; a partial index on `needs_review` costs nothing. A trigram index for the label search is not needed yet.

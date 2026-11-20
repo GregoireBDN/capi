@@ -29,6 +29,7 @@ import {
   runHistoryImport,
 } from './history-import'
 import { type AccountSpec, DEFAULT_ACCOUNT_SPECS } from './mapping'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Integration checks against the migrated database (locally:
@@ -220,15 +221,17 @@ describe.skipIf(!process.env.DATABASE_URL)('history import (database)', () => {
       ])
       const [existing] = await tx
         .insert(transactionsTable)
-        .values({
-          accountId: account.id,
-          bookingDate: '2023-07-05',
-          amountCents: -4230,
-          balanceAfterCents: 12_345,
-          rawLabel: csvLabel,
-          kind: 'expense',
-          dedupeHash: hash,
-        })
+        .values(
+          await bankRows(tx, {
+            accountId: account.id,
+            bookingDate: '2023-07-05',
+            amountCents: -4230,
+            balanceAfterCents: 12_345,
+            rawLabel: csvLabel,
+            kind: 'expense',
+            dedupeHash: hash,
+          }),
+        )
         .returning()
 
       const result = await importHistory(tx, input(specs))

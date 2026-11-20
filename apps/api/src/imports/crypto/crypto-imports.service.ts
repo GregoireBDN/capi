@@ -217,7 +217,7 @@ export class CryptoImportsService {
         throw new ConflictException('This import was already committed')
       }
       const preview = current.preview
-      if (preview.version !== CRYPTO_PREVIEW_VERSION) {
+      if (preview?.version !== CRYPTO_PREVIEW_VERSION) {
         throw new ConflictException(
           'This preview is outdated: upload the file again',
         )
@@ -278,23 +278,23 @@ export class CryptoImportsService {
         .update(accountsTable)
         .set({ cryptoSyncedAt: now, updatedAt: now })
         .where(eq(accountsTable.id, current.accountId))
+      // The movements are the record now: the preview is dropped, like a bank
+      // import's; the answer still gives the holdings after the import.
       const [updated] = await tx
         .update(ci)
         .set({
           committedAt: now,
           insertedCount: inserted,
           duplicateCount: current.rowCount - inserted,
-          preview: {
-            ...preview,
-            rows: [],
-            holdings,
-            unmappedTickers: unmapped,
-          },
+          preview: null,
           updatedAt: now,
         })
         .where(eq(ci.id, id))
         .returning()
-      return updated
+      return {
+        ...updated,
+        preview: { ...preview, rows: [], holdings, unmappedTickers: unmapped },
+      }
     })
     await this.valuate(record.accountId, now)
     return toDto(record)
@@ -568,8 +568,19 @@ function cleanFileName(fileName: string): string {
   return (base === '' ? 'export.csv' : base).slice(0, FILE_NAME_MAX)
 }
 
+const EMPTY_PREVIEW: CryptoImportPreviewData = {
+  version: CRYPTO_PREVIEW_VERSION,
+  issues: [],
+  rows: [],
+  mappings: [],
+  unmappedTickers: [],
+  unknownOperations: [],
+  holdings: [],
+}
+
 function toDto(record: SelectCryptoImport): CryptoImportDto {
-  const preview = record.preview
+  // A committed import keeps no preview (its movements are the record).
+  const preview = record.preview ?? EMPTY_PREVIEW
   return {
     id: record.id,
     accountId: record.accountId,

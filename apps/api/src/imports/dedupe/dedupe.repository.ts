@@ -88,6 +88,8 @@ export async function loadPreviousBalance(
   toEpochDay(before) // validates the date
   const withBalance = and(
     eq(transactionsTable.accountId, accountId),
+    // Bank rows only (the partial index of bank data, #367).
+    eq(transactionsTable.manual, false),
     isNotNull(transactionsTable.balanceAfterCents),
   )
   const [latest] = await db

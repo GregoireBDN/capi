@@ -14,15 +14,18 @@ import { categoriesTable } from '#/categories/categories.schema'
 import { coreColumns } from '#/database/schema/core.schema'
 
 /**
- * Monthly spending targets per expense category, effective-dated: the target
- * of a month is the row of the category with the latest `effectiveFrom` on or
- * before that month, so changing a target never rewrites past months.
+ * Monthly targets per category, effective-dated: the target of a month is the
+ * row of the category with the latest `effectiveFrom` on or before that
+ * month, so changing a target never rewrites past months. On an expense
+ * category it is a spending target; on an income category the month's
+ * planned income (#315).
  *
  * A row whose `monthlyTargetCents` is null ends the budget from its month on
  * (`DELETE /budgets/:categoryId`): earlier months keep their target, later
  * months have none until a new target is set.
  *
- * Only `expense` categories can have a budget (checked by `BudgetsService`).
+ * Expense and income categories only, never a transfer one, and an income
+ * line is never `tracked` (checked by `BudgetsService`).
  */
 export const budgetsTable = pgTable(
   'budgets',

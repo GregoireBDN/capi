@@ -39,7 +39,8 @@ export const cryptoImportsTable = pgTable(
     ...coreColumns,
     accountId: uuid('account_id')
       .notNull()
-      .references(() => accountsTable.id, { onDelete: 'cascade' }),
+      // Like `imports`: the account deletion deletes them explicitly (#297).
+      .references(() => accountsTable.id, { onDelete: 'restrict' }),
     format: cryptoImportFormatEnum('format').notNull(),
     fileName: varchar('file_name', { length: 255 }).notNull(),
     /** SHA-256 of the raw file. */
@@ -51,7 +52,11 @@ export const cryptoImportsTable = pgTable(
     duplicateCount: integer('duplicate_count').notNull().default(0),
     issueCount: integer('issue_count').notNull().default(0),
     insertedCount: integer('inserted_count').notNull().default(0),
-    preview: jsonb('preview').$type<CryptoImportPreviewData>().notNull(),
+    /**
+     * Classified rows of a pending import. Null once committed, like
+     * `imports.preview` (the movements are the record then).
+     */
+    preview: jsonb('preview').$type<CryptoImportPreviewData>(),
     committedAt: timestamp('committed_at', { withTimezone: true }),
   },
   (t) => [index().on(t.accountId)],

@@ -13,6 +13,7 @@ import {
 } from '#/database/schema'
 import { ManualTransactionsService } from './manual-transactions.service'
 import { TransactionsService } from './transactions.service'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Expenses noted by hand (#137), against the migrated test database. Every
@@ -261,15 +262,17 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
     it('counts in the balance after the bank anchor, never dating it', async () => {
       await withFixture(async ({ tx, service, outings, salary, checking }) => {
-        await tx.insert(transactionsTable).values({
-          accountId: checking,
-          bookingDate: '2026-10-10',
-          amountCents: -500,
-          balanceAfterCents: 99_500,
-          rawLabel: 'PAIEMENT CB FICTIF',
-          kind: 'expense',
-          dedupeHash: 'b'.repeat(64),
-        })
+        await tx.insert(transactionsTable).values(
+          await bankRows(tx, {
+            accountId: checking,
+            bookingDate: '2026-10-10',
+            amountCents: -500,
+            balanceAfterCents: 99_500,
+            rawLabel: 'PAIEMENT CB FICTIF',
+            kind: 'expense',
+            dedupeHash: 'b'.repeat(64),
+          }),
+        )
         await service.create({ amountCents: 1_250, categoryId: outings }, NOW)
         await service.create(
           {
@@ -553,6 +556,46 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
+    it('unlinks a prepaid payment that stops being an expense (#367)', async () => {
+      await withFixture(async ({ tx, service, checking, outings, salary }) => {
+        const created = await service.create(
+          { amountCents: 12_000, categoryId: outings },
+          NOW,
+        )
+        const [plan] = await tx
+          .insert(schema.recurringItemsTable)
+          .values({
+            accountId: checking,
+            merchantKey: 'abonnement fictif',
+            direction: 'debit',
+            name: 'Abonnement fictif',
+            status: 'confirmed',
+            isFixedCost: true,
+            cadence: 'yearly',
+            amountType: 'fixed',
+            typicalAmountCents: 12_000,
+            confidence: 1,
+            lastSeenDate: '2026-10-31',
+            termMonths: 12,
+          })
+          .returning()
+        await tx
+          .update(transactionsTable)
+          .set({ prepaidItemId: plan.id })
+          .where(eq(transactionsTable.id, created.id))
+
+        await service.update(
+          created.id,
+          { categoryId: salary, direction: 'in' },
+          NOW,
+        )
+        expect(await row(tx, created.id)).toMatchObject({
+          kind: 'income',
+          prepaidItemId: null,
+        })
+      })
+    })
+
     it('suggests typed labels and frequent merchants with their usual category', async () => {
       await withFixture(
         async ({ tx, service, checking, outings, groceries, salary }) => {
@@ -597,18 +640,20 @@ describe.skipIf(!process.env.DATABASE_URL)(
             categoryId: groceries,
             dedupeHash: hash.repeat(64),
           })
-          await tx.insert(transactionsTable).values([
-            // Seen four times: suggested, filed under groceries.
-            imported('Épicerie Fictive', '2026-10-10', 'a'),
-            imported('Épicerie Fictive', '2026-10-11', 'b'),
-            imported('Épicerie Fictive', '2026-10-12', 'c'),
-            imported('Épicerie Fictive', '2026-10-13', 'd'),
-            // Seen once: left out.
-            imported('Magasin Unique', '2026-10-14', 'e'),
-            // Seen twice, but more than six months ago.
-            imported('Ancien Magasin', '2026-03-01', 'f'),
-            imported('Ancien Magasin', '2026-03-02', '0'),
-          ])
+          await tx.insert(transactionsTable).values(
+            await bankRows(tx, [
+              // Seen four times: suggested, filed under groceries.
+              imported('Épicerie Fictive', '2026-10-10', 'a'),
+              imported('Épicerie Fictive', '2026-10-11', 'b'),
+              imported('Épicerie Fictive', '2026-10-12', 'c'),
+              imported('Épicerie Fictive', '2026-10-13', 'd'),
+              // Seen once: left out.
+              imported('Magasin Unique', '2026-10-14', 'e'),
+              // Seen twice, but more than six months ago.
+              imported('Ancien Magasin', '2026-03-01', 'f'),
+              imported('Ancien Magasin', '2026-03-02', '0'),
+            ]),
+          )
 
           const ours = new Set([
             'Fournil fictif',
@@ -670,14 +715,16 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
         const [imported] = await tx
           .insert(transactionsTable)
-          .values({
-            accountId: checking,
-            bookingDate: '2026-10-10',
-            amountCents: -500,
-            rawLabel: 'PAIEMENT CB FICTIF',
-            kind: 'expense',
-            dedupeHash: 'a'.repeat(64),
-          })
+          .values(
+            await bankRows(tx, {
+              accountId: checking,
+              bookingDate: '2026-10-10',
+              amountCents: -500,
+              rawLabel: 'PAIEMENT CB FICTIF',
+              kind: 'expense',
+              dedupeHash: 'a'.repeat(64),
+            }),
+          )
           .returning()
         await expect(service.remove(imported.id)).rejects.toBeInstanceOf(
           NotFoundException,

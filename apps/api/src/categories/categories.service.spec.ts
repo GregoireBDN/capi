@@ -21,6 +21,7 @@ import {
 import type { SelectCategory } from './categories.schema'
 import { CategoriesService, compareCategories } from './categories.service'
 import { seedDefaultCategories } from './seed-default-categories'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 function category(kind: SelectCategory['kind'], name: string): SelectCategory {
   const now = new Date('2026-01-01T00:00:00Z')
@@ -124,15 +125,17 @@ describe.skipIf(!process.env.DATABASE_URL)(
       hash++
       const [row] = await tx
         .insert(transactionsTable)
-        .values({
-          accountId,
-          bookingDate: '2026-01-15',
-          amountCents: -1_234,
-          rawLabel: 'PAIEMENT CB TESTVILLE FAKEMART',
-          kind: 'expense',
-          categoryId,
-          dedupeHash: `category-test-${hash}`,
-        })
+        .values(
+          await bankRows(tx, {
+            accountId,
+            bookingDate: '2026-01-15',
+            amountCents: -1_234,
+            rawLabel: 'PAIEMENT CB TESTVILLE FAKEMART',
+            kind: 'expense',
+            categoryId,
+            dedupeHash: `category-test-${hash}`,
+          }),
+        )
         .returning()
       return row
     }

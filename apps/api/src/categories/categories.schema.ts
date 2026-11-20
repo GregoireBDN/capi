@@ -35,7 +35,7 @@ export const categoriesTable = pgTable('categories', {
    * Set when the user archives the category: it leaves the pickers but keeps
    * its transactions, rules, budgets and its place in statistics.
    */
-  archivedAt: timestamp('archived_at'),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
 })
 
 /**

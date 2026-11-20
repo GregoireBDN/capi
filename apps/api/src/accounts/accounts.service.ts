@@ -372,9 +372,10 @@ export class AccountsService {
   /**
    * Deletes the account and everything that belongs to it (#297), in one
    * database transaction: its transactions (with their splits), bank imports,
-   * recurring items, snapshots and savings goal links, then the account,
-   * whose crypto data (holdings, wallet keys and tokens, scans, exchange
-   * imports and movements) and account-scoped rules go with it (cascade).
+   * exchange imports (with their movements), recurring items, snapshots and
+   * savings goal links, then the account, whose other crypto data (holdings,
+   * wallet keys and tokens, scans) and account-scoped rules go with it
+   * (cascade).
    * Budgets and categories are untouched; closed months keep their frozen
    * report, so their `changes` show the difference.
    */
@@ -398,6 +399,10 @@ export class AccountsService {
         )
       await tx.delete(t).where(eq(t.accountId, id))
       await tx.delete(importsTable).where(eq(importsTable.accountId, id))
+      // Their movements go with them (cascade).
+      await tx
+        .delete(cryptoImportsTable)
+        .where(eq(cryptoImportsTable.accountId, id))
       await tx
         .delete(recurringItemsTable)
         .where(eq(recurringItemsTable.accountId, id))
@@ -475,21 +480,24 @@ export class AccountsService {
     )
 
     if (transactionalIds.length > 0) {
+      // Latest day with a running balance, per account: one backward read
+      // of the partial index of bank data each (#367). Bank rows only, the
+      // only ones with a running balance. Null for an account without any.
       const latest = executor.$with('latest').as(
         executor
           .select({
-            accountId: t.accountId,
-            day: sql<string>`max(${bankBookingDate})`.as('day'),
-          })
-          .from(t)
-          .where(
-            and(
-              inArray(t.accountId, transactionalIds),
+            accountId: sql<string>`${accountsTable.id}`.as('latest_account_id'),
+            day: sql<
+              string | null
+            >`(select max(${t.bankBookingDate}) from ${t} where ${and(
+              eq(t.accountId, accountsTable.id),
+              eq(t.manual, false),
               isNotNull(t.balanceAfterCents),
               bookedUntil,
-            ),
-          )
-          .groupBy(t.accountId),
+            )})`.as('latest_day'),
+          })
+          .from(accountsTable)
+          .where(inArray(accountsTable.id, transactionalIds)),
       )
       const snap = executor.$with('snap').as(
         executor
@@ -519,7 +527,7 @@ export class AccountsService {
               eq(latest.day, bankBookingDate),
             ),
           )
-          .where(isNotNull(t.balanceAfterCents)),
+          .where(and(eq(t.manual, false), isNotNull(t.balanceAfterCents))),
         executor
           .with(latest, snap)
           .select({

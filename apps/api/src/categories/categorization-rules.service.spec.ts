@@ -16,6 +16,7 @@ import {
   APPLY_CHUNK_SIZE,
   CategorizationRulesService,
 } from './categorization-rules.service'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Integration checks against the migrated database (see
@@ -419,37 +420,39 @@ describe.skipIf(!process.env.DATABASE_URL)(
               labelPattern: 'NOTHING MATCHES THIS',
               categoryId: groceries,
             })
-            await tx.insert(transactionsTable).values([
-              transaction(accountId, {
-                bookingDate: '2026-06-01',
-                rawLabel: 'CB FAKEEATS DELIVERY 0106',
-                categoryId: salary,
-                ruleId: eats.id,
-              }),
-              transaction(accountId, {
-                bookingDate: '2026-05-01',
-                rawLabel: 'CB FAKEEATS DELIVERY 0105',
-                needsReview: true,
-              }),
-              transaction(accountId, {
-                bookingDate: '2026-04-01',
-                rawLabel: 'CB FAKEEATS 0104',
-                categoryId: savings,
-                ruleId: ride.id,
-              }),
-              // Filed by hand: counted as a match, never as a conflict.
-              transaction(accountId, {
-                bookingDate: '2026-03-01',
-                rawLabel: 'CB FAKEEATS DELIVERY 0103',
-                categoryId: groceries,
-              }),
-              // Older than 12 months: a conflict, not a match.
-              transaction(accountId, {
-                bookingDate: '2025-06-14',
-                rawLabel: 'CB FAKEEATS DELIVERY 1406',
-                needsReview: true,
-              }),
-            ])
+            await tx.insert(transactionsTable).values(
+              await bankRows(tx, [
+                transaction(accountId, {
+                  bookingDate: '2026-06-01',
+                  rawLabel: 'CB FAKEEATS DELIVERY 0106',
+                  categoryId: salary,
+                  ruleId: eats.id,
+                }),
+                transaction(accountId, {
+                  bookingDate: '2026-05-01',
+                  rawLabel: 'CB FAKEEATS DELIVERY 0105',
+                  needsReview: true,
+                }),
+                transaction(accountId, {
+                  bookingDate: '2026-04-01',
+                  rawLabel: 'CB FAKEEATS 0104',
+                  categoryId: savings,
+                  ruleId: ride.id,
+                }),
+                // Filed by hand: counted as a match, never as a conflict.
+                transaction(accountId, {
+                  bookingDate: '2026-03-01',
+                  rawLabel: 'CB FAKEEATS DELIVERY 0103',
+                  categoryId: groceries,
+                }),
+                // Older than 12 months: a conflict, not a match.
+                transaction(accountId, {
+                  bookingDate: '2025-06-14',
+                  rawLabel: 'CB FAKEEATS DELIVERY 1406',
+                  needsReview: true,
+                }),
+              ]),
+            )
 
             const insights = await service.insights(NOW)
 
@@ -495,11 +498,14 @@ describe.skipIf(!process.env.DATABASE_URL)(
               categoryId: groceries,
             })
             await tx.insert(transactionsTable).values(
-              transaction(accountId, {
-                bookingDate: '2026-06-01',
-                rawLabel: 'CB FAKEMART EXPRESS',
-                needsReview: true,
-              }),
+              await bankRows(
+                tx,
+                transaction(accountId, {
+                  bookingDate: '2026-06-01',
+                  rawLabel: 'CB FAKEMART EXPRESS',
+                  needsReview: true,
+                }),
+              ),
             )
             const insights = await service.insights(NOW)
             expect(insights.conflicts).toEqual([])
@@ -516,27 +522,29 @@ describe.skipIf(!process.env.DATABASE_URL)(
         await withFixture(async ({ tx, service, accountId, groceries }) => {
           const [manual, fresh] = await tx
             .insert(transactionsTable)
-            .values([
-              transaction(accountId, {
-                bookingDate: '2026-02-01',
-                rawLabel: 'CB FAKEMART 0102',
-                categoryId: groceries,
-              }),
-              transaction(accountId, {
-                bookingDate: '2026-06-10',
-                rawLabel: 'CB FAKEMART 1006',
-                amountCents: -50_000,
-                needsReview: true,
-              }),
-              transaction(accountId, {
-                bookingDate: '2025-01-01',
-                rawLabel: 'CB FAKEMART 0101',
-              }),
-              transaction(accountId, {
-                bookingDate: '2026-06-11',
-                rawLabel: 'CB OTHER SHOP',
-              }),
-            ])
+            .values(
+              await bankRows(tx, [
+                transaction(accountId, {
+                  bookingDate: '2026-02-01',
+                  rawLabel: 'CB FAKEMART 0102',
+                  categoryId: groceries,
+                }),
+                transaction(accountId, {
+                  bookingDate: '2026-06-10',
+                  rawLabel: 'CB FAKEMART 1006',
+                  amountCents: -50_000,
+                  needsReview: true,
+                }),
+                transaction(accountId, {
+                  bookingDate: '2025-01-01',
+                  rawLabel: 'CB FAKEMART 0101',
+                }),
+                transaction(accountId, {
+                  bookingDate: '2026-06-11',
+                  rawLabel: 'CB OTHER SHOP',
+                }),
+              ]),
+            )
             .returning()
 
           const result = await service.matches(
@@ -585,32 +593,34 @@ describe.skipIf(!process.env.DATABASE_URL)(
             const [manual, uncategorized, transfer, ruleMade, unmatched] =
               await tx
                 .insert(transactionsTable)
-                .values([
-                  // Filed by hand under savings: must stay as is.
-                  transaction(accountId, {
-                    categoryId: savings,
-                    kind: 'transfer',
-                  }),
-                  transaction(accountId, { needsReview: true }),
-                  transaction(accountId, {
-                    rawLabel: 'VIR LIVRET TEST 0000000',
-                    amountCents: -50_000,
-                  }),
-                  // Categorized by a rule that no longer matches it.
-                  transaction(accountId, {
-                    rawLabel: 'PRLV SEPA FAKEMART REF 42',
-                    categoryId: salary,
-                    ruleId: staleRule.id,
-                    kind: 'income',
-                  }),
-                  transaction(accountId, {
-                    rawLabel: 'VIR SEPA RECU /DE NOBODY',
-                    amountCents: 10_000,
-                    categoryId: salary,
-                    ruleId: staleRule.id,
-                    kind: 'income',
-                  }),
-                ])
+                .values(
+                  await bankRows(tx, [
+                    // Filed by hand under savings: must stay as is.
+                    transaction(accountId, {
+                      categoryId: savings,
+                      kind: 'transfer',
+                    }),
+                    transaction(accountId, { needsReview: true }),
+                    transaction(accountId, {
+                      rawLabel: 'VIR LIVRET TEST 0000000',
+                      amountCents: -50_000,
+                    }),
+                    // Categorized by a rule that no longer matches it.
+                    transaction(accountId, {
+                      rawLabel: 'PRLV SEPA FAKEMART REF 42',
+                      categoryId: salary,
+                      ruleId: staleRule.id,
+                      kind: 'income',
+                    }),
+                    transaction(accountId, {
+                      rawLabel: 'VIR SEPA RECU /DE NOBODY',
+                      amountCents: 10_000,
+                      categoryId: salary,
+                      ruleId: staleRule.id,
+                      kind: 'income',
+                    }),
+                  ]),
+                )
                 .returning()
 
             const result = await service.apply()
@@ -677,7 +687,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
             })
             const [row] = await tx
               .insert(transactionsTable)
-              .values(transaction(accountId, { needsReview: true }))
+              .values(
+                await bankRows(
+                  tx,
+                  transaction(accountId, { needsReview: true }),
+                ),
+              )
               .returning()
 
             await service.apply()
@@ -704,9 +719,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
             categoryId: groceries,
           })
           const total = APPLY_CHUNK_SIZE * 2 + 7
-          await tx
-            .insert(transactionsTable)
-            .values(Array.from({ length: total }, () => transaction(accountId)))
+          await tx.insert(transactionsTable).values(
+            await bankRows(
+              tx,
+              Array.from({ length: total }, () => transaction(accountId)),
+            ),
+          )
 
           const result = await service.apply()
 
@@ -739,9 +757,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
             const [covered] = await tx
               .insert(transactionsTable)
               .values(
-                transaction(accountId, {
-                  rawLabel: 'CB FAKEMART EXPRESS 0101',
-                }),
+                await bankRows(
+                  tx,
+                  transaction(accountId, {
+                    rawLabel: 'CB FAKEMART EXPRESS 0101',
+                  }),
+                ),
               )
               .returning()
             await service.apply()
@@ -750,12 +771,15 @@ describe.skipIf(!process.env.DATABASE_URL)(
             const [orphaned] = await tx
               .insert(transactionsTable)
               .values(
-                transaction(accountId, {
-                  rawLabel: 'CB OTHER SHOP 0101',
-                  categoryId: salary,
-                  ruleId: specific.id,
-                  kind: 'income',
-                }),
+                await bankRows(
+                  tx,
+                  transaction(accountId, {
+                    rawLabel: 'CB OTHER SHOP 0101',
+                    categoryId: salary,
+                    ruleId: specific.id,
+                    kind: 'income',
+                  }),
+                ),
               )
               .returning()
 
@@ -811,11 +835,14 @@ describe.skipIf(!process.env.DATABASE_URL)(
           const [marked] = await tx
             .insert(transactionsTable)
             .values(
-              transaction(accountId, {
-                rawLabel: 'VIR MYSELF OTHER BANK',
-                kind: 'transfer',
-                needsReview: true,
-              }),
+              await bankRows(
+                tx,
+                transaction(accountId, {
+                  rawLabel: 'VIR MYSELF OTHER BANK',
+                  kind: 'transfer',
+                  needsReview: true,
+                }),
+              ),
             )
             .returning()
 
@@ -829,6 +856,52 @@ describe.skipIf(!process.env.DATABASE_URL)(
           })
         })
       })
+
+      it('unlinks a prepaid payment a rule files as income (#367)', async () => {
+        await withFixture(async ({ tx, service, accountId, salary }) => {
+          const [plan] = await tx
+            .insert(schema.recurringItemsTable)
+            .values({
+              accountId,
+              merchantKey: 'fakemart plan',
+              direction: 'debit',
+              name: 'Fakemart Plan',
+              status: 'confirmed',
+              isFixedCost: true,
+              cadence: 'yearly',
+              amountType: 'fixed',
+              typicalAmountCents: 12_000,
+              confidence: 1,
+              lastSeenDate: '2026-01-15',
+              termMonths: 12,
+            })
+            .returning()
+          const [payment] = await tx
+            .insert(transactionsTable)
+            .values(
+              await bankRows(
+                tx,
+                transaction(accountId, {
+                  rawLabel: 'CB FAKEMART PLAN 0101',
+                  prepaidItemId: plan.id,
+                }),
+              ),
+            )
+            .returning()
+
+          await service.create({
+            labelPattern: 'FAKEMART PLAN',
+            categoryId: salary,
+          })
+          await service.apply()
+
+          expect(await reload(tx, payment.id)).toMatchObject({
+            categoryId: salary,
+            kind: 'income',
+            prepaidItemId: null,
+          })
+        })
+      })
     })
 
     describe('preview', () => {
@@ -839,35 +912,37 @@ describe.skipIf(!process.env.DATABASE_URL)(
               labelPattern: 'FAKEMART EXPRESS',
               categoryId: salary,
             })
-            await tx.insert(transactionsTable).values([
-              // Uncategorized, in review: would leave the queue.
-              transaction(accountId, { needsReview: true }),
-              transaction(accountId, {
-                rawLabel: 'CB FAKEMART 0202',
-                needsReview: true,
-              }),
-              // Uncategorized but already reviewed: categorized, not counted
-              // as leaving the queue.
-              transaction(accountId, { rawLabel: 'CB FAKEMART 0303' }),
-              // Filed by hand: apply never touches it.
-              transaction(accountId, {
-                rawLabel: 'CB FAKEMART 0404',
-                categoryId: salary,
-                needsReview: true,
-              }),
-              // An earlier rule wins.
-              transaction(accountId, {
-                rawLabel: 'CB FAKEMART EXPRESS 0505',
-                categoryId: salary,
-                ruleId: earlier.id,
-                kind: 'income',
-              }),
-              // Does not match.
-              transaction(accountId, {
-                rawLabel: 'CB OTHER SHOP',
-                needsReview: true,
-              }),
-            ])
+            await tx.insert(transactionsTable).values(
+              await bankRows(tx, [
+                // Uncategorized, in review: would leave the queue.
+                transaction(accountId, { needsReview: true }),
+                transaction(accountId, {
+                  rawLabel: 'CB FAKEMART 0202',
+                  needsReview: true,
+                }),
+                // Uncategorized but already reviewed: categorized, not counted
+                // as leaving the queue.
+                transaction(accountId, { rawLabel: 'CB FAKEMART 0303' }),
+                // Filed by hand: apply never touches it.
+                transaction(accountId, {
+                  rawLabel: 'CB FAKEMART 0404',
+                  categoryId: salary,
+                  needsReview: true,
+                }),
+                // An earlier rule wins.
+                transaction(accountId, {
+                  rawLabel: 'CB FAKEMART EXPRESS 0505',
+                  categoryId: salary,
+                  ruleId: earlier.id,
+                  kind: 'income',
+                }),
+                // Does not match.
+                transaction(accountId, {
+                  rawLabel: 'CB OTHER SHOP',
+                  needsReview: true,
+                }),
+              ]),
+            )
 
             const preview = await service.preview({
               labelPattern: 'fakemart',
@@ -923,36 +998,38 @@ describe.skipIf(!process.env.DATABASE_URL)(
             })
             const [kept, released, newlyMatched, earlierWins] = await tx
               .insert(transactionsTable)
-              .values([
-                // Owned today, still matched: moves to the new category.
-                transaction(accountId, {
-                  bookingDate: '2026-01-10',
-                  rawLabel: 'CB FAKEMART DRIVE 0101',
-                  categoryId: groceries,
-                  ruleId: edited.id,
-                }),
-                // Owned today, no longer matched: the next rule takes it.
-                transaction(accountId, {
-                  bookingDate: '2026-02-10',
-                  rawLabel: 'CB FAKEMART CITY 0202',
-                  categoryId: groceries,
-                  ruleId: edited.id,
-                }),
-                // Uncategorized, in review: matched once edited.
-                transaction(accountId, {
-                  bookingDate: '2026-03-10',
-                  rawLabel: 'FAKEMART DRIVE 0303',
-                  needsReview: true,
-                }),
-                // The earlier rule still wins.
-                transaction(accountId, {
-                  bookingDate: '2026-04-10',
-                  rawLabel: 'FAKEMART EXPRESS DRIVE 0404',
-                  categoryId: salary,
-                  ruleId: first.id,
-                  kind: 'income',
-                }),
-              ])
+              .values(
+                await bankRows(tx, [
+                  // Owned today, still matched: moves to the new category.
+                  transaction(accountId, {
+                    bookingDate: '2026-01-10',
+                    rawLabel: 'CB FAKEMART DRIVE 0101',
+                    categoryId: groceries,
+                    ruleId: edited.id,
+                  }),
+                  // Owned today, no longer matched: the next rule takes it.
+                  transaction(accountId, {
+                    bookingDate: '2026-02-10',
+                    rawLabel: 'CB FAKEMART CITY 0202',
+                    categoryId: groceries,
+                    ruleId: edited.id,
+                  }),
+                  // Uncategorized, in review: matched once edited.
+                  transaction(accountId, {
+                    bookingDate: '2026-03-10',
+                    rawLabel: 'FAKEMART DRIVE 0303',
+                    needsReview: true,
+                  }),
+                  // The earlier rule still wins.
+                  transaction(accountId, {
+                    bookingDate: '2026-04-10',
+                    rawLabel: 'FAKEMART EXPRESS DRIVE 0404',
+                    categoryId: salary,
+                    ruleId: first.id,
+                    kind: 'income',
+                  }),
+                ]),
+              )
               .returning()
 
             const preview = await service.preview({
@@ -1025,20 +1102,22 @@ describe.skipIf(!process.env.DATABASE_URL)(
               labelPattern: 'OTHER',
               categoryId: savings,
             })
-            await tx.insert(transactionsTable).values([
-              transaction(accountId, {
-                rawLabel: 'CB FAKEMART EXPRESS 0101',
-                needsReview: true,
-              }),
-              transaction(accountId, {
-                rawLabel: 'CB FAKEMART 0202',
-                needsReview: true,
-              }),
-              transaction(accountId, {
-                rawLabel: 'CB FAKEMART 0303',
-                needsReview: true,
-              }),
-            ])
+            await tx.insert(transactionsTable).values(
+              await bankRows(tx, [
+                transaction(accountId, {
+                  rawLabel: 'CB FAKEMART EXPRESS 0101',
+                  needsReview: true,
+                }),
+                transaction(accountId, {
+                  rawLabel: 'CB FAKEMART 0202',
+                  needsReview: true,
+                }),
+                transaction(accountId, {
+                  rawLabel: 'CB FAKEMART 0303',
+                  needsReview: true,
+                }),
+              ]),
+            )
 
             const preview = await service.preview({
               labelPattern: 'fakemart',
@@ -1068,10 +1147,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
             categoryId: groceries,
           })
           await tx.insert(transactionsTable).values(
-            transaction(accountId, {
-              categoryId: groceries,
-              ruleId: rule.id,
-            }),
+            await bankRows(
+              tx,
+              transaction(accountId, {
+                categoryId: groceries,
+                ruleId: rule.id,
+              }),
+            ),
           )
 
           const preview = await service.preview({

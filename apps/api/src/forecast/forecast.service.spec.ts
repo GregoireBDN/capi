@@ -18,6 +18,7 @@ import { normalizeLabel } from '#/imports/normalize/label'
 import { addMonths } from '#/recurring/dates'
 import { RecurringService } from '#/recurring/recurring.service'
 import { ForecastService } from './forecast.service'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Integration checks against the migrated test database. Each test runs in a
@@ -82,15 +83,18 @@ describe.skipIf(!process.env.DATABASE_URL)('ForecastService (database)', () => {
           .returning()
         const insert = async (rows: Partial<InsertTransaction>[]) => {
           await tx.insert(transactionsTable).values(
-            rows.map((row) => ({
-              accountId: checking.id,
-              bookingDate: '2026-01-01',
-              amountCents: -100,
-              rawLabel: 'CB DIVERS',
-              kind: 'expense' as const,
-              dedupeHash: `forecast-spec-${++sequence}`,
-              ...row,
-            })),
+            await bankRows(
+              tx,
+              rows.map((row) => ({
+                accountId: checking.id,
+                bookingDate: '2026-01-01',
+                amountCents: -100,
+                rawLabel: 'CB DIVERS',
+                kind: 'expense' as const,
+                dedupeHash: `forecast-spec-${++sequence}`,
+                ...row,
+              })),
+            ),
           )
         }
         const confirm: Fixture['confirm'] = async (

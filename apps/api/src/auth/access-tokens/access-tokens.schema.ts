@@ -38,9 +38,9 @@ export const personalAccessTokensTable = pgTable('personal_access_tokens', {
   tokenPrefix: varchar('token_prefix', { length: 16 }).notNull(),
   scope: accessTokenScopeEnum('scope').notNull(),
   /** Null = never expires. */
-  expiresAt: timestamp('expires_at'),
-  lastUsedAt: timestamp('last_used_at'),
-  revokedAt: timestamp('revoked_at'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
 })
 
 /**

@@ -8,8 +8,8 @@ export const passwordResetTokensTable = pgTable('password_reset_tokens', {
     .notNull()
     .references(() => usersTable.id, { onDelete: 'cascade' }),
   tokenHash: varchar('token_hash', { length: 255 }).notNull().unique(),
-  expiresAt: timestamp('expires_at').notNull(),
-  usedAt: timestamp('used_at'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
 })
 
 export const emailVerificationTokensTable = pgTable(
@@ -20,8 +20,8 @@ export const emailVerificationTokensTable = pgTable(
       .notNull()
       .references(() => usersTable.id, { onDelete: 'cascade' }),
     tokenHash: varchar('token_hash', { length: 255 }).notNull().unique(),
-    expiresAt: timestamp('expires_at').notNull(),
-    usedAt: timestamp('used_at'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
   },
 )
 
@@ -67,14 +67,14 @@ export const refreshTokensTable = pgTable(
       .references(() => usersTable.id, { onDelete: 'cascade' }),
     familyId: uuid('family_id').notNull(),
     tokenHash: varchar('token_hash', { length: 255 }).notNull().unique(),
-    expiresAt: timestamp('expires_at').notNull(),
-    revokedAt: timestamp('revoked_at'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
     /**
      * When the user last proved who they are (password or passkey) in this
      * family; copied on every rotation and put in the access JWT as `auth_time`
      * for routes that need a fresh session. Null for sessions older than #100.
      */
-    authenticatedAt: timestamp('authenticated_at'),
+    authenticatedAt: timestamp('authenticated_at', { withTimezone: true }),
     /**
      * How the family started (`SessionSignInMethod`), copied on every rotation
      * for the sessions list (#217). Null for sessions older than #217.

@@ -117,6 +117,16 @@ export const recurringItemsTable = pgTable(
       'recurring_items_typical_amount_positive',
       sql`${t.typicalAmountCents} >= 0`,
     ),
+    // A cancellation (#270) is only for a confirmed item (#367).
+    check(
+      'recurring_items_ended_only_confirmed',
+      sql`${t.endedOn} is null or ${t.status} = 'confirmed'`,
+    ),
+    // Only a debit is prepaid (#314).
+    check(
+      'recurring_items_term_only_debit',
+      sql`${t.termMonths} is null or ${t.direction} = 'debit'`,
+    ),
     check(
       'recurring_items_term_months_range',
       sql`${t.termMonths} is null or (${t.termMonths} >= 2 and ${t.termMonths} <= 60)`,

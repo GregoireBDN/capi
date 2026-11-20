@@ -31,7 +31,7 @@ export const monthClosesTable = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
-    closedAt: timestamp('closed_at'),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
     /** Report frozen at the close; null while the month is open. */
     report: jsonb('report').$type<MonthReportDto>(),
     /**
@@ -45,6 +45,10 @@ export const monthClosesTable = pgTable(
     check(
       'month_closes_month_format',
       sql`${t.month} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`,
+    ),
+    check(
+      'month_closes_acknowledged_steps',
+      sql`${t.acknowledged} <@ array['recurring', 'budget', 'savings']::text[]`,
     ),
     check(
       'month_closes_closed_has_report',

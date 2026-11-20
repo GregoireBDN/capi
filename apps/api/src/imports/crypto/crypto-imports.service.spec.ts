@@ -220,7 +220,14 @@ describe.skipIf(!process.env.DATABASE_URL)(
           counts: { inserted: BINANCE_EARLY.length, duplicates: 0 },
           rows: [],
         })
+        expect(committed.holdings.length).toBeGreaterThan(0)
         expect(await quantities(tx, accountId)).toEqual(BINANCE_EARLY_BALANCES)
+        // The movements are the record: the stored preview is dropped (#367).
+        const [stored] = await tx
+          .select({ preview: schema.cryptoImportsTable.preview })
+          .from(schema.cryptoImportsTable)
+          .where(eq(schema.cryptoImportsTable.id, first.id))
+        expect(stored.preview).toBeNull()
 
         const [account] = await tx
           .select()
