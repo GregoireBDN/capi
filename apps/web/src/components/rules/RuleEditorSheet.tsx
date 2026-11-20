@@ -36,12 +36,7 @@ import type {
   CategoryDto,
   CreateCategorizationRuleDto,
   RuleMatchType,
-  TransactionKind,
 } from '#/api/types.gen'
-import {
-  KIND_LABELS,
-  TRANSACTION_KINDS,
-} from '#/components/transactions/labels'
 import { AmountField } from '#/components/amount/AmountField'
 import type { AmountSign } from '#/components/amount/signed-amount'
 import { isTransactional } from '#/lib/queries'
@@ -190,7 +185,8 @@ function StepLink({
  * 2. « Classer dans »: the categories as chips, a tap moves on.
  * 3. « Vérifier »: the rule as a sentence, what applying it will change and
  *    the rules it overlaps with (« Faire gagner cette règle »); « Avancé »:
- *    kind, destination, merchant, active, priority. « Enregistrer » saves,
+ *    destination, merchant, active, priority (the kind is the category's,
+ *    #368). « Enregistrer » saves,
  *    then the page applies the rules with « Annuler ».
  * An edit opens on the third step. A bottom sheet on phones, a side sheet
  * otherwise.
@@ -304,7 +300,7 @@ export function RuleEditorSheet({
       account.id === form.accountId ||
       (isTransactional(account) && !account.archivedAt),
   )
-  const filesTransfers = (form.kind || category?.kind) === 'transfer'
+  const filesTransfers = category?.kind === 'transfer'
   const destinationChoices = accounts.filter(
     (account) =>
       account.id === form.counterpartAccountId ||
@@ -326,7 +322,6 @@ export function RuleEditorSheet({
     .filter(Boolean)
     .join(' · ')
   const outcomeSummary = [
-    form.kind ? KIND_LABELS[form.kind] : null,
     form.merchant.trim() ? `renommé « ${form.merchant.trim()} »` : null,
     form.enabled ? null : 'désactivée',
     form.priority !== 0 ? `priorité ${form.priority}` : null,
@@ -676,31 +671,6 @@ export function RuleEditorSheet({
                 )}
 
                 <Advanced id={`${id}-outcome`} summary={outcomeSummary || null}>
-                  <Field>
-                    <FieldLabel htmlFor={`${id}-kind`}>Type</FieldLabel>
-                    <NativeSelect
-                      id={`${id}-kind`}
-                      className="w-full"
-                      value={form.kind}
-                      onChange={(event) =>
-                        change({
-                          kind: event.target.value as TransactionKind | '',
-                        })
-                      }
-                    >
-                      <NativeSelectOption value="">
-                        {category
-                          ? `Celui de la catégorie (${KIND_LABELS[category.kind]})`
-                          : 'Celui de la catégorie'}
-                      </NativeSelectOption>
-                      {TRANSACTION_KINDS.map((kind) => (
-                        <NativeSelectOption key={kind} value={kind}>
-                          {KIND_LABELS[kind]}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                  </Field>
-
                   {filesTransfers && (
                     <Field>
                       <FieldLabel htmlFor={`${id}-destination`}>

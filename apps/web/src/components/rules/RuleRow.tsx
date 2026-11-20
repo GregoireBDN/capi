@@ -5,7 +5,6 @@ import type {
   CategorizationRuleDto,
   CategoryDto,
 } from '#/api/types.gen'
-import { KIND_LABELS } from '#/components/transactions/labels'
 import { plural } from '#/lib/plural'
 import { describeConditions, MATCH_TYPE_LABELS } from './describe'
 
@@ -39,9 +38,6 @@ export function RuleRow({
       : (accounts.find((a) => a.id === rule.counterpartAccountId)?.name ?? null)
   const details = [
     conditions,
-    rule.kind && category && rule.kind !== category.kind
-      ? `comme ${KIND_LABELS[rule.kind].toLowerCase()}`
-      : null,
     destination ? `vers ${destination}` : null,
     rule.merchant ? `renommé « ${rule.merchant} »` : null,
     rule.priority !== 0 ? 'prioritaire' : null,

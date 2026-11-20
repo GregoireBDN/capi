@@ -103,20 +103,16 @@ export function splitError(
 }
 
 /**
- * Whether a part is a refund (#357): an incoming part of an income or expense
- * transaction filed in an expense category counts with that category's kind,
- * so it is deducted from its spending, budget and envelope (as the API's
- * `transaction_lines` reads it). A transfer's parts stay transfers.
+ * Whether a part is a refund (#357): every part counts with its category's
+ * kind (#368), so an incoming part filed in an expense category is deducted
+ * from its spending, budget and envelope (as the API's `transaction_lines`
+ * reads it).
  */
 export function isRefundPart(
-  item: Pick<TransactionDto, 'kind' | 'amountCents'>,
+  item: Pick<TransactionDto, 'amountCents'>,
   categoryKind: TransactionKind | undefined,
 ): boolean {
-  return (
-    item.amountCents > 0 &&
-    item.kind !== 'transfer' &&
-    categoryKind === 'expense'
-  )
+  return item.amountCents > 0 && categoryKind === 'expense'
 }
 
 /** What is left to allocate: the amount minus the parts typed so far. */

@@ -791,6 +791,73 @@ describe('TransactionsPage', () => {
     ).toHaveTextContent('Revenu')
   })
 
+  it('changes the type of a categorized row by choosing a category of it (#368)', async () => {
+    const { user } = setup()
+    await waitForRows()
+    api.transactionsControllerUpdate.mockImplementation(
+      ({ body }: { body: object }) => ok({ ...transferRow, ...body }),
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: 'Modifier VIR LIVRET TEST' }),
+    )
+    const editor = await screen.findByRole('dialog')
+    await user.click(within(editor).getByRole('button', { name: /^Type/ }))
+    expect(editor).toHaveTextContent('Le type vient de la catégorie')
+    await user.click(within(editor).getByRole('radio', { name: 'Dépense' }))
+    // No request yet: the categories of that kind, and only them.
+    expect(api.transactionsControllerUpdate).not.toHaveBeenCalled()
+    expect(
+      within(editor).getByRole('heading', { name: 'Classer en dépense' }),
+    ).toBeInTheDocument()
+    expect(
+      within(editor).queryByRole('button', { name: 'Épargne' }),
+    ).not.toBeInTheDocument()
+    await user.click(within(editor).getByRole('button', { name: 'Courses' }))
+    expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ body: { categoryId: groceries.id } }),
+    )
+  })
+
+  it('or leaves a categorized row without a category, with the new kind (#368)', async () => {
+    const { user } = setup()
+    await waitForRows()
+    api.transactionsControllerUpdate.mockImplementation(
+      ({ body }: { body: object }) => ok({ ...transferRow, ...body }),
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: 'Modifier VIR LIVRET TEST' }),
+    )
+    const editor = await screen.findByRole('dialog')
+    await user.click(within(editor).getByRole('button', { name: /^Type/ }))
+    await user.click(within(editor).getByRole('radio', { name: 'Revenu' }))
+    await user.click(
+      within(editor).getByRole('button', { name: 'Sans catégorie, à revoir' }),
+    )
+    expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ body: { categoryId: null, kind: 'income' } }),
+    )
+  })
+
+  it('changes the type of a selection only when none has a category (#368)', async () => {
+    const { user } = setup()
+    await waitForRows()
+    await user.click(
+      screen.getByRole('checkbox', { name: 'Sélectionner Fakemart' }),
+    )
+    const bar = screen.getByRole('region', { name: 'Actions groupées' })
+    expect(
+      within(bar).getByLabelText('Changer le type de la sélection'),
+    ).toBeEnabled()
+    await user.click(
+      screen.getByRole('checkbox', { name: 'Sélectionner VIR LIVRET TEST' }),
+    )
+    expect(
+      within(bar).getByLabelText('Changer le type de la sélection'),
+    ).toBeDisabled()
+  })
+
   it('rolls an edit back when the API refuses it', async () => {
     const { user } = setup()
     await waitForRows()

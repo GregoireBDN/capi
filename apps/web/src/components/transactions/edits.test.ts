@@ -56,13 +56,10 @@ describe('split arithmetic', () => {
   })
 
   it('calls an incoming part in an expense category a refund (#357)', () => {
-    const income = { kind: 'income' as const, amountCents: 6_000 }
+    const income = { amountCents: 6_000 }
     expect(isRefundPart(income, 'expense')).toBe(true)
     expect(isRefundPart(income, 'income')).toBe(false)
-    expect(isRefundPart({ ...income, kind: 'transfer' }, 'expense')).toBe(false)
-    expect(
-      isRefundPart({ kind: 'expense', amountCents: -4_500 }, 'expense'),
-    ).toBe(false)
+    expect(isRefundPart({ amountCents: -4_500 }, 'expense')).toBe(false)
   })
 })
 

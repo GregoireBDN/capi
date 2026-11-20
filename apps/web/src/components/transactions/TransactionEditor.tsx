@@ -63,6 +63,7 @@ type Screen =
   | 'split'
   | 'correct'
   | 'kind'
+  | 'kind-category'
   | 'counterpart'
   | 'prepaid'
 
@@ -127,10 +128,13 @@ function CategoryScreen({
   item,
   categories,
   onPick,
+  kind,
 }: {
   item: TransactionDto
   categories: readonly CategoryDto[]
   onPick: (categoryId: string) => void
+  /** Only the categories of this kind (the « Type » screen, #368). */
+  kind?: TransactionKind
 }) {
   // Phones: no keyboard over the chips until the search is tapped.
   const isMobile = useIsMobile()
@@ -140,10 +144,9 @@ function CategoryScreen({
     (category) => wanted === '' || searchable(category.name).includes(wanted),
   )
   // The transaction's own kind first: what it most likely belongs to.
-  const kinds = [
-    item.kind,
-    ...TRANSACTION_KINDS.filter((kind) => kind !== item.kind),
-  ]
+  const kinds = kind
+    ? [kind]
+    : [item.kind, ...TRANSACTION_KINDS.filter((other) => other !== item.kind)]
   return (
     <div className="space-y-3">
       <div className="relative">
@@ -164,13 +167,13 @@ function CategoryScreen({
       {shown.length === 0 && (
         <p className="text-muted-foreground text-sm">Aucune catégorie.</p>
       )}
-      {kinds.map((kind) => {
-        const group = shown.filter((category) => category.kind === kind)
+      {kinds.map((groupKind) => {
+        const group = shown.filter((category) => category.kind === groupKind)
         if (group.length === 0) return null
         return (
-          <section key={kind} className="space-y-2">
+          <section key={groupKind} className="space-y-2">
             <h4 className="text-muted-foreground text-xs font-medium">
-              {KIND_GROUP_LABELS[kind]}
+              {KIND_GROUP_LABELS[groupKind]}
             </h4>
             <div className="flex flex-wrap gap-1.5">
               {group.map((category) => {
@@ -238,17 +241,26 @@ function NoteScreen({
   )
 }
 
+/**
+ * « Type » (#368): a categorized transaction has its category's kind, so
+ * another kind is chosen with a category of that kind (next screen); an
+ * uncategorized one takes the kind alone.
+ */
 function KindScreen({
   value,
+  categorized,
   onPick,
 }: {
   value: TransactionKind
+  categorized: boolean
   onPick: (kind: TransactionKind) => void
 }) {
   return (
     <div className="space-y-2">
       <p className="text-muted-foreground text-xs">
-        La catégorie donne le type ; changez-le seulement pour une exception.
+        {categorized
+          ? 'Le type vient de la catégorie : un autre type, c’est une catégorie de ce type.'
+          : 'Sans catégorie, le type se choisit seul.'}
       </p>
       <div role="radiogroup" aria-label="Type" className={GROUP}>
         {TRANSACTION_KINDS.map((kind) => (
@@ -352,6 +364,8 @@ export function TransactionEditor({
   initialScreen = 'list',
 }: TransactionEditorProps) {
   const [screen, setScreen] = useState<Screen>(initialScreen)
+  // The kind picked on « Type » whose category is being chosen (#368).
+  const [newKind, setNewKind] = useState<TransactionKind>(item.kind)
   const name = displayLabel(item)
   const raw = secondaryLabel(item)
   const split = item.splits.length > 0
@@ -469,11 +483,48 @@ export function TransactionEditor({
         <ScreenHeader title="Type" onBack={back} />
         <KindScreen
           value={item.kind}
+          categorized={item.categoryId !== null}
           onPick={(kind) => {
-            back()
-            if (kind !== item.kind) onChange({ kind })
+            if (kind === item.kind) return back()
+            if (item.categoryId === null) {
+              back()
+              return onChange({ kind })
+            }
+            setNewKind(kind)
+            setScreen('kind-category')
           }}
         />
+      </div>
+    )
+  }
+  if (screen === 'kind-category') {
+    return (
+      <div className="space-y-3">
+        <ScreenHeader
+          title={`Classer en ${KIND_LABELS[newKind].toLowerCase()}`}
+          onBack={() => setScreen('kind')}
+        />
+        <CategoryScreen
+          item={item}
+          categories={categories}
+          kind={newKind}
+          onPick={(categoryId) => {
+            back()
+            onChange({ categoryId })
+          }}
+        />
+        <div className={GROUP}>
+          <button
+            type="button"
+            className={ROW}
+            onClick={() => {
+              back()
+              onChange({ categoryId: null, kind: newKind })
+            }}
+          >
+            Sans catégorie, à revoir
+          </button>
+        </div>
       </div>
     )
   }
@@ -596,12 +647,15 @@ export function TransactionEditor({
                 onClick={() => setScreen('correct')}
               />
             )}
-        <SettingRow
-          icon={ArrowLeftRightIcon}
-          label="Type"
-          value={KIND_LABELS[item.kind]}
-          onClick={() => setScreen('kind')}
-        />
+        {/* A split's type is its parts' categories' (#368). */}
+        {!split && (
+          <SettingRow
+            icon={ArrowLeftRightIcon}
+            label="Type"
+            value={KIND_LABELS[item.kind]}
+            onClick={() => setScreen('kind')}
+          />
+        )}
       </div>
       {item.manual && (
         <p className="text-muted-foreground px-2 text-xs">

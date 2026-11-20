@@ -61,15 +61,22 @@ describe('applyChanges (optimistic, mirrors the API)', () => {
     })
   })
 
-  it('keeps the rule when the kind does not change', () => {
-    const item = tx({ kind: 'expense' })
-    expect(applyChanges(item, { kind: 'expense' }, categories).ruleId).toBe(
-      item.ruleId,
-    )
-    expect(applyChanges(item, { kind: 'transfer' }, categories)).toMatchObject({
+  it('sets a kind alone only on an uncategorized row (#368)', () => {
+    expect(applyChanges(tx(), { kind: 'transfer' }, categories)).toMatchObject({
       kind: 'transfer',
-      ruleId: null,
     })
+    const filed = tx({ kind: 'expense', categoryId: groceries.id })
+    expect(applyChanges(filed, { kind: 'transfer' }, categories)).toMatchObject(
+      { kind: 'expense', ruleId: filed.ruleId },
+    )
+    // With a category, the category's kind wins.
+    expect(
+      applyChanges(
+        tx(),
+        { categoryId: groceries.id, kind: 'transfer' },
+        categories,
+      ).kind,
+    ).toBe('expense')
   })
 
   it('links a transfer to an account and unlinks it when it stops being one (#296)', () => {
