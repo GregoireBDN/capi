@@ -183,7 +183,6 @@ describe.skipIf(!process.env.DATABASE_URL)(
             enabled: true,
             matchType: 'contains',
             accountId: null,
-            kind: null,
             merchant: null,
           })
           expect(second.position).toBe(1)
@@ -211,14 +210,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
           const updated = await service.update(rule.id, {
             labelPattern: 'FAKEMART',
             minAmountCents: null,
-            kind: 'transfer',
           })
           expect(updated).toMatchObject({
             labelPattern: 'FAKEMART',
             minAmountCents: null,
-            kind: 'transfer',
             matchType: 'contains',
           })
+          expect(updated).not.toHaveProperty('kind')
         })
       })
 
@@ -581,8 +579,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             })
             const transferRule = await service.create({
               labelPattern: 'VIR LIVRET TEST',
-              categoryId: groceries,
-              kind: 'transfer',
+              categoryId: savings,
             })
             const groceriesRule = await service.create({
               labelPattern: 'fakemart',
@@ -646,7 +643,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
               needsReview: false,
             })
             expect(await reload(tx, transfer.id)).toMatchObject({
-              categoryId: groceries,
+              categoryId: savings,
               ruleId: transferRule.id,
               kind: 'transfer',
             })
@@ -678,7 +675,6 @@ describe.skipIf(!process.env.DATABASE_URL)(
             const narrow = await service.create({
               labelPattern: 'FAKEMART CARTE',
               categoryId: salary,
-              kind: 'expense',
             })
             await service.create({
               labelPattern: 'FAKEMART CARTE 4XXX',
@@ -699,7 +695,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             expect(await reload(tx, row.id)).toMatchObject({
               categoryId: salary,
               ruleId: narrow.id,
-              kind: 'expense',
+              kind: 'income',
             })
 
             await service.prefer(broad.id, narrow.id)

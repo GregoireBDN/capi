@@ -16,6 +16,7 @@ import {
   isNull,
   lt,
   lte,
+  ne,
   or,
   type SQL,
   sql,
@@ -23,6 +24,7 @@ import {
 import { alias } from 'drizzle-orm/pg-core'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type { CategoryIcon } from '#/categories/category-icons'
+import type { TransactionKind } from '#/database/schema/domain-enums'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import {
@@ -48,7 +50,7 @@ import {
   type UpdateTransactionDto,
 } from './dto/transaction.dto'
 import type { CorrectTransactionDto } from './dto/manual-transaction.dto'
-import { splitPartKind } from './split-kind'
+import { assertKindOfCategory, KIND_OF_CATEGORY_MESSAGE } from './category-kind'
 
 type Db = PostgresJsDatabase<typeof schema>
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
@@ -309,11 +311,11 @@ export class TransactionsService {
    * Splits a transaction between categories, replacing any previous split.
    * The parts keep its sign, are never 0 and sum exactly to its amount; the
    * transaction takes the category of its largest part (first on a tie),
-   * filed by hand and out of review. Statistics count each part with its
-   * category's kind (#357, `splitPartKind`): an incoming part in an expense
-   * category is a refund of it. A transfer category is refused beside income
-   * or expense categories, since such a part would keep the transaction's
-   * kind while the others take theirs.
+   * filed by hand and out of review, and with it that category's kind (#368).
+   * Statistics count each part with its category's kind (#357): an incoming
+   * part in an expense category is a refund of it. A transfer category is
+   * refused beside income or expense categories: a transaction is a move
+   * between the owner's accounts or not, never partly.
    */
   split(id: string, parts: SplitPartDto[]): Promise<TransactionDto> {
     return this.db.transaction(async (tx) => {
@@ -489,7 +491,6 @@ export class TransactionsService {
     executor: Executor,
   ): Promise<TransactionDto[]> {
     if (rows.length === 0) return []
-    const kinds = new Map(rows.map((row) => [row.id, row.kind]))
     const s = transactionSplitsTable
     const parts = await executor
       .select({
@@ -519,7 +520,7 @@ export class TransactionsService {
         id: part.id,
         categoryId: part.categoryId,
         amountCents: part.amountCents,
-        kind: splitPartKind(kinds.get(part.transactionId)!, part.kind),
+        kind: part.kind,
         category: {
           id: part.categoryId,
           slug: part.slug,
@@ -539,7 +540,7 @@ export class TransactionsService {
     return this.db.transaction(async (tx) => {
       const current = await this.findOne(id, tx)
       const { counterpartAccountId, ...changes } = dto
-      const set = await this.resolveChanges(tx, changes)
+      const set = await this.resolveChanges(tx, changes, [id])
       if (counterpartAccountId !== undefined) {
         await this.assertCounterpart(tx, current, set, counterpartAccountId)
         set.counterpartAccountId = counterpartAccountId
@@ -564,7 +565,7 @@ export class TransactionsService {
     ...changes
   }: BulkUpdateTransactionsDto): Promise<{ updated: number }> {
     return this.db.transaction(async (tx) => {
-      const set = await this.resolveChanges(tx, changes)
+      const set = await this.resolveChanges(tx, changes, ids)
       if (Object.keys(set).length === 0) {
         throw new BadRequestException('Nothing to update')
       }
@@ -615,6 +616,33 @@ export class TransactionsService {
         'counterpartAccountId does not match any account',
       )
     }
+  }
+
+  /**
+   * A kind sent without a category (#368): only for uncategorized rows, or a
+   * categorized row whose category already has it (nothing changes).
+   */
+  private async assertKindAlone(
+    executor: Executor,
+    ids: readonly string[],
+    kind: TransactionKind,
+  ) {
+    if (ids.length === 0) return
+    const [other] = await executor
+      .select({ id: transactionsTable.id })
+      .from(transactionsTable)
+      .innerJoin(
+        categoriesTable,
+        eq(categoriesTable.id, transactionsTable.categoryId),
+      )
+      .where(
+        and(
+          inArray(transactionsTable.id, [...ids]),
+          ne(categoriesTable.kind, kind),
+        ),
+      )
+      .limit(1)
+    if (other) throw new BadRequestException(KIND_OF_CATEGORY_MESSAGE)
   }
 
   /** A category chosen for the whole transaction ends its split. */
@@ -740,15 +768,18 @@ export class TransactionsService {
    * transactions:
    *
    * - a category files the transaction by hand (`ruleId` = null unless a rule
-   *   categorization is being restored), sets the category's kind unless
-   *   `kind` is given, and leaves review unless `needsReview` is given;
-   * - removing the category (`null`) also clears the rule and keeps the kind;
-   * - a kind change alone files a rule-categorized transaction by hand when
-   *   the kind actually changes, so re-applying the rules does not undo it.
+   *   categorization is being restored), gives it the category's kind (#368:
+   *   a `kind` sent with it must be that kind) and leaves review unless
+   *   `needsReview` is given;
+   * - removing the category (`null`) also clears the rule and keeps the kind
+   *   unless `kind` is given;
+   * - a kind alone is for uncategorized rows: on `ids` with a category of
+   *   another kind it is refused (choose a category of that kind instead).
    */
   private async resolveChanges(
     executor: Executor,
     dto: TransactionChanges,
+    ids: readonly string[],
   ): Promise<TransactionSet> {
     const set: TransactionSet = {}
 
@@ -790,13 +821,14 @@ export class TransactionsService {
             'categoryId does not match any category',
           )
         }
-        set.kind = dto.kind ?? category.kind
+        assertKindOfCategory(dto.kind, category.kind)
+        set.kind = category.kind
         set.needsReview = dto.needsReview ?? false
       }
     } else {
       if (dto.kind !== undefined) {
+        await this.assertKindAlone(executor, ids, dto.kind)
         set.kind = dto.kind
-        set.ruleId = sql`case when ${transactionsTable.kind} = ${dto.kind}::transaction_kind then ${transactionsTable.ruleId} else null end`
       }
       if (dto.needsReview !== undefined) set.needsReview = dto.needsReview
     }

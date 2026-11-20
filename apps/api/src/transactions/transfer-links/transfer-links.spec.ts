@@ -213,12 +213,18 @@ describe.skipIf(!process.env.DATABASE_URL)('transfer links (database)', () => {
 
   it('sets a rule’s destination on the transfers it files', async () => {
     await inRollback(
-      async ({ rules, ids, row, counterpart, transferCategory }) => {
+      async ({
+        rules,
+        ids,
+        row,
+        counterpart,
+        transferCategory,
+        expenseCategory,
+      }) => {
         await expect(
           rules.create({
             labelPattern: 'TESTBROKER',
-            categoryId: transferCategory,
-            kind: 'expense',
+            categoryId: expenseCategory,
             counterpartAccountId: ids.pea,
           }),
         ).rejects.toBeInstanceOf(BadRequestException)

@@ -115,14 +115,7 @@ class ConflictCounter {
     const won = ruleOutcome(winner, this.categoriesById)
     for (const loser of others) {
       const lost = ruleOutcome(loser, this.categoriesById)
-      if (
-        won &&
-        lost &&
-        won.categoryId === lost.categoryId &&
-        won.kind === lost.kind
-      ) {
-        continue
-      }
+      if (won && lost && won.categoryId === lost.categoryId) continue
       const key = `${winner.id}:${loser.id}`
       const entry = this.counts.get(key)
       if (entry) entry.count++
@@ -162,7 +155,6 @@ type RuleFields = Pick<
   | 'minAmountCents'
   | 'maxAmountCents'
   | 'categoryId'
-  | 'kind'
   | 'counterpartAccountId'
 >
 
@@ -211,7 +203,6 @@ function newRuleValues(dto: CreateCategorizationRuleDto) {
     minAmountCents: dto.minAmountCents ?? null,
     maxAmountCents: dto.maxAmountCents ?? null,
     categoryId: dto.categoryId,
-    kind: dto.kind ?? null,
     merchant: nullIfBlank(dto.merchant) ?? null,
     counterpartAccountId: dto.counterpartAccountId ?? null,
   } satisfies Omit<InsertCategorizationRule, 'position'>
@@ -379,7 +370,6 @@ export class CategorizationRulesService {
       minAmountCents: query.minAmountCents ?? null,
       maxAmountCents: query.maxAmountCents ?? null,
       categoryId: PREVIEW_RULE_ID,
-      kind: null,
       merchant: null,
       counterpartAccountId: null,
       createdAt: now,
@@ -576,7 +566,6 @@ export class CategorizationRulesService {
         'minAmountCents',
         'maxAmountCents',
         'categoryId',
-        'kind',
         'counterpartAccountId',
       ] as const) {
         if (dto[key] !== undefined) {
@@ -838,7 +827,7 @@ export class CategorizationRulesService {
       rule.categoryId,
     )
     if (rule.counterpartAccountId != null) {
-      if ((rule.kind ?? categoryKind) !== 'transfer') {
+      if (categoryKind !== 'transfer') {
         throw new BadRequestException(
           'counterpartAccountId is only for a rule filing transfers',
         )

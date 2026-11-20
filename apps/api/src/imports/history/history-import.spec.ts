@@ -394,7 +394,6 @@ describe.skipIf(!process.env.DATABASE_URL)('history import (database)', () => {
       expect(created[0]).toMatchObject({
         matchType: 'contains',
         enabled: true,
-        kind: null,
       })
 
       const again = await importHistory(tx, input(specs, { createRules: true }))

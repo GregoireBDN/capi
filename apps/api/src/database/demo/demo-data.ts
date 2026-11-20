@@ -281,7 +281,6 @@ function ddmm(date: string): string {
 interface RuleSpec {
   pattern: string
   slug: string
-  kind?: TransactionKind
   merchant?: string
   /** Destination account of the transfers it files (#296). */
   counterpart?: 'pea' | 'exchange'
@@ -313,29 +312,25 @@ const RULES: readonly RuleSpec[] = [
   { pattern: 'SNCF', slug: 'transport' },
   { pattern: 'SALAIRE ACME', slug: 'salary', merchant: 'Acme' },
   { pattern: 'PRIME ACME', slug: 'salary', merchant: 'Acme' },
-  { pattern: 'VERS LIVRET A', slug: 'savings_transfer', kind: 'transfer' },
-  { pattern: 'DEPUIS LIVRET A', slug: 'internal_transfer', kind: 'transfer' },
+  { pattern: 'VERS LIVRET A', slug: 'savings_transfer' },
+  { pattern: 'DEPUIS LIVRET A', slug: 'internal_transfer' },
   {
     pattern: 'VERS PEA',
     slug: 'investment_transfer',
-    kind: 'transfer',
     counterpart: 'pea',
   },
   {
     pattern: 'VERS BINANCE',
     slug: 'investment_transfer',
-    kind: 'transfer',
     counterpart: 'exchange',
   },
   {
     pattern: 'DEPUIS COMPTE COURANT',
     slug: 'savings_transfer',
-    kind: 'transfer',
   },
   {
     pattern: 'VERS COMPTE COURANT',
     slug: 'internal_transfer',
-    kind: 'transfer',
   },
   { pattern: 'COTIS EUROCOMPTE', slug: 'bank_fees' },
   { pattern: 'RETRAIT DAB', slug: 'cash_withdrawal' },
@@ -826,7 +821,6 @@ export async function generateDemoData(
         matchType: 'contains' as const,
         labelPattern: rule.pattern,
         categoryId: category(rule.slug).id,
-        kind: rule.kind ?? null,
         merchant: rule.merchant ?? null,
         counterpartAccountId:
           rule.counterpart === 'pea'
@@ -932,7 +926,7 @@ export async function generateDemoData(
           (a, b) => Math.abs(b.amountCents) - Math.abs(a.amountCents),
         )[0]
         categoryId = category(largest.slug).id
-        kind = 'expense'
+        kind = category(largest.slug).kind
         needsReview = false
       }
       if (needsReview) reviewCount++

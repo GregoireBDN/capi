@@ -84,7 +84,7 @@ export class CreateManualTransactionDto {
   @ApiPropertyOptional({
     ...KIND_DOC,
     description:
-      'Default: the kind of the category, else `expense`. `transfer` = move between own accounts, never income or expense.',
+      'The category’s kind when there is a category (#368: another kind is refused, 400), else this kind, default `expense`. `transfer` = move between own accounts, never income or expense.',
   })
   @IsOptional()
   @IsIn(TRANSACTION_KINDS)
@@ -173,7 +173,11 @@ export class UpdateManualTransactionDto {
   @IsIn(MONEY_DIRECTIONS)
   direction?: MoneyDirection
 
-  @ApiPropertyOptional(KIND_DOC)
+  @ApiPropertyOptional({
+    ...KIND_DOC,
+    description:
+      'Kind of an uncategorized transaction. A categorized one has its category’s kind (#368): another kind is refused (400).',
+  })
   @NotNullIfPresent()
   @IsIn(TRANSACTION_KINDS)
   kind?: TransactionKind
@@ -183,7 +187,7 @@ export class UpdateManualTransactionDto {
     format: 'uuid',
     nullable: true,
     description:
-      'Null: no category (back to the review queue). Sets the category’s kind unless `kind` is sent.',
+      'Null: no category (back to the review queue). Sets the category’s kind.',
   })
   @IsOptional()
   @IsUUID()

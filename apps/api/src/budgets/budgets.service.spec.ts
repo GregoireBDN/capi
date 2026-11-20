@@ -218,9 +218,9 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
               categoryId: groceries,
               amountCents: -3_000,
             }),
-            // A move to the user's own savings, even filed in the category.
+            // A move to the user's own savings.
             transaction(checking, {
-              categoryId: groceries,
+              categoryId: livret,
               kind: 'transfer',
               amountCents: -50_000,
             }),
@@ -229,11 +229,12 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
               kind: 'transfer',
               amountCents: 50_000,
             }),
-            // Income filed in an expense category is not a refund.
+            // Money in filed in an expense category is a refund of it
+            // (#368): it nets the category's spending.
             transaction(checking, {
               categoryId: groceries,
               kind: 'income',
-              amountCents: 7_000,
+              amountCents: 1_000,
             }),
             transaction(checking, { categoryId: salary, kind: 'income' }),
             // Month boundaries: the last day before and the first day after.
@@ -261,8 +262,8 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
 
           const { items, totals, unbudgeted } = await service.month('2026-10')
 
-          expect(items[0].spentCents).toBe(4_000)
-          expect(totals.spentCents).toBe(4_000)
+          expect(items[0].spentCents).toBe(3_000)
+          expect(totals.spentCents).toBe(3_000)
           expect(unbudgeted.totalCents).toBe(0)
           expect(unbudgeted.top).toEqual([])
         },
@@ -556,120 +557,124 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
 
   describe('history', () => {
     it('gives target and spending per month for the budgeted categories', async () => {
-      await withFixture(async ({ tx, service, checking, groceries, rent }) => {
-        await service.upsert(groceries, '2026-09', {
-          monthlyTargetCents: 10_000,
-        })
-        await service.upsert(groceries, '2026-11', {
-          monthlyTargetCents: 12_000,
-        })
-        await insert(tx, [
-          transaction(checking, {
-            categoryId: groceries,
-            bookingDate: '2026-08-10',
-            amountCents: -5_000,
-          }),
-          transaction(checking, {
-            categoryId: groceries,
-            bookingDate: '2026-09-10',
-            amountCents: -11_000,
-          }),
-          transaction(checking, {
-            categoryId: groceries,
-            bookingDate: '2026-10-10',
-            amountCents: -6_000,
-          }),
-          transaction(checking, {
-            categoryId: groceries,
-            bookingDate: '2026-10-11',
-            kind: 'transfer',
-            amountCents: -60_000,
-          }),
-          // Not budgeted: left out of the table and the totals.
-          transaction(checking, {
-            categoryId: rent,
-            bookingDate: '2026-10-01',
-            amountCents: -80_000,
-          }),
-        ])
+      await withFixture(
+        async ({ tx, service, checking, groceries, rent, livret }) => {
+          await service.upsert(groceries, '2026-09', {
+            monthlyTargetCents: 10_000,
+          })
+          await service.upsert(groceries, '2026-11', {
+            monthlyTargetCents: 12_000,
+          })
+          await insert(tx, [
+            transaction(checking, {
+              categoryId: groceries,
+              bookingDate: '2026-08-10',
+              amountCents: -5_000,
+            }),
+            transaction(checking, {
+              categoryId: groceries,
+              bookingDate: '2026-09-10',
+              amountCents: -11_000,
+            }),
+            transaction(checking, {
+              categoryId: groceries,
+              bookingDate: '2026-10-10',
+              amountCents: -6_000,
+            }),
+            transaction(checking, {
+              categoryId: livret,
+              bookingDate: '2026-10-11',
+              kind: 'transfer',
+              amountCents: -60_000,
+            }),
+            // Not budgeted: left out of the table and the totals.
+            transaction(checking, {
+              categoryId: rent,
+              bookingDate: '2026-10-01',
+              amountCents: -80_000,
+            }),
+          ])
 
-        const history = await service.history('2026-11', 4)
+          const history = await service.history('2026-11', 4)
 
-        expect(history.months).toEqual([
-          '2026-08',
-          '2026-09',
-          '2026-10',
-          '2026-11',
-        ])
-        expect(history.categories).toHaveLength(1)
-        expect(history.categories[0].months).toEqual([
-          {
-            month: '2026-08',
-            targetCents: null,
-            spentCents: 5_000,
-            status: null,
-          },
-          {
-            month: '2026-09',
-            targetCents: 10_000,
-            spentCents: 11_000,
-            status: 'over',
-          },
-          {
-            month: '2026-10',
-            targetCents: 10_000,
-            spentCents: 6_000,
-            status: 'ok',
-          },
-          {
-            month: '2026-11',
-            targetCents: 12_000,
-            spentCents: 0,
-            status: 'ok',
-          },
-        ])
-        // Nothing planned on the income side.
-        const noIncome = {
-          plannedIncomeCents: 0,
-          receivedIncomeCents: 0,
-          plannedSavingsCents: null,
-        }
-        expect(history.income).toEqual([])
-        expect(
-          history.totals.map((total) => ({
-            ...total,
-            ...noIncome,
-          })),
-        ).toEqual(history.totals)
-        expect(
-          history.totals.map(({ month, targetCents, spentCents, status }) => ({
-            month,
-            targetCents,
-            spentCents,
-            status,
-          })),
-        ).toEqual([
-          { month: '2026-08', targetCents: 0, spentCents: 0, status: null },
-          {
-            month: '2026-09',
-            targetCents: 10_000,
-            spentCents: 11_000,
-            status: 'over',
-          },
-          {
-            month: '2026-10',
-            targetCents: 10_000,
-            spentCents: 6_000,
-            status: 'ok',
-          },
-          {
-            month: '2026-11',
-            targetCents: 12_000,
-            spentCents: 0,
-            status: 'ok',
-          },
-        ])
-      })
+          expect(history.months).toEqual([
+            '2026-08',
+            '2026-09',
+            '2026-10',
+            '2026-11',
+          ])
+          expect(history.categories).toHaveLength(1)
+          expect(history.categories[0].months).toEqual([
+            {
+              month: '2026-08',
+              targetCents: null,
+              spentCents: 5_000,
+              status: null,
+            },
+            {
+              month: '2026-09',
+              targetCents: 10_000,
+              spentCents: 11_000,
+              status: 'over',
+            },
+            {
+              month: '2026-10',
+              targetCents: 10_000,
+              spentCents: 6_000,
+              status: 'ok',
+            },
+            {
+              month: '2026-11',
+              targetCents: 12_000,
+              spentCents: 0,
+              status: 'ok',
+            },
+          ])
+          // Nothing planned on the income side.
+          const noIncome = {
+            plannedIncomeCents: 0,
+            receivedIncomeCents: 0,
+            plannedSavingsCents: null,
+          }
+          expect(history.income).toEqual([])
+          expect(
+            history.totals.map((total) => ({
+              ...total,
+              ...noIncome,
+            })),
+          ).toEqual(history.totals)
+          expect(
+            history.totals.map(
+              ({ month, targetCents, spentCents, status }) => ({
+                month,
+                targetCents,
+                spentCents,
+                status,
+              }),
+            ),
+          ).toEqual([
+            { month: '2026-08', targetCents: 0, spentCents: 0, status: null },
+            {
+              month: '2026-09',
+              targetCents: 10_000,
+              spentCents: 11_000,
+              status: 'over',
+            },
+            {
+              month: '2026-10',
+              targetCents: 10_000,
+              spentCents: 6_000,
+              status: 'ok',
+            },
+            {
+              month: '2026-11',
+              targetCents: 12_000,
+              spentCents: 0,
+              status: 'ok',
+            },
+          ])
+        },
+      )
     })
   })
 
@@ -921,14 +926,13 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
               bookingDate: '2026-10-12',
               manual: true,
             }),
-            // Last month, and a transfer filed in the category: never counted.
+            // Last month, and transfers: never counted.
             transaction(checking, {
               categoryId: groceries,
               amountCents: -9_999,
               bookingDate: '2026-09-30',
             }),
             transaction(checking, {
-              categoryId: groceries,
               amountCents: -7_777,
               kind: 'transfer',
             }),

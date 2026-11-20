@@ -281,6 +281,13 @@
       "when": 1795166156753,
       "tag": "0039_db_hygiene",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1795167023821,
+      "tag": "0040_kind_follows_category",
+      "breakpoints": true
     }
   ]
 }

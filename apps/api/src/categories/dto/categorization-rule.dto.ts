@@ -58,14 +58,6 @@ const MATCH_TYPE_DOC = {
     '`contains`: case-, accent- and punctuation-insensitive substring of the raw label or merchant. `regex`: case-insensitive regular expression tested against the raw label and merchant.',
 } as const
 
-const KIND_DOC = {
-  enum: TRANSACTION_KINDS,
-  enumName: 'TransactionKind',
-  nullable: true,
-  description:
-    "Overrides the category's kind when set (e.g. `transfer` for a move to one of the user's own accounts).",
-} as const
-
 const PRIORITY_DOC =
   'Explicit precedence (#299): rules with a higher priority are evaluated before the computed « most specific first » order. Default 0.'
 
@@ -124,9 +116,6 @@ export class CategorizationRuleDto {
 
   @ApiProperty({ type: String, format: 'uuid' })
   categoryId!: string
-
-  @ApiProperty(KIND_DOC)
-  kind!: TransactionKind | null
 
   @ApiProperty({
     type: String,
@@ -198,11 +187,6 @@ export class CreateCategorizationRuleDto {
   @ApiProperty({ type: String, format: 'uuid' })
   @IsUUID()
   categoryId!: string
-
-  @ApiPropertyOptional(KIND_DOC)
-  @IsOptional()
-  @IsIn(TRANSACTION_KINDS)
-  kind?: TransactionKind | null
 
   @ApiPropertyOptional({
     type: String,
@@ -284,11 +268,6 @@ export class UpdateCategorizationRuleDto {
   @IsUUID()
   categoryId?: string
 
-  @ApiPropertyOptional(KIND_DOC)
-  @IsOptional()
-  @IsIn(TRANSACTION_KINDS)
-  kind?: TransactionKind | null
-
   @ApiPropertyOptional({
     type: String,
     nullable: true,
@@ -363,9 +342,6 @@ export class SuggestedCategorizationRuleDto {
 
   @ApiProperty({ type: String, format: 'uuid' })
   categoryId!: string
-
-  @ApiProperty(KIND_DOC)
-  kind!: TransactionKind | null
 
   @ApiProperty({ type: String, nullable: true })
   merchant!: string | null
@@ -503,14 +479,14 @@ export class CategorizationRulePreviewDto {
   @ApiProperty({
     type: () => [CategorizationRuleConflictDto],
     description:
-      'Other rules that also match transactions this rule matches but file them differently (category or kind), with who wins. Transactions filed by hand are never counted.',
+      'Other rules that also match transactions this rule matches but file them in another category, with who wins. Transactions filed by hand are never counted.',
   })
   conflicts!: CategorizationRuleConflictDto[]
 }
 
 /**
  * Two enabled rules matching the same transactions with different outcomes
- * (category or kind): the first in the evaluation order wins them.
+ * (another category): the first in the evaluation order wins them.
  */
 export class CategorizationRuleConflictDto {
   @ApiProperty({

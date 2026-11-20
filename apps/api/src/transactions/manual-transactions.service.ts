@@ -36,6 +36,7 @@ import {
   type MoneyDirection,
   type UpdateManualTransactionDto,
 } from './dto/manual-transaction.dto'
+import { assertKindOfCategory } from './category-kind'
 import { rankSuggestions, type SuggestionGroup } from './manual-suggestions'
 import type { TransactionDto } from './dto/transaction.dto'
 import { TransactionsService } from './transactions.service'
@@ -102,7 +103,8 @@ export class ManualTransactionsService {
       if (!label) {
         throw new BadRequestException('A label or a categoryId is required')
       }
-      const kind = dto.kind ?? category?.kind ?? 'expense'
+      if (category) assertKindOfCategory(dto.kind, category.kind)
+      const kind = category?.kind ?? dto.kind ?? 'expense'
       const accountId = dto.accountId
         ? await this.requireAccount(tx, dto.accountId)
         : await this.defaultAccount(tx)
@@ -155,7 +157,7 @@ export class ManualTransactionsService {
       const current = await this.findManual(tx, id)
       const [currentCategory] = current.categoryId
         ? await tx
-            .select({ name: categoriesTable.name })
+            .select({ name: categoriesTable.name, kind: categoriesTable.kind })
             .from(categoriesTable)
             .where(eq(categoriesTable.id, current.categoryId))
         : []
@@ -164,6 +166,9 @@ export class ManualTransactionsService {
 
       const set: Partial<typeof transactionsTable.$inferInsert> = {}
       let categoryName: string | null = defaultLabel
+      // A categorized row has its category's kind (#368): a kind is chosen
+      // freely only without a category.
+      let categoryKind: TransactionKind | null = currentCategory?.kind ?? null
       if (dto.categoryId !== undefined) {
         const category = dto.categoryId
           ? await this.requireCategory(tx, dto.categoryId)
@@ -173,8 +178,12 @@ export class ManualTransactionsService {
         set.needsReview = category === null
         if (category) set.kind = category.kind
         categoryName = category?.name ?? null
+        categoryKind = category?.kind ?? null
       }
-      if (dto.kind !== undefined) set.kind = dto.kind
+      if (dto.kind !== undefined) {
+        if (categoryKind !== null) assertKindOfCategory(dto.kind, categoryKind)
+        else set.kind = dto.kind
+      }
       if (dto.amountCents !== undefined || dto.direction !== undefined) {
         const magnitude = dto.amountCents ?? Math.abs(current.amountCents)
         const direction =

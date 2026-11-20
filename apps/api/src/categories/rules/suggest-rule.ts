@@ -1,4 +1,3 @@
-import type { TransactionKind } from '#/database/schema/domain-enums'
 import type { CategorizableTransaction } from './categorize'
 import { foldForMatch } from './normalize-text'
 
@@ -11,7 +10,6 @@ export interface SuggestedRule {
   minAmountCents: null
   maxAmountCents: null
   categoryId: string
-  kind: TransactionKind | null
   merchant: null
 }
 
@@ -143,7 +141,6 @@ export function suggestRuleFromTransaction(
     minAmountCents: null,
     maxAmountCents: null,
     categoryId,
-    kind: null,
     merchant: null,
   }
 }
