@@ -210,9 +210,15 @@ export function AddPrepaidSheet({
                 <li key={transaction.id}>
                   <button
                     type="button"
+                    // The payment chosen before, after a step back.
+                    aria-current={
+                      payment?.id === transaction.id ? 'true' : undefined
+                    }
                     className={cn(
                       ROW_BUTTON,
                       'flex min-h-11 items-center gap-2 p-3 text-left',
+                      payment?.id === transaction.id &&
+                        'bg-[color-mix(in_srgb,var(--primary)_8%,var(--card))] shadow-[inset_3px_0_0_var(--primary)]',
                     )}
                     onClick={() => {
                       setPayment(transaction)

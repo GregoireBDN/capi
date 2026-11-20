@@ -21,6 +21,7 @@ import {
   SheetContent,
   SheetSteps,
   useIsMobile,
+  cn,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -224,11 +225,14 @@ function ChoiceTile({
   icon,
   label,
   description,
+  selected = false,
   onSelect,
 }: {
   icon?: ReactNode
   label: string
   description?: string
+  /** The choice made before (shown again after a step back). */
+  selected?: boolean
   onSelect: () => void
 }) {
   return (
@@ -236,12 +240,20 @@ function ChoiceTile({
       <button
         type="button"
         onClick={onSelect}
-        className="hover:bg-muted/60 focus-visible:ring-ring flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left outline-none focus-visible:ring-2"
+        aria-current={selected ? 'true' : undefined}
+        className={cn(
+          'hover:bg-muted/60 focus-visible:ring-ring flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left outline-none focus-visible:ring-2',
+          selected &&
+            'border-primary bg-[color-mix(in_srgb,var(--primary)_8%,var(--popover))]',
+        )}
       >
         {icon && (
           <span
             aria-hidden
-            className="bg-muted text-muted-foreground flex size-[32px] shrink-0 items-center justify-center rounded-full [&_svg]:size-[16px]"
+            className={cn(
+              'bg-muted text-muted-foreground flex size-[32px] shrink-0 items-center justify-center rounded-full [&_svg]:size-[16px]',
+              selected && 'bg-primary/15 text-primary',
+            )}
           >
             {icon}
           </span>
@@ -256,7 +268,10 @@ function ChoiceTile({
         </span>
         <ChevronRightIcon
           aria-hidden
-          className="text-muted-foreground size-4 shrink-0"
+          className={cn(
+            'size-4 shrink-0',
+            selected ? 'text-primary' : 'text-muted-foreground',
+          )}
         />
       </button>
     </li>
@@ -314,6 +329,9 @@ export function AddCryptoSheet({
   const id = useId()
   const headingRef = useRef<HTMLHeadingElement>(null)
   const [screen, setScreen] = useState<Screen>('source')
+  /** The choices made, shown again after a step back. */
+  const [chosenSource, setChosenSource] = useState<Source | null>(null)
+  const [otherPlatform, setOtherPlatform] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
   // Exchange.
@@ -350,6 +368,8 @@ export function AddCryptoSheet({
   useEffect(() => {
     if (!open) return
     setScreen('source')
+    setChosenSource(null)
+    setOtherPlatform(false)
     setSubmitted(false)
     setExchange(undefined)
     setImportError(undefined)
@@ -627,7 +647,11 @@ export function AddCryptoSheet({
               icon={source.icon}
               label={source.label}
               description={source.description}
-              onSelect={() => go(FIRST[source.value])}
+              selected={chosenSource === source.value}
+              onSelect={() => {
+                setChosenSource(source.value)
+                go(FIRST[source.value])
+              }}
             />
           ))}
         </ul>
@@ -650,7 +674,13 @@ export function AddCryptoSheet({
                     icon={<Building2Icon />}
                     label={account.name}
                     description="Importer un nouvel export"
+                    selected={
+                      !otherPlatform &&
+                      exchange?.kind === 'existing' &&
+                      exchange.accountId === account.accountId
+                    }
                     onSelect={() => {
+                      setOtherPlatform(false)
                       setExchange({
                         kind: 'existing',
                         accountId: account.accountId,
@@ -675,7 +705,13 @@ export function AddCryptoSheet({
                   key={provider}
                   icon={<Building2Icon />}
                   label={CRYPTO_EXCHANGE_PROVIDER_LABELS[provider]}
+                  selected={
+                    !otherPlatform &&
+                    exchange?.kind === 'new' &&
+                    exchange.provider === provider
+                  }
                   onSelect={() => {
+                    setOtherPlatform(false)
                     setExchange({ kind: 'new', provider })
                     go('exchange-file')
                   }}
@@ -685,7 +721,9 @@ export function AddCryptoSheet({
                 icon={<PencilLineIcon />}
                 label="Une autre plateforme"
                 description="Ses exports ne sont pas lus : saisissez ce que vous y détenez."
+                selected={otherPlatform}
                 onSelect={() => {
+                  setOtherPlatform(true)
                   setTarget(NEW_ACCOUNT)
                   go('manual-asset')
                 }}
@@ -763,6 +801,7 @@ export function AddCryptoSheet({
               key={provider}
               icon={<WalletIcon />}
               label={provider === OTHER_PROVIDER ? 'Un autre wallet' : provider}
+              selected={walletProvider === provider}
               onSelect={() => {
                 setWalletProvider(provider)
                 setKeyError(undefined)
@@ -1069,6 +1108,28 @@ export function AddCryptoSheet({
   }
 
   const step = stepOf(screen)
+  /** The route's screen to name the steps after, once a source is chosen. */
+  const routeScreen: Screen =
+    screen === 'source' && chosenSource
+      ? otherPlatform
+        ? 'manual-asset'
+        : FIRST[chosenSource]
+      : screen
+  /**
+   * The 3rd step's screen when its choice is already made (a step back
+   * from it): a tap on its icon goes forward to it again.
+   */
+  const entryScreen: Screen | null = routeScreen.startsWith('exchange')
+    ? exchange
+      ? 'exchange-file'
+      : null
+    : routeScreen.startsWith('wallet')
+      ? walletProvider
+        ? 'wallet-keys'
+        : null
+      : routeScreen.startsWith('manual') && asset
+        ? 'manual-amount'
+        : null
 
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -1083,7 +1144,12 @@ export function AddCryptoSheet({
         steps={
           <SheetSteps
             current={String(step)}
-            onSelect={(key) => backTo(Number(key))}
+            onSelect={(key) => {
+              const wanted = Number(key)
+              if (wanted < step) backTo(wanted)
+              else if (wanted === 2 && chosenSource) go(FIRST[chosenSource])
+              else if (wanted === 3 && entryScreen) go(entryScreen)
+            }}
             steps={[
               {
                 key: '1',
@@ -1092,13 +1158,13 @@ export function AddCryptoSheet({
               },
               {
                 key: '2',
-                ...routeSteps(screen)[0],
-                disabled: step < 2,
+                ...routeSteps(routeScreen)[0],
+                disabled: step < 2 && chosenSource === null,
               },
               {
                 key: '3',
-                ...routeSteps(screen)[1],
-                disabled: step < 3,
+                ...routeSteps(routeScreen)[1],
+                disabled: step < 3 && entryScreen === null,
               },
               {
                 key: '4',

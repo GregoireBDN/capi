@@ -181,6 +181,7 @@ export function ConnectSheet({
                 key={value}
                 label={SCOPE_LABELS[value]}
                 description={SCOPE_DESCRIPTIONS[value]}
+                selected={scope === value}
                 onSelect={() => {
                   setScope(value)
                   setStep('duration')

@@ -1,4 +1,5 @@
 import {
+  cn,
   Dialog,
   DialogContent,
   Sheet,
@@ -111,12 +112,15 @@ export function ChoiceTile({
   label,
   description,
   disabled,
+  selected = false,
   onSelect,
 }: {
   icon?: ReactNode
   label: string
   description?: string
   disabled?: boolean
+  /** The choice made before (shown again after a step back). */
+  selected?: boolean
   onSelect: () => void
 }) {
   return (
@@ -125,12 +129,20 @@ export function ChoiceTile({
         type="button"
         onClick={onSelect}
         disabled={disabled}
-        className="hover:bg-muted/60 focus-visible:ring-ring flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left outline-none focus-visible:ring-2 disabled:opacity-60"
+        aria-current={selected ? 'true' : undefined}
+        className={cn(
+          'hover:bg-muted/60 focus-visible:ring-ring flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left outline-none focus-visible:ring-2 disabled:opacity-60',
+          selected &&
+            'border-primary bg-[color-mix(in_srgb,var(--primary)_8%,var(--popover))]',
+        )}
       >
         {icon && (
           <span
             aria-hidden
-            className="bg-muted text-muted-foreground flex size-[32px] shrink-0 items-center justify-center rounded-full [&_svg]:size-[16px]"
+            className={cn(
+              'bg-muted text-muted-foreground flex size-[32px] shrink-0 items-center justify-center rounded-full [&_svg]:size-[16px]',
+              selected && 'bg-primary/15 text-primary',
+            )}
           >
             {icon}
           </span>
@@ -145,7 +157,10 @@ export function ChoiceTile({
         </span>
         <ChevronRightIcon
           aria-hidden
-          className="text-muted-foreground size-4 shrink-0"
+          className={cn(
+            'size-4 shrink-0',
+            selected ? 'text-primary' : 'text-muted-foreground',
+          )}
         />
       </button>
     </li>
