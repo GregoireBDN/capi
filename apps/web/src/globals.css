@@ -19,8 +19,6 @@
 
 /* Scan workspace UI package sources (symlinked into node_modules) */
 @source "../../../packages/ui/src/**/*.{ts,tsx}";
-/* #385 prototypes (throwaway, removed with them) */
-@source "../../ui-docs/src/prototypes";
 
 /* Tailwind Animate CSS - Animation utilities */
 @import 'tw-animate-css';

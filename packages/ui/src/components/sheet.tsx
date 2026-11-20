@@ -196,46 +196,6 @@ function usePageLock(enabled: boolean) {
   }, [enabled])
 }
 
-/*
- * #385, throwaway: live measurements shown in a full-screen editor while it
- * is tested on the phone. Removed with the header switch.
- */
-function KeyboardDebug({ node }: { node: HTMLElement | null }) {
-  const [text, setText] = React.useState('')
-  React.useEffect(() => {
-    if (!node) return
-    let frame = 0
-    const tick = () => {
-      const vv = window.visualViewport
-      const rect = node.getBoundingClientRect()
-      const scroller = node.querySelector<HTMLElement>('[data-sheet-scroll]')
-      const focused = document.activeElement as HTMLElement | null
-      const f = focused?.getBoundingClientRect()
-      setText(
-        [
-          `inner ${window.innerHeight} sY ${Math.round(window.scrollY)}`,
-          `vv h ${Math.round(vv?.height ?? 0)} top ${Math.round(vv?.offsetTop ?? 0)}`,
-          `ed top ${Math.round(rect.top)} h ${Math.round(rect.height)}`,
-          `sc ${scroller ? `${Math.round(scroller.scrollTop)}/${scroller.scrollHeight}/${scroller.clientHeight}` : '-'}`,
-          `${node.hasAttribute('data-keyboard-expected') ? 'exp ' : ''}${node.hasAttribute('data-keyboard-open') ? 'open' : ''}`,
-          `focus ${focused?.tagName ?? ''} ${f ? `${Math.round(f.top)}-${Math.round(f.bottom)}` : ''}`,
-        ].join('\n'),
-      )
-      frame = requestAnimationFrame(tick)
-    }
-    frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
-  }, [node])
-  return (
-    <pre
-      aria-hidden
-      className="pointer-events-none fixed top-[calc(env(safe-area-inset-top)+60px)] right-1 z-[100] rounded bg-yellow-200/90 p-1 font-mono text-[10px] leading-tight text-black"
-    >
-      {text}
-    </pre>
-  )
-}
-
 function useKeyboardInset(
   node: HTMLElement | null,
   mode: 'sheet' | 'screen' | null,
@@ -542,7 +502,6 @@ function SheetContent({
         }}
       >
         {children}
-        {side === 'screen' && <KeyboardDebug node={node} />}
         {showCloseButton && (
           <SheetPrimitive.Close data-slot="sheet-close" asChild>
             <Button
@@ -592,64 +551,19 @@ function SheetHeader({ className, ...props }: SheetHeaderProps) {
 }
 
 /**
+ * A round button of the bar: an exact 40px circle (the buttons' default
+ * minimum height would make it an oval).
+ */
+const ROUND =
+  'size-[40px] min-h-0 shrink-0 aspect-square rounded-full p-0 [&_svg]:size-[18px]'
+
+/**
  * Sheet Bar
  * The top bar of a full-screen editor (`side="screen"`, #385, the owner's
  * « Ronds »): a round ✕ (or ‹ for a step back), the title in the middle,
  * the main action as a round button (`SheetBarAction`), then the
  * description under it.
  */
-/*
- * #385, throwaway: the bar's styles the owner compares on the phone
- * (« Ronds » first chosen, then found heavy in the app). The chosen one
- * stays, the switch and the others go.
- */
-type SheetBarStyle = 'ronds' | 'pastilles' | 'discret' | 'grand'
-const SHEET_BAR_STYLE_KEY = 'proto-385-bar'
-const SHEET_BAR_STYLES: readonly SheetBarStyle[] = [
-  'ronds',
-  'pastilles',
-  'discret',
-  'grand',
-]
-
-function readSheetBarStyle(): SheetBarStyle {
-  try {
-    const stored = localStorage.getItem(SHEET_BAR_STYLE_KEY)
-    return SHEET_BAR_STYLES.includes(stored as SheetBarStyle)
-      ? (stored as SheetBarStyle)
-      : 'ronds'
-  } catch {
-    return 'ronds'
-  }
-}
-
-function useSheetBarStyle(): SheetBarStyle {
-  const [style, setStyle] = React.useState<SheetBarStyle>('ronds')
-  React.useEffect(() => {
-    setStyle(readSheetBarStyle())
-    const sync = () => setStyle(readSheetBarStyle())
-    window.addEventListener('storage', sync)
-    window.addEventListener('proto-385-bar', sync)
-    return () => {
-      window.removeEventListener('storage', sync)
-      window.removeEventListener('proto-385-bar', sync)
-    }
-  }, [])
-  return style
-}
-
-/** #385, throwaway: sets the bar's style for this browser. */
-function setSheetBarStyle(style: SheetBarStyle) {
-  try {
-    localStorage.setItem(SHEET_BAR_STYLE_KEY, style)
-  } catch {
-    // Kept for this page only.
-  }
-  window.dispatchEvent(new Event('proto-385-bar'))
-}
-
-const SheetBarStyleContext = React.createContext<SheetBarStyle>('ronds')
-
 function SheetBar({
   title,
   description,
@@ -660,110 +574,52 @@ function SheetBar({
   className,
   ...props
 }: SheetBarProps) {
-  const style = useSheetBarStyle()
-  const round =
-    'size-[40px] min-h-0 shrink-0 aspect-square rounded-full p-0 [&_svg]:size-[18px]'
-  const leave = (() => {
-    if (style === 'pastilles') {
-      const pill = (
-        <Button
-          variant="secondary"
-          pill
-          className="h-[36px] min-h-0 px-3.5 text-[15px]"
-          onClick={onBack}
-        >
-          {onBack ? backLabel : 'Annuler'}
-        </Button>
-      )
-      return onBack ? (
-        pill
-      ) : (
-        <SheetPrimitive.Close asChild>{pill}</SheetPrimitive.Close>
-      )
-    }
-    const icon = onBack ? (
-      <ChevronLeftIcon aria-hidden />
-    ) : (
-      <XIcon aria-hidden />
-    )
-    const button = (
-      <Button
-        variant="secondary"
-        ghost={style !== 'ronds'}
-        iconOnly
-        className={cn(
-          round,
-          style !== 'ronds' &&
-            '-ml-1 text-muted-foreground [&_svg]:size-[22px]',
-        )}
-        aria-label={onBack ? backLabel : closeLabel}
-        onClick={onBack}
-      >
-        {icon}
-      </Button>
-    )
-    return onBack ? (
-      button
-    ) : (
-      <SheetPrimitive.Close asChild>{button}</SheetPrimitive.Close>
-    )
-  })()
-  const end = action ?? <span aria-hidden className="size-[40px] shrink-0" />
-
+  const leave = (
+    <Button
+      variant="secondary"
+      iconOnly
+      className={ROUND}
+      aria-label={onBack ? backLabel : closeLabel}
+      onClick={onBack}
+    >
+      {onBack ? <ChevronLeftIcon aria-hidden /> : <XIcon aria-hidden />}
+    </Button>
+  )
   return (
-    <SheetBarStyleContext.Provider value={style}>
-      <div
-        data-slot="sheet-bar"
-        data-bar-style={style}
-        className={cn('shrink-0 border-b', className)}
-        {...props}
-      >
-        {style === 'grand' ? (
-          <>
-            <div className="flex min-h-[52px] items-center gap-2 px-3 pt-2">
-              {leave}
-              <span className="flex-1" />
-              {end}
-            </div>
-            <SheetTitle className="px-4 pt-1 text-[24px] leading-tight font-semibold text-balance">
-              {title}
-            </SheetTitle>
-          </>
+    <div
+      data-slot="sheet-bar"
+      className={cn('shrink-0 border-b', className)}
+      {...props}
+    >
+      <div className="flex min-h-[56px] items-center gap-2 px-3 py-2">
+        {onBack ? (
+          leave
         ) : (
-          <div className="flex min-h-[56px] items-center gap-2 px-3 py-2">
-            {leave}
-            <SheetTitle
-              className={cn(
-                // Two lines at most, sized in px (the app's root is 22px).
-                'line-clamp-2 min-w-0 flex-1 text-[17px] leading-tight break-normal',
-                style === 'discret' ? 'text-left font-semibold' : 'text-center',
-              )}
-            >
-              {title}
-            </SheetTitle>
-            {end}
-          </div>
+          <SheetPrimitive.Close asChild>{leave}</SheetPrimitive.Close>
         )}
-        {description && (
-          <SheetDescription
-            className={cn(
-              'px-4 pb-3 text-[15px] leading-snug',
-              style === 'grand' && 'pt-1',
-            )}
-          >
-            {description}
-          </SheetDescription>
-        )}
-        {!description && style === 'grand' && <div className="h-3" />}
+        <SheetTitle
+          className={cn(
+            // Two lines at most, sized in px (the app's root is 22px).
+            'line-clamp-2 min-w-0 flex-1 text-center text-[17px] leading-tight break-normal',
+          )}
+        >
+          {title}
+        </SheetTitle>
+        {action ?? <span aria-hidden className="size-[40px] shrink-0" />}
       </div>
-    </SheetBarStyleContext.Provider>
+      {description && (
+        <SheetDescription className="px-4 pb-3 text-[15px] leading-snug">
+          {description}
+        </SheetDescription>
+      )}
+    </div>
   )
 }
 
 /**
  * Sheet Bar Action
- * The main action of a `SheetBar` (a check mark by default): filled once it
- * can be used, greyed out before (`disabled`).
+ * The round main action of a `SheetBar` (a check mark by default): filled
+ * once it can be used, greyed out before (`disabled`).
  */
 function SheetBarAction({
   label,
@@ -772,26 +628,6 @@ function SheetBarAction({
   className,
   ...props
 }: SheetBarActionProps) {
-  const style = React.useContext(SheetBarStyleContext)
-  const greyed =
-    'disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100'
-  if (style !== 'ronds') {
-    return (
-      <Button
-        pill
-        loading={loading}
-        iconEnd={icon}
-        className={cn(
-          'h-[36px] min-h-0 shrink-0 px-3.5 text-[15px] font-semibold [&_svg]:size-[18px]',
-          greyed,
-          className,
-        )}
-        {...props}
-      >
-        {label}
-      </Button>
-    )
-  }
   return (
     <Button
       iconOnly
@@ -799,8 +635,9 @@ function SheetBarAction({
       aria-label={label}
       title={label}
       className={cn(
-        'size-[40px] min-h-0 shrink-0 aspect-square rounded-full p-0 [&_svg]:size-[20px]',
-        greyed,
+        ROUND,
+        '[&_svg]:size-[20px]',
+        'disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100',
         className,
       )}
       {...props}
@@ -875,7 +712,6 @@ function SheetDescription({ className, ...props }: SheetDescriptionProps) {
  * ========================================================================= */
 
 export {
-  setSheetBarStyle,
   Sheet,
   SheetBar,
   SheetBarAction,
@@ -887,7 +723,6 @@ export {
   SheetTitle,
   SheetTrigger,
   type SheetBarActionProps,
-  type SheetBarStyle,
   type SheetBarProps,
   type SheetCloseProps,
   type SheetContentProps,
