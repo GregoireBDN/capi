@@ -126,6 +126,8 @@ Every refactor below gives what it fixes, its cost, its risk, the issues it touc
 5. **#358** as being built (keeps its columns), then **R2 with #360**: one invested figure everywhere.
 6. **R5** any time (app only).
 
+Follow-up issues (milestone M11, listed in the epic #301): #367 (R3, R4, R7), #368 (R1), #369 (R6), #370 (R2, after #358 and #366, which marks each snapshot `typed` or `computed`), #371 (R5). R8 is written on #359.
+
 ## Consequences
 
 - One rule per concept: a line's kind is its category's, an account's invested amount comes from one function, a bank value is a column.
