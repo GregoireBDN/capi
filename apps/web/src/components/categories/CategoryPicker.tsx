@@ -17,13 +17,17 @@ import {
   ArrowLeftRightIcon,
   ArrowUpRightIcon,
   ChevronRightIcon,
+  PlusIcon,
   TagIcon,
 } from 'lucide-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { CategoryDto, TransactionKind } from '#/api/types.gen'
 import { manualSuggestionsQuery } from '#/components/expenses/queries'
-import { editorSide } from '#/components/sheets/form-sheet'
+import {
+  EDITOR_STEADY_HEIGHT,
+  editorSide,
+} from '#/components/sheets/form-sheet'
 import {
   KIND_LABELS,
   TRANSACTION_KINDS,
@@ -117,6 +121,13 @@ export interface CategoryPickerProps {
   }
   /** Categories left out (the one being deleted). */
   exclude?: readonly string[]
+  /**
+   * « Nouvelle catégorie « … » » under a search that names no category
+   * (#394): creates it with that name, in the kind shown.
+   */
+  onCreate?: (name: string, kind: TransactionKind) => void
+  /** The category being created: its row waits. */
+  creating?: boolean
   /** Focus the search at once (a computer; never on a phone). */
   autoFocusSearch?: boolean
   headerClassName?: string
@@ -142,6 +153,8 @@ export function CategoryPicker({
   preferred = [],
   none,
   exclude = [],
+  onCreate,
+  creating = false,
   autoFocusSearch = false,
   headerClassName,
   listClassName,
@@ -183,6 +196,16 @@ export function CategoryPicker({
           .sort(byName),
       ]
     : [...ofKind].sort(byName)
+
+  // A name no category of the kind has yet (case and accents ignored).
+  const newName = query.trim().replace(/\s+/g, ' ')
+  const canCreate =
+    onCreate !== undefined &&
+    searching &&
+    !ofKind.some((category) => searchable(category.name) === wanted)
+  const create = () => {
+    if (canCreate && !creating) onCreate(newName, kind)
+  }
 
   const shownHabits = habits
     .filter((habit) => {
@@ -253,6 +276,7 @@ export function CategoryPicker({
             if (event.key !== 'Enter') return
             event.preventDefault()
             if (searching && results.length > 0) pick(results[0])
+            else create()
           }}
         />
       </div>
@@ -310,12 +334,29 @@ export function CategoryPicker({
               />
             )}
           </OptionGroup>
-          {searching && results.length === 0 && (
+          {searching && results.length === 0 && !canCreate && (
             <p className="text-muted-foreground px-4 py-3 text-[15px]">
               Aucune catégorie « {query.trim()} ».
             </p>
           )}
         </div>
+        {canCreate && (
+          <OptionRow
+            role="button"
+            disabled={creating}
+            leading={
+              <span
+                aria-hidden
+                className="bg-muted text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-lg [&_svg]:size-[0.85rem]"
+              >
+                <PlusIcon />
+              </span>
+            }
+            label={`Nouvelle catégorie « ${newName} »`}
+            detail={KIND_LABELS[kind]}
+            onClick={create}
+          />
+        )}
       </div>
     </>
   )
@@ -329,8 +370,8 @@ type PickerSheetProps = Omit<CategoryPickerProps, 'autoFocusSearch'> & {
 }
 
 /**
- * The picker in its own panel (a field's), the whole screen on a phone,
- * beside the page elsewhere: a tap picks and closes it.
+ * The picker in its own panel (a field's), the whole screen on a phone, a
+ * centred modal elsewhere: a tap picks and closes it.
  */
 export function CategoryPickerSheet({
   open,
@@ -344,7 +385,10 @@ export function CategoryPickerSheet({
   const isMobile = useIsMobile()
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side={editorSide(isMobile)} className="gap-0">
+      <SheetContent
+        side={editorSide(isMobile)}
+        className={cn('gap-0', EDITOR_STEADY_HEIGHT)}
+      >
         <SheetBar title={title} description={description} />
         <CategoryPicker
           {...props}

@@ -44,7 +44,10 @@ import {
 } from './labels'
 import { othersPartCents } from '#/components/owed/shares'
 import { TransactionEditor } from './TransactionEditor'
-import { editorSide } from '#/components/sheets/form-sheet'
+import {
+  EDITOR_STEADY_HEIGHT,
+  editorSide,
+} from '#/components/sheets/form-sheet'
 
 /**
  * Columns once the page is ≥ 36rem wide (rems of the 22px root, container
@@ -230,8 +233,8 @@ function InlineAmount({
  * One transaction (#266): the category's icon (which selects the row), one
  * label, the category, the account when it helps, small flag icons and the
  * amount. Stacked on narrow pages, in columns on wide ones. Activating the
- * label opens its editor (#280: a bottom sheet on phones, a right-hand panel
- * on wide pages); on
+ * label opens its editor (#280: the whole screen on phones, a centred modal
+ * on wide pages, #394); on
  * wide pages the category is picked in the row, as is the amount of a
  * transaction entered by hand.
  */
@@ -417,7 +420,10 @@ export function TransactionRow({
       )}
       {triggerButton}
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side={editorSide(isMobile)} className="gap-0">
+        <SheetContent
+          side={editorSide(isMobile)}
+          className={cn('gap-0', EDITOR_STEADY_HEIGHT)}
+        >
           <SheetBar title="Modifier l’opération" description={name} />
           {editor}
         </SheetContent>

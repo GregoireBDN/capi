@@ -196,6 +196,9 @@ export function ShareScreen({ item }: { item: TransactionDto }) {
         contacts={contacts.data ?? []}
         chosen={draft.people}
         onPick={add}
+        onRemove={(person) =>
+          remove(draft.people.findIndex((p) => samePerson(p, person)))
+        }
       />
       {draft.people.length > 0 && (
         <>

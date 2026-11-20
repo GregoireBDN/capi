@@ -1,8 +1,7 @@
-import { cn, Input } from '@finances/ui'
+import { cn, OptionRow, SearchField } from '@finances/ui'
 import { PlusIcon } from 'lucide-react'
 import { useId, useState } from 'react'
 import type { ContactDto } from '#/api/types.gen'
-import { CHIP_CLASS, CHIP_ON } from '#/components/expenses/manual-fields'
 import { ContactAvatar } from './ContactAvatar'
 
 /** Someone chosen: a known contact, or a new name (created on save). */
@@ -35,127 +34,114 @@ export function personRef(person: Person) {
 }
 
 /**
- * « Avec qui ? » / « Qui a payé ? » (#359): a field to type a name, the
- * contacts as chips (filtered by what is typed), and « Ajouter « Léa » »
- * for a name nobody has yet. `single`: one person, the chips show who is
- * chosen; otherwise a tap adds the person to `chosen`.
+ * Choosing people (#359; a list since #394, like the categories, the
+ * owner's request): a search field, then one row per contact (their disc,
+ * their name, a check once chosen), « Ajouter « Léa » » for a name nobody
+ * has yet. `single`: one person, a tap picks them; otherwise a tap adds the
+ * person to `chosen`, and on a chosen one takes them out (`onRemove`). The
+ * same everywhere a person is chosen: « Payé pour moi », « Partager », a
+ * shared recurring item.
  */
 export function PeoplePicker({
   label,
   contacts,
   chosen,
   onPick,
+  onRemove,
   single = false,
+  className,
 }: {
+  /** The question (« Qui a payé ? »), the list's accessible name. */
   label: string
   contacts: readonly ContactDto[]
   chosen: readonly Person[]
   onPick: (person: Person) => void
+  /** Several people: a tap on a chosen one. */
+  onRemove?: (person: Person) => void
   single?: boolean
+  className?: string
 }) {
   const id = useId()
   const [text, setText] = useState('')
   const typed = text.trim().replace(/\s+/g, ' ')
   const key = nameKey(typed)
-  const visible = contacts.filter(
-    (contact) =>
-      !contact.archivedAt &&
-      (single ||
-        !chosen.some((person) =>
-          samePerson(person, { contactId: contact.id, name: contact.name }),
-        )) &&
-      nameKey(contact.name).includes(key),
-  )
-  const known = contacts.some((contact) => nameKey(contact.name) === key)
-  const isChosen = (contact: ContactDto) =>
-    single &&
-    chosen.some((person) =>
-      samePerson(person, { contactId: contact.id, name: contact.name }),
-    )
+  const isChosen = (person: Person) =>
+    chosen.some((other) => samePerson(other, person))
+  const people: Person[] = [
+    ...contacts
+      .filter((contact) => !contact.archivedAt)
+      .map((contact) => ({ contactId: contact.id, name: contact.name })),
+    // A new name chosen before (created on save): shown chosen.
+    ...chosen.filter((person) => person.contactId === null),
+  ].filter((person) => nameKey(person.name).includes(key))
+  const known =
+    contacts.some((contact) => nameKey(contact.name) === key) ||
+    chosen.some((person) => nameKey(person.name) === key)
   const pick = (person: Person) => {
-    onPick(person)
+    if (!single && isChosen(person)) onRemove?.(person)
+    else onPick(person)
     setText('')
   }
   return (
-    <div className="space-y-2">
-      <label
-        htmlFor={id}
-        className="text-muted-foreground block text-xs font-medium"
-      >
+    <div className={cn('space-y-2', className)}>
+      <p id={id} className="text-muted-foreground text-xs font-medium">
         {label}
-      </label>
-      <Input
-        id={id}
-        placeholder="Un nom…"
+      </p>
+      <SearchField
+        aria-label={`${label} Rechercher ou ajouter un nom`}
+        placeholder="Rechercher ou ajouter un nom"
         autoComplete="off"
         enterKeyHint="done"
         maxLength={60}
         value={text}
-        onChange={(event) => setText(event.target.value)}
+        onValueChange={setText}
         onKeyDown={(event) => {
+          // Enter takes the first person, or adds the name typed.
           if (event.key !== 'Enter' || !typed) return
           event.preventDefault()
-          const match = contacts.find((c) => nameKey(c.name) === key)
-          pick(
-            match
-              ? { contactId: match.id, name: match.name }
-              : { contactId: null, name: typed },
-          )
+          if (people.length > 0) pick(people[0])
+          else pick({ contactId: null, name: typed })
         }}
       />
-      <div className="flex flex-wrap gap-1.5">
-        {visible.map((contact) => (
-          <button
-            key={contact.id}
-            type="button"
-            data-state={isChosen(contact) ? 'on' : 'off'}
-            aria-pressed={single ? isChosen(contact) : undefined}
-            onClick={() => pick({ contactId: contact.id, name: contact.name })}
-            className={cn(
-              CHIP_CLASS,
-              CHIP_ON,
-              'inline-flex max-w-full items-center gap-1.5 pl-1',
-            )}
-          >
-            <ContactAvatar name={contact.name} size="sm" className="size-6" />
-            <span className="truncate">{contact.name}</span>
-          </button>
-        ))}
-        {typed && !known && (
-          <button
-            type="button"
-            onClick={() => pick({ contactId: null, name: typed })}
-            className={cn(
-              CHIP_CLASS,
-              'border-primary text-primary inline-flex max-w-full items-center gap-1 border-dashed',
-            )}
-          >
-            <PlusIcon aria-hidden className="size-4 shrink-0" />
-            <span className="truncate">Ajouter « {typed} »</span>
-          </button>
-        )}
-        {single &&
-          chosen
-            .filter((person) => person.contactId === null)
-            .map((person) => (
-              <span
-                key={person.name}
-                data-state="on"
-                className={cn(
-                  CHIP_CLASS,
-                  CHIP_ON,
-                  'inline-flex items-center gap-1.5 pl-1',
-                )}
-              >
-                <ContactAvatar
-                  name={person.name}
-                  size="sm"
-                  className="size-6"
-                />
-                {person.name}
-              </span>
-            ))}
-      </div>
+      {(people.length > 0 || (typed && !known)) && (
+        <div
+          role={single ? 'radiogroup' : 'group'}
+          aria-labelledby={id}
+          className="divide-y overflow-hidden rounded-lg border"
+        >
+          {people.map((person) => (
+            <OptionRow
+              key={person.contactId ?? `new:${person.name}`}
+              role={single ? 'radio' : 'button'}
+              selected={isChosen(person)}
+              leading={<ContactAvatar name={person.name} />}
+              label={person.name}
+              detail={person.contactId === null ? 'Nouveau contact' : undefined}
+              onClick={() => pick(person)}
+            />
+          ))}
+          {typed && !known && (
+            <OptionRow
+              role="button"
+              leading={
+                <span
+                  aria-hidden
+                  className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-full [&_svg]:size-4"
+                >
+                  <PlusIcon />
+                </span>
+              }
+              label={`Ajouter « ${typed} »`}
+              onClick={() => pick({ contactId: null, name: typed })}
+            />
+          )}
+        </div>
+      )}
+      {people.length === 0 && !typed && (
+        <p className="text-muted-foreground text-sm">
+          Tapez un nom pour ajouter quelqu’un.
+        </p>
+      )}
     </div>
   )
 }

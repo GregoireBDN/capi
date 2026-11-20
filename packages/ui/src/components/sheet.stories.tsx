@@ -4,6 +4,7 @@ import { expect, screen, within } from 'storybook/test'
 
 import { Button } from './button'
 import { Input } from './input'
+import { SheetSteps } from './sheet-steps'
 import {
   Sheet,
   SheetBar,
@@ -25,7 +26,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Side panel ("drawer") built on Radix `Dialog`. Slide-in from `top`, `right`, `bottom`, or `left` via `side` on `SheetContent`.',
+          'Panel built on Radix `Dialog`. Slide-in from `top`, `right`, `bottom`, or `left` via `side` on `SheetContent`; `screen` takes the whole screen (phones, #385) and `center` is the same editor as a modal in the middle of the page (wider screens, #394).',
       },
     },
   },
@@ -222,6 +223,91 @@ export const Screen: Story = {
     await step('The round ✕ closes it', async () => {
       await userEvent.click(screen.getByRole('button', { name: 'Fermer' }))
       await expect(screen.queryByRole('textbox')).toBeNull()
+    })
+  },
+}
+
+const CENTER_STEPS = [
+  { key: 'who', label: 'Qui a payé', icon: <span aria-hidden>1</span> },
+  { key: 'bill', label: 'Addition', icon: <span aria-hidden>2</span> },
+] as const
+
+export const Center: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'An editor on a wider screen (#394): `side="center"`, a modal in the middle of the page rather than a panel beside it, built like the full-screen one (`SheetBar` with ‹ / ✕, the steps, the round main action; the content scrolls in a body marked `data-sheet-scroll`). A toast\'s « Annuler » stays clickable over it. As tall as its content up to the window\'s.',
+      },
+    },
+  },
+  render: function CenterStory() {
+    const [step, setStep] = React.useState<'who' | 'bill'>('who')
+    const [value, setValue] = React.useState('')
+    return (
+      <Sheet onOpenChange={() => setStep('who')}>
+        <SheetTrigger asChild>
+          <Button>Open stepped editor</Button>
+        </SheetTrigger>
+        <SheetContent side="center">
+          <SheetBar
+            title="Payé pour moi"
+            description={`Étape ${step === 'who' ? 1 : 2} sur 2`}
+            steps={
+              <SheetSteps
+                steps={CENTER_STEPS}
+                current={step}
+                onSelect={(key) => setStep(key as 'who' | 'bill')}
+              />
+            }
+            onBack={step === 'bill' ? () => setStep('who') : undefined}
+            action={
+              <SheetBarAction
+                label={step === 'who' ? 'Suivant' : 'Ajouter'}
+                disabled={step === 'bill' && value.trim() === ''}
+                onClick={() => setStep('bill')}
+              />
+            }
+          />
+          <div
+            data-sheet-scroll=""
+            className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4"
+          >
+            {step === 'who' ? (
+              <p className="text-sm">Sam</p>
+            ) : (
+              <label className="block space-y-2 text-sm font-medium">
+                <span>Addition</span>
+                <Input
+                  inputMode="decimal"
+                  value={value}
+                  onChange={(event) => setValue(event.target.value)}
+                />
+              </label>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+    )
+  },
+  play: async ({ canvasElement, userEvent, step }) => {
+    const canvas = within(canvasElement)
+    await step('Opens in the middle of the page', async () => {
+      await userEvent.click(
+        canvas.getByRole('button', { name: /open stepped editor/i }),
+      )
+      const dialog = await screen.findByRole('dialog')
+      await expect(dialog).toHaveAttribute('data-side', 'center')
+    })
+    await step('Moves on, then back with ‹', async () => {
+      await userEvent.click(screen.getByRole('button', { name: 'Suivant' }))
+      await expect(screen.getByRole('textbox')).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Retour' }))
+      await expect(screen.queryByRole('textbox')).toBeNull()
+    })
+    await step('The round ✕ closes it', async () => {
+      await userEvent.click(screen.getByRole('button', { name: 'Fermer' }))
+      await expect(screen.queryByRole('dialog')).toBeNull()
     })
   },
 }
