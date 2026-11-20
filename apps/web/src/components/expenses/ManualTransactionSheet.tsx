@@ -1,6 +1,7 @@
 import {
   Button,
   CategoryIcon,
+  categoryIconComponent,
   cn,
   ConfirmDialog,
   Dialog,
@@ -648,6 +649,7 @@ export function ManualTransactionSheet({
   const Description = isMobile ? SheetDescription : DialogDescription
   const submitLabel = expense ? 'Enregistrer' : 'Ajouter'
   const categoryChosen = Boolean(categoryId) || allowNoCategory
+  const CategoryGlyph = categoryIconComponent(chosenCategory?.icon ?? null)
   const nextDisabled = step === 'category' && !categoryChosen
   const saveDisabled =
     (kind === 'expense' && !categoryId) || !accountId || voucherOver
@@ -716,11 +718,19 @@ export function ManualTransactionSheet({
               current={step}
               onSelect={(key) => setStep(key as Step)}
               steps={[
-                {
-                  key: 'category',
-                  label: STEP_NAMES.category,
-                  icon: <TagIcon aria-hidden />,
-                },
+                // Once chosen, the category's own icon in its colour.
+                chosenCategory
+                  ? {
+                      key: 'category',
+                      label: chosenCategory.name,
+                      icon: <CategoryGlyph aria-hidden />,
+                      color: chosenCategory.color,
+                    }
+                  : {
+                      key: 'category',
+                      label: STEP_NAMES.category,
+                      icon: <TagIcon aria-hidden />,
+                    },
                 {
                   key: 'amount',
                   label: STEP_NAMES.amount,

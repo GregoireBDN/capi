@@ -12,6 +12,11 @@ interface SheetStep {
   /** Its short name, under its icon (« Montant »). */
   label: string
   icon: React.ReactNode
+  /**
+   * What the step chose, as a colour (a category's): its icon then takes
+   * it, on a round tinted like `CategoryIcon`'s tile.
+   */
+  color?: string | null
   /** Not reachable yet: an earlier step is not filled in. */
   disabled?: boolean
 }
@@ -58,6 +63,10 @@ function SheetSteps({
           const isCurrent = index === currentIndex
           const done = index < currentIndex
           const reachable = !step.disabled && onSelect !== undefined
+          const tinted = step.color && !step.disabled ? step.color : null
+          const ink = tinted
+            ? `color-mix(in oklab, ${tinted} 82%, var(--foreground))`
+            : undefined
           return (
             <li
               key={step.key}
@@ -81,6 +90,16 @@ function SheetSteps({
                 onClick={() => {
                   if (!isCurrent) onSelect?.(step.key)
                 }}
+                style={
+                  tinted
+                    ? ({
+                        color: ink,
+                        borderColor: ink,
+                        backgroundColor: `color-mix(in srgb, ${tinted} 14%, var(--popover))`,
+                        '--tw-ring-color': `color-mix(in srgb, ${tinted} 30%, transparent)`,
+                      } as React.CSSProperties)
+                    : undefined
+                }
                 className={cn(
                   'relative z-10 flex size-[36px] items-center justify-center rounded-full border-2 transition-colors outline-none',
                   'pointer-coarse:touch-hitbox [&_svg]:size-[18px]',
