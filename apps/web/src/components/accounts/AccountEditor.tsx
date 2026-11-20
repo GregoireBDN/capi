@@ -1,3 +1,4 @@
+import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   Button,
   ConfirmDialog,
@@ -720,6 +721,7 @@ export function NewAccountButton({
   icon = <PlusIcon />,
   className,
   from,
+  inPageMenu = false,
 }: {
   label?: string
   defaultType?: AccountType
@@ -730,20 +732,31 @@ export function NewAccountButton({
   className?: string
   /** The page it is on: the new account page's way back (#324). */
   from?: AccountOrigin
+  /**
+   * In the page's « ⋮ » menu rather than a button (#386), inside the shell.
+   */
+  inPageMenu?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const inMenu = useRegisterPageAction(
+    inPageMenu
+      ? { label, icon, primary: !outline, onSelect: () => setOpen(true) }
+      : null,
+  )
   return (
     <>
-      <Button
-        iconStart={icon}
-        className={className}
-        size={size}
-        outline={outline}
-        variant={outline ? 'secondary' : undefined}
-        onClick={() => setOpen(true)}
-      >
-        {label}
-      </Button>
+      {!(inPageMenu && inMenu) && (
+        <Button
+          iconStart={icon}
+          className={className}
+          size={size}
+          outline={outline}
+          variant={outline ? 'secondary' : undefined}
+          onClick={() => setOpen(true)}
+        >
+          {label}
+        </Button>
+      )}
       <AccountEditor
         open={open}
         onOpenChange={setOpen}

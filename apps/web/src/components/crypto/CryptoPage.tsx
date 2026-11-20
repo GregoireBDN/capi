@@ -1,3 +1,4 @@
+import { useInShell } from '#/components/app-shell/page-actions'
 import {
   Alert,
   AlertDescription,
@@ -505,6 +506,7 @@ function AccountsCard({
   now: Date
   onAdd: () => void
 }) {
+  const inShell = useInShell()
   return (
     <Card role="region" aria-label="Où sont mes cryptos" className="min-w-0">
       <DashboardCardHeader title="Où sont mes cryptos" />
@@ -514,15 +516,19 @@ function AccountsCard({
             <AccountRow key={account.accountId} account={account} now={now} />
           ))}
         </ul>
-        <Button
-          className="w-full"
-          variant="secondary"
-          outline
-          iconStart={<PlusIcon />}
-          onClick={onAdd}
-        >
-          Ajouter une plateforme ou un wallet
-        </Button>
+        {/* Inside the shell, « Ajouter des cryptos » of the page's « ⋮ »
+            does it (#386). */}
+        {!inShell && (
+          <Button
+            className="w-full"
+            variant="secondary"
+            outline
+            iconStart={<PlusIcon />}
+            onClick={onAdd}
+          >
+            Ajouter une plateforme ou un wallet
+          </Button>
+        )}
       </CardContent>
     </Card>
   )
@@ -597,8 +603,9 @@ export function CryptoPage() {
                     ]
                   : []),
                 {
-                  label: 'Ajouter',
-                  icon: <PlusIcon />,
+                  // Named in full: it is an item of the page's « ⋮ » (#386).
+                  label: 'Ajouter des cryptos',
+                  icon: <CoinsIcon />,
                   primary: true,
                   onSelect: () => setAdding(true),
                 },

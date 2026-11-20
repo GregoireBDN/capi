@@ -1,13 +1,13 @@
 import {
   ArrowLeftRightIcon,
   BitcoinIcon,
+  CalendarCheckIcon,
   ChartPieIcon,
   HandCoinsIcon,
   LandmarkIcon,
   LayoutDashboardIcon,
   PiggyBankIcon,
   RepeatIcon,
-  SettingsIcon,
   TargetIcon,
   UploadIcon,
 } from 'lucide-react'
@@ -22,21 +22,25 @@ export interface NavItem {
     | 'spending'
     | 'transactions'
     | 'budget'
+    | 'monthReview'
     | 'subscriptions'
     | 'savings'
     | 'owed'
     | 'crypto'
     | 'accounts'
-    | 'import'
-    | 'settings']
+    | 'import']
   icon: LucideIcon
   /**
    * Counter shown next to the label: the transactions to review, opening
    * Opérations filtered on « À revoir » (#322).
    */
   badge?: 'reviewCount' | 'owedTotal'
-  /** Other pages on which the item is shown as the current one. */
-  alsoActiveOn?: readonly string[]
+}
+
+/** A titled group of the sidebar (#386: « Suivi », « Patrimoine », « Outils »). */
+export interface NavGroup {
+  label: string
+  items: readonly NavItem[]
 }
 
 /**
@@ -67,42 +71,79 @@ export function carriedMonth(
   return typeof month === 'string' && isMonth(month) ? month : undefined
 }
 
-/** Main navigation of the authenticated app, in display order. */
-export const NAV_ITEMS: readonly NavItem[] = [
-  { label: 'Tableau de bord', to: ROUTES.dashboard, icon: LayoutDashboardIcon },
-  { label: 'Dépenses', to: ROUTES.spending, icon: ChartPieIcon },
+/**
+ * Main navigation of the authenticated app, in groups (#386, the owner's
+ * direction « A »): what happens month by month, what the owner holds, then
+ * the tools. Navigation only: Réglages (and Catégories, Règles, Claude et
+ * accès inside it) is reached from the account menu, the header's avatar.
+ */
+export const NAV_GROUPS: readonly NavGroup[] = [
   {
-    label: 'Opérations',
-    to: ROUTES.transactions,
-    icon: ArrowLeftRightIcon,
-    badge: 'reviewCount',
+    label: 'Suivi',
+    items: [
+      {
+        label: 'Tableau de bord',
+        to: ROUTES.dashboard,
+        icon: LayoutDashboardIcon,
+      },
+      { label: 'Dépenses', to: ROUTES.spending, icon: ChartPieIcon },
+      {
+        label: 'Opérations',
+        to: ROUTES.transactions,
+        icon: ArrowLeftRightIcon,
+        badge: 'reviewCount',
+      },
+      { label: 'Budget', to: ROUTES.budget, icon: TargetIcon },
+      {
+        label: 'Revue du mois',
+        to: ROUTES.monthReview,
+        icon: CalendarCheckIcon,
+      },
+    ],
   },
-  { label: 'Budget', to: ROUTES.budget, icon: TargetIcon },
-  { label: 'Abonnements', to: ROUTES.subscriptions, icon: RepeatIcon },
-  { label: 'Épargne', to: ROUTES.savings, icon: PiggyBankIcon },
-  { label: 'Crypto', to: ROUTES.crypto, icon: BitcoinIcon },
-  // What people owe the owner, both ways on its page (#359).
   {
-    label: 'Entre proches',
-    to: ROUTES.owed,
-    icon: HandCoinsIcon,
-    badge: 'owedTotal',
+    label: 'Patrimoine',
+    items: [
+      { label: 'Comptes', to: ROUTES.accounts, icon: LandmarkIcon },
+      { label: 'Épargne', to: ROUTES.savings, icon: PiggyBankIcon },
+      { label: 'Crypto', to: ROUTES.crypto, icon: BitcoinIcon },
+      // What people owe the owner, both ways on its page (#359).
+      {
+        label: 'Entre proches',
+        to: ROUTES.owed,
+        icon: HandCoinsIcon,
+        badge: 'owedTotal',
+      },
+    ],
   },
-  { label: 'Comptes', to: ROUTES.accounts, icon: LandmarkIcon },
-  { label: 'Import', to: ROUTES.import, icon: UploadIcon },
+  {
+    label: 'Outils',
+    items: [
+      { label: 'Abonnements', to: ROUTES.subscriptions, icon: RepeatIcon },
+      { label: 'Import', to: ROUTES.import, icon: UploadIcon },
+    ],
+  },
 ]
+
+/** Every page of the navigation, in display order. */
+export const NAV_ITEMS: readonly NavItem[] = NAV_GROUPS.flatMap(
+  (group) => group.items,
+)
 
 /**
  * The settings pages (#261, #300): the Réglages list, its sections' screens
  * under `/settings/…` and the Catégories and Règles pages it opens. The
- * sidebar reaches them through who is signed in (`AccountLink`), which is
- * the current entry on all of them.
+ * account menu's « Réglages » is the current entry on all of them.
  */
-export const SETTINGS_ITEM: NavItem = {
-  label: 'Réglages',
-  to: ROUTES.settings,
-  icon: SettingsIcon,
-  alsoActiveOn: [ROUTES.categories, ROUTES.rules],
+const SETTINGS_PAGES: readonly string[] = [
+  ROUTES.settings,
+  ROUTES.categories,
+  ROUTES.rules,
+]
+
+/** Whether `pathname` is one of the settings pages. */
+export function isSettingsPage(pathname: string): boolean {
+  return SETTINGS_PAGES.some((to) => isNavItemActive(pathname, to))
 }
 
 /** A nav item is active on its own page and on any page nested below it. */
@@ -110,9 +151,7 @@ export function isNavItemActive(pathname: string, to: string): boolean {
   return pathname === to || pathname.startsWith(`${to}/`)
 }
 
-/** Whether `item` is the current entry: its page, a nested page or one of its other pages. */
+/** Whether `item` is the current entry: its page or a nested page. */
 export function isNavEntryActive(pathname: string, item: NavItem): boolean {
-  return [item.to, ...(item.alsoActiveOn ?? [])].some((to) =>
-    isNavItemActive(pathname, to),
-  )
+  return isNavItemActive(pathname, item.to)
 }

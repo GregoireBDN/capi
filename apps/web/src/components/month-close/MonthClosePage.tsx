@@ -167,7 +167,10 @@ export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
             <MonthReport review={data} />
           </div>
 
-          <div className="bg-card short-screen:py-2 sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border p-3 shadow-lg">
+          <div
+            data-sticky-bottom-bar
+            className="bg-card short-screen:py-2 sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border p-3 shadow-lg"
+          >
             <p className="text-muted-foreground min-w-18 flex-1 text-sm">
               {data.status === 'closed'
                 ? 'Le rapport est figé. Rouvrez le mois pour le modifier.'

@@ -230,7 +230,8 @@ export function AccountListRow({
 /**
  * The account list of Épargne, the dashboard and Comptes: groups with their
  * total, rows without rules or per-row buttons, and optionally the two add
- * buttons, stacked at full width, `primaryAction` the solid one.
+ * buttons, stacked at full width, `primaryAction` the solid one; inside the
+ * shell they are items of the page's « ⋮ » instead (#386).
  */
 export function AccountList({
   groups,
@@ -249,6 +250,7 @@ export function AccountList({
       icon={<TrendingUpIcon />}
       outline={primaryAction !== 'investment'}
       className="w-full"
+      inPageMenu
     />
   )
   const account = (
@@ -259,6 +261,7 @@ export function AccountList({
       outline={primaryAction !== 'account'}
       className="w-full"
       from={from}
+      inPageMenu
     />
   )
   return (
@@ -286,7 +289,8 @@ export function AccountList({
           </ItemListGroup>
         ))}
       {primaryAction && (
-        <div className="grid gap-2">
+        // In the page's « ⋮ » inside the shell (#386): the row is then empty.
+        <div className="grid gap-2 empty:hidden">
           {primaryAction === 'investment'
             ? [investment, account]
             : [account, investment]}

@@ -14,6 +14,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
+  ArrowLeftRightIcon,
   ClipboardPasteIcon,
   ClockAlertIcon,
   FileUpIcon,
@@ -255,7 +256,7 @@ export function AccountDetailPage({
                 },
                 {
                   label: 'Ajouter une opération',
-                  icon: <PlusIcon />,
+                  icon: <ArrowLeftRightIcon />,
                   onSelect: () => setAddOpen(true),
                 },
               ]

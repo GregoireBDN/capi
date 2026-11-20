@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PageHeader } from './PageHeader'
 import {
   PageActionsSlotProvider,
+  useRegisterPageAction,
   useSetPageActionsSlot,
   useSetPageBackSlot,
 } from './page-actions'
@@ -45,12 +46,12 @@ function emulatePhone(phone = true) {
   }))
 }
 
-/** The authenticated shell's top bar slot, as `AppTopBar` registers it. */
+/** The authenticated shell's header slots, as `AppHeader` registers them. */
 function TopBarSlot() {
   const setSlot = useSetPageActionsSlot()
   const setBackSlot = useSetPageBackSlot()
   return (
-    <header aria-label="Barre du haut">
+    <header aria-label="En-tête">
       <nav aria-label="Retour" ref={setBackSlot} />
       <div data-testid="top-bar-actions" ref={setSlot} />
     </header>
@@ -96,55 +97,39 @@ describe('PageHeader', () => {
     expect(screen.getByText('Où part votre argent.')).toBeInTheDocument()
   })
 
-  it('keeps the actions beside the title from md up', async () => {
-    const user = userEvent.setup()
-    const onAdd = vi.fn()
-    renderInShell(<PageHeader title="Opérations" actions={actions(onAdd)} />)
+  it.each([false, true])(
+    'puts the actions in the header’s « Actions de la page » menu (phone: %s, #386)',
+    async (phone) => {
+      emulatePhone(phone)
+      const user = userEvent.setup()
+      const onAdd = vi.fn()
+      const onEdit = vi.fn()
+      renderInShell(
+        <PageHeader title="Comptes" actions={actions(onAdd, onEdit)} />,
+      )
 
-    await user.click(
-      within(page()).getByRole('button', { name: 'Ajouter une opération' }),
-    )
-    expect(onAdd).toHaveBeenCalledOnce()
-    expect(
-      within(page()).getByRole('button', { name: 'Modifier' }),
-    ).toBeInTheDocument()
+      await user.click(
+        await within(topBar()).findByRole('button', {
+          name: 'Actions de la page',
+        }),
+      )
+      const items = await screen.findAllByRole('menuitem')
+      // The main action first.
+      expect(items.map((item) => item.textContent)).toEqual([
+        'Ajouter une opération',
+        'Modifier',
+      ])
+      await user.click(screen.getByRole('menuitem', { name: 'Modifier' }))
+      expect(onEdit).toHaveBeenCalledOnce()
+      // Nothing beside the title.
+      expect(within(page()).queryByRole('button')).not.toBeInTheDocument()
+    },
+  )
+
+  it('shows no menu on a page without actions', () => {
+    renderInShell(<PageHeader title="Tableau de bord" />)
+
     expect(topBar()).toBeEmptyDOMElement()
-  })
-
-  it('moves a single action to the top bar as a named icon button on phones', async () => {
-    emulatePhone()
-    const user = userEvent.setup()
-    const onAdd = vi.fn()
-    renderInShell(
-      <PageHeader title="Opérations" actions={actions(onAdd).slice(0, 1)} />,
-    )
-
-    const button = await within(topBar()).findByRole('button', {
-      name: 'Ajouter une opération',
-    })
-    expect(button).not.toHaveTextContent('Ajouter une opération')
-    expect(within(page()).queryByRole('button')).not.toBeInTheDocument()
-    await user.click(button)
-    expect(onAdd).toHaveBeenCalledOnce()
-  })
-
-  it('groups several actions in a menu of the top bar on phones', async () => {
-    emulatePhone()
-    const user = userEvent.setup()
-    const onEdit = vi.fn()
-    renderInShell(
-      <PageHeader title="Comptes" actions={actions(vi.fn(), onEdit)} />,
-    )
-
-    await user.click(
-      await within(topBar()).findByRole('button', { name: 'Plus d’actions' }),
-    )
-    expect(
-      await screen.findByRole('menuitem', { name: 'Ajouter une opération' }),
-    ).toBeInTheDocument()
-    await user.click(screen.getByRole('menuitem', { name: 'Modifier' }))
-    expect(onEdit).toHaveBeenCalledOnce()
-    expect(within(page()).queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('keeps the actions beside the title outside the shell', () => {
@@ -156,28 +141,105 @@ describe('PageHeader', () => {
     ).toBeInTheDocument()
   })
 
-  it('puts the way back above the title from md up, in the top bar on phones (#293, #324)', () => {
+  it('puts the way back in the header on every width (#293, #324, #386)', () => {
     const back = { label: 'Épargne', to: '/savings' } as const
-    emulatePhone(false)
-    const { unmount } = renderInShell(
-      <PageHeader title="Compte courant" back={back} />,
+    for (const phone of [false, true]) {
+      emulatePhone(phone)
+      const { unmount } = renderInShell(
+        <PageHeader title="Compte courant" back={back} />,
+      )
+      expect(
+        within(topBarBack()).getByRole('link', { name: 'Épargne' }),
+      ).toHaveAttribute('href', '/savings')
+      expect(within(page()).queryByRole('link')).toBeNull()
+      unmount()
+    }
+  })
+
+  it('keeps the way back in the page outside the shell', () => {
+    render(
+      <PageHeader
+        title="Compte courant"
+        back={{ label: 'Épargne', to: '/savings' }}
+      />,
     )
-    const chip = within(page()).getByRole('link', { name: 'Épargne' })
-    expect(chip).toHaveAttribute('href', '/savings')
+    const link = screen.getByRole('link', { name: 'Épargne' })
+    expect(link).toHaveAttribute('href', '/savings')
     // Before the title.
     expect(
-      chip.compareDocumentPosition(
+      link.compareDocumentPosition(
         screen.getByRole('heading', { name: 'Compte courant' }),
       ) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
-    expect(topBarBack()).toBeEmptyDOMElement()
-    unmount()
+  })
 
-    emulatePhone()
-    renderInShell(<PageHeader title="Compte courant" back={back} />)
+  it('adds the « add » of the page’s sections to its menu (#386)', async () => {
+    const user = userEvent.setup()
+    const onAddGoal = vi.fn()
+    function Goals({ show }: { show: boolean }) {
+      const inMenu = useRegisterPageAction(
+        show
+          ? {
+              label: 'Ajouter un objectif',
+              icon: <PlusIcon />,
+              onSelect: onAddGoal,
+            }
+          : null,
+      )
+      return inMenu ? null : <button type="button">Ajouter un objectif</button>
+    }
+    const view = renderInShell(
+      <>
+        <PageHeader title="Épargne" actions={actions().slice(1)} />
+        <Goals show />
+      </>,
+    )
+
+    await user.click(
+      await within(topBar()).findByRole('button', {
+        name: 'Actions de la page',
+      }),
+    )
+    const items = await screen.findAllByRole('menuitem')
+    expect(items.map((item) => item.textContent)).toEqual([
+      'Modifier',
+      'Ajouter un objectif',
+    ])
+    await user.click(
+      screen.getByRole('menuitem', { name: 'Ajouter un objectif' }),
+    )
+    expect(onAddGoal).toHaveBeenCalledOnce()
+    // No button of its own in the section.
     expect(
-      within(topBarBack()).getByRole('link', { name: 'Épargne' }),
-    ).toHaveAttribute('href', '/savings')
-    expect(within(page()).queryByRole('link')).toBeNull()
+      within(page()).queryByRole('button', { name: 'Ajouter un objectif' }),
+    ).not.toBeInTheDocument()
+
+    // Hidden section: out of the menu.
+    view.rerender(
+      <PageActionsSlotProvider>
+        <TopBarSlot />
+        <main>
+          <PageHeader title="Épargne" />
+          <Goals show={false} />
+        </main>
+      </PageActionsSlotProvider>,
+    )
+    await vi.waitFor(() => expect(topBar()).toBeEmptyDOMElement())
+  })
+
+  it('keeps a section’s own button outside the shell', () => {
+    function Goals() {
+      const inMenu = useRegisterPageAction({
+        label: 'Ajouter un objectif',
+        icon: <PlusIcon />,
+        onSelect: vi.fn(),
+      })
+      return inMenu ? null : <button type="button">Ajouter un objectif</button>
+    }
+    render(<Goals />)
+
+    expect(
+      screen.getByRole('button', { name: 'Ajouter un objectif' }),
+    ).toBeInTheDocument()
   })
 })
