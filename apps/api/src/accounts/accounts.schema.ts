@@ -41,7 +41,7 @@ export const accountsTable = pgTable(
     /** Display order in lists and dashboards. */
     position: integer('position').notNull().default(0),
     /** Closed accounts are archived, never deleted, so history stays intact. */
-    archivedAt: timestamp('archived_at'),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
     /**
      * Crypto accounts only: where the holdings come from (exchange exports,
      * wallet public keys or typed by hand). Set at creation, never changed.
@@ -78,6 +78,11 @@ export const accountsTable = pgTable(
     check(
       'accounts_crypto_provider_iff_exchange',
       sql`(${t.cryptoSource} IS NOT DISTINCT FROM 'exchange') = (${t.cryptoProvider} IS NOT NULL)`,
+    ),
+    // Sync times of the holdings: crypto accounts only (#367).
+    check(
+      'accounts_crypto_sync_only_crypto',
+      sql`${t.type} = 'crypto' or (${t.cryptoSyncedAt} is null and ${t.cryptoSyncFailedAt} is null)`,
     ),
     check(
       'accounts_invested_base_both',

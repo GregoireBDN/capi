@@ -10,6 +10,7 @@ import {
   type InsertTransaction,
   transactionsTable,
 } from './index'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Integration checks against the migrated database (CI applies migrations
@@ -76,7 +77,12 @@ describe.skipIf(!process.env.DATABASE_URL)('domain schema (database)', () => {
       const account = await createAccount(tx)
       const [row] = await tx
         .insert(transactionsTable)
-        .values(transaction(account.id, { amountCents: -9_007_199_254_740 }))
+        .values(
+          await bankRows(
+            tx,
+            transaction(account.id, { amountCents: -9_007_199_254_740 }),
+          ),
+        )
         .returning()
 
       expect(row.amountCents).toBe(-9_007_199_254_740)
@@ -89,11 +95,15 @@ describe.skipIf(!process.env.DATABASE_URL)('domain schema (database)', () => {
   it('rejects the same dedupe hash twice for one account', async () => {
     await inRollback(async (tx) => {
       const account = await createAccount(tx)
-      await tx.insert(transactionsTable).values(transaction(account.id))
+      await tx
+        .insert(transactionsTable)
+        .values(await bankRows(tx, transaction(account.id)))
 
       await expect(
-        tx.transaction((nested) =>
-          nested.insert(transactionsTable).values(transaction(account.id)),
+        tx.transaction(async (nested) =>
+          nested
+            .insert(transactionsTable)
+            .values(await bankRows(tx, transaction(account.id))),
         ),
       ).rejects.toMatchObject({ cause: { code: '23505' } })
     })
@@ -106,7 +116,9 @@ describe.skipIf(!process.env.DATABASE_URL)('domain schema (database)', () => {
 
       await tx
         .insert(transactionsTable)
-        .values([transaction(first.id), transaction(second.id)])
+        .values(
+          await bankRows(tx, [transaction(first.id), transaction(second.id)]),
+        )
 
       const rows = await tx.select().from(transactionsTable)
       expect(rows.filter((r) => r.dedupeHash === 'hash-1')).toHaveLength(2)
@@ -127,7 +139,12 @@ describe.skipIf(!process.env.DATABASE_URL)('domain schema (database)', () => {
         .returning()
       await tx
         .insert(transactionsTable)
-        .values(transaction(account.id, { importId: imported.id }))
+        .values(
+          await bankRows(
+            tx,
+            transaction(account.id, { importId: imported.id }),
+          ),
+        )
 
       await tx.delete(importsTable).where(eq(importsTable.id, imported.id))
 
@@ -142,7 +159,9 @@ describe.skipIf(!process.env.DATABASE_URL)('domain schema (database)', () => {
   it('refuses to delete an account that still has transactions', async () => {
     await inRollback(async (tx) => {
       const account = await createAccount(tx)
-      await tx.insert(transactionsTable).values(transaction(account.id))
+      await tx
+        .insert(transactionsTable)
+        .values(await bankRows(tx, transaction(account.id)))
 
       await expect(
         tx.transaction((nested) =>

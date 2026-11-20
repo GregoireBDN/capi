@@ -1095,7 +1095,6 @@ export async function generateDemoData(
       format: 'binance_csv',
       fileName: 'demo-binance.csv',
       fileHash: createHash('sha256').update('demo-binance').digest('hex'),
-      preview: {} as never,
       committedAt: new Date(`${dataUntil}T09:00:00Z`),
     })
     .returning({ id: cryptoImportsTable.id })

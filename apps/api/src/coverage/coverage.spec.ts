@@ -15,6 +15,7 @@ import {
   dataUntilByAccount,
   resolvePeriod,
 } from './coverage'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Integration checks against the migrated test database, inside a rolled
@@ -84,12 +85,14 @@ describe.skipIf(!process.env.DATABASE_URL)('data coverage (database)', () => {
 
   it('takes the latest booking or committed statement end, never after today', async () => {
     await inRollback(async ({ tx, checking, savings }) => {
-      await tx.insert(transactionsTable).values([
-        row(checking, '2026-10-20'),
-        row(savings, '2026-10-02'),
-        // Deferred card debit booked ahead of today.
-        row(savings, '2026-11-30'),
-      ])
+      await tx.insert(transactionsTable).values(
+        await bankRows(tx, [
+          row(checking, '2026-10-20'),
+          row(savings, '2026-10-02'),
+          // Deferred card debit booked ahead of today.
+          row(savings, '2026-11-30'),
+        ]),
+      )
       await tx.insert(importsTable).values([
         // A statement ending on days without any row.
         {
@@ -128,7 +131,9 @@ describe.skipIf(!process.env.DATABASE_URL)('data coverage (database)', () => {
 
   it('resolves the default month from the data', async () => {
     await inRollback(async ({ tx, checking }) => {
-      await tx.insert(transactionsTable).values([row(checking, '2026-10-20')])
+      await tx
+        .insert(transactionsTable)
+        .values(await bankRows(tx, [row(checking, '2026-10-20')]))
       expect(await resolvePeriod(tx, undefined, { now: NOW })).toMatchObject({
         month: '2026-10',
         status: 'partial',
@@ -152,19 +157,26 @@ describe.skipIf(!process.env.DATABASE_URL)('data coverage (database)', () => {
       })
       await tx
         .insert(transactionsTable)
-        .values([row(checking, '2026-08-03'), row(checking, '2026-10-21')])
+        .values(
+          await bankRows(tx, [
+            row(checking, '2026-08-03'),
+            row(checking, '2026-10-21'),
+          ]),
+        )
       expect(await coverageSummary(tx, NOW)).toEqual({
         dataUntil: '2026-10-21',
         currentMonth: '2026-11',
         defaultMonth: '2026-10',
         months: ['2026-08', '2026-10'],
       })
-      await tx.insert(transactionsTable).values([
-        // Entered by hand: a month with data, but not imported.
-        { ...row(checking, '2026-11-02'), manual: true },
-        // Booked ahead of today, next month: never offered.
-        row(checking, '2026-12-01'),
-      ])
+      await tx.insert(transactionsTable).values(
+        await bankRows(tx, [
+          // Entered by hand: a month with data, but not imported.
+          { ...row(checking, '2026-11-02'), manual: true },
+          // Booked ahead of today, next month: never offered.
+          row(checking, '2026-12-01'),
+        ]),
+      )
       expect(await coverageSummary(tx, NOW)).toEqual({
         dataUntil: '2026-11-05',
         currentMonth: '2026-11',

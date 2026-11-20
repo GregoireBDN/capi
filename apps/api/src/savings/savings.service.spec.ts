@@ -24,6 +24,7 @@ import {
   UpdateGoalDto,
 } from './dto/savings.dto'
 import { SavingsService } from './savings.service'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Integration checks against the dedicated test database (see
@@ -145,9 +146,8 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
     const cat = await transferCategories(tx)
     const internal = { categoryId: cat.get('internal_transfer')! }
     const investCat = { categoryId: cat.get('investment_transfer')! }
-    await tx
-      .insert(transactionsTable)
-      .values([
+    await tx.insert(transactionsTable).values(
+      await bankRows(tx, [
         row(checking.id, '2026-08-01', 300_000, 'income'),
         row(checking.id, '2026-08-05', -100_000, 'expense'),
         row(checking.id, '2026-08-10', -50_000, 'transfer', internal),
@@ -155,7 +155,9 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
         row(checking.id, '2026-08-12', -20_000, 'transfer', investCat),
         row(checking.id, '2026-09-01', 300_000, 'income'),
         row(checking.id, '2026-09-03', -200_000, 'expense'),
-        row(checking.id, '2026-09-20', -150_000, 'expense', { isOneOff: true }),
+        row(checking.id, '2026-09-20', -150_000, 'expense', {
+          isOneOff: true,
+        }),
         row(livret.id, '2026-09-25', -30_000, 'transfer', internal),
         row(checking.id, '2026-09-25', 30_000, 'transfer', internal),
         row(checking.id, '2026-09-26', -10_000, 'transfer', internal),
@@ -166,7 +168,8 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
         row(livret.id, '2026-10-31', 60_000, 'transfer', internal),
         row(checking.id, '2026-11-01', 300_000, 'income'),
         row(checking.id, '2026-11-02', -50_000, 'expense'),
-      ])
+      ]),
+    )
     await tx.insert(balanceSnapshotsTable).values([
       {
         accountId: pea.id,
@@ -393,16 +396,18 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
       const cat = await transferCategories(tx)
       const savingsCat = { categoryId: cat.get('savings_transfer')! }
       const internal = { categoryId: cat.get('internal_transfer')! }
-      await tx.insert(transactionsTable).values([
-        // Filed `savings_transfer` on both sides: only the Livret side counts.
-        row(checking.id, '2026-10-05', -40_000, 'transfer', savingsCat),
-        row(livret.id, '2026-10-05', 40_000, 'transfer', savingsCat),
-        // Livret → Livret jeune: nets to zero.
-        row(livret.id, '2026-10-06', -10_000, 'transfer', internal),
-        row(livretJeune.id, '2026-10-06', 10_000, 'transfer', internal),
-        // Uncategorized deposit on the Livret jeune still counts.
-        row(livretJeune.id, '2026-10-07', 5_000, 'transfer'),
-      ])
+      await tx.insert(transactionsTable).values(
+        await bankRows(tx, [
+          // Filed `savings_transfer` on both sides: only the Livret side counts.
+          row(checking.id, '2026-10-05', -40_000, 'transfer', savingsCat),
+          row(livret.id, '2026-10-05', 40_000, 'transfer', savingsCat),
+          // Livret → Livret jeune: nets to zero.
+          row(livret.id, '2026-10-06', -10_000, 'transfer', internal),
+          row(livretJeune.id, '2026-10-06', 10_000, 'transfer', internal),
+          // Uncategorized deposit on the Livret jeune still counts.
+          row(livretJeune.id, '2026-10-07', 5_000, 'transfer'),
+        ]),
+      )
       const { months } = await savings.overview(2, { now: NOW })
       expect(months[0]).toMatchObject({
         month: '2026-10',
@@ -423,17 +428,19 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
         ])
         .returning()
       const cat = await transferCategories(tx)
-      await tx.insert(transactionsTable).values([
-        row(checking.id, '2026-10-05', -40_000, 'transfer', {
-          categoryId: cat.get('savings_transfer')!,
-        }),
-        row(checking.id, '2026-10-06', -15_000, 'transfer', {
-          categoryId: cat.get('investment_transfer')!,
-        }),
-        row(checking.id, '2026-10-07', -9_000, 'transfer', {
-          categoryId: cat.get('internal_transfer')!,
-        }),
-      ])
+      await tx.insert(transactionsTable).values(
+        await bankRows(tx, [
+          row(checking.id, '2026-10-05', -40_000, 'transfer', {
+            categoryId: cat.get('savings_transfer')!,
+          }),
+          row(checking.id, '2026-10-06', -15_000, 'transfer', {
+            categoryId: cat.get('investment_transfer')!,
+          }),
+          row(checking.id, '2026-10-07', -9_000, 'transfer', {
+            categoryId: cat.get('internal_transfer')!,
+          }),
+        ]),
+      )
       const { months } = await savings.overview(2, { now: NOW })
       expect(months[0]).toMatchObject({
         movedToSavingsCents: 40_000,
@@ -593,10 +600,12 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
       // Spending more than earning: negative average.
       await tx
         .insert(transactionsTable)
-        .values([
-          row(checking.id, '2026-10-01', 100_000, 'income'),
-          row(checking.id, '2026-10-02', -150_000, 'expense'),
-        ])
+        .values(
+          await bankRows(tx, [
+            row(checking.id, '2026-10-01', 100_000, 'income'),
+            row(checking.id, '2026-10-02', -150_000, 'expense'),
+          ]),
+        )
       const negative = await savings.createGoal(
         { ...goal, targetDate: '2027-01-31' },
         options,

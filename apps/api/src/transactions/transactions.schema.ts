@@ -87,11 +87,23 @@ export const transactionsTable = pgTable(
      * Bank values of an imported row whose amount or date was corrected by
      * hand (#74): null until then. `amountCents` / `bookingDate` hold the
      * corrected values, which statistics use; the bank's data (balances,
-     * continuity, dedupe of later imports, coverage) keeps reading these
-     * through `bankAmountCents` / `bankBookingDate`.
+     * continuity, dedupe of later imports, coverage) reads `bankAmountCents`
+     * / `bankBookingDate`. Only on imported rows (check constraint).
      */
     originalAmountCents: bigint('original_amount_cents', { mode: 'number' }),
     originalBookingDate: date('original_booking_date', { mode: 'string' }),
+    /**
+     * Amount and booking date as the bank gave them (#367): the original of a
+     * corrected row, else the row's own. Computed by Postgres (generated
+     * stored columns), never written; every reader of bank data (balances,
+     * coverage, dedupe, continuity, month-close gaps) reads these.
+     */
+    bankAmountCents: bigint('bank_amount_cents', { mode: 'number' })
+      .notNull()
+      .generatedAlwaysAs(sql`coalesce(original_amount_cents, amount_cents)`),
+    bankBookingDate: date('bank_booking_date', { mode: 'string' })
+      .notNull()
+      .generatedAlwaysAs(sql`coalesce(original_booking_date, booking_date)`),
     /**
      * Identity of the row in its source, computed by the importer. Re-importing
      * the same row yields the same hash; legitimate identical transactions on
@@ -111,9 +123,39 @@ export const transactionsTable = pgTable(
     index().on(t.importId),
     index().on(t.counterpartAccountId),
     index().on(t.prepaidItemId),
+    // Bank data of an account by day: balances, coverage, dedupe, continuity.
+    index('transactions_account_bank_booking_date_idx')
+      .on(t.accountId, t.bankBookingDate)
+      .where(sql`not ${t.manual}`),
+    // The review queue and its count in the sidebar.
+    index('transactions_needs_review_idx')
+      .on(t.bookingDate)
+      .where(sql`${t.needsReview}`),
     check(
       'transactions_counterpart_not_own_account',
       sql`${t.counterpartAccountId} <> ${t.accountId}`,
+    ),
+    // A row is entered by hand iff it has no import (#367).
+    check(
+      'transactions_manual_iff_no_import',
+      sql`${t.manual} = (${t.importId} is null)`,
+    ),
+    check(
+      'transactions_manual_iff_manual_hash',
+      sql`${t.manual} = (${t.dedupeHash} like 'manual:%')`,
+    ),
+    check(
+      'transactions_counterpart_only_on_transfers',
+      sql`${t.counterpartAccountId} is null or ${t.kind} = 'transfer'`,
+    ),
+    check(
+      'transactions_prepaid_only_on_expenses',
+      sql`${t.prepaidItemId} is null or ${t.kind} = 'expense'`,
+    ),
+    // A hand correction keeps the bank's values: imported rows only.
+    check(
+      'transactions_correction_only_on_bank_rows',
+      sql`not ${t.manual} or (${t.originalAmountCents} is null and ${t.originalBookingDate} is null)`,
     ),
   ],
 )
@@ -188,13 +230,10 @@ export const transactionLinesView = pgView('transaction_lines', {
 )
 
 /** Amount as the bank gave it: the original of a corrected row. */
-export const bankAmountCents =
-  sql<number>`coalesce(${transactionsTable.originalAmountCents}, ${transactionsTable.amountCents})`.mapWith(
-    Number,
-  )
+export const bankAmountCents = transactionsTable.bankAmountCents
 
 /** Booking date as the bank gave it: the original of a corrected row. */
-export const bankBookingDate = sql<string>`coalesce(${transactionsTable.originalBookingDate}, ${transactionsTable.bookingDate})`
+export const bankBookingDate = transactionsTable.bankBookingDate
 
 export const insertTransactionSchema = createInsertSchema(
   transactionsTable,

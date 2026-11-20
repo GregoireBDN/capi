@@ -12,6 +12,7 @@ import { normalizeLabel } from '#/imports/normalize/label'
 import { checkContinuity } from './continuity'
 import { classifyRows, computeDedupeHashes, type DedupeInput } from './dedupe'
 import { loadExistingForRange, loadPreviousBalance } from './dedupe.repository'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Integration checks against the migrated database (locally:
@@ -119,7 +120,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     async function insertFile(tx: Tx, accountId: string, rows: FileRow[]) {
       return tx
         .insert(transactionsTable)
-        .values(toInsert(accountId, rows))
+        .values(await bankRows(tx, toInsert(accountId, rows)))
         .returning({ id: transactionsTable.id })
     }
 
@@ -276,8 +277,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
         const rejected: boolean[] = []
         for (const value of toInsert(account.id, SECOND_FILE, hashes)) {
           const outcome = await tx
-            .transaction((nested) =>
-              nested.insert(transactionsTable).values(value),
+            .transaction(async (nested) =>
+              nested
+                .insert(transactionsTable)
+                .values(await bankRows(tx, value)),
             )
             .then(
               () => false,

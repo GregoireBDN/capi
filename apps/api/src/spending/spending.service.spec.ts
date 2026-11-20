@@ -18,6 +18,7 @@ import { normalizeLabel } from '#/imports/normalize/label'
 import { RecurringService } from '#/recurring/recurring.service'
 import type { CategorySpendingDto } from './dto/spending.dto'
 import { SpendingService } from './spending.service'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Integration checks against the migrated test database (see
@@ -145,7 +146,7 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
   }
 
   async function insert(tx: Tx, rows: InsertTransaction[]) {
-    await tx.insert(transactionsTable).values(rows)
+    await tx.insert(transactionsTable).values(await bankRows(tx, rows))
   }
 
   /** A recurring series of `rawLabel` debits, confirmed unless overridden. */

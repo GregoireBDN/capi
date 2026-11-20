@@ -15,6 +15,7 @@ import {
   transactionsTable,
 } from '#/database/schema'
 import { BudgetsService } from './budgets.service'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Integration checks against the migrated test database. Each test runs in a
@@ -120,7 +121,7 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
   }
 
   async function insert(tx: Tx, rows: InsertTransaction[]) {
-    await tx.insert(transactionsTable).values(rows)
+    await tx.insert(transactionsTable).values(await bankRows(tx, rows))
   }
 
   async function storedRows(tx: Tx, categoryId: string) {
@@ -1214,12 +1215,15 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
           const [split] = await tx
             .insert(transactionsTable)
             .values(
-              transaction(checking, {
-                bookingDate: '2026-10-27',
-                amountCents: 230_000,
-                kind: 'income',
-                categoryId: salary,
-              }),
+              await bankRows(
+                tx,
+                transaction(checking, {
+                  bookingDate: '2026-10-27',
+                  amountCents: 230_000,
+                  kind: 'income',
+                  categoryId: salary,
+                }),
+              ),
             )
             .returning()
           await tx.insert(transactionSplitsTable).values([

@@ -40,13 +40,18 @@ export const savingsGoalsTable = pgTable(
     /** Hex colour (`#0284c7`), optional. */
     color: varchar('color', { length: 16 }),
     /** Reached or abandoned goals are archived, kept for the record. */
-    archivedAt: timestamp('archived_at'),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
   },
   (t) => [
     check('savings_goals_target_positive', sql`${t.targetCents} > 0`),
     check(
       'savings_goals_manual_amount_non_negative',
       sql`${t.manualAmountCents} >= 0`,
+    ),
+    // The amount typed by hand is that of a manual goal only (#367).
+    check(
+      'savings_goals_manual_amount_iff_manual',
+      sql`(${t.source} = 'manual') = (${t.manualAmountCents} is not null)`,
     ),
   ],
 )

@@ -28,6 +28,7 @@ import { MonthParamDto, UpdateMonthCloseDto } from './dto/month-close.dto'
 import { monthClosesTable } from './month-close.schema'
 import { MonthCloseService } from './month-close.service'
 import { REPORT_VERSION } from './report-version'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Integration checks against the dedicated test database (see
@@ -138,32 +139,34 @@ describe.skipIf(!process.env.DATABASE_URL)(
         type: 'checking',
       })
       const pea = await accounts.create({ name: 'Test PEA', type: 'brokerage' })
-      await tx.insert(transactionsTable).values([
-        transaction(checking.id, {
-          bookingDate: '2026-09-30',
-          amountCents: -1_000,
-          balanceAfterCents: 100_000,
-          categoryId: groceries.id,
-        }),
-        transaction(checking.id, {
-          bookingDate: '2026-10-01',
-          amountCents: 250_000,
-          balanceAfterCents: 350_000,
-          kind: 'income',
-        }),
-        transaction(checking.id, {
-          bookingDate: '2026-10-05',
-          amountCents: -30_000,
-          balanceAfterCents: 320_000,
-          categoryId: groceries.id,
-        }),
-        transaction(checking.id, {
-          bookingDate: '2026-10-31',
-          amountCents: -50_000,
-          balanceAfterCents: 270_000,
-          kind: 'transfer',
-        }),
-      ])
+      await tx.insert(transactionsTable).values(
+        await bankRows(tx, [
+          transaction(checking.id, {
+            bookingDate: '2026-09-30',
+            amountCents: -1_000,
+            balanceAfterCents: 100_000,
+            categoryId: groceries.id,
+          }),
+          transaction(checking.id, {
+            bookingDate: '2026-10-01',
+            amountCents: 250_000,
+            balanceAfterCents: 350_000,
+            kind: 'income',
+          }),
+          transaction(checking.id, {
+            bookingDate: '2026-10-05',
+            amountCents: -30_000,
+            balanceAfterCents: 320_000,
+            categoryId: groceries.id,
+          }),
+          transaction(checking.id, {
+            bookingDate: '2026-10-31',
+            amountCents: -50_000,
+            balanceAfterCents: 270_000,
+            kind: 'transfer',
+          }),
+        ]),
+      )
       await tx
         .insert(balanceSnapshotsTable)
         .values([
@@ -286,12 +289,15 @@ describe.skipIf(!process.env.DATABASE_URL)(
         const label = 'PRLV SEPA STREAMFLIX EXEMPLE'
         // Monthly on the 15th, May to October.
         await tx.insert(transactionsTable).values(
-          ['05', '06', '07', '08', '09', '10'].map((month) =>
-            transaction(checking.id, {
-              bookingDate: `2026-${month}-15`,
-              amountCents: -1_299,
-              rawLabel: label,
-            }),
+          await bankRows(
+            tx,
+            ['05', '06', '07', '08', '09', '10'].map((month) =>
+              transaction(checking.id, {
+                bookingDate: `2026-${month}-15`,
+                amountCents: -1_299,
+                rawLabel: label,
+              }),
+            ),
           ),
         )
         const { merchantKey } = normalizeLabel(label, -1_299)
@@ -362,30 +368,32 @@ describe.skipIf(!process.env.DATABASE_URL)(
           name: 'Test titres-restaurant',
           type: 'meal_voucher',
         })
-        await tx.insert(transactionsTable).values([
-          transaction(card.id, {
-            bookingDate: '2026-10-05',
-            amountCents: -1_500,
-            manual: true,
-          }),
-          transaction(checking.id, {
-            bookingDate: '2026-10-02',
-            amountCents: -1_000,
-            balanceAfterCents: 99_000,
-          }),
-          // 5 000 booked between the 2nd and the 9th are missing.
-          transaction(checking.id, {
-            bookingDate: '2026-10-09',
-            amountCents: -2_000,
-            balanceAfterCents: 92_000,
-          }),
-          // Manual expenses are never imported data.
-          transaction(checking.id, {
-            bookingDate: '2026-10-28',
-            amountCents: -3_000,
-            manual: true,
-          }),
-        ])
+        await tx.insert(transactionsTable).values(
+          await bankRows(tx, [
+            transaction(card.id, {
+              bookingDate: '2026-10-05',
+              amountCents: -1_500,
+              manual: true,
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-10-02',
+              amountCents: -1_000,
+              balanceAfterCents: 99_000,
+            }),
+            // 5 000 booked between the 2nd and the 9th are missing.
+            transaction(checking.id, {
+              bookingDate: '2026-10-09',
+              amountCents: -2_000,
+              balanceAfterCents: 92_000,
+            }),
+            // Manual expenses are never imported data.
+            transaction(checking.id, {
+              bookingDate: '2026-10-28',
+              amountCents: -3_000,
+              manual: true,
+            }),
+          ]),
+        )
         await tx
           .insert(balanceSnapshotsTable)
           .values([
@@ -442,11 +450,14 @@ describe.skipIf(!process.env.DATABASE_URL)(
         // An expense filed afterwards changes the live figures, not the
         // frozen report (the net worth still ends on the bank balance).
         await tx.insert(transactionsTable).values(
-          transaction(checking.id, {
-            bookingDate: '2026-10-20',
-            amountCents: -4_000,
-            categoryId: groceries,
-          }),
+          await bankRows(
+            tx,
+            transaction(checking.id, {
+              bookingDate: '2026-10-20',
+              amountCents: -4_000,
+              categoryId: groceries,
+            }),
+          ),
         )
         const later = await service.get('2026-10', { now: NOW })
         expect(later.closedReport?.flow.expenseCents).toBe(-30_000)

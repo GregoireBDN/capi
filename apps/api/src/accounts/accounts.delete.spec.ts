@@ -26,6 +26,7 @@ import {
   transactionsTable,
 } from '#/database/schema'
 import { AccountsService } from './accounts.service'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Deleting an account (#297) against the migrated test database. Every test
@@ -123,15 +124,23 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
         .returning()
       const [split] = await tx
         .insert(transactionsTable)
-        .values([
-          row(account.id, { importId: imported.id, categoryId: groceries.id }),
-          row(account.id, { importId: imported.id, bookingDate: '2019-03-12' }),
-          row(account.id, {
-            manual: true,
-            bookingDate: '2019-03-25',
-            dedupeHash: `manual:${account.id}`,
-          }),
-        ])
+        .values(
+          await bankRows(tx, [
+            row(account.id, {
+              importId: imported.id,
+              categoryId: groceries.id,
+            }),
+            row(account.id, {
+              importId: imported.id,
+              bookingDate: '2019-03-12',
+            }),
+            row(account.id, {
+              manual: true,
+              bookingDate: '2019-03-25',
+              dedupeHash: `manual:${account.id}`,
+            }),
+          ]),
+        )
         .returning()
       await tx.insert(transactionSplitsTable).values([
         {

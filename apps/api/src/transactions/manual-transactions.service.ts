@@ -211,6 +211,10 @@ export class ManualTransactionsService {
       ) {
         set.counterpartAccountId = null
       }
+      // Only an expense pays a prepaid subscription (#314).
+      if (set.kind !== undefined && set.kind !== 'expense') {
+        set.prepaidItemId = null
+      }
       if (Object.keys(set).length === 0) {
         throw new BadRequestException('Nothing to update')
       }

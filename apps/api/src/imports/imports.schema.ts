@@ -53,7 +53,7 @@ export const importsTable = pgTable(
      * file again. Null once committed (the transactions are the record then).
      */
     preview: jsonb('preview').$type<ImportPreviewData>(),
-    committedAt: timestamp('committed_at'),
+    committedAt: timestamp('committed_at', { withTimezone: true }),
   },
   (t) => [index().on(t.accountId), index().on(t.fileHash)],
 )

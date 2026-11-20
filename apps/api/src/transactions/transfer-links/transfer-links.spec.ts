@@ -30,6 +30,7 @@ import type {
 import { InvestmentsService } from '#/investments/investments.service'
 import { TransactionsService } from '#/transactions/transactions.service'
 import { linkMatchingTransfers } from './link-transfers'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Transfers linked to the owner's other accounts (#296), against the test
@@ -114,15 +115,17 @@ describe.skipIf(!process.env.DATABASE_URL)('transfer links (database)', () => {
         ) => {
           const [created] = await tx
             .insert(transactionsTable)
-            .values({
-              accountId,
-              bookingDate,
-              amountCents,
-              rawLabel: options.rawLabel ?? 'VIR TEST',
-              kind: options.kind ?? 'transfer',
-              counterpartAccountId: options.counterpartAccountId ?? null,
-              dedupeHash: randomUUID().replaceAll('-', ''),
-            })
+            .values(
+              await bankRows(tx, {
+                accountId,
+                bookingDate,
+                amountCents,
+                rawLabel: options.rawLabel ?? 'VIR TEST',
+                kind: options.kind ?? 'transfer',
+                counterpartAccountId: options.counterpartAccountId ?? null,
+                dedupeHash: randomUUID().replaceAll('-', ''),
+              }),
+            )
             .returning({ id: transactionsTable.id })
           return created.id
         }

@@ -386,6 +386,11 @@ export class RecurringService {
 
     const changes: Partial<typeof recurringItemsTable.$inferInsert> = {}
     if (dto.status !== undefined) changes.status = dto.status
+    // A cancellation belongs to a confirmed item: one left for another status
+    // loses its end date (`recurring_items_ended_only_confirmed`).
+    if (dto.status !== undefined && dto.status !== 'confirmed') {
+      changes.endedOn = null
+    }
     if (dto.name !== undefined) changes.name = dto.name
     if (dto.categoryId !== undefined) changes.categoryId = dto.categoryId
     if (dto.isFixedCost !== undefined) changes.isFixedCost = dto.isFixedCost

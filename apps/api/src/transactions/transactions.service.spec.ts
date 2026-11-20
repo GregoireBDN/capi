@@ -14,6 +14,7 @@ import {
   transactionsTable,
 } from '#/database/schema'
 import { TransactionsService } from './transactions.service'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Integration checks against the migrated database (see
@@ -118,7 +119,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
     }
 
     async function insert(tx: Tx, rows: InsertTransaction[]) {
-      return tx.insert(transactionsTable).values(rows).returning()
+      return tx
+        .insert(transactionsTable)
+        .values(await bankRows(tx, rows))
+        .returning()
     }
 
     async function reload(tx: Tx, id: string) {

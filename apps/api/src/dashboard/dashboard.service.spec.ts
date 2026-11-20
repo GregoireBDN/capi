@@ -20,6 +20,7 @@ import {
   DashboardHistoryQueryDto,
   DashboardOverviewQueryDto,
 } from './dto/dashboard.dto'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Integration checks against the dedicated test database (see
@@ -168,49 +169,51 @@ describe.skipIf(!process.env.DATABASE_URL)(
           name: 'Test savings',
           type: 'savings',
         })
-        await tx.insert(transactionsTable).values([
-          // September: last day.
-          transaction(checking.id, {
-            bookingDate: '2026-09-30',
-            amountCents: -2_000,
-          }),
-          // October: first and last day, a one-off, a refund.
-          transaction(checking.id, {
-            bookingDate: '2026-10-01',
-            amountCents: 300_000,
-            kind: 'income',
-          }),
-          transaction(checking.id, {
-            bookingDate: '2026-10-20',
-            amountCents: -10_000,
-            isOneOff: true,
-          }),
-          transaction(checking.id, {
-            bookingDate: '2026-10-22',
-            amountCents: 1_500,
-          }),
-          transaction(checking.id, {
-            bookingDate: '2026-10-31',
-            amountCents: -5_000,
-            needsReview: true,
-          }),
-          // Transfer checking → savings: both legs are left out.
-          transaction(checking.id, {
-            bookingDate: '2026-10-15',
-            amountCents: -50_000,
-            kind: 'transfer',
-          }),
-          transaction(savings.id, {
-            bookingDate: '2026-10-15',
-            amountCents: 50_000,
-            kind: 'transfer',
-          }),
-          // November: first day.
-          transaction(checking.id, {
-            bookingDate: '2026-11-01',
-            amountCents: -7_000,
-          }),
-        ])
+        await tx.insert(transactionsTable).values(
+          await bankRows(tx, [
+            // September: last day.
+            transaction(checking.id, {
+              bookingDate: '2026-09-30',
+              amountCents: -2_000,
+            }),
+            // October: first and last day, a one-off, a refund.
+            transaction(checking.id, {
+              bookingDate: '2026-10-01',
+              amountCents: 300_000,
+              kind: 'income',
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-10-20',
+              amountCents: -10_000,
+              isOneOff: true,
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-10-22',
+              amountCents: 1_500,
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-10-31',
+              amountCents: -5_000,
+              needsReview: true,
+            }),
+            // Transfer checking → savings: both legs are left out.
+            transaction(checking.id, {
+              bookingDate: '2026-10-15',
+              amountCents: -50_000,
+              kind: 'transfer',
+            }),
+            transaction(savings.id, {
+              bookingDate: '2026-10-15',
+              amountCents: 50_000,
+              kind: 'transfer',
+            }),
+            // November: first day.
+            transaction(checking.id, {
+              bookingDate: '2026-11-01',
+              amountCents: -7_000,
+            }),
+          ]),
+        )
 
         const overview = await dashboard.overview('2026-10', { now: NOW })
         expect(overview.period.status).toBe('complete')
@@ -320,50 +323,52 @@ describe.skipIf(!process.env.DATABASE_URL)(
           { accountId: pea.id, date: '2026-10-31', valueCents: 210_000 },
           { accountId: closed.id, date: '2026-08-31', valueCents: 99_999 },
         ])
-        await tx.insert(transactionsTable).values([
-          // Already in the 08-31 snapshot.
-          transaction(checking.id, {
-            bookingDate: '2026-08-20',
-            amountCents: -999,
-          }),
-          transaction(checking.id, {
-            bookingDate: '2026-09-10',
-            amountCents: -20_000,
-          }),
-          transaction(checking.id, {
-            bookingDate: '2026-09-15',
-            amountCents: -50_000,
-            kind: 'transfer',
-          }),
-          transaction(savings.id, {
-            bookingDate: '2026-09-15',
-            amountCents: 50_000,
-            kind: 'transfer',
-          }),
-          transaction(checking.id, {
-            bookingDate: '2026-10-05',
-            amountCents: 5_000,
-            kind: 'income',
-          }),
-          transaction(checking.id, {
-            bookingDate: '2026-11-02',
-            amountCents: -1_000,
-          }),
-          transaction(exported.id, {
-            bookingDate: '2026-09-05',
-            amountCents: -100,
-            balanceAfterCents: 10_000,
-          }),
-          transaction(exported.id, {
-            bookingDate: '2026-10-03',
-            amountCents: -200,
-            balanceAfterCents: 9_800,
-          }),
-          transaction(exported.id, {
-            bookingDate: '2026-10-10',
-            amountCents: -300,
-          }),
-        ])
+        await tx.insert(transactionsTable).values(
+          await bankRows(tx, [
+            // Already in the 08-31 snapshot.
+            transaction(checking.id, {
+              bookingDate: '2026-08-20',
+              amountCents: -999,
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-09-10',
+              amountCents: -20_000,
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-09-15',
+              amountCents: -50_000,
+              kind: 'transfer',
+            }),
+            transaction(savings.id, {
+              bookingDate: '2026-09-15',
+              amountCents: 50_000,
+              kind: 'transfer',
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-10-05',
+              amountCents: 5_000,
+              kind: 'income',
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-11-02',
+              amountCents: -1_000,
+            }),
+            transaction(exported.id, {
+              bookingDate: '2026-09-05',
+              amountCents: -100,
+              balanceAfterCents: 10_000,
+            }),
+            transaction(exported.id, {
+              bookingDate: '2026-10-03',
+              amountCents: -200,
+              balanceAfterCents: 9_800,
+            }),
+            transaction(exported.id, {
+              bookingDate: '2026-10-10',
+              amountCents: -300,
+            }),
+          ]),
+        )
 
         const { months } = await dashboard.history(5, { now: NOW })
         expect(months.map((m) => [m.month, m.netWorthCents])).toEqual([
@@ -485,43 +490,45 @@ describe.skipIf(!process.env.DATABASE_URL)(
           name: 'Test checking',
           type: 'checking',
         })
-        await tx.insert(transactionsTable).values([
-          transaction(checking.id, {
-            bookingDate: '2026-10-01',
-            amountCents: 250_000,
-            kind: 'income',
-          }),
-          transaction(checking.id, {
-            bookingDate: '2026-10-02',
-            amountCents: -4_000,
-          }),
-          // After the 3rd: out of the comparison.
-          transaction(checking.id, {
-            bookingDate: '2026-10-05',
-            amountCents: -90_000,
-          }),
-          transaction(checking.id, {
-            bookingDate: '2026-10-28',
-            amountCents: 40_000,
-            kind: 'income',
-          }),
-          // November so far: the 1st to the 3rd.
-          transaction(checking.id, {
-            bookingDate: '2026-11-01',
-            amountCents: 250_000,
-            kind: 'income',
-          }),
-          transaction(checking.id, {
-            bookingDate: '2026-11-03',
-            amountCents: -6_000,
-          }),
-          // A transfer is never income or expense, on either side.
-          transaction(checking.id, {
-            bookingDate: '2026-10-03',
-            amountCents: -20_000,
-            kind: 'transfer',
-          }),
-        ])
+        await tx.insert(transactionsTable).values(
+          await bankRows(tx, [
+            transaction(checking.id, {
+              bookingDate: '2026-10-01',
+              amountCents: 250_000,
+              kind: 'income',
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-10-02',
+              amountCents: -4_000,
+            }),
+            // After the 3rd: out of the comparison.
+            transaction(checking.id, {
+              bookingDate: '2026-10-05',
+              amountCents: -90_000,
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-10-28',
+              amountCents: 40_000,
+              kind: 'income',
+            }),
+            // November so far: the 1st to the 3rd.
+            transaction(checking.id, {
+              bookingDate: '2026-11-01',
+              amountCents: 250_000,
+              kind: 'income',
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-11-03',
+              amountCents: -6_000,
+            }),
+            // A transfer is never income or expense, on either side.
+            transaction(checking.id, {
+              bookingDate: '2026-10-03',
+              amountCents: -20_000,
+              kind: 'transfer',
+            }),
+          ]),
+        )
 
         const overview = await dashboard.overview(undefined, { now: NOW })
         expect(overview.period).toEqual({
@@ -553,16 +560,18 @@ describe.skipIf(!process.env.DATABASE_URL)(
           name: 'Test checking',
           type: 'checking',
         })
-        await tx.insert(transactionsTable).values([
-          transaction(checking.id, {
-            bookingDate: '2026-09-30',
-            amountCents: -3_000,
-          }),
-          transaction(checking.id, {
-            bookingDate: '2026-10-31',
-            amountCents: -5_000,
-          }),
-        ])
+        await tx.insert(transactionsTable).values(
+          await bankRows(tx, [
+            transaction(checking.id, {
+              bookingDate: '2026-09-30',
+              amountCents: -3_000,
+            }),
+            transaction(checking.id, {
+              bookingDate: '2026-10-31',
+              amountCents: -5_000,
+            }),
+          ]),
+        )
 
         // 2 November, nothing imported since October.
         const now = new Date('2026-11-02T08:00:00Z')
@@ -665,17 +674,19 @@ describe.skipIf(!process.env.DATABASE_URL)(
             name: 'Test checking',
             type: 'checking',
           })
-          await tx.insert(transactionsTable).values([
-            transaction(checking.id, {
-              bookingDate: '2026-10-20',
-              amountCents: 100_000,
-              kind: 'income',
-            }),
-            transaction(checking.id, {
-              bookingDate: '2026-11-02',
-              amountCents: -2_500,
-            }),
-          ])
+          await tx.insert(transactionsTable).values(
+            await bankRows(tx, [
+              transaction(checking.id, {
+                bookingDate: '2026-10-20',
+                amountCents: 100_000,
+                kind: 'income',
+              }),
+              transaction(checking.id, {
+                bookingDate: '2026-11-02',
+                amountCents: -2_500,
+              }),
+            ]),
+          )
           const review = await dashboard.review('2026-11', { now: NOW })
           expect(review).toMatchObject({
             month: '2026-11',
@@ -708,43 +719,45 @@ describe.skipIf(!process.env.DATABASE_URL)(
             name: 'Test PEA',
             type: 'brokerage',
           })
-          await tx.insert(transactionsTable).values([
-            transaction(checking.id, {
-              bookingDate: '2026-09-30',
-              amountCents: 300_000,
-              kind: 'income',
-            }),
-            transaction(checking.id, {
-              bookingDate: '2026-10-01',
-              amountCents: 250_000,
-              kind: 'income',
-            }),
-            transaction(checking.id, {
-              bookingDate: '2026-10-05',
-              amountCents: -30_000,
-              categoryId: groceries,
-            }),
-            transaction(checking.id, {
-              bookingDate: '2026-10-10',
-              amountCents: -5_000,
-              categoryId: leisure,
-            }),
-            // A move to the savings account: neither saved nor spent.
-            transaction(checking.id, {
-              bookingDate: '2026-10-31',
-              amountCents: -50_000,
-              kind: 'transfer',
-            }),
-            transaction(livret.id, {
-              bookingDate: '2026-10-31',
-              amountCents: 50_000,
-              kind: 'transfer',
-            }),
-            transaction(checking.id, {
-              bookingDate: '2026-11-02',
-              amountCents: -1_000,
-            }),
-          ])
+          await tx.insert(transactionsTable).values(
+            await bankRows(tx, [
+              transaction(checking.id, {
+                bookingDate: '2026-09-30',
+                amountCents: 300_000,
+                kind: 'income',
+              }),
+              transaction(checking.id, {
+                bookingDate: '2026-10-01',
+                amountCents: 250_000,
+                kind: 'income',
+              }),
+              transaction(checking.id, {
+                bookingDate: '2026-10-05',
+                amountCents: -30_000,
+                categoryId: groceries,
+              }),
+              transaction(checking.id, {
+                bookingDate: '2026-10-10',
+                amountCents: -5_000,
+                categoryId: leisure,
+              }),
+              // A move to the savings account: neither saved nor spent.
+              transaction(checking.id, {
+                bookingDate: '2026-10-31',
+                amountCents: -50_000,
+                kind: 'transfer',
+              }),
+              transaction(livret.id, {
+                bookingDate: '2026-10-31',
+                amountCents: 50_000,
+                kind: 'transfer',
+              }),
+              transaction(checking.id, {
+                bookingDate: '2026-11-02',
+                amountCents: -1_000,
+              }),
+            ]),
+          )
           await tx.insert(balanceSnapshotsTable).values([
             { accountId: pea.id, date: '2026-09-30', valueCents: 100_000 },
             { accountId: pea.id, date: '2026-10-31', valueCents: 104_000 },
@@ -829,7 +842,11 @@ describe.skipIf(!process.env.DATABASE_URL)(
           })
           await tx
             .insert(transactionsTable)
-            .values([transaction(checking.id, { bookingDate: '2026-10-20' })])
+            .values(
+              await bankRows(tx, [
+                transaction(checking.id, { bookingDate: '2026-10-20' }),
+              ]),
+            )
           await tx
             .insert(balanceSnapshotsTable)
             .values([

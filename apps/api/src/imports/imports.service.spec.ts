@@ -25,6 +25,7 @@ import {
 } from '#/imports/testing/cic-csv-fixture'
 import type { ImportDetailDto } from './dto/import.dto'
 import { ImportsService, PENDING_PREVIEW_TTL_MS } from './imports.service'
+import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
  * Integration checks of the import pipeline against the migrated database
@@ -425,14 +426,16 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
         // The other side, already on the savings account.
         const [arrival] = await tx
           .insert(transactionsTable)
-          .values({
-            accountId: livret.id,
-            bookingDate: '2026-10-03',
-            amountCents: 20_000,
-            rawLabel: 'VIR DEPUIS COMPTE COURANT',
-            kind: 'transfer',
-            dedupeHash: 'test-livret-arrival',
-          })
+          .values(
+            await bankRows(tx, {
+              accountId: livret.id,
+              bookingDate: '2026-10-03',
+              amountCents: 20_000,
+              rawLabel: 'VIR DEPUIS COMPTE COURANT',
+              kind: 'transfer',
+              dedupeHash: 'test-livret-arrival',
+            }),
+          )
           .returning()
 
         const file = cicCsv(
@@ -551,24 +554,27 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
           })
           .returning()
         await tx.insert(transactionsTable).values(
-          [
-            {
-              bookingDate: '2026-10-02',
-              amountCents: -390,
-              rawLabel: 'Café de la gare',
-            },
-            {
-              bookingDate: '2026-10-03',
-              amountCents: -4_250,
-              rawLabel: 'Fauxmarché Ville-Exemple',
-            },
-          ].map((t, i) => ({
-            ...t,
-            accountId,
-            importId: history.id,
-            kind: 'expense' as const,
-            dedupeHash: `history-test-${i}`,
-          })),
+          await bankRows(
+            tx,
+            [
+              {
+                bookingDate: '2026-10-02',
+                amountCents: -390,
+                rawLabel: 'Café de la gare',
+              },
+              {
+                bookingDate: '2026-10-03',
+                amountCents: -4_250,
+                rawLabel: 'Fauxmarché Ville-Exemple',
+              },
+            ].map((t, i) => ({
+              ...t,
+              accountId,
+              importId: history.id,
+              kind: 'expense' as const,
+              dedupeHash: `history-test-${i}`,
+            })),
+          ),
         )
 
         const previewed = await preview(FILE_A)
@@ -616,14 +622,16 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
 
     it('skips a conflict resolved as skip', async () => {
       await withFixture(async ({ tx, service, preview, accountId }) => {
-        await tx.insert(transactionsTable).values({
-          accountId,
-          bookingDate: '2026-10-01',
-          amountCents: 245_000,
-          rawLabel: 'Salaire société fictive',
-          kind: 'income',
-          dedupeHash: 'history-test-salary',
-        })
+        await tx.insert(transactionsTable).values(
+          await bankRows(tx, {
+            accountId,
+            bookingDate: '2026-10-01',
+            amountCents: 245_000,
+            rawLabel: 'Salaire société fictive',
+            kind: 'income',
+            dedupeHash: 'history-test-salary',
+          }),
+        )
         const previewed = await preview(FILE_A)
         expect(statuses(previewed)[0]).toBe('conflict')
 
