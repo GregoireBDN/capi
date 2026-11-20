@@ -17,6 +17,7 @@ import { PiggyBankIcon, UploadIcon } from 'lucide-react'
 import { AddInvestmentButton } from '#/components/accounts/AddInvestmentSheet'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import type { SavingsOverviewDto } from '#/api/types.gen'
+import { currentMonth } from '#/lib/calendar'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { MonthToolbar } from '#/components/month/MonthToolbar'
 import { ROUTES } from '#/lib/routes'
@@ -83,12 +84,14 @@ export function SavingsPage({
         description="Ce que vous mettez de côté chaque mois, et où."
       />
 
-      {month !== undefined && !isEmpty && (
-        <MonthToolbar
-          navigator={<MonthNavigator month={month} onMonthChange={go} />}
-          period={data?.period}
-        />
-      )}
+      {/* The month is in the app header (#401) from the first render:
+          the current month until the API says which month it shows. */}
+      <MonthToolbar
+        navigator={
+          <MonthNavigator month={month ?? currentMonth()} onMonthChange={go} />
+        }
+        period={isEmpty ? undefined : data?.period}
+      />
 
       {overview.isPending && <OverviewSkeleton />}
 

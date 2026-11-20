@@ -15,6 +15,7 @@ import {
   useInShell,
   usePageActionsSlot,
   useRegisteredPageActions,
+  useSetPageTitleEndSlot,
 } from './page-actions'
 import type { PageAction } from './page-actions'
 
@@ -53,6 +54,7 @@ export function PageHeader({
 }: PageHeaderProps) {
   const inShell = useInShell()
   const slot = usePageActionsSlot()
+  const setTitleEndSlot = useSetPageTitleEndSlot()
   // The page's own actions, then the « add » of its sections.
   const registered = useRegisteredPageActions()
   const menu = [...actions, ...registered].filter(
@@ -65,11 +67,21 @@ export function PageHeader({
       {back && <PageBack {...back} />}
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-[min(100%,14rem)] flex-1 space-y-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {/* 44px high, so what a section puts at its end (#401) moves
+              nothing when it arrives. */}
+          <div className="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1">
             <h1 className="min-w-0 text-xl font-semibold tracking-tight break-words md:text-2xl">
               {title}
             </h1>
             {titleAddon}
+            {/* The month's status, « Filtres » on phones (`MonthToolbar`,
+                `MonthReview`): at the end of the row, below the title when
+                both don't fit. */}
+            <div
+              ref={setTitleEndSlot}
+              data-page-title-end
+              className="ml-auto flex shrink-0 items-center gap-2 empty:hidden"
+            />
           </div>
           {description && (
             <p className="text-muted-foreground text-xs md:text-sm">

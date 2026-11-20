@@ -28,6 +28,7 @@ import type { MonthReviewDto } from '#/api/types.gen'
 import { NewAccountButton } from '#/components/accounts/AccountEditor'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { currentMonth } from '#/lib/calendar'
+import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { plural } from '#/lib/plural'
 import { ROUTES } from '#/lib/routes'
 import { AccountsList } from './AccountsList'
@@ -84,25 +85,13 @@ function OverviewSkeleton() {
 }
 
 /** The month review, its loading and error states. */
-function ReviewSection({
-  review,
-  onMonthChange,
-}: {
-  review: UseQueryResult<MonthReviewDto>
-  onMonthChange?: (month: string | undefined) => void
-}) {
+function ReviewSection({ review }: { review: UseQueryResult<MonthReviewDto> }) {
   if (review.data) {
-    const { defaultMonth, current } = review.data
     return (
       <MonthReview
         review={review.data}
-        max={currentMonth()}
         // While the current month is shown: how it will end (#321).
-        forecast={current ? <ForecastRow /> : undefined}
-        // The default month is kept out of the URL.
-        onMonthChange={(target) =>
-          onMonthChange?.(target === defaultMonth ? undefined : target)
-        }
+        forecast={review.data.current ? <ForecastRow /> : undefined}
       />
     )
   }
@@ -173,6 +162,20 @@ export function DashboardPage({
         title="Tableau de bord"
         description="Votre patrimoine et le bilan du mois."
       />
+      {/* The month the page follows, in the app header (#401): known
+          before the review loads, the current month by default (#321). */}
+      <MonthNavigator
+        month={shown ?? currentMonth()}
+        max={currentMonth()}
+        // The default month is kept out of the URL.
+        onMonthChange={(target) =>
+          onMonthChange?.(
+            target === (review.data?.defaultMonth ?? currentMonth())
+              ? undefined
+              : target,
+          )
+        }
+      />
 
       {banner}
 
@@ -230,7 +233,7 @@ export function DashboardPage({
           {/* One card per row (owner's choice): last month, this month
               and its end, where I stand, then the history. Each card lays its
               content out for its own width. */}
-          <ReviewSection review={review} onMonthChange={onMonthChange} />
+          <ReviewSection review={review} />
           {/* The envelopes of the same month. */}
           {shown && <MonthEnvelopes month={shown} />}
           <AccountsList accounts={data.accounts} netWorth={data.netWorth} />

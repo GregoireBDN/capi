@@ -38,6 +38,9 @@ function AppLayout() {
       defaultOpen={sidebarOpen}
       // The header across the whole width, then the sidebar and the page.
       className="flex-col"
+      // `--app-top-bar` (the header's height) lives in `globals.css`: it
+      // grows on a phone showing a month's bar (#401).
+      data-app-shell
       style={
         {
           '--sidebar-width': 'min(16rem, 32vw)',
@@ -46,14 +49,11 @@ function AppLayout() {
           // square buttons around 1.1rem icons (`AppSidebar`, #386).
           '--sidebar-width-icon': '3.5rem',
           '--rail-button': '2rem',
-          // Height of `AppHeader`, on every width (#386), for sticky
-          // elements under it and the sidebar's column.
-          '--app-top-bar': '3rem',
         } as CSSProperties
       }
     >
-      {/* The header hosts the page's way back and, on phones, its other
-          actions (`PageHeader`, `PageBack`). */}
+      {/* The header hosts the page's way back, its actions and its month
+          (`PageBack`, `PageHeader`, `MonthNavigator`). */}
       <PageActionsSlotProvider>
         <AppHeader user={currentUser} />
         <div className="flex min-w-0 flex-1">

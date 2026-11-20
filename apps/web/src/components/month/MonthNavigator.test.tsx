@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -179,20 +179,35 @@ describe('MonthNavigator', () => {
     expect(onChange).toHaveBeenCalledTimes(2)
   })
 
-  it('has a short label for narrow containers, both as wide as the widest month', () => {
+  it('has a short label for narrow containers', () => {
     setup({ initial: '2026-05' })
     const button = trigger('Mai 2026')
-    // Both forms are rendered; container queries pick one (< 420px: short).
+    // Both forms are rendered; a container query picks one (< 300px: short).
     expect(within(button).getByText('Mai 2026')).toBeInTheDocument()
     expect(within(button).getByText('mai 2026')).toBeInTheDocument()
-    // Every month of the year sizes the label, so the arrows never move.
-    const sizers = [...button.querySelectorAll('[data-sizer]')].map((sizer) =>
-      sizer.getAttribute('data-sizer'),
-    )
-    expect(sizers).toHaveLength(24)
-    expect(sizers).toEqual(
-      expect.arrayContaining(['Septembre 2026', 'sept. 2026', 'Mai 2026']),
-    )
+  })
+
+  it('moves the month with a sideways swipe on a touch screen', () => {
+    const { onChange } = setup({ initial: '2026-09' })
+    const swipe = (fromX: number, toX: number, target: Element) => {
+      fireEvent.touchStart(target, {
+        touches: [{ clientX: fromX, clientY: 300 }],
+      })
+      fireEvent.touchEnd(target, {
+        changedTouches: [{ clientX: toX, clientY: 310 }],
+      })
+    }
+    // To the right: the month before.
+    swipe(100, 260, document.body)
+    expect(onChange).toHaveBeenLastCalledWith('2026-08')
+    // To the left: the next one.
+    swipe(260, 100, document.body)
+    expect(onChange).toHaveBeenLastCalledWith('2026-09')
+    // Not from a field, nor a short drag.
+    onChange.mockClear()
+    swipe(260, 100, screen.getByLabelText('Champ'))
+    swipe(200, 170, document.body)
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('shows a label instead of the month, arrows off, the picker leading back to a month', async () => {

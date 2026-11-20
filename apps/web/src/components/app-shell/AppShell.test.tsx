@@ -11,6 +11,10 @@ import { PlusIcon, UploadIcon } from 'lucide-react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarInset, SidebarProvider } from '@finances/ui'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useState } from 'react'
+import { MonthNavigator } from '#/components/month/MonthNavigator'
+import { MonthToolbar } from '#/components/month/MonthToolbar'
 import { transactionsControllerReviewCount } from '#/api'
 import type { UserDto } from '#/api/types.gen'
 import { resetReviewCount } from '#/lib/review-count'
@@ -25,6 +29,16 @@ import type { PageAction } from './page-actions'
 vi.mock('#/api', () => ({
   profileControllerUpdate: vi.fn(),
   transactionsControllerReviewCount: vi.fn(),
+  coverageControllerCoverage: vi.fn(() =>
+    Promise.resolve({
+      data: {
+        dataUntil: '2026-11-03',
+        currentMonth: '2026-11',
+        defaultMonth: '2026-11',
+        months: ['2026-10', '2026-11'],
+      },
+    }),
+  ),
 }))
 vi.mock('#/lib/auth-context', () => ({
   useAuth: () => ({ user: null, refresh: vi.fn(), logout: vi.fn() }),
@@ -76,13 +90,40 @@ async function renderShell(defaultOpen: boolean, actions: PageAction[] = []) {
     path: '/transactions',
     component: () => <PageHeader title="Opérations" />,
   })
+  const spending = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/spending',
+    staticData: { monthBar: true },
+    component: SpendingLike,
+  })
   const router = createRouter({
-    routeTree: rootRoute.addChildren([dashboard, transactions]),
+    routeTree: rootRoute.addChildren([dashboard, transactions, spending]),
     history: createMemoryHistory({ initialEntries: ['/dashboard'] }),
   })
-  render(<RouterProvider router={router} />)
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  render(
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  )
   await screen.findByRole('heading', { name: 'Tableau de bord' })
   return router
+}
+
+/** A month page: its month and filters, as Dépenses lays them out. */
+function SpendingLike() {
+  const [month, setMonth] = useState('2026-11')
+  return (
+    <>
+      <PageHeader title="Dépenses" />
+      <MonthToolbar
+        navigator={<MonthNavigator month={month} onMonthChange={setMonth} />}
+        filters={() => <select aria-label="Compte" />}
+      />
+    </>
+  )
 }
 
 /** The fixed sidebar column (≥ md). */
@@ -300,5 +341,35 @@ describe('App shell sidebar (< md)', () => {
       .getByRole('heading', { name: 'Tableau de bord' })
       .closest('header') as HTMLElement
     expect(within(title).queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('puts a month page’s month in the header and « Filtres » by its title (#401)', async () => {
+    const ue = userEvent.setup()
+    const router = await renderShell(false)
+    // Not a month page: no room kept for a month.
+    expect(
+      header().querySelector('[data-month-placeholder]'),
+    ).not.toBeInTheDocument()
+
+    await act(() => router.navigate({ to: '/spending' }))
+    await screen.findByRole('heading', { name: 'Dépenses' })
+    const month = header().querySelector<HTMLElement>('[data-page-month]')!
+    await ue.click(
+      within(month).getByRole('button', { name: 'Mois précédent' }),
+    )
+    expect(
+      within(month).getByRole('button', {
+        name: 'Octobre 2026, choisir un mois',
+      }),
+    ).toBeInTheDocument()
+    // Its room is kept on phones from the first render (#401).
+    expect(header().querySelector('[data-month-placeholder]')).not.toBeNull()
+
+    const titleEnd = document.querySelector<HTMLElement>(
+      '[data-page-title-end]',
+    )!
+    expect(
+      within(titleEnd).getByRole('button', { name: 'Filtres' }),
+    ).toBeInTheDocument()
   })
 })

@@ -1,12 +1,16 @@
-import { Link } from '@tanstack/react-router'
-import { Button, useSidebar } from '@finances/ui'
+import { Link, useMatches } from '@tanstack/react-router'
+import { Button, cn, useSidebar } from '@finances/ui'
 import { MenuIcon } from 'lucide-react'
 import type { UserDto } from '#/api/types.gen'
 import { plural } from '#/lib/plural'
 import { useReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
 import { AccountMenu } from './AccountMenu'
-import { useSetPageActionsSlot, useSetPageBackSlot } from './page-actions'
+import {
+  useSetPageActionsSlot,
+  useSetPageBackSlot,
+  useSetPageMonthSlot,
+} from './page-actions'
 
 /**
  * Header of the authenticated layout, on every width (#386, the owner's
@@ -22,14 +26,23 @@ import { useSetPageActionsSlot, useSetPageBackSlot } from './page-actions'
  *   choice on #386, after trying them as icons, beside the title, and a
  *   permanent « + Ajouter une dépense »).
  * - The avatar: the account menu (`AccountMenu`).
+ * - On a month page, its month (`MonthNavigator`, #401, the owner's « B.
+ *   Barre du mois »): a second row on phones, the middle of the row from
+ *   `md` up.
  *
- * `h-12` on every width: sticky elements below it use `top-(--app-top-bar)`
- * (set by `routes/_app.tsx`).
+ * `h-12` per row: sticky elements below it use `top-(--app-top-bar)`, 3rem,
+ * 6rem on a phone showing the month's bar (`globals.css`).
  */
 export function AppHeader({ user }: { user: UserDto }) {
   const { openMobile, setOpenMobile } = useSidebar()
   const setActionsSlot = useSetPageActionsSlot()
   const setBackSlot = useSetPageBackSlot()
+  const setMonthSlot = useSetPageMonthSlot()
+  // A month page (`staticData.monthBar`): its bar is there from the first
+  // render on phones.
+  const monthPage = useMatches({
+    select: (matches) => matches.some((match) => match.staticData.monthBar),
+  })
   const reviewCount = useReviewCount()
   // The sidebar's « À revoir » badge is out of sight: on ☰ instead.
   const showReviewDot = reviewCount !== null && reviewCount > 0
@@ -37,56 +50,85 @@ export function AppHeader({ user }: { user: UserDto }) {
   return (
     <header
       data-app-header
-      className="bg-(--header-bg) group/header sticky top-0 z-20 flex h-12 shrink-0 items-center gap-1 border-b px-2 backdrop-blur-lg md:gap-2 md:px-3"
+      className={cn(
+        'bg-(--header-bg) group/header sticky top-0 z-20 grid shrink-0 border-b backdrop-blur-lg',
+        // Phones: one row, then the month's own bar under it (#401).
+        // Computer: the month in the middle of the one row.
+        'grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]',
+      )}
     >
-      <a
-        href="#main-content"
-        // Visually hidden until focused: its box only appears with the focus.
-        className="focus:bg-background focus-visible:ring-ring/50 sr-only text-sm font-medium focus:not-sr-only focus:absolute focus:top-1 focus:left-2 focus:z-30 focus:rounded-lg focus:px-3 focus:py-2 focus-visible:ring-[3px]"
-      >
-        Aller au contenu
-      </a>
-      <Button
-        type="button"
-        variant="secondary"
-        ghost
-        iconOnly
-        className="relative md:hidden [&_svg]:size-[1.1rem]"
-        aria-label="Ouvrir le menu"
-        aria-expanded={openMobile}
-        onClick={() => setOpenMobile(true)}
-      >
-        <MenuIcon />
-        {showReviewDot && (
-          <span
-            data-testid="menu-review-count"
-            title={plural(
-              reviewCount,
-              'opération à revoir',
-              'opérations à revoir',
-            )}
-            className="bg-primary text-primary-foreground absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] leading-none font-semibold tabular-nums"
-          >
-            <span aria-hidden>{reviewCount > 99 ? '99+' : reviewCount}</span>
-            <span className="sr-only">
-              {plural(reviewCount, 'opération à revoir', 'opérations à revoir')}
+      <div className="flex h-12 min-w-0 items-center gap-1 pl-2 md:gap-2 md:pl-3">
+        <a
+          href="#main-content"
+          // Visually hidden until focused: its box only appears with the focus.
+          className="focus:bg-background focus-visible:ring-ring/50 sr-only text-sm font-medium focus:not-sr-only focus:absolute focus:top-1 focus:left-2 focus:z-30 focus:rounded-lg focus:px-3 focus:py-2 focus-visible:ring-[3px]"
+        >
+          Aller au contenu
+        </a>
+        <Button
+          type="button"
+          variant="secondary"
+          ghost
+          iconOnly
+          className="relative md:hidden [&_svg]:size-[1.1rem]"
+          aria-label="Ouvrir le menu"
+          aria-expanded={openMobile}
+          onClick={() => setOpenMobile(true)}
+        >
+          <MenuIcon />
+          {showReviewDot && (
+            <span
+              data-testid="menu-review-count"
+              title={plural(
+                reviewCount,
+                'opération à revoir',
+                'opérations à revoir',
+              )}
+              className="bg-primary text-primary-foreground absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] leading-none font-semibold tabular-nums"
+            >
+              <span aria-hidden>{reviewCount > 99 ? '99+' : reviewCount}</span>
+              <span className="sr-only">
+                {plural(
+                  reviewCount,
+                  'opération à revoir',
+                  'opérations à revoir',
+                )}
+              </span>
             </span>
-          </span>
-        )}
-      </Button>
-      <Link
-        to={ROUTES.dashboard}
-        className="flex h-11 shrink-0 items-center gap-2 rounded-lg px-1 no-underline group-has-[[data-page-back]:not(:empty)]/header:max-md:hidden"
-      >
-        <img src="/logo.svg" alt="" className="size-6" />
-        <span className="font-semibold tracking-tight">Finances</span>
-      </Link>
+          )}
+        </Button>
+        <Link
+          to={ROUTES.dashboard}
+          className="flex h-11 shrink-0 items-center gap-2 rounded-lg px-1 no-underline group-has-[[data-page-back]:not(:empty)]/header:max-md:hidden"
+        >
+          <img src="/logo.svg" alt="" className="size-6" />
+          <span className="font-semibold tracking-tight">Finances</span>
+        </Link>
+        <div
+          ref={setBackSlot}
+          data-page-back
+          className="flex min-w-0 items-center empty:hidden md:ml-1 md:border-l md:pl-2"
+        />
+      </div>
+      {/* The page's month (`MonthNavigator`): a bar of its own under the
+          row on phones, which the header carries when the page scrolls; the
+          middle of the row on a computer, as wide whatever the month. */}
       <div
-        ref={setBackSlot}
-        data-page-back
-        className="flex min-w-0 items-center empty:hidden md:ml-1 md:border-l md:pl-2"
+        ref={setMonthSlot}
+        data-page-month
+        className="@container col-span-2 row-start-2 flex h-12 items-center border-t px-2 empty:hidden md:col-span-1 md:col-start-2 md:row-start-1 md:w-[17rem] md:border-t-0 md:px-0 lg:w-[20rem]"
       />
-      <div className="ml-auto flex shrink-0 items-center gap-1 md:gap-2">
+      {/* Until the page has put its month there (once hydrated, and once
+          it knows its month), keep the bar's room so nothing below moves;
+          hidden by `globals.css` as soon as the month is in. */}
+      {monthPage && (
+        <div
+          data-month-placeholder
+          aria-hidden
+          className="col-span-2 row-start-2 h-12 border-t md:hidden"
+        />
+      )}
+      <div className="col-start-2 row-start-1 flex h-12 items-center justify-end gap-1 pr-2 md:col-start-3 md:gap-2 md:pr-3">
         <div
           ref={setActionsSlot}
           data-page-actions
