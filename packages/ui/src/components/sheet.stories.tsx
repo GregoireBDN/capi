@@ -1,9 +1,13 @@
+import * as React from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, screen, within } from 'storybook/test'
 
 import { Button } from './button'
+import { Input } from './input'
 import {
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
   SheetDescription,
   SheetFooter,
@@ -150,6 +154,74 @@ export const OpenCloseInteraction: Story = {
     await step('Escape closes the sheet', async () => {
       await userEvent.keyboard('{Escape}')
       await expect(screen.queryByText(/side panel/i)).toBeNull()
+    })
+  },
+}
+
+export const Screen: Story = {
+  parameters: {
+    viewport: { defaultViewport: 'mobile2' },
+    docs: {
+      description: {
+        story:
+          'A full-screen editor on phones (#385): `side="screen"`, `SheetBar` on top (round ✕, the title, the round main action `SheetBarAction`, greyed out while it cannot be used), the content scrolling in a body marked `data-sheet-scroll`. It opens without the keyboard; the keyboard covers its end and never moves it.',
+      },
+    },
+  },
+  render: function ScreenStory() {
+    const [value, setValue] = React.useState('')
+    return (
+      <Sheet>
+        <SheetTrigger asChild>
+          <Button>Open editor</Button>
+        </SheetTrigger>
+        <SheetContent side="screen">
+          <SheetBar
+            title="Mettre à jour la valeur"
+            description="Valeur du compte en fin de journée."
+            action={
+              <SheetBarAction
+                label="Enregistrer"
+                disabled={value.trim() === ''}
+              />
+            }
+          />
+          <div
+            data-sheet-scroll=""
+            className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4"
+          >
+            <label className="block space-y-2 text-sm font-medium">
+              <span>Valeur</span>
+              <Input
+                inputMode="decimal"
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+              />
+            </label>
+          </div>
+        </SheetContent>
+      </Sheet>
+    )
+  },
+  play: async ({ canvasElement, userEvent, step }) => {
+    const canvas = within(canvasElement)
+    await step('Opens without focusing its field', async () => {
+      await userEvent.click(canvas.getByRole('button', { name: /open editor/i }))
+      const field = await screen.findByRole('textbox')
+      await expect(field).not.toHaveFocus()
+      await expect(
+        screen.getByRole('button', { name: 'Enregistrer' }),
+      ).toBeDisabled()
+    })
+    await step('The main action is on once the field is typed', async () => {
+      await userEvent.type(screen.getByRole('textbox'), '12,5')
+      await expect(
+        screen.getByRole('button', { name: 'Enregistrer' }),
+      ).toBeEnabled()
+    })
+    await step('The round ✕ closes it', async () => {
+      await userEvent.click(screen.getByRole('button', { name: 'Fermer' }))
+      await expect(screen.queryByRole('textbox')).toBeNull()
     })
   },
 }
