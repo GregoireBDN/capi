@@ -3,16 +3,19 @@ import {
   Button,
   cn,
   Sheet,
+  SheetBar,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
+  useIsMobile,
 } from '@finances/ui'
 import { SlidersHorizontalIcon } from 'lucide-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { MonthPeriodDto } from '#/api/types.gen'
 import { PeriodNote } from '#/components/PeriodNote'
+import { FORM_SHEET_SCREEN, SheetScroll } from '#/components/sheets/form-sheet'
 
 export type MonthToolbarFiltersLayout = 'inline' | 'sheet'
 
@@ -58,6 +61,7 @@ function FiltersButton({
   /** Under 290px, a full-width labelled button on a row of its own. */
   stretchWhenNarrow: boolean
 }) {
+  const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -91,17 +95,30 @@ function FiltersButton({
         )}
       </Button>
       <Sheet open={open} onOpenChange={setOpen}>
+        {/* A phone: a page of its own (#385); a narrow bar elsewhere: a
+            bottom sheet. */}
         <SheetContent
-          side="bottom"
-          className="max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl"
+          side={isMobile ? 'screen' : 'bottom'}
+          className={
+            isMobile
+              ? FORM_SHEET_SCREEN
+              : 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
+          }
         >
-          <SheetHeader className="pb-0">
-            <SheetTitle>Filtres</SheetTitle>
-            <SheetDescription className="sr-only">
-              Filtres des chiffres du mois
-            </SheetDescription>
-          </SheetHeader>
-          <div className="px-4 pb-6">{filters('sheet')}</div>
+          {isMobile ? (
+            <SheetBar
+              title="Filtres"
+              description="Filtres des chiffres du mois"
+            />
+          ) : (
+            <SheetHeader className="pb-0">
+              <SheetTitle>Filtres</SheetTitle>
+              <SheetDescription className="sr-only">
+                Filtres des chiffres du mois
+              </SheetDescription>
+            </SheetHeader>
+          )}
+          <SheetScroll className="px-4 pb-6">{filters('sheet')}</SheetScroll>
         </SheetContent>
       </Sheet>
     </>

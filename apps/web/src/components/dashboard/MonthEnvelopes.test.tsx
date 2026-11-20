@@ -344,7 +344,7 @@ describe('MonthEnvelopes', () => {
     )
   })
 
-  it('types the amount on its own keypad on a phone, never the system keyboard', async () => {
+  it('is a page of its own on a phone, the amount typed with the phone keyboard', async () => {
     const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation(
       (query: string) =>
         ({
@@ -375,24 +375,22 @@ describe('MonthEnvelopes', () => {
         ).getByRole('button', { name: /Boulangerie test/ }),
       )
       const amount = within(dialog).getByLabelText('Montant')
-      // The field only shows the amount: not focused, not typed in.
-      expect(amount).not.toHaveFocus()
-      expect(amount).toHaveAttribute('readonly')
-      expect(amount).toHaveAttribute('inputmode', 'none')
+      // A plain field on the phone's decimal keyboard (#385): no keypad.
+      expect(amount).toHaveFocus()
+      expect(amount).not.toHaveAttribute('readonly')
+      expect(amount).toHaveAttribute('inputmode', 'decimal')
+      expect(
+        within(dialog).queryByRole('group', { name: 'Pavé numérique' }),
+      ).not.toBeInTheDocument()
       expect(
         within(dialog).getByText('Courses · Boulangerie test'),
       ).toBeVisible()
-      const keypad = within(dialog).getByRole('group', {
-        name: 'Pavé numérique',
-      })
-      for (const key of ['0', '1', '2', ',', '5', '0', '7']) {
-        await user.click(within(keypad).getByRole('button', { name: key }))
-      }
+      await user.type(amount, '12,50')
       expect(amount).toHaveValue('12,50')
-      await user.click(within(keypad).getByRole('button', { name: 'Effacer' }))
+      await user.type(amount, '{Backspace}')
       expect(amount).toHaveValue('12,5')
-      // "Suivant" is a key of the keypad.
-      await user.click(within(keypad).getByRole('button', { name: 'Suivant' }))
+      // The bar's round button moves on, then adds.
+      await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
       await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
       await waitFor(() =>
         expect(api.transactionsControllerCreateManual).toHaveBeenCalledWith(

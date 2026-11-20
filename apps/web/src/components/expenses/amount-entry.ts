@@ -1,6 +1,6 @@
 /**
- * The amount of a manual transaction as typed, key by key, on the sheet's
- * keypad or a physical keyboard (#245). It stays the text the user sees
+ * The amount of a manual transaction as typed key by key with a computer's
+ * keyboard on the amount step (#245). It stays the text the user sees
  * ("12,5"), read into cents with `parseEurosToCents` only when saved: never
  * through a float.
  */
@@ -8,7 +8,7 @@
 /** Highest amount the API accepts (1 000 000 €). */
 export const MAX_AMOUNT_CENTS = 100_000_000
 
-/** A key of the keypad: a digit, the decimal comma or "effacer". */
+/** A key typed on the amount step: a digit, the decimal comma or "effacer". */
 export type AmountKey =
   | '0'
   | '1'
@@ -62,7 +62,7 @@ export function amountKeyOf(key: string): AmountKey | null {
 /**
  * Text typed or pasted in the amount field (desktop): spaces and a trailing
  * "€" dropped, "." read as ",". Returns null when it isn't an amount the
- * keypad could have typed, or is over `maxCents`, so the field keeps its
+ * keys could have typed, or is over `maxCents`, so the field keeps its
  * previous value.
  */
 export function typedAmount(
