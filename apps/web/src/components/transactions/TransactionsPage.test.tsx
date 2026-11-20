@@ -67,9 +67,18 @@ globalThis.ResizeObserver ??= class {
 }
 vi.mock('sonner', () => ({ toast }))
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ to, children }: { to: string; children: ReactNode }) => (
-    <a href={to}>{children}</a>
-  ),
+  Link: ({
+    to,
+    search,
+    children,
+  }: {
+    to: string
+    search?: Record<string, string>
+    children: ReactNode
+  }) => {
+    const query = new URLSearchParams(search).toString()
+    return <a href={query ? `${to}?${query}` : to}>{children}</a>
+  },
 }))
 
 /** Testing Library collapses the narrow no-break spaces `Intl` emits. */
@@ -557,6 +566,27 @@ describe('TransactionsPage', () => {
         kind: 'transfer',
         needsReview: true,
       }),
+    )
+  })
+
+  it('goes back to Dépenses, its parent page, on the month shown (#393)', async () => {
+    setup({ month: '2026-10', review: true })
+    await waitForRows()
+    expect(screen.getByRole('link', { name: 'Dépenses' })).toHaveAttribute(
+      'href',
+      '/spending?month=2026-10',
+    )
+    expect(
+      screen.getByRole('button', { name: 'Ajouter une opération' }),
+    ).toBeInTheDocument()
+  })
+
+  it('goes back to Dépenses on its default month from every date (#393)', async () => {
+    setup({ month: 'all' })
+    await waitForRows()
+    expect(screen.getByRole('link', { name: 'Dépenses' })).toHaveAttribute(
+      'href',
+      '/spending',
     )
   })
 

@@ -106,7 +106,8 @@ export function AppSidebar() {
           </Link>
         </SidebarMenuButton>
         {/* The badge is a link of its own: Opérations filtered on « À
-            revoir » (#322). Hidden while the column is folded. */}
+            revoir » (#322), on « Dépenses », whose sub-page it is (#393).
+            Hidden while the column is folded. */}
         {/* What people owe the owner (#359), hidden at 0. */}
         {badge === 'owedTotal' && queryClient && <OwedBadge to={to} />}
         {count !== null && count > 0 && (

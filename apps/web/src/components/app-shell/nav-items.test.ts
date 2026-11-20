@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { carriedMonth } from './nav-items'
+import { NAV_ITEMS, carriedMonth, isNavEntryActive } from './nav-items'
 
 describe('carriedMonth', () => {
   it('carries the month between month pages', () => {
@@ -31,5 +31,22 @@ describe('carriedMonth', () => {
     expect(
       carriedMonth('/spending', { month: '2026-09' }, '/spending'),
     ).toBeUndefined()
+  })
+})
+
+describe('isNavEntryActive', () => {
+  const spending = NAV_ITEMS.find((item) => item.label === 'Dépenses')!
+
+  it('makes « Dépenses » the entry of Opérations, its sub-page (#393)', () => {
+    expect(isNavEntryActive('/spending', spending)).toBe(true)
+    expect(isNavEntryActive('/transactions', spending)).toBe(true)
+    expect(isNavEntryActive('/transactions/42', spending)).toBe(true)
+    expect(isNavEntryActive('/transactionsx', spending)).toBe(false)
+    expect(isNavEntryActive('/budget', spending)).toBe(false)
+  })
+
+  it('leaves Opérations out of the sidebar, its count on « Dépenses »', () => {
+    expect(NAV_ITEMS.map((item) => item.to)).not.toContain('/transactions')
+    expect(spending.badge).toBe('reviewCount')
   })
 })

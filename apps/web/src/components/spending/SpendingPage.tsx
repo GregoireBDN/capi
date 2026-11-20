@@ -15,8 +15,13 @@ import {
   Skeleton,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { ChartPieIcon, ReceiptEuroIcon, UploadIcon } from 'lucide-react'
+import { Link, useNavigate } from '@tanstack/react-router'
+import {
+  ArrowLeftRightIcon,
+  ChartPieIcon,
+  ReceiptEuroIcon,
+  UploadIcon,
+} from 'lucide-react'
 import { NearestMonthButton } from '#/components/month/NearestMonthButton'
 import { useMemo, useState } from 'react'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
@@ -150,6 +155,7 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
   }, [totals.data, trend.data, search.trend])
 
   const [adding, setAdding] = useState(false)
+  const navigate = useNavigate()
 
   const set = (patch: Partial<SpendingSearch>) => {
     onSearchChange(compactSearch({ ...search, ...patch }))
@@ -168,13 +174,23 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
       <PageHeader
         title="Dépenses"
         description="Où part votre argent, catégorie par catégorie."
-        // The page's « ⋮ » (#386): add an expense here, where they are read.
+        // The page's « ⋮ » (#386): add an expense here, where they are read,
+        // and Opérations, its sub-page (#393), on the month shown.
         actions={[
           {
             label: 'Ajouter une dépense',
             icon: <ReceiptEuroIcon />,
             primary: true,
             onSelect: () => setAdding(true),
+          },
+          {
+            label: 'Voir les opérations',
+            icon: <ArrowLeftRightIcon />,
+            onSelect: () =>
+              void navigate({
+                to: ROUTES.transactions,
+                search: search.month ? { month: search.month } : {},
+              }),
           },
         ]}
       />
