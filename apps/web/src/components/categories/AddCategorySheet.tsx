@@ -1,5 +1,4 @@
 import {
-  Button,
   Field,
   FieldError,
   FieldLabel,
@@ -153,15 +152,6 @@ export function AddCategorySheet({
                 label="Icône de la nouvelle catégorie"
               />
             </Field>
-            {!isMobile && (
-              <Button
-                type="submit"
-                className="w-full sm:w-auto"
-                loading={create.isPending}
-              >
-                Ajouter
-              </Button>
-            )}
           </form>
         </SheetScroll>
       </SheetContent>

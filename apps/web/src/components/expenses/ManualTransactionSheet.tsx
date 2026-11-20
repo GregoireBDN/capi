@@ -6,8 +6,6 @@ import {
   ConfirmDialog,
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogTitle,
   Field,
   FieldDescription,
   FieldError,
@@ -21,9 +19,7 @@ import {
   SheetBar,
   SheetBarAction,
   SheetContent,
-  SheetDescription,
   SheetSteps,
-  SheetTitle,
   Switch,
   Textarea,
   useIsMobile,
@@ -32,7 +28,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CalendarDaysIcon,
   ChevronDownIcon,
-  ChevronLeftIcon,
   ChevronRightIcon,
   EuroIcon,
   TagIcon,
@@ -88,7 +83,7 @@ import {
   VoucherDayGauge,
 } from './manual-fields'
 import { splitTransaction } from '#/components/transactions/edits'
-import { FormSheetPhoneActions } from '#/components/sheets/form-sheet'
+import { FormSheetMoreActions } from '#/components/sheets/form-sheet'
 
 const LABEL_MAX = 255
 const NOTE_MAX = 2000
@@ -650,8 +645,6 @@ export function ManualTransactionSheet({
     }
   }
 
-  const Title = isMobile ? SheetTitle : DialogTitle
-  const Description = isMobile ? SheetDescription : DialogDescription
   const submitLabel = expense ? 'Enregistrer' : 'Ajouter'
   const categoryChosen = Boolean(categoryId) || allowNoCategory
   const CategoryGlyph = categoryIconComponent(chosenCategory?.icon ?? null)
@@ -675,38 +668,6 @@ export function ManualTransactionSheet({
     </p>
   )
 
-  // Beside the page only: on a phone the bar's round button moves on.
-  const footer = isMobile ? null : (
-    <div className="flex shrink-0 gap-2 border-t px-4 py-3">
-      {step === 'details' && expense && (
-        <Button
-          type="button"
-          variant="danger"
-          outline
-          className={FIELD_HEIGHT}
-          onClick={() => setConfirmOpen(true)}
-        >
-          Supprimer
-        </Button>
-      )}
-      <Button
-        type="submit"
-        className={cn('flex-1 font-medium', FIELD_HEIGHT)}
-        loading={step === 'details' && save.isPending}
-        disabled={step === 'details' ? saveDisabled : nextDisabled}
-      >
-        {step === 'details' ? (
-          submitLabel
-        ) : (
-          <>
-            Suivant
-            <ChevronRightIcon aria-hidden />
-          </>
-        )}
-      </Button>
-    </div>
-  )
-
   const form = (
     <form
       ref={formRef}
@@ -714,101 +675,64 @@ export function ManualTransactionSheet({
       onSubmit={submit}
       className="flex min-h-0 flex-1 flex-col"
     >
-      {isMobile ? (
-        <SheetBar
-          title={expense ? editTitle : addTitle}
-          description={`Étape ${stepIndex + 1} sur ${STEPS.length} : ${STEP_NAMES[step]}`}
-          steps={
-            <SheetSteps
-              current={step}
-              onSelect={(key) => setStep(key as Step)}
-              steps={[
-                // Once chosen, the category's own icon in its colour.
-                chosenCategory
-                  ? {
-                      key: 'category',
-                      label: chosenCategory.name,
-                      icon: <CategoryGlyph aria-hidden />,
-                      color: chosenCategory.color,
-                    }
-                  : {
-                      key: 'category',
-                      label: STEP_NAMES.category,
-                      icon: <TagIcon aria-hidden />,
-                    },
-                {
-                  key: 'amount',
-                  label: STEP_NAMES.amount,
-                  icon: <EuroIcon aria-hidden />,
-                  disabled: !categoryChosen,
-                },
-                {
-                  key: 'details',
-                  label: STEP_NAMES.details,
-                  icon: <CalendarDaysIcon aria-hidden />,
-                  disabled: !categoryChosen || amountError !== null,
-                },
-              ]}
-            />
-          }
-          onBack={
-            stepIndex > 0 ? () => setStep(STEPS[stepIndex - 1]) : undefined
-          }
-          action={
-            <SheetBarAction
-              type="submit"
-              label={step === 'details' ? submitLabel : 'Suivant'}
-              icon={
-                step === 'details' ? undefined : (
-                  <ChevronRightIcon aria-hidden strokeWidth={2.6} />
-                )
-              }
-              loading={step === 'details' && save.isPending}
-              disabled={step === 'details' ? saveDisabled : nextDisabled}
-            />
-          }
-        />
-      ) : (
-        <>
-          <Title className="sr-only">{expense ? editTitle : addTitle}</Title>
-          <Description className="sr-only">
-            L’import du relevé la remplacera.
-          </Description>
-
-          {/* Where we are, and the way back; clear of the close button. */}
-          <div className="flex min-h-14 items-center gap-1 py-2 pr-12 pl-2">
-            {stepIndex > 0 ? (
-              <Button
-                type="button"
-                ghost
-                variant="secondary"
-                onClick={() => setStep(STEPS[stepIndex - 1])}
-              >
-                <ChevronLeftIcon aria-hidden />
-                Retour
-              </Button>
-            ) : (
-              <span className="w-2" />
-            )}
-            <h3
-              ref={stepRef}
-              tabIndex={-1}
-              className="min-w-0 flex-1 truncate text-base font-semibold outline-none"
-            >
-              {STEP_NAMES[step]}
-              <span className="text-muted-foreground ml-1.5 text-sm font-normal">
-                {stepIndex + 1}/{STEPS.length}
-              </span>
-            </h3>
-          </div>
-        </>
-      )}
+      <SheetBar
+        titleRef={stepRef}
+        title={expense ? editTitle : addTitle}
+        description={`Étape ${stepIndex + 1} sur ${STEPS.length} : ${STEP_NAMES[step]}`}
+        steps={
+          <SheetSteps
+            current={step}
+            onSelect={(key) => setStep(key as Step)}
+            steps={[
+              // Once chosen, the category's own icon in its colour.
+              chosenCategory
+                ? {
+                    key: 'category',
+                    label: chosenCategory.name,
+                    icon: <CategoryGlyph aria-hidden />,
+                    color: chosenCategory.color,
+                  }
+                : {
+                    key: 'category',
+                    label: STEP_NAMES.category,
+                    icon: <TagIcon aria-hidden />,
+                  },
+              {
+                key: 'amount',
+                label: STEP_NAMES.amount,
+                icon: <EuroIcon aria-hidden />,
+                disabled: !categoryChosen,
+              },
+              {
+                key: 'details',
+                label: STEP_NAMES.details,
+                icon: <CalendarDaysIcon aria-hidden />,
+                disabled: !categoryChosen || amountError !== null,
+              },
+            ]}
+          />
+        }
+        onBack={stepIndex > 0 ? () => setStep(STEPS[stepIndex - 1]) : undefined}
+        action={
+          <SheetBarAction
+            type="submit"
+            label={step === 'details' ? submitLabel : 'Suivant'}
+            icon={
+              step === 'details' ? undefined : (
+                <ChevronRightIcon aria-hidden strokeWidth={2.6} />
+              )
+            }
+            loading={step === 'details' && save.isPending}
+            disabled={step === 'details' ? saveDisabled : nextDisabled}
+          />
+        }
+      />
 
       {step === 'category' && (
         <>
           <div
             data-sheet-scroll=""
-            className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 group-data-[side=screen]/sheet:pt-4"
+            className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 pt-4"
           >
             {/* Three labels on a 320px phone: sized on the row's width. */}
             <div className="@container">
@@ -876,7 +800,6 @@ export function ManualTransactionSheet({
               />
             </section>
           </div>
-          {footer}
         </>
       )}
 
@@ -957,7 +880,6 @@ export function ManualTransactionSheet({
               )
             )}
           </div>
-          {footer}
         </>
       )}
 
@@ -965,7 +887,7 @@ export function ManualTransactionSheet({
         <>
           <div
             data-sheet-scroll=""
-            className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 group-data-[side=screen]/sheet:pt-4"
+            className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 pt-4"
           >
             <div className="text-center">
               <p
@@ -1144,7 +1066,7 @@ export function ManualTransactionSheet({
               )}
             </div>
             {expense && (
-              <FormSheetPhoneActions>
+              <FormSheetMoreActions>
                 <Button
                   type="button"
                   variant="danger"
@@ -1153,10 +1075,9 @@ export function ManualTransactionSheet({
                 >
                   Supprimer l’opération
                 </Button>
-              </FormSheetPhoneActions>
+              </FormSheetMoreActions>
             )}
           </div>
-          {footer}
         </>
       )}
     </form>

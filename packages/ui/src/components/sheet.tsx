@@ -52,6 +52,11 @@ type SheetBarProps = Omit<React.ComponentProps<'div'>, 'title'> & {
    * description is then read by screen readers only.
    */
   steps?: React.ReactNode
+  /**
+   * The title, focusable: a stepped editor focuses it on each step, so
+   * keyboards and screen readers start from the top (never a field).
+   */
+  titleRef?: React.Ref<HTMLHeadingElement>
 }
 type SheetBarActionProps = Omit<
   React.ComponentProps<typeof Button>,
@@ -515,6 +520,8 @@ function SheetContent({
               size="sm"
               className={cn(
                 'absolute top-3 right-3',
+                // A panel with a `SheetBar` has its round ✕ there (#385).
+                '[[data-slot=sheet-content]:has([data-slot=sheet-bar])_&]:hidden',
                 // Stay clear of the notch / status bar on edge-to-edge sides
                 'group-data-[side=left]/sheet:top-[calc(--spacing(3)+env(safe-area-inset-top))]',
                 'group-data-[side=right]/sheet:top-[calc(--spacing(3)+env(safe-area-inset-top))]',
@@ -577,6 +584,7 @@ function SheetBar({
   closeLabel = 'Fermer',
   action,
   steps,
+  titleRef,
   className,
   ...props
 }: SheetBarProps) {
@@ -607,7 +615,10 @@ function SheetBar({
           <SheetPrimitive.Close asChild>{leave}</SheetPrimitive.Close>
         )}
         <SheetTitle
+          ref={titleRef}
+          tabIndex={titleRef ? -1 : undefined}
           className={cn(
+            'outline-none',
             // Two lines at most, sized in px (the app's root is 22px).
             'line-clamp-2 min-w-0 flex-1 text-center text-[17px] leading-tight break-normal',
           )}

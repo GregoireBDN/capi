@@ -208,14 +208,20 @@ describe('AddCryptoSheet', () => {
     expect(
       dialog.getByRole('heading', { name: /D’où viennent ces cryptos \?/ }),
     ).toBeInTheDocument()
-    expect(dialog.getByText('Étape 1 sur 3')).toBeInTheDocument()
+    expect(dialog.getByRole('button', { name: /^1\. / })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
     // No « Suivant » on a list of choices: the tap is the choice.
     expect(dialog.queryByRole('button', { name: /Suivant/ })).toBeNull()
     await user.click(dialog.getByRole('button', { name: /^Un wallet/ }))
     expect(
       dialog.getByRole('heading', { name: /Quel wallet \?/ }),
     ).toBeInTheDocument()
-    expect(dialog.getByText('Étape 2 sur 3')).toBeInTheDocument()
+    expect(dialog.getByRole('button', { name: /^2\. / })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
     await user.click(dialog.getByRole('button', { name: 'Retour' }))
     expect(
       dialog.getByRole('heading', { name: /D’où viennent ces cryptos \?/ }),
@@ -248,7 +254,10 @@ describe('AddCryptoSheet', () => {
     expect(
       await dialog.findByRole('heading', { name: /Récapitulatif/ }),
     ).toBeInTheDocument()
-    expect(dialog.getByText('Étape 3 sur 3')).toBeInTheDocument()
+    expect(dialog.getByRole('button', { name: /^3\. / })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
     expect(dialog.getByText('Avoirs après l’import')).toBeInTheDocument()
 
     await user.click(dialog.getByRole('button', { name: 'Importer 12 lignes' }))
@@ -316,7 +325,10 @@ describe('AddCryptoSheet', () => {
     await user.click(dialog.getByRole('button', { name: /Suivant/ }))
 
     await dialog.findByRole('heading', { name: /Récapitulatif/ })
-    expect(dialog.getByText('Étape 3 sur 3')).toBeInTheDocument()
+    expect(dialog.getByRole('button', { name: /^3\. / })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
     expect(dialog.getByText('1. Clé Bitcoin')).toBeInTheDocument()
     expect(dialog.getByText('2. Adresse EVM · Ethereum')).toBeInTheDocument()
     expect(dialog.getByText('xpub661M…GMcet8')).toBeInTheDocument()
@@ -360,7 +372,10 @@ describe('AddCryptoSheet', () => {
     expect(
       dialog.getByRole('heading', { name: /Combien \?/ }),
     ).toBeInTheDocument()
-    expect(dialog.getByText('Étape 2 sur 3')).toBeInTheDocument()
+    expect(dialog.getByRole('button', { name: /^2\. / })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
 
     await user.click(dialog.getByRole('button', { name: /Suivant/ }))
     expect(dialog.getByText('Indiquez la quantité')).toBeInTheDocument()

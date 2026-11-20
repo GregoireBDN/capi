@@ -5,9 +5,6 @@ import {
   Sheet,
   SheetBar,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   useIsMobile,
 } from '@finances/ui'
 import { SlidersHorizontalIcon } from 'lucide-react'
@@ -105,19 +102,10 @@ function FiltersButton({
               : 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
           }
         >
-          {isMobile ? (
-            <SheetBar
-              title="Filtres"
-              description="Filtres des chiffres du mois"
-            />
-          ) : (
-            <SheetHeader className="pb-0">
-              <SheetTitle>Filtres</SheetTitle>
-              <SheetDescription className="sr-only">
-                Filtres des chiffres du mois
-              </SheetDescription>
-            </SheetHeader>
-          )}
+          <SheetBar
+            title="Filtres"
+            description="Filtres des chiffres du mois"
+          />
           <SheetScroll className="px-4 pb-6">{filters('sheet')}</SheetScroll>
         </SheetContent>
       </Sheet>

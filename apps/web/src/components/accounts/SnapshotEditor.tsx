@@ -10,9 +10,6 @@ import {
   SheetBar,
   SheetBarAction,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   Textarea,
   useIsMobile,
 } from '@finances/ui'
@@ -30,8 +27,7 @@ import {
   FORM_SHEET_FORM,
   FORM_SHEET_SIDE,
   FormSheetBody,
-  FormSheetFooter,
-  FormSheetPhoneActions,
+  FormSheetMoreActions,
 } from '#/components/sheets/form-sheet'
 import { formatCalendarDate, formatCents } from '#/lib/money'
 import { centsToInput, parseAmountToCents } from './amount'
@@ -199,26 +195,19 @@ export function SnapshotEditor({
             valueRef.current?.focus()
           }}
         >
-          {isMobile ? (
-            <SheetBar
-              title={title}
-              description={DESCRIPTION}
-              action={
-                <SheetBarAction
-                  type="submit"
-                  form={`${id}-form`}
-                  label="Enregistrer"
-                  loading={save.isPending}
-                  disabled={value.trim() === ''}
-                />
-              }
-            />
-          ) : (
-            <SheetHeader>
-              <SheetTitle>{title}</SheetTitle>
-              <SheetDescription>{DESCRIPTION}</SheetDescription>
-            </SheetHeader>
-          )}
+          <SheetBar
+            title={title}
+            description={DESCRIPTION}
+            action={
+              <SheetBarAction
+                type="submit"
+                form={`${id}-form`}
+                label="Enregistrer"
+                loading={save.isPending}
+                disabled={value.trim() === ''}
+              />
+            }
+          />
           <form
             id={`${id}-form`}
             noValidate
@@ -304,7 +293,7 @@ export function SnapshotEditor({
                 </Field>
               )}
               {snapshot && (
-                <FormSheetPhoneActions>
+                <FormSheetMoreActions>
                   <Button
                     type="button"
                     variant="danger"
@@ -313,29 +302,9 @@ export function SnapshotEditor({
                   >
                     Supprimer cette valeur
                   </Button>
-                </FormSheetPhoneActions>
+                </FormSheetMoreActions>
               )}
             </FormSheetBody>
-            <FormSheetFooter>
-              {snapshot && (
-                <Button
-                  type="button"
-                  variant="danger"
-                  outline
-                  className="min-h-11"
-                  onClick={() => setConfirmOpen(true)}
-                >
-                  Supprimer
-                </Button>
-              )}
-              <Button
-                type="submit"
-                className="min-h-11 flex-1 font-medium"
-                loading={save.isPending}
-              >
-                Enregistrer
-              </Button>
-            </FormSheetFooter>
           </form>
         </SheetContent>
       </Sheet>

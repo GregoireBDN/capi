@@ -363,15 +363,6 @@ function AddWalletTokenSheet({
                 sur la page du jeton. Seule cette adresse est envoyée à la
                 chaîne pour lire son symbole et ses décimales.
               </p>
-              {!isMobile && (
-                <Button
-                  type="submit"
-                  className="w-full"
-                  loading={add.isPending}
-                >
-                  Ajouter le jeton
-                </Button>
-              )}
             </form>
           )}
         </SheetScroll>
@@ -588,11 +579,6 @@ export function AddWalletKeySheet({
                 setValues((current) => ({ ...current, ...patch }))
               }}
             />
-            {!isMobile && (
-              <Button type="submit" className="w-full" loading={add.isPending}>
-                Ajouter la clé
-              </Button>
-            )}
           </form>
         </SheetScroll>
       </SheetContent>
@@ -671,11 +657,6 @@ export function WalletKeyTypeSheet({
             }}
           >
             <XpubAddressTypeRadios id={id} value={value} onChange={setValue} />
-            {!isMobile && (
-              <Button type="submit" className="w-full" loading={save.isPending}>
-                Enregistrer
-              </Button>
-            )}
           </form>
         </SheetScroll>
       </SheetContent>

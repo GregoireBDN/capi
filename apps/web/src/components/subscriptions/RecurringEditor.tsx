@@ -14,9 +14,6 @@ import {
   SheetBar,
   SheetBarAction,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   Switch,
   Textarea,
   ToggleGroup,
@@ -243,28 +240,26 @@ export function RecurringEditor({
       >
         {item && (
           <>
-            {isMobile ? (
-              <SheetBar
-                title={item.name}
-                action={
-                  <SheetBarAction
-                    type="submit"
-                    form={`${id}-form`}
-                    label="Enregistrer"
-                    loading={save.isPending}
-                    disabled={reactivate.isPending}
-                  />
-                }
-              />
-            ) : (
-              <SheetHeader className="pb-0">
-                <SheetTitle>{item.name}</SheetTitle>
+            <SheetBar
+              title={item.name}
+              action={
+                <SheetBarAction
+                  type="submit"
+                  form={`${id}-form`}
+                  label="Enregistrer"
+                  loading={save.isPending}
+                  disabled={reactivate.isPending}
+                />
+              }
+            />
+            <SheetScroll>
+              <div className="space-y-1 px-4 pb-4">
                 {/* The summary first (#279): how much, when next, per year. */}
                 <p className="text-2xl font-semibold tabular-nums">
                   {item.direction === 'credit' ? '+' : ''}
                   {formatAmountPerPeriod(item)}
                 </p>
-                <SheetDescription>
+                <p className="text-muted-foreground text-[15px] leading-snug">
                   {item.termMonths
                     ? `${formatPrepaid(item)} le ${formatDayMonth(item.lastSeenDate, today)} · ${
                         item.renewalDate &&
@@ -280,36 +275,8 @@ export function RecurringEditor({
                       : `Dernier le ${formatDayMonth(item.lastSeenDate, today)} · `}
                   {formatCents(item.yearlyCostCents)} par an ·{' '}
                   {item.accountName}
-                </SheetDescription>
-              </SheetHeader>
-            )}
-            <SheetScroll>
-              {isMobile && (
-                <div className="space-y-1 px-4 pb-4">
-                  {/* The summary first (#279): how much, when next, per year. */}
-                  <p className="text-2xl font-semibold tabular-nums">
-                    {item.direction === 'credit' ? '+' : ''}
-                    {formatAmountPerPeriod(item)}
-                  </p>
-                  <p className="text-muted-foreground text-[15px] leading-snug">
-                    {item.termMonths
-                      ? `${formatPrepaid(item)} le ${formatDayMonth(item.lastSeenDate, today)} · ${
-                          item.renewalDate &&
-                          (item.endedOn === null ||
-                            item.renewalDate < item.endedOn)
-                            ? `renouvellement le ${formatDayMonth(item.renewalDate, today)} · `
-                            : ''
-                        }`
-                      : item.nextExpectedDate &&
-                          (item.endedOn === null ||
-                            item.nextExpectedDate < item.endedOn)
-                        ? `Prochain le ${formatDayMonth(item.nextExpectedDate, today)} · `
-                        : `Dernier le ${formatDayMonth(item.lastSeenDate, today)} · `}
-                    {formatCents(item.yearlyCostCents)} par an ·{' '}
-                    {item.accountName}
-                  </p>
-                </div>
-              )}
+                </p>
+              </div>
               <form
                 id={`${id}-form`}
                 noValidate
@@ -472,15 +439,6 @@ export function RecurringEditor({
 
                 <RecurringHistory item={item} today={today} />
                 <div className="grid gap-2 pt-2">
-                  {!isMobile && (
-                    <Button
-                      type="submit"
-                      loading={save.isPending}
-                      disabled={reactivate.isPending}
-                    >
-                      Enregistrer
-                    </Button>
-                  )}
                   {item.status === 'suggested' && (
                     <Button
                       type="button"

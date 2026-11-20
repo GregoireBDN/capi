@@ -1,12 +1,10 @@
 import {
   Alert,
   AlertDescription,
-  Button,
   CategoryIcon,
   Checkbox,
   Sheet,
   SheetContent,
-  SheetFooter,
   Skeleton,
   useIsMobile,
 } from '@finances/ui'
@@ -238,20 +236,6 @@ export function IncomeSuggestionsSheet({
             </ul>
           )}
         </SheetScroll>
-
-        {!isMobile && items.length > 0 && (
-          <SheetFooter>
-            <Button
-              loading={apply.isPending}
-              disabled={accepted.length === 0 || invalid}
-              onClick={() => apply.mutate()}
-            >
-              {accepted.length === 0
-                ? 'Aucun revenu sélectionné'
-                : `Enregistrer ${plural(accepted.length, 'revenu')}`}
-            </Button>
-          </SheetFooter>
-        )}
       </SheetContent>
     </Sheet>
   )

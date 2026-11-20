@@ -156,12 +156,16 @@ describe('ClaudeAccessPage', () => {
       await screen.findByRole('button', { name: /Claude sur ce Mac/ }),
     )
     const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveTextContent('Étape 1 sur 3')
+    expect(
+      within(dialog).getByRole('button', { name: '1. Accès' }),
+    ).toHaveAttribute('aria-current', 'step')
     expect(dialog).toHaveTextContent('Que peut faire Claude ?')
     await user.click(
       within(dialog).getByRole('button', { name: /Lire et classer/ }),
     )
-    expect(dialog).toHaveTextContent('Étape 2 sur 3')
+    expect(
+      within(dialog).getByRole('button', { name: '2. Durée' }),
+    ).toHaveAttribute('aria-current', 'step')
     expect(api.accessTokensControllerCreate).not.toHaveBeenCalled()
     await user.click(within(dialog).getByRole('button', { name: /90 jours/ }))
 
@@ -173,7 +177,9 @@ describe('ClaudeAccessPage', () => {
         }),
       ),
     )
-    expect(await within(dialog).findByText('Étape 3 sur 3')).toBeTruthy()
+    expect(
+      await within(dialog).findByRole('button', { name: '3. Installer' }),
+    ).toHaveAttribute('aria-current', 'step')
 
     const config = within(dialog).getByRole('figure', {
       name: 'claude_desktop_config.json',
@@ -286,7 +292,9 @@ describe('ClaudeAccessPage', () => {
         body: expect.objectContaining({ expiresInDays: 30 }),
       }),
     )
-    expect(await screen.findByText('Étape 3 sur 3')).toBeTruthy()
+    expect(
+      await screen.findByRole('button', { name: '3. Installer' }),
+    ).toHaveAttribute('aria-current', 'step')
   })
 
   it('gives the connector address to paste in claude.ai', async () => {

@@ -12,9 +12,6 @@ import {
   SheetBar,
   SheetBarAction,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -42,7 +39,6 @@ import {
   FORM_SHEET_FORM,
   FORM_SHEET_SIDE,
   FormSheetBody,
-  FormSheetFooter,
 } from '#/components/sheets/form-sheet'
 import {
   CRYPTO_SOURCE_LABELS,
@@ -440,28 +436,21 @@ export function AccountEditor({
           side={editorSide(isMobile)}
           className={isMobile ? FORM_SHEET_SCREEN : FORM_SHEET_SIDE}
         >
-          {isMobile ? (
-            <SheetBar
-              title={title}
-              description={description}
-              onBack={deleting ? () => setScreen('edit') : undefined}
-              action={
-                deleting ? undefined : (
-                  <SheetBarAction
-                    type="submit"
-                    form={`${id}-form`}
-                    label={creating ? 'Créer le compte' : 'Enregistrer'}
-                    loading={creating ? create.isPending : rename.isPending}
-                  />
-                )
-              }
-            />
-          ) : (
-            <SheetHeader>
-              <SheetTitle>{title}</SheetTitle>
-              <SheetDescription>{description}</SheetDescription>
-            </SheetHeader>
-          )}
+          <SheetBar
+            title={title}
+            description={description}
+            onBack={deleting ? () => setScreen('edit') : undefined}
+            action={
+              deleting ? undefined : (
+                <SheetBarAction
+                  type="submit"
+                  form={`${id}-form`}
+                  label={creating ? 'Créer le compte' : 'Enregistrer'}
+                  loading={creating ? create.isPending : rename.isPending}
+                />
+              )
+            }
+          />
           {!creating && screen === 'delete' ? (
             <DeleteAccountScreen
               account={account}
@@ -702,15 +691,6 @@ export function AccountEditor({
                   </section>
                 )}
               </FormSheetBody>
-              <FormSheetFooter>
-                <Button
-                  type="submit"
-                  className="min-h-11 flex-1 font-medium"
-                  loading={creating ? create.isPending : rename.isPending}
-                >
-                  {creating ? 'Créer le compte' : 'Enregistrer'}
-                </Button>
-              </FormSheetFooter>
             </form>
           )}
         </SheetContent>

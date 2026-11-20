@@ -28,7 +28,6 @@ import {
   FORM_SHEET_FORM,
   FORM_SHEET_SIDE,
   FormSheetBody,
-  FormSheetFooter,
 } from '#/components/sheets/form-sheet'
 import { formatCents } from '#/lib/money'
 import { ContactAvatar } from './ContactAvatar'
@@ -308,16 +307,6 @@ function ContactForm({
           </div>
         )}
       </FormSheetBody>
-      <FormSheetFooter>
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={!ok}
-          loading={save.isPending}
-        >
-          {contact ? 'Enregistrer' : 'Ajouter'}
-        </Button>
-      </FormSheetFooter>
     </form>
   )
 }

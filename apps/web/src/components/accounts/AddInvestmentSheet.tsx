@@ -28,7 +28,6 @@ import {
   FORM_SHEET_FORM,
   FORM_SHEET_SIDE,
   FormSheetBody,
-  FormSheetFooter,
 } from '#/components/sheets/form-sheet'
 import { parseAmountToCents } from './amount'
 import { todayInParis } from './dates'
@@ -382,15 +381,6 @@ export function AddInvestmentSheet({
                   )}
                 </Field>
               </FormSheetBody>
-              <FormSheetFooter>
-                <Button
-                  type="submit"
-                  className="min-h-11 flex-1 font-medium"
-                  loading={create.isPending}
-                >
-                  Ajouter
-                </Button>
-              </FormSheetFooter>
             </form>
           </>
         )}

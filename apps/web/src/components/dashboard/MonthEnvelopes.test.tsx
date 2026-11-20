@@ -192,6 +192,16 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+/** The step shown, from the steps' bar (« 2. Montant »). */
+function currentStep(dialog: HTMLElement): string {
+  return (
+    within(dialog)
+      .getAllByRole('button')
+      .find((button) => button.getAttribute('aria-current') === 'step')
+      ?.getAttribute('aria-label') ?? ''
+  )
+}
+
 describe('MonthEnvelopes', () => {
   it('shows each envelope against its target and the month’s pace', async () => {
     renderCard()
@@ -240,9 +250,7 @@ describe('MonthEnvelopes', () => {
     const dialog = await screen.findByRole('dialog')
     // The envelope chose the category: straight to the amount, focused
     // (desktop: a field, no keypad).
-    expect(within(dialog).getByRole('heading', { level: 3 })).toHaveTextContent(
-      'Montant2/3',
-    )
+    expect(currentStep(dialog)).toMatch(/^2\./)
     await waitFor(() =>
       expect(within(dialog).getByLabelText('Montant')).toHaveFocus(),
     )
@@ -314,9 +322,7 @@ describe('MonthEnvelopes', () => {
       await screen.findByRole('button', { name: 'Ajouter une dépense' }),
     )
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByRole('heading', { level: 3 })).toHaveTextContent(
-      'Catégorie1/3',
-    )
+    expect(currentStep(dialog)).toMatch(/^1\./)
     await waitFor(() => expect(chosenCategory(dialog)).toBe('Shopping'))
     // A tap on a category moves on to the amount, focused.
     await user.click(within(dialog).getByRole('radio', { name: 'Courses' }))
@@ -325,11 +331,9 @@ describe('MonthEnvelopes', () => {
     await user.keyboard('42.5{Backspace}9')
     expect(amount).toHaveValue('42,9')
     await user.keyboard('{Enter}')
-    expect(within(dialog).getByRole('heading', { level: 3 })).toHaveTextContent(
-      'Détails3/3',
-    )
+    expect(currentStep(dialog)).toMatch(/^3\./)
     await waitFor(() =>
-      expect(within(dialog).getByRole('heading', { level: 3 })).toHaveFocus(),
+      expect(within(dialog).getByRole('heading', { level: 2 })).toHaveFocus(),
     )
     await user.keyboard('{Enter}')
     await waitFor(() =>
@@ -699,9 +703,7 @@ describe('ManualTransactionSheet (editing)', () => {
 
     const dialog = await screen.findByRole('dialog')
     // An edit opens on the details, with the expense's own values.
-    expect(within(dialog).getByRole('heading', { level: 3 })).toHaveTextContent(
-      'Détails3/3',
-    )
+    expect(currentStep(dialog)).toMatch(/^3\./)
     expect(within(dialog).getByText('− 25 €')).toBeInTheDocument()
     // Nothing optional is set: the options stay folded.
     expect(
@@ -780,7 +782,9 @@ describe('ManualTransactionSheet (editing)', () => {
     const onOpenChange = renderSheet()
 
     const dialog = await screen.findByRole('dialog')
-    await user.click(within(dialog).getByRole('button', { name: 'Supprimer' }))
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Supprimer l’opération' }),
+    )
     const confirm = await screen.findByRole('dialog', {
       name: 'Supprimer cette opération ?',
     })

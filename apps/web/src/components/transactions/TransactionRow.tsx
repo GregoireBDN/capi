@@ -4,9 +4,6 @@ import {
   Sheet,
   SheetBar,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   useIsMobile,
 } from '@finances/ui'
 import {
@@ -428,17 +425,7 @@ export function TransactionRow({
           side={editorSide(isMobile)}
           className={isMobile ? FORM_SHEET_SCREEN : 'overflow-y-auto'}
         >
-          {isMobile ? (
-            <SheetBar title="Modifier l’opération" description={name} />
-          ) : (
-            <SheetHeader className="pb-0">
-              <SheetTitle>Modifier l’opération</SheetTitle>
-              <SheetDescription className="sr-only">
-                Catégorie, note, indicateurs, répartition et correction de{' '}
-                {name}
-              </SheetDescription>
-            </SheetHeader>
-          )}
+          <SheetBar title="Modifier l’opération" description={name} />
           <SheetScroll className="px-4 pb-6">{editor}</SheetScroll>
         </SheetContent>
       </Sheet>

@@ -278,16 +278,6 @@ export function BudgetEditor({
                     {income ? 'Retirer du plan' : 'Arrêter ce budget'}
                   </Button>
                 )}
-                {!isMobile && (
-                  <Button
-                    type="submit"
-                    className="sm:ml-auto"
-                    loading={save.isPending}
-                    disabled={!categoryId}
-                  >
-                    Enregistrer
-                  </Button>
-                )}
               </div>
             </form>
           </SheetScroll>

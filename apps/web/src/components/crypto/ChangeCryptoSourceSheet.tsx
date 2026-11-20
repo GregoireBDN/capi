@@ -2,7 +2,6 @@ import {
   Alert,
   AlertDescription,
   AlertTitle,
-  Button,
   Sheet,
   SheetContent,
   useIsMobile,
@@ -199,18 +198,6 @@ export function ChangeCryptoSourceSheet({
                 setValues((current) => ({ ...current, ...patch }))
               }}
             />
-            {!isMobile && (
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={held > 0}
-                loading={change.isPending}
-              >
-                {values.cryptoKind === 'exchange'
-                  ? 'Relier à la plateforme'
-                  : 'Relier au wallet'}
-              </Button>
-            )}
           </form>
         </SheetScroll>
       </SheetContent>

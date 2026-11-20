@@ -11,18 +11,11 @@ import {
   SheetBar,
   SheetBarAction,
   SheetContent,
-  SheetDescription,
   SheetSteps,
-  SheetTitle,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  CalendarDaysIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  EuroIcon,
-} from 'lucide-react'
+import { CalendarDaysIcon, ChevronRightIcon, EuroIcon } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type {
@@ -37,8 +30,7 @@ import {
   FORM_SHEET_FORM,
   FORM_SHEET_SIDE,
   FormSheetBody,
-  FormSheetFooter,
-  FormSheetPhoneActions,
+  FormSheetMoreActions,
   editorSide,
   FORM_SHEET_SCREEN,
 } from '#/components/sheets/form-sheet'
@@ -189,83 +181,48 @@ export function InvestedSheet({
         }}
       >
         <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
-          {isMobile ? (
-            <SheetBar
-              title={title}
-              description={`${account.name} · étape ${stepIndex + 1} sur 2 : ${STEP_NAMES[step]}`}
-              steps={
-                <SheetSteps
-                  current={step}
-                  onSelect={(key) => setStep(key as Step)}
-                  steps={[
-                    {
-                      key: 'amount',
-                      label: 'Montant',
-                      icon: <EuroIcon aria-hidden />,
-                    },
-                    {
-                      key: 'day',
-                      label: 'Date',
-                      icon: <CalendarDaysIcon aria-hidden />,
-                      disabled: amountError !== null,
-                    },
-                  ]}
-                />
-              }
-              onBack={step === 'day' ? () => setStep('amount') : undefined}
-              action={
-                <SheetBarAction
-                  type="submit"
-                  label={step === 'day' ? 'Enregistrer' : 'Suivant'}
-                  icon={
-                    step === 'day' ? undefined : (
-                      <ChevronRightIcon aria-hidden strokeWidth={2.6} />
-                    )
-                  }
-                  disabled={
-                    step === 'amount'
-                      ? amountError !== null
-                      : amountError !== null || dayError !== null
-                  }
-                  loading={step === 'day' && save.isPending}
-                />
-              }
-            />
-          ) : (
-            <>
-              <SheetTitle className="sr-only">{title}</SheetTitle>
-              <SheetDescription className="sr-only">
-                {account.name}
-              </SheetDescription>
-
-              {/* Where we are, and the way back; clear of the close button. */}
-              <div className="flex min-h-14 shrink-0 items-center gap-1 py-2 pr-12 pl-2">
-                {step === 'day' ? (
-                  <Button
-                    type="button"
-                    ghost
-                    variant="secondary"
-                    onClick={() => setStep('amount')}
-                  >
-                    <ChevronLeftIcon aria-hidden />
-                    Retour
-                  </Button>
-                ) : (
-                  <span className="w-2" />
-                )}
-                <h3
-                  ref={headingRef}
-                  tabIndex={-1}
-                  className="min-w-0 flex-1 truncate text-base font-semibold outline-none"
-                >
-                  {STEP_NAMES[step]}
-                  <span className="text-muted-foreground ml-1.5 text-sm font-normal">
-                    {stepIndex + 1}/2
-                  </span>
-                </h3>
-              </div>
-            </>
-          )}
+          <SheetBar
+            titleRef={headingRef}
+            title={title}
+            description={`${account.name} · étape ${stepIndex + 1} sur 2 : ${STEP_NAMES[step]}`}
+            steps={
+              <SheetSteps
+                current={step}
+                onSelect={(key) => setStep(key as Step)}
+                steps={[
+                  {
+                    key: 'amount',
+                    label: 'Montant',
+                    icon: <EuroIcon aria-hidden />,
+                  },
+                  {
+                    key: 'day',
+                    label: 'Date',
+                    icon: <CalendarDaysIcon aria-hidden />,
+                    disabled: amountError !== null,
+                  },
+                ]}
+              />
+            }
+            onBack={step === 'day' ? () => setStep('amount') : undefined}
+            action={
+              <SheetBarAction
+                type="submit"
+                label={step === 'day' ? 'Enregistrer' : 'Suivant'}
+                icon={
+                  step === 'day' ? undefined : (
+                    <ChevronRightIcon aria-hidden strokeWidth={2.6} />
+                  )
+                }
+                disabled={
+                  step === 'amount'
+                    ? amountError !== null
+                    : amountError !== null || dayError !== null
+                }
+                loading={step === 'day' && save.isPending}
+              />
+            }
+          />
 
           <FormSheetBody ref={fieldRef}>
             {step === 'amount' ? (
@@ -349,7 +306,7 @@ export function InvestedSheet({
               </>
             )}
             {step === 'amount' && current && (
-              <FormSheetPhoneActions>
+              <FormSheetMoreActions>
                 <Button
                   type="button"
                   variant="danger"
@@ -359,43 +316,9 @@ export function InvestedSheet({
                 >
                   Retirer le montant investi
                 </Button>
-              </FormSheetPhoneActions>
+              </FormSheetMoreActions>
             )}
           </FormSheetBody>
-
-          <FormSheetFooter>
-            {step === 'amount' && current && (
-              <Button
-                type="button"
-                variant="danger"
-                outline
-                className="min-h-11"
-                disabled={save.isPending}
-                onClick={() => save.mutate(null)}
-              >
-                Retirer
-              </Button>
-            )}
-            <Button
-              type="submit"
-              className="min-h-11 flex-1 font-medium"
-              disabled={
-                step === 'amount'
-                  ? amountError !== null
-                  : amountError !== null || dayError !== null
-              }
-              loading={step === 'day' && save.isPending}
-            >
-              {step === 'day' ? (
-                'Enregistrer'
-              ) : (
-                <>
-                  Suivant
-                  <ChevronRightIcon aria-hidden />
-                </>
-              )}
-            </Button>
-          </FormSheetFooter>
         </form>
       </SheetContent>
     </Sheet>

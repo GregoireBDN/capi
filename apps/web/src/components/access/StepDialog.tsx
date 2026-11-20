@@ -1,19 +1,14 @@
 import {
-  Button,
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogTitle,
   Sheet,
   SheetBar,
   SheetContent,
-  SheetDescription,
   SheetSteps,
-  SheetTitle,
   useIsMobile,
 } from '@finances/ui'
 import type { SheetStepsProps } from '@finances/ui'
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
+import { ChevronRightIcon } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 
@@ -58,50 +53,20 @@ export function StepDialog({
     if (open) headingRef.current?.focus()
   }, [open, title])
 
-  const Title = isMobile ? SheetTitle : DialogTitle
-  const Description = isMobile ? SheetDescription : DialogDescription
   const content = (
     <div className="flex min-h-0 flex-1 flex-col">
-      {isMobile ? (
-        <SheetBar
-          title={title}
-          description={
-            step ? `${label} · étape ${step[0]} sur ${step[1]}` : description
-          }
-          steps={steps ? <SheetSteps {...steps} /> : undefined}
-          onBack={onBack}
-        />
-      ) : (
-        <>
-          <Title className="sr-only">{label}</Title>
-          <Description className="sr-only">{description}</Description>
-          <div className="flex min-h-14 items-center gap-2 py-2 pr-12 pl-2">
-            {onBack ? (
-              <Button type="button" ghost variant="secondary" onClick={onBack}>
-                <ChevronLeftIcon aria-hidden />
-                Retour
-              </Button>
-            ) : (
-              <span className="w-2" />
-            )}
-            {step && (
-              <p className="text-muted-foreground text-sm whitespace-nowrap">
-                Étape {step[0]} sur {step[1]}
-              </p>
-            )}
-          </div>
-          <h3
-            ref={headingRef}
-            tabIndex={-1}
-            className="px-4 pb-3 text-lg leading-snug font-semibold outline-none"
-          >
-            {title}
-          </h3>
-        </>
-      )}
+      <SheetBar
+        titleRef={headingRef}
+        title={title}
+        description={
+          step ? `${label} · étape ${step[0]} sur ${step[1]}` : description
+        }
+        steps={steps ? <SheetSteps {...steps} /> : undefined}
+        onBack={onBack}
+      />
       <div
         data-sheet-scroll=""
-        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 group-data-[side=screen]/sheet:pt-4"
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 pt-4"
       >
         {children}
       </div>

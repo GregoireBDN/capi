@@ -226,17 +226,6 @@ export function EndRecurringSheet({
                     {editing ? 'Enregistrer' : 'Résilier'}
                   </Button>
                   {/* A phone: the bar's ✕ cancels. */}
-                  {!isMobile && (
-                    <Button
-                      type="button"
-                      outline
-                      variant="secondary"
-                      disabled={save.isPending}
-                      onClick={() => onOpenChange(false)}
-                    >
-                      Annuler
-                    </Button>
-                  )}
                 </div>
               </form>
             </SheetScroll>

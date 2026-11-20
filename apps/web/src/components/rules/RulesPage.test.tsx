@@ -178,9 +178,14 @@ function nbsp(text: string): string {
   return text.replace(/« /g, '«\u00a0').replace(/ »/g, '\u00a0»')
 }
 
-/** The editor's step heading: its name and « n/3 ». */
+/** The editor's step shown, from its steps' bar (« 2. Catégorie »). */
 function stepHeading(sheet: HTMLElement): string | null {
-  return within(sheet).getByRole('heading', { level: 3 }).textContent
+  return (
+    within(sheet)
+      .getAllByRole('button')
+      .find((button) => button.getAttribute('aria-current') === 'step')
+      ?.getAttribute('aria-label') ?? null
+  )
 }
 
 /** The action of the last success toast, as a callback. */
@@ -382,7 +387,7 @@ describe('RulesPage', () => {
       (await screen.findAllByRole('button', { name: 'Nouvelle règle' }))[0],
     )
     const sheet = await screen.findByRole('dialog')
-    expect(stepHeading(sheet)).toBe('Quelles opérations ?1/3')
+    expect(stepHeading(sheet)).toBe('1. Opérations')
     const next = within(sheet).getByRole('button', { name: 'Suivant' })
     expect(next).toHaveProperty('disabled', true)
 
@@ -424,11 +429,11 @@ describe('RulesPage', () => {
     await user.click(next)
 
     // Step 2: a category chip moves on.
-    expect(stepHeading(sheet)).toBe('Classer dans2/3')
+    expect(stepHeading(sheet)).toBe('2. Catégorie')
     await user.click(within(sheet).getByRole('button', { name: 'Cafés' }))
 
     // Step 3: the sentence and what changes, then save.
-    expect(stepHeading(sheet)).toBe('Vérifier3/3')
+    expect(stepHeading(sheet)).toBe('3. Vérifier')
     expect(sheet.textContent).toContain('Libellé contient « CAFE DU COIN »')
     await within(sheet).findByRole('region', { name: 'Ce qui change' })
     expect(api.categorizationRulesControllerPreview).toHaveBeenCalledWith(
@@ -487,7 +492,7 @@ describe('RulesPage', () => {
       }),
     )
     const sheet = await screen.findByRole('dialog')
-    expect(stepHeading(sheet)).toBe('Vérifier3/3')
+    expect(stepHeading(sheet)).toBe('3. Vérifier')
     const overlaps = await within(sheet).findByRole('region', {
       name: 'Règles qui se recouvrent',
     })
@@ -554,8 +559,13 @@ describe('RulesPage', () => {
       }),
     )
     const sheet = await screen.findByRole('dialog')
-    await user.click(within(sheet).getByRole('button', { name: /Opérations/ }))
-    expect(stepHeading(sheet)).toBe('Quelles opérations ?1/3')
+    // The review's section, not the steps' bar (« 1. Opérations, fait »).
+    await user.click(
+      within(sheet)
+        .getAllByRole('button', { name: /Opérations/ })
+        .find((button) => !button.closest('[data-slot=sheet-steps]'))!,
+    )
+    expect(stepHeading(sheet)).toBe('1. Opérations')
     const advanced = within(sheet).getByRole('button', { name: /Avancé/ })
     expect(advanced.getAttribute('aria-expanded')).toBe('false')
     expect(advanced.textContent).toContain('compte Compte test')
@@ -583,7 +593,7 @@ describe('RulesPage', () => {
 
     // The category is known: « Suivant » goes straight back to the review.
     await user.click(within(sheet).getByRole('button', { name: 'Suivant' }))
-    expect(stepHeading(sheet)).toBe('Vérifier3/3')
+    expect(stepHeading(sheet)).toBe('3. Vérifier')
   })
 
   it('shows why the preview failed', async () => {
@@ -672,7 +682,7 @@ describe('RulesPage', () => {
     await user.click(screen.getByText('Ordre d’évaluation'))
     await user.click(rows[1])
     const sheet = await screen.findByRole('dialog')
-    expect(stepHeading(sheet)).toBe('Vérifier3/3')
+    expect(stepHeading(sheet)).toBe('3. Vérifier')
     await user.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 

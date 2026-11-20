@@ -7,16 +7,12 @@ import {
   Sheet,
   SheetBar,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   Skeleton,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   BanknoteIcon,
-  ChevronLeftIcon,
   HandCoinsIcon,
   HandHeartIcon,
   Undo2Icon,
@@ -91,7 +87,6 @@ function ReceivableContent({
   item: ReceivableDto
   onClose: () => void
 }) {
-  const isMobile = useIsMobile()
   const queryClient = useQueryClient()
   const [screen, setScreen] = useState<Screen>('main')
   const owedToMe = item.direction === 'owed_to_me'
@@ -175,40 +170,12 @@ function ReceivableContent({
         ? 'Réglé autrement'
         : item.label
   const owedText = `${owedToMe ? `${who} vous doit` : `Vous devez à ${who}`} ${formatCents(item.leftCents)}`
-  const header = isMobile ? (
+  const header = (
     <SheetBar
       title={title}
       description={owedText}
       onBack={screen !== 'main' ? () => setScreen('main') : undefined}
     />
-  ) : (
-    <SheetHeader>
-      <SheetTitle className="flex items-center gap-1">
-        {screen !== 'main' && (
-          <Button
-            type="button"
-            ghost
-            variant="secondary"
-            iconOnly
-            aria-label="Retour"
-            onClick={() => setScreen('main')}
-          >
-            <ChevronLeftIcon aria-hidden />
-          </Button>
-        )}
-        <span className="min-w-0 truncate">
-          {screen === 'link'
-            ? 'Lier un remboursement'
-            : screen === 'other'
-              ? 'Réglé autrement'
-              : item.label}
-        </span>
-      </SheetTitle>
-      <SheetDescription>
-        {owedToMe ? `${who} vous doit` : `Vous devez à ${who}`}{' '}
-        {formatCents(item.leftCents)}
-      </SheetDescription>
-    </SheetHeader>
   )
 
   if (screen === 'link') {

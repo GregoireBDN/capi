@@ -1,10 +1,7 @@
 import {
-  Button,
   cn,
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogTitle,
   Field,
   FieldError,
   FieldLabel,
@@ -13,16 +10,13 @@ import {
   SheetBar,
   SheetBarAction,
   SheetContent,
-  SheetDescription,
   SheetSteps,
-  SheetTitle,
   Skeleton,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CalendarRangeIcon,
-  ChevronLeftIcon,
   ChevronRightIcon,
   ListChecksIcon,
   ReceiptIcon,
@@ -336,102 +330,67 @@ export function AddPrepaidSheet({
     onSubmit()
   }
 
-  const Title = isMobile ? SheetTitle : DialogTitle
-  const Description = isMobile ? SheetDescription : DialogDescription
   const content = (
     <form noValidate onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-      {isMobile ? (
-        <SheetBar
-          title="Abonnement prépayé"
-          description={`Étape ${step} sur ${STEP_COUNT} : ${title}`}
-          steps={
-            <SheetSteps
-              current={screen}
-              onSelect={(key) => setScreen(key as Screen)}
-              steps={[
-                {
-                  key: 'payment',
-                  label: 'Paiement',
-                  icon: <ReceiptIcon aria-hidden />,
-                },
-                {
-                  key: 'term',
-                  label: 'Durée',
-                  icon: <CalendarRangeIcon aria-hidden />,
-                  disabled: step < 2,
-                },
-                {
-                  key: 'review',
-                  label: 'Vérifier',
-                  icon: <ListChecksIcon aria-hidden />,
-                  disabled: step < 3,
-                },
-              ]}
+      <SheetBar
+        title="Abonnement prépayé"
+        description={`Étape ${step} sur ${STEP_COUNT} : ${title}`}
+        steps={
+          <SheetSteps
+            current={screen}
+            onSelect={(key) => setScreen(key as Screen)}
+            steps={[
+              {
+                key: 'payment',
+                label: 'Paiement',
+                icon: <ReceiptIcon aria-hidden />,
+              },
+              {
+                key: 'term',
+                label: 'Durée',
+                icon: <CalendarRangeIcon aria-hidden />,
+                disabled: step < 2,
+              },
+              {
+                key: 'review',
+                label: 'Vérifier',
+                icon: <ListChecksIcon aria-hidden />,
+                disabled: step < 3,
+              },
+            ]}
+          />
+        }
+        onBack={screen !== 'payment' ? back : undefined}
+        action={
+          action && (
+            <SheetBarAction
+              type="submit"
+              label={action.label}
+              icon={
+                step === STEP_COUNT ? undefined : (
+                  <ChevronRightIcon aria-hidden strokeWidth={2.6} />
+                )
+              }
+              loading={action.loading}
+              disabled={action.disabled}
             />
-          }
-          onBack={screen !== 'payment' ? back : undefined}
-          action={
-            action && (
-              <SheetBarAction
-                type="submit"
-                label={action.label}
-                icon={
-                  step === STEP_COUNT ? undefined : (
-                    <ChevronRightIcon aria-hidden strokeWidth={2.6} />
-                  )
-                }
-                loading={action.loading}
-                disabled={action.disabled}
-              />
-            )
-          }
-        />
-      ) : (
-        <>
-          <Title className="sr-only">Ajouter un abonnement prépayé</Title>
-          <Description className="sr-only">
-            Le paiement, la durée, puis le nom.
-          </Description>
-          <div className="flex min-h-14 items-center gap-2 py-2 pr-12 pl-2">
-            {screen !== 'payment' ? (
-              <Button type="button" ghost variant="secondary" onClick={back}>
-                <ChevronLeftIcon aria-hidden />
-                Retour
-              </Button>
-            ) : (
-              <span className="w-2" />
-            )}
-            <p className="text-muted-foreground text-sm whitespace-nowrap">
-              Étape {step} sur {STEP_COUNT}
-            </p>
-          </div>
-          <h3
-            ref={headingRef}
-            tabIndex={-1}
-            className="px-4 pb-3 text-lg leading-snug font-semibold outline-none"
-          >
-            {title}
-          </h3>
-        </>
-      )}
+          )
+        }
+      />
       <div
         data-sheet-scroll=""
-        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 group-data-[side=screen]/sheet:pt-4"
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 pt-4"
       >
+        {/* The screen's question, on a line of its own. */}
+        <h3
+          ref={headingRef}
+          tabIndex={-1}
+          className="pb-3 text-lg leading-snug font-semibold outline-none"
+        >
+          {title}
+        </h3>
         {body}
       </div>
-      {!isMobile && action && (
-        <div className="flex shrink-0 gap-2 border-t px-4 py-3">
-          <Button
-            type="submit"
-            className="min-h-11 flex-1 font-medium"
-            loading={action.loading}
-            disabled={action.disabled}
-          >
-            {action.label}
-          </Button>
-        </div>
-      )}
     </form>
   )
 

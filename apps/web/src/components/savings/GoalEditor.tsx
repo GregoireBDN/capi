@@ -34,7 +34,6 @@ import {
   FORM_SHEET_FORM,
   FORM_SHEET_SIDE,
   FormSheetBody,
-  FormSheetFooter,
 } from '#/components/sheets/form-sheet'
 import { formatCents } from '#/lib/money'
 import { accountsQuery } from '#/lib/queries'
@@ -417,16 +416,6 @@ export function GoalEditor({
                 </div>
               )}
             </FormSheetBody>
-            <FormSheetFooter>
-              <Button
-                type="submit"
-                className="min-h-11 flex-1 font-medium"
-                loading={save.isPending}
-                disabled={busy}
-              >
-                Enregistrer
-              </Button>
-            </FormSheetFooter>
           </form>
         </SheetContent>
       </Sheet>

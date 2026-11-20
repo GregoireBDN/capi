@@ -1,22 +1,16 @@
-import {
-  SheetBar,
-  SheetBarAction,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  useIsMobile,
-} from '@finances/ui'
+import { SheetBar, SheetBarAction } from '@finances/ui'
 import type { SheetBarActionProps } from '@finances/ui'
 import { cn } from '@finances/ui/lib/utils'
 import type { ComponentProps, ReactNode } from 'react'
 
 /*
- * Layout of an editor in a sheet. On a phone it takes the whole screen
- * (`side="screen"`, #385, the owner's « B. Plein écran » with « Ronds »):
- * `SheetBar` on top (✕, the title, the round ✓ submitting the form), the
- * fields in a body that scrolls, no footer. The keyboard covers the end of
- * the body and never moves anything. Beside the page (wide screens), a
- * right-hand sheet with its header, the body and the actions in a footer.
+ * Layout of an editor (#385, the owner's « B. Plein écran » with « Ronds »,
+ * then the same on a computer): `SheetBar` on top (✕ or ‹, the title, the
+ * round main action submitting the form, the steps of a stepped editor), the
+ * fields in a body that scrolls, no footer; the other actions (« Supprimer »)
+ * at the end of the body. On a phone it takes the whole screen
+ * (`side="screen"`): the keyboard covers the end of the body and never moves
+ * anything. Beside the page (wide screens), a right-hand sheet.
  */
 
 /** `side` of an editor's `SheetContent`. */
@@ -24,45 +18,29 @@ export function editorSide(isMobile: boolean) {
   return isMobile ? 'screen' : 'right'
 }
 
-/**
- * The top of an editor: on a phone the bar (✕ or ‹, the title, the round
- * main action), beside the page its header (`children` first: a « Retour »).
- */
+/** The top of an editor: the bar (✕ or ‹, the title, the round action). */
 export function EditorHeader({
   title,
   description,
   onBack,
   action,
-  className,
-  children,
 }: {
   title: ReactNode
   description?: ReactNode
-  /** On a phone, ‹ in place of ✕: a step back. */
+  /** ‹ in place of ✕: a step back. */
   onBack?: () => void
-  /** The main action, the bar's round button on a phone. */
+  /** The main action, the bar's round button. */
   action?: SheetBarActionProps
-  /** The desktop header's class. */
+  /** Former desktop header's class, ignored. */
   className?: string
-  children?: ReactNode
 }) {
-  const isMobile = useIsMobile()
-  if (isMobile) {
-    return (
-      <SheetBar
-        title={title}
-        description={description}
-        onBack={onBack}
-        action={action && <SheetBarAction {...action} />}
-      />
-    )
-  }
   return (
-    <SheetHeader className={className}>
-      {children}
-      <SheetTitle>{title}</SheetTitle>
-      {description && <SheetDescription>{description}</SheetDescription>}
-    </SheetHeader>
+    <SheetBar
+      title={title}
+      description={description}
+      onBack={onBack}
+      action={action && <SheetBarAction {...action} />}
+    />
   )
 }
 
@@ -85,8 +63,7 @@ export function FormSheetBody({ className, ...props }: ComponentProps<'div'>) {
       data-slot="form-sheet-body"
       data-sheet-scroll=""
       className={cn(
-        'min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pt-1 pb-4',
-        'group-data-[side=screen]/sheet:pt-4',
+        'min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pt-4 pb-4',
         className,
       )}
       {...props}
@@ -95,39 +72,16 @@ export function FormSheetBody({ className, ...props }: ComponentProps<'div'>) {
 }
 
 /**
- * The actions beside the page, always on screen at the end of the sheet.
- * Not on a phone: the main action is the bar's ✓ there, and what else the
- * editor offers (« Supprimer ») goes at the end of its body
- * (`FormSheetPhoneActions`).
+ * The actions other than the main one (« Supprimer », « Retirer »), at the
+ * end of the body, one per line.
  */
-export function FormSheetFooter({
+export function FormSheetMoreActions({
   className,
   ...props
 }: ComponentProps<'div'>) {
-  const isMobile = useIsMobile()
-  if (isMobile) return null
   return (
     <div
-      data-slot="form-sheet-footer"
-      className={cn('flex shrink-0 gap-2 border-t px-4 py-3', className)}
-      {...props}
-    />
-  )
-}
-
-/**
- * On a phone, the actions other than the main one (« Supprimer »,
- * « Retirer »), at the end of the body, one per line.
- */
-export function FormSheetPhoneActions({
-  className,
-  ...props
-}: ComponentProps<'div'>) {
-  const isMobile = useIsMobile()
-  if (!isMobile) return null
-  return (
-    <div
-      data-slot="form-sheet-phone-actions"
+      data-slot="form-sheet-more-actions"
       className={cn('flex flex-col gap-2 pt-2 [&>*]:min-h-11', className)}
       {...props}
     />
@@ -145,8 +99,7 @@ export function SheetScroll({ className, ...props }: ComponentProps<'div'>) {
       data-slot="sheet-scroll"
       data-sheet-scroll=""
       className={cn(
-        'min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain',
-        'group-data-[side=screen]/sheet:pt-4',
+        'min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pt-4',
         className,
       )}
       {...props}

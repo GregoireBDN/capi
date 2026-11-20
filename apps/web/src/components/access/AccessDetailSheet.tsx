@@ -13,7 +13,7 @@ import {
 } from '@finances/ui'
 import { cn } from '@finances/ui/lib/utils'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
+import { ChevronRightIcon } from 'lucide-react'
 import { useEffect, useId, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { toast } from 'sonner'
@@ -303,7 +303,6 @@ function RenameScreen({
   onRenamed: (name: string) => void
 }) {
   const id = useId()
-  const isMobile = useIsMobile()
   const queryClient = useQueryClient()
   const [name, setName] = useState(access.name)
   const [submitted, setSubmitted] = useState(false)
@@ -332,14 +331,6 @@ function RenameScreen({
 
   return (
     <form noValidate onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-      {!isMobile && (
-        <div className="flex min-h-14 items-center py-2 pr-12 pl-2">
-          <Button type="button" ghost variant="secondary" onClick={onBack}>
-            <ChevronLeftIcon aria-hidden />
-            Retour
-          </Button>
-        </div>
-      )}
       <EditorHeader
         className="pt-0"
         title="Renommer"
@@ -364,11 +355,6 @@ function RenameScreen({
           />
           {submitted && error && <FieldError>{error}</FieldError>}
         </Field>
-        {!isMobile && (
-          <Button type="submit" className="w-full" loading={rename.isPending}>
-            Enregistrer
-          </Button>
-        )}
       </SheetScroll>
     </form>
   )

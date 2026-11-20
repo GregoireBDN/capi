@@ -25,7 +25,6 @@ import {
   FORM_SHEET_FORM,
   FORM_SHEET_SIDE,
   FormSheetBody,
-  FormSheetFooter,
 } from '#/components/sheets/form-sheet'
 import { currentDay } from '#/lib/calendar'
 import { pickableCategories } from '#/lib/categories'
@@ -163,7 +162,6 @@ function PaidForMeForm({
   })
 
   const name = person?.name ?? '…'
-  const isMobile = useIsMobile()
   const summary = (
     <div
       aria-live="polite"
@@ -321,22 +319,9 @@ function PaidForMeForm({
       </FormSheetBody>
       {/* « Je dois à … », live: on a phone it stays at the bottom, the
           keyboard covering it while a field is typed (#385). */}
-      {isMobile && (
-        <div className="flex shrink-0 border-t px-4 py-3 [&>div]:flex-1">
-          {summary}
-        </div>
-      )}
-      <FormSheetFooter className="flex-col">
+      <div className="flex shrink-0 border-t px-4 py-3 [&>div]:flex-1">
         {summary}
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={!ok}
-          loading={save.isPending}
-        >
-          Ajouter
-        </Button>
-      </FormSheetFooter>
+      </div>
     </form>
   )
 }

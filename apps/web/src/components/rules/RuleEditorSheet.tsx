@@ -15,9 +15,7 @@ import {
   SheetBar,
   SheetBarAction,
   SheetContent,
-  SheetDescription,
   SheetSteps,
-  SheetTitle,
   Skeleton,
   Switch,
   useIsMobile,
@@ -25,7 +23,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ChevronDownIcon,
-  ChevronLeftIcon,
   ChevronRightIcon,
   ListChecksIcon,
   MinusIcon,
@@ -337,57 +334,6 @@ export function RuleEditorSheet({
     .join(' · ')
   const sentence = `${MATCH_TYPE_LABELS[form.matchType]} « ${form.labelPattern.trim()} »`
 
-  const header = (
-    <div className="flex min-h-14 shrink-0 items-center gap-1 py-2 pr-12 pl-2">
-      {stepIndex > 0 ? (
-        <Button
-          type="button"
-          ghost
-          variant="secondary"
-          onClick={() => goTo(STEPS[stepIndex - 1])}
-        >
-          <ChevronLeftIcon aria-hidden />
-          Retour
-        </Button>
-      ) : (
-        <span className="w-2" />
-      )}
-      <h3
-        ref={stepRef}
-        tabIndex={-1}
-        className="min-w-0 flex-1 text-base leading-tight font-semibold break-words outline-none"
-      >
-        {STEP_NAMES[step]}
-        <span className="text-muted-foreground ml-1.5 text-sm font-normal whitespace-nowrap">
-          {stepIndex + 1}/{STEPS.length}
-        </span>
-      </h3>
-    </div>
-  )
-
-  const footer = (
-    <div className="flex shrink-0 gap-2 border-t px-4 py-3 group-data-keyboard-open/sheet:hidden">
-      <Button
-        type="submit"
-        className="flex-1 font-medium"
-        loading={step === 'review' && save.isPending}
-        disabled={
-          (step === 'match' && form.labelPattern.trim() === '') ||
-          (step === 'category' && !form.categoryId)
-        }
-      >
-        {step === 'review' ? (
-          'Enregistrer'
-        ) : (
-          <>
-            Suivant
-            <ChevronRightIcon aria-hidden />
-          </>
-        )}
-      </Button>
-    </div>
-  )
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -399,78 +345,64 @@ export function RuleEditorSheet({
           stepRef.current?.focus({ preventScroll: true })
         }}
       >
-        {!isMobile && (
-          <>
-            <SheetTitle className="sr-only">
-              {rule ? 'Modifier la règle' : 'Nouvelle règle'}
-            </SheetTitle>
-            <SheetDescription className="sr-only">
-              Les opérations dont le libellé correspond sont classées dans la
-              catégorie choisie.
-            </SheetDescription>
-          </>
-        )}
         <form
           noValidate
           onSubmit={submit}
           className="flex min-h-0 flex-1 flex-col"
         >
-          {isMobile ? (
-            <SheetBar
-              title={rule ? 'Modifier la règle' : 'Nouvelle règle'}
-              description={`Étape ${stepIndex + 1} sur ${STEPS.length} : ${STEP_NAMES[step]}`}
-              steps={
-                <SheetSteps
-                  current={step}
-                  onSelect={(key) => goTo(key as Step)}
-                  steps={[
-                    {
-                      key: 'match',
-                      label: 'Opérations',
-                      icon: <SearchIcon aria-hidden />,
-                    },
-                    {
-                      key: 'category',
-                      label: 'Catégorie',
-                      icon: <TagIcon aria-hidden />,
-                      disabled: form.labelPattern.trim() === '',
-                    },
-                    {
-                      key: 'review',
-                      label: 'Vérifier',
-                      icon: <ListChecksIcon aria-hidden />,
-                      disabled:
-                        form.labelPattern.trim() === '' || !form.categoryId,
-                    },
-                  ]}
-                />
-              }
-              onBack={
-                stepIndex > 0 ? () => goTo(STEPS[stepIndex - 1]) : undefined
-              }
-              action={
-                <SheetBarAction
-                  type="submit"
-                  label={step === 'review' ? 'Enregistrer' : 'Suivant'}
-                  icon={
-                    step === 'review' ? undefined : (
-                      <ChevronRightIcon aria-hidden strokeWidth={2.6} />
-                    )
-                  }
-                  loading={step === 'review' && save.isPending}
-                  disabled={
-                    (step === 'match' && form.labelPattern.trim() === '') ||
-                    (step === 'category' && !form.categoryId)
-                  }
-                />
-              }
-            />
-          ) : (
-            header
-          )}
+          <SheetBar
+            titleRef={stepRef}
+            title={rule ? 'Modifier la règle' : 'Nouvelle règle'}
+            description={`Étape ${stepIndex + 1} sur ${STEPS.length} : ${STEP_NAMES[step]}`}
+            steps={
+              <SheetSteps
+                current={step}
+                onSelect={(key) => goTo(key as Step)}
+                steps={[
+                  {
+                    key: 'match',
+                    label: 'Opérations',
+                    icon: <SearchIcon aria-hidden />,
+                  },
+                  {
+                    key: 'category',
+                    label: 'Catégorie',
+                    icon: <TagIcon aria-hidden />,
+                    disabled: form.labelPattern.trim() === '',
+                  },
+                  {
+                    key: 'review',
+                    label: 'Vérifier',
+                    icon: <ListChecksIcon aria-hidden />,
+                    disabled:
+                      form.labelPattern.trim() === '' || !form.categoryId,
+                  },
+                ]}
+              />
+            }
+            onBack={
+              stepIndex > 0 ? () => goTo(STEPS[stepIndex - 1]) : undefined
+            }
+            action={
+              <SheetBarAction
+                type="submit"
+                label={step === 'review' ? 'Enregistrer' : 'Suivant'}
+                icon={
+                  step === 'review' ? undefined : (
+                    <ChevronRightIcon aria-hidden strokeWidth={2.6} />
+                  )
+                }
+                loading={step === 'review' && save.isPending}
+                disabled={
+                  (step === 'match' && form.labelPattern.trim() === '') ||
+                  (step === 'category' && !form.categoryId)
+                }
+              />
+            }
+          />
           <div
             data-sheet-scroll=""
-            className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 group-data-[side=screen]/sheet:pt-4"
+            className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 pt-4"
           >
             {step === 'match' && (
               <>
@@ -865,7 +797,6 @@ export function RuleEditorSheet({
               </p>
             )}
           </div>
-          {!isMobile && footer}
         </form>
       </SheetContent>
     </Sheet>

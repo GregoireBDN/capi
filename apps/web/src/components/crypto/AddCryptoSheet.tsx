@@ -4,8 +4,6 @@ import {
   Button,
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogTitle,
   Field,
   FieldDescription,
   FieldError,
@@ -21,16 +19,13 @@ import {
   SheetBar,
   SheetBarAction,
   SheetContent,
-  SheetDescription,
   SheetSteps,
-  SheetTitle,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Building2Icon,
-  ChevronLeftIcon,
   ChevronRightIcon,
   CircleAlertIcon,
   CoinsIcon,
@@ -1057,105 +1052,69 @@ export function AddCryptoSheet({
     onSubmit()
   }
 
-  const Title = isMobile ? SheetTitle : DialogTitle
-  const Description = isMobile ? SheetDescription : DialogDescription
   const content = (
     <form noValidate onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-      {isMobile ? (
-        <SheetBar
-          title="Ajouter des cryptos"
-          description={`Étape ${step} sur ${STEP_COUNT} : ${title}`}
-          steps={
-            <SheetSteps
-              current={String(step)}
-              onSelect={(key) => backTo(Number(key))}
-              steps={[
-                {
-                  key: '1',
-                  label: 'Origine',
-                  icon: <CompassIcon aria-hidden />,
-                },
-                {
-                  key: '2',
-                  ...middleStep(screen),
-                  disabled: step < 2,
-                },
-                {
-                  key: '3',
-                  label: 'Vérifier',
-                  icon: <ListChecksIcon aria-hidden />,
-                  disabled: step < 3,
-                },
-              ]}
+      <SheetBar
+        title="Ajouter des cryptos"
+        description={`Étape ${step} sur ${STEP_COUNT} : ${title}`}
+        steps={
+          <SheetSteps
+            current={String(step)}
+            onSelect={(key) => backTo(Number(key))}
+            steps={[
+              {
+                key: '1',
+                label: 'Origine',
+                icon: <CompassIcon aria-hidden />,
+              },
+              {
+                key: '2',
+                ...middleStep(screen),
+                disabled: step < 2,
+              },
+              {
+                key: '3',
+                label: 'Vérifier',
+                icon: <ListChecksIcon aria-hidden />,
+                disabled: step < 3,
+              },
+            ]}
+          />
+        }
+        onBack={screen !== 'source' ? back : undefined}
+        action={
+          action && (
+            <SheetBarAction
+              type="submit"
+              label={
+                typeof action.label === 'string' ? action.label : 'Suivant'
+              }
+              icon={
+                typeof action.label === 'string' ? undefined : (
+                  <ChevronRightIcon aria-hidden strokeWidth={2.6} />
+                )
+              }
+              loading={action.loading}
             />
-          }
-          onBack={screen !== 'source' ? back : undefined}
-          action={
-            action && (
-              <SheetBarAction
-                type="submit"
-                label={
-                  typeof action.label === 'string' ? action.label : 'Suivant'
-                }
-                icon={
-                  typeof action.label === 'string' ? undefined : (
-                    <ChevronRightIcon aria-hidden strokeWidth={2.6} />
-                  )
-                }
-                loading={action.loading}
-              />
-            )
-          }
-        />
-      ) : (
-        <>
-          <Title className="sr-only">Ajouter des cryptos</Title>
-          <Description className="sr-only">
-            D’où elles viennent, puis ce qu’il faut pour les suivre.
-          </Description>
-          {/* The way back and where we are, clear of the close button; the
-          question on a line of its own, so it never gets squeezed. */}
-          <div className="flex min-h-14 items-center gap-2 py-2 pr-12 pl-2">
-            {screen !== 'source' ? (
-              <Button type="button" ghost variant="secondary" onClick={back}>
-                <ChevronLeftIcon aria-hidden />
-                Retour
-              </Button>
-            ) : (
-              <span className="w-2" />
-            )}
-            <p className="text-muted-foreground text-sm whitespace-nowrap">
-              Étape {step} sur {STEP_COUNT}
-            </p>
-          </div>
-          <h3
-            ref={headingRef}
-            tabIndex={-1}
-            className="px-4 pb-3 text-lg leading-snug font-semibold outline-none"
-          >
-            {title}
-          </h3>
-        </>
-      )}
+          )
+        }
+      />
       <div
         data-sheet-scroll=""
-        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 group-data-[side=screen]/sheet:pt-4"
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 pt-4"
       >
+        {/* The screen's question, on a line of its own. */}
+        <h3
+          ref={headingRef}
+          tabIndex={-1}
+          className="pb-3 text-lg leading-snug font-semibold outline-none"
+        >
+          {title}
+        </h3>
         {body}
       </div>
       {/* Beside the page: the step's button at the end; on a phone it is
           the bar's round button (#385). */}
-      {!isMobile && action && (
-        <div className="flex shrink-0 gap-2 border-t px-4 py-3">
-          <Button
-            type="submit"
-            className="min-h-11 flex-1 font-medium"
-            loading={action.loading}
-          >
-            {action.label}
-          </Button>
-        </div>
-      )}
     </form>
   )
 
