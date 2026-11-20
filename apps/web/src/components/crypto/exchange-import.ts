@@ -57,6 +57,8 @@ export const KIND_LABELS: Record<CryptoImportRowDto['kind'], string> = {
   transfer_internal: 'Transfert interne',
   income: 'Revenu',
   other: 'Inconnue',
+  observed_in: 'Arrivée',
+  observed_out: 'Départ',
 }
 
 const dateTime = new Intl.DateTimeFormat('fr-FR', {

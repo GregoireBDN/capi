@@ -568,6 +568,93 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
+    /** The wallet's observed movements, oldest first (#373). */
+    async function observed(tx: Db, accountId: string) {
+      const rows = await tx
+        .select()
+        .from(schema.cryptoMovementsTable)
+        .where(eq(schema.cryptoMovementsTable.accountId, accountId))
+        .orderBy(
+          schema.cryptoMovementsTable.occurredAt,
+          schema.cryptoMovementsTable.asset,
+        )
+      return rows.map(
+        (row) =>
+          `${row.kind} ${row.asset} ${row.quantity.replace(/\.?0+$/, '')} ${row.observedSince?.toISOString() ?? 'opening'}`,
+      )
+    }
+
+    it('records what each complete read finds risen or fallen, nothing when unchanged (#373)', async () => {
+      await inRollback(async ({ crypto, mocks, wallet, tx }) => {
+        const id = await wallet()
+        await crypto.sync(id, NOW)
+        // The first read is the opening position.
+        expect(await observed(tx, id)).toEqual([
+          'observed_in BTC 0.00085 opening',
+          'observed_in ETH 1.5 opening',
+        ])
+        await crypto.sync(id, later(1))
+        expect(await observed(tx, id)).toHaveLength(2)
+        // Bitcoin emptied, Ethereum doubled: dated after the last read.
+        mocks.bitcoin.addressStates.mockImplementation((addresses) =>
+          Promise.resolve(
+            addresses.map(() => ({ balanceSats: 0n, used: false })),
+          ),
+        )
+        mocks.evm.balances.mockImplementation((chain, _address, tokens) =>
+          Promise.resolve({
+            native: chain === 'ethereum' ? 3_000_000_000_000_000_000n : 0n,
+            tokens: tokens.map(() => 0n),
+          }),
+        )
+        await crypto.sync(id, later(2))
+        expect((await observed(tx, id)).slice(2)).toEqual([
+          `observed_out BTC -0.00085 ${later(1).toISOString()}`,
+          `observed_in ETH 1.5 ${later(1).toISOString()}`,
+        ])
+        const [account] = await tx
+          .select()
+          .from(schema.accountsTable)
+          .where(eq(schema.accountsTable.id, id))
+        expect(account.cryptoObservedAt).toEqual(later(2))
+      })
+    })
+
+    it('records no movement on a failed or partial read (#373)', async () => {
+      await inRollback(async ({ crypto, mocks, wallet, tx }) => {
+        const id = await wallet()
+        await crypto.sync(id, NOW)
+        // BNB Chain fails while Ethereum doubles: no movement at all.
+        mocks.evm.balances.mockImplementation((chain, _address, tokens) =>
+          chain === 'bsc'
+            ? Promise.reject(new ChainProviderError('timeout'))
+            : Promise.resolve({
+                native: 3_000_000_000_000_000_000n,
+                tokens: tokens.map(() => 0n),
+              }),
+        )
+        await crypto.sync(id, later(1))
+        expect(await observed(tx, id)).toHaveLength(2)
+        // A Bitcoin scan cut short by a rate limit: none either.
+        mocks.evm.balances.mockImplementation((chain, _address, tokens) =>
+          Promise.resolve({
+            native: chain === 'ethereum' ? 3_000_000_000_000_000_000n : 0n,
+            tokens: tokens.map(() => 0n),
+          }),
+        )
+        mocks.bitcoin.addressStates.mockRejectedValue(
+          new ChainProviderError('rate_limited', 429),
+        )
+        await crypto.sync(id, later(2))
+        expect(await observed(tx, id)).toHaveLength(2)
+        const [account] = await tx
+          .select()
+          .from(schema.accountsTable)
+          .where(eq(schema.accountsTable.id, id))
+        expect(account.cryptoObservedAt).toEqual(NOW)
+      })
+    })
+
     it('backs off a rate-limited chain, honouring Retry-After, whoever asks', async () => {
       await inRollback(async ({ crypto, mocks, wallet }) => {
         const id = await wallet()

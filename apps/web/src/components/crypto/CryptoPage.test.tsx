@@ -69,6 +69,7 @@ function asset(overrides: Partial<PortfolioAssetDto>): PortfolioAssetDto {
     change24hCents: 15_952,
     investedCents: 412_000,
     gainCents: 268_625,
+    unknownQuantity: '0',
     priceable: true,
     places: [
       {
@@ -168,6 +169,9 @@ function portfolio(
       gainCents: 268_625,
       withoutInvestedCount: 1,
       withoutInvestedSymbols: ['ETH'],
+      unknown: [],
+      fiatCents: 0,
+      realised: { yearCents: 0, totalCents: 0, count: 0, unknownCount: 0 },
       missingPriceCount: 0,
       staleCount: 0,
     },

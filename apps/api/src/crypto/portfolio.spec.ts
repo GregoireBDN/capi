@@ -185,7 +185,7 @@ describe('aggregatePortfolio', () => {
         name: 'A',
         lines: [
           line('bitcoin', 'BTC', '0.01', 82_500, { investedCents: 50_000 }),
-          // Half of ETH's lines without a cost: ETH's cost is unknown.
+          // B's ETH has no cost: named, A's still counted (#373).
           line('ethereum', 'ETH', '1', 295_000, { investedCents: 200_000 }),
         ],
       },
@@ -196,45 +196,55 @@ describe('aggregatePortfolio', () => {
       },
     ])
     expect(totals).toMatchObject({
-      investedCents: 50_000,
-      gainCents: 32_500,
+      investedCents: 250_000,
+      gainCents: 32_500 + 95_000,
       withoutInvestedCount: 1,
+      unknown: [{ assetId: 'ethereum', symbol: 'ETH', quantity: '0.1' }],
     })
   })
 
-  it('counts a wallet whose cost is known as a whole (#358)', () => {
+  it("reads each account's cost from the replay, coins of unknown cost named (#373)", () => {
     const { assets, totals } = aggregatePortfolio([
       {
         accountId: 'ledger',
         name: 'Ledger',
-        // Synced lines have no cost; the wallet's invested base gives it.
+        // Synced lines carry no cost: the replay gives it.
         lines: [
-          line('bitcoin', 'BTC', '0.02', 200_000),
+          line('bitcoin', 'BTC', '0.6', 600_000),
           line('ethereum', 'ETH', '0.5', 100_000),
         ],
-        investedCents: 500_000,
+        costs: new Map([
+          ['bitcoin', { costCents: 450_000, unknownQuantity: '0.1' }],
+          ['ethereum', { costCents: 80_000, unknownQuantity: '0' }],
+        ]),
       },
       {
         accountId: 'exchange',
         name: 'Plateforme',
-        lines: [
-          line('bitcoin', 'BTC', '0.01', 100_000, { investedCents: 60_000 }),
-          line('solana', 'SOL', '2', 30_000),
-        ],
+        lines: [line('bitcoin', 'BTC', '0.4', 400_000)],
+        costs: new Map([
+          ['bitcoin', { costCents: 300_000, unknownQuantity: '0' }],
+        ]),
+        fiatCents: 100_000,
       },
     ])
-    expect(totals).toMatchObject({
-      valueCents: 430_000,
-      investedCents: 560_000,
-      // Wallet: 3 000 − 5 000; exchange BTC: 1 000 − 600.
-      gainCents: -160_000,
-      withoutInvestedCount: 1,
-      withoutInvestedSymbols: ['SOL'],
+    const btc = assets.find((asset) => asset.symbol === 'BTC')!
+    // Ledger: 5 000 € of known coins for 4 500 €; exchange: 4 000 for 3 000.
+    expect(btc).toMatchObject({
+      investedCents: 750_000,
+      gainCents: 150_000,
+      unknownQuantity: '0.1',
     })
-    // Per asset, only the lines say what was paid.
-    expect(assets.find((asset) => asset.symbol === 'BTC')?.investedCents).toBe(
-      null,
-    )
+    expect(totals).toMatchObject({
+      // 11 000 € of coins and 1 000 € waiting.
+      valueCents: 1_200_000,
+      investedCents: 930_000,
+      gainCents: 170_000,
+      withoutInvestedCount: 1,
+      withoutInvestedSymbols: ['BTC'],
+      unknown: [{ assetId: 'bitcoin', symbol: 'BTC', quantity: '0.1' }],
+      fiatCents: 100_000,
+    })
   })
 
   it('returns nothing for no account', () => {
@@ -247,6 +257,8 @@ describe('aggregatePortfolio', () => {
         gainCents: null,
         withoutInvestedCount: 0,
         withoutInvestedSymbols: [],
+        unknown: [],
+        fiatCents: 0,
         missingPriceCount: 0,
         staleCount: 0,
       },

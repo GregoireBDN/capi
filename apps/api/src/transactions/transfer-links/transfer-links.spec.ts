@@ -18,10 +18,7 @@ import {
 } from '#/database/schema'
 import { knownAsset } from '#/imports/crypto/assets'
 import { computeHoldings } from '#/imports/crypto/holdings'
-import {
-  linkNewCryptoTransfers,
-  storeWithdrawalCosts,
-} from '#/imports/crypto/movement-links'
+import { linkNewCryptoTransfers } from '#/imports/crypto/movement-links'
 import { MovementsService } from '#/investments/movements.service'
 import type {
   AccountType,
@@ -261,7 +258,8 @@ describe.skipIf(!process.env.DATABASE_URL)('transfer links (database)', () => {
       await investments.upsert(
         ids.pea,
         '2026-10-31',
-        { valueCents: 5_600_00, contributionsCents: 9_999_00 },
+        // A statement that does not print the amount paid in.
+        { valueCents: 5_600_00 },
         NOW,
       )
       await row(ids.checking, '2026-07-03', -1_000_00, {
@@ -284,12 +282,12 @@ describe.skipIf(!process.env.DATABASE_URL)('transfer links (database)', () => {
       })
 
       const performance = await investments.performance(ids.pea, NOW)
-      expect(performance.contributionsSource).toBe('links')
-      // 3 800 typed on 30 June + 1 000 + 1 000 − 500.
+      // The latest typed point (#370): 3 800 typed on 30 June, then the
+      // transfers linked after it: + 1 000 + 1 000 − 500.
+      expect(performance.contributionsSource).toBe('typed')
       expect(performance.contributionsCents).toBe(5_300_00)
       expect(performance.gainCents).toBe(300_00)
-      expect(performance.typedContributionsCents).toBe(9_999_00)
-      expect(performance.linkedTransfersCount).toBe(4)
+      expect(performance.linkedTransfersCount).toBe(3)
       expect(performance.linkedAfterValueCents).toBe(200_00)
       expect(
         performance.contributionsHistory.map((p) => p.contributionsCents),
@@ -370,14 +368,11 @@ describe.skipIf(!process.env.DATABASE_URL)('transfer links (database)', () => {
           line('2026-10-20T23:30:00Z', 'withdrawal', 'BTC', '-0.01'),
         ])
         .returning()
-      const costs = new Map<string, number | null>()
       const held = computeHoldings(
         written.map((m) => ({ ...m, occurredAt: m.occurredAt.toISOString() })),
         knownAsset,
-        costs,
       )
       expect(held[0]).toMatchObject({ quantity: '0.01', investedCents: 500_00 })
-      await storeWithdrawalCosts(tx, costs)
 
       // The wallet holds BTC: the withdrawal is linked to it.
       await tx.insert(cryptoHoldingsTable).values({
@@ -406,8 +401,9 @@ describe.skipIf(!process.env.DATABASE_URL)('transfer links (database)', () => {
         valueCents: 650_00,
         source: 'computed',
       })
+      // The wallet never read its coins: the link carries their cost (#373).
       const wallet = await investments.performance(ids.wallet, NOW)
-      expect(wallet.contributionsSource).toBe('links')
+      expect(wallet.contributionsSource).toBe('coins')
       expect(wallet.contributionsCents).toBe(500_00)
       expect(wallet.gainCents).toBe(150_00)
 

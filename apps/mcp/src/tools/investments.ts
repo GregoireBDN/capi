@@ -11,6 +11,7 @@ import type {
 } from '../api/types.js'
 import type { ApiClient } from '../api/client.js'
 import { euros, frenchDate, percent, signedEuros } from '../format.js'
+import { frenchQuantity } from '../quantity.js'
 import { ACCOUNT_TYPE_LABELS } from './labels.js'
 import { listAccounts, normalize, pickAccount } from './lookup.js'
 import { defineTool, ToolInputError } from './tool.js'
@@ -79,9 +80,22 @@ function accountLine(
     return `- ${row.name} (${details}) : aucune valeur enregistrée — tous les relevés sont à importer`
   }
   const crypto = row.type === 'crypto'
+  // Coins of unknown cost (#373): named, out of the investi and the result.
   const unknownCosts =
-    row.unknownCostCount > 0
-      ? `, dont ${row.unknownCostCount} envoi(s) sans coût connu non compté(s)`
+    row.unknownCost.length > 0
+      ? `, hors ${row.unknownCost
+          .map((coin) => `${frenchQuantity(coin.quantity)} ${coin.symbol}`)
+          .join(', ')} sans coût connu (à préciser dans l'application)`
+      : !crypto && row.unknownCostCount > 0
+        ? `, dont ${row.unknownCostCount} virement(s) de montant inconnu`
+        : ''
+  const realised =
+    row.realised && row.realised.count > 0
+      ? `, plus-value réalisée ${signedEuros(row.realised.yearCents)} cette année (${signedEuros(row.realised.totalCents)} en tout${
+          row.realised.unknownCount > 0
+            ? `, ${row.realised.unknownCount} vente(s) au coût inconnu`
+            : ''
+        })`
       : ''
   const gain =
     row.gainCents === null
@@ -91,23 +105,23 @@ function accountLine(
         }`
   const contributions =
     row.contributionsCents === null
-      ? !crypto || account?.cryptoSource !== 'exchange'
-        ? ', montant investi inconnu (set_invested_amount)'
-        : ''
+      ? crypto
+        ? `, montant investi inconnu${unknownCosts}`
+        : ', montant investi inconnu (set_invested_amount)'
       : `, investi ${euros(row.contributionsCents)}${gain}${unknownCosts}`
   const age =
     row.daysSinceLatest === null ? '' : ` (il y a ${row.daysSinceLatest} j)`
   const stale = row.stale
     ? ` — PAS À JOUR (relevé attendu tous les ${row.staleAfterDays} j)`
     : ''
-  return `- ${row.name} (${details}) : dernière valeur ${euros(row.valueCents)} au ${frenchDate(row.valueDate)}${age}${contributions}${stale}`
+  return `- ${row.name} (${details}) : dernière valeur ${euros(row.valueCents)} au ${frenchDate(row.valueDate)}${age}${contributions}${realised}${stale}`
 }
 
 export const listInvestmentAccountsTool = defineTool({
   name: 'list_investment_accounts',
   title: 'Comptes de placement',
   description:
-    'Open investment accounts (PEA / brokerage, life insurance, employee savings, crypto) with their institution, crypto source, last snapshot date and value, net contributions (crypto: invested amount) with the latent gain and rate, and whether they are stale. Call it before importing statement values: only documents dated after the last snapshot need importing, and it gives the account names add_investment_snapshots and sync_crypto_holdings accept.',
+    "Open investment accounts (PEA / brokerage, life insurance, employee savings, crypto) with their institution, crypto source, last value and its date, what was invested with the latent result and rate (crypto: the cost of the coins held, carried across transfers between the owner's accounts; coins of unknown cost named apart; the realised gain of sales), and whether they are stale. Call it before importing statement values: only documents dated after the last snapshot need importing, and it gives the account names add_investment_snapshots and sync_crypto_holdings accept.",
   inputSchema: {},
   async run({ api }) {
     const [summary, accounts] = await Promise.all([

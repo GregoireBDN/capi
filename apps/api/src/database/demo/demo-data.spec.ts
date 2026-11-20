@@ -102,7 +102,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
         const accounts = await tx.select().from(accountsTable)
         const checking = accounts.find((a) => a.type === 'checking')!
-        expect(accounts.find((a) => a.type === 'crypto')?.cryptoSource).toBe(
+        expect(accounts.find((a) => a.name === 'Ledger')?.cryptoSource).toBe(
           'manual',
         )
 

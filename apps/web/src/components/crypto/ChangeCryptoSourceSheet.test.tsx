@@ -72,6 +72,8 @@ function holdings(list: Partial<ValuedHoldingDto>[] = []): AccountHoldingsDto {
       missingPriceCount: 0,
       staleCount: 0,
       withoutInvestedCount: 0,
+      unknown: [],
+      fiatCents: 0,
     },
     complete: true,
     snapshot: null,
@@ -79,6 +81,8 @@ function holdings(list: Partial<ValuedHoldingDto>[] = []): AccountHoldingsDto {
     refreshFailed: false,
     refreshDue: false,
     sync: null,
+    costs: [],
+    realised: { yearCents: 0, totalCents: 0, count: 0, unknownCount: 0 },
   }
 }
 
