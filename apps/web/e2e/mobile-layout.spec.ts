@@ -197,7 +197,7 @@ const SCENARIOS: Array<Scenario> = [
       await openPaidForMe(page)
       const dialog = page.getByRole('dialog')
       await dialog
-        .getByRole('button', { name: /Sam|Camille|Alex/ })
+        .getByRole('radio', { name: /Sam|Camille|Alex/ })
         .first()
         .click()
       const list = dialog.getByRole('radiogroup', { name: 'Catégorie' })
