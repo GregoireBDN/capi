@@ -21,6 +21,7 @@ import {
   FileUpIcon,
   PlusIcon,
   RepeatIcon,
+  ScrollTextIcon,
   TriangleAlertIcon,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -801,7 +802,7 @@ function StatementBalances({
     writable
       ? {
           label: 'Ajouter un solde de relevé',
-          icon: <PlusIcon />,
+          icon: <ScrollTextIcon />,
           onSelect: onAdd,
         }
       : null,

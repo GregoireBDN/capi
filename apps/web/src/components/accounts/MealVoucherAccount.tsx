@@ -17,6 +17,8 @@ import {
   PencilLineIcon,
   PlusIcon,
   ReceiptIcon,
+  UtensilsIcon,
+  WalletCardsIcon,
 } from 'lucide-react'
 import { useState } from 'react'
 import type { AccountDto, TransactionDto } from '#/api/types.gen'
@@ -70,7 +72,7 @@ export function MealVoucherAccount({
     writable
       ? {
           label: 'Ajouter un paiement',
-          icon: <MinusIcon />,
+          icon: <UtensilsIcon />,
           primary: true,
           onSelect: () => setEntry({ open: true, kind: 'expense' }),
         }
@@ -80,7 +82,7 @@ export function MealVoucherAccount({
     writable
       ? {
           label: 'Ajouter un crédit',
-          icon: <PlusIcon />,
+          icon: <WalletCardsIcon />,
           onSelect: () => setEntry({ open: true, kind: 'income' }),
         }
       : null,

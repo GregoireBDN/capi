@@ -20,7 +20,7 @@ import {
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { PlusIcon, UsersIcon } from 'lucide-react'
+import { UserPlusIcon, UsersIcon } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import type { ContactDto } from '#/api/types.gen'
@@ -54,7 +54,7 @@ export function ContactsSettings() {
   // In the page's « ⋮ » inside the shell (#386).
   const inMenu = useRegisterPageAction({
     label: 'Ajouter un contact',
-    icon: <PlusIcon />,
+    icon: <UserPlusIcon />,
     primary: true,
     onSelect: () => setEditing('new'),
   })

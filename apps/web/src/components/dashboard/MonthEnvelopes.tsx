@@ -10,7 +10,7 @@ import {
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { PlusIcon, WalletCardsIcon } from 'lucide-react'
+import { PlusIcon, ReceiptEuroIcon, WalletCardsIcon } from 'lucide-react'
 import { useState } from 'react'
 import type { EnvelopeDto, EnvelopesDto } from '#/api/types.gen'
 import { formatBudgetAmount } from '#/components/budget/amount'
@@ -47,7 +47,7 @@ export function MonthEnvelopes({ month }: { month: string }) {
     current
       ? {
           label: 'Ajouter une dépense',
-          icon: <PlusIcon />,
+          icon: <ReceiptEuroIcon />,
           primary: true,
           onSelect: () => setSheet({ open: true }),
         }

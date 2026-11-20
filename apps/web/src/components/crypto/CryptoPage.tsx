@@ -605,7 +605,7 @@ export function CryptoPage() {
                 {
                   // Named in full: it is an item of the page's « ⋮ » (#386).
                   label: 'Ajouter des cryptos',
-                  icon: <PlusIcon />,
+                  icon: <CoinsIcon />,
                   primary: true,
                   onSelect: () => setAdding(true),
                 },

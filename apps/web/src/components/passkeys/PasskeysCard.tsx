@@ -237,7 +237,7 @@ export function PasskeysCard({ email }: { email: string }) {
     supported
       ? {
           label: 'Ajouter une passkey',
-          icon: <PlusIcon />,
+          icon: <FingerprintIcon />,
           loading: adding,
           onSelect: () => void add(),
         }

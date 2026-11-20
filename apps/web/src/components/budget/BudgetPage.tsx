@@ -13,7 +13,12 @@ import {
   Skeleton,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
-import { PlusIcon, SparklesIcon, TargetIcon } from 'lucide-react'
+import {
+  BanknoteArrowUpIcon,
+  PlusIcon,
+  SparklesIcon,
+  TargetIcon,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { currentMonth, formatMonth } from '#/lib/calendar'
@@ -103,7 +108,7 @@ export function BudgetPage({
     budget.isSuccess && !empty
       ? {
           label: 'Ajouter un budget',
-          icon: <PlusIcon />,
+          icon: <TargetIcon />,
           primary: true,
           disabled: available.expense.length === 0,
           onSelect: () => setEditor({ open: true, kind: 'expense' }),
@@ -114,7 +119,7 @@ export function BudgetPage({
     budget.isSuccess && available.income.length > 0
       ? {
           label: 'Ajouter un revenu',
-          icon: <PlusIcon />,
+          icon: <BanknoteArrowUpIcon />,
           onSelect: () => setEditor({ open: true, kind: 'income' }),
         }
       : null,

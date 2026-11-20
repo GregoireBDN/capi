@@ -10,7 +10,7 @@ import {
   cn,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
-import { PlusIcon } from 'lucide-react'
+import { PlusIcon, TagIcon } from 'lucide-react'
 import { useState } from 'react'
 import type { CategoryDto, TransactionKind } from '#/api/types.gen'
 import { PageHeader } from '#/components/app-shell/PageHeader'
@@ -129,7 +129,7 @@ export function CategoriesPage() {
   // In the page's « ⋮ » inside the shell (#386), not a bar at the bottom.
   const inMenu = useRegisterPageAction({
     label: 'Ajouter une catégorie',
-    icon: <PlusIcon />,
+    icon: <TagIcon />,
     primary: true,
     disabled: !categories.isSuccess,
     onSelect: () => setAdding(true),

@@ -918,7 +918,7 @@ function WalletSettings({
     writable
       ? {
           label: 'Ajouter une clé',
-          icon: <PlusIcon />,
+          icon: <KeyRoundIcon />,
           onSelect: () => setAdding(true),
         }
       : null,

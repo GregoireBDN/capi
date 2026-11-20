@@ -21,6 +21,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ChevronRightIcon,
+  CoinsIcon,
   LoaderCircleIcon,
   PlusIcon,
   RefreshCwIcon,
@@ -359,7 +360,7 @@ export function HoldingsPanel({
   // In the page's « ⋮ » inside the shell (#386).
   const inMenu = useRegisterPageAction(
     writable && !wallet
-      ? { label: 'Ajouter un avoir', icon: <PlusIcon />, onSelect: openAdd }
+      ? { label: 'Ajouter un avoir', icon: <CoinsIcon />, onSelect: openAdd }
       : null,
   )
 

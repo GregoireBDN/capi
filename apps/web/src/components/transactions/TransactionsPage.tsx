@@ -16,7 +16,6 @@ import {
   ArrowLeftRightIcon,
   CheckIcon,
   CircleCheckBigIcon,
-  PlusIcon,
   SearchXIcon,
   UploadIcon,
 } from 'lucide-react'
@@ -326,7 +325,7 @@ export function TransactionsPage({
         actions={[
           {
             label: 'Ajouter une opération',
-            icon: <PlusIcon />,
+            icon: <ArrowLeftRightIcon />,
             primary: true,
             onSelect: () => setAddOpen(true),
           },

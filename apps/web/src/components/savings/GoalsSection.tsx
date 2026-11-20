@@ -156,7 +156,7 @@ export function GoalsSection({
   // In the page's « ⋮ » inside the shell (#386).
   const inMenu = useRegisterPageAction({
     label: 'Ajouter un objectif',
-    icon: <PlusIcon />,
+    icon: <FlagIcon />,
     onSelect: () => open(),
   })
 

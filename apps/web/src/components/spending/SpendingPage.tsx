@@ -16,7 +16,7 @@ import {
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ChartPieIcon, PlusIcon, UploadIcon } from 'lucide-react'
+import { ChartPieIcon, ReceiptEuroIcon, UploadIcon } from 'lucide-react'
 import { NearestMonthButton } from '#/components/month/NearestMonthButton'
 import { useMemo, useState } from 'react'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
@@ -172,7 +172,7 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
         actions={[
           {
             label: 'Ajouter une dépense',
-            icon: <PlusIcon />,
+            icon: <ReceiptEuroIcon />,
             primary: true,
             onSelect: () => setAdding(true),
           },
