@@ -266,19 +266,23 @@ describe('CryptoPage', () => {
     })
     expect(text(summary.textContent)).toContain('7 691,25 €')
     expect(text(summary.textContent)).toContain('+143,30 € sur 24 h')
-    // ETH's cost is unknown: the gain is over BTC only, and says so (#373).
+    // Like an account (#373, the owner's « A. Comme un compte »): what the
+    // coins cost (the euros waiting left out), the result and what sales
+    // realised; ETH's cost is unknown, named apart.
+    expect(text(summary.textContent)).toContain('Investi3 120 €')
+    expect(text(summary.textContent)).toContain('Résultat+2 686 €+86,1 %')
+    expect(text(summary.textContent)).toContain('Réalisé+2 000 €en 2026')
     expect(text(summary.textContent)).toContain(
-      'Investi 4 120,00 € · résultat +2 686,25 € (hors 0,3 ETH sans coût connu)',
+      'Hors 0,3 ETH sans coût connu : à préciser sur la page du compte.',
     )
-    expect(text(summary.textContent)).toContain(
-      'Dont 1 000,00 € en euros sur vos plateformes',
-    )
-    expect(text(summary.textContent)).toContain(
-      'Plus-value réalisée +2 000,00 € cette année · +2 500,00 € en tout',
-    )
+    // The euros waiting are a part of the split, not a line of their own.
+    expect(
+      within(summary).getByRole('img', { name: /Euros 12 %$/ }),
+    ).toBeInTheDocument()
+    expect(text(summary.textContent)).not.toContain('Dont 1 000')
     expect(text(summary.textContent)).toContain('Cours il y a 3 min')
     expect(
-      within(summary).getByRole('img', { name: /^Répartition : BTC 88 %/ }),
+      within(summary).getByRole('img', { name: /^Répartition : BTC 78 %/ }),
     ).toBeInTheDocument()
   })
 

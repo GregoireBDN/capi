@@ -33,6 +33,8 @@ import type {
 } from '#/api/types.gen'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { DashboardCardHeader } from '#/components/dashboard/DashboardCardHeader'
+import { InvestedBar, Tile } from '#/components/accounts/InvestmentSummary'
+import { todayInParis } from '#/components/accounts/dates'
 import { formatCents } from '#/lib/money'
 import { plural } from '#/lib/plural'
 import { ROUTES } from '#/lib/routes'
@@ -74,7 +76,6 @@ function SignedCents({ cents }: { cents: number }) {
   )
 }
 
-/** « hors SOL, ADA », « hors 4 actifs »: priced assets of unknown cost. */
 /** « hors 0,1 BTC sans coût connu » (#373), or the number of assets. */
 function withoutCostText(
   unknown: readonly { symbol: string; quantity: string }[],
@@ -177,9 +178,31 @@ function PortfolioSummary({
 }) {
   const id = useId()
   const { totals } = data
-  const parts = splitParts(data.assets)
+  // The euros waiting on the exchanges are a part of the split, never of
+  // « Investi » (the owner's « A. Comme un compte », #373): what the coins
+  // cost, what they are worth, what they gained.
+  const parts = [
+    ...splitParts(data.assets),
+    ...(totals.fiatCents > 0
+      ? [
+          {
+            key: 'fiat',
+            label: 'Euros',
+            valueCents: totals.fiatCents,
+            color: 'var(--chart-other)',
+          },
+        ]
+      : []),
+  ]
   const splitTotal = parts.reduce((sum, part) => sum + part.valueCents, 0)
   const without = withoutCostText(totals.unknown)
+  const coinsInvested =
+    totals.investedCents === null
+      ? null
+      : totals.investedCents - totals.fiatCents
+  const gain = totals.gainCents
+  const year = todayInParis(now).slice(0, 4)
+  const realised = totals.realised.count > 0
   return (
     <Card role="region" aria-labelledby={id} className="min-w-0">
       <CardContent
@@ -199,27 +222,44 @@ function PortfolioSummary({
               <span className="text-muted-foreground">sur 24 h</span>
             </p>
           )}
-          {totals.investedCents !== null && totals.gainCents !== null && (
-            <p className="text-muted-foreground text-sm tabular-nums">
-              Investi {formatCents(totals.investedCents)} ·{' '}
-              <span className="whitespace-nowrap">résultat</span>{' '}
-              <SignedCents cents={totals.gainCents} />
-              {without && ` (${without})`}
-            </p>
-          )}
-          {totals.fiatCents > 0 && (
-            <p className="text-muted-foreground text-sm tabular-nums">
-              Dont {formatCents(totals.fiatCents)} en euros sur vos plateformes
-            </p>
-          )}
-          {totals.realised.count > 0 && (
-            <p className="text-muted-foreground text-sm tabular-nums">
-              Plus-value réalisée{' '}
-              <SignedCents cents={totals.realised.yearCents} /> cette année ·{' '}
-              <SignedCents cents={totals.realised.totalCents} /> en tout
-            </p>
-          )}
         </div>
+        {coinsInvested !== null && coinsInvested > 0 && gain !== null ? (
+          <div className="space-y-2">
+            <InvestedBar
+              valueCents={coinsInvested + gain}
+              investedCents={coinsInvested}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <Tile
+                label="Résultat"
+                cents={gain}
+                rate={gain / coinsInvested}
+                className={realised ? undefined : 'col-span-2'}
+              />
+              {realised && (
+                <Tile
+                  label="Réalisé"
+                  cents={totals.realised.yearCents}
+                  rate={null}
+                  note={`en ${year}`}
+                />
+              )}
+            </div>
+            {without && (
+              <p className="text-muted-foreground text-xs">
+                {without[0].toUpperCase() + without.slice(1)} : à préciser sur
+                la page du compte.
+              </p>
+            )}
+          </div>
+        ) : (
+          data.assets.some((asset) => asset.valueCents !== null) && (
+            <p className="text-muted-foreground text-sm">
+              Le prix de revient de vos cryptos n’est pas encore connu :
+              précisez d’où elles viennent sur la page de chaque compte.
+            </p>
+          )
+        )}
         <PortfolioStatus
           data={data}
           refreshing={refreshing}

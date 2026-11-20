@@ -36,15 +36,18 @@ function tone(cents: number) {
 }
 
 /** A figure with its rate under it: Résultat, Sur 1 an. */
-function Tile({
+export function Tile({
   label,
   cents,
   rate,
+  note,
   className,
 }: {
   label: string
   cents: number
   rate: number | null
+  /** Under the figure when there is no rate (« ventes »). */
+  note?: string
   className?: string
 }) {
   return (
@@ -70,6 +73,9 @@ function Tile({
           {formatSignedPercent(rate)}
         </p>
       )}
+      {rate === null && note && (
+        <p className="text-muted-foreground truncate text-xs">{note}</p>
+      )}
     </div>
   )
 }
@@ -78,7 +84,7 @@ function Tile({
  * « Investi 13 800 € », then the value as one bar: what was put in, and the
  * result (green) or what was lost (red) (#360, the owner's « Barre »).
  */
-function InvestedBar({
+export function InvestedBar({
   valueCents,
   investedCents,
 }: {
