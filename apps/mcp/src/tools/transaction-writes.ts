@@ -8,7 +8,7 @@ import type {
   TransactionListDto,
 } from '../api/types.js'
 import { frenchDate, parisToday, parseEuros, signedEuros } from '../format.js'
-import { KIND_LABELS } from './labels.js'
+import { KIND_LABELS, kindOfCategoryError } from './labels.js'
 import {
   DATE_PATTERN,
   listAccounts,
@@ -70,7 +70,7 @@ export const addTransactionTool = defineTool({
       .enum(KINDS)
       .optional()
       .describe(
-        "Default: the category's kind, else expense. transfer = move between the owner's own accounts, never counted as income or expense.",
+        "Only without a category (a categorized transaction has its category's kind); default expense. transfer = move between the owner's own accounts, never counted as income or expense.",
       ),
     category: z
       .string()
@@ -151,7 +151,10 @@ export const addTransactionTool = defineTool({
         `« ${account.name} » n'est pas un compte courant, d'épargne ou de titres-restaurant ouvert : les opérations saisies à la main vont sur ces comptes.`,
       )
     }
-    const kind: TransactionKind = args.kind ?? category?.kind ?? 'expense'
+    if (category && args.kind && args.kind !== category.kind) {
+      throw new ToolInputError(kindOfCategoryError(args.kind, category))
+    }
+    const kind: TransactionKind = category?.kind ?? args.kind ?? 'expense'
     const direction =
       parsed.sign === '-'
         ? 'out'
@@ -238,7 +241,7 @@ export const categorizeTransactionsTool = defineTool({
   name: 'categorize_transactions',
   title: 'Catégoriser des opérations',
   description:
-    'Set the category of one or several transactions (by id), filed by hand so rules never overwrite it; it takes them out of the review queue and gives them the category kind unless `kind` is given. "uncategorized" removes the category. Without confirm: preview of each change (current → new), transactions already right are skipped. With confirm: true applies only what is still needed. Splits are ended by a category for the whole transaction.',
+    'Set the category of one or several transactions (by id), filed by hand so rules never overwrite it; it takes them out of the review queue and gives them the category\'s kind (a categorized transaction always has it: to change the kind, choose a category of that kind). "uncategorized" removes the category. Without confirm: preview of each change (current → new), transactions already right are skipped. With confirm: true applies only what is still needed. Splits are ended by a category for the whole transaction.',
   write: { idempotent: true },
   inputSchema: {
     ids: transactionIdsSchema,
@@ -252,7 +255,7 @@ export const categorizeTransactionsTool = defineTool({
       .enum(KINDS)
       .optional()
       .describe(
-        "Override the kind, e.g. transfer for a move between the owner's own accounts. Default: the category's kind (kept when removing the category).",
+        'Only with category "uncategorized": the kind left without a category, e.g. transfer for a move between the owner\'s own accounts. Default: kept. With a category, the kind is the category\'s.',
       ),
     confirm: confirmSchema,
   },
@@ -262,9 +265,12 @@ export const categorizeTransactionsTool = defineTool({
       loadTransactions(api, args.ids),
     ])
     const category = pickCategory(categories, args.category)
+    if (category && args.kind && args.kind !== category.kind) {
+      throw new ToolInputError(kindOfCategoryError(args.kind, category))
+    }
     const target = category ? category.name : 'sans catégorie'
     const nextKind = (t: TransactionDto): TransactionKind =>
-      args.kind ?? category?.kind ?? t.kind
+      category?.kind ?? args.kind ?? t.kind
     const changing = transactions.filter(
       (t) =>
         t.categoryId !== (category?.id ?? null) ||
@@ -286,7 +292,7 @@ export const categorizeTransactionsTool = defineTool({
           ? `ventilation en ${t.splits.length} parts supprimée`
           : null,
         t.kind === 'transfer' && nextKind(t) !== 'transfer'
-          ? 'attention : un virement interne deviendrait une opération comptée ; kind "transfer" le garde en virement'
+          ? 'attention : un virement interne deviendrait une opération comptée ; une catégorie de virement interne le garde en virement'
           : null,
       ].filter(Boolean)
       return `- ${transactionRef(t)} : ${categoryName(t)} → ${target}${kind}${extras.length ? ` (${extras.join(', ')})` : ''}`
@@ -319,19 +325,20 @@ export const categorizeTransactionsTool = defineTool({
       changing.map((t) => t.id),
       {
         categoryId: category?.id ?? null,
-        ...(args.kind ? { kind: args.kind } : {}),
+        ...(!category && args.kind ? { kind: args.kind } : {}),
       },
     )
 
-    // Undo: back to each previous category and kind, grouped.
+    // Undo: back to each previous category (and the kind of those without
+    // one: a category brings its own), grouped.
     const groups = new Map<string, TransactionDto[]>()
     for (const t of changing) {
-      const key = `${t.category?.slug ?? 'uncategorized'}|${t.kind}`
+      const key = t.category ? `${t.category.slug}|` : `uncategorized|${t.kind}`
       groups.set(key, [...(groups.get(key) ?? []), t])
     }
     const undo = [...groups.entries()].map(([key, items]) => {
       const [slug, kind] = key.split('|')
-      return `- categorize_transactions ids ${JSON.stringify(items.map((t) => t.id))}, category "${slug}", kind "${kind}"`
+      return `- categorize_transactions ids ${JSON.stringify(items.map((t) => t.id))}, category "${slug}"${kind ? `, kind "${kind}"` : ''}`
     })
     const ruleOrSplit = changing.some((t) => t.ruleId || t.splits.length > 0)
     return [

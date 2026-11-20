@@ -71,10 +71,6 @@ export const createRuleTool = defineTool({
       .string()
       .max(100)
       .describe('Category name or slug (see list_categories).'),
-    kind: z
-      .enum(['expense', 'income', 'transfer'])
-      .optional()
-      .describe("Kind given to matches. Default: the category's kind."),
     account: z
       .string()
       .max(100)
@@ -103,12 +99,12 @@ export const createRuleTool = defineTool({
       matchType: args.matchType ?? 'contains',
       labelPattern: args.pattern,
       categoryId: category.id,
-      kind: args.kind ?? null,
       accountId: account?.id ?? null,
     } satisfies CreateCategorizationRuleDto
     const describe = [
       `- Libellé ${rule.matchType === 'regex' ? `correspondant à /${rule.labelPattern}/` : `contenant « ${rule.labelPattern} »`}${account ? `, compte ${account.name}` : ''}`,
-      `- → ${category.name}${rule.kind ? ` (${KIND_LABELS[rule.kind]})` : ''}`,
+      // The category gives its kind to what it files (#368).
+      `- → ${category.name} (${KIND_LABELS[category.kind]})`,
     ]
 
     const existing = rules.find(
@@ -117,7 +113,6 @@ export const createRuleTool = defineTool({
         normalize(r.labelPattern) === normalize(rule.labelPattern) &&
         r.categoryId === rule.categoryId &&
         (r.accountId ?? null) === rule.accountId &&
-        (r.kind ?? null) === rule.kind &&
         r.minAmountCents === null &&
         r.maxAmountCents === null,
     )

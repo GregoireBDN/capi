@@ -203,7 +203,7 @@ describe('split_transaction', () => {
     expect(text).toContain('Opération répartie')
     expect(text).toContain('remboursement de Restaurants')
     expect(text).toContain(
-      `categorize_transactions ids ["${ID}"], category "refunds", kind "income"`,
+      `categorize_transactions ids ["${ID}"], category "refunds", confirm: true`,
     )
   })
 
