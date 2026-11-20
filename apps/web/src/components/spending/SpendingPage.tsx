@@ -15,8 +15,13 @@ import {
   Skeleton,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { ChartPieIcon, ReceiptEuroIcon, UploadIcon } from 'lucide-react'
+import { Link, useNavigate } from '@tanstack/react-router'
+import {
+  ArrowLeftRightIcon,
+  ChartPieIcon,
+  ReceiptEuroIcon,
+  UploadIcon,
+} from 'lucide-react'
 import { NearestMonthButton } from '#/components/month/NearestMonthButton'
 import { useMemo, useState } from 'react'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
@@ -24,6 +29,8 @@ import { PageHeader } from '#/components/app-shell/PageHeader'
 import { currentMonth, formatMonth } from '#/lib/calendar'
 import { formatShortDay } from '#/lib/period'
 import { accountsQuery, isTransactional } from '#/lib/queries'
+import { plural } from '#/lib/plural'
+import { useKnownReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
 import { CategoryRanking } from './CategoryRanking'
 import { monthName, seriesLabel } from './labels'
@@ -150,6 +157,10 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
   }, [totals.data, trend.data, search.trend])
 
   const [adding, setAdding] = useState(false)
+  const navigate = useNavigate()
+  // The transactions to review, on « Voir les opérations » and its « ⋮ »
+  // (#393): the menu is the way to Opérations from here.
+  const reviewCount = useKnownReviewCount()
 
   const set = (patch: Partial<SpendingSearch>) => {
     onSearchChange(compactSearch({ ...search, ...patch }))
@@ -168,13 +179,33 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
       <PageHeader
         title="Dépenses"
         description="Où part votre argent, catégorie par catégorie."
-        // The page's « ⋮ » (#386): add an expense here, where they are read.
+        // The page's « ⋮ » (#386): add an expense here, where they are read,
+        // and Opérations, its sub-page (#393), on the month shown.
         actions={[
           {
             label: 'Ajouter une dépense',
             icon: <ReceiptEuroIcon />,
             primary: true,
             onSelect: () => setAdding(true),
+          },
+          {
+            label: 'Voir les opérations',
+            icon: <ArrowLeftRightIcon />,
+            count: reviewCount
+              ? {
+                  value: reviewCount,
+                  label: plural(
+                    reviewCount,
+                    'opération à revoir',
+                    'opérations à revoir',
+                  ),
+                }
+              : null,
+            onSelect: () =>
+              void navigate({
+                to: ROUTES.transactions,
+                search: search.month ? { month: search.month } : {},
+              }),
           },
         ]}
       />

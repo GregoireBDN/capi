@@ -1,6 +1,7 @@
 import {
   cn,
   Input,
+  NotificationCount,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -221,13 +222,24 @@ export function ToggleChip({
   pressed,
   onPressedChange,
   hideWhenOff = false,
+  count,
+  className,
 }: {
   label: string
   pressed: boolean
   onPressedChange: (pressed: boolean) => void
   /** Shown only when on (phones: the « Filtres » sheet turns it on). */
   hideWhenOff?: boolean
+  /**
+   * What the filter would show (#393: the transactions to review), set
+   * forward while off: its number astride the chip's corner
+   * (`NotificationCount`), on every width; `label` says it to screen
+   * readers (« 7 opérations à revoir »).
+   */
+  count?: { value: number; label: string }
+  className?: string
 }) {
+  const counted = !pressed && count !== undefined && count.value > 0
   return (
     <button
       type="button"
@@ -239,11 +251,15 @@ export function ToggleChip({
         CHIP,
         pressed ? CHIP_ON : CHIP_OFF,
         'pointer-coarse:touch-hitbox relative px-3',
-        hideWhenOff && !pressed && 'hidden @[672px]:inline-flex',
+        counted && 'border-primary/50 text-primary hover:bg-primary/10',
+        hideWhenOff && !pressed && !counted && 'hidden @[672px]:inline-flex',
+        className,
       )}
     >
       {label}
       {pressed && <XIcon aria-hidden className="size-4" />}
+      {/* Astride the chip's corner, like an app's notification badge (#393). */}
+      {counted && <NotificationCount value={count.value} label={count.label} />}
     </button>
   )
 }

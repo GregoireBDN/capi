@@ -100,7 +100,6 @@ describe('AppSidebar', () => {
     expect(group('Suivi')).toEqual([
       ['Tableau de bord', '/dashboard'],
       ['Dépenses', '/spending'],
-      ['Opérations', '/transactions'],
       ['Budget', '/budget'],
       ['Revue du mois', '/month-review'],
     ])
@@ -117,6 +116,8 @@ describe('AppSidebar', () => {
     expect(nav.getAllByRole('link')).toHaveLength(
       NAV_GROUPS.flatMap((g) => g.items).length,
     )
+    // Opérations is a sub-page of Dépenses, out of the sidebar (#393).
+    expect(nav.queryByRole('link', { name: 'Opérations' })).toBeNull()
     // A rule between groups, shown while folded in place of their titles.
     expect(nav.getAllByTestId('nav-group-divider')).toHaveLength(
       NAV_GROUPS.length - 1,
@@ -184,28 +185,39 @@ describe('AppSidebar', () => {
     )
   })
 
-  it('keeps the section highlighted on nested pages', async () => {
-    const nav = await renderAt('/transactions/42')
-    expect(nav.getByRole('link', { name: 'Opérations' })).toHaveAttribute(
-      'aria-current',
-      'page',
+  it.each(['/transactions', '/transactions/42'])(
+    'highlights "Dépenses" alone on Opérations, its sub-page (%s, #393)',
+    async (path) => {
+      const nav = await renderAt(path)
+      const current = nav
+        .getAllByRole('link')
+        .filter((link) => link.getAttribute('aria-current') === 'page')
+      expect(current).toEqual([nav.getByRole('link', { name: 'Dépenses' })])
+    },
+  )
+
+  it('carries the month from Opérations back to Dépenses (#393)', async () => {
+    const nav = await renderAt('/transactions?month=2026-09')
+    expect(nav.getByRole('link', { name: 'Dépenses' })).toHaveAttribute(
+      'href',
+      '/spending?month=2026-09',
     )
   })
 
-  it('shows the number to review on « Opérations », opening the filter (#322)', async () => {
+  it('shows the number to review on « Dépenses », opening the filter (#322, #393)', async () => {
     reviewCountIs(7)
     const { nav, router } = await renderAtWithRouter('/dashboard')
 
-    const badge = await nav.findByTestId('nav-badge-/transactions')
+    const badge = await nav.findByTestId('nav-badge-/spending')
     expect(badge).toHaveAccessibleName('7 opérations à revoir')
     expect(reviewCount).toHaveBeenCalled()
     // No « À revoir » entry any more; the item keeps its own link.
     expect(
       nav.queryByRole('link', { name: 'À revoir' }),
     ).not.toBeInTheDocument()
-    expect(nav.getByRole('link', { name: 'Opérations' })).toHaveAttribute(
+    expect(nav.getByRole('link', { name: 'Dépenses' })).toHaveAttribute(
       'href',
-      '/transactions',
+      '/spending',
     )
 
     await userEvent.click(
@@ -223,16 +235,14 @@ describe('AppSidebar', () => {
   it('updates the badge when the queue changes and hides it when empty', async () => {
     reviewCountIs(2)
     const nav = await renderAt('/transactions')
-    expect(await nav.findByTestId('nav-badge-/transactions')).toHaveTextContent(
-      '2',
-    )
+    expect(await nav.findByTestId('nav-badge-/spending')).toHaveTextContent('2')
 
     act(() => setReviewCount(1))
-    expect(nav.getByTestId('nav-badge-/transactions')).toHaveAccessibleName(
+    expect(nav.getByTestId('nav-badge-/spending')).toHaveAccessibleName(
       '1 opération à revoir',
     )
     act(() => setReviewCount(0))
-    expect(nav.queryByTestId('nav-badge-/transactions')).not.toBeInTheDocument()
+    expect(nav.queryByTestId('nav-badge-/spending')).not.toBeInTheDocument()
   })
 })
 
