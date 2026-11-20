@@ -143,12 +143,21 @@ export function AppSidebar() {
 
         <SidebarContent>
           <nav aria-label="Navigation principale" className="contents">
-            {NAV_GROUPS.map((group) => (
+            {NAV_GROUPS.map((group, index) => (
               <SidebarGroup
                 key={group.label}
                 role="group"
                 aria-labelledby={groupId(group.label)}
               >
+                {/* Folded, the group titles give way to a short rule
+                    between the groups (the owner, #386). */}
+                {index > 0 && (
+                  <span
+                    aria-hidden
+                    data-testid="nav-group-divider"
+                    className="bg-sidebar-border pointer-events-none absolute top-0 left-1/2 hidden h-px w-6 -translate-x-1/2 group-data-[collapsible=icon]:block"
+                  />
+                )}
                 <SidebarGroupLabel id={groupId(group.label)}>
                   {group.label}
                 </SidebarGroupLabel>

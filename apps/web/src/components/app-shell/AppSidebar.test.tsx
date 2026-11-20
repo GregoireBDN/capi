@@ -117,6 +117,10 @@ describe('AppSidebar', () => {
     expect(nav.getAllByRole('link')).toHaveLength(
       NAV_GROUPS.flatMap((g) => g.items).length,
     )
+    // A rule between groups, shown while folded in place of their titles.
+    expect(nav.getAllByTestId('nav-group-divider')).toHaveLength(
+      NAV_GROUPS.length - 1,
+    )
   })
 
   it('holds the navigation only: no settings, account or sign-out (#386)', async () => {
