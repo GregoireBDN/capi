@@ -18,6 +18,7 @@ const api = vi.hoisted(() => ({
   budgetsControllerEnvelopes: vi.fn(),
   transactionsControllerCreateManual: vi.fn(),
   transactionsControllerUpdateManual: vi.fn(),
+  transactionsControllerUpdate: vi.fn(),
   transactionsControllerRemoveManual: vi.fn(),
   transactionsControllerManualSuggestions: vi.fn(),
   transactionsControllerList: vi.fn(),
@@ -386,6 +387,9 @@ describe('MonthEnvelopes', () => {
     await waitFor(() =>
       expect(within(dialog).getByRole('heading', { level: 2 })).toHaveFocus(),
     )
+    // Enter moves on again: the last step adds.
+    await user.keyboard('{Enter}')
+    expect(currentStep(dialog)).toMatch(/^4\./)
     await user.keyboard('{Enter}')
     await waitFor(() =>
       expect(api.transactionsControllerCreateManual).toHaveBeenCalledWith(
@@ -454,6 +458,7 @@ describe('MonthEnvelopes', () => {
       expect(
         within(dialog).getByRole('group', { name: 'Habituels' }),
       ).toBeVisible()
+      await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
       await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
       await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
       await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
@@ -1092,7 +1097,7 @@ describe('ManualTransactionSheet with a meal-voucher card (#298)', () => {
         }),
       }),
     )
-    // Over what is left: the most it can pay, « Ajouter » greyed out.
+    // Over what is left: the most it can pay, « Suivant » greyed out.
     await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
     await user.clear(within(dialog).getByLabelText('Montant'))
     await user.type(within(dialog).getByLabelText('Montant'), '10,01')
@@ -1100,11 +1105,12 @@ describe('ManualTransactionSheet with a meal-voucher card (#298)', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
     expect(within(dialog).getByText(/10 € max/)).toBeInTheDocument()
     expect(
-      within(dialog).getByRole('button', { name: 'Ajouter' }),
+      within(dialog).getByRole('button', { name: 'Suivant' }),
     ).toBeDisabled()
     await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
     await user.clear(within(dialog).getByLabelText('Montant'))
     await user.type(within(dialog).getByLabelText('Montant'), '9,80')
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
     await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
     await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
     await waitFor(() =>
@@ -1136,6 +1142,7 @@ describe('ManualTransactionSheet with a meal-voucher card (#298)', () => {
     expect(
       within(creditedTo).getByRole('radio', { name: /^Titres-restaurant/ }),
     ).toHaveAttribute('aria-checked', 'true')
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
     await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
     await waitFor(() =>
       expect(api.transactionsControllerCreateManual).toHaveBeenCalledWith(
@@ -1149,5 +1156,109 @@ describe('ManualTransactionSheet with a meal-voucher card (#298)', () => {
         }),
       ),
     )
+  })
+})
+
+describe('ManualTransactionSheet adding a transfer (#398)', () => {
+  const LIVRET = 'a0000000-0000-4000-8000-000000000002'
+  const SAVINGS_CATEGORY = 'c0000000-0000-4000-8000-000000000009'
+
+  function renderTransfer() {
+    api.categoriesControllerList.mockImplementation(() =>
+      ok([category(SAVINGS_CATEGORY, 'Épargne', 'transfer')]),
+    )
+    let next = 0
+    api.transactionsControllerCreateManual.mockImplementation(() =>
+      ok({ id: `side-${++next}`, amountCents: -10_000, category: null }),
+    )
+    api.transactionsControllerUpdate.mockImplementation(() => ok({}))
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ManualTransactionSheet
+          open
+          onOpenChange={vi.fn()}
+          initialKind="transfer"
+        />
+      </QueryClientProvider>,
+    )
+  }
+
+  it('goes from one account to another, both sides linked', async () => {
+    const user = userEvent.setup()
+    renderTransfer()
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Ajouter un virement',
+    })
+    await user.click(
+      await within(dialog).findByRole('radio', { name: 'Épargne' }),
+    )
+    await user.type(within(dialog).getByLabelText('Montant'), '100')
+    // No sign to choose: the accounts say which way it goes.
+    expect(
+      within(dialog).queryByRole('button', { name: /changer de signe/ }),
+    ).not.toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+    const from = within(dialog).getByRole('radiogroup', { name: 'Depuis' })
+    await waitFor(() =>
+      expect(
+        within(from).getByRole('radio', { name: /^Compte courant/ }),
+      ).toHaveAttribute('aria-checked', 'true'),
+    )
+    // « Vers »: every other open account, investments included.
+    const to = within(dialog).getByRole('radiogroup', { name: 'Vers' })
+    expect(
+      within(to)
+        .getAllByRole('radio')
+        .map(
+          (radio) =>
+            radio.querySelector('[data-slot=option-label]')?.textContent,
+        ),
+    ).toEqual(['Livret A', 'PEA'])
+    expect(
+      within(dialog).getByRole('button', { name: 'Suivant' }),
+    ).toBeDisabled()
+    await user.click(within(to).getByRole('radio', { name: /^Livret A/ }))
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
+
+    // Out of the checking account, into the Livret A, each linked to the other.
+    await waitFor(() =>
+      expect(api.transactionsControllerCreateManual).toHaveBeenCalledTimes(2),
+    )
+    expect(api.transactionsControllerCreateManual).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        body: expect.objectContaining({
+          kind: 'transfer',
+          direction: 'out',
+          accountId: CHECKING,
+          amountCents: 10_000,
+        }) as unknown,
+      }),
+    )
+    expect(api.transactionsControllerCreateManual).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        body: expect.objectContaining({
+          direction: 'in',
+          accountId: LIVRET,
+        }) as unknown,
+      }),
+    )
+    await waitFor(() =>
+      expect(api.transactionsControllerUpdate).toHaveBeenCalledWith({
+        path: { id: 'side-2' },
+        body: { counterpartAccountId: CHECKING },
+        throwOnError: false,
+      }),
+    )
+    expect(api.transactionsControllerUpdate).toHaveBeenCalledWith({
+      path: { id: 'side-1' },
+      body: { counterpartAccountId: LIVRET },
+      throwOnError: false,
+    })
   })
 })

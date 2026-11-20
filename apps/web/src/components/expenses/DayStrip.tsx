@@ -37,6 +37,21 @@ function fromLocal(date: Date): string {
   ].join('-')
 }
 
+/** The first of the picker's month. */
+function firstOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1)
+}
+
+/** The first of the month `months` from `month`'s. */
+function shiftLocalMonth(month: Date, months: number): Date {
+  return new Date(month.getFullYear(), month.getMonth() + months, 1)
+}
+
+const MONTH_YEAR = new Intl.DateTimeFormat('fr-FR', {
+  month: 'long',
+  year: 'numeric',
+})
+
 /** Whole days from `earlier` to `later`. */
 function daysBetween(earlier: string, later: string): number {
   return Math.round(
@@ -120,7 +135,12 @@ export function DayStrip({
   const swipe = useRef<{ x: number; turned: boolean } | null>(null)
   // The month on screen (#398 feedback): any day, one tap.
   const [picking, setPickingState] = useState(false)
+  /** The month shown once open: the chosen day's. */
+  const [shownMonth, setShownMonth] = useState(() =>
+    firstOfMonth(toLocal(value || today)),
+  )
   const setPicking = (open: boolean) => {
+    if (open) setShownMonth(firstOfMonth(toLocal(value || today)))
     setPickingState(open)
     onPickingChange?.(open)
   }
@@ -159,17 +179,65 @@ export function DayStrip({
   }
 
   return (
-    <div className="space-y-1.5">
+    // The month open: its header and its days in one column, as wide as a
+    // phone at most, centred (#398 feedback).
+    <div
+      className={cn(
+        'space-y-1.5',
+        // Open: the whole height the step gives it, the weeks sharing it.
+        picking && 'mx-auto flex h-full w-full max-w-[420px] flex-col',
+      )}
+    >
       <div className="flex min-h-[44px] items-center gap-1">
-        <p
-          className={cn(
-            'min-w-0 flex-1 truncate px-1 text-sm font-medium first-letter:uppercase',
-            invalid && 'text-destructive',
-          )}
-          aria-live="polite"
-        >
-          {value ? spokenDay(value, today) : 'Choisissez un jour'}
-        </p>
+        {/* The month open: ‹ › then its name, ✕ at the end, the month
+            under it, nothing else (the owner's requests). */}
+        {picking ? (
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              iconOnly
+              className="rounded-full"
+              aria-label="Mois précédent"
+              title="Mois précédent"
+              onClick={() =>
+                setShownMonth((month) => shiftLocalMonth(month, -1))
+              }
+            >
+              <ChevronLeftIcon />
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              iconOnly
+              className="rounded-full"
+              aria-label="Mois suivant"
+              title="Mois suivant"
+              disabled={fromLocal(shownMonth).slice(0, 7) >= today.slice(0, 7)}
+              onClick={() =>
+                setShownMonth((month) => shiftLocalMonth(month, 1))
+              }
+            >
+              <ChevronRightIcon />
+            </Button>
+            <p
+              className="min-w-0 flex-1 truncate px-2 text-[22px] font-semibold first-letter:uppercase"
+              aria-live="polite"
+            >
+              {MONTH_YEAR.format(shownMonth)}
+            </p>
+          </>
+        ) : (
+          <p
+            className={cn(
+              'min-w-0 flex-1 truncate px-1 text-sm font-medium first-letter:uppercase',
+              invalid && 'text-destructive',
+            )}
+            aria-live="polite"
+          >
+            {value ? spokenDay(value, today) : 'Choisissez un jour'}
+          </p>
+        )}
         {!picking && (
           <>
             <Button
@@ -220,7 +288,9 @@ export function DayStrip({
           locale={fr}
           required
           selected={value ? toLocal(value) : undefined}
-          defaultMonth={toLocal(value || today)}
+          month={shownMonth}
+          onMonthChange={setShownMonth}
+          hideNavigation
           endMonth={toLocal(today)}
           disabled={{ after: toLocal(today) }}
           onSelect={(date: Date) => {
@@ -229,10 +299,41 @@ export function DayStrip({
           }}
           // The width of a phone at most, so a whole month shows in a dialog
           // too (#398); px, as the app's root is 22px. Days 40px at least.
-          className="mx-auto w-full max-w-[320px] bg-transparent p-0 [--cell-size:40px] [&_.rdp-caption_label]:first-letter:uppercase"
-          showOutsideDays={false}
-          classNames={{ root: 'rdp-root w-full' }}
+          // Round days (#398 feedback): the chosen one filled, today in the
+          // primary colour, the days to come faded.
+          className="min-h-0 w-full flex-1 bg-transparent p-0 [--cell-radius:9999px] [--cell-size:40px] [&_[data-day]]:size-[46px] [&_[data-day]]:min-w-0 [&_[data-day]]:rounded-full [&_[data-day]]:text-[20px]"
+          // The first row starts with the end of the month before, never
+          // blank; every week is drawn, the days to come too, plainly not
+          // to pick (#398 feedback).
+          showOutsideDays
+          classNames={{
+            // Even rows sharing the height (48 to 76px), a 46px round day
+            // centred in each, the figures large (the owner's request).
+            month: 'rdp-month flex w-full flex-1 flex-col gap-1',
+            weekdays: 'rdp-weekdays flex h-[32px] items-center',
+            week: 'rdp-week flex max-h-[76px] min-h-[48px] w-full flex-1',
+            day: 'rdp-day flex flex-1 items-center justify-center p-0 select-none',
+            outside: 'rdp-outside [&_button]:text-muted-foreground',
+            root: 'rdp-root flex h-full w-full flex-col',
+            months: 'rdp-months flex flex-1 flex-col',
+            month_grid: 'rdp-month_grid flex w-full flex-1 flex-col',
+            weeks: 'rdp-weeks flex flex-1 flex-col',
+            month_caption: 'hidden',
+            weekday:
+              'flex-1 text-center text-[14px] font-semibold uppercase text-muted-foreground select-none',
+            today:
+              'rdp-today [&_button]:font-bold [&_button:not([data-selected-single=true])]:text-primary',
+            // Days to come in this week: faded, no hover, not a button
+            // that seems to work.
+            disabled:
+              'rdp-disabled [&_button]:cursor-not-allowed [&_button]:text-muted-foreground/35 [&_button]:hover:bg-transparent',
+          }}
         />
+      )}
+      {picking && (
+        <p className="text-muted-foreground pb-1 text-center text-[14px]">
+          Les jours à venir ne se choisissent pas.
+        </p>
       )}
       <div
         ref={strip}

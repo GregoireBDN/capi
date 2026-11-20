@@ -22,6 +22,7 @@ import {
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { transactionsControllerUpdate } from '#/api'
 import type { LucideIcon } from 'lucide-react'
 import {
   ArrowDownLeftIcon,
@@ -130,6 +131,16 @@ export function expenseAmountError(text: string): string | null {
   if (cents <= 0) return 'Le montant doit être supérieur à 0'
   if (cents > MAX_AMOUNT_CENTS) return 'Montant trop élevé'
   return null
+}
+
+/** Links a transfer to the owner's other account (#296). */
+async function linkCounterpart(id: string, counterpartAccountId: string) {
+  const { data } = await transactionsControllerUpdate({
+    path: { id },
+    body: { counterpartAccountId },
+    throwOnError: false,
+  })
+  if (!data) throw new Error('Le virement n’a pas pu être lié.')
 }
 
 /** Sign of the amount when the user did not choose one. */
@@ -251,9 +262,9 @@ interface ManualTransactionSheetProps {
  * Adds a transaction, or edits one, in the same four steps (#398, the
  * owner's direction): « Catégorie » (the kind tiles and the categories,
  * #396), « Montant », « Détails » (the day on a strip, the account), then
- * « Options » (the label, one-off, the sign, the note). Adding moves on with
- * « Suivant » and adds from « Détails » on (« Options » is never required);
- * an envelope starts at the amount.
+ * « Options » (the label, « Partage », one-off, the note). Adding moves on
+ * with « Suivant » and adds on the last step; an envelope starts at the
+ * amount.
  *
  * An edit opens on « Options », every step a tap away, and saves what
  * changed with ✓ (greyed out until then), with « Annuler » in its toast.
@@ -321,6 +332,10 @@ export function ManualTransactionSheet({
   /** « Ma part » of what someone else paid: how many we were, or typed. */
   const [partPeople, setPartPeople] = useState<number | null>(2)
   const [partTyped, setPartTyped] = useState('')
+  /** The rows a transfer just added made (its undo deletes them). */
+  const transferSides = useRef<string[]>([])
+  /** Adding a transfer (#398): the account it goes to (« Vers »). */
+  const [toAccountId, setToAccountId] = useState('')
   /** Opened by « Classer » and still on its categories: a tap saves. */
   const [quickFile, setQuickFile] = useState(false)
   /** The fields as the edit opened: what ✓ compares with. */
@@ -429,6 +444,7 @@ export function ManualTransactionSheet({
     setShare(EMPTY_SHARE)
     setPartPeople(2)
     setPartTyped('')
+    setToAccountId('')
     setPickingDay(false)
     setQuickFile(Boolean(item) && startOnCategory)
     setSubmitted(false)
@@ -553,6 +569,18 @@ export function ManualTransactionSheet({
   const shareError = paidByOther
     ? myPart <= 0 || myPart > typedCents
     : sharing && !shareValid(share, typedCents)
+  // A transfer between the owner's accounts (#398, the owner's request):
+  // « Depuis » one of his cash accounts, « Vers » any other open one.
+  const transferAdd = !editing && kind === 'transfer'
+  const toChoices = (accounts.data ?? []).filter(
+    (account) =>
+      !account.archivedAt &&
+      account.type !== 'crypto' &&
+      account.type !== 'meal_voucher' &&
+      account.id !== accountId,
+  )
+  const toAccount = toChoices.find((account) => account.id === toAccountId)
+  const fromAccount = cashAccounts.find((account) => account.id === accountId)
   /** Who shares it, said on its row (« Camille, Sam »). */
   const sharedNames = share.people.map((person) => person.name).join(', ')
   // Over what is left: « Ajouter » is greyed out and the gauge says why.
@@ -607,6 +635,38 @@ export function ManualTransactionSheet({
         if (isOneOff) await updateManualExpense(created.id, { isOneOff })
         return created
       }
+      // A transfer (#398): out of « Depuis », linked to « Vers »; and when
+      // « Vers » is a cash account too, its own side, coming in, linked
+      // back, so both balances move (each replaced by its bank row later).
+      if (transferAdd) {
+        const common = {
+          amountCents,
+          kind,
+          categoryId: categoryId || null,
+          bookingDate: date,
+          label: label.trim() || null,
+          isOneOff,
+          note: note.trim() || null,
+        }
+        const out = await createManualExpense({
+          ...common,
+          direction: 'out',
+          accountId,
+        })
+        await linkCounterpart(out.id, toAccountId)
+        if (toAccount && isTransactional(toAccount)) {
+          const back = await createManualExpense({
+            ...common,
+            direction: 'in',
+            accountId: toAccountId,
+          })
+          await linkCounterpart(back.id, accountId)
+          transferSides.current = [out.id, back.id]
+        } else {
+          transferSides.current = [out.id]
+        }
+        return out
+      }
       const created = await createManualExpense({
         amountCents,
         kind,
@@ -628,7 +688,13 @@ export function ManualTransactionSheet({
     },
     onSuccess: async (saved) => {
       onOpenChange(false)
-      if (paidByOther) {
+      if (transferAdd) {
+        const sides = transferSides.current
+        undoToast(
+          `Virement ajouté : ${formatCents(Math.abs(saved.amountCents))} de ${fromAccount?.name ?? '…'} vers ${toAccount?.name ?? '…'}`,
+          () => Promise.all(sides.map((side) => deleteManualExpense(side))),
+        )
+      } else if (paidByOther) {
         const debt = saved.shares.find((s) => s.direction === 'i_owe')
         // Removing what the owner owes removes its expense too.
         undoToast(`Vous devez ${formatCents(myPart)} à ${payer.name}`, () =>
@@ -774,9 +840,10 @@ export function ManualTransactionSheet({
     labelError ??
     (voucherOver ? 'over' : null) ??
     (!bank && !paidBy && !paidByOther && !accountId ? 'account' : null) ??
-    (shareError ? 'share' : null)
+    (shareError ? 'share' : null) ??
+    (transferAdd && !toAccountId ? 'to' : null)
 
-  // "Suivant" (and Enter) moves on; from « Détails » on, adding saves, back
+  // "Suivant" (and Enter) moves on; the last step adds, back
   // to the first step that still lacks something. An edit saves anywhere.
   function submit(event: React.FormEvent) {
     event.preventDefault()
@@ -788,6 +855,13 @@ export function ManualTransactionSheet({
     if (!editing && step === 'amount') {
       if (amountError) setSubmitted(true)
       else setStep('details')
+      return
+    }
+    // « Suivant » from the details to the options (the owner's request):
+    // only the last step adds.
+    if (!editing && step === 'details') {
+      if (dateError || (transferAdd && !toAccountId)) setSubmitted(true)
+      else setStep('options')
       return
     }
     setSubmitted(true)
@@ -815,8 +889,11 @@ export function ManualTransactionSheet({
   const sign = direction === 'in' ? '+' : '−'
   const chosenCategory = categoryOf(categoryId)
   /** What the sign means, when it is not the kind's own (or a transfer). */
-  const signHint =
-    kind === 'transfer'
+  const signHint = transferAdd
+    ? fromAccount && toAccount
+      ? `De ${fromAccount.name} vers ${toAccount.name}`
+      : 'D’un compte à l’autre : les deux se choisissent dans les détails'
+    : kind === 'transfer'
       ? direction === 'in'
         ? 'Entre sur le compte'
         : 'Sort du compte'
@@ -829,7 +906,9 @@ export function ManualTransactionSheet({
     ? [...new Set(item!.splits.map((part) => part.category.name))].join(', ')
     : (chosenCategory?.name ?? (allowNoCategory ? 'Sans catégorie' : null))
   const shownLabel = bank ? displayLabel(item) : label.trim() || null
-  const amountText = `${sign} ${amount || '0'} €`
+  const amountText = transferAdd
+    ? `${amount || '0'} €`
+    : `${sign} ${amount || '0'} €`
   const stepIndex = STEPS.indexOf(step)
   const categoryChosen = Boolean(categoryId) || allowNoCategory
 
@@ -892,7 +971,10 @@ export function ManualTransactionSheet({
   }
 
   const CategoryGlyph = categoryIconComponent(chosenCategory?.icon ?? null)
-  const nextDisabled = step === 'category' && !categoryChosen
+  const nextDisabled =
+    (step === 'category' && !categoryChosen) ||
+    // Over the card's cap: the gauge says why (#298).
+    (step === 'details' && (voucherOver || (transferAdd && !toAccountId)))
   // ✓ is greyed out only for what it can't show (the card's cap is shown in
   // place, a missing account or category is chosen on its step); any other
   // error takes the user to its step on ✓.
@@ -902,7 +984,8 @@ export function ManualTransactionSheet({
       voucherOver ||
       (!accountId && !paidByOther)
   // Adding: › up to the amount, then ✓ (« Options » is never required).
-  const saves = editing || stepIndex >= 2
+  // Adding: › on every step, ✓ « Ajouter » on the last one only.
+  const saves = editing || step === 'options'
 
   /** What the earlier steps chose, at the top of the later ones. */
   const recap = (withDay: boolean) => (
@@ -1074,7 +1157,9 @@ export function ManualTransactionSheet({
         : 'Payé avec'
       : kind === 'income'
         ? 'Crédité sur'
-        : 'Compte'
+        : transferAdd
+          ? 'Depuis'
+          : 'Compte'
   /** One account shown, not chosen: a bank row's, or who paid. */
   function fixedAccount() {
     if (paidBy) {
@@ -1295,7 +1380,7 @@ export function ManualTransactionSheet({
           >
             {/* The sign (#398): the kind's own, one tap for the other
                 (a refund, a returned income, a transfer in or out). */}
-            {split ? (
+            {transferAdd ? null : split ? (
               <span aria-hidden>{sign}</span>
             ) : (
               <button
@@ -1398,11 +1483,14 @@ export function ManualTransactionSheet({
       {!detour && step === 'details' && (
         <div
           data-sheet-scroll=""
-          className="min-h-0 flex-1 space-y-5 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pt-4 pb-6"
+          className={cn(
+            'min-h-0 flex-1 space-y-5 overflow-x-hidden overscroll-contain px-4 pt-4 pb-6',
+            // The month open takes the whole step, nothing to scroll (#398).
+            pickingDay ? 'flex flex-col overflow-y-hidden' : 'overflow-y-auto',
+          )}
         >
-          {/* The month open: room for all of it (#398). */}
           {!pickingDay && recapBlock(false)}
-          <div className="space-y-1">
+          <div className={cn('space-y-1', pickingDay && 'min-h-0 flex-1')}>
             <DayStrip
               value={date}
               onChange={setDate}
@@ -1410,64 +1498,89 @@ export function ManualTransactionSheet({
               invalid={showDateError}
               onPickingChange={setPickingDay}
             />
-            {showDateError ? (
+            {pickingDay ? null : showDateError ? (
               <FieldError>{dateError}</FieldError>
             ) : (
               bankValue('day')
             )}
           </div>
-          <div className="space-y-2">
-            <p
-              id={`${id}-account`}
-              className="text-muted-foreground px-1 text-xs font-semibold tracking-wide uppercase"
-            >
-              {accountTitle}
-            </p>
-            {bank || paidBy ? (
-              fixedAccount()
-            ) : (
-              <AccountRows
-                labelId={`${id}-account`}
-                accounts={accountChoices}
-                // Someone else paid: none of the owner's accounts.
-                value={paidByOther ? '' : accountId}
-                onChange={(next) => {
-                  setAccountId(next)
-                  setPayer(null)
-                }}
+          {!pickingDay && (
+            <div className="space-y-2">
+              <p
+                id={`${id}-account`}
+                className="text-muted-foreground px-1 text-xs font-semibold tracking-wide uppercase"
               >
-                {/* « Payé pour moi » (#398): who paid, in the same frame. */}
-                {canShare && (
-                  <OptionRow
-                    role={payer ? 'radio' : 'button'}
-                    selected={payer !== null}
-                    leading={
-                      payer ? (
-                        <ContactAvatar name={payer.name} size="sm" />
-                      ) : (
-                        <span className="bg-muted text-muted-foreground flex size-[36px] shrink-0 items-center justify-center rounded-full">
-                          <UserRoundIcon aria-hidden className="size-[18px]" />
-                        </span>
-                      )
-                    }
-                    label={payer ? payer.name : 'Quelqu’un d’autre'}
-                    detail={
-                      payer
-                        ? 'A payé · je lui dois ma part'
-                        : 'Je lui dois ma part'
-                    }
-                    onClick={() => setDetour('payer')}
-                  />
-                )}
-              </AccountRows>
-            )}
-            {voucherGauge && <div className="px-1 pt-1">{voucherGauge}</div>}
-            {noAccount && (
-              <p className="text-muted-foreground text-sm">
-                Ajoutez d’abord un compte courant pour saisir une opération.
+                {accountTitle}
               </p>
-            )}
-          </div>
+              {bank || paidBy ? (
+                fixedAccount()
+              ) : (
+                <AccountRows
+                  labelId={`${id}-account`}
+                  accounts={accountChoices}
+                  // Someone else paid: none of the owner's accounts.
+                  value={paidByOther ? '' : accountId}
+                  onChange={(next) => {
+                    setAccountId(next)
+                    setPayer(null)
+                    if (next === toAccountId) setToAccountId('')
+                  }}
+                >
+                  {/* « Payé pour moi » (#398): who paid, in the same frame. */}
+                  {canShare && (
+                    <OptionRow
+                      role={payer ? 'radio' : 'button'}
+                      selected={payer !== null}
+                      leading={
+                        payer ? (
+                          <ContactAvatar name={payer.name} size="sm" />
+                        ) : (
+                          <span className="bg-muted text-muted-foreground flex size-[36px] shrink-0 items-center justify-center rounded-full">
+                            <UserRoundIcon
+                              aria-hidden
+                              className="size-[18px]"
+                            />
+                          </span>
+                        )
+                      }
+                      label={payer ? payer.name : 'Quelqu’un d’autre'}
+                      detail={
+                        payer
+                          ? 'A payé · je lui dois ma part'
+                          : 'Je lui dois ma part'
+                      }
+                      onClick={() => setDetour('payer')}
+                    />
+                  )}
+                </AccountRows>
+              )}
+              {voucherGauge && <div className="px-1 pt-1">{voucherGauge}</div>}
+              {transferAdd && (
+                <div className="space-y-2 pt-3">
+                  <p
+                    id={`${id}-to`}
+                    className="text-muted-foreground px-1 text-xs font-semibold tracking-wide uppercase"
+                  >
+                    Vers
+                  </p>
+                  <AccountRows
+                    labelId={`${id}-to`}
+                    accounts={toChoices}
+                    value={toAccountId}
+                    onChange={setToAccountId}
+                  />
+                  {submitted && !toAccountId && (
+                    <FieldError>Choisissez le compte qui reçoit.</FieldError>
+                  )}
+                </div>
+              )}
+              {noAccount && (
+                <p className="text-muted-foreground text-sm">
+                  Ajoutez d’abord un compte courant pour saisir une opération.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
