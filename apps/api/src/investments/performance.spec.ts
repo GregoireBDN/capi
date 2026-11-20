@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { daysBetween, oneYearBefore, parisToday } from './days'
 import {
   computePerformance,
+  cryptoInvestedAt,
   linkedContributions,
   simpleReturn,
   type SnapshotPoint,
@@ -254,5 +255,122 @@ describe('contributions from linked transfers (#296)', () => {
       'brokerage',
     )
     expect(history?.map((p) => p.contributionsCents)).toEqual([750_00, 850_00])
+  })
+})
+
+describe('invested base of a crypto account (#358)', () => {
+  const flow = (date: string, amountCents: number | null) => ({
+    date,
+    amountCents,
+  })
+  const base = { cents: 5_000_00, on: '2026-06-30' }
+
+  it('shows the base as invested, and keeps it after the next valuation', () => {
+    // Synced lines have no cost: the valuations stored no contributions.
+    const snapshots = [
+      point('2026-11-18', 3_100_00),
+      point('2026-11-19', 3_000_00),
+    ]
+    const result = computePerformance(
+      snapshots,
+      'crypto',
+      '2026-11-19',
+      [],
+      base,
+    )
+    expect(result).toMatchObject({
+      contributionsCents: 5_000_00,
+      contributionsSource: 'base',
+      gainCents: -2_000_00,
+      returnRate: -0.4,
+      linkedTransfersCount: 0,
+      unknownCostCount: 0,
+    })
+    expect(
+      linkedContributions(snapshots, [], 'crypto', base)?.map(
+        (p) => p.contributionsCents,
+      ),
+    ).toEqual([5_000_00, 5_000_00])
+  })
+
+  it('adds the coins linked after its day, never those before it', () => {
+    const flows = [flow('2026-05-10', 700_00), flow('2026-08-02', 400_00)]
+    const snapshots = [
+      point('2026-05-31', 900_00),
+      point('2026-07-31', 4_800_00),
+      point('2026-08-31', 5_700_00),
+    ]
+    const result = computePerformance(
+      snapshots,
+      'crypto',
+      '2026-09-01',
+      flows,
+      base,
+    )
+    expect(result.contributionsCents).toBe(5_400_00)
+    expect(result.gainCents).toBe(300_00)
+    expect(result.linkedTransfersCount).toBe(1)
+    // Before its day, the coins linked so far.
+    expect(
+      linkedContributions(snapshots, flows, 'crypto', base)?.map(
+        (p) => p.contributionsCents,
+      ),
+    ).toEqual([700_00, 5_000_00, 5_400_00])
+  })
+
+  it('counts a base dated after the latest value', () => {
+    const result = computePerformance(
+      [point('2026-11-01', 3_000_00)],
+      'crypto',
+      '2026-11-19',
+      [],
+      { cents: 5_000_00, on: '2026-11-19' },
+    )
+    expect(result.contributionsCents).toBe(5_000_00)
+    expect(result.contributionsDate).toBe('2026-11-19')
+    expect(result.contributionsSource).toBe('base')
+  })
+
+  it('leaves the coins of unknown cost out and counts them', () => {
+    const flows = [
+      flow('2026-07-10', 400_00),
+      flow('2026-07-20', null),
+      flow('2026-08-10', null),
+    ]
+    expect(cryptoInvestedAt(base, flows, '2026-08-31')).toEqual({
+      investedCents: 5_400_00,
+      linkedCount: 1,
+      unknownCostCount: 2,
+    })
+    // Without a base the known ones still count.
+    const result = computePerformance(
+      [point('2026-08-31', 600_00)],
+      'crypto',
+      '2026-08-31',
+      flows,
+    )
+    expect(result).toMatchObject({
+      contributionsCents: 400_00,
+      contributionsSource: 'links',
+      linkedTransfersCount: 1,
+      unknownCostCount: 2,
+    })
+  })
+
+  it('has nothing to say without a base or linked coins', () => {
+    expect(cryptoInvestedAt(null, [], '2026-08-31')).toBeNull()
+    expect(cryptoInvestedAt(base, [], '2026-06-29')).toBeNull()
+  })
+
+  it('ignores a base on other account types', () => {
+    const result = computePerformance(
+      [point('2026-08-31', 1_200_00, 1_000_00)],
+      'brokerage',
+      '2026-08-31',
+      [],
+      base,
+    )
+    expect(result.contributionsCents).toBe(1_000_00)
+    expect(result.contributionsSource).toBe('typed')
   })
 })

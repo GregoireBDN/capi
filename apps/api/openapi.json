@@ -5135,6 +5135,165 @@
         ]
       }
     },
+    "/api/accounts/{id}/invested-base": {
+      "put": {
+        "description": "What was invested in the account up to a day (#358, « Investi jusqu’au … »). The invested amount is then that base plus the cost of the coins linked to the account after that day; the snapshots from that day get it as their contributions. Not for exchange accounts, which keep their holdings' cost.",
+        "operationId": "AccountSnapshotsController_setInvestedBase",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetInvestedBaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestedFiguresDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, future day, archived account, not a wallet or manual crypto account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Set the invested base of a wallet or manual crypto account",
+        "tags": [
+          "Accounts"
+        ]
+      },
+      "delete": {
+        "description": "The coins linked to it (or its holdings' invested amounts) give its invested amount again. Session only.",
+        "operationId": "AccountSnapshotsController_clearInvestedBase",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestedFiguresDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Archived account, not a wallet or manual crypto account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Remove the invested base of a crypto account",
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
+    "/api/accounts/{id}/invested-base/preview": {
+      "post": {
+        "description": "The invested amount, gain and rate of the account now and with this base. Saves nothing.",
+        "operationId": "AccountSnapshotsController_previewInvestedBase",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetInvestedBaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestedBasePreviewDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, future day, archived account, not a wallet or manual crypto account."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Preview an invested base",
+        "tags": [
+          "Accounts"
+        ]
+      }
+    },
     "/api/investments/summary": {
       "get": {
         "description": "Non-archived brokerage, life insurance, employee savings and crypto accounts, from their latest snapshots. Contributions come from the transfers linked to an account when it has some (`contributionsSource`), else from the snapshots. The gain only covers accounts whose contributions are known.",
@@ -8949,6 +9108,17 @@
             "nullable": true,
             "description": "Last import (exchange) or sync (wallet) of the holdings; null until the first one."
           },
+          "investedBaseCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Wallet and manual crypto accounts (#358): what was invested in it up to `investedBaseOn`, typed by the owner; the coins linked to it after that day add their cost. Null when not set."
+          },
+          "investedBaseOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Day `investedBaseCents` covers (« Investi jusqu’au … »)."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -8970,6 +9140,8 @@
           "cryptoSource",
           "cryptoProvider",
           "cryptoSyncedAt",
+          "investedBaseCents",
+          "investedBaseOn",
           "createdAt",
           "updatedAt"
         ]
@@ -13504,9 +13676,10 @@
         "type": "string",
         "enum": [
           "links",
-          "typed"
+          "typed",
+          "base"
         ],
-        "description": "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings)."
+        "description": "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings); `base`: a crypto account's invested base (#358) plus the cost of the coins linked to it since its day."
       },
       "ValueChangeDto": {
         "type": "object",
@@ -13558,6 +13731,24 @@
           "contributionsCents"
         ]
       },
+      "InvestedBaseDto": {
+        "type": "object",
+        "properties": {
+          "amountCents": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Invested in the account up to `on`, in cents."
+          },
+          "on": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "amountCents",
+          "on"
+        ]
+      },
       "AccountPerformanceDto": {
         "type": "object",
         "properties": {
@@ -13584,7 +13775,7 @@
           },
           "contributionsSource": {
             "nullable": true,
-            "description": "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings).",
+            "description": "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings); `base`: a crypto account's invested base (#358) plus the cost of the coins linked to it since its day.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ContributionsSource"
@@ -13598,7 +13789,11 @@
           },
           "linkedTransfersCount": {
             "type": "integer",
-            "description": "Transfers linked to the account (0 for crypto, whose contributions come from its holdings)."
+            "description": "Transfers linked to the account; for crypto, the coins received from an exchange whose cost is counted (after the invested base's day when there is one)."
+          },
+          "unknownCostCount": {
+            "type": "integer",
+            "description": "Crypto (#358): coins received from an exchange whose cost is unknown, left out of the contributions (0 otherwise)."
           },
           "linkedAfterValueCents": {
             "type": "integer",
@@ -13666,11 +13861,21 @@
             }
           },
           "contributionsHistory": {
-            "description": "Net contributions at each snapshot (same order as `snapshots`): from the linked transfers when `contributionsSource` is `links`, else as typed.",
+            "description": "Net contributions at each snapshot (same order as `snapshots`): from the linked transfers when `contributionsSource` is `links`, from the invested base when `base`, else as typed.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ContributionPointDto"
             }
+          },
+          "investedBase": {
+            "nullable": true,
+            "description": "Wallet and manual crypto accounts (#358): the invested base typed by the owner.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InvestedBaseDto"
+              }
+            ]
           }
         },
         "required": [
@@ -13681,6 +13886,7 @@
           "contributionsSource",
           "typedContributionsCents",
           "linkedTransfersCount",
+          "unknownCostCount",
           "linkedAfterValueCents",
           "gainCents",
           "returnRate",
@@ -13692,7 +13898,112 @@
           "sincePrevious",
           "sinceOneYear",
           "snapshots",
-          "contributionsHistory"
+          "contributionsHistory",
+          "investedBase"
+        ]
+      },
+      "SetInvestedBaseDto": {
+        "type": "object",
+        "properties": {
+          "amountCents": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "What was invested in the account up to `on` (coins bought, fees included), in cents."
+          },
+          "on": {
+            "type": "string",
+            "format": "date",
+            "description": "Last day the amount covers (`YYYY-MM-DD`, not after today in Europe/Paris): coins linked to the account after it add their cost.",
+            "example": "2026-10-31"
+          }
+        },
+        "required": [
+          "amountCents",
+          "on"
+        ]
+      },
+      "InvestedFiguresDto": {
+        "type": "object",
+        "properties": {
+          "investedBase": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InvestedBaseDto"
+              }
+            ]
+          },
+          "valueCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Latest value; null without one."
+          },
+          "valueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "contributionsCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Invested amount (null when unknown)."
+          },
+          "contributionsSource": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContributionsSource"
+              }
+            ]
+          },
+          "gainCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "returnRate": {
+            "type": "number",
+            "nullable": true
+          },
+          "linkedTransfersCount": {
+            "type": "integer",
+            "description": "Coins received whose cost is counted."
+          },
+          "unknownCostCount": {
+            "type": "integer",
+            "description": "Coins received whose cost is unknown, left out."
+          }
+        },
+        "required": [
+          "investedBase",
+          "valueCents",
+          "valueDate",
+          "contributionsCents",
+          "contributionsSource",
+          "gainCents",
+          "returnRate",
+          "linkedTransfersCount",
+          "unknownCostCount"
+        ]
+      },
+      "InvestedBasePreviewDto": {
+        "type": "object",
+        "properties": {
+          "current": {
+            "$ref": "#/components/schemas/InvestedFiguresDto"
+          },
+          "next": {
+            "description": "The same figures once the base is saved.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InvestedFiguresDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "current",
+          "next"
         ]
       },
       "InvestmentsTotalsDto": {
@@ -13764,7 +14075,7 @@
           },
           "contributionsSource": {
             "nullable": true,
-            "description": "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings).",
+            "description": "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings); `base`: a crypto account's invested base (#358) plus the cost of the coins linked to it since its day.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ContributionsSource"
@@ -13778,7 +14089,11 @@
           },
           "linkedTransfersCount": {
             "type": "integer",
-            "description": "Transfers linked to the account (0 for crypto, whose contributions come from its holdings)."
+            "description": "Transfers linked to the account; for crypto, the coins received from an exchange whose cost is counted (after the invested base's day when there is one)."
+          },
+          "unknownCostCount": {
+            "type": "integer",
+            "description": "Crypto (#358): coins received from an exchange whose cost is unknown, left out of the contributions (0 otherwise)."
           },
           "linkedAfterValueCents": {
             "type": "integer",
@@ -13834,6 +14149,7 @@
           "contributionsSource",
           "typedContributionsCents",
           "linkedTransfersCount",
+          "unknownCostCount",
           "linkedAfterValueCents",
           "gainCents",
           "returnRate",
@@ -14837,16 +15153,23 @@
           "investedCents": {
             "type": "integer",
             "nullable": true,
-            "description": "Invested in the priced assets whose cost is known; null if none."
+            "description": "Invested in the priced assets whose cost is known, plus what the accounts whose cost is known as a whole invested (#358: a wallet's invested base and the coins linked to it); null if none."
           },
           "gainCents": {
             "type": "integer",
             "nullable": true,
-            "description": "Value of those assets minus what was invested in them."
+            "description": "Value of those assets and accounts minus what was invested."
           },
           "withoutInvestedCount": {
             "type": "integer",
             "description": "Priced assets whose cost is unknown (out of the gain)."
+          },
+          "withoutInvestedSymbols": {
+            "description": "Tickers of those assets, largest value first.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "missingPriceCount": {
             "type": "integer",
@@ -14862,6 +15185,7 @@
           "investedCents",
           "gainCents",
           "withoutInvestedCount",
+          "withoutInvestedSymbols",
           "missingPriceCount",
           "staleCount"
         ]

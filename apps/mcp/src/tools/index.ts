@@ -5,6 +5,7 @@ import { listCategoriesTool } from './categories.js'
 import {
   addInvestmentSnapshotsTool,
   createInvestmentAccountTool,
+  setCryptoInvestedTool,
   syncCryptoHoldingsTool,
 } from './investment-writes.js'
 import { listInvestmentAccountsTool } from './investments.js'
@@ -72,6 +73,7 @@ export const writeTools = [
   // #104
   addInvestmentSnapshotsTool,
   syncCryptoHoldingsTool,
+  setCryptoInvestedTool,
   // #342: close past months (reopening stays in the app).
   closeMonthsTool,
   // #357: split a transaction, refund parts included (undo in the app).

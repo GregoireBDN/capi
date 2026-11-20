@@ -26,15 +26,78 @@ export const STALE_AFTER_DAYS: Record<AccountType, number> = {
 
 /**
  * Money paid into an investment account (positive) or taken out of it
- * (negative) by a transfer linked to it (#296), on its booking day.
+ * (negative) by a transfer linked to it (#296), on its booking day. For a
+ * crypto account, the cost of the coins withdrawn to it from an exchange:
+ * null when the export could not give it (#358).
  */
 export interface LinkedFlow {
   date: string
-  amountCents: number
+  amountCents: number | null
 }
 
-/** Where `contributionsCents` comes from. */
-export type ContributionsSource = 'links' | 'typed'
+/**
+ * What the owner invested in a wallet or manual crypto account up to a day
+ * (#358, « Investi jusqu'au … »), typed by hand.
+ */
+export interface InvestedBase {
+  cents: number
+  on: string
+}
+
+/** The account's invested base, when it has one. */
+export function investedBaseOf(account: {
+  investedBaseCents: number | null
+  investedBaseOn: string | null
+}): InvestedBase | null {
+  return account.investedBaseCents === null || account.investedBaseOn === null
+    ? null
+    : { cents: account.investedBaseCents, on: account.investedBaseOn }
+}
+
+/**
+ * Where `contributionsCents` comes from: `links`, the transfers linked to the
+ * account; `typed`, typed on the snapshots; `base`, a crypto account's
+ * invested base plus the coins linked to it since.
+ */
+export type ContributionsSource = 'links' | 'typed' | 'base'
+
+export interface CryptoInvested {
+  investedCents: number
+  /** Linked movements whose cost is counted. */
+  linkedCount: number
+  /** Linked movements counted as 0: their cost is unknown. */
+  unknownCostCount: number
+}
+
+/**
+ * What a crypto account had invested at the end of `day` (#358): its base
+ * plus the cost of the coins linked to it after the base's day, or, before
+ * the base's day or without one, the cost of the coins linked to it so far
+ * (null when none was). A movement of unknown cost is left out and counted,
+ * so the others still count.
+ */
+export function cryptoInvestedAt(
+  base: InvestedBase | null,
+  flows: readonly LinkedFlow[],
+  day: string,
+): CryptoInvested | null {
+  const fromBase = base !== null && base.on <= day
+  const after = fromBase ? base.on : ''
+  const counted = flows.filter((flow) => flow.date > after && flow.date <= day)
+  if (!fromBase && counted.length === 0) return null
+  let investedCents = fromBase ? base.cents : 0
+  let linkedCount = 0
+  for (const flow of counted) {
+    if (flow.amountCents === null) continue
+    investedCents += flow.amountCents
+    linkedCount++
+  }
+  return {
+    investedCents,
+    linkedCount,
+    unknownCostCount: counted.length - linkedCount,
+  }
+}
 
 export interface ValueChange {
   /** Date of the snapshot the latest value is compared with. */
@@ -68,8 +131,16 @@ export interface Performance {
    * replace them and they disagree; null otherwise.
    */
   typedContributionsCents: number | null
-  /** Transfers linked to the account. */
+  /**
+   * Transfers linked to the account; for crypto, the linked movements whose
+   * cost is counted (after the base's day when it has one).
+   */
   linkedTransfersCount: number
+  /**
+   * Crypto only (#358): linked movements counted at 0 because their cost is
+   * unknown (« dont 2 envois sans coût connu »).
+   */
+  unknownCostCount: number
   /** Net amount transferred after the latest value: not in it yet. */
   linkedAfterValueCents: number
   gainCents: number | null
@@ -121,30 +192,42 @@ function change(from: SnapshotPoint, to: SnapshotPoint): ValueChange {
  * the linked history only starts with the bank data. Null without flows.
  *
  * For crypto the flows are the cost of the coins withdrawn to it from an
- * exchange (a Ledger fed by Binance), with no typed base: the invested
- * amounts of its holdings are not dated.
+ * exchange (a Ledger fed by Binance); the base is the invested base typed on
+ * the account (#358, `cryptoInvestedAt`), never a snapshot's: the invested
+ * amounts of its holdings are not dated. Before the base's day, the coins
+ * linked so far; snapshots before any keep what they hold. Null without a
+ * base or flows.
  */
 export function linkedContributions(
   snapshots: readonly SnapshotPoint[],
   flows: readonly LinkedFlow[],
   type: AccountType,
+  investedBase: InvestedBase | null = null,
 ): SnapshotPoint[] | null {
-  if (flows.length === 0) return null
+  const base = type === 'crypto' ? investedBase : null
+  if (flows.length === 0 && base === null) return null
   const ordered = [...flows].sort((a, b) => a.date.localeCompare(b.date))
+  if (type === 'crypto') {
+    return snapshots.map((snapshot) => {
+      const invested = cryptoInvestedAt(base, ordered, snapshot.date)
+      return invested
+        ? { ...snapshot, contributionsCents: invested.investedCents }
+        : snapshot
+    })
+  }
   const first = ordered[0].date
-  const base = findLast(
+  const typedBase = findLast(
     snapshots,
     (snapshot) => snapshot.date < first && snapshot.contributionsCents !== null,
   )
-  const crypto = type === 'crypto'
-  const baseCents = crypto ? 0 : (base?.contributionsCents ?? 0)
-  const after = crypto ? '' : (base?.date ?? '')
+  const baseCents = typedBase?.contributionsCents ?? 0
+  const after = typedBase?.date ?? ''
   return snapshots.map((snapshot) => {
     if (snapshot.date < first) return snapshot
     let contributionsCents = baseCents
     for (const flow of ordered) {
       if (flow.date > snapshot.date) break
-      if (flow.date > after) contributionsCents += flow.amountCents
+      if (flow.date > after) contributionsCents += flow.amountCents ?? 0
     }
     return { ...snapshot, contributionsCents }
   })
@@ -155,19 +238,30 @@ export function linkedContributions(
  * (sorted by date, ascending), as of the calendar day `today`. With
  * transfers linked to it (`flows`), its contributions come from them
  * (`linkedContributions`): euros for a PEA, the cost of the coins received
- * for a wallet.
+ * for a wallet, on top of the crypto account's invested base (#358).
  */
 export function computePerformance(
   typed: readonly SnapshotPoint[],
   type: AccountType,
   today: string,
   flows: readonly LinkedFlow[] = [],
+  investedBase: InvestedBase | null = null,
 ): Performance {
+  const crypto = type === 'crypto'
+  const base = crypto ? investedBase : null
   const staleAfterDays = STALE_AFTER_DAYS[type]
-  const linked = linkedContributions(typed, flows, type)
+  const linked = linkedContributions(typed, flows, type, base)
   const snapshots = linked ?? typed
   const latest = snapshots.at(-1)
-  const linkedTransfersCount = linked ? flows.length : 0
+  // Crypto: what the base and the movements give as of today (the latest
+  // value may predate the base's day).
+  const invested = crypto ? cryptoInvestedAt(base, flows, today) : null
+  const linkedTransfersCount = !linked
+    ? 0
+    : crypto
+      ? (invested?.linkedCount ?? 0)
+      : flows.length
+  const unknownCostCount = invested?.unknownCostCount ?? 0
   const firstFlow = linked
     ? flows.reduce((min, flow) => (flow.date < min ? flow.date : min), '9999')
     : null
@@ -180,6 +274,7 @@ export function computePerformance(
       contributionsSource: null,
       typedContributionsCents: null,
       linkedTransfersCount,
+      unknownCostCount,
       linkedAfterValueCents: 0,
       gainCents: null,
       returnRate: null,
@@ -193,30 +288,47 @@ export function computePerformance(
 
   // Crypto values come from holdings, valued daily with their invested
   // amounts: contributions from an earlier day may predate assets added
-  // since, so only those of the latest snapshot count.
-  const withContributions =
-    type === 'crypto'
-      ? latest.contributionsCents === null
-        ? undefined
-        : latest
-      : findLast(snapshots, (snapshot) => snapshot.contributionsCents !== null)
+  // since, so only those of the latest snapshot count. With a base dated
+  // after the latest value, the base (and what was linked since) counts.
+  let withContributions:
+    | { date: string; contributionsCents: number | null }
+    | undefined
+  if (crypto) {
+    if (base !== null && latest.date < base.on) {
+      withContributions = {
+        date: base.on,
+        contributionsCents: invested!.investedCents,
+      }
+    } else if (latest.contributionsCents !== null) withContributions = latest
+  } else {
+    withContributions = findLast(
+      snapshots,
+      (snapshot) => snapshot.contributionsCents !== null,
+    )
+  }
   const contributionsCents = withContributions?.contributionsCents ?? null
   const gainCents =
     contributionsCents === null ? null : latest.valueCents - contributionsCents
   // Typed since the first transfer: what the links are compared with.
-  const typedLatest = findLast(
-    typed,
-    (snapshot) =>
-      snapshot.contributionsCents !== null && snapshot.date >= firstFlow!,
-  )?.contributionsCents
+  const typedLatest =
+    base === null
+      ? findLast(
+          typed,
+          (snapshot) =>
+            snapshot.contributionsCents !== null && snapshot.date >= firstFlow!,
+        )?.contributionsCents
+      : null
   const typedContributionsCents =
     linked && typedLatest != null && typedLatest !== contributionsCents
       ? typedLatest
       : null
   const linkedAfterValueCents = linked
     ? flows
-        .filter((flow) => flow.date > latest.date)
-        .reduce((sum, flow) => sum + flow.amountCents, 0)
+        .filter(
+          (flow) =>
+            flow.date > latest.date && (base === null || flow.date > base.on),
+        )
+        .reduce((sum, flow) => sum + (flow.amountCents ?? 0), 0)
     : 0
 
   const previous = snapshots.at(-2)
@@ -224,19 +336,24 @@ export function computePerformance(
   const reference = findLast(snapshots, (snapshot) => snapshot.date <= yearAgo)
   const daysSinceLatest = daysBetween(latest.date, today)
 
+  let contributionsSource: ContributionsSource | null = null
+  if (contributionsCents !== null) {
+    if (base !== null && withContributions!.date >= base.on) {
+      contributionsSource = 'base'
+    } else if (linked && withContributions!.date >= firstFlow!) {
+      contributionsSource = 'links'
+    } else contributionsSource = 'typed'
+  }
+
   return {
     valueCents: latest.valueCents,
     valueDate: latest.date,
     contributionsCents,
     contributionsDate: withContributions?.date ?? null,
-    contributionsSource:
-      contributionsCents === null
-        ? null
-        : linked && withContributions!.date >= firstFlow!
-          ? 'links'
-          : 'typed',
+    contributionsSource,
     typedContributionsCents,
     linkedTransfersCount,
+    unknownCostCount,
     linkedAfterValueCents,
     gainCents,
     returnRate: simpleReturn(gainCents, contributionsCents),

@@ -6,6 +6,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { AccountsService } from '#/accounts/accounts.service'
 import { DashboardService } from '#/dashboard/dashboard.service'
 import * as schema from '#/database/schema'
+import {
+  accountsTable,
+  balanceSnapshotsTable,
+  cryptoImportsTable,
+  cryptoMovementsTable,
+} from '#/database/schema'
+import { eq } from 'drizzle-orm'
 import type { AccountType } from '#/database/schema/domain-enums'
 import { BudgetsService } from '#/budgets/budgets.service'
 import { TransactionsService } from '#/transactions/transactions.service'
@@ -40,6 +47,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     })
 
     interface Fixture {
+      tx: Db
       accounts: AccountsService
       investments: InvestmentsService
       dashboard: DashboardService
@@ -61,7 +69,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
           )
           const account = async (type: AccountType, name = `Test ${type}`) =>
             (await accounts.create({ name, type, institution: 'Test bank' })).id
-          await fn({ accounts, investments, dashboard, account })
+          await fn({
+            tx: tx as never,
+            accounts,
+            investments,
+            dashboard,
+            account,
+          })
           throw ROLLBACK
         })
         .catch((error: unknown) => {
@@ -352,6 +366,152 @@ describe.skipIf(!process.env.DATABASE_URL)(
           daysSinceLatest: 157,
           stale: true,
         })
+      })
+    })
+
+    it('gives a crypto account its invested base and the coins linked since (#358)', async () => {
+      await inRollback(async ({ tx, accounts, investments, account }) => {
+        const wallet = await account('crypto', 'Test wallet')
+        const exchange = await accounts.create({
+          name: 'Test exchange',
+          type: 'crypto',
+          cryptoSource: 'exchange',
+          cryptoProvider: 'binance',
+        })
+        const [imported] = await tx
+          .insert(cryptoImportsTable)
+          .values({
+            accountId: exchange.id,
+            format: 'binance_csv',
+            fileName: 'export-exemple.csv',
+            fileHash: 'd'.repeat(64),
+            preview: {} as never,
+          })
+          .returning()
+        const withdrawal = (day: string, costCents: number | null, n: number) =>
+          ({
+            accountId: exchange.id,
+            importId: imported.id,
+            occurredAt: new Date(`${day}T10:00:00Z`),
+            operation: 'Withdraw',
+            kind: 'withdrawal',
+            asset: 'BTC',
+            quantity: '-0.01',
+            counterpartAccountId: wallet,
+            costCents,
+            dedupeHash: `invested-base-${n}`,
+          }) as const
+        await tx
+          .insert(cryptoMovementsTable)
+          .values([
+            withdrawal('2026-05-10', 700_00, 1),
+            withdrawal('2026-08-02', 400_00, 2),
+            withdrawal('2026-09-15', null, 3),
+          ])
+        for (const [date, valueCents] of [
+          ['2026-05-31', 900_00],
+          ['2026-07-31', 4_800_00],
+          ['2026-11-04', 3_000_00],
+        ] as const) {
+          await investments.upsert(wallet, date, { valueCents }, NOW)
+        }
+        const base = { amountCents: 5_000_00, on: '2026-06-30' }
+
+        const preview = await investments.previewInvestedBase(wallet, base, NOW)
+        expect(preview.current).toMatchObject({
+          investedBase: null,
+          contributionsCents: 1_100_00,
+          contributionsSource: 'links',
+          linkedTransfersCount: 2,
+          unknownCostCount: 1,
+        })
+        expect(preview.next).toMatchObject({
+          investedBase: base,
+          valueCents: 3_000_00,
+          contributionsCents: 5_400_00,
+          contributionsSource: 'base',
+          gainCents: -2_400_00,
+          returnRate: -2_400_00 / 5_400_00,
+          linkedTransfersCount: 1,
+          unknownCostCount: 1,
+        })
+        // A preview writes nothing.
+        const [before] = await tx
+          .select()
+          .from(accountsTable)
+          .where(eq(accountsTable.id, wallet))
+        expect(before.investedBaseCents).toBeNull()
+
+        await expect(
+          investments.setInvestedBase(wallet, base, NOW),
+        ).resolves.toEqual(preview.next)
+        const stored = await tx
+          .select({
+            date: balanceSnapshotsTable.date,
+            contributionsCents: balanceSnapshotsTable.contributionsCents,
+          })
+          .from(balanceSnapshotsTable)
+          .where(eq(balanceSnapshotsTable.accountId, wallet))
+          .orderBy(balanceSnapshotsTable.date)
+        expect(stored.map((row) => row.contributionsCents)).toEqual([
+          null,
+          5_000_00,
+          5_400_00,
+        ])
+        const performance = await investments.performance(wallet, NOW)
+        expect(performance).toMatchObject({
+          investedBase: base,
+          contributionsSource: 'base',
+          contributionsCents: 5_400_00,
+          gainCents: -2_400_00,
+          unknownCostCount: 1,
+        })
+        expect(
+          performance.contributionsHistory.map((p) => p.contributionsCents),
+        ).toEqual([700_00, 5_000_00, 5_400_00])
+        const summary = await investments.summary(NOW)
+        expect(summary.accounts.find((row) => row.id === wallet)).toMatchObject(
+          { gainCents: -2_400_00, contributionsSource: 'base' },
+        )
+
+        // Removing it gives the linked coins back.
+        await expect(
+          investments.clearInvestedBase(wallet, NOW),
+        ).resolves.toMatchObject({
+          investedBase: null,
+          contributionsCents: 1_100_00,
+          contributionsSource: 'links',
+        })
+      })
+    })
+
+    it('refuses an invested base outside wallet and manual crypto accounts', async () => {
+      await inRollback(async ({ accounts, investments, account }) => {
+        const pea = await account('brokerage')
+        const exchange = await accounts.create({
+          name: 'Test exchange',
+          type: 'crypto',
+          cryptoSource: 'exchange',
+          cryptoProvider: 'coinbase',
+        })
+        const wallet = await account('crypto')
+        const base = { amountCents: 1_000_00, on: '2026-10-31' }
+        for (const id of [pea, exchange.id]) {
+          await expect(
+            investments.setInvestedBase(id, base, NOW),
+          ).rejects.toBeInstanceOf(BadRequestException)
+        }
+        await expect(
+          investments.setInvestedBase(
+            wallet,
+            { ...base, on: '2026-11-06' },
+            NOW,
+          ),
+        ).rejects.toBeInstanceOf(BadRequestException)
+        await accounts.update(wallet, { archived: true })
+        await expect(
+          investments.previewInvestedBase(wallet, base, NOW),
+        ).rejects.toBeInstanceOf(BadRequestException)
       })
     })
 

@@ -10,8 +10,10 @@ import {
   accountsControllerRemove,
   accountsControllerUpdate,
   accountSnapshotsControllerBulk,
+  accountSnapshotsControllerClearInvestedBase,
   accountSnapshotsControllerPerformance,
   accountSnapshotsControllerRemove,
+  accountSnapshotsControllerSetInvestedBase,
   accountSnapshotsControllerUpsert,
   investmentsControllerFlows,
   investmentsControllerSummary,
@@ -19,6 +21,7 @@ import {
 import type {
   BulkSnapshotRowDto,
   CreateAccountDto,
+  SetInvestedBaseDto,
   UpdateAccountDto,
   UpsertSnapshotDto,
 } from '#/api/types.gen'
@@ -165,6 +168,26 @@ export function deletionPreviewQuery(id: string) {
     staleTime: 0,
     gcTime: 0,
   })
+}
+
+/** What a wallet or manual crypto account had invested up to a day (#358). */
+export function setInvestedBase(id: string, body: SetInvestedBaseDto) {
+  return unwrap(
+    accountSnapshotsControllerSetInvestedBase({
+      path: { id },
+      body,
+      throwOnError: false,
+    }),
+  )
+}
+
+export function clearInvestedBase(id: string) {
+  return unwrap(
+    accountSnapshotsControllerClearInvestedBase({
+      path: { id },
+      throwOnError: false,
+    }),
+  )
 }
 
 /** Deletes the account and all its data; needs a fresh session (`needsReauth`). */

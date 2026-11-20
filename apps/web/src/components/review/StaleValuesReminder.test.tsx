@@ -55,6 +55,7 @@ function row(
     contributionsSource: null,
     typedContributionsCents: null,
     linkedTransfersCount: 0,
+    unknownCostCount: 0,
     linkedAfterValueCents: 0,
     gainCents: null,
     returnRate: null,

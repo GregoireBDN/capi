@@ -100,6 +100,8 @@ function account(overrides: Partial<AccountDto> = {}): AccountDto {
     cryptoSource: null,
     cryptoProvider: null,
     cryptoSyncedAt: null,
+    investedBaseCents: null,
+    investedBaseOn: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
@@ -134,6 +136,7 @@ function performance(
     contributionsSource: 'typed',
     typedContributionsCents: null,
     linkedTransfersCount: 0,
+    unknownCostCount: 0,
     linkedAfterValueCents: 0,
     gainCents: 230_000,
     returnRate: 230_000 / 1_020_000,
@@ -159,6 +162,7 @@ function performance(
       date: s.date,
       contributionsCents: s.contributionsCents,
     })),
+    investedBase: null,
     ...overrides,
   }
 }
@@ -1436,6 +1440,42 @@ describe('AccountDetailPage', () => {
     expect(text(summary.textContent)).toContain(
       'Investi 24 000,00 € · +6 000,00 € (+25',
     )
+  })
+
+  it('shows the invested base of a wallet and the coins of unknown cost (#358)', async () => {
+    mockWallet(
+      {
+        enabled: true,
+        syncedAt: '2026-11-06T09:00:00.000Z',
+        failedAt: null,
+        failedChains: [],
+        retryAt: null,
+      },
+      [holding({ origin: 'sync', location: 'Bitcoin' })],
+    )
+    api.accountSnapshotsControllerPerformance.mockImplementation(() =>
+      ok(
+        performance({
+          type: 'crypto',
+          valueCents: 300_000,
+          contributionsCents: 500_000,
+          contributionsSource: 'base',
+          gainCents: -200_000,
+          returnRate: -0.4,
+          unknownCostCount: 1,
+          investedBase: { amountCents: 500_000, on: '2026-06-30' },
+        }),
+      ),
+    )
+    renderPage()
+
+    const summary = await screen.findByRole('region', {
+      name: 'Valeur du wallet',
+    })
+    expect(text(summary.textContent)).toContain(
+      'Investi 5 000,00 € · -2 000,00 € (-40 %)',
+    )
+    expect(text(summary.textContent)).toContain('dont 1 envoi sans coût connu')
   })
 
   it('flags stale holdings when the last sync failed', async () => {

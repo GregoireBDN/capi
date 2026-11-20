@@ -30,6 +30,12 @@ export interface PortfolioAccountLines {
   accountId: string
   name: string
   lines: readonly PortfolioLine[]
+  /**
+   * What the account as a whole had invested (#358: a wallet's invested
+   * base, the coins linked to it), when known: its lines' own invested
+   * amounts are then left aside in the totals.
+   */
+  investedCents?: number | null
 }
 
 /** Where an asset is held: one account, its locations summed. */
@@ -78,6 +84,8 @@ export interface PortfolioTotals {
   gainCents: number | null
   /** Priced assets whose invested amount is unknown (left out of the gain). */
   withoutInvestedCount: number
+  /** Their tickers, largest value first. */
+  withoutInvestedSymbols: string[]
   /** Assets waiting for a price (contract-only tokens are not counted). */
   missingPriceCount: number
   staleCount: number
@@ -226,22 +234,43 @@ export function aggregatePortfolio(
   assets.sort(byValue((asset) => asset.symbol))
 
   const valued = assets.filter((asset) => asset.valueCents !== null)
-  const withInvested = valued.filter((asset) => asset.investedCents !== null)
-  const invested =
-    withInvested.length === 0
-      ? null
-      : withInvested.reduce((sum, asset) => sum + asset.investedCents!, 0)
+  // Accounts whose cost is known as a whole (#358) count as one; the other
+  // lines count per asset, when every one of them has a cost.
+  let invested: number | null = null
+  let gain = 0
+  for (const account of accounts) {
+    if (account.investedCents == null) continue
+    const value = sumValues(
+      account.lines
+        .filter((line) => !FIAT_TICKERS.has(line.symbol.toUpperCase()))
+        .map((line) => line.valueCents),
+    )
+    invested = (invested ?? 0) + account.investedCents
+    gain += (value ?? 0) - account.investedCents
+  }
+  const without: PortfolioAsset[] = []
+  for (const asset of valued) {
+    const lines = (byAsset.get(asset.assetId) ?? [])
+      .filter(({ account }) => account.investedCents == null)
+      .map(({ line }) => line)
+    if (lines.length === 0) continue
+    if (lines.some((line) => line.investedCents === null)) {
+      without.push(asset)
+      continue
+    }
+    const cost = lines.reduce((sum, line) => sum + line.investedCents!, 0)
+    invested = (invested ?? 0) + cost
+    gain += (sumValues(lines.map((line) => line.valueCents)) ?? 0) - cost
+  }
   return {
     assets,
     totals: {
       valueCents: valued.reduce((sum, asset) => sum + asset.valueCents!, 0),
       change24hCents: sumValues(assets.map((asset) => asset.change24hCents)),
       investedCents: invested,
-      gainCents:
-        invested === null
-          ? null
-          : withInvested.reduce((sum, asset) => sum + asset.gainCents!, 0),
-      withoutInvestedCount: valued.length - withInvested.length,
+      gainCents: invested === null ? null : gain,
+      withoutInvestedCount: without.length,
+      withoutInvestedSymbols: without.map((asset) => asset.symbol),
       missingPriceCount: assets.filter(
         (asset) => asset.priceable && asset.valueCents === null,
       ).length,

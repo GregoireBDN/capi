@@ -14,24 +14,31 @@ import * as schema from '#/database/schema'
 import {
   accountsTable,
   balanceSnapshotsTable,
+  cryptoHoldingsTable,
   INVESTMENT_ACCOUNT_TYPES,
-  cryptoMovementsTable,
   type SelectBalanceSnapshot,
   transactionsTable,
 } from '#/database/schema'
 import type { AccountType } from '#/database/schema/domain-enums'
+import { loadReceivedCoinFlows } from './crypto-flows'
 import { parisToday } from './days'
 import type {
   AccountPerformanceDto,
   BulkSnapshotRowDto,
   BulkSnapshotsResultDto,
+  InvestedBasePreviewDto,
+  InvestedFiguresDto,
   InvestmentFlowsDto,
   InvestmentsSummaryDto,
+  SetInvestedBaseDto,
   SnapshotDto,
   UpsertSnapshotDto,
 } from './dto/snapshot.dto'
 import {
   computePerformance,
+  cryptoInvestedAt,
+  type InvestedBase,
+  investedBaseOf,
   type LinkedFlow,
   linkedContributions,
   simpleReturn,
@@ -180,8 +187,10 @@ export class InvestmentsService {
       this.linkedFlows(this.db, [account]),
     ])
     const accountFlows = flows.get(accountId) ?? []
+    const base = investedBaseOf(account)
     const history =
-      linkedContributions(snapshots, accountFlows, account.type) ?? snapshots
+      linkedContributions(snapshots, accountFlows, account.type, base) ??
+      snapshots
     return {
       accountId,
       type: account.type,
@@ -190,13 +199,150 @@ export class InvestmentsService {
         account.type,
         parisToday(now),
         accountFlows,
+        base,
       ),
+      investedBase: base && { amountCents: base.cents, on: base.on },
       snapshots,
       contributionsHistory: history.map((point) => ({
         date: point.date,
         contributionsCents: point.contributionsCents,
       })),
     }
+  }
+
+  /**
+   * What a wallet or manual crypto account's invested amount, gain and rate
+   * are now and would be with `dto` as its invested base (#358). Saves
+   * nothing.
+   */
+  async previewInvestedBase(
+    accountId: string,
+    dto: SetInvestedBaseDto,
+    now: Date = new Date(),
+  ): Promise<InvestedBasePreviewDto> {
+    const today = parisToday(now)
+    assertNotFuture([dto.on], now)
+    const account = await this.baseAccount(accountId, this.db)
+    const [snapshots, flows] = await Promise.all([
+      this.snapshotsOf(this.db, accountId),
+      loadReceivedCoinFlows(this.db, [accountId]),
+    ])
+    const accountFlows = flows.get(accountId) ?? []
+    return {
+      current: investedFigures(
+        snapshots,
+        accountFlows,
+        investedBaseOf(account),
+        today,
+      ),
+      next: investedFigures(
+        snapshots,
+        accountFlows,
+        { cents: dto.amountCents, on: dto.on },
+        today,
+      ),
+    }
+  }
+
+  /**
+   * Sets a wallet or manual crypto account's invested base (#358), then
+   * gives the snapshots from its day (or the previous base's, the earlier)
+   * the invested amount as their contributions, so the history follows.
+   */
+  async setInvestedBase(
+    accountId: string,
+    dto: SetInvestedBaseDto,
+    now: Date = new Date(),
+  ): Promise<InvestedFiguresDto> {
+    assertNotFuture([dto.on], now)
+    return this.writeInvestedBase(
+      accountId,
+      { cents: dto.amountCents, on: dto.on },
+      now,
+    )
+  }
+
+  /** Removes the invested base: the coins linked to it, or its holdings, count again. */
+  clearInvestedBase(
+    accountId: string,
+    now: Date = new Date(),
+  ): Promise<InvestedFiguresDto> {
+    return this.writeInvestedBase(accountId, null, now)
+  }
+
+  private async writeInvestedBase(
+    accountId: string,
+    base: InvestedBase | null,
+    now: Date,
+  ): Promise<InvestedFiguresDto> {
+    const today = parisToday(now)
+    return this.db.transaction(async (tx) => {
+      const account = await this.baseAccount(accountId, tx)
+      const previous = investedBaseOf(account)
+      await tx
+        .update(accountsTable)
+        .set({
+          investedBaseCents: base?.cents ?? null,
+          investedBaseOn: base?.on ?? null,
+          updatedAt: now,
+        })
+        .where(eq(accountsTable.id, accountId))
+      const flows =
+        (await loadReceivedCoinFlows(tx, [accountId])).get(accountId) ?? []
+      const from = [previous?.on, base?.on]
+        .filter((day): day is string => day !== undefined)
+        .sort()[0]
+      if (from !== undefined) {
+        // Without a base, a manual account's snapshots get its holdings'
+        // invested amounts back, as its valuation writes them.
+        const holdingsCents =
+          base === null ? await this.holdingsInvested(tx, accountId) : null
+        const rewritten = await tx
+          .select({ id: s.id, date: s.date })
+          .from(s)
+          .where(and(eq(s.accountId, accountId), gte(s.date, from)))
+        for (const row of rewritten) {
+          const contributionsCents =
+            cryptoInvestedAt(base, flows, row.date)?.investedCents ??
+            holdingsCents
+          await tx
+            .update(s)
+            .set({ contributionsCents, updatedAt: now })
+            .where(eq(s.id, row.id))
+        }
+      }
+      const snapshots = await this.snapshotsOf(tx, accountId)
+      return investedFigures(snapshots, flows, base, today)
+    })
+  }
+
+  /** Sum of the holdings' invested amounts, when every line has one. */
+  private async holdingsInvested(
+    executor: Executor,
+    accountId: string,
+  ): Promise<number | null> {
+    const rows = await executor
+      .select({ investedCents: cryptoHoldingsTable.investedCents })
+      .from(cryptoHoldingsTable)
+      .where(eq(cryptoHoldingsTable.accountId, accountId))
+    if (rows.length === 0 || rows.some((row) => row.investedCents === null)) {
+      return null
+    }
+    return rows.reduce((sum, row) => sum + row.investedCents!, 0)
+  }
+
+  /** A writable wallet or manual crypto account: the only ones with a base. */
+  private async baseAccount(
+    accountId: string,
+    executor: Executor,
+  ): Promise<AccountWithBalance> {
+    const account = await this.writableAccount(accountId, executor)
+    if (account.type !== 'crypto' || account.cryptoSource === 'exchange') {
+      throw new BadRequestException(
+        'Only wallet and manual crypto accounts take an invested base',
+      )
+    }
+    return account
   }
 
   /** Totals and per-account figures over the non-archived investment accounts. */
@@ -249,6 +395,7 @@ export class InvestmentsService {
         account.type,
         today,
         flows.get(account.id) ?? [],
+        investedBaseOf(account),
       )
       if (figures.valueCents === null) withoutValueCount++
       else {
@@ -385,49 +532,19 @@ export class InvestmentsService {
    * What makes each account's contributions (#296), oldest first: money
    * paid into (positive) or taken out of it by the bank transfers linked to
    * it, or, for a crypto account, the cost of the coins withdrawn to it from
-   * an exchange (none when one of those costs is unknown: the invested
-   * amount would be wrong).
+   * an exchange (null when unknown: left out and counted, #358).
    */
   private async linkedFlows(
     executor: Executor,
     accounts: readonly { id: string; type: AccountType }[],
   ): Promise<Map<string, LinkedFlow[]>> {
-    const byAccount = new Map<string, LinkedFlow[]>()
     const accountIds = accounts
       .filter((account) => account.type !== 'crypto')
       .map((account) => account.id)
     const cryptoIds = accounts
       .filter((account) => account.type === 'crypto')
       .map((account) => account.id)
-    if (cryptoIds.length > 0) {
-      const cm = cryptoMovementsTable
-      const received = await executor
-        .select({
-          accountId: cm.counterpartAccountId,
-          occurredAt: cm.occurredAt,
-          costCents: cm.costCents,
-        })
-        .from(cm)
-        .where(
-          and(
-            inArray(cm.counterpartAccountId, cryptoIds),
-            eq(cm.kind, 'withdrawal'),
-            ne(cm.accountId, cm.counterpartAccountId),
-          ),
-        )
-        .orderBy(asc(cm.occurredAt), asc(cm.id))
-      const unknown = new Set<string>()
-      for (const row of received) {
-        if (row.costCents === null) unknown.add(row.accountId!)
-        const list = byAccount.get(row.accountId!) ?? []
-        list.push({
-          date: parisToday(row.occurredAt),
-          amountCents: row.costCents ?? 0,
-        })
-        byAccount.set(row.accountId!, list)
-      }
-      for (const id of unknown) byAccount.delete(id)
-    }
+    const byAccount = await loadReceivedCoinFlows(executor, cryptoIds)
     if (accountIds.length === 0) return byAccount
     const t = transactionsTable
     const rows = await executor
@@ -475,6 +592,27 @@ export class InvestmentsService {
       throw new BadRequestException('Cannot change an archived account')
     }
     return account
+  }
+}
+
+/** The invested figures of a crypto account with `base`. */
+function investedFigures(
+  snapshots: readonly SnapshotDto[],
+  flows: readonly LinkedFlow[],
+  base: InvestedBase | null,
+  today: string,
+): InvestedFiguresDto {
+  const figures = computePerformance(snapshots, 'crypto', today, flows, base)
+  return {
+    investedBase: base && { amountCents: base.cents, on: base.on },
+    valueCents: figures.valueCents,
+    valueDate: figures.valueDate,
+    contributionsCents: figures.contributionsCents,
+    contributionsSource: figures.contributionsSource,
+    gainCents: figures.gainCents,
+    returnRate: figures.returnRate,
+    linkedTransfersCount: figures.linkedTransfersCount,
+    unknownCostCount: figures.unknownCostCount,
   }
 }
 

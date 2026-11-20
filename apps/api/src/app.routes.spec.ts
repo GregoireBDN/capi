@@ -111,6 +111,8 @@ const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
   // only manual lines of manual-source accounts (403 otherwise); DELETE stays
   // session-only.
   'POST /api/accounts/:id/holdings': 'write',
+  // #358: set_crypto_invested (MCP); removing the base stays session-only.
+  'POST /api/accounts/:id/invested-base/preview': 'read',
   'POST /api/accounts/:id/snapshots/bulk': 'write',
   'POST /api/budgets/suggest': 'read',
   'POST /api/categorization-rules': 'write',
@@ -129,6 +131,7 @@ const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
   'POST /api/transactions/bulk-update': 'write',
   'POST /api/transactions/manual': 'write',
   'PUT /api/accounts/:id/holdings/:holdingId': 'write',
+  'PUT /api/accounts/:id/invested-base': 'write',
   'PUT /api/accounts/:id/snapshots/:date': 'write',
   'PUT /api/budgets/:categoryId': 'write',
   'PUT /api/savings/target': 'write',

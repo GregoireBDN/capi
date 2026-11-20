@@ -77,6 +77,7 @@ describe('tool list', () => {
       'savings_and_goals',
       'search_transactions',
       'set_budget_targets',
+      'set_crypto_invested',
       'set_transaction_note',
       'spending_by_category',
       'spending_history',
@@ -87,6 +88,7 @@ describe('tool list', () => {
     const writeTools = new Set([
       'add_investment_snapshots',
       'sync_crypto_holdings',
+      'set_crypto_invested',
       'add_transaction',
       'categorize_transactions',
       'create_rule',

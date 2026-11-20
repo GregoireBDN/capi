@@ -53,6 +53,8 @@ function account(overrides: Partial<AccountDto> = {}): AccountDto {
     cryptoSource: 'manual',
     cryptoProvider: null,
     cryptoSyncedAt: null,
+    investedBaseCents: null,
+    investedBaseOn: null,
     createdAt: '2026-11-10T10:00:00.000Z',
     updatedAt: '2026-11-10T10:00:00.000Z',
     ...overrides,

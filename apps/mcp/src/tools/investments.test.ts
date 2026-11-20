@@ -7,7 +7,10 @@ import type {
   AccountHoldingsDto,
   BulkSnapshotsDto,
   CryptoAssetDto,
+  InvestedBasePreviewDto,
+  InvestedFiguresDto,
   InvestmentsSummaryDto,
+  SetInvestedBaseDto,
   SaveHoldingDto,
   SnapshotDto,
   ValuedHoldingDto,
@@ -143,6 +146,7 @@ describe('list_investment_accounts', () => {
           contributionsSource: 'typed',
           typedContributionsCents: null,
           linkedTransfersCount: 0,
+          unknownCostCount: 0,
           linkedAfterValueCents: 0,
           gainCents: 500000,
           returnRate: 0.25,
@@ -162,10 +166,31 @@ describe('list_investment_accounts', () => {
           contributionsSource: null,
           typedContributionsCents: null,
           linkedTransfersCount: 0,
+          unknownCostCount: 0,
           linkedAfterValueCents: 0,
           gainCents: null,
           returnRate: null,
           daysSinceLatest: null,
+          staleAfterDays: 35,
+          stale: false,
+        },
+        {
+          id: ledger.id,
+          name: ledger.name,
+          type: 'crypto',
+          institution: null,
+          valueCents: 300000,
+          valueDate: '2026-11-14',
+          contributionsCents: 500000,
+          contributionsDate: '2026-11-14',
+          contributionsSource: 'base',
+          typedContributionsCents: null,
+          linkedTransfersCount: 0,
+          unknownCostCount: 1,
+          linkedAfterValueCents: 0,
+          gainCents: -200000,
+          returnRate: -0.4,
+          daysSinceLatest: 0,
           staleAfterDays: 35,
           stale: false,
         },
@@ -179,13 +204,113 @@ describe('list_investment_accounts', () => {
     expect(isError).toBe(false)
     expect(text).toContain('Placements : 25 000,00 € au total')
     expect(text).toContain(
-      '- PEA (PEA / compte-titres, Banque Test) : dernière valeur 25 000,00 € au 30/09/2026 (il y a 45 j), versements nets 20 000,00 € — PAS À JOUR',
+      '- PEA (PEA / compte-titres, Banque Test) : dernière valeur 25 000,00 € au 30/09/2026 (il y a 45 j), versements nets 20 000,00 €, plus-value +5 000,00 € (25 %) — PAS À JOUR',
+    )
+    // Crypto too (#358): invested, gain, rate and the coins of unknown cost.
+    expect(text).toContain(
+      '- Portefeuille Test (crypto, portefeuille synchronisé) : dernière valeur 3 000,00 € au 14/11/2026 (il y a 0 j), investi 5 000,00 €, plus-value -2 000,00 € (-40 %), dont 1 envoi(s) sans coût connu non compté(s)',
     )
     expect(text).toContain(
       '- Crypto Test (crypto, saisie manuelle) : aucune valeur enregistrée',
     )
     expect(text).toContain('À mettre à jour : PEA, Crypto Test.')
     expect(text).toContain('Archivés (non modifiables) : PEE Ancien.')
+  })
+})
+
+describe('set_crypto_invested', () => {
+  /** The API's invested base of the wallet, set by the PUT like the API. */
+  function investedRoutes() {
+    const state: { base: SetInvestedBaseDto | null } = { base: null }
+    const figures = (base: SetInvestedBaseDto | null): InvestedFiguresDto => ({
+      investedBase: base,
+      valueCents: 300000,
+      valueDate: '2026-11-14',
+      contributionsCents: base ? base.amountCents + 40000 : 40000,
+      contributionsSource: base ? 'base' : 'links',
+      gainCents: 300000 - (base ? base.amountCents + 40000 : 40000),
+      returnRate: base
+        ? (300000 - base.amountCents - 40000) / (base.amountCents + 40000)
+        : 6.5,
+      linkedTransfersCount: 1,
+      unknownCostCount: 1,
+    })
+    return {
+      state,
+      routes: {
+        '/api/accounts': accounts,
+        [`POST /api/accounts/${ledger.id}/invested-base/preview`]: (
+          _url: URL,
+          body: unknown,
+        ): InvestedBasePreviewDto => ({
+          current: figures(state.base),
+          next: figures(body as SetInvestedBaseDto),
+        }),
+        [`PUT /api/accounts/${ledger.id}/invested-base`]: (
+          _url: URL,
+          body: unknown,
+        ) => {
+          state.base = body as SetInvestedBaseDto
+          return figures(state.base)
+        },
+      },
+    }
+  }
+  const args = {
+    account: 'portefeuille test',
+    amount: '4 600',
+    until: '2026-06-30',
+  }
+
+  it('previews the invested amount, gain and rate without writing', async () => {
+    const { routes, state } = investedRoutes()
+    const { call, writes } = await connect(routes)
+    const { text, isError } = await call('set_crypto_invested', args)
+    expect(isError).toBe(false)
+    expect(text).toContain('APERÇU')
+    expect(text).toContain(
+      "Montant investi de base : aucun → 4 600,00 € jusqu'au 30/06/2026.",
+    )
+    expect(text).toContain('Avant : investi 400,00 €, plus-value +2 600,00 €')
+    expect(text).toContain(
+      'Après : investi 5 000,00 €, plus-value -2 000,00 € (-40 %).',
+    )
+    expect(text).toContain('Dont 1 envoi(s) sans coût connu')
+    expect(writes()).toHaveLength(0)
+    expect(state.base).toBeNull()
+  })
+
+  it('saves it with confirm, then a repeated call changes nothing', async () => {
+    const { routes, state } = investedRoutes()
+    const { call, writes } = await connect(routes)
+    const saved = await call('set_crypto_invested', { ...args, confirm: true })
+    expect(saved.isError).toBe(false)
+    expect(saved.text).toContain(
+      'Portefeuille Test : montant investi enregistré, investi 5 000,00 €, plus-value -2 000,00 € (-40 %).',
+    )
+    expect(saved.text).toContain("dans l'application")
+    expect(state.base).toEqual({ amountCents: 460000, on: '2026-06-30' })
+    expect(writes()).toHaveLength(1)
+
+    const again = await call('set_crypto_invested', { ...args, confirm: true })
+    expect(again.text).toContain('Rien à modifier')
+    expect(writes()).toHaveLength(1)
+  })
+
+  it('refuses exchange and non-crypto accounts, negative amounts and future days', async () => {
+    const { routes } = investedRoutes()
+    const { call, writes } = await connect(routes)
+    for (const [input, message] of [
+      [{ ...args, account: 'plateforme test' }, 'une plateforme garde'],
+      [{ ...args, account: 'pea' }, 'add_investment_snapshots'],
+      [{ ...args, amount: '-10' }, 'invalide'],
+      [{ ...args, until: '2026-11-15' }, 'dans le futur'],
+    ] as const) {
+      const result = await call('set_crypto_invested', input)
+      expect(result.isError).toBe(true)
+      expect(result.text).toContain(message)
+    }
+    expect(writes()).toHaveLength(0)
   })
 })
 

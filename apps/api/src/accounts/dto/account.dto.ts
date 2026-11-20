@@ -132,6 +132,22 @@ export class AccountDto {
   })
   cryptoSyncedAt!: Date | null
 
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Wallet and manual crypto accounts (#358): what was invested in it up to `investedBaseOn`, typed by the owner; the coins linked to it after that day add their cost. Null when not set.',
+  })
+  investedBaseCents!: number | null
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    nullable: true,
+    description: 'Day `investedBaseCents` covers (« Investi jusqu’au … »).',
+  })
+  investedBaseOn!: string | null
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date
 

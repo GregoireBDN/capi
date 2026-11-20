@@ -59,6 +59,14 @@ export const accountsTable = pgTable(
     cryptoSyncFailedAt: timestamp('crypto_sync_failed_at', {
       withTimezone: true,
     }),
+    /**
+     * Wallet and manual crypto accounts only (#358): what the owner invested
+     * in it up to `investedBaseOn` (« Investi jusqu'au … »), typed by hand,
+     * never overwritten by a valuation. The coins linked to the account after
+     * that day add their cost on top.
+     */
+    investedBaseCents: bigint('invested_base_cents', { mode: 'number' }),
+    investedBaseOn: date('invested_base_on', { mode: 'string' }),
   },
   (t) => [
     check(
@@ -68,6 +76,14 @@ export const accountsTable = pgTable(
     check(
       'accounts_crypto_provider_iff_exchange',
       sql`(${t.cryptoSource} IS NOT DISTINCT FROM 'exchange') = (${t.cryptoProvider} IS NOT NULL)`,
+    ),
+    check(
+      'accounts_invested_base_both',
+      sql`(${t.investedBaseCents} IS NULL) = (${t.investedBaseOn} IS NULL)`,
+    ),
+    check(
+      'accounts_invested_base_crypto',
+      sql`${t.investedBaseCents} IS NULL OR (${t.investedBaseCents} >= 0 AND ${t.cryptoSource} IN ('wallet', 'manual'))`,
     ),
   ],
 )
