@@ -138,15 +138,12 @@ export function opensKeyboard(element: FieldLike | null | undefined): boolean {
 }
 
 /**
- * Height to expect from a keyboard not up yet: the last one seen, else a
- * phone's (about 42 % of the screen with its suggestion bar).
+ * Share of the screen's height left above an iPhone keyboard once it is up,
+ * with its suggestions, its floating accessory bar and, in a Safari tab, the
+ * address pill (about 49 % on iOS 26, #385): a field tapped below it is
+ * brought up at once, before iOS pans the whole page to reveal it.
  */
-export function expectedKeyboardHeight(
-  lastSeen: number,
-  innerHeight: number,
-): number {
-  return lastSeen > 0 ? lastSeen : Math.round(innerHeight * 0.42)
-}
+export const FREE_ABOVE_KEYBOARD_SHARE = 0.4
 
 /** What `scrollParentWithin` reads from an element. */
 export interface ScrollBox {

@@ -133,3 +133,23 @@ export function FormSheetPhoneActions({
     />
   )
 }
+
+/**
+ * What scrolls under the header of an editor whose content is not a
+ * `FormSheetBody` (a form with its own padding, a list): the header stays,
+ * and on a phone its end makes room for the keyboard.
+ */
+export function SheetScroll({ className, ...props }: ComponentProps<'div'>) {
+  return (
+    <div
+      data-slot="sheet-scroll"
+      data-sheet-scroll=""
+      className={cn(
+        'min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain',
+        'group-data-[side=screen]/sheet:pt-4',
+        className,
+      )}
+      {...props}
+    />
+  )
+}

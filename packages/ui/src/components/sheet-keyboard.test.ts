@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  expectedKeyboardHeight,
   isKeyboardOpen,
   keyboardAccessoryAllowance,
   keyboardInset,
@@ -220,15 +219,5 @@ describe('opensKeyboard', () => {
       opensKeyboard({ tagName: 'INPUT', type: 'text', inputMode: 'none' }),
     ).toBe(false)
     expect(opensKeyboard(null)).toBe(false)
-  })
-})
-
-describe('expectedKeyboardHeight', () => {
-  it('is the last keyboard seen', () => {
-    expect(expectedKeyboardHeight(336, 844)).toBe(336)
-  })
-
-  it('is a phone keyboard before any was seen', () => {
-    expect(expectedKeyboardHeight(0, 844)).toBe(354)
   })
 })

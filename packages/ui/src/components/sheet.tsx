@@ -6,7 +6,7 @@ import * as React from 'react'
 
 import { Button } from './button'
 import {
-  expectedKeyboardHeight,
+  FREE_ABOVE_KEYBOARD_SHARE,
   isKeyboardOpen,
   keyboardAccessoryAllowance,
   keyboardInset,
@@ -159,9 +159,6 @@ function SheetOverlay({ className, ...props }: SheetOverlayProps) {
  * sheet, or a body inside it with the actions in a footer) so the field stays
  * in view and, as far as it allows, the end too.
  */
-/** The last keyboard seen (px), to expect the next one before it is up. */
-let lastKeyboardPx = 0
-
 function useKeyboardInset(
   node: HTMLElement | null,
   mode: 'sheet' | 'screen' | null,
@@ -217,7 +214,19 @@ function useKeyboardInset(
       node.style.setProperty('--keyboard-inset', `${inset}px`)
       const open = isKeyboardOpen(inset)
       node.toggleAttribute('data-keyboard-open', open)
-      if (open) lastKeyboardPx = inset + Math.round(viewport.offsetTop)
+      // A full-screen editor fits the visible area while the keyboard is
+      // open: its end, under the keyboard, is never seen, and if iOS still
+      // pans the page, the editor follows so nothing shows above or below.
+      if (mode === 'screen') {
+        node.style.setProperty(
+          '--viewport-top',
+          `${open ? Math.round(viewport.offsetTop) : 0}px`,
+        )
+        node.style.setProperty(
+          '--viewport-height',
+          `${Math.round(open ? viewport.height : window.innerHeight)}px`,
+        )
+      }
       // The keyboard opened or changed height (decimal → text): the sheet
       // was resized under the focused field. Not on a scroll of the visual
       // viewport, so the user's own scrolling is left alone.
@@ -229,25 +238,17 @@ function useKeyboardInset(
       lastInset = inset
     }
     // A full-screen editor (#385): as a field is tapped, before the keyboard
-    // comes up, its body gets room at its end for the keyboard to come and,
-    // if the keyboard is going to hide the field, scrolls it just above
-    // where the keyboard will be. iOS then finds the field in view and does
-    // not pan the whole page to reveal it (which showed the page under the
-    // editor): the tap moves the content once, the keyboard moves nothing.
+    // comes up, its body gets room at its end and a field low on the screen
+    // is brought up into the part the keyboard leaves free. iOS then finds
+    // the field in view and does not pan the whole page to reveal it: the
+    // tap moves the content once, the keyboard moves nothing.
     const onFocusIn = (event: FocusEvent) => {
       const field = event.target
       if (!(field instanceof HTMLElement) || !opensKeyboard(field)) return
       if (wasOpen) return
-      const expected = expectedKeyboardHeight(
-        lastKeyboardPx,
-        window.innerHeight,
-      )
-      node.style.setProperty('--keyboard-expected', `${expected}px`)
       node.toggleAttribute('data-keyboard-expected', true)
       const scroller = scrollParentWithin<HTMLElement>(field, node)
       if (!scroller) return
-      const accessory =
-        parseFloat(node.style.getPropertyValue('--keyboard-accessory')) || 0
       const box = scroller.getBoundingClientRect()
       const rect = field.getBoundingClientRect()
       scroller.scrollTop = revealFieldScrollTop({
@@ -255,7 +256,7 @@ function useKeyboardInset(
         focusTop: rect.top - box.top,
         focusBottom: rect.bottom - box.top,
         visibleHeight:
-          Math.min(box.bottom, window.innerHeight - expected - accessory) -
+          Math.min(box.bottom, window.innerHeight * FREE_ABOVE_KEYBOARD_SHARE) -
           box.top,
       })
     }
@@ -320,7 +321,15 @@ function SheetContent({
 
   return (
     <SheetPortal>
-      <SheetOverlay />
+      {/* A full-screen editor hides the page entirely, even while iOS
+          moves things around the keyboard. */}
+      <SheetOverlay
+        className={
+          side === 'screen'
+            ? 'bg-popover supports-backdrop-filter:backdrop-blur-none'
+            : undefined
+        }
+      />
       <SheetPrimitive.Content
         ref={setRefs}
         data-slot="sheet-content"
@@ -363,22 +372,27 @@ function SheetContent({
             // under the keyboard then (see keyboardAccessoryAllowance).
             'data-[side=bottom]:data-keyboard-open:pb-(--keyboard-accessory,84px)',
 
-            // Side: Screen (#385): the whole screen, never moved by the
-            // keyboard, which covers its end.
+            // Side: Screen (#385): the whole screen, the keyboard over its
+            // end; while it is open, the visible area above it (see
+            // useKeyboardInset).
             'data-[side=screen]:inset-0',
+            'data-[side=screen]:data-keyboard-open:top-(--viewport-top,0px)',
+            'data-[side=screen]:data-keyboard-open:bottom-auto',
+            'data-[side=screen]:data-keyboard-open:h-(--viewport-height,100%)',
+            'data-[side=screen]:data-keyboard-open:pb-0',
             'data-[side=screen]:gap-0',
             'data-[side=screen]:pt-[env(safe-area-inset-top)]',
             'data-[side=screen]:pb-[env(safe-area-inset-bottom)]',
             'data-[side=screen]:pl-[env(safe-area-inset-left)]',
             'data-[side=screen]:pr-[env(safe-area-inset-right)]',
-            // From the tap on a field until the keyboard closes, the end of
+            // From the tap on a field until the keyboard is up, the end of
             // what scrolls (the sheet, or a body marked `data-sheet-scroll`)
-            // gets room to come out from under it, unseen: nothing on screen
-            // moves (see useKeyboardInset).
-            'data-[side=screen]:data-keyboard-expected:not-data-keyboard-open:data-sheet-scroll:pb-[calc(var(--keyboard-expected,0px)+var(--keyboard-accessory,0px)+1rem)]',
-            'data-[side=screen]:data-keyboard-expected:not-data-keyboard-open:[&_[data-sheet-scroll]]:pb-[calc(var(--keyboard-expected,0px)+var(--keyboard-accessory,0px)+1rem)]',
-            'data-[side=screen]:data-keyboard-open:data-sheet-scroll:pb-[calc(var(--keyboard-inset,0px)+var(--keyboard-accessory,0px)+1rem)]',
-            'data-[side=screen]:data-keyboard-open:[&_[data-sheet-scroll]]:pb-[calc(var(--keyboard-inset,0px)+var(--keyboard-accessory,0px)+1rem)]',
+            // gets room for a field to be brought up, unseen; then room for
+            // the accessory bar floating over the visible area.
+            'data-[side=screen]:data-keyboard-expected:not-data-keyboard-open:data-sheet-scroll:pb-[60svh]',
+            'data-[side=screen]:data-keyboard-expected:not-data-keyboard-open:[&_[data-sheet-scroll]]:pb-[60svh]',
+            'data-[side=screen]:data-keyboard-open:data-sheet-scroll:pb-[calc(var(--keyboard-accessory,0px)+1rem)]',
+            'data-[side=screen]:data-keyboard-open:[&_[data-sheet-scroll]]:pb-[calc(var(--keyboard-accessory,0px)+1rem)]',
 
             // Side: Left
             'data-[side=left]:inset-y-0',
@@ -567,14 +581,15 @@ function SheetBar({
   ...props
 }: SheetBarProps) {
   const style = useSheetBarStyle()
-  const round = 'size-[40px] rounded-full [&_svg]:size-[18px]'
+  const round =
+    'size-[40px] min-h-0 shrink-0 aspect-square rounded-full p-0 [&_svg]:size-[18px]'
   const leave = (() => {
     if (style === 'pastilles') {
       const pill = (
         <Button
           variant="secondary"
           pill
-          className="h-[36px] px-3.5 text-[15px]"
+          className="h-[36px] min-h-0 px-3.5 text-[15px]"
           onClick={onBack}
         >
           {onBack ? backLabel : 'Annuler'}
@@ -687,7 +702,7 @@ function SheetBarAction({
         loading={loading}
         iconEnd={icon}
         className={cn(
-          'h-[36px] shrink-0 px-3.5 text-[15px] font-semibold [&_svg]:size-[18px]',
+          'h-[36px] min-h-0 shrink-0 px-3.5 text-[15px] font-semibold [&_svg]:size-[18px]',
           greyed,
           className,
         )}
@@ -704,7 +719,7 @@ function SheetBarAction({
       aria-label={label}
       title={label}
       className={cn(
-        'size-[40px] rounded-full [&_svg]:size-[20px]',
+        'size-[40px] min-h-0 shrink-0 aspect-square rounded-full p-0 [&_svg]:size-[20px]',
         greyed,
         className,
       )}
