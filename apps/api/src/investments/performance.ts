@@ -36,12 +36,35 @@ export interface LinkedFlow {
 }
 
 /**
- * What the owner invested in a wallet or manual crypto account up to a day
- * (#358, « Investi jusqu'au … »), typed by hand.
+ * What the owner invested in an account up to a day (« Investi au … »), typed
+ * by hand: a wallet or manual crypto account (#358), a PEA, a life insurance
+ * or employee savings (#360). Never an exchange, whose holdings carry their
+ * cost.
  */
 export interface InvestedBase {
   cents: number
   on: string
+}
+
+/** Types whose invested amount is typed as a base (#360), crypto aside. */
+export const INVESTED_BASE_TYPES: readonly AccountType[] = [
+  'brokerage',
+  'life_insurance',
+  'employee_savings',
+]
+
+/**
+ * Whether the account takes an invested base: a PEA, a life insurance,
+ * employee savings, or a wallet or manual crypto account (#358). Not an
+ * exchange, whose holdings carry their cost, nor a cash account.
+ */
+export function takesInvestedBase(account: {
+  type: AccountType
+  cryptoSource: string | null
+}): boolean {
+  return account.type === 'crypto'
+    ? account.cryptoSource !== 'exchange'
+    : INVESTED_BASE_TYPES.includes(account.type)
 }
 
 /** The account's invested base, when it has one. */
@@ -56,12 +79,12 @@ export function investedBaseOf(account: {
 
 /**
  * Where `contributionsCents` comes from: `links`, the transfers linked to the
- * account; `typed`, typed on the snapshots; `base`, a crypto account's
- * invested base plus the coins linked to it since.
+ * account; `typed`, typed on the snapshots; `base`, the account's invested
+ * base plus what was linked to it since (transfers, or coins for crypto).
  */
 export type ContributionsSource = 'links' | 'typed' | 'base'
 
-export interface CryptoInvested {
+export interface InvestedAt {
   investedCents: number
   /** Linked movements whose cost is counted. */
   linkedCount: number
@@ -70,17 +93,17 @@ export interface CryptoInvested {
 }
 
 /**
- * What a crypto account had invested at the end of `day` (#358): its base
- * plus the cost of the coins linked to it after the base's day, or, before
- * the base's day or without one, the cost of the coins linked to it so far
- * (null when none was). A movement of unknown cost is left out and counted,
- * so the others still count.
+ * What an account had invested at the end of `day` (#358, #360): its base
+ * plus what was linked to it after the base's day (transfers, or the cost of
+ * coins for crypto), or, before the base's day or without one, what was
+ * linked to it so far (null when nothing was). A movement of unknown cost is
+ * left out and counted, so the others still count.
  */
-export function cryptoInvestedAt(
+export function investedAt(
   base: InvestedBase | null,
   flows: readonly LinkedFlow[],
   day: string,
-): CryptoInvested | null {
+): InvestedAt | null {
   const fromBase = base !== null && base.on <= day
   const after = fromBase ? base.on : ''
   const counted = flows.filter((flow) => flow.date > after && flow.date <= day)
@@ -193,10 +216,11 @@ function change(from: SnapshotPoint, to: SnapshotPoint): ValueChange {
  *
  * For crypto the flows are the cost of the coins withdrawn to it from an
  * exchange (a Ledger fed by Binance); the base is the invested base typed on
- * the account (#358, `cryptoInvestedAt`), never a snapshot's: the invested
+ * the account (#358, `investedAt`), never a snapshot's: the invested
  * amounts of its holdings are not dated. Before the base's day, the coins
- * linked so far; snapshots before any keep what they hold. Null without a
- * base or flows.
+ * linked so far; snapshots before any keep what they hold. Any other account
+ * with a base (#360) takes it from its day on. Null without a base or
+ * flows.
  */
 export function linkedContributions(
   snapshots: readonly SnapshotPoint[],
@@ -204,17 +228,41 @@ export function linkedContributions(
   type: AccountType,
   investedBase: InvestedBase | null = null,
 ): SnapshotPoint[] | null {
-  const base = type === 'crypto' ? investedBase : null
+  const base = investedBase
   if (flows.length === 0 && base === null) return null
   const ordered = [...flows].sort((a, b) => a.date.localeCompare(b.date))
   if (type === 'crypto') {
     return snapshots.map((snapshot) => {
-      const invested = cryptoInvestedAt(base, ordered, snapshot.date)
+      const invested = investedAt(base, ordered, snapshot.date)
       return invested
         ? { ...snapshot, contributionsCents: invested.investedCents }
         : snapshot
     })
   }
+  // A PEA's base (#360) wins from its day: the base plus the transfers
+  // linked after it. Before it, what was typed and linked as without one.
+  const before = ordered.length > 0 ? typedThenLinked(snapshots, ordered) : null
+  return snapshots.map((snapshot, i) => {
+    if (base !== null && snapshot.date >= base.on) {
+      return {
+        ...snapshot,
+        contributionsCents: investedAt(base, ordered, snapshot.date)!
+          .investedCents,
+      }
+    }
+    return before ? before[i] : snapshot
+  })
+}
+
+/**
+ * The contributions typed on the last snapshot before the first transfer (0
+ * without one), plus the transfers booked after that snapshot up to each
+ * snapshot's day; snapshots before the first transfer keep what was typed.
+ */
+function typedThenLinked(
+  snapshots: readonly SnapshotPoint[],
+  ordered: readonly LinkedFlow[],
+): SnapshotPoint[] {
   const first = ordered[0].date
   const typedBase = findLast(
     snapshots,
@@ -248,17 +296,18 @@ export function computePerformance(
   investedBase: InvestedBase | null = null,
 ): Performance {
   const crypto = type === 'crypto'
-  const base = crypto ? investedBase : null
+  const base = investedBase
   const staleAfterDays = STALE_AFTER_DAYS[type]
   const linked = linkedContributions(typed, flows, type, base)
   const snapshots = linked ?? typed
   const latest = snapshots.at(-1)
-  // Crypto: what the base and the movements give as of today (the latest
-  // value may predate the base's day).
-  const invested = crypto ? cryptoInvestedAt(base, flows, today) : null
+  // What the base and the movements give as of today (the latest value may
+  // predate the base's day): crypto, or any account with a base.
+  const invested =
+    crypto || base !== null ? investedAt(base, flows, today) : null
   const linkedTransfersCount = !linked
     ? 0
-    : crypto
+    : crypto || base !== null
       ? (invested?.linkedCount ?? 0)
       : flows.length
   const unknownCostCount = invested?.unknownCostCount ?? 0
@@ -293,13 +342,13 @@ export function computePerformance(
   let withContributions:
     | { date: string; contributionsCents: number | null }
     | undefined
-  if (crypto) {
-    if (base !== null && latest.date < base.on) {
-      withContributions = {
-        date: base.on,
-        contributionsCents: invested!.investedCents,
-      }
-    } else if (latest.contributionsCents !== null) withContributions = latest
+  if (base !== null && latest.date < base.on) {
+    withContributions = {
+      date: base.on,
+      contributionsCents: invested!.investedCents,
+    }
+  } else if (crypto) {
+    if (latest.contributionsCents !== null) withContributions = latest
   } else {
     withContributions = findLast(
       snapshots,

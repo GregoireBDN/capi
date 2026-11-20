@@ -327,12 +327,12 @@ export function AccountListTotal({
                 gainCents === 0 && 'text-muted-foreground',
               )}
             >
-              {signedCents(gainCents)} de plus-value
+              résultat {signedCents(gainCents)}
             </span>
           )}
           {paidInCents !== null && (
             <span className="text-muted-foreground whitespace-nowrap tabular-nums">
-              versé {formatCents(paidInCents)}
+              investi {formatCents(paidInCents)}
             </span>
           )}
         </span>

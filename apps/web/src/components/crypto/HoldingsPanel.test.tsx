@@ -144,12 +144,12 @@ describe('HoldingsPanel', () => {
       screen.getByText('Cours mis à jour automatiquement · il y a 3 min'),
     ).toBeInTheDocument()
 
+    // The totals are the account summary's (#360), not the panel's.
     const section = text(
       screen.getByRole('region', { name: 'Avoirs crypto' }).textContent,
     )
-    expect(section).toContain('Valeur des avoirs12 958,30 €')
-    expect(section).toContain('Investi1 000 €')
-    expect(section).toContain('Plus-value+11 958 €')
+    expect(section).not.toContain('Valeur des avoirs')
+    expect(section).not.toContain('Plus-value')
   })
 
   it('flags stale and missing prices', async () => {

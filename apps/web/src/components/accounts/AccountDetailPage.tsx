@@ -35,6 +35,7 @@ import {
   WalletAccount,
 } from '#/components/crypto/WalletAccount'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
+import { formatCalendarDate } from '#/lib/money'
 import { ApiRequestError } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import { accountBackLink } from './account-origin'
@@ -42,12 +43,13 @@ import type { AccountSearch } from './account-origin'
 import { AccountEditor } from './AccountEditor'
 import { CashAccount } from './CashAccount'
 import { todayInParis } from './dates'
-import { isInvestmentType, valueAgeText } from './labels'
+import { InvestedSheet } from './InvestedSheet'
+import { InvestmentSummary } from './InvestmentSummary'
+import { formatAge, isInvestmentType, valueAgeText } from './labels'
 import { LinkedTransfers } from './LinkedTransfers'
 import { MealVoucherAccount } from './MealVoucherAccount'
 import { MovementsCard } from './Movements'
 import { PasteHistorySheet } from './PasteHistorySheet'
-import { PerformanceTiles } from './PerformanceTiles'
 import { accountQuery, performanceQuery } from './queries'
 import { SnapshotEditor } from './SnapshotEditor'
 import { SnapshotList } from './SnapshotList'
@@ -132,6 +134,7 @@ export function AccountDetailPage({
   const [editor, setEditor] = useState<EditorState>({ open: false })
   const [pasteOpen, setPasteOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [investedOpen, setInvestedOpen] = useState(false)
   const navigate = useNavigate()
   const today = todayInParis()
   const walletRefresh = useWalletRefresh(accountId)
@@ -269,7 +272,16 @@ export function AccountDetailPage({
           refreshing={walletRefresh.isPending}
           onTokensChanged={walletRefresh.refresh}
           onEditSnapshot={(snapshot) => setEditor({ open: true, snapshot })}
+          onEditInvested={() => setInvestedOpen(true)}
         />
+        {writable && (
+          <InvestedSheet
+            open={investedOpen}
+            onOpenChange={setInvestedOpen}
+            account={current}
+            performance={data}
+          />
+        )}
         {writable && (
           <SnapshotEditor
             open={editor.open}
@@ -303,7 +315,23 @@ export function AccountDetailPage({
         </Alert>
       )}
 
-      {crypto && <CryptoSourceCard account={current} writable={writable} />}
+      {/* The same summary on every investment account (#360), then what
+          it holds, its evolution and its values. */}
+      {investment && data.valueCents !== null && (
+        <InvestmentSummary
+          account={current}
+          performance={data}
+          writable={writable}
+          caption={
+            !crypto && data.valueDate
+              ? data.stale || data.daysSinceLatest === null
+                ? `Au ${formatCalendarDate(data.valueDate)}`
+                : `Au ${formatCalendarDate(data.valueDate)}, ${formatAge(data.daysSinceLatest)}`
+              : undefined
+          }
+          onEditInvested={() => setInvestedOpen(true)}
+        />
+      )}
 
       {crypto && (
         <HoldingsPanel
@@ -313,6 +341,8 @@ export function AccountDetailPage({
         />
       )}
 
+      {crypto && <CryptoSourceCard account={current} writable={writable} />}
+
       {mealVoucher ? (
         <MealVoucherAccount
           account={current}
@@ -320,34 +350,24 @@ export function AccountDetailPage({
           onCorrectBalance={openAdd}
         />
       ) : investment ? (
-        data.valueCents === null ? (
-          crypto ? null : (
-            <Empty className="border">
-              <EmptyHeader>
-                <EmptyTitle>Aucune valeur pour ce compte</EmptyTitle>
-                <EmptyDescription>
-                  Saisissez la valeur indiquée sur un relevé, ou collez
-                  l’historique de vos relevés.
-                </EmptyDescription>
-              </EmptyHeader>
-              {writable && (
-                <EmptyContent>
-                  <Button iconStart={<PlusIcon />} onClick={openAdd}>
-                    Ajouter une valeur
-                  </Button>
-                </EmptyContent>
-              )}
-            </Empty>
-          )
-        ) : (
-          <>
-            {!data.stale && data.valueDate && data.daysSinceLatest !== null && (
-              <p className="text-muted-foreground -mt-3 text-sm">
-                {valueAgeText(data.valueDate, data.daysSinceLatest)}
-              </p>
+        data.valueCents === null &&
+        !crypto && (
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyTitle>Aucune valeur pour ce compte</EmptyTitle>
+              <EmptyDescription>
+                Saisissez la valeur indiquée sur un relevé, ou collez
+                l’historique de vos relevés.
+              </EmptyDescription>
+            </EmptyHeader>
+            {writable && (
+              <EmptyContent>
+                <Button iconStart={<PlusIcon />} onClick={openAdd}>
+                  Ajouter une valeur
+                </Button>
+              </EmptyContent>
             )}
-            <PerformanceTiles performance={data} />
-          </>
+          </Empty>
         )
       ) : (
         <CashAccount
@@ -381,16 +401,13 @@ export function AccountDetailPage({
         <SnapshotList
           snapshots={data.snapshots}
           withContributions
-          linkedSource={crypto ? 'retraits' : 'virements'}
-          linkedContributions={
-            data.contributionsSource === 'links'
-              ? new Map(
-                  data.contributionsHistory.map((p) => [
-                    p.date,
-                    p.contributionsCents,
-                  ]),
-                )
-              : undefined
+          invested={
+            new Map(
+              data.contributionsHistory.map((p) => [
+                p.date,
+                p.contributionsCents,
+              ]),
+            )
           }
           onEdit={
             writable
@@ -409,8 +426,22 @@ export function AccountDetailPage({
             today={today}
             withContributions={investment}
             snapshot={editor.open ? editor.snapshot : undefined}
-            defaultContributionsCents={data.contributionsCents}
+            // A new value carries the invested amount only while it is
+            // typed on the values: a base counts from its own day (#360).
+            defaultContributionsCents={
+              data.investedBase || data.contributionsSource === 'links'
+                ? null
+                : data.contributionsCents
+            }
           />
+          {investment && (
+            <InvestedSheet
+              open={investedOpen}
+              onOpenChange={setInvestedOpen}
+              account={current}
+              performance={data}
+            />
+          )}
           <PasteHistorySheet
             open={pasteOpen}
             onOpenChange={setPasteOpen}

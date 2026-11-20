@@ -52,12 +52,6 @@ import type { AccountOrigin } from './account-origin'
 import { parseAmountToCents } from './amount'
 import { previousDay } from '#/components/expenses/manual-fields'
 import { todayInParis } from './dates'
-import {
-  investedBaseOf,
-  investedBaseText,
-  InvestedBaseScreen,
-  takesInvestedBase,
-} from '#/components/crypto/InvestedBaseScreen'
 import { DeleteAccountScreen } from './DeleteAccountScreen'
 import { accountErrorMessage } from './errors'
 import { isInvestmentType } from './labels'
@@ -220,8 +214,8 @@ interface AccountEditorProps {
   from?: AccountOrigin
 }
 
-/** The editor, its invested amount (#358) or the deletion screen (#297). */
-type AccountEditorScreen = 'edit' | 'invested' | 'delete'
+/** The editor or the deletion screen (#297). */
+type AccountEditorScreen = 'edit' | 'delete'
 
 /**
  * Creates an account of any type, or renames / archives / deletes one. A bottom sheet
@@ -422,7 +416,6 @@ export function AccountEditor({
 
   const option = optionOf(values.type)
   const archived = account?.archivedAt != null
-  const investedBase = account ? investedBaseOf(account) : null
 
   return (
     <>
@@ -437,20 +430,16 @@ export function AccountEditor({
                 ? 'Nouveau compte'
                 : screen === 'delete'
                   ? `Supprimer « ${account.name} » ?`
-                  : screen === 'invested'
-                    ? 'Montant investi'
-                    : 'Modifier le compte'}
+                  : 'Modifier le compte'}
             </SheetTitle>
             <SheetDescription>
               {creating
                 ? 'Compte bancaire, livret, titres-restaurant, placement ou crypto.'
                 : screen === 'delete'
                   ? 'Le compte et toutes ses données.'
-                  : screen === 'invested'
-                    ? account.name
-                    : account.type === 'crypto'
-                      ? 'Nom affiché dans l’application.'
-                      : 'Nom et établissement affichés dans l’application.'}
+                  : account.type === 'crypto'
+                    ? 'Nom affiché dans l’application.'
+                    : 'Nom et établissement affichés dans l’application.'}
             </SheetDescription>
           </SheetHeader>
           {!creating && screen === 'delete' ? (
@@ -458,14 +447,6 @@ export function AccountEditor({
               account={account}
               onBack={() => setScreen('edit')}
               onDeleted={() => afterDelete(account)}
-            />
-          ) : !creating &&
-            screen === 'invested' &&
-            takesInvestedBase(account) ? (
-            <InvestedBaseScreen
-              account={account}
-              onBack={() => setScreen('edit')}
-              onDone={() => onOpenChange(false)}
             />
           ) : (
             <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
@@ -626,7 +607,7 @@ export function AccountEditor({
                     </div>
                     <Field data-invalid={shown.contributions !== undefined}>
                       <FieldLabel htmlFor={`${id}-contributions`}>
-                        Versements nets
+                        Investi
                       </FieldLabel>
                       <AmountField
                         maxCents={LARGE_AMOUNT_CENTS}
@@ -639,37 +620,13 @@ export function AccountEditor({
                         <FieldError>{shown.contributions}</FieldError>
                       ) : (
                         <FieldDescription>
-                          Facultatif : total versé moins les retraits, pour
-                          suivre la plus-value. Valeur et versements peuvent
-                          aussi être ajoutés plus tard.
+                          Facultatif : le total versé moins les retraits, pour
+                          suivre le résultat. Il peut aussi être renseigné plus
+                          tard, depuis la page du compte.
                         </FieldDescription>
                       )}
                     </Field>
                   </>
-                )}
-                {!creating && takesInvestedBase(account) && (
-                  <section
-                    aria-labelledby={`${id}-invested`}
-                    className="space-y-2 border-t pt-4"
-                  >
-                    <h3 id={`${id}-invested`} className="text-sm font-medium">
-                      Montant investi
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {investedBase
-                        ? `${investedBaseText(investedBase)}, plus le coût des cryptos reçues depuis.`
-                        : 'Non renseigné : indiquez ce que vous avez payé pour suivre la plus-value, comme pour un PEA.'}
-                    </p>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      outline
-                      className="w-full"
-                      onClick={() => setScreen('invested')}
-                    >
-                      Modifier le montant investi
-                    </Button>
-                  </section>
                 )}
                 {!creating && (
                   <section

@@ -104,19 +104,11 @@ describe('AccountEditor', () => {
     vi.useRealTimers()
   })
 
-  it('sets the invested amount of a wallet, with « Annuler » (#358)', async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-    api.accountSnapshotsControllerSetInvestedBase.mockImplementation(() =>
-      ok({}),
-    )
-    api.accountSnapshotsControllerClearInvestedBase.mockImplementation(() =>
-      ok({}),
-    )
-    const onOpenChange = vi.fn()
+  it('leaves the invested amount to the account page (#360)', () => {
     renderWithClient(
       <AccountEditor
         open
-        onOpenChange={onOpenChange}
+        onOpenChange={vi.fn()}
         account={account({
           name: 'Ledger test',
           type: 'crypto',
@@ -125,66 +117,8 @@ describe('AccountEditor', () => {
         })}
       />,
     )
-
-    expect(screen.getByText(/Non renseigné/)).toBeInTheDocument()
-    await user.click(
-      screen.getByRole('button', { name: 'Modifier le montant investi' }),
-    )
-    const save = screen.getByRole('button', { name: 'Enregistrer' })
-    // Greyed out until an amount is typed.
-    expect(save).toBeDisabled()
-    await user.type(
-      screen.getByRole('textbox', { name: 'Montant investi' }),
-      '5 000',
-    )
-    const day = screen.getByLabelText('Investi jusqu’au')
-    expect(day).toHaveValue('2026-11-06')
-    await user.clear(day)
-    await user.type(day, '2026-06-30')
-    await user.click(save)
-
-    await waitFor(() =>
-      expect(
-        api.accountSnapshotsControllerSetInvestedBase,
-      ).toHaveBeenCalledWith(
-        expect.objectContaining({
-          path: { id: NEW_ID },
-          body: { amountCents: 500_000, on: '2026-06-30' },
-        }),
-      ),
-    )
-    expect(onOpenChange).toHaveBeenCalledWith(false)
-    expect(toast.success).toHaveBeenCalledWith(
-      'Montant investi enregistré',
-      expect.anything(),
-    )
-    // « Annuler » removes it again: there was none.
-    const [, options] = toast.success.mock.calls[0] as [
-      string,
-      { action: { onClick: () => void } },
-    ]
-    options.action.onClick()
-    await waitFor(() =>
-      expect(
-        api.accountSnapshotsControllerClearInvestedBase,
-      ).toHaveBeenCalled(),
-    )
-  })
-
-  it('offers no invested amount on an exchange account', () => {
-    renderWithClient(
-      <AccountEditor
-        open
-        onOpenChange={vi.fn()}
-        account={account({
-          type: 'crypto',
-          cryptoSource: 'exchange',
-          cryptoProvider: 'binance',
-        })}
-      />,
-    )
     expect(
-      screen.queryByRole('button', { name: 'Modifier le montant investi' }),
+      screen.queryByRole('button', { name: /montant investi/ }),
     ).not.toBeInTheDocument()
   })
 
@@ -214,7 +148,7 @@ describe('AccountEditor', () => {
     expect(screen.getByLabelText('Nom')).toHaveValue('PEA')
     await user.type(screen.getByLabelText('Établissement'), 'Courtier test')
     await user.type(screen.getByLabelText('Valeur actuelle'), '12 345,67')
-    await user.type(screen.getByLabelText('Versements nets'), '10 000')
+    await user.type(screen.getByLabelText('Investi'), '10 000')
     await user.click(screen.getByRole('button', { name: 'Créer le compte' }))
 
     await waitFor(() =>

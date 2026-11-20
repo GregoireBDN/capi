@@ -18,38 +18,34 @@ interface SnapshotListProps {
   /** Opens the editor; absent when the account cannot be changed. */
   onEdit?: (snapshot: SnapshotDto) => void
   /**
-   * Contributions from the linked transfers by snapshot date (#296), shown
-   * where none is typed; editing still shows what was typed.
+   * The invested amount that counts at each snapshot date (#360): the
+   * invested base, the linked transfers (#296) or what was typed. Shown in
+   * place of what is typed on the snapshot; editing still shows that.
    */
-  linkedContributions?: ReadonlyMap<string, number | null>
-  /** What the linked contributions come from: `virements`, `retraits`. */
-  linkedSource?: string
+  invested?: ReadonlyMap<string, number | null>
 }
 
-function contributionsText(
+/** « Investi 13 800,00 € », or nothing when it is unknown. */
+function investedText(
   snapshot: SnapshotDto,
-  linked: number | null | undefined,
-  source: string,
-): string {
-  if (snapshot.contributionsCents !== null) {
-    return `Versé ${formatCents(snapshot.contributionsCents)}`
-  }
-  return linked == null
-    ? 'Versements inconnus'
-    : `Versé ${formatCents(linked)} · ${source}`
+  invested: number | null | undefined,
+): string | null {
+  const cents = invested ?? snapshot.contributionsCents
+  return cents === null ? null : `Investi ${formatCents(cents)}`
 }
 
 function SnapshotDetails({
   snapshot,
   withContributions,
-  linked,
-  linkedSource = 'virements',
+  invested,
 }: {
   snapshot: SnapshotDto
   withContributions: boolean
-  linked?: number | null
-  linkedSource?: string
+  invested?: number | null
 }) {
+  const investedLine = withContributions
+    ? investedText(snapshot, invested)
+    : null
   return (
     // The amounts go under the date when both don't fit side by side.
     <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-3 gap-y-1">
@@ -67,9 +63,9 @@ function SnapshotDetails({
         <p className="font-medium tabular-nums">
           {formatCents(snapshot.valueCents)}
         </p>
-        {withContributions && (
+        {investedLine && (
           <p className="text-muted-foreground text-xs tabular-nums">
-            {contributionsText(snapshot, linked, linkedSource)}
+            {investedLine}
           </p>
         )}
       </div>
@@ -82,8 +78,7 @@ export function SnapshotRows({
   snapshots,
   withContributions,
   onEdit,
-  linkedContributions,
-  linkedSource,
+  invested,
   label = 'Valeurs enregistrées',
   editLabel = 'Modifier la valeur du',
 }: SnapshotListProps & {
@@ -109,8 +104,7 @@ export function SnapshotRows({
                 <SnapshotDetails
                   snapshot={snapshot}
                   withContributions={withContributions}
-                  linked={linkedContributions?.get(snapshot.date)}
-                  linkedSource={linkedSource}
+                  invested={invested?.get(snapshot.date)}
                 />
                 <PencilIcon
                   aria-hidden
@@ -122,8 +116,7 @@ export function SnapshotRows({
                 <SnapshotDetails
                   snapshot={snapshot}
                   withContributions={withContributions}
-                  linked={linkedContributions?.get(snapshot.date)}
-                  linkedSource={linkedSource}
+                  invested={invested?.get(snapshot.date)}
                 />
               </div>
             )}
@@ -139,8 +132,7 @@ export function SnapshotList({
   snapshots,
   withContributions,
   onEdit,
-  linkedContributions,
-  linkedSource,
+  invested,
 }: SnapshotListProps) {
   return (
     <Card className="min-w-0">
@@ -162,8 +154,7 @@ export function SnapshotList({
             snapshots={snapshots}
             withContributions={withContributions}
             onEdit={onEdit}
-            linkedContributions={linkedContributions}
-            linkedSource={linkedSource}
+            invested={invested}
           />
         </CardContent>
       )}

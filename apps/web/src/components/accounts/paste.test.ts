@@ -126,10 +126,10 @@ describe('parseSnapshotHistory', () => {
       [3, 'Date dans le futur'],
       [4, 'Valeur invalide « mille »'],
       [5, 'La valeur ne peut pas être négative'],
-      [6, 'Versements invalides « dix »'],
+      [6, 'Montant investi invalide « dix »'],
       [7, 'Date déjà présente ligne 1'],
-      [8, 'Attendu : date;valeur;versements (versements facultatifs)'],
-      [9, 'Attendu : date;valeur;versements (versements facultatifs)'],
+      [8, 'Attendu : date;valeur;investi (investi facultatif)'],
+      [9, 'Attendu : date;valeur;investi (investi facultatif)'],
     ])
   })
 

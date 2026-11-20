@@ -19,6 +19,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { AmountField } from '#/components/amount/AmountField'
 import { LARGE_AMOUNT_CENTS } from '#/components/amount/signed-amount'
+import { ChevronDownIcon } from 'lucide-react'
 import { useSignedText } from '#/components/amount/use-signed-text'
 import type { SnapshotDto } from '#/api/types.gen'
 import {
@@ -98,6 +99,8 @@ export function SnapshotEditor({
   const [contributions, setContributions] = useState('')
   const contributionsField = useSignedText(contributions, setContributions)
   const [note, setNote] = useState('')
+  // « Investi à cette date », for the statements that print it (#360).
+  const [more, setMore] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const valueRef = useRef<HTMLInputElement>(null)
@@ -116,6 +119,7 @@ export function SnapshotEditor({
         : centsToInput(knownContributions),
     )
     setNote(snapshot?.note ?? '')
+    setMore(snapshot?.contributionsCents != null)
     setSubmitted(false)
   }, [open, snapshot, today, defaultContributionsCents])
 
@@ -222,10 +226,22 @@ export function SnapshotEditor({
                 />
                 {shown.value && <FieldError>{shown.value}</FieldError>}
               </Field>
-              {withContributions && (
+              {withContributions && !more && (
+                <Button
+                  type="button"
+                  ghost
+                  variant="secondary"
+                  className="self-start"
+                  iconEnd={<ChevronDownIcon aria-hidden />}
+                  onClick={() => setMore(true)}
+                >
+                  Plus d’options
+                </Button>
+              )}
+              {withContributions && more && (
                 <Field data-invalid={shown.contributions !== undefined}>
                   <FieldLabel htmlFor={`${id}-contributions`}>
-                    Versements nets
+                    Investi à cette date
                   </FieldLabel>
                   <AmountField
                     maxCents={LARGE_AMOUNT_CENTS}
@@ -238,8 +254,8 @@ export function SnapshotEditor({
                     <FieldError>{shown.contributions}</FieldError>
                   ) : (
                     <FieldDescription>
-                      Total versé moins les retraits, à cette date. Laissez vide
-                      si vous ne le connaissez pas.
+                      Si le relevé l’indique (« versements nets »). Le montant
+                      investi se renseigne d’abord depuis la page du compte.
                     </FieldDescription>
                   )}
                 </Field>

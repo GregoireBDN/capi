@@ -29,17 +29,19 @@ function investmentLine(a: InvestmentAccountSummaryDto): string {
   const gain =
     a.gainCents === null
       ? ''
-      : `, plus-value ${signedEuros(a.gainCents)} (${percent(a.returnRate)})`
+      : `, résultat ${signedEuros(a.gainCents)} (${percent(a.returnRate)})`
   const stale = a.stale ? ' — valeur pas à jour' : ''
   const source =
     a.contributionsSource === 'links'
       ? ` (d'après ${a.linkedTransfersCount} virement(s) lié(s)${a.typedContributionsCents === null ? '' : `, les relevés indiquent ${euros(a.typedContributionsCents)}`})`
-      : ''
+      : a.contributionsSource === 'base'
+        ? ` (montant saisi${a.linkedTransfersCount > 0 ? ` + ${a.linkedTransfersCount} lié(s)` : ''})`
+        : ''
   const later =
     a.linkedAfterValueCents === 0
       ? ''
       : `, ${signedEuros(a.linkedAfterValueCents)} versés depuis cette valeur`
-  return `- ${a.name} (${ACCOUNT_TYPE_LABELS[a.type]}) : ${eurosOrUnknown(a.valueCents)} au ${frenchDate(a.valueDate)}, versé ${eurosOrUnknown(a.contributionsCents)}${source}${gain}${later}${stale}`
+  return `- ${a.name} (${ACCOUNT_TYPE_LABELS[a.type]}) : ${eurosOrUnknown(a.valueCents)} au ${frenchDate(a.valueDate)}, investi ${eurosOrUnknown(a.contributionsCents)}${source}${gain}${later}${stale}`
 }
 
 /**
@@ -200,13 +202,13 @@ export const savingsTool = defineTool({
     }
     lines.push(
       '',
-      `Épargne totale : ${euros(stock.totalCents)}${stock.gainCents === null ? '' : ` (dont plus-values ${signedEuros(stock.gainCents)})`}.`,
+      `Épargne totale : ${euros(stock.totalCents)}${stock.gainCents === null ? '' : ` (dont résultat des placements ${signedEuros(stock.gainCents)})`}.`,
       `Livrets et comptes d'épargne : ${euros(stock.cash.totalCents)}`,
       ...stock.cash.accounts.map(
         (a) =>
           `- ${a.name} : ${a.balanceCents === null ? 'solde inconnu' : `${euros(a.balanceCents)} au ${frenchDate(a.balanceDate)}`}`,
       ),
-      `Placements : ${euros(stock.investments.totals.valueCents)}, versé ${eurosOrUnknown(stock.investments.totals.contributionsCents)}, plus-value ${eurosOrUnknown(stock.investments.totals.gainCents)} (${percent(stock.investments.totals.returnRate)})`,
+      `Placements : ${euros(stock.investments.totals.valueCents)}, investi ${eurosOrUnknown(stock.investments.totals.contributionsCents)}, résultat ${eurosOrUnknown(stock.investments.totals.gainCents)} (${percent(stock.investments.totals.returnRate)})`,
       ...stock.investments.accounts.map(investmentLine),
       '',
       ...investmentFlowLines(flows),

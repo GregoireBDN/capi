@@ -159,7 +159,7 @@ describe('AddInvestmentSheet', () => {
     await user.type(screen.getByLabelText('Valeur actuelle'), '20 000')
     await user.clear(screen.getByLabelText('À la date du'))
     await user.type(screen.getByLabelText('À la date du'), '2026-10-31')
-    await user.type(screen.getByLabelText('Versé jusqu’ici'), '18 000')
+    await user.type(screen.getByLabelText('Investi jusqu’ici'), '18 000')
     await user.click(screen.getByRole('button', { name: 'Ajouter' }))
 
     await screen.findByRole('heading', {

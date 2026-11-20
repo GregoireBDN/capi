@@ -7,7 +7,6 @@ import {
   cn,
   ConfirmDialog,
   EmptyState,
-  formatSignedPercent,
   ItemList,
   ItemListGroup,
   ItemListRow,
@@ -48,11 +47,11 @@ import type {
   ValuedHoldingDto,
   WalletKeyDto,
 } from '#/api/types.gen'
+import { InvestmentSummary } from '#/components/accounts/InvestmentSummary'
 import { MovementsCard } from '#/components/accounts/Movements'
 import { afterSnapshotsChanged } from '#/components/accounts/queries'
 import { DashboardCardHeader } from '#/components/dashboard/DashboardCardHeader'
 import { formatCalendarDate, formatCents } from '#/lib/money'
-import { formatShortDay } from '#/lib/period'
 import { plural } from '#/lib/plural'
 import {
   AddWalletKeySheet,
@@ -293,109 +292,6 @@ export function SplitBar({
   )
 }
 
-/** « +643,53 € depuis le 19 oct. », toned. */
-function ChangeLine({
-  change,
-  year,
-}: {
-  change: NonNullable<AccountPerformanceDto['sincePrevious']>
-  year: string
-}) {
-  const { changeCents } = change
-  return (
-    <p className="text-sm tabular-nums">
-      <span
-        className={cn(
-          changeCents > 0 && 'text-chart-delta-good',
-          changeCents < 0 && 'text-chart-delta-bad',
-        )}
-      >
-        {changeCents > 0 ? '+' : ''}
-        {formatCents(changeCents)}
-      </span>{' '}
-      <span className="text-muted-foreground">
-        depuis le {formatShortDay(change.fromDate, year)}
-      </span>
-    </p>
-  )
-}
-
-/**
- * « Investi 6 200,00 € · +1 571,12 € (+25 %) »: the invested base typed by
- * the owner (#358) and the cost of the coins sent to the wallet (#296), only
- * when it is known, naming the coins of unknown cost left out.
- */
-function InvestedLine({ performance }: { performance: AccountPerformanceDto }) {
-  const { contributionsCents, gainCents, returnRate, unknownCostCount } =
-    performance
-  if (contributionsCents === null || gainCents === null) return null
-  return (
-    <p className="text-muted-foreground text-sm tabular-nums">
-      Investi {formatCents(contributionsCents)} ·{' '}
-      <span
-        className={cn(
-          gainCents > 0 && 'text-chart-delta-good',
-          gainCents < 0 && 'text-chart-delta-bad',
-        )}
-      >
-        {gainCents > 0 ? '+' : ''}
-        {formatCents(gainCents)}
-        {returnRate !== null && ` (${formatSignedPercent(returnRate)})`}
-      </span>
-      {unknownCostCount > 0 &&
-        ` · dont ${plural(unknownCostCount, 'envoi', 'envois')} sans coût connu`}
-    </p>
-  )
-}
-
-/**
- * Top of a wallet account (#294): what it is worth (once on the page), its
- * change since the previous value, how fresh the balances are, and the
- * split by asset. « Actualiser » is the page action.
- */
-function WalletSummary({
-  data,
-  assets,
-  performance,
-  refreshing,
-  now,
-  year,
-}: {
-  data: AccountHoldingsDto
-  assets: readonly WalletAsset[]
-  performance: AccountPerformanceDto
-  refreshing: boolean
-  now: Date
-  year: string
-}) {
-  const id = useId()
-  const nothingRead = data.holdings.length === 0 && !data.sync?.syncedAt
-  const parts = splitParts(assets)
-  const total = parts.reduce((sum, part) => sum + part.valueCents, 0)
-  return (
-    <Card role="region" aria-labelledby={id} className="min-w-0">
-      <CardContent className="@container space-y-4 pt-5">
-        <div className="space-y-1">
-          <h2 id={id} className="text-muted-foreground text-sm">
-            Valeur du wallet
-          </h2>
-          <p className="text-[clamp(1.5rem,12cqi,2.25rem)] leading-tight font-semibold whitespace-nowrap tabular-nums">
-            {nothingRead ? '—' : formatCents(data.totals.valueCents)}
-          </p>
-          {!nothingRead && performance.sincePrevious && (
-            <ChangeLine change={performance.sincePrevious} year={year} />
-          )}
-          {!nothingRead && <InvestedLine performance={performance} />}
-        </div>
-        <WalletStatusLines data={data} refreshing={refreshing} now={now} />
-        {parts.length > 1 && total > 0 && (
-          <SplitBar parts={parts} totalCents={total} />
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
 /* ---------------------------------------------------------------------------
  * Holdings
  * ------------------------------------------------------------------------- */
@@ -595,9 +491,9 @@ function WalletHoldings({
   const priced = assets.filter((asset) => asset.valueCents !== null)
   const unpriced = assets.filter((asset) => asset.valueCents === null)
   const total = priced.reduce((sum, asset) => sum + (asset.valueCents ?? 0), 0)
-  const colors = new Map(
-    splitParts(assets).map((part) => [part.key, part.color]),
-  )
+  const parts = splitParts(assets)
+  const partsTotal = parts.reduce((sum, part) => sum + part.valueCents, 0)
+  const colors = new Map(parts.map((part) => [part.key, part.color]))
   const mixed =
     data.holdings.some((holding) => holding.origin !== 'manual') &&
     data.holdings.some((holding) => holding.origin === 'manual')
@@ -637,6 +533,9 @@ function WalletHoldings({
           />
         ) : (
           <>
+            {parts.length > 1 && partsTotal > 0 && (
+              <SplitBar parts={parts} totalCents={partsTotal} />
+            )}
             {priced.length > 0 && (
               <ul aria-label="Avoirs" className="space-y-0.5">
                 {priced.map((asset) => (
@@ -706,7 +605,7 @@ function WalletHistory({
   writable: boolean
   onEditSnapshot: (snapshot: SnapshotDto) => void
 }) {
-  const { snapshots, sinceOneYear } = performance
+  const { snapshots } = performance
   const ranges = chartRanges(snapshots, today)
   const [chosen, setChosen] = useState<Range>('1y')
   const range: Range = ranges.includes(chosen)
@@ -732,27 +631,9 @@ function WalletHistory({
     performance.contributionsCents !== null &&
     [...invested.values()].some((cents) => cents !== null)
 
-  const status = sinceOneYear && (
-    <>
-      <span
-        className={cn(
-          'tabular-nums',
-          sinceOneYear.changeCents > 0 && 'text-chart-delta-good',
-          sinceOneYear.changeCents < 0 && 'text-chart-delta-bad',
-        )}
-      >
-        {sinceOneYear.changeCents > 0 ? '+' : ''}
-        {formatCents(sinceOneYear.changeCents)}
-      </span>{' '}
-      sur 1 an
-      {sinceOneYear.changeRate !== null &&
-        ` (${formatSignedPercent(sinceOneYear.changeRate)})`}
-    </>
-  )
-
   return (
     <Card role="region" aria-label="Évolution" className="min-w-0">
-      <DashboardCardHeader title="Évolution" status={status || undefined} />
+      <DashboardCardHeader title="Évolution" />
       <CardContent className="space-y-3">
         {snapshots.length < 2 ? (
           <EmptyState
@@ -1225,6 +1106,7 @@ export function WalletAccount({
   refreshing,
   onTokensChanged,
   onEditSnapshot,
+  onEditInvested,
 }: {
   account: AccountDto
   performance: AccountPerformanceDto
@@ -1235,6 +1117,8 @@ export function WalletAccount({
   /** A token added or removed: read it at once (« Actualiser »). */
   onTokensChanged: () => void
   onEditSnapshot: (snapshot: SnapshotDto) => void
+  /** Opens the invested amount's editor. */
+  onEditInvested: () => void
 }) {
   const queryClient = useQueryClient()
   const holdings = useQuery(holdingsQuery(account.id))
@@ -1270,17 +1154,21 @@ export function WalletAccount({
   }
   const data = holdings.data
   const assets = groupHoldings(data.holdings)
-  const year = today.slice(0, 4)
+  const nothingRead = data.holdings.length === 0 && !data.sync?.syncedAt
 
   return (
     <>
-      <WalletSummary
-        data={data}
-        assets={assets}
+      {/* The summary of every investment account (#360). */}
+      <InvestmentSummary
+        account={account}
         performance={performance}
-        refreshing={refreshing}
-        now={now}
-        year={year}
+        writable={writable}
+        label="Valeur du wallet"
+        valueCents={nothingRead ? null : data.totals.valueCents}
+        status={
+          <WalletStatusLines data={data} refreshing={refreshing} now={now} />
+        }
+        onEditInvested={onEditInvested}
       />
       <WalletHoldings
         accountId={account.id}
@@ -1289,6 +1177,8 @@ export function WalletAccount({
         writable={writable}
         now={now}
       />
+      {/* Bank → exchange → Ledger, with the cost the coins left with (#296). */}
+      <MovementsCard accountId={account.id} />
       {performance.snapshots.length > 0 && (
         <WalletHistory
           performance={performance}
@@ -1297,8 +1187,6 @@ export function WalletAccount({
           onEditSnapshot={onEditSnapshot}
         />
       )}
-      {/* Bank → exchange → Ledger, with the cost the coins left with (#296). */}
-      <MovementsCard accountId={account.id} />
       <WalletSettings
         account={account}
         writable={writable}

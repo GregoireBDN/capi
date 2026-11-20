@@ -43,7 +43,7 @@ function Flows({
         variant="inline"
         icon={<ArrowRightLeftIcon />}
         title="Aucun virement lié sur 12 mois"
-        description="Liez un virement à son placement sur Opérations (« Vers ») ou avec une règle : ses versements et cette répartition en découlent."
+        description="Liez un virement à son placement sur Opérations (« Vers ») ou avec une règle : son montant investi et cette répartition en découlent."
         actions={
           <Link
             to={ROUTES.transactions}

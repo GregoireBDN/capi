@@ -1,0 +1,2 @@
+ALTER TABLE "accounts" DROP CONSTRAINT "accounts_invested_base_crypto";--> statement-breakpoint
+ALTER TABLE "accounts" ADD CONSTRAINT "accounts_invested_base_type" CHECK ("accounts"."invested_base_cents" IS NULL OR ("accounts"."invested_base_cents" >= 0 AND ("accounts"."crypto_source" IN ('wallet', 'manual') OR "accounts"."type" IN ('brokerage', 'life_insurance', 'employee_savings'))));

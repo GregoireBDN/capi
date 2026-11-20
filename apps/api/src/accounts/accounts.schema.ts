@@ -60,10 +60,12 @@ export const accountsTable = pgTable(
       withTimezone: true,
     }),
     /**
-     * Wallet and manual crypto accounts only (#358): what the owner invested
-     * in it up to `investedBaseOn` (« Investi jusqu'au … »), typed by hand,
-     * never overwritten by a valuation. The coins linked to the account after
-     * that day add their cost on top.
+     * What the owner invested in it up to `investedBaseOn` (« Investi au
+     * … »), typed by hand, never overwritten by a valuation: wallet and
+     * manual crypto accounts (#358), PEA, life insurance and employee
+     * savings (#360); never an exchange (its holdings carry their cost) nor a
+     * cash account. What is linked to the account after that day (transfers,
+     * or coins for crypto) adds on top.
      */
     investedBaseCents: bigint('invested_base_cents', { mode: 'number' }),
     investedBaseOn: date('invested_base_on', { mode: 'string' }),
@@ -82,8 +84,8 @@ export const accountsTable = pgTable(
       sql`(${t.investedBaseCents} IS NULL) = (${t.investedBaseOn} IS NULL)`,
     ),
     check(
-      'accounts_invested_base_crypto',
-      sql`${t.investedBaseCents} IS NULL OR (${t.investedBaseCents} >= 0 AND ${t.cryptoSource} IN ('wallet', 'manual'))`,
+      'accounts_invested_base_type',
+      sql`${t.investedBaseCents} IS NULL OR (${t.investedBaseCents} >= 0 AND (${t.cryptoSource} IN ('wallet', 'manual') OR ${t.type} IN ('brokerage', 'life_insurance', 'employee_savings')))`,
     ),
   ],
 )

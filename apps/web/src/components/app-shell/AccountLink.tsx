@@ -43,7 +43,7 @@ export function AccountLink({ user, active, onNavigate }: AccountLinkProps) {
               {getInitials(user.name)}
             </span>
             <span className="grid min-w-0 flex-1 leading-tight group-data-[collapsible=icon]:sr-only">
-                <span className="truncate font-medium">{user.name}</span>
+              <span className="truncate font-medium">{user.name}</span>
               <span className="text-muted-foreground truncate text-xs">
                 {user.email}
               </span>

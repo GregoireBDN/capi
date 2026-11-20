@@ -204,11 +204,11 @@ describe('list_investment_accounts', () => {
     expect(isError).toBe(false)
     expect(text).toContain('Placements : 25 000,00 € au total')
     expect(text).toContain(
-      '- PEA (PEA / compte-titres, Banque Test) : dernière valeur 25 000,00 € au 30/09/2026 (il y a 45 j), versements nets 20 000,00 €, plus-value +5 000,00 € (25 %) — PAS À JOUR',
+      '- PEA (PEA / compte-titres, Banque Test) : dernière valeur 25 000,00 € au 30/09/2026 (il y a 45 j), investi 20 000,00 €, résultat +5 000,00 € (25 %) — PAS À JOUR',
     )
     // Crypto too (#358): invested, gain, rate and the coins of unknown cost.
     expect(text).toContain(
-      '- Portefeuille Test (crypto, portefeuille synchronisé) : dernière valeur 3 000,00 € au 14/11/2026 (il y a 0 j), investi 5 000,00 €, plus-value -2 000,00 € (-40 %), dont 1 envoi(s) sans coût connu non compté(s)',
+      '- Portefeuille Test (crypto, portefeuille synchronisé) : dernière valeur 3 000,00 € au 14/11/2026 (il y a 0 j), investi 5 000,00 €, résultat -2 000,00 € (-40 %), dont 1 envoi(s) sans coût connu non compté(s)',
     )
     expect(text).toContain(
       '- Crypto Test (crypto, saisie manuelle) : aucune valeur enregistrée',
@@ -218,7 +218,7 @@ describe('list_investment_accounts', () => {
   })
 })
 
-describe('set_crypto_invested', () => {
+describe('set_invested_amount', () => {
   /** The API's invested base of the wallet, set by the PUT like the API. */
   function investedRoutes() {
     const state: { base: SetInvestedBaseDto | null } = { base: null }
@@ -265,15 +265,15 @@ describe('set_crypto_invested', () => {
   it('previews the invested amount, gain and rate without writing', async () => {
     const { routes, state } = investedRoutes()
     const { call, writes } = await connect(routes)
-    const { text, isError } = await call('set_crypto_invested', args)
+    const { text, isError } = await call('set_invested_amount', args)
     expect(isError).toBe(false)
     expect(text).toContain('APERÇU')
     expect(text).toContain(
-      "Montant investi de base : aucun → 4 600,00 € jusqu'au 30/06/2026.",
+      'Montant investi de base : aucun → 4 600,00 € au 30/06/2026.',
     )
-    expect(text).toContain('Avant : investi 400,00 €, plus-value +2 600,00 €')
+    expect(text).toContain('Avant : investi 400,00 €, résultat +2 600,00 €')
     expect(text).toContain(
-      'Après : investi 5 000,00 €, plus-value -2 000,00 € (-40 %).',
+      'Après : investi 5 000,00 €, résultat -2 000,00 € (-40 %).',
     )
     expect(text).toContain('Dont 1 envoi(s) sans coût connu')
     expect(writes()).toHaveLength(0)
@@ -283,30 +283,73 @@ describe('set_crypto_invested', () => {
   it('saves it with confirm, then a repeated call changes nothing', async () => {
     const { routes, state } = investedRoutes()
     const { call, writes } = await connect(routes)
-    const saved = await call('set_crypto_invested', { ...args, confirm: true })
+    const saved = await call('set_invested_amount', { ...args, confirm: true })
     expect(saved.isError).toBe(false)
     expect(saved.text).toContain(
-      'Portefeuille Test : montant investi enregistré, investi 5 000,00 €, plus-value -2 000,00 € (-40 %).',
+      'Portefeuille Test : montant investi enregistré, investi 5 000,00 €, résultat -2 000,00 € (-40 %).',
     )
     expect(saved.text).toContain("dans l'application")
     expect(state.base).toEqual({ amountCents: 460000, on: '2026-06-30' })
     expect(writes()).toHaveLength(1)
 
-    const again = await call('set_crypto_invested', { ...args, confirm: true })
+    const again = await call('set_invested_amount', { ...args, confirm: true })
     expect(again.text).toContain('Rien à modifier')
     expect(writes()).toHaveLength(1)
   })
 
-  it('refuses exchange and non-crypto accounts, negative amounts and future days', async () => {
+  it('sets the invested amount of a PEA too (#360)', async () => {
+    const { call, writes } = await connect({
+      '/api/accounts': accounts,
+      [`POST /api/accounts/${pea.id}/invested-base/preview`]: (
+        _url: URL,
+        body: unknown,
+      ): InvestedBasePreviewDto => ({
+        current: {
+          investedBase: null,
+          valueCents: 2_500_000,
+          valueDate: '2026-09-30',
+          contributionsCents: 2_000_000,
+          contributionsSource: 'typed',
+          gainCents: 500_000,
+          returnRate: 0.25,
+          linkedTransfersCount: 0,
+          unknownCostCount: 0,
+        },
+        next: {
+          investedBase: body as SetInvestedBaseDto,
+          valueCents: 2_500_000,
+          valueDate: '2026-09-30',
+          contributionsCents: 2_060_000,
+          contributionsSource: 'base',
+          gainCents: 440_000,
+          returnRate: 0.2136,
+          linkedTransfersCount: 2,
+          unknownCostCount: 0,
+        },
+      }),
+    })
+    const { text, isError } = await call('set_invested_amount', {
+      account: 'pea',
+      amount: '20 000',
+      until: '2026-06-30',
+    })
+    expect(isError).toBe(false)
+    expect(text).toContain('Après : investi 20 600,00 €, résultat +4 400,00 €')
+    expect(text).toContain(
+      "S'y ajoutent 2 virement(s) lié(s) depuis le 30/06/2026.",
+    )
+    expect(writes()).toHaveLength(0)
+  })
+
+  it('refuses an exchange, negative amounts and future days', async () => {
     const { routes } = investedRoutes()
     const { call, writes } = await connect(routes)
     for (const [input, message] of [
-      [{ ...args, account: 'plateforme test' }, 'une plateforme garde'],
-      [{ ...args, account: 'pea' }, 'add_investment_snapshots'],
+      [{ ...args, account: 'plateforme test' }, 'elle garde le coût'],
       [{ ...args, amount: '-10' }, 'invalide'],
       [{ ...args, until: '2026-11-15' }, 'dans le futur'],
     ] as const) {
-      const result = await call('set_crypto_invested', input)
+      const result = await call('set_invested_amount', input)
       expect(result.isError).toBe(true)
       expect(result.text).toContain(message)
     }
@@ -340,7 +383,7 @@ describe('add_investment_snapshots', () => {
     expect(text).toContain('APERÇU')
     expect(text).toContain('Nouvelles valeurs (1) :')
     expect(text).toContain(
-      '- 31/10/2026 : nouvelle valeur 26 000,50 € (versements nets 20 500,00 €)',
+      '- 31/10/2026 : nouvelle valeur 26 000,50 € (investi 20 500,00 €)',
     )
     expect(text).toContain('Valeurs remplacées (1) :')
     expect(text).toContain('- 31/08/2026 : 24 000,00 € → 23 999,99 €')

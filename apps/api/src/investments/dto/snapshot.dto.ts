@@ -222,7 +222,7 @@ class PerformanceFiguresDto {
     enumName: 'ContributionsSource',
     nullable: true,
     description:
-      "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings); `base`: a crypto account's invested base (#358) plus the cost of the coins linked to it since its day.",
+      "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings); `base`: the account's invested base (#358, #360) plus what was linked to it since its day (transfers, or the cost of coins for crypto).",
   })
   contributionsSource!: 'links' | 'typed' | 'base' | null
 
@@ -323,7 +323,7 @@ export class SetInvestedBaseDto {
   on!: string
 }
 
-/** What a crypto account's invested amount is, with or without a new base. */
+/** What an account's invested amount is, with or without a new base. */
 export class InvestedFiguresDto {
   @ApiProperty({ type: InvestedBaseDto, nullable: true })
   investedBase!: InvestedBaseDto | null

@@ -409,7 +409,7 @@ describe('SavingsPage', () => {
       .closest('[data-slot="card"]') as HTMLElement
     // The total, the gain and what was paid in, in one header.
     expect(stock).toHaveTextContent(
-      text('4 800,00 €+300,00 € de plus-valueversé 2 000,00 €'),
+      text('4 800,00 €résultat +300,00 €investi 2 000,00 €'),
     )
     // Rows link to the account pages, sentence-case group headings.
     const livret = within(stock).getByRole('link', { name: /Livret test/ })

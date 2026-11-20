@@ -348,7 +348,7 @@ export function AddInvestmentSheet({
                 </div>
                 <Field data-invalid={shown.contributions !== undefined}>
                   <FieldLabel htmlFor={`${id}-contributions`}>
-                    Versé jusqu’ici
+                    Investi jusqu’ici
                   </FieldLabel>
                   <AmountField
                     maxCents={LARGE_AMOUNT_CENTS}
@@ -361,8 +361,8 @@ export function AddInvestmentSheet({
                     <FieldError>{shown.contributions}</FieldError>
                   ) : (
                     <FieldDescription>
-                      Facultatif : total versé moins les retraits, pour suivre
-                      la plus-value.
+                      Facultatif : le total versé moins les retraits, pour
+                      suivre le résultat.
                     </FieldDescription>
                   )}
                 </Field>

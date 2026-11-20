@@ -485,9 +485,45 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
-    it('refuses an invested base outside wallet and manual crypto accounts', async () => {
-      await inRollback(async ({ accounts, investments, account }) => {
+    it('gives a PEA an invested base, its typed values untouched (#360)', async () => {
+      await inRollback(async ({ investments, account, tx }) => {
         const pea = await account('brokerage')
+        await investments.upsert(
+          pea,
+          '2026-09-30',
+          { valueCents: 11_000_00, contributionsCents: 9_000_00 },
+          NOW,
+        )
+        await expect(
+          investments.setInvestedBase(
+            pea,
+            { amountCents: 10_000_00, on: '2026-10-31' },
+            NOW,
+          ),
+        ).resolves.toMatchObject({
+          contributionsCents: 10_000_00,
+          contributionsSource: 'base',
+          gainCents: 1_000_00,
+        })
+        const [typed] = await tx
+          .select({
+            contributionsCents: balanceSnapshotsTable.contributionsCents,
+          })
+          .from(balanceSnapshotsTable)
+          .where(eq(balanceSnapshotsTable.accountId, pea))
+        expect(typed.contributionsCents).toBe(9_000_00)
+        await expect(
+          investments.clearInvestedBase(pea, NOW),
+        ).resolves.toMatchObject({
+          contributionsCents: 9_000_00,
+          contributionsSource: 'typed',
+        })
+      })
+    })
+
+    it('refuses an invested base on an exchange or a cash account', async () => {
+      await inRollback(async ({ accounts, investments, account }) => {
+        const cash = await account('checking')
         const exchange = await accounts.create({
           name: 'Test exchange',
           type: 'crypto',
@@ -496,7 +532,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         })
         const wallet = await account('crypto')
         const base = { amountCents: 1_000_00, on: '2026-10-31' }
-        for (const id of [pea, exchange.id]) {
+        for (const id of [cash, exchange.id]) {
           await expect(
             investments.setInvestedBase(id, base, NOW),
           ).rejects.toBeInstanceOf(BadRequestException)

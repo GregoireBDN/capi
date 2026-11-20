@@ -59,14 +59,14 @@ function InvestmentTotals({ totals }: { totals: InvestmentsTotalsDto }) {
   return (
     <div className="text-muted-foreground space-y-0.5 text-sm">
       <p className="tabular-nums">
-        Versé {formatCents(totals.contributionsCents)}
+        Investi {formatCents(totals.contributionsCents)}
         {totals.returnRate !== null &&
           ` · ${formatSignedPercent(totals.returnRate)}`}
       </p>
       {totals.withoutContributionsCount > 0 && (
         <p className="text-xs">
-          Plus-value hors {plural(totals.withoutContributionsCount, 'compte')}{' '}
-          sans versements connus.
+          Résultat hors {plural(totals.withoutContributionsCount, 'compte')}{' '}
+          sans montant investi connu.
         </p>
       )}
     </div>

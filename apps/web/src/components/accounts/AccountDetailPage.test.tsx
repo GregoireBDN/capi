@@ -231,7 +231,7 @@ describe('AccountDetailPage', () => {
     )
   })
 
-  it('shows the value, contributions, gain and changes', async () => {
+  it('shows the value, the invested amount, the result and the changes (#360)', async () => {
     renderPage()
 
     expect(
@@ -242,22 +242,22 @@ describe('AccountDetailPage', () => {
       'href',
       '/accounts',
     )
-    expect(
-      text(screen.getByText(/^Valeur du 30 sept\. 2026/).textContent),
-    ).toBe('Valeur du 30 sept. 2026, il y a 37 jours')
-
-    const tiles = screen.getByRole('region', { name: 'Chiffres clés' })
-    const content = text(tiles.textContent)
-    expect(content).toContain('12 500,00 €')
-    expect(content).toContain('depuis le 30 juin 2026')
-    expect(content).toContain('Versements10 200 €')
-    expect(content).toContain('Plus-value+2 300 €')
-    expect(content).toContain('+22,5 %')
-    expect(content).toContain('Sur 1 an+2 500 €')
+    const summary = screen.getByRole('region', { name: 'Valeur' })
+    const content = text(summary.textContent)
     expect(content).toContain(
-      'Sur 1 an : depuis le 30 sept. 2025 (+25 %), dont 700,00 € de versements et +1 800,00 € de plus-value.',
+      'Valeur12 500,00 €Au 30 sept. 2026, il y a 37 jours+500,00 € depuis le 30 juin',
     )
-    expect(screen.queryByText(/Versements connus au/)).not.toBeInTheDocument()
+    expect(content).toContain('Investi10 200 €')
+    expect(
+      within(summary).getByRole('img', {
+        name: (name) => text(name) === 'Valeur : 10 200,00 € investis et 2 300,00 € de résultat',
+      }),
+    ).toBeInTheDocument()
+    expect(content).toContain('Résultat+2 300 €+22,5 %')
+    expect(content).toContain('Sur 1 an+2 500 €+25 %')
+    expect(content).toContain('Saisi sur la valeur du 30 sept. 2026')
+    // One word for the money put in, and no dashes.
+    expect(content).not.toMatch(/Versements|Plus-value|—/)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
     const list = screen.getByRole('list', { name: 'Valeurs enregistrées' })
@@ -265,9 +265,9 @@ describe('AccountDetailPage', () => {
     // Newest first.
     expect(text(rows[0].textContent)).toContain('30 sept. 2026')
     expect(text(rows[0].textContent)).toContain('Relevé T3')
-    expect(text(rows[0].textContent)).toContain('Versé 10 200,00 €')
+    expect(text(rows[0].textContent)).toContain('Investi 10 200,00 €')
     expect(
-      screen.getByRole('img', { name: /Valeur et versements nets/ }),
+      screen.getByRole('img', { name: /Valeur et montant investi/ }),
     ).toBeInTheDocument()
   })
 
@@ -291,8 +291,8 @@ describe('AccountDetailPage', () => {
       'Valeur du 6 août 2026, il y a 92 jours',
     )
     expect(
-      text(screen.getByText(/Versements connus au/).textContent),
-    ).toContain('Versements connus au 31 déc. 2025')
+      screen.getByText('Saisi sur la valeur du 31 déc. 2025'),
+    ).toBeInTheDocument()
   })
 
   it('adds a value, refusing a future date and a bad amount', async () => {
@@ -305,8 +305,13 @@ describe('AccountDetailPage', () => {
     const dialog = await screen.findByRole('dialog')
     const date = within(dialog).getByLabelText('Date')
     expect(date).toHaveValue('2026-11-06')
-    // Prefilled with the latest known contributions.
-    expect(within(dialog).getByLabelText('Versements nets')).toHaveValue(
+    // The invested amount is folded under « Plus d’options » (#360),
+    // prefilled with the latest one typed on the values.
+    expect(within(dialog).queryByLabelText('Investi à cette date')).toBeNull()
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Plus d’options' }),
+    )
+    expect(within(dialog).getByLabelText('Investi à cette date')).toHaveValue(
       '10200',
     )
 
@@ -366,7 +371,8 @@ describe('AccountDetailPage', () => {
     )
     let dialog = await screen.findByRole('dialog')
     expect(within(dialog).queryByLabelText('Date')).not.toBeInTheDocument()
-    const contributions = within(dialog).getByLabelText('Versements nets')
+    // Opened at once: the value has one.
+    const contributions = within(dialog).getByLabelText('Investi à cette date')
     expect(contributions).toHaveValue('10000')
     await user.clear(contributions)
     await user.click(
@@ -1366,11 +1372,23 @@ describe('AccountDetailPage', () => {
     expect(
       within(summary).getByText('Soldes lus il y a 6 min'),
     ).toBeInTheDocument()
-    // The split by asset, priced ones only.
+    // No invested amount yet: one line and its action, no dashes (#360).
+    expect(text(summary.textContent)).toContain(
+      'Montant investi pas encore renseigné',
+    )
     expect(
-      within(summary).getByRole('img', {
-        name: 'Répartition : BTC 97 %, ETH 3 %',
+      within(summary).getByRole('button', {
+        name: 'Renseigner le montant investi',
       }),
+    ).toBeInTheDocument()
+    expect(text(summary.textContent)).toContain('Sur 1 an+2 500 €+25 %')
+    expect(text(summary.textContent)).not.toContain('—')
+    // The split by asset, priced ones only, heads the holdings.
+    expect(
+      within(screen.getByRole('region', { name: 'Avoirs crypto' })).getByRole(
+        'img',
+        { name: 'Répartition : BTC 97 %, ETH 3 %' },
+      ),
     ).toBeInTheDocument()
 
     // Tokens without a price apart, last.
@@ -1384,9 +1402,10 @@ describe('AccountDetailPage', () => {
       screen.getByText('3 actifs · 3 réseaux · cours à l’instant'),
     ).toBeInTheDocument()
 
-    // The evolution: its change over one year, the values folded.
+    // The evolution: the values folded (its change over one year is the
+    // summary's).
     const evolution = screen.getByRole('region', { name: 'Évolution' })
-    expect(text(evolution.textContent)).toContain('+2 500,00 € sur 1 an (+25')
+    expect(text(evolution.textContent)).not.toContain('sur 1 an')
     const values = within(evolution).getByRole('button', {
       name: 'Valeurs enregistrées (3)',
     })
@@ -1437,9 +1456,8 @@ describe('AccountDetailPage', () => {
     const summary = await screen.findByRole('region', {
       name: 'Valeur du wallet',
     })
-    expect(text(summary.textContent)).toContain(
-      'Investi 24 000,00 € · +6 000,00 € (+25',
-    )
+    expect(text(summary.textContent)).toContain('Investi24 000 €')
+    expect(text(summary.textContent)).toContain('Résultat+6 000 €+25 %')
   })
 
   it('shows the invested base of a wallet and the coins of unknown cost (#358)', async () => {
@@ -1472,10 +1490,16 @@ describe('AccountDetailPage', () => {
     const summary = await screen.findByRole('region', {
       name: 'Valeur du wallet',
     })
+    expect(text(summary.textContent)).toContain('Investi5 000 €')
+    expect(text(summary.textContent)).toContain('Résultat-2 000 €-40 %')
     expect(text(summary.textContent)).toContain(
-      'Investi 5 000,00 € · -2 000,00 € (-40 %)',
+      'Saisi au 30 juin 2026 · dont 1 envoi sans coût connu',
     )
-    expect(text(summary.textContent)).toContain('dont 1 envoi sans coût connu')
+    expect(
+      within(summary).getByRole('img', {
+        name: (name) => text(name) === 'Valeur : 5 000,00 € investis, dont 2 000,00 € perdus',
+      }),
+    ).toBeInTheDocument()
   })
 
   it('flags stale holdings when the last sync failed', async () => {

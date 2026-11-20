@@ -15,7 +15,7 @@ import { formatCalendarDate } from '#/lib/money'
 
 const investmentConfig = {
   value: { label: 'Valeur', color: 'var(--chart-1)' },
-  contributions: { label: 'Versements nets', color: 'var(--chart-2)' },
+  contributions: { label: 'Investi', color: 'var(--chart-2)' },
 } satisfies ChartConfig
 
 const valueConfig = {
@@ -55,7 +55,7 @@ export function ValueChart({
         <CardTitle>Historique</CardTitle>
         <CardDescription>
           {showContributions
-            ? 'Valeur et versements nets à chaque relevé.'
+            ? 'Valeur et montant investi à chaque relevé.'
             : withContributions
               ? 'Valeur à chaque relevé.'
               : 'Soldes de relevés enregistrés.'}
@@ -102,7 +102,7 @@ export function ValueChart({
             indexLabel="Date"
             label={
               showContributions
-                ? 'Valeur et versements nets du compte à chaque relevé'
+                ? 'Valeur et montant investi du compte à chaque relevé'
                 : 'Valeur du compte à chaque relevé'
             }
             height={220}

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { daysBetween, oneYearBefore, parisToday } from './days'
 import {
   computePerformance,
-  cryptoInvestedAt,
+  investedAt,
+  takesInvestedBase,
   linkedContributions,
   simpleReturn,
   type SnapshotPoint,
@@ -337,7 +338,7 @@ describe('invested base of a crypto account (#358)', () => {
       flow('2026-07-20', null),
       flow('2026-08-10', null),
     ]
-    expect(cryptoInvestedAt(base, flows, '2026-08-31')).toEqual({
+    expect(investedAt(base, flows, '2026-08-31')).toEqual({
       investedCents: 5_400_00,
       linkedCount: 1,
       unknownCostCount: 2,
@@ -358,19 +359,101 @@ describe('invested base of a crypto account (#358)', () => {
   })
 
   it('has nothing to say without a base or linked coins', () => {
-    expect(cryptoInvestedAt(null, [], '2026-08-31')).toBeNull()
-    expect(cryptoInvestedAt(base, [], '2026-06-29')).toBeNull()
+    expect(investedAt(null, [], '2026-08-31')).toBeNull()
+    expect(investedAt(base, [], '2026-06-29')).toBeNull()
   })
 
-  it('ignores a base on other account types', () => {
+  it('keeps an exchange out of the invested base', () => {
+    expect(
+      takesInvestedBase({ type: 'crypto', cryptoSource: 'exchange' }),
+    ).toBe(false)
+    expect(takesInvestedBase({ type: 'crypto', cryptoSource: 'wallet' })).toBe(
+      true,
+    )
+    expect(takesInvestedBase({ type: 'checking', cryptoSource: null })).toBe(
+      false,
+    )
+  })
+})
+
+describe('invested base of a PEA (#360)', () => {
+  const base = { cents: 10_000_00, on: '2026-06-30' }
+  const transfer = (date: string, amountCents: number) => ({
+    date,
+    amountCents,
+  })
+
+  it('wins over the amounts typed on the values from its day', () => {
+    const snapshots = [
+      point('2026-05-31', 9_000_00, 8_000_00),
+      point('2026-07-31', 11_500_00, 8_500_00),
+    ]
     const result = computePerformance(
-      [point('2026-08-31', 1_200_00, 1_000_00)],
+      snapshots,
       'brokerage',
-      '2026-08-31',
+      '2026-08-01',
       [],
       base,
     )
-    expect(result.contributionsCents).toBe(1_000_00)
-    expect(result.contributionsSource).toBe('typed')
+    expect(result).toMatchObject({
+      contributionsCents: 10_000_00,
+      contributionsSource: 'base',
+      gainCents: 1_500_00,
+      returnRate: 0.15,
+    })
+    // Before its day, what was typed.
+    expect(
+      linkedContributions(snapshots, [], 'brokerage', base)?.map(
+        (p) => p.contributionsCents,
+      ),
+    ).toEqual([8_000_00, 10_000_00])
+  })
+
+  it('adds the transfers linked after its day', () => {
+    const flows = [
+      transfer('2026-06-05', 300_00),
+      transfer('2026-07-05', 300_00),
+      transfer('2026-08-05', 300_00),
+    ]
+    const snapshots = [
+      point('2026-05-31', 9_000_00, 8_000_00),
+      point('2026-07-31', 11_500_00),
+      point('2026-08-31', 12_000_00),
+    ]
+    const result = computePerformance(
+      snapshots,
+      'brokerage',
+      '2026-09-01',
+      flows,
+      base,
+    )
+    expect(result).toMatchObject({
+      contributionsCents: 10_600_00,
+      contributionsSource: 'base',
+      linkedTransfersCount: 2,
+      gainCents: 1_400_00,
+    })
+    // Before its day, the typed amount and the transfers since, as without a base.
+    expect(
+      linkedContributions(snapshots, flows, 'brokerage', base)?.map(
+        (p) => p.contributionsCents,
+      ),
+    ).toEqual([8_000_00, 10_300_00, 10_600_00])
+  })
+
+  it('counts a base dated after the latest value', () => {
+    const result = computePerformance(
+      [point('2026-10-31', 12_000_00)],
+      'life_insurance',
+      '2026-11-20',
+      [],
+      { cents: 11_000_00, on: '2026-11-20' },
+    )
+    expect(result).toMatchObject({
+      contributionsCents: 11_000_00,
+      contributionsDate: '2026-11-20',
+      contributionsSource: 'base',
+      gainCents: 1_000_00,
+    })
   })
 })

@@ -133,7 +133,7 @@ function AccountLink({
       to={ROUTES.account}
       params={{ accountId }}
       search={accountLinkSearch('net-worth')}
-      title="Voir la valeur et la plus-value"
+      title="Voir la valeur et le résultat"
       className={linkClassName}
     >
       {children}

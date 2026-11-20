@@ -17,7 +17,6 @@ import {
   EmptyTitle,
   formatWholeEuros,
   Skeleton,
-  StatCard,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -50,14 +49,12 @@ import {
 } from './queries'
 import { DERIVED_ORIGIN_LABELS, isContractAsset } from './sources'
 
-const dash = () => '—'
 const signedWholeEuros = new Intl.NumberFormat('fr-FR', {
   style: 'currency',
   currency: 'EUR',
   maximumFractionDigits: 0,
   signDisplay: 'exceptZero',
 })
-/** Half-width tiles use whole euros so two fit side by side on a phone. */
 const formatSignedWholeEuros = (cents: number) =>
   signedWholeEuros.format(cents / 100)
 const signed = (cents: number) => `${cents > 0 ? '+' : ''}${formatCents(cents)}`
@@ -372,30 +369,6 @@ export function HoldingsPanel({
   return (
     <section aria-label="Avoirs crypto" className="space-y-3">
       <PriceAlerts refreshFailed={data.refreshFailed} totals={totals} />
-
-      {!wallet && data.holdings.length > 0 && (
-        <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @2xl:grid-cols-3">
-          <StatCard
-            className="@lg:col-span-2 @2xl:col-span-1"
-            label="Valeur des avoirs"
-            value={totals.valueCents}
-          />
-          <StatCard
-            label="Investi"
-            value={totals.investedCents ?? 0}
-            valueFormatter={
-              totals.investedCents === null ? dash : formatWholeEuros
-            }
-          />
-          <StatCard
-            label="Plus-value"
-            value={totals.gainCents ?? 0}
-            valueFormatter={
-              totals.gainCents === null ? dash : formatSignedWholeEuros
-            }
-          />
-        </div>
-      )}
 
       <Card className="min-w-0">
         <CardHeader>
