@@ -1,0 +1,2 @@
+ALTER TABLE "transactions" ADD COLUMN "absorbed_manual" jsonb;--> statement-breakpoint
+ALTER TABLE "transactions" ADD CONSTRAINT "transactions_absorbed_manual_only_on_bank_rows" CHECK ("transactions"."absorbed_manual" is null or not "transactions"."manual");

@@ -51,6 +51,7 @@ import {
   noteFromManual,
   type StoredManualExpense,
 } from '#/imports/reconcile/manual-match.repository'
+import { restoreAbsorbedManual, undoImpact } from '#/imports/undo/import-undo'
 import { RecurringService } from '#/recurring/recurring.service'
 import { linkMatchingTransfers } from '#/transactions/transfer-links/link-transfers'
 import { buildPreview, periodOf } from '#/imports/preview/build-preview'
@@ -347,7 +348,9 @@ export class ImportsService {
 
   /**
    * Discards a pending import, or undoes a committed one: the import and the
-   * transactions it wrote are deleted.
+   * transactions it wrote are deleted, with what was done on them by hand
+   * (counted beforehand in the detail's `undo`). The manual transactions its
+   * rows absorbed on reconciliation are put back first (#371).
    */
   async remove(id: string): Promise<DeleteImportResultDto> {
     const result = await this.db.transaction(async (tx) => {
@@ -358,6 +361,9 @@ export class ImportsService {
         .for('update')
       if (!record) throw new NotFoundException('Import not found')
 
+      const restoredManual = record.committedAt
+        ? await restoreAbsorbedManual(tx, id)
+        : 0
       // Explicit rather than through the cascade, to count them.
       const removed = await tx
         .delete(transactionsTable)
@@ -370,6 +376,7 @@ export class ImportsService {
           ? ('undone' as const)
           : ('discarded' as const),
         removedTransactions: removed.length,
+        restoredManual,
       }
     })
     // Removed transactions may end or shorten recurring series.
@@ -509,13 +516,13 @@ export class ImportsService {
         : [],
     ])
     const kinds = new Map(categories.map((c) => [c.id, c.kind]))
-    const knownRules = new Map(
-      rules.map((r) => [r.id, r.counterpartAccountId]),
-    )
+    const knownRules = new Map(rules.map((r) => [r.id, r.counterpartAccountId]))
     /** A rule's destination account, on a transfer to another account. */
     const ruleCounterpart = (ruleId: string | null, kind: string) => {
       const counterpart = ruleId ? knownRules.get(ruleId) : null
-      return kind === 'transfer' && counterpart && counterpart !== record.accountId
+      return kind === 'transfer' &&
+        counterpart &&
+        counterpart !== record.accountId
         ? counterpart
         : null
     }
@@ -540,7 +547,15 @@ export class ImportsService {
         merchant: row.merchant,
         dedupeHash: row.dedupeHash,
         ...(manual
-          ? { note: noteFromManual(manual), isOneOff: manual.isOneOff }
+          ? {
+              note: noteFromManual(manual),
+              isOneOff: manual.isOneOff,
+              absorbedManual: {
+                bookingDate: manual.bookingDate,
+                rawLabel: manual.rawLabel,
+                note: manual.note,
+              },
+            }
           : {}),
       }
       const override = overrides.get(row.index)
@@ -620,6 +635,9 @@ export class ImportsService {
       ...toSummary(record, accountName),
       alreadyImported: previous?.committedAt
         ? { importId: previous.id, committedAt: previous.committedAt }
+        : null,
+      undo: record.committedAt
+        ? await undoImpact(executor, record.id, record.source)
         : null,
       preview: preview
         ? {

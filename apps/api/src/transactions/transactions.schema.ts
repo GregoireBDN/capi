@@ -5,6 +5,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   pgTable,
   pgView,
   text,
@@ -116,6 +117,14 @@ export const transactionsTable = pgTable(
      * `imports/dedupe/dedupe.ts`).
      */
     dedupeHash: varchar('dedupe_hash', { length: 64 }).notNull(),
+    /**
+     * The manual transaction this bank row absorbed on reconciliation
+     * (`imports/reconcile/`, #371): what the row does not keep of it (its
+     * day, typed label and own note). Its category, kind, note, one-off flag,
+     * link and split were carried over to the row. Undoing the import puts it
+     * back as a manual transaction (`imports/undo/`). Null on other rows.
+     */
+    absorbedManual: jsonb('absorbed_manual').$type<AbsorbedManual>(),
   },
   (t) => [
     unique('transactions_account_dedupe_hash_unique').on(
@@ -162,8 +171,23 @@ export const transactionsTable = pgTable(
       'transactions_correction_only_on_bank_rows',
       sql`not ${t.manual} or (${t.originalAmountCents} is null and ${t.originalBookingDate} is null)`,
     ),
+    // The manual entry a bank row absorbed: bank rows only (#371).
+    check(
+      'transactions_absorbed_manual_only_on_bank_rows',
+      sql`${t.absorbedManual} is null or not ${t.manual}`,
+    ),
   ],
 )
+
+/** A manual transaction as it was before a bank row absorbed it (#371). */
+export interface AbsorbedManual {
+  /** Its day (`YYYY-MM-DD`), up to 5 days from the bank's. */
+  bookingDate: string
+  /** The label typed (or the category name it defaulted to). */
+  rawLabel: string
+  /** Its own note; the bank row's note may be the label instead. */
+  note: string | null
+}
 
 /**
  * Parts of a transaction split between several categories (#74): one row per

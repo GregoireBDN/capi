@@ -93,6 +93,7 @@ function pendingDetail(
     createdAt: '2026-11-14T09:00:00.000Z',
     committedAt: null,
     alreadyImported: null,
+    undo: null,
     preview: {
       previousBalanceCents: 50000,
       continuity: {

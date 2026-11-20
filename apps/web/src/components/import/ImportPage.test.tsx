@@ -6,6 +6,7 @@ import { ImportPage } from './ImportPage'
 import {
   account,
   categories,
+  committedDetail,
   committedSummary,
   fail,
   networkFailure,
@@ -306,7 +307,12 @@ describe('ImportPage — preview', () => {
 
   it('discards the pending import on cancel', async () => {
     api.importsControllerRemove.mockResolvedValue(
-      ok({ id: pendingDetail.id, result: 'discarded', removedTransactions: 0 }),
+      ok({
+        id: pendingDetail.id,
+        result: 'discarded',
+        removedTransactions: 0,
+        restoredManual: 0,
+      }),
     )
     const { user } = setup()
     await uploadPreview(user)
@@ -355,11 +361,13 @@ describe('ImportPage — preview', () => {
 describe('ImportPage — history', () => {
   it('undoes a committed import after confirmation', async () => {
     api.importsControllerList.mockResolvedValue(ok([committedSummary]))
+    api.importsControllerFindOne.mockResolvedValue(ok(committedDetail))
     api.importsControllerRemove.mockResolvedValue(
       ok({
         id: committedSummary.id,
         result: 'undone',
         removedTransactions: 12,
+        restoredManual: 0,
       }),
     )
     const { user } = setup()
@@ -376,8 +384,12 @@ describe('ImportPage — history', () => {
     )
     const dialog = await screen.findByRole('dialog')
     expect(dialog).toHaveTextContent(
-      '12 opérations ajoutées par « old-export.csv »',
+      '12 opérations ajoutées par « old-export.csv » sur Compte test seront supprimées. Cette action est irréversible.',
     )
+    expect(api.importsControllerFindOne).toHaveBeenCalledWith({
+      path: { id: committedSummary.id },
+      throwOnError: false,
+    })
     expect(api.importsControllerRemove).not.toHaveBeenCalled()
 
     await user.click(
@@ -397,8 +409,46 @@ describe('ImportPage — history', () => {
     )
   })
 
+  it('says what undoing loses and puts back before deleting', async () => {
+    api.importsControllerList.mockResolvedValue(ok([committedSummary]))
+    api.importsControllerFindOne.mockResolvedValue(
+      ok({
+        ...committedDetail,
+        undo: { editedCount: 4, absorbedManualCount: 2 },
+      }),
+    )
+    api.importsControllerRemove.mockResolvedValue(
+      ok({
+        id: committedSummary.id,
+        result: 'undone',
+        removedTransactions: 12,
+        restoredManual: 2,
+      }),
+    )
+    const { user } = setup()
+    const item = await screen.findByRole('listitem', {
+      name: 'Import old-export.csv',
+    })
+    await user.click(
+      within(item).getByRole('button', { name: 'Annuler l’import' }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent(
+      'dont 4 modifiées à la main et 2 rapprochées de vos saisies : ces 2 saisies seront remises comme saisies manuelles. Réimporter le fichier ne rendra pas les modifications.',
+    )
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Annuler l’import' }),
+    )
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'Import annulé : 12 opérations supprimées, 2 saisies remises',
+      ),
+    )
+  })
+
   it('keeps the import when the dialog is dismissed', async () => {
     api.importsControllerList.mockResolvedValue(ok([committedSummary]))
+    api.importsControllerFindOne.mockResolvedValue(ok(committedDetail))
     const { user } = setup()
     const item = await screen.findByRole('listitem', {
       name: 'Import old-export.csv',

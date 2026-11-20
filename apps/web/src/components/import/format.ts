@@ -1,6 +1,7 @@
 import { format, parseISO } from 'date-fns'
+import { plural } from '#/lib/plural'
 
-export { plural } from '#/lib/plural'
+export { plural }
 
 /**
  * Calendar date `YYYY-MM-DD` → `dd/MM/yyyy`. Parsed as a local date (no time
@@ -71,4 +72,49 @@ export function parseIssueFr(message: string): string {
   if (translated.some((part) => part === null)) return 'ligne illisible'
   const text = translated.join(', ')
   return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+/** What undoing a committed import deletes and puts back (#371). */
+export interface UndoFigures {
+  fileName: string
+  accountName: string
+  inserted: number
+  /** Rows edited by hand, deleted with their edits. */
+  edited: number
+  /** Manual entries absorbed by reconciliation, put back. */
+  absorbed: number
+}
+
+/**
+ * The undo confirmation: the rows deleted, then, when there are any, how
+ * many were edited by hand (their edits are lost, a re-import brings back
+ * the bank rows only) and how many had absorbed a manual entry (put back as
+ * one). Without either, the plain sentence.
+ */
+export function undoDescription({
+  fileName,
+  accountName,
+  inserted,
+  edited,
+  absorbed,
+}: UndoFigures): string {
+  const deleted = `${plural(inserted, 'opération ajoutée', 'opérations ajoutées')} par « ${fileName} » sur ${accountName} ${inserted > 1 ? 'seront supprimées' : 'sera supprimée'}`
+  if (edited === 0 && absorbed === 0) {
+    return `${deleted}. Cette action est irréversible.`
+  }
+  const among = [
+    edited > 0 &&
+      `${edited} ${edited > 1 ? 'modifiées' : 'modifiée'} à la main`,
+    absorbed > 0 &&
+      `${absorbed} ${absorbed > 1 ? 'rapprochées de vos saisies' : 'rapprochée d’une saisie'}`,
+  ].filter(Boolean)
+  const restored =
+    absorbed > 0
+      ? absorbed > 1
+        ? ` : ces ${absorbed} saisies seront remises comme saisies manuelles`
+        : ' : cette saisie sera remise comme saisie manuelle'
+      : ''
+  const lost =
+    edited > 0 ? ' Réimporter le fichier ne rendra pas les modifications.' : ''
+  return `${deleted}, dont ${among.join(' et ')}${restored}.${lost}`
 }

@@ -260,6 +260,29 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
       })
     })
 
+    it('keeps an absorbed manual entry on bank rows only (#371)', async () => {
+      await inRollback(async (tx) => {
+        const checking = await account(tx)
+        const absorbedManual = {
+          bookingDate: '2026-10-13',
+          rawLabel: 'Ciné fictif',
+          note: null,
+        }
+        await refused(
+          tx,
+          'transactions_absorbed_manual_only_on_bank_rows',
+          (nested) =>
+            nested
+              .insert(transactionsTable)
+              .values(manualRow(checking.id, { absorbedManual })),
+        )
+        const statement = await bankImport(tx, checking.id)
+        await tx
+          .insert(transactionsTable)
+          .values(bankRow(checking.id, statement.id, { absorbedManual }))
+      })
+    })
+
     it('computes the bank values and keeps them read-only', async () => {
       await inRollback(async (tx) => {
         const checking = await account(tx)

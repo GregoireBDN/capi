@@ -416,6 +416,22 @@ export class AlreadyImportedDto {
   committedAt!: Date
 }
 
+export class ImportUndoImpactDto {
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Rows edited by hand that undoing deletes with their edits: filed by hand (not by a rule), kind changed, note, split, corrected amount or date, transfer link set by hand, one-off flag, prepaid subscription link. Absorbed rows are left out.',
+  })
+  editedCount!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Manual transactions absorbed by reconciliation: undoing puts them back as manual transactions.',
+  })
+  absorbedManualCount!: number
+}
+
 export class ImportDetailDto extends ImportSummaryDto {
   @ApiProperty({
     type: AlreadyImportedDto,
@@ -431,6 +447,14 @@ export class ImportDetailDto extends ImportSummaryDto {
     description: 'Rows to review; null once committed.',
   })
   preview!: ImportPreviewDto | null
+
+  @ApiProperty({
+    type: ImportUndoImpactDto,
+    nullable: true,
+    description:
+      'What undoing a committed import deletes and puts back (#371); null while pending.',
+  })
+  undo!: ImportUndoImpactDto | null
 }
 
 export class DeleteImportResultDto {
@@ -446,4 +470,11 @@ export class DeleteImportResultDto {
 
   @ApiProperty({ type: 'integer' })
   removedTransactions!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Manual transactions absorbed by the undone import, put back as manual transactions (0 for a discarded preview).',
+  })
+  restoredManual!: number
 }
