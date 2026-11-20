@@ -51,8 +51,8 @@ const NAME_MAX = 100
 /**
  * The detail of an access (#329): what it may do, its last use, its end,
  * its last calls in plain words, then « Renommer » (tokens) and « Révoquer »
- * / « Déconnecter » behind a confirmation. A bottom sheet on phones, a
- * right-hand sheet elsewhere.
+ * / « Déconnecter » behind a confirmation. The whole screen on phones, a
+ * centred modal elsewhere (#394).
  */
 export function AccessDetailSheet({
   access,
