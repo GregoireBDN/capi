@@ -61,9 +61,10 @@ import {
  * - the invested amount typed in two steps (amount, then day), see the
  *   « Saisie du montant investi » story.
  *
- * A. Trois tuiles : the value as a hero, then three tiles abreast, Investi /
- *    Résultat / Sur 1 an, whole euros and the rate under the euros (Sur 1
- *    an under the other two below a 430px phone, so no label is cut).
+ * A. Investi puis deux tuiles (the owner's choice after a first look at
+ *    « Trois tuiles »): the value as a hero, then Investi on one line across
+ *    the card (label, amount), then two tiles abreast, Résultat and Sur 1
+ *    an, each with its rate under the euros; the same at every width.
  * B. Une ligne : the value as a hero, then one sentence « Investi … ·
  *    Résultat +… (…%) » and « Sur 1 an … » under it, the figures in their
  *    colour.
@@ -508,7 +509,7 @@ function MissingInvested({
 }
 
 /* ---------------------------------------------------------------------------
- * A. Trois tuiles
+ * A. Investi puis deux tuiles
  * ------------------------------------------------------------------------- */
 
 function Tile({
@@ -527,20 +528,32 @@ function Tile({
   return (
     <div
       className={cn(
-        'bg-muted/50 @container min-w-0 rounded-lg px-2.5 py-2',
+        'bg-muted/50 @container min-w-0 rounded-lg px-3 py-2',
         className,
       )}
     >
       <p className="text-muted-foreground truncate text-xs">{label}</p>
       <p
         className={cn(
-          'text-[clamp(0.75rem,17cqi,1rem)] font-semibold whitespace-nowrap tabular-nums',
+          'text-[clamp(0.75rem,14cqi,1.15rem)] font-semibold whitespace-nowrap tabular-nums',
           valueClassName,
         )}
       >
         {value}
       </p>
       {sub && <p className="text-xs whitespace-nowrap tabular-nums">{sub}</p>}
+    </div>
+  )
+}
+
+/** Investi on one line across the card: its label, then its amount. */
+function InvestedLine({ account }: { account: Account }) {
+  return (
+    <div className="bg-muted/50 flex min-h-11 items-center gap-3 rounded-lg px-3 py-2">
+      <span className="text-muted-foreground text-sm">Investi</span>
+      <span className="ml-auto text-base font-semibold whitespace-nowrap tabular-nums">
+        {whole(account.invested)}
+      </span>
     </div>
   )
 }
@@ -561,12 +574,17 @@ function SummaryA({
     <Card>
       <CardContent className="@container space-y-4 pt-5">
         <ValueHero account={account} />
-        {/* Three abreast from a 430px phone; below, « Sur 1 an » under the
-            other two, so no label is cut. */}
-        <div className="grid grid-cols-2 gap-2 @[14rem]:grid-cols-3">
-          {known && (
-            <>
-              <Tile label="Investi" value={whole(account.invested)} />
+        <div className="space-y-2">
+          {/* The amount put in first, on one line; the two results under
+              it, each with its rate. Without it, its line and its action
+              take its place. */}
+          {known ? (
+            <InvestedLine account={account} />
+          ) : (
+            <MissingInvested account={account} onEdit={onEdit} />
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            {known && (
               <Tile
                 label={word}
                 value={signedWhole(gain)}
@@ -577,29 +595,21 @@ function SummaryA({
                   </span>
                 }
               />
-            </>
-          )}
-          <Tile
-            label="Sur 1 an"
-            value={signedWhole(account.yearChange)}
-            valueClassName={tone(account.yearChange)}
-            sub={
-              <span className={tone(account.yearChange)}>
-                {pct.format(account.yearRate)}
-              </span>
-            }
-            className={
-              known
-                ? 'col-span-2 @[14rem]:col-span-1'
-                : 'col-span-2 @[14rem]:col-span-3'
-            }
-          />
+            )}
+            <Tile
+              label="Sur 1 an"
+              value={signedWhole(account.yearChange)}
+              valueClassName={tone(account.yearChange)}
+              sub={
+                <span className={tone(account.yearChange)}>
+                  {pct.format(account.yearRate)}
+                </span>
+              }
+              className={known ? undefined : 'col-span-2'}
+            />
+          </div>
         </div>
-        {known ? (
-          <SourceLine account={account} onEdit={onEdit} />
-        ) : (
-          <MissingInvested account={account} onEdit={onEdit} />
-        )}
+        {known && <SourceLine account={account} onEdit={onEdit} />}
       </CardContent>
     </Card>
   )
@@ -1349,13 +1359,13 @@ export const Avant: StoryObj = {
   render: () => <Before />,
 }
 
-export const A_TroisTuiles: StoryObj = {
-  name: 'A. Trois tuiles',
+export const A_InvestiPuisDeuxTuiles: StoryObj = {
+  name: 'A. Investi puis deux tuiles',
   render: () => (
     <Direction
       direction="A"
-      title="A. Trois tuiles"
-      description="La valeur en grand, sa date et son évolution depuis la valeur précédente, puis trois tuiles : Investi, Résultat (€ et %), Sur 1 an (côte à côte dès 430 px ; en dessous, « Sur 1 an » passe sous les deux autres pour ne couper aucun mot). Dessous, une ligne dit d’où vient l’investi, avec « Modifier » quand il est saisi. Sans investi : la tuile Sur 1 an seule, une ligne et « Renseigner le montant investi »."
+      title="A. Investi puis deux tuiles"
+      description="La valeur en grand, sa date et son évolution, puis « Investi » sur une ligne de toute la largeur, puis deux tuiles côte à côte : Résultat et Sur 1 an, chacune avec son pourcentage. Dessous, une ligne dit d’où vient l’investi, avec « Modifier » quand il est saisi. Sans investi : à sa place une ligne et « Renseigner le montant investi », puis la tuile Sur 1 an."
     />
   ),
 }
