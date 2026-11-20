@@ -567,9 +567,7 @@ function ContactPageB({ contactId }: { contactId: string }) {
           onValueChange={setTab}
           aria-label="Dépenses"
         >
-          <SegmentedControlItem value="open">
-            À rembourser
-          </SegmentedControlItem>
+          <SegmentedControlItem value="open">À rembourser</SegmentedControlItem>
           <SegmentedControlItem value="history">
             Historique
           </SegmentedControlItem>
