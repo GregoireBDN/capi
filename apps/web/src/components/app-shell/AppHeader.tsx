@@ -1,0 +1,192 @@
+import { Link, useNavigate } from '@tanstack/react-router'
+import { Button, Input, useSidebar } from '@finances/ui'
+import { MenuIcon, PlusIcon, SearchIcon } from 'lucide-react'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
+import type { UserDto } from '#/api/types.gen'
+import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
+import { ALL_MONTHS } from '#/components/transactions/search'
+import { plural } from '#/lib/plural'
+import { useReviewCount } from '#/lib/review-count'
+import { ROUTES } from '#/lib/routes'
+import { AccountMenu } from './AccountMenu'
+import { useSetPageActionsSlot, useSetPageBackSlot } from './page-actions'
+
+/**
+ * Header of the authenticated layout, on every width (#386, the owner's
+ * direction « A », after Azure DevOps), above the sidebar:
+ *
+ * - ☰: on phones it opens the navigation sheet (with a dot counting the
+ *   transactions to review); from `md` up it folds the sidebar down to its
+ *   icons and back (also Cmd/Ctrl+B).
+ * - The logo, back to the dashboard; a sub-page's way back (`PageBack`,
+ *   « ‹ Comptes ») takes its place on phones and follows it from `md` up.
+ * - Phones: the page's other actions (`PageHeader`; its main action stays
+ *   beside the title). From `md` up: a search box opening Opérations on
+ *   every date (an icon below `lg`) and « + Opération » (the quick entry).
+ * - The avatar: the account menu (`AccountMenu`), the one way to Réglages.
+ *
+ * `h-12` on every width: sticky elements below it use `top-(--app-top-bar)`
+ * (set by `routes/_app.tsx`).
+ */
+export function AppHeader({ user }: { user: UserDto }) {
+  const { isMobile, open, openMobile, setOpenMobile, toggleSidebar } =
+    useSidebar()
+  const setActionsSlot = useSetPageActionsSlot()
+  const setBackSlot = useSetPageBackSlot()
+  const reviewCount = useReviewCount()
+  const [addOpen, setAddOpen] = useState(false)
+  // The quick entry is mounted on its first opening only (it loads the
+  // categories and accounts).
+  const [addMounted, setAddMounted] = useState(false)
+  // The sidebar's « À revoir » badge is out of sight: on ☰ instead.
+  const showReviewDot =
+    (isMobile || !open) && reviewCount !== null && reviewCount > 0
+
+  return (
+    <header
+      data-app-header
+      className="bg-(--header-bg) group/header sticky top-0 z-20 flex h-12 shrink-0 items-center gap-1 border-b px-2 backdrop-blur-lg md:gap-2 md:px-3"
+    >
+      <a
+        href="#main-content"
+        className="bg-background focus-visible:ring-ring/50 sr-only rounded-lg px-3 py-2 text-sm font-medium focus:not-sr-only focus:absolute focus:top-1 focus:left-2 focus:z-30 focus-visible:ring-[3px]"
+      >
+        Aller au contenu
+      </a>
+      <Button
+        type="button"
+        variant="secondary"
+        ghost
+        iconOnly
+        // An open sidebar is the usual state, not a pressed button.
+        className="aria-expanded:text-muted-foreground relative aria-expanded:bg-transparent hover:aria-expanded:bg-secondary"
+        aria-label={
+          isMobile
+            ? 'Ouvrir le menu'
+            : open
+              ? 'Réduire le menu'
+              : 'Agrandir le menu'
+        }
+        aria-expanded={isMobile ? openMobile : open}
+        onClick={() => (isMobile ? setOpenMobile(true) : toggleSidebar())}
+      >
+        <MenuIcon />
+        {showReviewDot && (
+          <span
+            data-testid="menu-review-count"
+            title={plural(
+              reviewCount,
+              'opération à revoir',
+              'opérations à revoir',
+            )}
+            className="bg-primary text-primary-foreground absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] leading-none font-semibold tabular-nums"
+          >
+            <span aria-hidden>{reviewCount > 99 ? '99+' : reviewCount}</span>
+            <span className="sr-only">
+              {plural(reviewCount, 'opération à revoir', 'opérations à revoir')}
+            </span>
+          </span>
+        )}
+      </Button>
+      <Link
+        to={ROUTES.dashboard}
+        className="flex h-11 shrink-0 items-center gap-2 rounded-lg px-1 no-underline group-has-[[data-page-back]:not(:empty)]/header:max-md:hidden"
+      >
+        <img src="/logo.svg" alt="" className="size-6" />
+        <span className="font-semibold tracking-tight">Finances</span>
+      </Link>
+      <div
+        ref={setBackSlot}
+        data-page-back
+        className="flex min-w-0 items-center empty:hidden md:ml-1 md:border-l md:pl-2"
+      />
+      <div className="ml-auto flex shrink-0 items-center gap-1 md:gap-2">
+        <div
+          ref={setActionsSlot}
+          data-page-actions
+          className="flex items-center gap-1 empty:hidden"
+        />
+        <HeaderSearch />
+        <Button
+          type="button"
+          variant="primary"
+          className="max-md:hidden"
+          iconStart={<PlusIcon />}
+          aria-label="Ajouter une opération"
+          onClick={() => {
+            setAddMounted(true)
+            setAddOpen(true)
+          }}
+        >
+          <span className="max-lg:sr-only">Opération</span>
+        </Button>
+        <AccountMenu user={user} />
+      </div>
+      {addMounted && (
+        <ManualTransactionSheet open={addOpen} onOpenChange={setAddOpen} />
+      )}
+    </header>
+  )
+}
+
+/**
+ * From `md` up: search the transactions of every date (Opérations' own
+ * search, `?q=`). A field from `lg`, an icon opening Opérations below. A
+ * plain GET form, so it also works before hydration.
+ */
+function HeaderSearch() {
+  const navigate = useNavigate()
+  const [query, setQuery] = useState('')
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const q = query.trim()
+    void navigate({
+      to: ROUTES.transactions,
+      search: q === '' ? { month: ALL_MONTHS } : { q, month: ALL_MONTHS },
+    })
+  }
+
+  return (
+    <>
+      <form
+        role="search"
+        action={ROUTES.transactions}
+        method="get"
+        onSubmit={onSubmit}
+        className="relative max-lg:hidden"
+      >
+        <SearchIcon
+          aria-hidden
+          className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
+        />
+        <input type="hidden" name="month" value={ALL_MONTHS} />
+        <Input
+          type="search"
+          name="q"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          aria-label="Rechercher une opération"
+          placeholder="Rechercher"
+          className="w-[clamp(10rem,18vw,15rem)] pl-8"
+        />
+      </form>
+      <Button
+        asChild
+        variant="secondary"
+        ghost
+        iconOnly
+        className="max-md:hidden lg:hidden"
+      >
+        <Link
+          to={ROUTES.transactions}
+          search={{ month: ALL_MONTHS }}
+          aria-label="Rechercher une opération"
+        >
+          <SearchIcon />
+        </Link>
+      </Button>
+    </>
+  )
+}

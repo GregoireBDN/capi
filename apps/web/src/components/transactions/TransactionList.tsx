@@ -90,7 +90,7 @@ export function TransactionList({
               aria-label={heading}
               className="not-first:[&>h2]:border-t"
             >
-              {/* under the top bar (AppTopBar, h-12) when it shows */}
+              {/* under the header (AppHeader, h-12) */}
               <h2 className="bg-muted/70 text-muted-foreground sticky top-(--app-top-bar,3rem) z-[1] flex items-baseline justify-between gap-3 border-b px-3 py-1.5 text-xs font-medium backdrop-blur">
                 <time dateTime={group.date}>{heading}</time>
                 {group.hasTotal && (

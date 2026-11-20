@@ -3,37 +3,26 @@ import { QueryClientContext, useQuery } from '@tanstack/react-query'
 import { useContext } from 'react'
 import { owedSummaryQuery } from '#/components/owed/queries'
 import { formatCents, formatWholeEuros } from '#/lib/money'
-import { ChevronLeftIcon } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  Tooltip,
-  TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
   cn,
   useSidebar,
 } from '@finances/ui'
-import type { UserDto } from '#/api/types.gen'
 import { REVIEW_SEARCH } from '#/components/transactions/search'
 import { plural } from '#/lib/plural'
 import { useReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
-import {
-  NAV_ITEMS,
-  SETTINGS_ITEM,
-  carriedMonth,
-  isNavEntryActive,
-} from './nav-items'
+import { NAV_GROUPS, carriedMonth, isNavEntryActive } from './nav-items'
 import type { NavItem } from './nav-items'
-import { AccountLink } from './AccountLink'
 
 /**
  * Page icons a little larger than the menu default, and, folded, square
@@ -56,17 +45,19 @@ function monthSearch(month: string | undefined): { month?: string } {
 }
 
 /**
- * Sidebar of the authenticated layout. From `md` up it is a fixed column the
- * owner folds down to its icons and back by tapping its header ("Finances"
- * and a chevron; folded, the logo) or with Cmd/Ctrl+B; the page names show
- * as tooltips while it is folded. Below `md` the `@finances/ui` Sidebar
- * renders it inside a sheet, opened from the top bar, whose header links to
- * the dashboard.
+ * Sidebar of the authenticated layout: the navigation only, in titled groups
+ * (#386, the owner's direction « A »). From `md` up it is a fixed column
+ * under the header (`AppHeader`), which folds it down to its icons and back
+ * with its ☰ (or Cmd/Ctrl+B); the page names show as tooltips while it is
+ * folded, the group titles give way to a gap. Below `md` the `@finances/ui`
+ * Sidebar renders it inside a sheet, opened from the header's ☰, whose top
+ * links to the dashboard. Who is signed in, Réglages and the sign-out are in
+ * the header's account menu (`AccountMenu`).
  */
-export function AppSidebar({ user }: { user: UserDto }) {
+export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const search = useRouterState({ select: (s) => s.location.search })
-  const { isMobile, open, setOpenMobile, toggleSidebar } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
   const reviewCount = useReviewCount()
   // The badge reads the query cache when the app provides one.
   const queryClient = useContext(QueryClientContext)
@@ -75,19 +66,6 @@ export function AppSidebar({ user }: { user: UserDto }) {
   const closeMobileSheet = () => {
     if (isMobile) setOpenMobile(false)
   }
-
-  const brand = (
-    <>
-      <img
-        src="/logo.svg"
-        alt=""
-        className="size-7 shrink-0 group-data-[collapsible=icon]:size-(--rail-logo)"
-      />
-      <span className="truncate text-base font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
-        Finances
-      </span>
-    </>
-  )
 
   function renderItem(item: NavItem) {
     const { label, to, icon: Icon, badge } = item
@@ -138,73 +116,61 @@ export function AppSidebar({ user }: { user: UserDto }) {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <Sidebar collapsible="icon">
-        <SidebarHeader>
-          {isMobile ? (
+      {/* From md up the column starts under the header (`AppHeader`),
+          which already keeps clear of the notch. */}
+      <Sidebar
+        collapsible="icon"
+        className="md:top-[calc(env(safe-area-inset-top)+var(--app-top-bar))] md:pt-0"
+      >
+        {/* The sheet has no header above it: its top links to the
+            dashboard. From md up the logo is in the header. */}
+        {isMobile && (
+          <SidebarHeader>
             <Link
               to={ROUTES.dashboard}
               onClick={closeMobileSheet}
-              className="flex min-w-0 items-center gap-2 rounded-md p-2 no-underline"
+              className="flex min-h-11 min-w-0 items-center gap-2 rounded-md p-2 no-underline"
             >
-              {brand}
+              <img src="/logo.svg" alt="" className="size-7 shrink-0" />
+              <span className="truncate text-base font-semibold tracking-tight">
+                Finances
+              </span>
             </Link>
-          ) : (
-            // The whole header folds and unfolds the column: one large,
-            // quiet target, usable with a finger (iPad, phone held sideways).
-            // Folded, it is the logo, in the same square as the page icons.
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-label={open ? 'Réduire le menu' : 'Agrandir le menu'}
-                  aria-expanded={open}
-                  onClick={toggleSidebar}
-                  className={cn(
-                    'flex min-h-11 w-full min-w-11 items-center gap-2 rounded-md p-2 text-left',
-                    'hover:bg-sidebar-accent transition-colors outline-none',
-                    'focus-visible:ring-sidebar-ring focus-visible:ring-2',
-                    'group-data-[collapsible=icon]:size-(--rail-button) group-data-[collapsible=icon]:min-h-0 group-data-[collapsible=icon]:min-w-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0',
-                  )}
-                >
-                  {brand}
-                  <ChevronLeftIcon
-                    aria-hidden
-                    className="text-muted-foreground ml-auto size-[1.1rem] shrink-0 group-data-[collapsible=icon]:hidden"
-                  />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" align="center" hidden={open}>
-                Agrandir le menu
-              </TooltipContent>
-            </Tooltip>
-          )}
-        </SidebarHeader>
+          </SidebarHeader>
+        )}
 
         <SidebarContent>
           <nav aria-label="Navigation principale" className="contents">
-            <SidebarGroup>
-              <SidebarGroupContent>
-                <SidebarMenu>{NAV_ITEMS.map(renderItem)}</SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            {NAV_GROUPS.map((group) => (
+              <SidebarGroup
+                key={group.label}
+                role="group"
+                aria-labelledby={groupId(group.label)}
+              >
+                <SidebarGroupLabel id={groupId(group.label)}>
+                  {group.label}
+                </SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>{group.items.map(renderItem)}</SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            ))}
           </nav>
         </SidebarContent>
-
-        {/* At the bottom: the one link to Réglages, with who is signed
-            in (#261, #300, #352), and « Se déconnecter » (#353). */}
-        <SidebarFooter>
-          <AccountLink
-            user={user}
-            active={isNavEntryActive(pathname, SETTINGS_ITEM)}
-            onNavigate={closeMobileSheet}
-          />
-        </SidebarFooter>
       </Sidebar>
     </TooltipProvider>
   )
 }
 
-/** What people owe the owner (#359), whole euros, hidden at 0. */
+/** The id of a group's title, which names its list. */
+function groupId(label: string): string {
+  return `nav-group-${label.toLowerCase()}`
+}
+
+/**
+ * What people owe the owner (#359), whole euros, hidden at 0, and on the
+ * narrow column of small tablets (768–1023px), where it would touch the name.
+ */
 function OwedBadge({ to }: { to: string }) {
   const owed = useQuery(owedSummaryQuery)
   const total = owed.data?.owedToMe.totalCents ?? 0
@@ -213,7 +179,7 @@ function OwedBadge({ to }: { to: string }) {
     <span
       data-testid={`nav-badge-${to}`}
       aria-label={`On me doit ${formatCents(total)}`}
-      className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs whitespace-nowrap tabular-nums group-data-[collapsible=icon]:hidden"
+      className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs whitespace-nowrap tabular-nums group-data-[collapsible=icon]:hidden md:max-lg:hidden"
     >
       {formatWholeEuros(total)}
     </span>

@@ -7,7 +7,7 @@ import {
   createRouter,
 } from '@tanstack/react-router'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { PlusIcon } from 'lucide-react'
+import { PencilIcon, PlusIcon, UploadIcon } from 'lucide-react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarInset, SidebarProvider } from '@finances/ui'
@@ -17,7 +17,7 @@ import { resetReviewCount } from '#/lib/review-count'
 import { parseSidebarOpen } from '#/lib/sidebar-state'
 
 import { AppSidebar } from './AppSidebar'
-import { AppTopBar } from './AppTopBar'
+import { AppHeader } from './AppHeader'
 import { PageHeader } from './PageHeader'
 import { PageActionsSlotProvider } from './page-actions'
 import type { PageAction } from './page-actions'
@@ -53,14 +53,16 @@ afterEach(clearSidebarCookie)
 async function renderShell(defaultOpen: boolean, actions: PageAction[] = []) {
   const rootRoute = createRootRoute({
     component: () => (
-      <SidebarProvider defaultOpen={defaultOpen}>
-        <AppSidebar user={user} />
-        <SidebarInset>
-          <PageActionsSlotProvider>
-            <AppTopBar />
-            <Outlet />
-          </PageActionsSlotProvider>
-        </SidebarInset>
+      <SidebarProvider defaultOpen={defaultOpen} className="flex-col">
+        <PageActionsSlotProvider>
+          <AppHeader user={user} />
+          <div className="flex">
+            <AppSidebar />
+            <SidebarInset id="main-content">
+              <Outlet />
+            </SidebarInset>
+          </div>
+        </PageActionsSlotProvider>
       </SidebarProvider>
     ),
   })
@@ -69,12 +71,18 @@ async function renderShell(defaultOpen: boolean, actions: PageAction[] = []) {
     path: '/dashboard',
     component: () => <PageHeader title="Tableau de bord" actions={actions} />,
   })
+  const transactions = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/transactions',
+    component: () => <PageHeader title="Opérations" />,
+  })
   const router = createRouter({
-    routeTree: rootRoute.addChildren([dashboard]),
+    routeTree: rootRoute.addChildren([dashboard, transactions]),
     history: createMemoryHistory({ initialEntries: ['/dashboard'] }),
   })
   render(<RouterProvider router={router} />)
   await screen.findByRole('heading', { name: 'Tableau de bord' })
+  return router
 }
 
 /** The fixed sidebar column (≥ md). */
@@ -84,44 +92,105 @@ function sidebar() {
   return element
 }
 
-function topBar() {
-  const element = document.querySelector('[data-app-top-bar]')
-  if (!element) throw new Error('No top bar')
-  return element
+function header() {
+  const element = document.querySelector('[data-app-header]')
+  if (!element) throw new Error('No header')
+  return element as HTMLElement
+}
+
+/** Synthetic queue size for the « À revoir » counter. */
+function reviewQueue(count: number) {
+  vi.mocked(transactionsControllerReviewCount).mockReturnValue(
+    Promise.resolve({ data: { count } }) as never,
+  )
 }
 
 describe('App shell sidebar (≥ md)', () => {
-  it('shows the full sidebar and no top bar by default', async () => {
+  it('shows the header above the full sidebar by default (#386)', async () => {
     await renderShell(true)
 
     expect(sidebar()).toHaveAttribute('data-state', 'expanded')
-    expect(topBar()).toHaveClass('md:hidden')
+    expect(header()).not.toHaveClass('md:hidden')
+    expect(header().tagName).toBe('HEADER')
     expect(
-      screen.getByRole('button', { name: 'Réduire le menu' }),
+      within(header()).getByRole('button', { name: 'Réduire le menu' }),
     ).toHaveAttribute('aria-expanded', 'true')
+    // Logo, search, quick entry and account in the header.
+    expect(
+      within(header()).getByRole('link', { name: 'Finances' }),
+    ).toHaveAttribute('href', '/dashboard')
+    expect(
+      within(header()).getByRole('searchbox', {
+        name: 'Rechercher une opération',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      within(header()).getByRole('button', { name: 'Ajouter une opération' }),
+    ).toBeInTheDocument()
+    expect(
+      within(header()).getByRole('button', { name: 'Compte, Owner Test' }),
+    ).toBeInTheDocument()
   })
 
-  it('folds down to its icons and back from its header', async () => {
+  it('opens with a skip link to the page', async () => {
+    await renderShell(true)
+
+    const skip = within(header()).getByRole('link', {
+      name: 'Aller au contenu',
+    })
+    expect(skip).toHaveAttribute('href', '#main-content')
+    expect(document.getElementById('main-content')?.tagName).toBe('MAIN')
+  })
+
+  it('searches the transactions of every date from the header', async () => {
+    const ue = userEvent.setup()
+    const router = await renderShell(true)
+
+    const field = within(header()).getByRole('searchbox', {
+      name: 'Rechercher une opération',
+    })
+    await ue.type(field, 'loyer')
+    // Enter in the lone field submits it (jsdom doesn't do it by itself).
+    fireEvent.submit(field.closest('form') as HTMLFormElement)
+
+    await screen.findByRole('heading', { name: 'Opérations' })
+    expect(router.state.location.pathname).toBe('/transactions')
+    expect(router.state.location.search).toEqual({ q: 'loyer', month: 'all' })
+  })
+
+  it('counts the transactions to review on ☰ only while the sidebar is folded', async () => {
+    reviewQueue(4)
+    const ue = userEvent.setup()
+    await renderShell(true)
+    await screen.findByTestId('nav-badge-/transactions')
+
+    expect(screen.queryByTestId('menu-review-count')).not.toBeInTheDocument()
+    await ue.click(screen.getByRole('button', { name: 'Réduire le menu' }))
+    expect(screen.getByTestId('menu-review-count')).toHaveTextContent(
+      '4 opérations à revoir',
+    )
+  })
+
+  it('folds down to its icons and back from the header', async () => {
     const ue = userEvent.setup()
     await renderShell(true)
 
-    const header = screen.getByRole('button', { name: 'Réduire le menu' })
-    await ue.click(header)
+    const fold = screen.getByRole('button', { name: 'Réduire le menu' })
+    await ue.click(fold)
 
     expect(sidebar()).toHaveAttribute('data-state', 'collapsed')
     expect(sidebar()).toHaveAttribute('data-collapsible', 'icon')
-    // Still on screen: no top bar from md up, the pages stay reachable.
-    expect(topBar()).toHaveClass('md:hidden')
+    // Still on screen: the pages stay reachable.
     expect(screen.getByRole('link', { name: 'Budget' })).toBeInTheDocument()
     // The same control, which keeps the focus, unfolds it.
-    expect(header).toHaveAccessibleName('Agrandir le menu')
-    expect(header).toHaveAttribute('aria-expanded', 'false')
-    expect(header).toHaveFocus()
+    expect(fold).toHaveAccessibleName('Agrandir le menu')
+    expect(fold).toHaveAttribute('aria-expanded', 'false')
+    expect(fold).toHaveFocus()
     expect(parseSidebarOpen(document.cookie)).toBe(false)
 
-    await ue.click(header)
+    await ue.click(fold)
     expect(sidebar()).toHaveAttribute('data-state', 'expanded')
-    expect(header).toHaveAccessibleName('Réduire le menu')
+    expect(fold).toHaveAccessibleName('Réduire le menu')
     expect(parseSidebarOpen(document.cookie)).toBe(true)
   })
 
@@ -168,9 +237,14 @@ describe('App shell sidebar (< md)', () => {
     vi.restoreAllMocks()
   })
 
-  it('opens the navigation sheet from the top bar, with no fold button', async () => {
+  it('opens the navigation sheet from the header, with no fold button', async () => {
+    reviewQueue(12)
     const ue = userEvent.setup()
     await renderShell(false)
+    // The sidebar's badge is out of sight: ☰ carries the count.
+    expect(await screen.findByTestId('menu-review-count')).toHaveTextContent(
+      '12 opérations à revoir',
+    )
 
     expect(
       screen.queryByRole('button', {
@@ -192,22 +266,51 @@ describe('App shell sidebar (< md)', () => {
     expect(document.cookie).not.toContain('sidebar_state')
   })
 
-  it('hosts the page actions in the top bar', async () => {
+  it('keeps the main action beside the title, the others in the header (#386)', async () => {
     const ue = userEvent.setup()
-    const onSelect = vi.fn()
+    const add = vi.fn()
+    const upload = vi.fn()
     await renderShell(false, [
-      { label: 'Ajouter une opération', icon: <PlusIcon />, onSelect },
+      {
+        label: 'Ajouter une opération',
+        icon: <PlusIcon />,
+        onSelect: add,
+        primary: true,
+      },
+      { label: 'Importer un relevé', icon: <UploadIcon />, onSelect: upload },
     ])
 
+    const title = screen
+      .getByRole('heading', { name: 'Tableau de bord' })
+      .closest('header') as HTMLElement
     await ue.click(
-      await within(topBar() as HTMLElement).findByRole('button', {
-        name: 'Ajouter une opération',
+      within(title).getByRole('button', { name: 'Ajouter une opération' }),
+    )
+    expect(add).toHaveBeenCalledOnce()
+    // The other one in the header, named, and not beside the title.
+    await ue.click(
+      await within(header()).findByRole('button', {
+        name: 'Importer un relevé',
       }),
     )
-    expect(onSelect).toHaveBeenCalledOnce()
-    // Not also beside the title.
+    expect(upload).toHaveBeenCalledOnce()
     expect(
-      screen.getAllByRole('button', { name: 'Ajouter une opération' }),
-    ).toHaveLength(1)
+      within(title).queryByRole('button', { name: 'Importer un relevé' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('groups several other actions behind « Plus d’actions » in the header', async () => {
+    await renderShell(false, [
+      { label: 'Importer un relevé', icon: <UploadIcon />, onSelect: vi.fn() },
+      { label: 'Modifier', icon: <PencilIcon />, onSelect: vi.fn() },
+    ])
+
+    expect(
+      await within(header()).findByRole('button', { name: 'Plus d’actions' }),
+    ).toBeInTheDocument()
+    // The quick entry and the search stay in the computer's header.
+    expect(
+      within(header()).queryByRole('button', { name: 'Modifier' }),
+    ).not.toBeInTheDocument()
   })
 })

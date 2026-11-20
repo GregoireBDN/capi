@@ -35,10 +35,16 @@ type Scenario = {
 
 const openNav: Step = async (page) => {
   const trigger = page.getByRole('button', { name: 'Ouvrir le menu' })
-  // ≥ md the sidebar is a fixed column: nothing to open.
+  // ≥ md the sidebar is a fixed column (the header's ☰ folds it): nothing
+  // to open.
   if (!(await trigger.isVisible())) return
   await trigger.click()
   await page.getByRole('dialog').waitFor()
+}
+/** The header's avatar: the account menu (#386). */
+const openAccountMenu: Step = async (page) => {
+  await page.getByRole('button', { name: /^Compte, / }).click()
+  await page.getByRole('dialog', { name: 'Compte' }).waitFor()
 }
 const clickFirst =
   (name: RegExp, role: 'button' | 'checkbox' = 'button'): Step =>
@@ -46,15 +52,15 @@ const clickFirst =
     await page.getByRole(role, { name }).first().click()
   }
 /**
- * Runs a page action (`PageHeader`): a button beside the title or in the top
- * bar, or an item of the top bar's « Plus d’actions » menu on phones.
+ * Runs a page action (`PageHeader`): a button beside the title or in the
+ * header, or an item of the header's « Plus d’actions » menu on phones.
  */
 const pageAction =
   (name: RegExp): Step =>
   async (page) => {
     const button = page.getByRole('button', { name }).first()
     const more = page.getByRole('button', { name: 'Plus d’actions' })
-    // Phones: the actions reach the top bar once the page is hydrated.
+    // Phones: the actions reach the header once the page is hydrated.
     await button.or(more).first().waitFor()
     if (await button.isVisible()) return button.click()
     await more.click()
@@ -114,6 +120,7 @@ const SCENARIOS: Array<Scenario> = [
   },
   { name: 'net-worth', path: '/net-worth' },
   { name: 'shell-nav', path: '/dashboard', step: openNav },
+  { name: 'shell-account', path: '/dashboard', step: openAccountMenu },
   { name: 'spending', path: '/spending' },
   { name: 'transactions', path: '/transactions?month=all' },
   {

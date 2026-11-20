@@ -11,16 +11,10 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarProvider } from '@finances/ui'
 import { transactionsControllerReviewCount } from '#/api'
-import type { UserDto } from '#/api/types.gen'
 import { resetReviewCount, setReviewCount } from '#/lib/review-count'
 
 import { AppSidebar } from './AppSidebar'
-import {
-  NAV_ITEMS,
-  SETTINGS_ITEM,
-  isNavEntryActive,
-  isNavItemActive,
-} from './nav-items'
+import { NAV_GROUPS, isNavItemActive, isSettingsPage } from './nav-items'
 
 vi.mock('#/api', () => ({
   profileControllerUpdate: vi.fn(),
@@ -46,12 +40,6 @@ vi.mock('#/lib/auth-context', () => ({
   useAuth: () => ({ user: null, refresh: vi.fn(), logout: vi.fn() }),
 }))
 
-const user = {
-  id: '00000000-0000-0000-0000-000000000001',
-  name: 'Owner Test',
-  email: 'owner@example.test',
-} as UserDto
-
 /** Renders the sidebar inside a real in-memory router at `path`. */
 async function renderAt(path: string) {
   return (await renderAtWithRouter(path)).nav
@@ -61,7 +49,7 @@ async function renderAtWithRouter(path: string) {
   const rootRoute = createRootRoute({
     component: () => (
       <SidebarProvider>
-        <AppSidebar user={user} />
+        <AppSidebar />
         <Outlet />
       </SidebarProvider>
     ),
@@ -72,6 +60,7 @@ async function renderAtWithRouter(path: string) {
     '/transactions',
     '/transactions/$id',
     '/budget',
+    '/month-review',
     '/subscriptions',
     '/savings',
     '/crypto',
@@ -101,25 +90,58 @@ async function renderAtWithRouter(path: string) {
 }
 
 describe('AppSidebar', () => {
-  it('renders every section with its link, in order', async () => {
+  it('renders every page with its link, in its group, in order (#386)', async () => {
     const nav = await renderAt('/dashboard')
-    const links = nav.getAllByRole('link')
+    const group = (name: string) =>
+      within(nav.getByRole('group', { name }))
+        .getAllByRole('link')
+        .map((link) => [link.textContent, link.getAttribute('href')])
 
-    expect(
-      links.map((link) => [link.textContent, link.getAttribute('href')]),
-    ).toEqual([
+    expect(group('Suivi')).toEqual([
       ['Tableau de bord', '/dashboard'],
       ['Dépenses', '/spending'],
       ['Opérations', '/transactions'],
       ['Budget', '/budget'],
-      ['Abonnements', '/subscriptions'],
+      ['Revue du mois', '/month-review'],
+    ])
+    expect(group('Patrimoine')).toEqual([
+      ['Comptes', '/accounts'],
       ['Épargne', '/savings'],
       ['Crypto', '/crypto'],
       ['Entre proches', '/owed'],
-      ['Comptes', '/accounts'],
+    ])
+    expect(group('Outils')).toEqual([
+      ['Abonnements', '/subscriptions'],
       ['Import', '/import'],
     ])
+    expect(nav.getAllByRole('link')).toHaveLength(
+      NAV_GROUPS.flatMap((g) => g.items).length,
+    )
   })
+
+  it('holds the navigation only: no settings, account or sign-out (#386)', async () => {
+    await renderAt('/dashboard')
+
+    for (const to of ['/settings', '/categories', '/rules', '/profile']) {
+      expect(document.querySelectorAll(`a[href="${to}"]`)).toHaveLength(0)
+    }
+    expect(
+      screen.queryByRole('button', { name: 'Se déconnecter' }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Owner Test')).not.toBeInTheDocument()
+  })
+
+  it.each(['/categories', '/rules', '/settings', '/settings/security'])(
+    'highlights no page on %s (Réglages is in the account menu)',
+    async (path) => {
+      await renderAt(path)
+      expect(
+        screen
+          .getAllByRole('link')
+          .filter((link) => link.getAttribute('aria-current') === 'page'),
+      ).toHaveLength(0)
+    },
+  )
 
   it('highlights only the item of the current page', async () => {
     const nav = await renderAt('/budget')
@@ -128,14 +150,13 @@ describe('AppSidebar', () => {
     expect(active).toHaveAttribute('aria-current', 'page')
     expect(active).toHaveAttribute('data-active', 'true')
 
-    for (const { label } of NAV_ITEMS.filter(
+    for (const { label } of NAV_GROUPS.flatMap((g) => g.items).filter(
       (item) => item.label !== 'Budget',
     )) {
       const link = screen.getByRole('link', { name: label })
       expect(link).not.toHaveAttribute('aria-current')
       expect(link).not.toHaveAttribute('data-active')
     }
-    expect(settingsLink()).not.toHaveAttribute('aria-current')
   })
 
   it('highlights "Dépenses" on the spending page', async () => {
@@ -207,64 +228,7 @@ describe('AppSidebar', () => {
     act(() => setReviewCount(0))
     expect(nav.queryByTestId('nav-badge-/transactions')).not.toBeInTheDocument()
   })
-
-  it('shows « Réglages » and who is signed in, not the email (#352)', async () => {
-    await renderAt('/dashboard')
-    const link = settingsLink()
-    expect(within(link).getByText('Réglages')).toBeInTheDocument()
-    expect(within(link).getByText('Owner Test')).toBeInTheDocument()
-    // The email is on Réglages › Compte; no initials on a gradient.
-    expect(screen.queryByText('owner@example.test')).not.toBeInTheDocument()
-    expect(screen.queryByText('OT')).not.toBeInTheDocument()
-  })
-
-  it('makes the entry at the bottom the one link to Réglages (#300)', async () => {
-    const nav = await renderAt('/dashboard')
-    const link = settingsLink()
-
-    expect(link).toHaveAttribute('href', '/settings')
-    expect(link).toHaveAccessibleName('Réglages, Owner Test')
-    // Outside the list of pages, after it; no account menu any more.
-    expect(nav.queryByRole('link', { name: /Réglages/ })).toBeNull()
-    expect(
-      nav.getByRole('link', { name: 'Import' }).compareDocumentPosition(link) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
-    expect(
-      screen.queryByRole('button', { name: 'Menu du compte' }),
-    ).not.toBeInTheDocument()
-    expect(document.querySelectorAll('a[href="/settings"]')).toHaveLength(1)
-    for (const to of ['/categories', '/rules', '/profile']) {
-      expect(document.querySelectorAll(`a[href="${to}"]`)).toHaveLength(0)
-    }
-  })
-
-  it.each(['/categories', '/rules', '/settings', '/settings/security'])(
-    'highlights the account link on %s',
-    async (path) => {
-      await renderAt(path)
-      expect(settingsLink()).toHaveAttribute('aria-current', 'page')
-      expect(screen.getAllByRole('link').filter(isCurrent)).toHaveLength(1)
-    },
-  )
-
-  it('opens Réglages', async () => {
-    const { router } = await renderAtWithRouter('/dashboard')
-
-    await userEvent.setup().click(settingsLink())
-
-    expect(router.state.location.pathname).toBe('/settings')
-  })
 })
-
-/** The sidebar's entry, named « Réglages, » then who. */
-function settingsLink() {
-  return screen.getByRole('link', { name: /^Réglages, / })
-}
-
-function isCurrent(link: HTMLElement) {
-  return link.getAttribute('aria-current') === 'page'
-}
 
 describe('isNavItemActive', () => {
   it('matches the page itself and nested pages only', () => {
@@ -275,8 +239,8 @@ describe('isNavItemActive', () => {
   })
 })
 
-describe('isNavEntryActive', () => {
-  it('matches every settings page for « Réglages »', () => {
+describe('isSettingsPage', () => {
+  it('matches every settings page', () => {
     for (const to of [
       '/settings',
       '/settings/account',
@@ -286,7 +250,8 @@ describe('isNavEntryActive', () => {
       '/categories',
       '/rules',
     ])
-      expect(isNavEntryActive(to, SETTINGS_ITEM)).toBe(true)
-    expect(isNavEntryActive('/dashboard', SETTINGS_ITEM)).toBe(false)
+      expect(isSettingsPage(to)).toBe(true)
+    expect(isSettingsPage('/dashboard')).toBe(false)
+    expect(isSettingsPage('/settingsx')).toBe(false)
   })
 })

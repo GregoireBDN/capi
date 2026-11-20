@@ -20,18 +20,7 @@ const api = vi.hoisted(() => ({
   accessTokensControllerList: vi.fn(),
   oAuthConsentControllerGrants: vi.fn(),
 }))
-const theme = vi.hoisted(() => ({
-  mode: 'auto',
-  setPreference: vi.fn(),
-}))
-
-const auth = vi.hoisted(() => ({ logout: vi.fn() }))
-
 vi.mock('#/api', () => api)
-vi.mock('#/lib/auth-context', () => ({ useAuth: () => auth }))
-vi.mock('#/lib/use-theme-preference', () => ({
-  useThemePreference: () => theme,
-}))
 
 /** Synthetic owner and lists only. */
 const USER = {
@@ -73,7 +62,7 @@ async function renderPage() {
     path: '/settings',
     component: () => <SettingsPage user={USER} />,
   })
-  const others = [...SECTIONS.map(([, path]) => path), '/auth'].map((path) =>
+  const others = SECTIONS.map(([, path]) => path).map((path) =>
     createRoute({
       getParentRoute: () => rootRoute,
       path,
@@ -95,7 +84,6 @@ async function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  theme.mode = 'auto'
   api.passkeysControllerList.mockImplementation(() => ok(list(2)))
   api.sessionsControllerList.mockImplementation(() => ok(list(3)))
   api.categoriesControllerList.mockImplementation(() =>
@@ -162,36 +150,12 @@ describe('SettingsPage', () => {
     expect(router.state.location.pathname).toBe('/settings/security')
   })
 
-  it('switches the theme in place', async () => {
-    await renderPage()
-    const choice = screen.getByRole('radiogroup', { name: 'Apparence' })
-
-    expect(within(choice).getByRole('radio', { name: 'Système' })).toBeChecked()
-    await userEvent
-      .setup()
-      .click(within(choice).getByRole('radio', { name: 'Sombre' }))
-
-    expect(theme.setPreference).toHaveBeenCalledWith('dark')
-  })
-
-  it('keeps the theme when its segment is pressed again', async () => {
+  it('leaves the theme and the sign-out to the account menu (#386)', async () => {
     await renderPage()
 
-    await userEvent
-      .setup()
-      .click(screen.getByRole('radio', { name: 'Système' }))
-
-    expect(theme.setPreference).not.toHaveBeenCalled()
-  })
-
-  it('signs out, then opens the sign-in page', async () => {
-    const router = await renderPage()
-
-    await userEvent
-      .setup()
-      .click(screen.getByRole('button', { name: 'Se déconnecter' }))
-
-    expect(auth.logout).toHaveBeenCalledTimes(1)
-    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/auth'))
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Se déconnecter' }),
+    ).not.toBeInTheDocument()
   })
 })

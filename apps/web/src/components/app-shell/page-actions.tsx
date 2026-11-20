@@ -3,8 +3,9 @@ import type { ReactNode } from 'react'
 
 /**
  * One action of a page (`PageHeader`'s `actions`): beside the title from `md`
- * up, in the top bar on phones (an icon button, or the « Plus d'actions »
- * menu when the page has several).
+ * up; on phones the main one beside the title as an icon, the others in the
+ * header (an icon button, or the « Plus d'actions » menu when there are
+ * several).
  */
 export interface PageAction {
   /** Button text, and the icon button's accessible name on phones. */
@@ -12,7 +13,7 @@ export interface PageAction {
   /** A lucide icon element, shown on every screen. */
   icon: ReactNode
   onSelect: () => void
-  /** The page's main action: a filled button beside the title. */
+  /** The page's main action: a filled button beside the title, on phones too. */
   primary?: boolean
   loading?: boolean
   disabled?: boolean
@@ -28,8 +29,9 @@ const PageActionsSlotContext = createContext<{
 } | null>(null)
 
 /**
- * Lets `AppTopBar` (phones) host the actions of the page shown: the top bar
- * registers its slot element, `PageHeader` renders into it through a portal.
+ * Lets `AppHeader` host the way back of the page shown (every width) and its
+ * other actions (phones): the header registers its slot elements,
+ * `PageBack` and `PageHeader` render into them through portals.
  */
 export function PageActionsSlotProvider({ children }: { children: ReactNode }) {
   const [slot, setSlot] = useState<Slot>(null)
@@ -43,7 +45,7 @@ export function PageActionsSlotProvider({ children }: { children: ReactNode }) {
   )
 }
 
-/** The top bar's slot element, null outside the authenticated shell. */
+/** The header's actions slot, null outside the authenticated shell. */
 export function usePageActionsSlot(): Slot {
   return useContext(PageActionsSlotContext)?.slot ?? null
 }
@@ -53,7 +55,7 @@ export function useSetPageActionsSlot(): ((slot: Slot) => void) | undefined {
   return useContext(PageActionsSlotContext)?.setSlot
 }
 
-/** The top bar's back slot (left side, phones), null outside the shell. */
+/** The header's back slot (left side), null outside the shell. */
 export function usePageBackSlot(): Slot {
   return useContext(PageActionsSlotContext)?.backSlot ?? null
 }
