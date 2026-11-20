@@ -39,6 +39,10 @@ import type { NavItem } from './nav-items'
  */
 export const RAIL_BUTTON = cn(
   '[&_svg]:size-[1.1rem]',
+  // The current page on the primary tint, hover in the neutral accent: two
+  // looks, so a hovered row beside the current one reads as such (#386).
+  'hover:bg-foreground/6 hover:text-sidebar-foreground',
+  'data-active:bg-primary/12 data-active:text-primary data-active:hover:bg-primary/16 data-active:hover:text-primary',
   'group-data-[collapsible=icon]:size-(--rail-button)!',
   'group-data-[collapsible=icon]:p-0!',
   'group-data-[collapsible=icon]:justify-center',
@@ -166,6 +170,8 @@ export function AppSidebar() {
                 key={group.label}
                 role="group"
                 aria-labelledby={groupId(group.label)}
+                // The titles already part the groups: less room around them.
+                className="py-1"
               >
                 {/* Folded, the group titles give way to a short rule
                     between the groups (the owner, #386). */}
@@ -180,7 +186,11 @@ export function AppSidebar() {
                   {group.label}
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
-                  <SidebarMenu>{group.items.map(renderItem)}</SidebarMenu>
+                  {/* A little room between rows, so a hovered one beside the
+                      current one reads apart (#386). */}
+                  <SidebarMenu className="gap-0.5">
+                    {group.items.map(renderItem)}
+                  </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
             ))}
@@ -192,7 +202,7 @@ export function AppSidebar() {
             the button that folds the column, beside it (under it once
             folded). */}
         <SidebarFooter className="border-sidebar-border border-t">
-          <SidebarMenu className="flex-row items-center group-data-[collapsible=icon]:flex-col">
+          <SidebarMenu className="flex-row items-center gap-1 group-data-[collapsible=icon]:flex-col">
             <SidebarMenuItem className="min-w-0 flex-1 group-data-[collapsible=icon]:flex-none">
               <SidebarMenuButton
                 asChild
