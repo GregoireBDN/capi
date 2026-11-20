@@ -152,6 +152,7 @@ The owner's pre-app history (a Google Sheet, ~3,250 categorized rows since 07/20
   - **M10** Everyday use
   - **M11** UX overhaul & insights
 - **Tests are required** for import, parsing, deduplication and categorization logic, using anonymized fixtures only.
+- **Every business rule is also a database rule** (#367, ADR 0005 R3). A feature that adds a column or a table writes its invariants as constraints in the same migration (a check, a foreign key with the right `ON DELETE`, a unique index, or a trigger when a check can't say it), never in the services alone: a forgotten write path must fail loudly, not skew a statistic. Before adding a rule to existing data, the migration fixes the rows that break it when the fix is certain and otherwise stops with a count (`RAISE EXCEPTION` with the number of rows, never the rows themselves). Each constraint gets a spec that inserts or updates a row breaking it and expects the refusal (`database/schema/constraints.spec.ts` or the feature's own spec). Every write path that changes a value a rule depends on (a kind, a status, a source) clears what the new value forbids, in the same statement. New tables also get `coreColumns` (`timestamptz`) and their `set_updated_at` trigger (see API architecture › Database).
 
 ## Monorepo structure
 

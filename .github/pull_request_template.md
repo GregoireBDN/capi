@@ -11,6 +11,7 @@ Closes #
 ## Checklist
 
 - [ ] Tests added or updated (required for import / parsing / dedup / categorization logic)
+- [ ] New rules on data are enforced by the database too (check / foreign key / unique / trigger in the migration, existing rows fixed or counted, one spec per constraint); new tables have their `set_updated_at` trigger
 - [ ] `pnpm lint` passes
 - [ ] `pnpm check-types` passes
 - [ ] `pnpm test` passes
