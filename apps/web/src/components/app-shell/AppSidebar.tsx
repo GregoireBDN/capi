@@ -5,6 +5,8 @@ import { owedSummaryQuery } from '#/components/owed/queries'
 import { formatCents, formatWholeEuros } from '#/lib/money'
 import { ChevronsLeftIcon, ChevronsRightIcon, SettingsIcon } from 'lucide-react'
 import {
+  COUNT_PILL,
+  NotificationDot,
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -23,7 +25,6 @@ import { REVIEW_SEARCH } from '#/components/transactions/search'
 import { plural } from '#/lib/plural'
 import { useReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
-import { COUNT_PILL, IconDot } from './badges'
 import {
   NAV_GROUPS,
   carriedMonth,
@@ -134,10 +135,10 @@ export function AppSidebar() {
           </Link>
         )}
         {/* Folded, the dot every icon button with something waiting has
-            (`IconDot`, #393), astride the corner of the 44px button,
+            (`NotificationDot`, #393), astride the corner of the 44px button,
             rounded `--radius-md`, ringed in the sidebar's colour. */}
         {count !== null && count > 0 && (
-          <IconDot
+          <NotificationDot
             aria-hidden
             data-testid="nav-review-dot"
             box="var(--rail-button)"

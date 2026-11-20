@@ -1,11 +1,11 @@
 import {
   cn,
   Input,
+  NotificationCount,
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@finances/ui'
-import { CountPill } from '#/components/app-shell/badges'
 import { CheckIcon, ChevronDownIcon, XIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
@@ -231,8 +231,9 @@ export function ToggleChip({
   hideWhenOff?: boolean
   /**
    * What the filter would show (#393: the transactions to review), set
-   * forward while off: its number on the chip, on every width; `label`
-   * says it to screen readers (« 7 opérations à revoir »).
+   * forward while off: its number astride the chip's corner
+   * (`NotificationCount`), on every width; `label` says it to screen
+   * readers (« 7 opérations à revoir »).
    */
   count?: { value: number; label: string }
 }) {
@@ -248,13 +249,14 @@ export function ToggleChip({
         CHIP,
         pressed ? CHIP_ON : CHIP_OFF,
         'pointer-coarse:touch-hitbox relative px-3',
-        counted && 'border-primary/50 text-primary hover:bg-primary/10 pr-2',
+        counted && 'border-primary/50 text-primary hover:bg-primary/10',
         hideWhenOff && !pressed && !counted && 'hidden @[672px]:inline-flex',
       )}
     >
       {label}
       {pressed && <XIcon aria-hidden className="size-4" />}
-      {counted && <CountPill value={count.value} label={count.label} />}
+      {/* Astride the chip's corner, like an app's notification badge (#393). */}
+      {counted && <NotificationCount value={count.value} label={count.label} />}
     </button>
   )
 }

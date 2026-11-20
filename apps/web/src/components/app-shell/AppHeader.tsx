@@ -2,10 +2,8 @@ import { Link } from '@tanstack/react-router'
 import { Button, useSidebar } from '@finances/ui'
 import { MenuIcon } from 'lucide-react'
 import type { UserDto } from '#/api/types.gen'
-import { plural } from '#/lib/plural'
 import { useReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
-import { IconDot } from './badges'
 import { AccountMenu } from './AccountMenu'
 import { useSetPageActionsSlot, useSetPageBackSlot } from './page-actions'
 
@@ -13,9 +11,9 @@ import { useSetPageActionsSlot, useSetPageBackSlot } from './page-actions'
  * Header of the authenticated layout, on every width (#386, the owner's
  * direction « A », after Azure DevOps), above the sidebar:
  *
- * - ☰, on phones only: it opens the navigation sheet, with a dot counting
- *   the transactions to review. From `md` up the sidebar is on screen and
- *   folds from its own foot (`AppSidebar`), which frees the header.
+ * - ☰, on phones only: it opens the navigation sheet. From `md` up the
+ *   sidebar is on screen and folds from its own foot (`AppSidebar`), which
+ *   frees the header.
  * - The logo, back to the dashboard; a sub-page's way back (`PageBack`,
  *   « ‹ Comptes ») takes its place on phones and follows it from `md` up.
  * - The page's actions behind one « ⋮ » (`PageHeader`), on every width,
@@ -31,9 +29,10 @@ export function AppHeader({ user }: { user: UserDto }) {
   const { openMobile, setOpenMobile } = useSidebar()
   const setActionsSlot = useSetPageActionsSlot()
   const setBackSlot = useSetPageBackSlot()
-  const reviewCount = useReviewCount()
-  // The sidebar's « À revoir » badge is out of sight: on ☰ instead.
-  const showReviewDot = reviewCount !== null && reviewCount > 0
+  // Loads the « À revoir » count on every width: on phones the sidebar is
+  // not mounted until opened, and Dépenses' « ⋮ » and Opérations' chip read
+  // it (`useKnownReviewCount`). ☰ shows no dot (the owner, #393).
+  useReviewCount()
 
   return (
     <header
@@ -58,16 +57,6 @@ export function AppHeader({ user }: { user: UserDto }) {
         onClick={() => setOpenMobile(true)}
       >
         <MenuIcon />
-        {showReviewDot && (
-          <IconDot
-            data-testid="menu-review-count"
-            label={plural(
-              reviewCount,
-              'opération à revoir',
-              'opérations à revoir',
-            )}
-          />
-        )}
       </Button>
       <Link
         to={ROUTES.dashboard}

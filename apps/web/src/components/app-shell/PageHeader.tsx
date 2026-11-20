@@ -3,14 +3,15 @@ import { useId } from 'react'
 import type { ReactNode } from 'react'
 import {
   Button,
+  CountPill,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  NotificationDot,
   Spinner,
 } from '@finances/ui'
 import { EllipsisVerticalIcon } from 'lucide-react'
-import { CountPill, IconDot } from './badges'
 import { PageBack } from './PageBack'
 import type { PageBackLink } from './PageBack'
 import {
@@ -131,8 +132,8 @@ function PageActionsMenu({ actions }: { actions: readonly PageAction[] }) {
         <Button
           type="button"
           variant="secondary"
-          // Outlined, so its dot sits on a visible corner (#393, the owner).
-          outline
+          // A light filled tile, neither outlined nor tinted like a chosen
+          // item, so its dot sits on a visible corner (#393, the owner).
           iconOnly
           aria-label="Actions de la page"
           aria-describedby={waiting ? countId : undefined}
@@ -141,7 +142,7 @@ function PageActionsMenu({ actions }: { actions: readonly PageAction[] }) {
         >
           {busy ? <Spinner /> : <EllipsisVerticalIcon />}
           {waiting && (
-            <IconDot
+            <NotificationDot
               data-testid="page-actions-count"
               labelId={countId}
               label={counted.map((action) => action.count?.label).join(', ')}

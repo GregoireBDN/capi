@@ -251,9 +251,15 @@ describe('App shell sidebar (< md)', () => {
     reviewQueue(12)
     const ue = userEvent.setup()
     await renderShell(false)
-    // The sidebar's badge is out of sight: ☰ carries the count.
-    expect(await screen.findByTestId('menu-review-count')).toHaveTextContent(
-      '12 opérations à revoir',
+    // ☰ carries no dot (the owner, #393); the count is still loaded for
+    // the pages that show it.
+    await vi.waitFor(() =>
+      expect(transactionsControllerReviewCount).toHaveBeenCalled(),
+    )
+    expect(
+      screen.getByRole('button', { name: 'Ouvrir le menu' }),
+    ).not.toContainElement(
+      document.querySelector('[data-slot="notification-dot"]'),
     )
 
     expect(
