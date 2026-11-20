@@ -6,7 +6,7 @@ import { dataUntilByAccount } from '#/coverage/coverage'
 import { monthEnd, shiftMonth } from '#/dashboard/calendar'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
-import { transactionsTable } from '#/database/schema'
+import { transactionLinesView, transactionsTable } from '#/database/schema'
 import { normalizeLabel } from '#/imports/normalize/label'
 import { daysBetween, maxDate, todayInParis } from '#/recurring/dates'
 import { seriesKey } from '#/recurring/detect'
@@ -275,20 +275,23 @@ export class ForecastService {
     if (first === null || first > periodEnd) return null
     const from = maxDate(`${shiftMonth(month, -ESTIMATE_MONTHS)}-01`, first)
 
+    // Lines: a refund part of a split incoming transaction (#357) nets the
+    // spending like a refund filed as an expense.
+    const lines = transactionLinesView
     const rows = await this.db
       .select({
-        accountId: t.accountId,
-        amountCents: t.amountCents,
-        rawLabel: t.rawLabel,
+        accountId: lines.accountId,
+        amountCents: lines.amountCents,
+        rawLabel: lines.rawLabel,
       })
-      .from(t)
+      .from(lines)
       .where(
         and(
-          inArray(t.accountId, accountIds),
-          eq(t.kind, 'expense'),
-          eq(t.isOneOff, false),
-          gte(t.bookingDate, from),
-          lte(t.bookingDate, periodEnd),
+          inArray(lines.accountId, accountIds),
+          eq(lines.kind, 'expense'),
+          eq(lines.isOneOff, false),
+          gte(lines.bookingDate, from),
+          lte(lines.bookingDate, periodEnd),
         ),
       )
     let spentCents = 0
@@ -321,7 +324,8 @@ export class ForecastService {
     today: string,
   ): Promise<number> {
     if (accountIds.length === 0) return 0
-    const t = transactionsTable
+    // Lines, like the estimate: a split's refund part nets the spending.
+    const t = transactionLinesView
     const rows = await this.db
       .select({
         accountId: t.accountId,

@@ -41,6 +41,7 @@ const ROLLBACK = Symbol('rollback')
 const SALARY = 'VIR SEPA SALAIRE SOCIETE FICTIVE OCT'
 const MARKET = 'PAIEMENT CB 0310 VILLE-EXEMPLE HYPERMARCHE FICTIF CARTE 1234'
 const BAR = 'PAIEMENT CB 0610 VILLE-EXEMPLE BAR IMAGINAIRE CARTE 1234 ABCD'
+const PAYBACK = 'VIR SEPA RECU AMI FICTIF REMBOURSEMENT'
 
 /** Noon in Paris on the last day of the month of the files. */
 const NOW = new Date('2026-10-31T11:00:00Z')
@@ -62,6 +63,10 @@ interface Fixture {
   groceries: string
   household: string
   outings: string
+  /** Income category of refunds (« Remboursements »). */
+  refunds: string
+  /** Transfer category (moves between the owner's accounts). */
+  moves: string
   /** Previews and commits `rows` (balances chained from 100 €). */
   importRows: (
     rows: Omit<CicRow, 'balanceCents'>[],
@@ -100,11 +105,34 @@ describe.skipIf(!process.env.DATABASE_URL)(
               { slug: 'edits_outings', name: 'Sorties', kind: 'expense' },
             ])
             .returning()
-          await tx.insert(categorizationRulesTable).values({
-            position: 0,
-            labelPattern: 'hypermarche',
-            categoryId: groceries.id,
-          })
+          const [refunds, moves] = await tx
+            .insert(categoriesTable)
+            .values([
+              { slug: 'edits_refunds', name: 'Remboursés', kind: 'income' },
+              {
+                slug: 'edits_own_moves',
+                name: 'Entre comptes',
+                kind: 'transfer',
+              },
+            ])
+            .returning()
+          await tx.insert(categorizationRulesTable).values([
+            {
+              position: 0,
+              labelPattern: 'hypermarche',
+              categoryId: groceries.id,
+            },
+            {
+              position: 1,
+              labelPattern: 'ami fictif',
+              categoryId: refunds.id,
+            },
+            {
+              position: 2,
+              labelPattern: 'bar imaginaire',
+              categoryId: outings.id,
+            },
+          ])
           const database = { db: tx } as never
           const imports = new ImportsService(
             database,
@@ -122,6 +150,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
             groceries: groceries.id,
             household: household.id,
             outings: outings.id,
+            refunds: refunds.id,
+            moves: moves.id,
             importRows: async (rows) => {
               const previewed = await imports.preview({
                 accountId: account.id,
@@ -449,6 +479,215 @@ describe.skipIf(!process.env.DATABASE_URL)(
               -1_500, -3_000,
             ])
             expect(market.manual).toBe(false)
+          },
+        )
+      })
+    })
+
+    describe('splitting an incoming transaction (#357)', () => {
+      const WITH_PAYBACK: Omit<CicRow, 'balanceCents'>[] = [
+        ...OCTOBER,
+        { date: '2026-10-20', amountCents: 6_000, label: PAYBACK },
+      ]
+
+      it('makes a part in an expense category a refund of it, the rest income', async () => {
+        await withFixture(
+          async ({
+            importRows,
+            byLabel,
+            transactions,
+            budgets,
+            tx,
+            outings,
+            refunds,
+          }) => {
+            await importRows(WITH_PAYBACK)
+            const payback = await byLabel(PAYBACK)
+            expect(payback).toMatchObject({
+              kind: 'income',
+              categoryId: refunds,
+            })
+            await tx.insert(budgetsTable).values([
+              {
+                categoryId: outings,
+                effectiveFrom: '2026-10-01',
+                monthlyTargetCents: 5_000,
+                tracked: true,
+              },
+              {
+                categoryId: refunds,
+                effectiveFrom: '2026-10-01',
+                monthlyTargetCents: 3_000,
+              },
+            ])
+            const before = await budgets.month('2026-10', tx, NOW)
+            const totalsBefore = await transactions.summary({
+              month: '2026-10',
+            })
+
+            const split = await transactions.split(payback.id, [
+              { categoryId: outings, amountCents: 2_000 },
+              { categoryId: refunds, amountCents: 4_000 },
+            ])
+            expect(split.kind).toBe('income')
+            expect(split.categoryId).toBe(refunds)
+            expect(
+              split.splits.map((part) => [part.category.name, part.kind]),
+            ).toEqual([
+              ['Sorties', 'expense'],
+              ['Remboursés', 'income'],
+            ])
+
+            const after = await budgets.month('2026-10', tx, NOW)
+            const spent = (month: typeof after) =>
+              month.items.find((item) => item.categoryId === outings)
+                ?.spentCents
+            const received = (month: typeof after) =>
+              month.income.items.find((item) => item.categoryId === refunds)
+                ?.receivedCents
+            // The bar's 20 € are paid back: nothing left spent in outings.
+            expect(spent(before)).toBe(2_000)
+            expect(spent(after)).toBe(0)
+            expect(received(before)).toBe(6_000)
+            expect(received(after)).toBe(4_000)
+            const envelope = (await budgets.envelopes('2026-10', tx, NOW)).items
+            expect(
+              envelope.find((item) => item.categoryId === outings),
+            ).toMatchObject({ spentCents: 0, remainingCents: 5_000 })
+
+            // Nothing else moves: the 60 € are 40 € of income and 20 € less
+            // spent, still one transaction.
+            const totalsAfter = await transactions.summary({ month: '2026-10' })
+            expect(totalsAfter).toMatchObject({
+              count: totalsBefore.count,
+              incomeCents: totalsBefore.incomeCents - 2_000,
+              expenseCents: totalsBefore.expenseCents + 2_000,
+              netCents: totalsBefore.netCents,
+            })
+            expect(
+              await transactions.summary({
+                month: '2026-10',
+                categoryId: outings,
+              }),
+            ).toMatchObject({ expenseCents: 0, incomeCents: 0 })
+          },
+        )
+      })
+
+      it('counts an outgoing split between expense categories as before', async () => {
+        await withFixture(
+          async ({
+            importRows,
+            byLabel,
+            transactions,
+            groceries,
+            household,
+          }) => {
+            await importRows(OCTOBER)
+            const market = await byLabel(MARKET)
+            const split = await transactions.split(market.id, [
+              { categoryId: household, amountCents: -1_200 },
+              { categoryId: groceries, amountCents: -3_300 },
+            ])
+            expect(split.splits.map((part) => part.kind)).toEqual([
+              'expense',
+              'expense',
+            ])
+            expect(
+              await transactions.summary({ month: '2026-10' }),
+            ).toMatchObject({ incomeCents: 200_000, expenseCents: -6_500 })
+          },
+        )
+      })
+
+      it('refuses a transfer category beside income or expense ones', async () => {
+        await withFixture(
+          async ({ importRows, byLabel, transactions, outings, moves }) => {
+            await importRows(WITH_PAYBACK)
+            const payback = await byLabel(PAYBACK)
+            await expect(
+              transactions.split(payback.id, [
+                { categoryId: outings, amountCents: 2_000 },
+                { categoryId: moves, amountCents: 4_000 },
+              ]),
+            ).rejects.toBeInstanceOf(BadRequestException)
+            expect(await transactions.isSplit(payback.id)).toBe(false)
+          },
+        )
+      })
+
+      it('keeps the parts of a transfer transfers', async () => {
+        await withFixture(
+          async ({ importRows, byLabel, transactions, outings, refunds }) => {
+            await importRows(WITH_PAYBACK)
+            const payback = await byLabel(PAYBACK)
+            await transactions.update(payback.id, { kind: 'transfer' })
+            const before = await transactions.summary({ month: '2026-10' })
+            const split = await transactions.split(payback.id, [
+              { categoryId: outings, amountCents: 2_000 },
+              { categoryId: refunds, amountCents: 4_000 },
+            ])
+            expect(split.splits.map((part) => part.kind)).toEqual([
+              'transfer',
+              'transfer',
+            ])
+            expect(
+              await transactions.summary({ month: '2026-10' }),
+            ).toMatchObject({
+              incomeCents: before.incomeCents,
+              expenseCents: before.expenseCents,
+              transferCount: before.transferCount,
+            })
+          },
+        )
+      })
+
+      it('keeps the refund when the bank row replaces a manual transaction', async () => {
+        await withFixture(
+          async ({
+            manual,
+            importRows,
+            byLabel,
+            transactions,
+            budgets,
+            tx,
+            outings,
+            refunds,
+          }) => {
+            const noted = await manual.create(
+              {
+                amountCents: 6_000,
+                direction: 'in',
+                kind: 'income',
+                categoryId: refunds,
+                bookingDate: '2026-10-19',
+              },
+              NOW,
+            )
+            await transactions.split(noted.id, [
+              { categoryId: outings, amountCents: 2_000 },
+              { categoryId: refunds, amountCents: 4_000 },
+            ])
+            await importRows(WITH_PAYBACK)
+            const payback = await byLabel(PAYBACK)
+            expect(payback.manual).toBe(false)
+            const bankRow = await transactions.findOne(payback.id)
+            expect(
+              bankRow.splits.map((part) => [part.amountCents, part.kind]),
+            ).toEqual([
+              [2_000, 'expense'],
+              [4_000, 'income'],
+            ])
+            await tx.insert(budgetsTable).values({
+              categoryId: outings,
+              effectiveFrom: '2026-10-01',
+              monthlyTargetCents: 5_000,
+            })
+            const month = await budgets.month('2026-10', tx, NOW)
+            expect(
+              month.items.find((item) => item.categoryId === outings)
+                ?.spentCents,
+            ).toBe(0)
           },
         )
       })

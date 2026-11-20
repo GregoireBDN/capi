@@ -104,7 +104,8 @@ function category(
 const groceries = category(1, 'Courses', 'expense')
 const salary = category(2, 'Salaire', 'income')
 const savings = category(3, 'Épargne', 'transfer')
-const categories = [groceries, salary, savings]
+const household = category(4, 'Maison', 'expense')
+const categories = [groceries, salary, savings, household]
 
 function transaction(
   n: number,
@@ -1355,8 +1356,9 @@ describe('TransactionsPage', () => {
             splits: body.parts.map((part, index) => ({
               id: `s000000${index}-0000-4000-8000-000000000000`,
               ...part,
+              kind: 'expense' as const,
               category: {
-                ...(part.categoryId === groceries.id ? groceries : savings),
+                ...(part.categoryId === groceries.id ? groceries : household),
               },
             })),
           }),
@@ -1386,7 +1388,7 @@ describe('TransactionsPage', () => {
       expect(form).toHaveTextContent(`Reste à répartir : ${euros(1_550)}`)
       await user.selectOptions(
         within(form).getByLabelText('Catégorie de la part 2'),
-        savings.id,
+        household.id,
       )
       await user.type(
         within(form).getByLabelText('Montant de la part 2'),
@@ -1405,7 +1407,7 @@ describe('TransactionsPage', () => {
           body: {
             parts: [
               { categoryId: groceries.id, amountCents: -3_000 },
-              { categoryId: savings.id, amountCents: -1_550 },
+              { categoryId: household.id, amountCents: -1_550 },
             ],
           },
           throwOnError: false,
@@ -1414,7 +1416,7 @@ describe('TransactionsPage', () => {
       await waitFor(() =>
         expect(
           screen.getByRole('listitem', { name: 'Fakemart' }),
-        ).toHaveTextContent('Courses, Épargne'),
+        ).toHaveTextContent('Courses, Maison'),
       )
 
       // Undo: no split any more, and the row back as it was.
@@ -1458,7 +1460,7 @@ describe('TransactionsPage', () => {
       )
       await user.selectOptions(
         within(form).getByLabelText('Catégorie de la part 2'),
-        savings.id,
+        household.id,
       )
       await user.type(within(form).getByLabelText('Montant de la part 2'), '1')
       await user.click(

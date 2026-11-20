@@ -149,10 +149,18 @@ export const transactionSplitsTable = pgTable(
 
 /**
  * One line per category of each transaction: the transaction itself when it
- * is not split, else one line per part (its category and amount, everything
- * else from the transaction). Statistics that count per category (spending,
- * budgets, month report, savings flows, transaction totals) read this view,
- * so a split counts in each of its categories.
+ * is not split, else one line per part (its category, amount and kind,
+ * everything else from the transaction). Statistics that count per category
+ * (spending, budgets, month report, savings flows, transaction totals) read
+ * this view, so a split counts in each of its categories.
+ *
+ * A part's kind follows its category (#357, `splitPartKind`): an incoming
+ * part in an expense category is a refund of that category, an incoming part
+ * in an income category is income. A transfer's parts, and a part in a
+ * transfer category, keep the transaction's kind. The kind is read from the
+ * category, not stored on the part: a category's kind cannot change while
+ * transactions use it, and a deleted category's parts move to one of the
+ * same kind, so nothing has to be kept in step.
  */
 export const transactionLinesView = pgView('transaction_lines', {
   id: uuid('id').notNull(),
@@ -163,6 +171,7 @@ export const transactionLinesView = pgView('transaction_lines', {
   amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
   rawLabel: text('raw_label').notNull(),
   merchant: varchar('merchant', { length: 255 }),
+  /** The transaction's kind, or for a split part its own (`splitPartKind`). */
   kind: transactionKindEnum('kind').notNull(),
   categoryId: uuid('category_id'),
   needsReview: boolean('needs_review').notNull(),
@@ -175,7 +184,7 @@ export const transactionLinesView = pgView('transaction_lines', {
   /** The prepaid subscription this payment is for (#314). */
   prepaidItemId: uuid('prepaid_item_id'),
 }).as(
-  sql`select t.id, s.id as split_id, t.account_id, t.import_id, t.booking_date, case when s.id is null then t.amount_cents else s.amount_cents end as amount_cents, t.raw_label, t.merchant, t.kind, case when s.id is null then t.category_id else s.category_id end as category_id, t.needs_review, (t.is_one_off or t.prepaid_item_id is not null) as is_one_off, t.manual, t.prepaid_item_id from transactions t left join transaction_splits s on s.transaction_id = t.id`,
+  sql`select t.id, s.id as split_id, t.account_id, t.import_id, t.booking_date, case when s.id is null then t.amount_cents else s.amount_cents end as amount_cents, t.raw_label, t.merchant, case when s.id is null or t.kind = 'transfer' or sc.kind = 'transfer' then t.kind else sc.kind end as kind, case when s.id is null then t.category_id else s.category_id end as category_id, t.needs_review, (t.is_one_off or t.prepaid_item_id is not null) as is_one_off, t.manual, t.prepaid_item_id from transactions t left join transaction_splits s on s.transaction_id = t.id left join categories sc on sc.id = s.category_id`,
 )
 
 /** Amount as the bank gave it: the original of a corrected row. */

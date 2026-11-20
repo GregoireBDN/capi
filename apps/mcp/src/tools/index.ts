@@ -31,6 +31,7 @@ import {
   markOneOffTool,
   setTransactionNoteTool,
 } from './transaction-writes.js'
+import { splitTransactionTool } from './split-writes.js'
 import { searchTransactionsTool } from './transactions.js'
 
 export const readTools = [
@@ -73,6 +74,8 @@ export const writeTools = [
   syncCryptoHoldingsTool,
   // #342: close past months (reopening stays in the app).
   closeMonthsTool,
+  // #357: split a transaction, refund parts included (undo in the app).
+  splitTransactionTool,
 ]
 
 export const tools = [...readTools, ...writeTools]

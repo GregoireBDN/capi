@@ -80,6 +80,7 @@ describe('tool list', () => {
       'set_transaction_note',
       'spending_by_category',
       'spending_history',
+      'split_transaction',
       'subscriptions',
       'sync_crypto_holdings',
     ])
@@ -95,6 +96,7 @@ describe('tool list', () => {
       'preview_bank_import',
       'commit_bank_import',
       'close_months',
+      'split_transaction',
     ])
     // Writes no transaction (a pending preview only): nothing to confirm (#103).
     const withoutConfirm = new Set(['preview_bank_import'])

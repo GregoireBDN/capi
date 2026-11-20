@@ -187,17 +187,20 @@ export class TransactionsController {
   }
 
   @Put(':id/splits')
+  // Open to write tokens (#357, MCP `split_transaction`); undoing the split
+  // (`DELETE`) stays session-only like the other undos.
+  @TokenAccess('write')
   @ApiOperation({
     summary: 'Split a transaction between categories',
     description:
-      'Replaces the parts (2 to 20). Each has the sign of the transaction and they sum exactly to its amount; the transaction takes the category of the largest part. Statistics and budgets count each part in its category. Choosing a category for the whole transaction (`PATCH`) ends the split.',
+      'Replaces the parts (2 to 20). Each has the sign of the transaction and they sum exactly to its amount; the transaction takes the category of the largest part. Statistics and budgets count each part in its category, with its category’s kind: an incoming part in an expense category is a refund of that category, one in an income category is income (a transfer’s parts stay transfers). Choosing a category for the whole transaction (`PATCH`) ends the split.',
   })
   @ApiParam(ID_PARAM)
   @ApiBody({ type: SplitTransactionDto })
   @ApiOkResponse({ type: TransactionDto })
   @ApiBadRequestResponse({
     description:
-      'Parts that do not sum to the amount, of the wrong sign, an unknown category, or invalid body.',
+      'Parts that do not sum to the amount, of the wrong sign, an unknown category, a transfer category mixed with income or expense ones, or invalid body.',
   })
   @ApiNotFoundResponse()
   split(

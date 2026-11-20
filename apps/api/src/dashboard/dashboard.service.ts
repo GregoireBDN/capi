@@ -17,7 +17,7 @@ import { DatabaseService } from '#/database/database.service'
 import { daysBetween, parisToday } from '#/investments/days'
 import { STALE_AFTER_DAYS } from '#/investments/performance'
 import * as schema from '#/database/schema'
-import { transactionsTable } from '#/database/schema'
+import { transactionLinesView } from '#/database/schema'
 import {
   monthBounds,
   TransactionsService,
@@ -386,12 +386,16 @@ export class DashboardService {
     }
   }
 
-  /** Income and expense sums per `YYYY-MM`, in one grouped query. */
+  /**
+   * Income and expense sums per `YYYY-MM`, in one grouped query. Lines: a
+   * split part counts with its own kind (#357), so a refund part nets the
+   * expenses instead of adding to the income.
+   */
   private async monthlyFlows(
     months: string[],
     executor: Executor,
   ): Promise<Map<string, { incomeCents: number; expenseCents: number }>> {
-    const t = transactionsTable
+    const t = transactionLinesView
     const from = monthBounds(months[0]).start
     const until = monthBounds(months[months.length - 1]).next
     const month = sql<string>`to_char(${t.bookingDate}, 'YYYY-MM')`

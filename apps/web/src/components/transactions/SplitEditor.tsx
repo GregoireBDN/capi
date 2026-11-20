@@ -6,7 +6,7 @@ import type { CategoryDto, TransactionDto } from '#/api/types.gen'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
 import { formatCents } from '#/lib/money'
 import { CategoryPicker } from './CategoryPicker'
-import { remainingCents, splitError } from './edits'
+import { isRefundPart, remainingCents, splitError } from './edits'
 
 /** Most parts the API accepts. */
 const MAX_PARTS = 20
@@ -29,7 +29,9 @@ interface SplitEditorProps {
  * Splits a transaction between categories, e.g. a supermarket receipt
  * between groceries and household. Amounts are typed without sign (the
  * transaction's applies) and must add up exactly to its amount; what is
- * left to allocate shows as you type.
+ * left to allocate shows as you type. Each part counts with its category's
+ * kind (#357): on money received, a part in an expense category is labelled
+ * « remboursement », since it is deducted from that category's spending.
  */
 export function SplitEditor({
   item,
@@ -65,8 +67,13 @@ export function SplitEditor({
       amountCents: cents === null ? null : cents * sign,
     }
   })
+  const byId = new Map(categories.map((category) => [category.id, category]))
   const left = remainingCents(item.amountCents, typed)
-  const error = splitError(item.amountCents, typed)
+  const error = splitError(
+    item.amountCents,
+    typed,
+    (categoryId) => byId.get(categoryId)?.kind,
+  )
 
   function change(key: number, patch: Partial<Part>) {
     setParts((current) =>
@@ -104,40 +111,52 @@ export function SplitEditor({
       }}
     >
       <ul className="space-y-2">
-        {parts.map((part, index) => (
-          <li key={part.key} className="flex flex-wrap items-center gap-2">
-            <CategoryPicker
-              id={`${id}-category-${part.key}`}
-              categories={categories}
-              value={part.categoryId || null}
-              onChange={(categoryId) => change(part.key, { categoryId })}
-              label={`Catégorie de la part ${index + 1}`}
-              className="min-w-[8rem] flex-1"
-            />
-            <AmountField
-              groupClassName="w-[6.5rem]"
-              aria-label={`Montant de la part ${index + 1}`}
-              placeholder="0,00"
-              value={part.amount}
-              onValueChange={(amount) => change(part.key, { amount })}
-            />
-            <Button
-              type="button"
-              iconOnly
-              ghost
-              variant="secondary"
-              aria-label={`Retirer la part ${index + 1}`}
-              disabled={parts.length <= 2}
-              onClick={() =>
-                setParts((current) =>
-                  current.filter((other) => other.key !== part.key),
-                )
-              }
-            >
-              <XIcon />
-            </Button>
-          </li>
-        ))}
+        {parts.map((part, index) => {
+          const category = byId.get(part.categoryId)
+          const refund = category && isRefundPart(item, category.kind)
+          return (
+            <li key={part.key} className="flex flex-wrap items-center gap-2">
+              <CategoryPicker
+                id={`${id}-category-${part.key}`}
+                categories={categories}
+                value={part.categoryId || null}
+                onChange={(categoryId) => change(part.key, { categoryId })}
+                label={`Catégorie de la part ${index + 1}`}
+                className="min-w-[8rem] flex-1"
+              />
+              <AmountField
+                groupClassName="w-[6.5rem]"
+                aria-label={`Montant de la part ${index + 1}`}
+                placeholder="0,00"
+                value={part.amount}
+                onValueChange={(amount) => change(part.key, { amount })}
+              />
+              <Button
+                type="button"
+                iconOnly
+                ghost
+                variant="secondary"
+                aria-label={`Retirer la part ${index + 1}`}
+                disabled={parts.length <= 2}
+                onClick={() =>
+                  setParts((current) =>
+                    current.filter((other) => other.key !== part.key),
+                  )
+                }
+              >
+                <XIcon />
+              </Button>
+              {refund && (
+                <p className="w-full text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">
+                    Remboursement
+                  </span>{' '}
+                  : déduit des dépenses {category.name}
+                </p>
+              )}
+            </li>
+          )
+        })}
       </ul>
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <Button
