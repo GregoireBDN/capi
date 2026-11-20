@@ -26,9 +26,12 @@ import {
   ValidateNested,
 } from 'class-validator'
 import {
+  RECEIVABLE_DIRECTIONS,
   TRANSACTION_KINDS,
+  type ReceivableDirection,
   type TransactionKind,
 } from '#/database/schema/domain-enums'
+import { RECEIVABLE_STATES, type ReceivableState } from '#/owed/dto/owed.dto'
 
 /** Same bounds as `paginationSchema` in `@finances/shared`. */
 export const TRANSACTIONS_PAGE_LIMIT_DEFAULT = 20
@@ -116,15 +119,96 @@ export class TransactionSplitDto {
   kind!: TransactionKind
 }
 
-export class TransactionDto {
+const RECEIVABLE_DIRECTION_DOC = {
+  enum: RECEIVABLE_DIRECTIONS,
+  enumName: 'ReceivableDirection',
+} as const
+
+/** What a contact owes on this expense, or what the owner owes (#359). */
+export class TransactionShareDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string
+
+  @ApiProperty(RECEIVABLE_DIRECTION_DOC)
+  direction!: ReceivableDirection
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  contactId!: string
+
+  @ApiProperty({ type: String })
+  contactName!: string
+
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  splitId!: string | null
+
+  @ApiProperty({ type: 'integer', description: 'Owed, positive cents.' })
+  amountCents!: number
+
+  @ApiProperty({ type: 'integer', description: 'Repaid so far.' })
+  repaidCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: '`i_owe`: the whole bill the contact paid.',
+  })
+  billCents!: number | null
+
+  @ApiProperty({ enum: RECEIVABLE_STATES, enumName: 'ReceivableState' })
+  state!: ReceivableState
+}
+
+/** Part of this transfer linked as a repayment (#359). */
+export class TransactionRepaymentDto {
   @ApiProperty({ type: String, format: 'uuid' })
   id!: string
 
   @ApiProperty({ type: String, format: 'uuid' })
-  accountId!: string
+  receivableId!: string
+
+  @ApiProperty(RECEIVABLE_DIRECTION_DOC)
+  direction!: ReceivableDirection
+
+  @ApiProperty({ type: String, format: 'uuid' })
+  contactId!: string
 
   @ApiProperty({ type: String })
-  accountName!: string
+  contactName!: string
+
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  splitId!: string | null
+
+  @ApiProperty({ type: 'integer', description: 'Positive cents.' })
+  amountCents!: number
+}
+
+export class TransactionDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  id!: string
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Null only for an expense a contact paid for the owner (`paidByContactId`, « Payé pour moi »).',
+  })
+  accountId!: string | null
+
+  @ApiProperty({ type: String, nullable: true })
+  accountName!: string | null
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'The contact who paid this expense for the owner (#359): it holds his part, without an account.',
+  })
+  paidByContactId!: string | null
+
+  @ApiProperty({ type: String, nullable: true })
+  paidByContactName!: string | null
 
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
   importId!: string | null
@@ -239,6 +323,20 @@ export class TransactionDto {
       'Parts of a transaction split between categories (empty when not split). They sum to `amountCents`; statistics and budgets count each part in its category.',
   })
   splits!: TransactionSplitDto[]
+
+  @ApiProperty({
+    type: [TransactionShareDto],
+    description:
+      'Who owes what on this expense (#359): statistics count only the owner’s part.',
+  })
+  shares!: TransactionShareDto[]
+
+  @ApiProperty({
+    type: [TransactionRepaymentDto],
+    description:
+      'Parts of this transfer linked as repayments (#359): neither income nor spending.',
+  })
+  repayments!: TransactionRepaymentDto[]
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date

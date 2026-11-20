@@ -76,6 +76,8 @@ interface SpendingRow {
   /** Positive cents: −Σ amount of the `expense` transactions. */
   spentCents: number
   spentExcludingOneOffsCents: number
+  /** Positive cents before what others owe or repaid on them (#359). */
+  grossSpentCents: number
 }
 
 /** Income of one category (null = uncategorized) in one month. */
@@ -198,6 +200,7 @@ export class BudgetsService {
         tracked: target.tracked ?? false,
         spentCents,
         spentExcludingOneOffsCents: spent?.spentExcludingOneOffsCents ?? 0,
+        grossSpentCents: spent?.grossSpentCents ?? 0,
         prepaid: prepaid.get(categoryId) ?? [],
         remainingCents: target.monthlyTargetCents - spentCents,
         percentUsed: percentUsed(spentCents, target.monthlyTargetCents),
@@ -824,6 +827,10 @@ export class BudgetsService {
         categoryId: t.categoryId,
         spentCents: spentSum(),
         spentExcludingOneOffsCents: spentSum(eq(t.isOneOff, false)),
+        grossSpentCents:
+          sql<number>`(-coalesce(sum(${t.grossAmountCents}), 0))::bigint`.mapWith(
+            Number,
+          ),
       })
       .from(t)
       .where(

@@ -14,6 +14,7 @@ import {
   resolveCategory,
 } from './lookup.js'
 import { partLabel } from './split-writes.js'
+import { accountOf } from './write.js'
 import { defineTool, ToolInputError } from './tool.js'
 
 /** One transaction per line, with its id (what the write tools take). */
@@ -50,7 +51,20 @@ export function transactionLine(t: TransactionDto): string {
           )
           .join(' + ')})`
       : ''
-  return `- ${frenchDate(t.bookingDate)} · ${signedEuros(t.amountCents)} · ${label} · ${category}${parts} · ${t.accountName}${link}${suffix}${note} · id ${t.id}`
+  // Money owed on it (#359): who owes what, and repayments it carries.
+  const owed = [
+    ...t.shares.map((s) =>
+      s.direction === 'owed_to_me'
+        ? `${s.contactName} doit ${euros(s.amountCents)}${s.state === 'repaid' ? ' (remboursé)' : s.state === 'forgiven' ? ' (abandonné)' : ''}`
+        : `je dois ${euros(s.amountCents)} à ${s.contactName}${s.state === 'repaid' ? ' (remboursé)' : s.state === 'forgiven' ? ' (abandonné)' : ''}`,
+    ),
+    ...t.repayments.map(
+      (r) =>
+        `${euros(r.amountCents)} ${r.direction === 'owed_to_me' ? 'remboursés par' : 'remboursés à'} ${r.contactName}`,
+    ),
+  ]
+  const owedText = owed.length > 0 ? ` (partage : ${owed.join(', ')})` : ''
+  return `- ${frenchDate(t.bookingDate)} · ${signedEuros(t.amountCents)} · ${label} · ${category}${parts}${owedText} · ${accountOf(t)}${link}${suffix}${note} · id ${t.id}`
 }
 
 export const searchTransactionsTool = defineTool({

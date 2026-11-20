@@ -25,12 +25,15 @@ import * as schema from '#/database/schema'
 import {
   accountsTable,
   categoriesTable,
+  contactsTable,
   recurringItemsTable,
   type SelectRecurringItem,
   transactionsTable,
 } from '#/database/schema'
 import type { RecurringStatus } from '#/database/schema/domain-enums'
 import { normalizeLabel } from '#/imports/normalize/label'
+import { applyRecurringShares } from '#/owed/recurring-shares'
+import { recurringShareOf } from '#/owed/shares'
 import { daysBetween, todayInParis } from './dates'
 import {
   accountHorizons,
@@ -86,6 +89,7 @@ export const SUBSCRIPTIONS_SLUG = 'subscriptions'
 const itemColumns = {
   item: recurringItemsTable,
   accountName: accountsTable.name,
+  shareContactName: contactsTable.name,
   categorySlug: categoriesTable.slug,
   categoryName: categoriesTable.name,
   categoryColor: categoriesTable.color,
@@ -95,15 +99,27 @@ const itemColumns = {
 interface ItemRow {
   item: SelectRecurringItem
   accountName: string
+  shareContactName: string | null
   categorySlug: string | null
   categoryName: string | null
   categoryColor: string | null
   categoryIcon: CategoryIcon | null
 }
 
+/** An item before its share (#359) is added (`withShare`). */
+type BaseItemDto = Omit<
+  RecurringItemDto,
+  'share' | 'ownMonthlyEquivalentCents' | 'ownYearlyCostCents'
+>
+
+/** Rows booked on one of the owner's accounts (#359). */
+const hasAccount = isNotNull(transactionsTable.accountId)
+
 const transactionColumns = {
   id: transactionsTable.id,
-  accountId: transactionsTable.accountId,
+  // Read with `hasAccount`: an expense paid by a contact (#359) has none and
+  // is never part of a series.
+  accountId: sql<string>`${transactionsTable.accountId}`.as('account_id'),
   bookingDate: transactionsTable.bookingDate,
   amountCents: transactionsTable.amountCents,
   rawLabel: transactionsTable.rawLabel,
@@ -180,7 +196,7 @@ export class RecurringService {
         sql`select pg_advisory_xact_lock(hashtext('recurring_items_detect'))`,
       )
       const [transactions, existing, categories] = await Promise.all([
-        tx.select(transactionColumns).from(transactionsTable),
+        tx.select(transactionColumns).from(transactionsTable).where(hasAccount),
         tx.select().from(recurringItemsTable),
         tx
           .select({ id: categoriesTable.id, slug: categoriesTable.slug })
@@ -260,6 +276,8 @@ export class RecurringService {
       for (const item of existing) {
         if (item.termMonths !== null) await this.attachRenewals(tx, item)
       }
+      // Charges of items shared with a contact get their share (#359).
+      await applyRecurringShares(tx)
       const [{ count }] = await tx
         .select({ count: sql<number>`count(*)::int` })
         .from(recurringItemsTable)
@@ -333,12 +351,15 @@ export class RecurringService {
         addTo(credits, item.yearlyCostCents)
         continue
       }
-      addTo(debits, item.yearlyCostCents)
+      // The owner's part of a debit shared with a contact (#359).
+      addTo(debits, item.ownYearlyCostCents)
       addTo(
         item.isFixedCost ? debits.fixed : debits.variable,
-        item.yearlyCostCents,
+        item.ownYearlyCostCents,
       )
-      if (item.isSubscription) addTo(debits.subscriptions, item.yearlyCostCents)
+      if (item.isSubscription) {
+        addTo(debits.subscriptions, item.ownYearlyCostCents)
+      }
     }
     return { debits, credits, suggestedCount, inactiveCount, endedCount }
   }
@@ -467,6 +488,12 @@ export class RecurringService {
         .where(eq(transactionsTable.id, dto.transactionId))
         .for('update')
       if (!transaction) throw new NotFoundException('Transaction not found')
+      if (transaction.accountId === null) {
+        throw new BadRequestException(
+          'An expense paid by a contact is not a subscription',
+        )
+      }
+      const accountId = transaction.accountId
       if (transaction.kind !== 'expense' || transaction.amountCents >= 0) {
         throw new BadRequestException(
           'Only an expense can be a prepaid subscription',
@@ -491,7 +518,7 @@ export class RecurringService {
         .from(recurringItemsTable)
         .where(
           and(
-            eq(recurringItemsTable.accountId, transaction.accountId),
+            eq(recurringItemsTable.accountId, accountId),
             eq(recurringItemsTable.merchantKey, merchantKey),
             eq(recurringItemsTable.direction, 'debit'),
           ),
@@ -521,7 +548,7 @@ export class RecurringService {
         const [inserted] = await tx
           .insert(recurringItemsTable)
           .values({
-            accountId: transaction.accountId,
+            accountId: accountId,
             merchantKey,
             direction: 'debit',
             name: (
@@ -775,6 +802,10 @@ export class RecurringService {
         categoriesTable,
         eq(categoriesTable.id, recurringItemsTable.categoryId),
       )
+      .leftJoin(
+        contactsTable,
+        eq(contactsTable.id, recurringItemsTable.shareContactId),
+      )
       .where(where)
       .orderBy(asc(recurringItemsTable.name), asc(recurringItemsTable.id))
     if (rows.length === 0) return []
@@ -793,20 +824,69 @@ export class RecurringService {
         .map((row) => row.item.id),
     )
     return rows.map((row) =>
-      this.toDto(
+      this.withShare(
         row,
-        payments.get(row.item.id) ?? [],
-        groups.get(
-          seriesKey(
-            row.item.accountId,
-            row.item.merchantKey,
-            row.item.direction,
+        this.toDto(
+          row,
+          payments.get(row.item.id) ?? [],
+          groups.get(
+            seriesKey(
+              row.item.accountId,
+              row.item.merchantKey,
+              row.item.direction,
+            ),
           ),
+          horizons.get(row.item.accountId) ?? today,
+          today,
         ),
-        horizons.get(row.item.accountId) ?? today,
-        today,
       ),
     )
+  }
+
+  /**
+   * The share of an item shared with a contact (#359) and the owner's part
+   * of its cost: each charge minus their share, spread like the charge.
+   */
+  private withShare(
+    row: ItemRow,
+    dto: Omit<
+      RecurringItemDto,
+      'share' | 'ownMonthlyEquivalentCents' | 'ownYearlyCostCents'
+    >,
+  ): RecurringItemDto {
+    const { item } = row
+    if (item.shareContactId === null || item.shareFrom === null) {
+      return {
+        ...dto,
+        share: null,
+        ownMonthlyEquivalentCents: dto.monthlyEquivalentCents,
+        ownYearlyCostCents: dto.yearlyCostCents,
+      }
+    }
+    const own =
+      dto.typicalAmountCents -
+      recurringShareOf(dto.typicalAmountCents, {
+        bps: item.shareBps,
+        amountCents: item.shareAmountCents,
+      })
+    return {
+      ...dto,
+      share: {
+        contactId: item.shareContactId,
+        contactName: row.shareContactName ?? '',
+        bps: item.shareBps,
+        amountCents: item.shareAmountCents,
+        from: item.shareFrom,
+      },
+      ownMonthlyEquivalentCents:
+        item.termMonths !== null
+          ? prepaidMonthlyCents(own, item.termMonths)
+          : monthlyEquivalentCents(own, dto.cadence),
+      ownYearlyCostCents:
+        item.termMonths !== null
+          ? prepaidYearlyCents(own, item.termMonths)
+          : yearlyCostCents(own, dto.cadence),
+    }
   }
 
   private toDto(
@@ -815,7 +895,7 @@ export class RecurringService {
     group: TransactionGroup | undefined,
     asOf: string,
     today: string,
-  ): RecurringItemDto {
+  ): BaseItemDto {
     const { item } = row
     if (item.termMonths !== null) {
       return this.toPrepaidDto(row, item.termMonths, payments, asOf, today)
@@ -904,7 +984,7 @@ export class RecurringService {
     payments: readonly PrepaidPayment[],
     asOf: string,
     today: string,
-  ): RecurringItemDto {
+  ): BaseItemDto {
     const { item } = row
     const latest = payments.at(-1)
     const amountCents = latest?.amountCents ?? item.typicalAmountCents

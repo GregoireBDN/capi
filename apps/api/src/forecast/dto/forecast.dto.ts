@@ -177,6 +177,14 @@ export class ForecastItemDto {
 
   @ApiProperty(CATEGORY_ICON_DOC)
   categoryIcon!: CategoryIcon | null
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Name of the contact whose repayment this credit is (#359): their share of a recurring item shared with them, expected at month end or on their usual day. Null for a recurring item’s own charge.',
+  })
+  repaymentFrom!: string | null
 }
 
 export class ForecastEstimateDto {

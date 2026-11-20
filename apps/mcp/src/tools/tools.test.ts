@@ -65,6 +65,7 @@ describe('tool list', () => {
       'commit_bank_import',
       'create_investment_account',
       'create_rule',
+      'link_repayment',
       'list_categories',
       'list_imports',
       'list_investment_accounts',
@@ -72,6 +73,7 @@ describe('tool list', () => {
       'month_close_status',
       'month_end_forecast',
       'month_review',
+      'owed_to_me',
       'preview_bank_import',
       'review_queue',
       'savings_and_goals',
@@ -79,6 +81,7 @@ describe('tool list', () => {
       'set_budget_targets',
       'set_invested_amount',
       'set_transaction_note',
+      'share_expense',
       'spending_by_category',
       'spending_history',
       'split_transaction',
@@ -99,6 +102,8 @@ describe('tool list', () => {
       'commit_bank_import',
       'close_months',
       'split_transaction',
+      'share_expense',
+      'link_repayment',
     ])
     // Writes no transaction (a pending preview only): nothing to confirm (#103).
     const withoutConfirm = new Set(['preview_bank_import'])
@@ -404,6 +409,7 @@ describe('budget_status', () => {
         tracked: true,
         spentCents: 25000,
         spentExcludingOneOffsCents: 25000,
+        grossSpentCents: 25000,
         prepaid: [],
         remainingCents: -5000,
         percentUsed: 125,
@@ -618,6 +624,9 @@ describe('subscriptions', () => {
     termMonths: null,
     renewalDate: null,
     renewalReminder: false,
+    share: null,
+    ownMonthlyEquivalentCents: 1399,
+    ownYearlyCostCents: 16788,
   }
   const total = { monthlyCents: 1399, yearlyCents: 16788, count: 1 }
   const summaryDto: RecurringSummaryDto = {

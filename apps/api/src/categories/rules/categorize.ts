@@ -10,7 +10,8 @@ import { foldForMatch } from './normalize-text'
 
 /** The transaction fields the rules look at. */
 export interface CategorizableTransaction {
-  accountId: string
+  /** Null for an expense a contact paid (« Payé pour moi », #359). */
+  accountId: string | null
   rawLabel: string
   merchant: string | null
   /** Signed integer cents: negative = money out, positive = money in. */

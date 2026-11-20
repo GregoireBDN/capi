@@ -7,11 +7,14 @@ import * as schema from './index'
 import {
   accountsTable,
   balanceSnapshotsTable,
+  contactsTable,
   cryptoImportsTable,
   importsTable,
   type InsertRecurringItem,
   type InsertTransaction,
   monthClosesTable,
+  receivablePaymentsTable,
+  receivablesTable,
   recurringItemsTable,
   savingsGoalsTable,
   transactionsTable,
@@ -483,6 +486,136 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
             .update(balanceSnapshotsTable)
             .set({ source: 'typed' })
             .where(eq(balanceSnapshotsTable.accountId, crypto.id)),
+        )
+      })
+    })
+  })
+
+  describe('money owed (#359)', () => {
+    async function contact(tx: Tx, name = 'Contact fictif') {
+      const [created] = await tx
+        .insert(contactsTable)
+        .values({ name })
+        .returning()
+      return created
+    }
+
+    it('refuses a row without an account unless a contact paid it, as a manual expense', async () => {
+      await inRollback(async (tx) => {
+        const sam = await contact(tx)
+        await refused(tx, 'transactions_account_or_paid_by', (n) =>
+          n.insert(transactionsTable).values(manualRow(null as never)),
+        )
+        await refused(tx, 'transactions_paid_by_manual_expense', (n) =>
+          n.insert(transactionsTable).values(
+            manualRow(null as never, {
+              paidByContactId: sam.id,
+              kind: 'income',
+              amountCents: 800,
+            }),
+          ),
+        )
+        await tx
+          .insert(transactionsTable)
+          .values(manualRow(null as never, { paidByContactId: sam.id }))
+      })
+    })
+
+    it('refuses an amount owed of 0, above its bill, or twice for one person', async () => {
+      await inRollback(async (tx) => {
+        const checking = await account(tx)
+        const sam = await contact(tx)
+        const [row] = await tx
+          .insert(transactionsTable)
+          .values(manualRow(checking.id))
+          .returning()
+        const owed = {
+          direction: 'owed_to_me' as const,
+          transactionId: row.id,
+          contactId: sam.id,
+          amountCents: 400,
+        }
+        await refused(tx, 'receivables_amount_positive', (n) =>
+          n.insert(receivablesTable).values({ ...owed, amountCents: 0 }),
+        )
+        await refused(tx, 'receivables_bill_covers_amount', (n) =>
+          n.insert(receivablesTable).values({ ...owed, billCents: 300 }),
+        )
+        await tx.insert(receivablesTable).values(owed)
+        await refused(tx, 'receivables_transaction_contact_unique', (n) =>
+          n.insert(receivablesTable).values(owed),
+        )
+      })
+    })
+
+    it('refuses a repayment of 0 and a split part without its transfer', async () => {
+      await inRollback(async (tx) => {
+        const checking = await account(tx)
+        const sam = await contact(tx)
+        const [row] = await tx
+          .insert(transactionsTable)
+          .values(manualRow(checking.id))
+          .returning()
+        const [owed] = await tx
+          .insert(receivablesTable)
+          .values({
+            direction: 'owed_to_me',
+            transactionId: row.id,
+            contactId: sam.id,
+            amountCents: 400,
+          })
+          .returning()
+        const payment = {
+          receivableId: owed.id,
+          amountCents: 100,
+          paidOn: '2026-10-20',
+        }
+        await refused(tx, 'receivable_payments_amount_positive', (n) =>
+          n
+            .insert(receivablePaymentsTable)
+            .values({ ...payment, amountCents: 0 }),
+        )
+        await refused(tx, 'receivable_payments_split_needs_transaction', (n) =>
+          n.insert(receivablePaymentsTable).values({
+            ...payment,
+            splitId: '00000000-0000-4000-8000-000000000099',
+          }),
+        )
+      })
+    })
+
+    it('keeps a recurring share whole: a contact, a start and one of a rate or an amount', async () => {
+      await inRollback(async (tx) => {
+        const checking = await account(tx)
+        const sam = await contact(tx)
+        await refused(tx, 'recurring_items_share_complete', (n) =>
+          n.insert(recurringItemsTable).values(
+            recurringItem(checking.id, {
+              shareContactId: sam.id,
+              shareFrom: '2026-10-01',
+            }),
+          ),
+        )
+        await refused(tx, 'recurring_items_share_range', (n) =>
+          n.insert(recurringItemsTable).values(
+            recurringItem(checking.id, {
+              shareContactId: sam.id,
+              shareFrom: '2026-10-01',
+              shareBps: 10_001,
+            }),
+          ),
+        )
+      })
+    })
+
+    it('refuses a repayment day out of the month and two contacts of one name', async () => {
+      await inRollback(async (tx) => {
+        await refused(tx, 'contacts_repayment_day_range', (n) =>
+          n.insert(contactsTable).values({ name: 'Camille', repaymentDay: 32 }),
+        )
+        await contact(tx, 'Camille')
+        await refused(tx, 'contacts_name_unique', (n) =>
+          n.insert(contactsTable).values({ name: 'camille' }),
         )
       })
     })

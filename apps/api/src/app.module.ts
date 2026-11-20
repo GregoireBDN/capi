@@ -22,6 +22,7 @@ import { ForecastModule } from '#/forecast/forecast.module'
 import { HealthModule } from '#/health/health.module'
 import { ImportsModule } from '#/imports/imports.module'
 import { MonthCloseModule } from '#/month-close/month-close.module'
+import { OwedModule } from '#/owed/owed.module'
 import { InvestmentsModule } from '#/investments/investments.module'
 import { RecurringModule } from '#/recurring/recurring.module'
 import { SavingsModule } from '#/savings/savings.module'
@@ -53,6 +54,7 @@ import { UserModule } from '#/user/user.module'
     AccountsModule,
     ImportsModule,
     TransactionsModule,
+    OwedModule,
     BudgetsModule,
     DashboardModule,
     SpendingModule,

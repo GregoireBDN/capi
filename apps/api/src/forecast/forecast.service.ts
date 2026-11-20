@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common'
-import { and, eq, gt, gte, inArray, lte, min } from 'drizzle-orm'
+import { BadRequestException, Injectable, Optional } from '@nestjs/common'
+import { and, eq, gt, gte, inArray, lte, min, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { AccountsService, isBankAccount } from '#/accounts/accounts.service'
 import { dataUntilByAccount } from '#/coverage/coverage'
@@ -10,6 +10,7 @@ import { transactionLinesView, transactionsTable } from '#/database/schema'
 import { normalizeLabel } from '#/imports/normalize/label'
 import { daysBetween, maxDate, todayInParis } from '#/recurring/dates'
 import { seriesKey } from '#/recurring/detect'
+import { OwedService } from '#/owed/owed.service'
 import { RecurringService } from '#/recurring/recurring.service'
 import {
   ESTIMATE_MONTHS,
@@ -22,6 +23,7 @@ import {
   buildProjection,
   estimateDays,
   expectedOccurrences,
+  expectedRepaymentCredits,
   type ProjectionWindow,
   projectionStart,
   spreadEstimate,
@@ -60,6 +62,7 @@ export class ForecastService {
     private readonly database: DatabaseService,
     private readonly accountsService: AccountsService,
     private readonly recurringService: RecurringService,
+    @Optional() private readonly owedService?: OwedService,
   ) {}
 
   private get db(): Db {
@@ -143,6 +146,14 @@ export class ForecastService {
           },
           window,
           horizons.get(item.accountId) ?? null,
+        ),
+      )
+      // A contact's share of a shared recurring item comes back (#359).
+      .concat(
+        expectedRepaymentCredits(
+          (await this.owedService?.expected(month, today)) ?? [],
+          window,
+          selected,
         ),
       )
       .sort(
@@ -280,7 +291,8 @@ export class ForecastService {
     const lines = transactionLinesView
     const rows = await this.db
       .select({
-        accountId: lines.accountId,
+        // Filtered on the selected accounts: never null.
+        accountId: sql<string>`${lines.accountId}`.as('account_id'),
         amountCents: lines.amountCents,
         rawLabel: lines.rawLabel,
       })
@@ -328,7 +340,8 @@ export class ForecastService {
     const t = transactionLinesView
     const rows = await this.db
       .select({
-        accountId: t.accountId,
+        // Filtered on the owner's accounts: never null.
+        accountId: sql<string>`${t.accountId}`.as('account_id'),
         amountCents: t.amountCents,
         rawLabel: t.rawLabel,
       })

@@ -9,6 +9,7 @@ import {
   accountsTable,
   categoriesTable,
   categorizationRulesTable,
+  receivablesTable,
   transactionSplitsTable,
   transactionsTable,
 } from '#/database/schema'
@@ -18,6 +19,8 @@ import {
   cicCsv,
   withBalances,
 } from '#/imports/testing/cic-csv-fixture'
+import { OwedService } from '#/owed/owed.service'
+import { RecurringService } from '#/recurring/recurring.service'
 import { ManualTransactionsService } from '#/transactions/manual-transactions.service'
 import { TransactionsService } from '#/transactions/transactions.service'
 import { restoredManual } from './import-undo'
@@ -52,6 +55,7 @@ interface Fixture {
   imports: ImportsService
   manual: ManualTransactionsService
   transactions: TransactionsService
+  owed: OwedService
   accountId: string
   savingsId: string
   outings: string
@@ -135,6 +139,11 @@ describe.skipIf(!process.env.DATABASE_URL)('Import undo (database)', () => {
           tx,
           imports,
           transactions,
+          owed: new OwedService(
+            database,
+            transactions,
+            new RecurringService(database),
+          ),
           manual: new ManualTransactionsService(database, transactions),
           accountId: account.id,
           savingsId: savings.id,
@@ -410,6 +419,53 @@ describe.skipIf(!process.env.DATABASE_URL)('Import undo (database)', () => {
         expect(parts.map((p) => [p.categoryId, p.amountCents])).toEqual([
           [outings, -1_000],
           [groceries, -250],
+        ])
+      },
+    )
+  })
+
+  it('gives the restored entry back what is owed on it, and counts a row shared by hand (#359)', async () => {
+    await withFixture(
+      async ({ tx, imports, manual, owed, importRows, stored, outings }) => {
+        const entry = await manual.create(
+          {
+            amountCents: 1_250,
+            categoryId: outings,
+            bookingDate: '2026-10-04',
+            label: 'Ciné',
+          },
+          NOW,
+        )
+        await owed.createShares({
+          transactionId: entry.id,
+          shares: [{ contactName: 'Alex', amountCents: 625 }],
+        })
+        const id = await importRows(OCTOBER)
+        const cinema = (await stored()).find((r) => r.rawLabel === CINEMA)!
+        const bar = (await stored()).find((r) => r.rawLabel === BAR)!
+        const [moved] = await tx
+          .select()
+          .from(receivablesTable)
+          .where(
+            eq(receivablesTable.contactId, (await owed.listContacts())[0].id),
+          )
+        expect(moved.transactionId).toBe(cinema.id)
+        // A bank row shared by hand is an edit the undo loses.
+        await owed.createShares({
+          transactionId: bar.id,
+          shares: [{ contactName: 'Sam', amountCents: 1_000 }],
+        })
+        expect((await imports.findOne(id)).undo).toEqual({
+          editedCount: 1,
+          absorbedManualCount: 1,
+        })
+
+        await imports.remove(id)
+        const [restored] = await stored()
+        expect(restored).toMatchObject({ manual: true, rawLabel: 'Ciné' })
+        const shares = await tx.select().from(receivablesTable)
+        expect(shares.map((r) => [r.transactionId, r.amountCents])).toEqual([
+          [restored.id, 625],
         ])
       },
     )

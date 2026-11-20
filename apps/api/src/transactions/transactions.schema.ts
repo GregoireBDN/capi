@@ -24,14 +24,20 @@ import {
 import { coreColumns } from '#/database/schema/core.schema'
 import { importsTable } from '#/imports/imports.schema'
 import { recurringItemsTable } from '#/recurring/recurring.schema'
+import { contactsTable } from '#/owed/contacts.schema'
 
 export const transactionsTable = pgTable(
   'transactions',
   {
     ...coreColumns,
-    accountId: uuid('account_id')
-      .notNull()
-      .references(() => accountsTable.id, { onDelete: 'restrict' }),
+    /**
+     * The owner's account it was paid from or into; null only for an expense
+     * a contact paid for the owner (`paidByContactId`, « Payé pour moi »),
+     * which no account of his saw.
+     */
+    accountId: uuid('account_id').references(() => accountsTable.id, {
+      onDelete: 'restrict',
+    }),
     /** Null for transactions entered by hand. */
     importId: uuid('import_id').references(() => importsTable.id, {
       onDelete: 'cascade',
@@ -88,6 +94,15 @@ export const transactionsTable = pgTable(
     prepaidItemId: uuid('prepaid_item_id').references(
       () => recurringItemsTable.id,
       { onDelete: 'set null' },
+    ),
+    /**
+     * Contact who paid this expense for the owner (#359, « Payé pour moi »):
+     * a manual expense holding his part, without an account, with the
+     * `i_owe` receivable of that part.
+     */
+    paidByContactId: uuid('paid_by_contact_id').references(
+      () => contactsTable.id,
+      { onDelete: 'restrict' },
     ),
     /**
      * Bank values of an imported row whose amount or date was corrected by
@@ -176,6 +191,17 @@ export const transactionsTable = pgTable(
       'transactions_absorbed_manual_only_on_bank_rows',
       sql`${t.absorbedManual} is null or not ${t.manual}`,
     ),
+    index().on(t.paidByContactId),
+    // An account, or else a contact who paid it (« Payé pour moi »).
+    check(
+      'transactions_account_or_paid_by',
+      sql`(${t.accountId} is null) = (${t.paidByContactId} is not null)`,
+    ),
+    // « Payé pour moi » is an expense entered by hand (#359).
+    check(
+      'transactions_paid_by_manual_expense',
+      sql`${t.paidByContactId} is null or (${t.manual} and ${t.kind} = 'expense')`,
+    ),
   ],
 )
 
@@ -232,14 +258,28 @@ export const transactionSplitsTable = pgTable(
  * The `transactions_kind_follows_category` trigger keeps `transactions.kind`
  * equal to its category's, and a category's kind cannot change while
  * transactions use it, so nothing has to be kept in step.
+ *
+ * Money owed (#359, ADR 0005 R8): `amountCents` is the owner's part. An
+ * expense line counts minus what contacts owe on it (`owed_to_me`
+ * receivables, open or repaid; once let go, only what they did repay), a
+ * line « Payé pour moi » minus what the contact let go (`i_owe` forgiven),
+ * and the part of a transfer linked as a repayment is dropped from its line
+ * (a settlement, neither income nor spending). `grossAmountCents` keeps the
+ * line's own amount. Unshared lines count exactly as before.
  */
 export const transactionLinesView = pgView('transaction_lines', {
   id: uuid('id').notNull(),
   splitId: uuid('split_id'),
-  accountId: uuid('account_id').notNull(),
+  /** Null for an expense paid by a contact (« Payé pour moi »). */
+  accountId: uuid('account_id'),
   importId: uuid('import_id'),
   bookingDate: date('booking_date', { mode: 'string' }).notNull(),
+  /** The owner's part, signed cents (see above). */
   amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
+  /** The line's own amount, before what is owed and repaid (#359). */
+  grossAmountCents: bigint('gross_amount_cents', {
+    mode: 'number',
+  }).notNull(),
   rawLabel: text('raw_label').notNull(),
   merchant: varchar('merchant', { length: 255 }),
   /** The line's category's kind; the transaction's own when uncategorized. */
@@ -254,8 +294,10 @@ export const transactionLinesView = pgView('transaction_lines', {
   manual: boolean('manual').notNull(),
   /** The prepaid subscription this payment is for (#314). */
   prepaidItemId: uuid('prepaid_item_id'),
+  /** The contact who paid it for the owner (#359). */
+  paidByContactId: uuid('paid_by_contact_id'),
 }).as(
-  sql`select t.id, s.id as split_id, t.account_id, t.import_id, t.booking_date, case when s.id is null then t.amount_cents else s.amount_cents end as amount_cents, t.raw_label, t.merchant, coalesce(lc.kind, t.kind) as kind, coalesce(s.category_id, t.category_id) as category_id, t.needs_review, (t.is_one_off or t.prepaid_item_id is not null) as is_one_off, t.manual, t.prepaid_item_id from transactions t left join transaction_splits s on s.transaction_id = t.id left join categories lc on lc.id = coalesce(s.category_id, t.category_id)`,
+  sql`select t.id, s.id as split_id, t.account_id, t.import_id, t.booking_date, ((case when s.id is null then t.amount_cents else s.amount_cents end) + coalesce(ra.adjust_cents, 0) + (case when (case when s.id is null then t.amount_cents else s.amount_cents end) < 0 then 1 else -1 end) * coalesce(pa.settled_cents, 0))::bigint as amount_cents, case when s.id is null then t.amount_cents else s.amount_cents end as gross_amount_cents, t.raw_label, t.merchant, coalesce(lc.kind, t.kind) as kind, coalesce(s.category_id, t.category_id) as category_id, t.needs_review, (t.is_one_off or t.prepaid_item_id is not null) as is_one_off, t.manual, t.prepaid_item_id, t.paid_by_contact_id from transactions t left join transaction_splits s on s.transaction_id = t.id left join categories lc on lc.id = coalesce(s.category_id, t.category_id) left join (select r.transaction_id, r.split_id, sum(case when r.direction = 'owed_to_me' then (case when r.forgiven_at is null then r.amount_cents else coalesce(rp.paid_cents, 0) end) else (case when r.forgiven_at is null then 0 else r.amount_cents - coalesce(rp.paid_cents, 0) end) end) as adjust_cents from receivables r left join (select receivable_id, sum(amount_cents) as paid_cents from receivable_payments group by receivable_id) rp on rp.receivable_id = r.id group by r.transaction_id, r.split_id) ra on ra.transaction_id = t.id and coalesce(ra.split_id, '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(s.id, '00000000-0000-0000-0000-000000000000'::uuid) left join (select transaction_id, split_id, sum(amount_cents) as settled_cents from receivable_payments where transaction_id is not null group by transaction_id, split_id) pa on pa.transaction_id = t.id and coalesce(pa.split_id, '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(s.id, '00000000-0000-0000-0000-000000000000'::uuid)`,
 )
 
 /** Amount as the bank gave it: the original of a corrected row. */

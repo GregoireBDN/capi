@@ -36,7 +36,8 @@ export async function dataUntilByAccount(
   const [booked, imported] = await Promise.all([
     executor
       .select({
-        accountId: t.accountId,
+        // Bank rows only: always on an account.
+        accountId: sql<string>`${t.accountId}`.as('account_id'),
         last: sql<string | null>`max(${bankBookingDate})`,
       })
       .from(t)

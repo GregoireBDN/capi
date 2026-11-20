@@ -19,6 +19,7 @@ export function forecastItem(
     categoryName: 'Abonnements',
     categoryColor: '#7c3aed',
     categoryIcon: 'repeat',
+    repaymentFrom: null,
     ...overrides,
   }
 }

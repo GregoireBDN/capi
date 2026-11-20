@@ -657,7 +657,8 @@ export class MonthCloseService {
     const t = transactionsTable
     const rows = await executor
       .select({
-        accountId: t.accountId,
+        // Filtered on the owner's accounts: never null.
+        accountId: sql<string>`${t.accountId}`.as('account_id'),
         // Bank values: a row corrected by hand (#74) keeps the bank's chain.
         bookingDate: bankBookingDate,
         amountCents: bankAmountCents,

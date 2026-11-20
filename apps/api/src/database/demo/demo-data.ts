@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import * as bcrypt from 'bcryptjs'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { BCRYPT_SALT_ROUNDS } from '#/auth/auth.constants'
 import { categorize } from '#/categories/rules/categorize'
@@ -18,12 +18,14 @@ import {
   budgetsTable,
   categoriesTable,
   categorizationRulesTable,
+  contactsTable,
   cryptoHoldingsTable,
   cryptoImportsTable,
   cryptoMovementsTable,
   cryptoPriceHistoryTable,
   cryptoPricesTable,
   importsTable,
+  receivablesTable,
   recurringItemsTable,
   savingsGoalAccountsTable,
   savingsGoalsTable,
@@ -50,7 +52,9 @@ import {
   daysInMonth,
   todayInParis,
 } from '#/recurring/dates'
+import { OwedService } from '#/owed/owed.service'
 import { RecurringService } from '#/recurring/recurring.service'
+import { TransactionsService } from '#/transactions/transactions.service'
 import { MEAL_VOUCHER_DAILY_CAP_CENTS } from '#/transactions/manual-transactions.service'
 import { MONTHLY_TARGET_KEY } from '#/savings/savings.service'
 import { linkMatchingTransfers } from '#/transactions/transfer-links/link-transfers'
@@ -135,6 +139,9 @@ export interface DemoCounts {
   savingsGoals: number
   cryptoHoldings: number
   recurringItems: number
+  /** Money owed (#359). */
+  contacts: number
+  receivables: number
 }
 
 export interface DemoResult {
@@ -341,6 +348,9 @@ const RULES: readonly RuleSpec[] = [
   { pattern: 'COTIS EUROCOMPTE', slug: 'bank_fees' },
   { pattern: 'RETRAIT DAB', slug: 'cash_withdrawal' },
   { pattern: 'CPAM', slug: 'refunds', merchant: 'CPAM' },
+  { pattern: 'CAMILLE MARTIN', slug: 'refunds', merchant: 'Camille' },
+  { pattern: 'ALEX DUPONT', slug: 'refunds', merchant: 'Alex' },
+  { pattern: 'PIZZERIA', slug: 'restaurants_cafes' },
   { pattern: 'PHARMACIE', slug: 'health' },
   { pattern: 'FNAC', slug: 'shopping' },
   { pattern: 'DECATHLON', slug: 'shopping' },
@@ -416,6 +426,28 @@ function checkingMonth(
     amountCents: -95_000,
     rawLabel: 'PRLV SEPA FONCIA LOYER',
   })
+  // Money owed (#359), without random draws so the rest stays the same:
+  // Camille pays half the rent back on the 5th of the last four months, and
+  // last month's dinner with Alex and Sam, of which Alex paid his share.
+  if (fromEnd <= 3) {
+    rows.push({
+      bookingDate: dayIn(month, 5),
+      amountCents: 47_500,
+      rawLabel: 'VIR SEPA CAMILLE MARTIN LOYER',
+    })
+  }
+  if (fromEnd === 1) {
+    rows.push({
+      bookingDate: dayIn(month, 14),
+      amountCents: -9_000,
+      rawLabel: `PAIEMENT CB ${ddmm(dayIn(month, 14))} PIZZERIA NAPOLI ${CARD}`,
+    })
+    rows.push({
+      bookingDate: dayIn(month, 18),
+      amountCents: 3_000,
+      rawLabel: 'VIR SEPA ALEX DUPONT RESTO',
+    })
+  }
   rows.push({
     bookingDate: dayIn(month, 3),
     amountCents: -(winter
@@ -1486,6 +1518,11 @@ export async function generateDemoData(
       )
     }
   }
+  const owedCounts = await seedMoneyOwed(db, recurring, {
+    rentCategoryId: category('rent').id,
+    leisureCategoryId: category('leisure').id,
+    dataUntil,
+  })
   const [{ count: recurringItems }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(recurringItemsTable)
@@ -1505,6 +1542,107 @@ export async function generateDemoData(
       savingsGoals: goals.length,
       cryptoHoldings: holdings.length,
       recurringItems,
+      ...owedCounts,
     },
   }
+}
+
+/**
+ * Money owed (#359), through the app's own service: the rent shared 50/50
+ * with Camille for the last four months (her transfers linked, the latest
+ * left for the review queue's suggestion), last month's dinner with Alex and
+ * Sam (Alex paid, Sam's share let go), and a concert Sam paid for the owner
+ * (his part still owed). Synthetic names only.
+ */
+async function seedMoneyOwed(
+  db: DemoDb,
+  recurring: RecurringService,
+  ids: { rentCategoryId: string; leisureCategoryId: string; dataUntil: string },
+): Promise<{ contacts: number; receivables: number }> {
+  const owed = new OwedService(
+    { db } as never,
+    new TransactionsService({ db } as never),
+    recurring,
+  )
+  const byLabel = async (pattern: string) =>
+    db
+      .select({
+        id: transactionsTable.id,
+        bookingDate: transactionsTable.bookingDate,
+        amountCents: transactionsTable.amountCents,
+      })
+      .from(transactionsTable)
+      .where(sql`${transactionsTable.rawLabel} like ${`%${pattern}%`}`)
+      .orderBy(asc(transactionsTable.bookingDate))
+
+  const [rent] = await db
+    .select({ id: recurringItemsTable.id })
+    .from(recurringItemsTable)
+    .where(
+      and(
+        eq(recurringItemsTable.categoryId, ids.rentCategoryId),
+        eq(recurringItemsTable.status, 'confirmed'),
+      ),
+    )
+  const camilleTransfers = await byLabel('CAMILLE MARTIN')
+  if (rent && camilleTransfers.length > 0) {
+    const share = await owed.setRecurringShare(rent.id, {
+      contactName: 'Camille',
+      bps: 5_000,
+      from: monthStart(camilleTransfers[0].bookingDate),
+    })
+    await owed.updateContact(share.contactId, {
+      matchLabels: ['CAMILLE MARTIN'],
+      repaymentDay: 5,
+    })
+    for (const transfer of camilleTransfers.slice(0, -1)) {
+      const options = await owed.repaymentOptions(transfer.id, share.contactId)
+      if (options.suggestion.length === 0) continue
+      await owed.linkRepayment({
+        transactionId: transfer.id,
+        items: options.suggestion,
+      })
+    }
+  }
+
+  const [dinner] = await byLabel('PIZZERIA NAPOLI')
+  const [fromAlex] = await byLabel('ALEX DUPONT')
+  if (dinner) {
+    const shared = await owed.createShares({
+      transactionId: dinner.id,
+      shares: [
+        { contactName: 'Alex', amountCents: 3_000 },
+        { contactName: 'Sam', amountCents: 3_000 },
+      ],
+    })
+    const alex = shared.shares.find((s) => s.contactName === 'Alex')!
+    const sam = shared.shares.find((s) => s.contactName === 'Sam')!
+    await owed.updateContact(alex.contactId, { matchLabels: ['ALEX DUPONT'] })
+    if (fromAlex) {
+      await owed.linkRepayment({
+        transactionId: fromAlex.id,
+        items: [{ receivableId: alex.id, amountCents: 3_000 }],
+      })
+    }
+    await owed.forgive(sam.id, { note: 'Pour son anniversaire' })
+  }
+
+  // « Payé pour moi »: Sam paid a concert for three.
+  await owed.createDebt({
+    contactName: 'Sam',
+    billCents: 9_000,
+    partCents: 3_000,
+    categoryId: ids.leisureCategoryId,
+    bookingDate: addDays(ids.dataUntil, -3),
+    label: 'Concert',
+    note: 'Billets pris par Sam',
+  })
+
+  const [{ contacts }] = await db
+    .select({ contacts: sql<number>`count(*)::int` })
+    .from(contactsTable)
+  const [{ receivables }] = await db
+    .select({ receivables: sql<number>`count(*)::int` })
+    .from(receivablesTable)
+  return { contacts, receivables }
 }

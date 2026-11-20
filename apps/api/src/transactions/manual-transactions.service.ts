@@ -23,6 +23,8 @@ import * as schema from '#/database/schema'
 import {
   accountsTable,
   categoriesTable,
+  receivablePaymentsTable,
+  receivablesTable,
   transactionLinesView,
   transactionsTable,
 } from '#/database/schema'
@@ -199,6 +201,12 @@ export class ManualTransactionsService {
             'The transaction is split: remove the split before changing its amount',
           )
         }
+        if (
+          set.amountCents !== current.amountCents &&
+          current.paidByContactId === null
+        ) {
+          await this.transactions.assertCarries(tx, id, set.amountCents)
+        }
       }
       if (dto.bookingDate !== undefined) {
         set.bookingDate = this.checkDate(dto.bookingDate, now)
@@ -231,6 +239,15 @@ export class ManualTransactionsService {
       }
       if (Object.keys(set).length === 0) {
         throw new BadRequestException('Nothing to update')
+      }
+      if (current.paidByContactId !== null) {
+        await this.updatePaidForMe(tx, id, set)
+      } else if (
+        set.kind !== undefined &&
+        set.kind !== 'expense' &&
+        current.kind === 'expense'
+      ) {
+        await this.assertNotShared(tx, id)
       }
       await this.checkVoucherCap(tx, {
         id,
@@ -362,6 +379,83 @@ export class ManualTransactionsService {
     }
   }
 
+  /**
+   * An expense a contact paid for the owner (« Payé pour moi », #359) stays
+   * an expense without an account; its amount is the owner's part, so the
+   * `i_owe` receivable follows it (never below what was repaid, never above
+   * the bill).
+   */
+  private async updatePaidForMe(
+    tx: Tx,
+    id: string,
+    set: Partial<typeof transactionsTable.$inferInsert>,
+  ) {
+    if (set.accountId !== undefined) {
+      throw new BadRequestException(
+        'An expense paid by a contact has no account',
+      )
+    }
+    if (set.kind !== undefined && set.kind !== 'expense') {
+      throw new BadRequestException(
+        'An expense paid by a contact stays an expense',
+      )
+    }
+    if (set.amountCents === undefined) return
+    if (set.amountCents >= 0) {
+      throw new BadRequestException('An expense paid by a contact is money out')
+    }
+    const part = -set.amountCents
+    const [receivable] = await tx
+      .select({
+        id: receivablesTable.id,
+        billCents: receivablesTable.billCents,
+        paidCents:
+          sql<number>`coalesce((select sum(${receivablePaymentsTable.amountCents}) from ${receivablePaymentsTable} where ${receivablePaymentsTable.receivableId} = ${receivablesTable.id}), 0)::bigint`.mapWith(
+            Number,
+          ),
+      })
+      .from(receivablesTable)
+      .where(
+        and(
+          eq(receivablesTable.transactionId, id),
+          eq(receivablesTable.direction, 'i_owe'),
+        ),
+      )
+      .for('update')
+    if (!receivable) return
+    if (part < receivable.paidCents) {
+      throw new BadRequestException(
+        'A share cannot be less than what was repaid on it',
+      )
+    }
+    if (receivable.billCents !== null && part > receivable.billCents) {
+      throw new BadRequestException('partCents cannot exceed billCents')
+    }
+    await tx
+      .update(receivablesTable)
+      .set({ amountCents: part })
+      .where(eq(receivablesTable.id, receivable.id))
+  }
+
+  /** A shared expense stays an expense (#359). */
+  private async assertNotShared(tx: Tx, id: string) {
+    const [shared] = await tx
+      .select({ id: receivablesTable.id })
+      .from(receivablesTable)
+      .where(
+        and(
+          eq(receivablesTable.transactionId, id),
+          eq(receivablesTable.direction, 'owed_to_me'),
+        ),
+      )
+      .limit(1)
+    if (shared) {
+      throw new BadRequestException(
+        'The expense is shared or paid by a contact: it stays an expense',
+      )
+    }
+  }
+
   private async findManual(tx: Tx, id: string) {
     const [row] = await tx
       .select({
@@ -372,6 +466,7 @@ export class ManualTransactionsService {
         bookingDate: transactionsTable.bookingDate,
         kind: transactionsTable.kind,
         counterpartAccountId: transactionsTable.counterpartAccountId,
+        paidByContactId: transactionsTable.paidByContactId,
       })
       .from(transactionsTable)
       .where(
@@ -393,13 +488,14 @@ export class ManualTransactionsService {
     tx: Tx,
     entry: {
       id?: string
-      accountId: string
+      accountId: string | null
       bookingDate: string
       amountCents: number
       kind: TransactionKind
     },
   ): Promise<void> {
     if (entry.kind !== 'expense' || entry.amountCents >= 0) return
+    if (entry.accountId === null) return
     const t = transactionsTable
     const [account] = await tx
       .select({ type: accountsTable.type })

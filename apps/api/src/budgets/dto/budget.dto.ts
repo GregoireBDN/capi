@@ -311,6 +311,13 @@ export class BudgetLineDto extends BudgetCategoryFields {
   spentExcludingOneOffsCents!: number
 
   @ApiProperty({
+    type: 'integer',
+    description:
+      'What was paid in the category, before what others owe or repaid on it (#359): `spentCents` is the owner’s part (« 400 € sur 800 € payés »). Equal to `spentCents` when nothing is shared.',
+  })
+  grossSpentCents!: number
+
+  @ApiProperty({
     type: [BudgetPrepaidDto],
     description:
       'Prepaid subscriptions paid this month in the category (#314), in `spentCents`: « dont 180,00 € prépayés pour 24 mois ».',

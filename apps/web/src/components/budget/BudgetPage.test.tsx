@@ -105,6 +105,7 @@ function line(
     tracked: false,
     spentCents,
     spentExcludingOneOffsCents: spentCents,
+    grossSpentCents: spentCents,
     prepaid: [],
     remainingCents: targetCents - spentCents,
     percentUsed: Math.round((spentCents * 1000) / targetCents) / 10,
