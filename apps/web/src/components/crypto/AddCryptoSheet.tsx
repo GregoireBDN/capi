@@ -31,10 +31,13 @@ import {
   CoinsIcon,
   CompassIcon,
   FileUpIcon,
+  HashIcon,
   KeyRoundIcon,
+  LandmarkIcon,
   ListChecksIcon,
   PencilIcon,
   PencilLineIcon,
+  SlidersHorizontalIcon,
   WalletIcon,
 } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -116,7 +119,7 @@ type Screen =
   | 'manual-amount'
   | 'manual-summary'
 
-const STEP_COUNT = 3
+const STEP_COUNT = 4
 
 /** The source's first screen. */
 const FIRST: Record<Source, Screen> = {
@@ -127,18 +130,38 @@ const FIRST: Record<Source, Screen> = {
 
 function stepOf(screen: Screen): number {
   if (screen === 'source') return 1
-  return screen.endsWith('-summary') ? 3 : 2
+  if (screen.endsWith('-summary')) return 4
+  // Which platform, wallet or asset, then its export, keys or quantity.
+  return screen === 'exchange-file' ||
+    screen === 'wallet-keys' ||
+    screen === 'manual-amount'
+    ? 3
+    : 2
 }
 
-/** The middle step's name and icon, after the source it depends on. */
-function middleStep(screen: Screen): { label: string; icon: ReactNode } {
+/** The 2nd and 3rd steps' names and icons, after the source chosen. */
+function routeSteps(
+  screen: Screen,
+): [{ label: string; icon: ReactNode }, { label: string; icon: ReactNode }] {
   if (screen.startsWith('exchange'))
-    return { label: 'Export', icon: <FileUpIcon aria-hidden /> }
+    return [
+      { label: 'Plateforme', icon: <LandmarkIcon aria-hidden /> },
+      { label: 'Export', icon: <FileUpIcon aria-hidden /> },
+    ]
   if (screen.startsWith('wallet'))
-    return { label: 'Clés', icon: <KeyRoundIcon aria-hidden /> }
+    return [
+      { label: 'Wallet', icon: <WalletIcon aria-hidden /> },
+      { label: 'Clés', icon: <KeyRoundIcon aria-hidden /> },
+    ]
   if (screen.startsWith('manual'))
-    return { label: 'Actif', icon: <CoinsIcon aria-hidden /> }
-  return { label: 'Détails', icon: <PencilIcon aria-hidden /> }
+    return [
+      { label: 'Actif', icon: <CoinsIcon aria-hidden /> },
+      { label: 'Quantité', icon: <HashIcon aria-hidden /> },
+    ]
+  return [
+    { label: 'Choix', icon: <PencilIcon aria-hidden /> },
+    { label: 'Détails', icon: <SlidersHorizontalIcon aria-hidden /> },
+  ]
 }
 
 const BACK: Record<Exclude<Screen, 'source'>, Screen> = {
@@ -1069,14 +1092,19 @@ export function AddCryptoSheet({
               },
               {
                 key: '2',
-                ...middleStep(screen),
+                ...routeSteps(screen)[0],
                 disabled: step < 2,
               },
               {
                 key: '3',
+                ...routeSteps(screen)[1],
+                disabled: step < 3,
+              },
+              {
+                key: '4',
                 label: 'Vérifier',
                 icon: <ListChecksIcon aria-hidden />,
-                disabled: step < 3,
+                disabled: step < 4,
               },
             ]}
           />

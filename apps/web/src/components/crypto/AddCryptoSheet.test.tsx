@@ -254,7 +254,7 @@ describe('AddCryptoSheet', () => {
     expect(
       await dialog.findByRole('heading', { name: /Récapitulatif/ }),
     ).toBeInTheDocument()
-    expect(dialog.getByRole('button', { name: /^3\. / })).toHaveAttribute(
+    expect(dialog.getByRole('button', { name: /^4\. / })).toHaveAttribute(
       'aria-current',
       'step',
     )
@@ -325,7 +325,7 @@ describe('AddCryptoSheet', () => {
     await user.click(dialog.getByRole('button', { name: /Suivant/ }))
 
     await dialog.findByRole('heading', { name: /Récapitulatif/ })
-    expect(dialog.getByRole('button', { name: /^3\. / })).toHaveAttribute(
+    expect(dialog.getByRole('button', { name: /^4\. / })).toHaveAttribute(
       'aria-current',
       'step',
     )
@@ -372,7 +372,7 @@ describe('AddCryptoSheet', () => {
     expect(
       dialog.getByRole('heading', { name: /Combien \?/ }),
     ).toBeInTheDocument()
-    expect(dialog.getByRole('button', { name: /^2\. / })).toHaveAttribute(
+    expect(dialog.getByRole('button', { name: /^3\. / })).toHaveAttribute(
       'aria-current',
       'step',
     )
