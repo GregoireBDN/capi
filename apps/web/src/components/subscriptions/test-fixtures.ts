@@ -54,6 +54,9 @@ export function recurringItem(
     termMonths: null,
     renewalDate: null,
     renewalReminder: false,
+    share: null,
+    ownMonthlyEquivalentCents: 0,
+    ownYearlyCostCents: 0,
     ...overrides,
   }
 }

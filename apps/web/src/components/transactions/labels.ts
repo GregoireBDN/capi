@@ -29,6 +29,20 @@ export function displayLabel(transaction: {
   return transaction.merchant?.trim() || transaction.rawLabel
 }
 
+/**
+ * The account a transaction was paid from or into, or « Payé par Sam » for
+ * an expense someone paid for the owner (#359), which has none.
+ */
+export function accountLabel(transaction: {
+  accountName: string | null
+  paidByContactName?: string | null
+}): string {
+  return (
+    transaction.accountName ??
+    `Payé par ${transaction.paidByContactName ?? 'un proche'}`
+  )
+}
+
 /** Lowercase, without accents, words separated by single spaces. */
 function normalizeWords(text: string): string {
   return text

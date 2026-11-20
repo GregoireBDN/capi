@@ -187,3 +187,14 @@ export type CryptoMovementKind = (typeof CRYPTO_MOVEMENT_KINDS)[number]
 /** Exchange export formats that can be imported. */
 export const CRYPTO_IMPORT_FORMATS = ['binance_csv', 'coinbase_csv'] as const
 export type CryptoImportFormat = (typeof CRYPTO_IMPORT_FORMATS)[number]
+
+/**
+ * Who owes whom on an expense (#359): `owed_to_me` = the owner advanced
+ * money for a contact, `i_owe` = a contact paid for the owner.
+ */
+export const RECEIVABLE_DIRECTIONS = ['owed_to_me', 'i_owe'] as const
+export type ReceivableDirection = (typeof RECEIVABLE_DIRECTIONS)[number]
+
+/** How a receivable was made: by hand, or from a shared recurring item. */
+export const RECEIVABLE_ORIGINS = ['manual', 'recurring'] as const
+export type ReceivableOrigin = (typeof RECEIVABLE_ORIGINS)[number]

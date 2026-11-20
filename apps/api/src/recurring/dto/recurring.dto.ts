@@ -1,3 +1,4 @@
+import { RecurringShareInfoDto } from '#/owed/dto/owed.dto'
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Transform } from 'class-transformer'
 import {
@@ -468,6 +469,27 @@ export class RecurringItemDto {
       'Prepaid items: the latest payment + the term (also `nextExpectedDate`). Null otherwise.',
   })
   renewalDate!: string | null
+
+  @ApiProperty({
+    type: RecurringShareInfoDto,
+    nullable: true,
+    description:
+      'Shared with a contact (#359): each charge from `from` on gets their share, a rate (`bps`, 5000 = half) or an amount.',
+  })
+  share!: RecurringShareInfoDto | null
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'The owner’s part of `monthlyEquivalentCents` (« ta part 50 % · 4,50 € / mois »); equal to it when not shared.',
+  })
+  ownMonthlyEquivalentCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'The owner’s part of `yearlyCostCents`.',
+  })
+  ownYearlyCostCents!: number
 
   @ApiProperty({
     type: Boolean,

@@ -36,7 +36,12 @@ import { formatCalendarDate } from '#/lib/money'
 import { Amount } from './Amount'
 import { CategoryMenu } from './CategoryMenu'
 import type { TransactionChanges } from './changes'
-import { counterpartLabel, displayLabel, secondaryLabel } from './labels'
+import {
+  accountLabel,
+  counterpartLabel,
+  displayLabel,
+  secondaryLabel,
+} from './labels'
 import { TransactionEditor } from './TransactionEditor'
 
 /**
@@ -275,7 +280,7 @@ export function TransactionRow({
         {showAccount && (
           <span className="max-w-full truncate @xl:hidden">
             <span aria-hidden="true">{'·\u00a0'}</span>
-            {item.accountName}
+            {accountLabel(item)}
           </span>
         )}
         {transfer && item.counterpartAccountName && (
@@ -289,7 +294,7 @@ export function TransactionRow({
         )}
         {showAccount && (
           <span className="hidden whitespace-nowrap @xl:inline @2xl:hidden">
-            {item.accountName}
+            {accountLabel(item)}
           </span>
         )}
         {/* Filtered on « À revoir », every row is: no badge (#322). */}
@@ -417,9 +422,9 @@ export function TransactionRow({
       {showAccount && (
         <span
           className="text-muted-foreground hidden truncate text-xs @2xl:block"
-          title={item.accountName}
+          title={accountLabel(item)}
         >
-          {item.accountName}
+          {accountLabel(item)}
         </span>
       )}
       <span className="hidden text-right text-sm @xl:block">

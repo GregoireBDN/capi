@@ -83,6 +83,8 @@ export const transaction: TransactionDto = {
   id: '00000000-0000-4000-8000-0000000000t1',
   accountId: checking.id,
   accountName: checking.name,
+  paidByContactId: null,
+  paidByContactName: null,
   importId: null,
   bookingDate: '2026-11-03',
   valueDate: null,
@@ -111,6 +113,8 @@ export const transaction: TransactionDto = {
   counterpartAccountId: null,
   counterpartAccountName: null,
   splits: [],
+  shares: [],
+  repayments: [],
   createdAt: stamp,
   updatedAt: stamp,
 }

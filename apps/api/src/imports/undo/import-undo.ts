@@ -5,6 +5,8 @@ import {
   type AbsorbedManual,
   type InsertTransaction,
   type SelectTransaction,
+  receivablePaymentsTable,
+  receivablesTable,
   transactionSplitsTable,
   transactionsTable,
 } from '#/database/schema'
@@ -42,7 +44,7 @@ export interface UndoImpact {
  *   of a spreadsheet history import, whose rows come with the sheet's own
  *   category and flag (`byHand` false);
  * - a note, a split, a correction of the amount or the date, a prepaid
- *   subscription link;
+ *   subscription link, a share or a repayment linked to it (#359);
  * - a transfer link that neither the row's rule nor matching would set
  *   again: no rule with that destination, and no other side (the opposite
  *   amount on that account, linked back, at most
@@ -57,6 +59,8 @@ function editedByHand(byHand: boolean): SQL {
     : sql``
   return sql`(${filedByHand}${t.note} is not null
     or exists (select 1 from transaction_splits s where s.transaction_id = ${t.id})
+    or exists (select 1 from receivables r where r.transaction_id = ${t.id})
+    or exists (select 1 from receivable_payments p where p.transaction_id = ${t.id})
     or ${t.originalAmountCents} is not null
     or ${t.originalBookingDate} is not null
     or ${t.prepaidItemId} is not null
@@ -146,7 +150,8 @@ export function restoredManual(row: AbsorbingRow): InsertTransaction {
 
 /**
  * Puts back, as manual transactions, the ones the rows of `importId`
- * absorbed, each with the split of its row. Run before the rows are
+ * absorbed, each with the split of its row and what is owed or repaid on it
+ * (#359, moved to the row on reconciliation). Run before the rows are
  * deleted. Returns how many were put back.
  */
 export async function restoreAbsorbedManual(
@@ -180,6 +185,14 @@ export async function restoreAbsorbedManual(
       .update(transactionSplitsTable)
       .set({ transactionId: restored.id })
       .where(eq(transactionSplitsTable.transactionId, id))
+    await tx
+      .update(receivablesTable)
+      .set({ transactionId: restored.id })
+      .where(eq(receivablesTable.transactionId, id))
+    await tx
+      .update(receivablePaymentsTable)
+      .set({ transactionId: restored.id })
+      .where(eq(receivablePaymentsTable.transactionId, id))
   }
   return rows.length
 }

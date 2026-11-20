@@ -744,7 +744,10 @@ export class CategorizationRulesService {
         .select({
           id: transactionsTable.id,
           bookingDate: transactionsTable.bookingDate,
-          accountId: transactionsTable.accountId,
+          // Never null: expenses paid by a contact (#359) are left out.
+          accountId: sql<string>`${transactionsTable.accountId}`.as(
+            'account_id',
+          ),
           rawLabel: transactionsTable.rawLabel,
           merchant: transactionsTable.merchant,
           amountCents: transactionsTable.amountCents,
@@ -756,9 +759,12 @@ export class CategorizationRulesService {
         })
         .from(transactionsTable)
         .where(
-          lastId === null
-            ? where
-            : and(where, gt(transactionsTable.id, lastId)),
+          and(
+            isNotNull(transactionsTable.accountId),
+            lastId === null
+              ? where
+              : and(where, gt(transactionsTable.id, lastId)),
+          ),
         )
         .orderBy(asc(transactionsTable.id))
         .limit(APPLY_CHUNK_SIZE)

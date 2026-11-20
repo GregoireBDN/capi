@@ -35,9 +35,16 @@ export const PREVIEW_FOOTER =
 
 export const PREVIEW_HEADER = 'APERÇU — rien n’a encore été modifié.'
 
+/** Its account, or who paid it for the owner (#359, « Payé pour moi »). */
+export function accountOf(t: TransactionDto): string {
+  return (
+    t.accountName ?? `payé par ${t.paidByContactName ?? 'quelqu’un d’autre'}`
+  )
+}
+
 /** Short one-line description of a transaction, with its id. */
 export function transactionRef(t: TransactionDto): string {
-  return `${frenchDate(t.bookingDate)} · ${signedEuros(t.amountCents)} · ${t.rawLabel} · ${t.accountName} (id ${t.id})`
+  return `${frenchDate(t.bookingDate)} · ${signedEuros(t.amountCents)} · ${t.rawLabel} · ${accountOf(t)} (id ${t.id})`
 }
 
 /**

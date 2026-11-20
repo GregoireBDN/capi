@@ -44,6 +44,7 @@ import { Amount } from './Amount'
 import type { TransactionChanges } from './changes'
 import { ImportedCorrection } from './ImportedCorrection'
 import {
+  accountLabel,
   counterpartLabel,
   displayLabel,
   KIND_GROUP_LABELS,
@@ -566,7 +567,7 @@ export function TransactionEditor({
               {formatCalendarDate(item.bookingDate)}
             </time>
             {' · '}
-            {item.accountName}
+            {accountLabel(item)}
           </p>
           {raw && (
             <p className="text-muted-foreground text-xs break-words">{raw}</p>

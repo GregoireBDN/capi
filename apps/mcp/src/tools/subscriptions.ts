@@ -34,6 +34,10 @@ function itemLine(item: RecurringItemDto): string {
         : null,
     item.categoryName,
     item.accountName,
+    // Shared with a contact (#359): their share and the owner's part.
+    item.share
+      ? `partagé avec ${item.share.contactName} (${item.share.bps !== null ? `${item.share.bps / 100} %` : `${euros(item.share.amountCents ?? 0)} par prélèvement`}), ma part ${euros(item.ownMonthlyEquivalentCents)} / mois`
+      : null,
   ].filter(Boolean)
   const priceChange =
     item.priceChangeCents !== null && item.priceChangeCents !== 0

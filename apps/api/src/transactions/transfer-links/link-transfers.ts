@@ -27,7 +27,8 @@ function unlinkedTransfers(executor: Executor, where: ReturnType<typeof and>) {
   return executor
     .select({
       id: t.id,
-      accountId: t.accountId,
+      // Inner join on the account: never null here.
+      accountId: sql<string>`${t.accountId}`.as('account_id'),
       bookingDate: t.bookingDate,
       amountCents: t.amountCents,
     })

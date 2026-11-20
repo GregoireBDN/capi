@@ -70,6 +70,8 @@ export interface ExpectedItem {
   categoryName: string | null
   categoryColor: string | null
   categoryIcon: CategoryIcon | null
+  /** The contact whose repayment this credit is (#359), else null. */
+  repaymentFrom: string | null
 }
 
 export interface ProjectionWindow {
@@ -156,6 +158,7 @@ export function expectedOccurrences(
       categoryName: item.categoryName,
       categoryColor: item.categoryColor,
       categoryIcon: item.categoryIcon ?? null,
+      repaymentFrom: null,
     })
   }
   return result
@@ -312,4 +315,47 @@ export function buildProjection({
       : null,
     estimateTotalCents,
   }
+}
+
+/**
+ * Repayments still expected this month from the recurring items shared with
+ * a contact (#359), as credits of the item's account: what is left of each
+ * (a repayment already booked is never counted twice), on its expected day
+ * or, once passed, on the first projected day. Nothing after the month end.
+ */
+export function expectedRepaymentCredits(
+  repayments: readonly {
+    recurringItemId: string
+    accountId: string
+    name: string
+    contactName: string
+    expectedCents: number
+    receivedCents: number
+    date: string
+  }[],
+  { start, monthEnd }: ProjectionWindow,
+  accountIds: ReadonlySet<string>,
+): ExpectedItem[] {
+  return repayments
+    .filter(
+      (r) =>
+        accountIds.has(r.accountId) &&
+        r.expectedCents > r.receivedCents &&
+        r.date <= monthEnd,
+    )
+    .map((r) => ({
+      recurringItemId: r.recurringItemId,
+      accountId: r.accountId,
+      name: r.name,
+      date: maxDate(r.date, start),
+      expectedDate: r.date,
+      amountCents: r.expectedCents - r.receivedCents,
+      direction: 'credit' as const,
+      amountType: 'fixed' as const,
+      isFixedCost: false,
+      categoryName: null,
+      categoryColor: null,
+      categoryIcon: null,
+      repaymentFrom: r.contactName,
+    }))
 }

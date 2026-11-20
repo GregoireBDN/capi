@@ -32,6 +32,8 @@ const payback: TransactionDto = {
   id: 'a0000000-0000-4000-8000-000000000001',
   accountId: '10000000-0000-4000-8000-000000000001',
   accountName: 'Compte test',
+  paidByContactId: null,
+  paidByContactName: null,
   importId: null,
   bookingDate: '2026-10-20',
   valueDate: null,
@@ -53,6 +55,8 @@ const payback: TransactionDto = {
   counterpartAccountId: null,
   counterpartAccountName: null,
   splits: [],
+  shares: [],
+  repayments: [],
   createdAt: '2026-10-20T00:00:00.000Z',
   updatedAt: '2026-10-20T00:00:00.000Z',
 }

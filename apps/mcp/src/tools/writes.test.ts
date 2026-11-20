@@ -539,6 +539,7 @@ describe('set_budget_targets', () => {
         tracked: true,
         spentCents: 0,
         spentExcludingOneOffsCents: 0,
+        grossSpentCents: 0,
         prepaid: [],
         remainingCents: 40000,
         percentUsed: 0,

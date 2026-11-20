@@ -4194,6 +4194,925 @@
         ]
       }
     },
+    "/api/contacts": {
+      "get": {
+        "description": "The people the owner shares expenses with (#359), by name, with what is open both ways. Archived ones only with `archived=true`.",
+        "operationId": "ContactsController_list",
+        "parameters": [
+          {
+            "description": "Include archived contacts.",
+            "required": false,
+            "name": "archived",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContactDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Contacts",
+        "tags": [
+          "Contacts"
+        ]
+      },
+      "post": {
+        "description": "Session only (contact settings).",
+        "operationId": "ContactsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateContactDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "409": {
+            "description": "A contact already has this name."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Add a contact",
+        "tags": [
+          "Contacts"
+        ]
+      }
+    },
+    "/api/contacts/{id}/owed": {
+      "get": {
+        "description": "Totals, open items and history both ways (« Il vous doit », « Vous lui devez », never netted), this month’s expected repayments and the recurring items shared with them.",
+        "operationId": "ContactsController_contactOwed",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactOwedDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown contact."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "A contact’s page",
+        "tags": [
+          "Contacts"
+        ]
+      }
+    },
+    "/api/contacts/{id}": {
+      "patch": {
+        "description": "Name, bank words, usual repayment day, archive. Session only.",
+        "operationId": "ContactsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateContactDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown contact."
+          },
+          "409": {
+            "description": "A contact already has this name."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Edit a contact",
+        "tags": [
+          "Contacts"
+        ]
+      },
+      "delete": {
+        "description": "Only one never used; archive the others. Session only.",
+        "operationId": "ContactsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown contact."
+          },
+          "409": {
+            "description": "The contact has a history."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Delete a contact",
+        "tags": [
+          "Contacts"
+        ]
+      }
+    },
+    "/api/owed": {
+      "get": {
+        "description": "« Entre proches »: « On me doit » and « Je dois » as two lists, never netted, one row per person (the oldest open item’s age), the people all settled apart, and this month’s repayments expected from shared recurring items. Outside the net worth.",
+        "operationId": "OwedController_summary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwedSummaryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Money owed, both ways",
+        "tags": [
+          "Owed"
+        ]
+      }
+    },
+    "/api/receivables": {
+      "post": {
+        "description": "Says who owes what on an expense the owner paid (`owed_to_me`): a person by id or by name (created when new). The owner’s spending is then his part, on the day of the expense. Open to write tokens (MCP `share_expense`).",
+        "operationId": "ReceivablesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSharesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an expense paid from an account, a split expense without `splitId`, or shares above the expense."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown transaction or contact."
+          },
+          "409": {
+            "description": "One of the people already has a share of it."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Share an expense",
+        "tags": [
+          "Owed"
+        ]
+      }
+    },
+    "/api/receivables/debts": {
+      "post": {
+        "description": "« Payé pour moi »: a manual expense without an account holding the owner’s part (his spending, in its category, on its day) and what he owes the contact (`i_owe`), the bill kept beside. Open to write tokens.",
+        "operationId": "ReceivablesController_createDebt",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDebtDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A part above the bill, a category that is not an expense, or a day in the future."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Note an expense someone paid for the owner",
+        "tags": [
+          "Owed"
+        ]
+      }
+    },
+    "/api/receivables/suggestions": {
+      "get": {
+        "description": "Review queue (« Remboursement de Camille ? »): recent transfers not linked yet whose label matches a contact’s bank words and whose amount is exactly some of their open items.",
+        "operationId": "ReceivablesController_suggestions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RepaymentSuggestionDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Repayments to confirm",
+        "tags": [
+          "Owed"
+        ]
+      }
+    },
+    "/api/receivables/repayment-options": {
+      "get": {
+        "description": "For « C’est un remboursement › » (money in) or « Je rembourse … › » (money out): the people with something open that way, one person’s open items oldest first, and the suggestion to tick.",
+        "operationId": "ReceivablesController_options",
+        "parameters": [
+          {
+            "name": "transactionId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Whose open items to list; by default the contact whose bank words match the label, else the one owed the most.",
+            "required": false,
+            "name": "contactId",
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The part of a split transfer.",
+            "required": false,
+            "name": "splitId",
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepaymentOptionsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An expense paid by a contact, or a split without `splitId`."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown transaction."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "What a transfer can repay",
+        "tags": [
+          "Owed"
+        ]
+      }
+    },
+    "/api/receivables/payments": {
+      "post": {
+        "description": "Links a transfer (or « Réglé autrement » without one) to one or several items, partly or in full: the linked part is neither income nor spending, the rest of the transfer stays in its category. Never past the transfer nor past what is left on an item. Open to write tokens (MCP `link_repayment`).",
+        "operationId": "ReceivablesController_link",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkRepaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkRepaymentResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Past the transfer or an item, an item let go, the wrong direction, or a day in the future."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown transaction."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Link a repayment",
+        "tags": [
+          "Owed"
+        ]
+      }
+    },
+    "/api/receivables/payments/{id}": {
+      "delete": {
+        "description": "Session only.",
+        "operationId": "ReceivablesController_unlink",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown payment."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Unlink a repayment",
+        "tags": [
+          "Owed"
+        ]
+      }
+    },
+    "/api/receivables/{id}": {
+      "get": {
+        "operationId": "ReceivablesController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceivableDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown item."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "One item",
+        "tags": [
+          "Owed"
+        ]
+      },
+      "patch": {
+        "description": "Its amount (never below what was repaid; for « Je dois », the owner’s part of the expense) or note. Session only.",
+        "operationId": "ReceivablesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReceivableDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceivableDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown item."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Edit an item",
+        "tags": [
+          "Owed"
+        ]
+      },
+      "delete": {
+        "description": "A share goes, its expense stays; what the owner owes goes with its expense « Payé pour moi ». Session only.",
+        "operationId": "ReceivablesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown item."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Delete an item",
+        "tags": [
+          "Owed"
+        ]
+      }
+    },
+    "/api/receivables/{id}/forgive": {
+      "post": {
+        "description": "« Je ne me fais pas rembourser » (or « … ne veut pas être remboursé »): what was not repaid comes back into (or, for `i_owe`, leaves) the owner’s spending. Reversible. Session only: Claude never lets a debt go.",
+        "operationId": "ReceivablesController_forgive",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgiveReceivableDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceivableDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Already repaid."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown item."
+          },
+          "409": {
+            "description": "Already let go."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Let a debt go",
+        "tags": [
+          "Owed"
+        ]
+      },
+      "delete": {
+        "description": "« Réclamer à nouveau ». Session only.",
+        "operationId": "ReceivablesController_unforgive",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceivableDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown item."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Claim a debt again",
+        "tags": [
+          "Owed"
+        ]
+      }
+    },
+    "/api/transactions/{id}/shares": {
+      "put": {
+        "description": "« Partager »: everyone listed gets or keeps a share of that amount, the others lose theirs (refused once partly repaid or let go). An empty list stops sharing it. Session only.",
+        "operationId": "OwedLinksController_replaceShares",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceSharesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an expense paid from an account, shares above the expense, or a share below what was repaid on it."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown transaction or contact."
+          },
+          "409": {
+            "description": "Removing a share repaid or let go."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Set who an expense is shared with",
+        "tags": [
+          "Owed"
+        ]
+      }
+    },
+    "/api/recurring/{id}/share": {
+      "put": {
+        "description": "Each charge of a confirmed recurring debit booked from `from` on gets the contact’s share (a rate or an amount), unless it has its own; changing the share changes later charges only. Session only.",
+        "operationId": "OwedLinksController_setRecurringShare",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetRecurringShareDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringShareInfoDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a confirmed debit, or both a rate and an amount."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown item or contact."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Share a recurring item",
+        "tags": [
+          "Owed"
+        ]
+      },
+      "delete": {
+        "description": "The shares already made stay. Session only.",
+        "operationId": "OwedLinksController_clearRecurringShare",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown item."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Stop sharing a recurring item",
+        "tags": [
+          "Owed"
+        ]
+      }
+    },
     "/api/budgets": {
       "get": {
         "description": "Planned income vs received (`income`, `income` lines of each planned category, transfers never), the balance of the plan (`plan.toSaveCents`) and, per budgeted expense category: target in effect, spent (expense transactions of the category, refunds deducted, transfers never counted), remaining, share used and status; totals; the spending outside budgeted categories; and how far the month’s data goes (`period`). Without `month`: the current month when it has data, else the month the data stops in.",
@@ -10369,6 +11288,38 @@
           "count"
         ]
       },
+      "RecurringShareInfoDto": {
+        "type": "object",
+        "properties": {
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "bps": {
+            "type": "integer",
+            "nullable": true
+          },
+          "amountCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "from": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-13"
+          }
+        },
+        "required": [
+          "contactId",
+          "contactName",
+          "bps",
+          "amountCents",
+          "from"
+        ]
+      },
       "RecurringItemDto": {
         "type": "object",
         "properties": {
@@ -10588,6 +11539,24 @@
             "nullable": true,
             "description": "Prepaid items: the latest payment + the term (also `nextExpectedDate`). Null otherwise."
           },
+          "share": {
+            "nullable": true,
+            "description": "Shared with a contact (#359): each charge from `from` on gets their share, a rate (`bps`, 5000 = half) or an amount.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecurringShareInfoDto"
+              }
+            ]
+          },
+          "ownMonthlyEquivalentCents": {
+            "type": "integer",
+            "description": "The owner’s part of `monthlyEquivalentCents` (« ta part 50 % · 4,50 € / mois »); equal to it when not shared."
+          },
+          "ownYearlyCostCents": {
+            "type": "integer",
+            "description": "The owner’s part of `yearlyCostCents`."
+          },
           "renewalReminder": {
             "type": "boolean",
             "description": "Prepaid items: the renewal is at most 30 days away, the item is not cancelled and the owner has not kept it yet: remind them to keep or cancel it."
@@ -10636,6 +11605,9 @@
           "chargedAfterEnd",
           "termMonths",
           "renewalDate",
+          "share",
+          "ownMonthlyEquivalentCents",
+          "ownYearlyCostCents",
           "renewalReminder"
         ]
       },
@@ -10979,6 +11951,125 @@
           "kind"
         ]
       },
+      "ReceivableDirection": {
+        "type": "string",
+        "enum": [
+          "owed_to_me",
+          "i_owe"
+        ]
+      },
+      "ReceivableState": {
+        "type": "string",
+        "enum": [
+          "open",
+          "repaid",
+          "forgiven"
+        ]
+      },
+      "TransactionShareDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "direction": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReceivableDirection"
+              }
+            ]
+          },
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "splitId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Owed, positive cents."
+          },
+          "repaidCents": {
+            "type": "integer",
+            "description": "Repaid so far."
+          },
+          "billCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "`i_owe`: the whole bill the contact paid."
+          },
+          "state": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReceivableState"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "direction",
+          "contactId",
+          "contactName",
+          "splitId",
+          "amountCents",
+          "repaidCents",
+          "billCents",
+          "state"
+        ]
+      },
+      "TransactionRepaymentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receivableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "direction": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReceivableDirection"
+              }
+            ]
+          },
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "splitId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Positive cents."
+          }
+        },
+        "required": [
+          "id",
+          "receivableId",
+          "direction",
+          "contactId",
+          "contactName",
+          "splitId",
+          "amountCents"
+        ]
+      },
       "TransactionDto": {
         "type": "object",
         "properties": {
@@ -10988,10 +12079,23 @@
           },
           "accountId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "nullable": true,
+            "description": "Null only for an expense a contact paid for the owner (`paidByContactId`, « Payé pour moi »)."
           },
           "accountName": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
+          },
+          "paidByContactId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The contact who paid this expense for the owner (#359): it holds his part, without an account."
+          },
+          "paidByContactName": {
+            "type": "string",
+            "nullable": true
           },
           "importId": {
             "type": "string",
@@ -11101,6 +12205,20 @@
               "$ref": "#/components/schemas/TransactionSplitDto"
             }
           },
+          "shares": {
+            "description": "Who owes what on this expense (#359): statistics count only the owner’s part.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransactionShareDto"
+            }
+          },
+          "repayments": {
+            "description": "Parts of this transfer linked as repayments (#359): neither income nor spending.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransactionRepaymentDto"
+            }
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -11114,6 +12232,8 @@
           "id",
           "accountId",
           "accountName",
+          "paidByContactId",
+          "paidByContactName",
           "importId",
           "bookingDate",
           "valueDate",
@@ -11135,6 +12255,8 @@
           "originalAmountCents",
           "originalBookingDate",
           "splits",
+          "shares",
+          "repayments",
           "createdAt",
           "updatedAt"
         ]
@@ -11541,6 +12663,1038 @@
           }
         }
       },
+      "ContactDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "matchLabels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "repaymentDay": {
+            "type": "integer",
+            "nullable": true
+          },
+          "archivedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "owedToMeCents": {
+            "type": "integer",
+            "description": "What they owe the owner now (open items)."
+          },
+          "iOweCents": {
+            "type": "integer",
+            "description": "What the owner owes them now (open items)."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "matchLabels",
+          "repaymentDay",
+          "archivedAt",
+          "owedToMeCents",
+          "iOweCents"
+        ]
+      },
+      "CreateContactDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "matchLabels": {
+            "description": "Words of their bank labels (« CAMILLE MARTIN »), to suggest their repayments.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "repaymentDay": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 31,
+            "description": "Usual day of the month their repayments arrive (forecast)."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "OwedTotalsDto": {
+        "type": "object",
+        "properties": {
+          "totalCents": {
+            "type": "integer",
+            "description": "Every item, all time."
+          },
+          "repaidCents": {
+            "type": "integer",
+            "description": "Repaid."
+          },
+          "forgivenCents": {
+            "type": "integer",
+            "description": "Let go."
+          },
+          "openCents": {
+            "type": "integer",
+            "description": "Still open."
+          }
+        },
+        "required": [
+          "totalCents",
+          "repaidCents",
+          "forgivenCents",
+          "openCents"
+        ]
+      },
+      "OwedCategoryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "icon": {
+            "nullable": true,
+            "description": "Icon shown with the category (a Lucide icon name).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategoryIcon"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "color",
+          "icon"
+        ]
+      },
+      "ReceivableOrigin": {
+        "type": "string",
+        "enum": [
+          "manual",
+          "recurring"
+        ],
+        "description": "`recurring`: made from a shared recurring item."
+      },
+      "ReceivablePaymentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receivableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "transactionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The transfer; null for « Réglé autrement »."
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Positive cents."
+          },
+          "paidOn": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-13"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "description": "Label of the transfer."
+          }
+        },
+        "required": [
+          "id",
+          "receivableId",
+          "transactionId",
+          "amountCents",
+          "paidOn",
+          "note",
+          "label"
+        ]
+      },
+      "ReceivableDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "direction": {
+            "description": "`owed_to_me`: the owner advanced the money; `i_owe`: the contact paid for the owner.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReceivableDirection"
+              }
+            ]
+          },
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "transactionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "splitId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "bookingDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-13",
+            "description": "Day of the expense."
+          },
+          "label": {
+            "type": "string",
+            "description": "Label of the expense."
+          },
+          "category": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OwedCategoryDto"
+              }
+            ]
+          },
+          "expenseCents": {
+            "type": "integer",
+            "description": "The expense line (positive cents): what the owner paid for `owed_to_me`, his part for `i_owe`."
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "What is owed on it, positive cents."
+          },
+          "billCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "`i_owe`: the whole bill the contact paid."
+          },
+          "repaidCents": {
+            "type": "integer",
+            "description": "Repaid so far (linked repayments)."
+          },
+          "leftCents": {
+            "type": "integer",
+            "description": "Still owed: 0 once repaid or let go."
+          },
+          "state": {
+            "description": "Computed: `open` (« à rembourser », nothing or part repaid), `repaid` (« remboursé »), `forgiven` (« abandonné »).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReceivableState"
+              }
+            ]
+          },
+          "forgivenAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "forgivenNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "origin": {
+            "description": "`recurring`: made from a shared recurring item.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReceivableOrigin"
+              }
+            ]
+          },
+          "recurringItemId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceivablePaymentDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "direction",
+          "contactId",
+          "contactName",
+          "transactionId",
+          "splitId",
+          "bookingDate",
+          "label",
+          "category",
+          "expenseCents",
+          "amountCents",
+          "billCents",
+          "repaidCents",
+          "leftCents",
+          "state",
+          "forgivenAt",
+          "forgivenNote",
+          "note",
+          "origin",
+          "recurringItemId",
+          "payments"
+        ]
+      },
+      "ContactDirectionDto": {
+        "type": "object",
+        "properties": {
+          "totals": {
+            "$ref": "#/components/schemas/OwedTotalsDto"
+          },
+          "open": {
+            "description": "Open, oldest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceivableDto"
+            }
+          },
+          "history": {
+            "description": "Repaid or let go, newest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceivableDto"
+            }
+          }
+        },
+        "required": [
+          "totals",
+          "open",
+          "history"
+        ]
+      },
+      "ExpectedRepaymentStatus": {
+        "type": "string",
+        "enum": [
+          "expected",
+          "partial",
+          "received"
+        ]
+      },
+      "ExpectedRepaymentDto": {
+        "type": "object",
+        "properties": {
+          "recurringItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "The recurring item’s name."
+          },
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedCents": {
+            "type": "integer",
+            "description": "Their share of this month’s charge."
+          },
+          "receivedCents": {
+            "type": "integer",
+            "description": "Repaid so far on it."
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-13",
+            "description": "Day it is expected: the contact’s usual day, else the month end."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ExpectedRepaymentStatus"
+              }
+            ]
+          },
+          "receivableId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The receivable of the charge, once booked."
+          }
+        },
+        "required": [
+          "recurringItemId",
+          "name",
+          "contactId",
+          "contactName",
+          "accountId",
+          "expectedCents",
+          "receivedCents",
+          "date",
+          "status",
+          "receivableId"
+        ]
+      },
+      "ContactSharedItemDto": {
+        "type": "object",
+        "properties": {
+          "recurringItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "share": {
+            "$ref": "#/components/schemas/RecurringShareInfoDto"
+          }
+        },
+        "required": [
+          "recurringItemId",
+          "name",
+          "share"
+        ]
+      },
+      "ContactOwedDto": {
+        "type": "object",
+        "properties": {
+          "contact": {
+            "$ref": "#/components/schemas/ContactDto"
+          },
+          "owedToMe": {
+            "description": "« Il vous doit ».",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContactDirectionDto"
+              }
+            ]
+          },
+          "iOwe": {
+            "description": "« Vous lui devez ».",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContactDirectionDto"
+              }
+            ]
+          },
+          "expected": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExpectedRepaymentDto"
+            }
+          },
+          "sharedItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContactSharedItemDto"
+            }
+          }
+        },
+        "required": [
+          "contact",
+          "owedToMe",
+          "iOwe",
+          "expected",
+          "sharedItems"
+        ]
+      },
+      "UpdateContactDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "matchLabels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "repaymentDay": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 31
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "Archive (left out of the pickers) or bring back."
+          }
+        }
+      },
+      "OwedContactRowDto": {
+        "type": "object",
+        "properties": {
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owedCents": {
+            "type": "integer",
+            "description": "Owed now, in this direction."
+          },
+          "openCount": {
+            "type": "integer",
+            "description": "Open items."
+          },
+          "oldestOpenDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-13",
+            "nullable": true
+          },
+          "oldestOpenDays": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Days since the oldest open item (Europe/Paris)."
+          }
+        },
+        "required": [
+          "contactId",
+          "name",
+          "owedCents",
+          "openCount",
+          "oldestOpenDate",
+          "oldestOpenDays"
+        ]
+      },
+      "OwedListDto": {
+        "type": "object",
+        "properties": {
+          "totalCents": {
+            "type": "integer",
+            "description": "Owed now, everyone together."
+          },
+          "contacts": {
+            "description": "People with something open, most owed first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwedContactRowDto"
+            }
+          },
+          "settled": {
+            "description": "People all settled (« Tout réglé »), by name.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwedContactRowDto"
+            }
+          }
+        },
+        "required": [
+          "totalCents",
+          "contacts",
+          "settled"
+        ]
+      },
+      "OwedSummaryDto": {
+        "type": "object",
+        "properties": {
+          "today": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-13"
+          },
+          "month": {
+            "type": "string",
+            "example": "2026-11"
+          },
+          "owedToMe": {
+            "description": "« On me doit ».",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OwedListDto"
+              }
+            ]
+          },
+          "iOwe": {
+            "description": "« Je dois ».",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OwedListDto"
+              }
+            ]
+          },
+          "expected": {
+            "description": "This month’s repayments expected from shared recurring items.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExpectedRepaymentDto"
+            }
+          }
+        },
+        "required": [
+          "today",
+          "month",
+          "owedToMe",
+          "iOwe",
+          "expected"
+        ]
+      },
+      "ShareInputDto": {
+        "type": "object",
+        "properties": {
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contactName": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "Name of the contact when no id is given: an existing contact of that name (case ignored), else a new one."
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "What this person owes on the expense, positive cents."
+          }
+        },
+        "required": [
+          "amountCents"
+        ]
+      },
+      "CreateSharesDto": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "An expense paid from one of the owner’s accounts."
+          },
+          "splitId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The part of a split expense the shares reduce: required when it is split."
+          },
+          "shares": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShareInputDto"
+            }
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "transactionId",
+          "shares"
+        ]
+      },
+      "CreateDebtDto": {
+        "type": "object",
+        "properties": {
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contactName": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "Name of the contact when no id is given: an existing contact of that name (case ignored), else a new one."
+          },
+          "billCents": {
+            "type": "integer",
+            "description": "The whole bill the contact paid, positive cents."
+          },
+          "partCents": {
+            "type": "integer",
+            "description": "The owner’s part of it, positive cents, at most the bill."
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "An expense category."
+          },
+          "bookingDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-13",
+            "description": "Day of the expense; today (Europe/Paris) when omitted."
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Label; the category name when omitted."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "billCents",
+          "partCents",
+          "categoryId"
+        ]
+      },
+      "SuggestedLinkDto": {
+        "type": "object",
+        "properties": {
+          "receivableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Positive cents."
+          }
+        },
+        "required": [
+          "receivableId",
+          "amountCents"
+        ]
+      },
+      "RepaymentSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bookingDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-13"
+          },
+          "label": {
+            "type": "string"
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Signed cents of the transfer."
+          },
+          "direction": {
+            "description": "`owed_to_me`: the owner advanced the money; `i_owe`: the contact paid for the owner.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReceivableDirection"
+              }
+            ]
+          },
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuggestedLinkDto"
+            }
+          }
+        },
+        "required": [
+          "transactionId",
+          "bookingDate",
+          "label",
+          "amountCents",
+          "direction",
+          "contactId",
+          "contactName",
+          "links"
+        ]
+      },
+      "RepaymentContactDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owedCents": {
+            "type": "integer",
+            "description": "Open, in the transfer’s direction."
+          },
+          "matched": {
+            "type": "boolean",
+            "description": "Their bank words match the transfer’s label."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "owedCents",
+          "matched"
+        ]
+      },
+      "RepaymentOptionsDto": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "splitId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "direction": {
+            "description": "What it repays: `owed_to_me` for an incoming transfer, `i_owe` for an outgoing one.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReceivableDirection"
+              }
+            ]
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "The transfer line, positive cents."
+          },
+          "linkedCents": {
+            "type": "integer",
+            "description": "Already linked."
+          },
+          "availableCents": {
+            "type": "integer",
+            "description": "Still free to link."
+          },
+          "contacts": {
+            "description": "People with something open in that direction.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RepaymentContactDto"
+            }
+          },
+          "contactId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "items": {
+            "description": "That person’s open items, oldest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceivableDto"
+            }
+          },
+          "suggestion": {
+            "description": "Pre-ticked: the oldest items adding up to the free amount exactly, else the closest without going over.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuggestedLinkDto"
+            }
+          },
+          "exact": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "transactionId",
+          "splitId",
+          "direction",
+          "amountCents",
+          "linkedCents",
+          "availableCents",
+          "contacts",
+          "contactId",
+          "items",
+          "suggestion",
+          "exact"
+        ]
+      },
+      "LinkItemDto": {
+        "type": "object",
+        "properties": {
+          "receivableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Part of the repayment for this item, positive cents."
+          }
+        },
+        "required": [
+          "receivableId",
+          "amountCents"
+        ]
+      },
+      "LinkRepaymentDto": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The repayment transfer: incoming for what is owed to the owner, outgoing for what he owes. Omitted: « Réglé autrement » (cash, in kind), dated `paidOn`."
+          },
+          "splitId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The part of a split transfer: required when it is split."
+          },
+          "paidOn": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-13",
+            "description": "Day it was settled, never in the future: the transfer’s booking date when one is given, else today (Europe/Paris) by default."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkItemDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "LinkRepaymentResultDto": {
+        "type": "object",
+        "properties": {
+          "payments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceivablePaymentDto"
+            }
+          },
+          "linkedCents": {
+            "type": "integer",
+            "description": "Linked by this call."
+          },
+          "restCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "What is left of the transfer in its own category, null without a transfer."
+          }
+        },
+        "required": [
+          "payments",
+          "linkedCents",
+          "restCents"
+        ]
+      },
+      "UpdateReceivableDto": {
+        "type": "object",
+        "properties": {
+          "amountCents": {
+            "type": "integer",
+            "description": "What is owed, positive cents."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          }
+        }
+      },
+      "ForgiveReceivableDto": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          }
+        }
+      },
+      "ReplaceSharesDto": {
+        "type": "object",
+        "properties": {
+          "splitId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "shares": {
+            "description": "Everyone the expense is shared with; an empty list stops sharing it. A person left out loses their share, refused once they repaid part of it.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShareInputDto"
+            }
+          }
+        },
+        "required": [
+          "shares"
+        ]
+      },
+      "SetRecurringShareDto": {
+        "type": "object",
+        "properties": {
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contactName": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "Name of the contact when no id is given: an existing contact of that name (case ignored), else a new one."
+          },
+          "bps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "description": "Their share in basis points (5000 = half). Or `amountCents`."
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "A fixed amount of each charge (capped at the charge). Or `bps`."
+          },
+          "from": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-13",
+            "description": "Charges booked from this day on get their share; the first day of the current month (Europe/Paris) by default."
+          }
+        }
+      },
       "BudgetPrepaidDto": {
         "type": "object",
         "properties": {
@@ -11629,6 +13783,10 @@
             "type": "integer",
             "description": "`spentCents` without the one-off transactions (nor the prepaid subscription payments)."
           },
+          "grossSpentCents": {
+            "type": "integer",
+            "description": "What was paid in the category, before what others owe or repaid on it (#359): `spentCents` is the owner’s part (« 400 € sur 800 € payés »). Equal to `spentCents` when nothing is shared."
+          },
           "prepaid": {
             "description": "Prepaid subscriptions paid this month in the category (#314), in `spentCents`: « dont 180,00 € prépayés pour 24 mois ».",
             "type": "array",
@@ -11666,6 +13824,7 @@
           "tracked",
           "spentCents",
           "spentExcludingOneOffsCents",
+          "grossSpentCents",
           "prepaid",
           "remainingCents",
           "percentUsed",
@@ -16128,6 +18287,11 @@
                 "$ref": "#/components/schemas/CategoryIcon"
               }
             ]
+          },
+          "repaymentFrom": {
+            "type": "string",
+            "nullable": true,
+            "description": "Name of the contact whose repayment this credit is (#359): their share of a recurring item shared with them, expected at month end or on their usual day. Null for a recurring item’s own charge."
           }
         },
         "required": [
@@ -16142,7 +18306,8 @@
           "isFixedCost",
           "categoryName",
           "categoryColor",
-          "categoryIcon"
+          "categoryIcon",
+          "repaymentFrom"
         ]
       },
       "ForecastEstimateDto": {

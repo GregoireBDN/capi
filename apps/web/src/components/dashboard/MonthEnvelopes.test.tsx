@@ -594,6 +594,8 @@ describe('ManualTransactionSheet (editing)', () => {
     id: 'e0000000-0000-4000-8000-000000000001',
     accountId: CHECKING,
     accountName: 'Compte courant',
+    paidByContactId: null,
+    paidByContactName: null,
     importId: null,
     bookingDate: '2026-11-08',
     valueDate: null,
@@ -615,6 +617,8 @@ describe('ManualTransactionSheet (editing)', () => {
     counterpartAccountId: null,
     counterpartAccountName: null,
     splits: [],
+    shares: [],
+    repayments: [],
     createdAt: STAMP,
     updatedAt: STAMP,
   } as TransactionDto

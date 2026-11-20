@@ -91,6 +91,7 @@ const budget: BudgetMonthDto = {
       tracked: true,
       spentCents: 12000,
       spentExcludingOneOffsCents: 12000,
+      grossSpentCents: 12000,
       prepaid: [],
       remainingCents: 3000,
       percentUsed: 80,

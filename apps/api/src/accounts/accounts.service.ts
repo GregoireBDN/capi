@@ -556,8 +556,9 @@ export class AccountsService {
         string,
         { amountCents: number; balanceAfterCents: number }[]
       >()
+      // Filtered on the owner's accounts: never null (#359).
       for (const row of lastDayRows) {
-        if (row.balanceAfterCents === null) continue
+        if (row.balanceAfterCents === null || row.accountId === null) continue
         const list = dayRows.get(row.accountId) ?? []
         list.push({
           amountCents: row.amountCents,
@@ -567,6 +568,7 @@ export class AccountsService {
       }
 
       for (const row of totals) {
+        if (row.accountId === null) continue
         const rows = dayRows.get(row.accountId)
         const hasRunning = row.latestDay !== null && rows !== undefined
         const snapshot = snapshotByAccount.get(row.accountId)

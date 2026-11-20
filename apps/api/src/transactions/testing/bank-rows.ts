@@ -35,12 +35,15 @@ export async function bankRows<T extends InsertTransaction>(
           : { ...row, dedupeHash: `manual:${row.dedupeHash}`.slice(0, 64) }
       }
       if (row.importId) return row
-      let importId = imports.get(row.accountId)
+      // A bank row is always on an account (#359: only « Payé pour moi »
+      // rows, entered by hand, have none).
+      const accountId = row.accountId!
+      let importId = imports.get(accountId)
       if (!importId) {
         importId = executor
           .insert(importsTable)
           .values({
-            accountId: row.accountId,
+            accountId,
             source: 'cic_csv',
             fileName: 'fixture.csv',
             fileHash: 'fixture',
@@ -48,7 +51,7 @@ export async function bankRows<T extends InsertTransaction>(
           })
           .returning({ id: importsTable.id })
           .then(([created]) => created.id)
-        imports.set(row.accountId, importId)
+        imports.set(accountId, importId)
       }
       return { ...row, importId: await importId }
     }),

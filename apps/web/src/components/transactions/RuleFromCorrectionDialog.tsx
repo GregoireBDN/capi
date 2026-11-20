@@ -91,6 +91,9 @@ export function RuleFromCorrectionDialog({
   // Fresh suggestion each time the dialog opens.
   useEffect(() => {
     if (!open) return
+    // An expense paid by a contact (#359) has no bank label to learn from.
+    const accountId = transaction.accountId
+    if (accountId === null) return
     let cancelled = false
     setSuggestion(null)
     setPattern('')
@@ -101,7 +104,7 @@ export function RuleFromCorrectionDialog({
         rawLabel: transaction.rawLabel,
         merchant: transaction.merchant,
         amountCents: transaction.amountCents,
-        accountId: transaction.accountId,
+        accountId,
         categoryId: category.id,
       },
       throwOnError: false,

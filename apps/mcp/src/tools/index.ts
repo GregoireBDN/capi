@@ -22,6 +22,8 @@ import {
 } from './month-close.js'
 import { closeMonthsTool } from './month-close-writes.js'
 import { monthReviewTool } from './review.js'
+import { owedToMeTool } from './owed.js'
+import { linkRepaymentTool, shareExpenseTool } from './owed-writes.js'
 import { createRuleTool } from './rule-writes.js'
 import { savingsTool } from './savings.js'
 import { spendingByCategoryTool, spendingHistoryTool } from './spending.js'
@@ -54,6 +56,8 @@ export const readTools = [
   // #104: investments, before importing statement values.
   listInvestmentAccountsTool,
   createInvestmentAccountTool,
+  // #359: money owed, both ways.
+  owedToMeTool,
 ]
 
 /**
@@ -78,6 +82,9 @@ export const writeTools = [
   closeMonthsTool,
   // #357: split a transaction, refund parts included (undo in the app).
   splitTransactionTool,
+  // #359: share an expense, link a repayment (letting go stays in the app).
+  shareExpenseTool,
+  linkRepaymentTool,
 ]
 
 export const tools = [...readTools, ...writeTools]

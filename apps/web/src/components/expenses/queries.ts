@@ -99,7 +99,7 @@ export function manualBody(
     categoryId: item.categoryId,
     bookingDate: item.bookingDate,
     label: item.rawLabel,
-    accountId: item.accountId,
+    accountId: item.accountId ?? undefined,
     isOneOff: item.isOneOff,
     note: item.note,
   }

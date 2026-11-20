@@ -31,6 +31,9 @@ import {
   accountsTable,
   categoriesTable,
   categorizationRulesTable,
+  contactsTable,
+  receivablePaymentsTable,
+  receivablesTable,
   recurringItemsTable,
   transactionLinesView,
   transactionSplitsTable,
@@ -42,6 +45,8 @@ import {
   TRANSACTIONS_PAGE_LIMIT_DEFAULT,
   type TransactionDto,
   type TransactionFiltersQueryDto,
+  type TransactionRepaymentDto,
+  type TransactionShareDto,
   type TransactionListDto,
   type TransactionSort,
   type SplitPartDto,
@@ -74,11 +79,16 @@ type TransactionSet = Partial<{
 /** The account a transfer is linked to (#296). */
 const counterpartAccounts = alias(accountsTable, 'counterpart_accounts')
 
+/** The contact who paid an expense for the owner (#359). */
+const paidByContacts = alias(contactsTable, 'paid_by_contacts')
+
 /** Columns of a transaction as the API returns it (account name, category). */
 const transactionColumns = {
   id: transactionsTable.id,
   accountId: transactionsTable.accountId,
   accountName: accountsTable.name,
+  paidByContactId: transactionsTable.paidByContactId,
+  paidByContactName: paidByContacts.name,
   importId: transactionsTable.importId,
   bookingDate: transactionsTable.bookingDate,
   valueDate: transactionsTable.valueDate,
@@ -110,7 +120,10 @@ const transactionColumns = {
   updatedAt: transactionsTable.updatedAt,
 }
 
-type TransactionRow = Omit<TransactionDto, 'category' | 'splits'> & {
+type TransactionRow = Omit<
+  TransactionDto,
+  'category' | 'splits' | 'shares' | 'repayments'
+> & {
   categoryKey: string | null
   categorySlug: string | null
   categoryName: string | null
@@ -122,6 +135,8 @@ type TransactionRow = Omit<TransactionDto, 'category' | 'splits'> & {
 function toDto(
   row: TransactionRow,
   splits: TransactionSplitDto[] = [],
+  shares: TransactionShareDto[] = [],
+  repayments: TransactionRepaymentDto[] = [],
 ): TransactionDto {
   const {
     categoryKey,
@@ -146,6 +161,8 @@ function toDto(
             kind: categoryKind!,
           },
     splits,
+    shares,
+    repayments,
   }
 }
 
@@ -325,6 +342,7 @@ export class TransactionsService {
         .where(eq(transactionsTable.id, id))
         .for('update')
       if (!current) throw new NotFoundException('Transaction not found')
+      await this.assertNotOwed(tx, [id])
       const sign = Math.sign(current.amountCents)
       if (parts.some((part) => Math.sign(part.amountCents) !== sign)) {
         throw new BadRequestException(
@@ -381,6 +399,7 @@ export class TransactionsService {
   unsplit(id: string): Promise<TransactionDto> {
     return this.db.transaction(async (tx) => {
       await this.findOne(id, tx)
+      await this.assertNotOwed(tx, [id])
       await tx
         .delete(transactionSplitsTable)
         .where(eq(transactionSplitsTable.transactionId, id))
@@ -429,6 +448,7 @@ export class TransactionsService {
             'The transaction is split: remove the split before changing its amount',
           )
         }
+        await this.assertCarries(tx, id, dto.amountCents)
         const bank = current.originalAmountCents ?? current.amountCents
         set.amountCents = dto.amountCents
         set.originalAmountCents = dto.amountCents === bank ? null : bank
@@ -471,6 +491,12 @@ export class TransactionsService {
         throw new BadRequestException(
           'The transaction is split: remove the split before changing its amount',
         )
+      }
+      if (
+        current.originalAmountCents !== null &&
+        current.originalAmountCents !== current.amountCents
+      ) {
+        await this.assertCarries(tx, id, current.originalAmountCents)
       }
       await tx
         .update(transactionsTable)
@@ -532,7 +558,208 @@ export class TransactionsService {
       })
       byTransaction.set(part.transactionId, list)
     }
-    return rows.map((row) => toDto(row, byTransaction.get(row.id)))
+    const owed = await this.owedOf(
+      executor,
+      rows.map((row) => row.id),
+    )
+    return rows.map((row) =>
+      toDto(
+        row,
+        byTransaction.get(row.id),
+        owed.shares.get(row.id),
+        owed.repayments.get(row.id),
+      ),
+    )
+  }
+
+  /**
+   * Who owes what on these transactions, and the parts of them linked as
+   * repayments (#359).
+   */
+  private async owedOf(executor: Executor, ids: string[]) {
+    const r = receivablesTable
+    const p = receivablePaymentsTable
+    const paid = executor
+      .select({
+        receivableId: p.receivableId,
+        paidCents: sql<number>`sum(${p.amountCents})`.as('paid_cents'),
+      })
+      .from(p)
+      .groupBy(p.receivableId)
+      .as('paid')
+    const [shareRows, repaymentRows] = await Promise.all([
+      executor
+        .select({
+          id: r.id,
+          transactionId: r.transactionId,
+          direction: r.direction,
+          contactId: r.contactId,
+          contactName: contactsTable.name,
+          splitId: r.splitId,
+          amountCents: r.amountCents,
+          billCents: r.billCents,
+          forgivenAt: r.forgivenAt,
+          repaidCents:
+            sql<number>`coalesce(${paid.paidCents}, 0)::bigint`.mapWith(Number),
+        })
+        .from(r)
+        .innerJoin(contactsTable, eq(contactsTable.id, r.contactId))
+        .leftJoin(paid, eq(paid.receivableId, r.id))
+        .where(inArray(r.transactionId, ids))
+        .orderBy(asc(r.createdAt), asc(r.id)),
+      executor
+        .select({
+          id: p.id,
+          transactionId: sql<string>`${p.transactionId}`,
+          receivableId: p.receivableId,
+          direction: r.direction,
+          contactId: r.contactId,
+          contactName: contactsTable.name,
+          splitId: p.splitId,
+          amountCents: p.amountCents,
+        })
+        .from(p)
+        .innerJoin(r, eq(r.id, p.receivableId))
+        .innerJoin(contactsTable, eq(contactsTable.id, r.contactId))
+        .where(inArray(p.transactionId, ids))
+        .orderBy(asc(p.createdAt), asc(p.id)),
+    ])
+    const shares = new Map<string, TransactionShareDto[]>()
+    for (const { transactionId, forgivenAt, ...row } of shareRows) {
+      const list = shares.get(transactionId) ?? []
+      list.push({
+        ...row,
+        state:
+          forgivenAt !== null
+            ? 'forgiven'
+            : row.repaidCents >= row.amountCents
+              ? 'repaid'
+              : 'open',
+      })
+      shares.set(transactionId, list)
+    }
+    const repayments = new Map<string, TransactionRepaymentDto[]>()
+    for (const { transactionId, ...row } of repaymentRows) {
+      const list = repayments.get(transactionId) ?? []
+      list.push(row)
+      repayments.set(transactionId, list)
+    }
+    return { shares, repayments }
+  }
+
+  /**
+   * Changes refused on a transaction that money owed hangs on (#359): its
+   * kind away from an expense while it is shared or paid by a contact, and
+   * a category for the whole of a split one whose parts carry shares or
+   * repayments (the parts would go).
+   */
+  private async assertOwedAllows(
+    executor: Executor,
+    ids: string[],
+    set: TransactionSet,
+  ) {
+    if (ids.length === 0) return
+    const kindChanges = typeof set.kind === 'string' && set.kind !== 'expense'
+    const dropsSplits = set.categoryId !== undefined
+    if (!kindChanges && !dropsSplits) return
+    if (kindChanges) {
+      const [shared] = await executor
+        .select({ id: transactionsTable.id })
+        .from(transactionsTable)
+        .where(
+          and(
+            inArray(transactionsTable.id, ids),
+            or(
+              isNotNull(transactionsTable.paidByContactId),
+              sql`exists (select 1 from ${receivablesTable} where ${receivablesTable.transactionId} = ${transactionsTable.id} and ${receivablesTable.direction} = 'owed_to_me')`,
+            ),
+          ),
+        )
+        .limit(1)
+      if (shared) {
+        throw new BadRequestException(
+          'The expense is shared or paid by a contact: it stays an expense',
+        )
+      }
+    }
+    if (dropsSplits) {
+      const [bound] = await executor
+        .select({ id: receivablesTable.id })
+        .from(receivablesTable)
+        .where(
+          and(
+            inArray(receivablesTable.transactionId, ids),
+            isNotNull(receivablesTable.splitId),
+          ),
+        )
+        .limit(1)
+      const [linked] = await executor
+        .select({ id: receivablePaymentsTable.id })
+        .from(receivablePaymentsTable)
+        .where(
+          and(
+            inArray(receivablePaymentsTable.transactionId, ids),
+            isNotNull(receivablePaymentsTable.splitId),
+          ),
+        )
+        .limit(1)
+      if (bound || linked) {
+        throw new BadRequestException(
+          'A part of this split is shared or linked to a repayment: remove that first',
+        )
+      }
+    }
+  }
+
+  /** Splitting is refused while shares or repayments hang on it (#359). */
+  private async assertNotOwed(executor: Executor, ids: string[]) {
+    const [shared] = await executor
+      .select({ id: receivablesTable.id })
+      .from(receivablesTable)
+      .where(inArray(receivablesTable.transactionId, ids))
+      .limit(1)
+    const [linked] = await executor
+      .select({ id: receivablePaymentsTable.id })
+      .from(receivablePaymentsTable)
+      .where(inArray(receivablePaymentsTable.transactionId, ids))
+      .limit(1)
+    if (shared || linked) {
+      throw new BadRequestException(
+        'The transaction is shared or linked to a repayment: remove that first',
+      )
+    }
+  }
+
+  /**
+   * A new amount must still carry what hangs on the transaction (#359): the
+   * shares on it and the repayments taken from it, in the same direction.
+   */
+  async assertCarries(executor: Executor, id: string, amountCents: number) {
+    const [row] = await executor
+      .select({
+        shares:
+          sql<number>`coalesce((select sum(${receivablesTable.amountCents}) from ${receivablesTable} where ${receivablesTable.transactionId} = ${id} and ${receivablesTable.direction} = 'owed_to_me'), 0)::bigint`.mapWith(
+            Number,
+          ),
+        linked:
+          sql<number>`coalesce((select sum(${receivablePaymentsTable.amountCents}) from ${receivablePaymentsTable} where ${receivablePaymentsTable.transactionId} = ${id}), 0)::bigint`.mapWith(
+            Number,
+          ),
+        sign: sql<number>`(select sign(${transactionsTable.amountCents}) from ${transactionsTable} where ${transactionsTable.id} = ${id})`.mapWith(
+          Number,
+        ),
+      })
+      .from(sql`(select 1) as one`)
+    const carried = row.shares + row.linked
+    if (carried === 0) return
+    if (
+      Math.sign(amountCents) !== row.sign ||
+      Math.abs(amountCents) < carried
+    ) {
+      throw new BadRequestException(
+        'The amount must still cover what is shared or linked on it',
+      )
+    }
   }
 
   /** Partial update of one transaction; returns it as listed. */
@@ -541,6 +768,7 @@ export class TransactionsService {
       const current = await this.findOne(id, tx)
       const { counterpartAccountId, ...changes } = dto
       const set = await this.resolveChanges(tx, changes, [id])
+      await this.assertOwedAllows(tx, [id], set)
       if (counterpartAccountId !== undefined) {
         await this.assertCounterpart(tx, current, set, counterpartAccountId)
         set.counterpartAccountId = counterpartAccountId
@@ -569,6 +797,7 @@ export class TransactionsService {
       if (Object.keys(set).length === 0) {
         throw new BadRequestException('Nothing to update')
       }
+      await this.assertOwedAllows(tx, ids, set)
       const updated = await tx
         .update(transactionsTable)
         .set(set)
@@ -657,9 +886,13 @@ export class TransactionsService {
     return executor
       .select(transactionColumns)
       .from(transactionsTable)
-      .innerJoin(
+      .leftJoin(
         accountsTable,
         eq(accountsTable.id, transactionsTable.accountId),
+      )
+      .leftJoin(
+        paidByContacts,
+        eq(paidByContacts.id, transactionsTable.paidByContactId),
       )
       .leftJoin(
         categoriesTable,

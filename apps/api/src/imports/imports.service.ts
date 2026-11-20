@@ -30,6 +30,8 @@ import {
   importsTable,
   type InsertTransaction,
   type SelectImport,
+  receivablePaymentsTable,
+  receivablesTable,
   transactionSplitsTable,
   transactionsTable,
 } from '#/database/schema'
@@ -291,6 +293,15 @@ export class ImportsService {
             .update(transactionSplitsTable)
             .set({ transactionId: row.id })
             .where(eq(transactionSplitsTable.transactionId, manualId))
+          // So do what is owed on it and the repayments linked to it (#359).
+          await tx
+            .update(receivablesTable)
+            .set({ transactionId: row.id })
+            .where(eq(receivablesTable.transactionId, manualId))
+          await tx
+            .update(receivablePaymentsTable)
+            .set({ transactionId: row.id })
+            .where(eq(receivablePaymentsTable.transactionId, manualId))
         }
       }
 

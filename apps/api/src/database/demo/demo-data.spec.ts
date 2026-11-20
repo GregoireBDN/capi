@@ -95,6 +95,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
         // Every checking ↔ Livret A transfer has its two sides linked.
         expect(counts.linkedTransferPairs).toBeGreaterThan(10)
         expect(counts.recurringItems).toBeGreaterThan(5)
+        // Money owed (#359): Camille, Alex and Sam; the rent's halves, the
+        // dinner's two shares and the concert Sam paid.
+        expect(counts.contacts).toBe(3)
+        expect(counts.receivables).toBeGreaterThanOrEqual(6)
 
         const accounts = await tx.select().from(accountsTable)
         const checking = accounts.find((a) => a.type === 'checking')!
