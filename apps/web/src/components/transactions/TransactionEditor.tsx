@@ -15,14 +15,17 @@ import {
   ArrowRightIcon,
   CalendarClockIcon,
   ChevronLeftIcon,
+  ChevronRightIcon,
   CheckIcon,
   FlagIcon,
+  HandCoinsIcon,
   PencilIcon,
   SearchIcon,
   SparkleIcon,
   SplitIcon,
   StickyNoteIcon,
   TagIcon,
+  UsersIcon,
 } from 'lucide-react'
 import { useState } from 'react'
 import type {
@@ -36,9 +39,18 @@ import {
   CategoryAvatar,
   categoryIconComponent,
 } from '#/components/categories/category-icons'
+import { Link } from '@tanstack/react-router'
+import {
+  RepaymentScreen,
+  repaymentTitle,
+} from '#/components/owed/RepaymentScreen'
+import { owedSummaryQuery } from '#/components/owed/queries'
+import { othersPartCents } from '#/components/owed/shares'
+import { ShareScreen } from '#/components/owed/ShareScreen'
 import { PrepaidScreen } from '#/components/subscriptions/PrepaidScreen'
 import { pickableCategories } from '#/lib/categories'
-import { formatCalendarDate } from '#/lib/money'
+import { formatCalendarDate, formatCents } from '#/lib/money'
+import { ROUTES } from '#/lib/routes'
 import { accountsQuery } from '#/lib/queries'
 import { Amount } from './Amount'
 import type { TransactionChanges } from './changes'
@@ -67,6 +79,8 @@ type Screen =
   | 'kind-category'
   | 'counterpart'
   | 'prepaid'
+  | 'share'
+  | 'repayment'
 
 interface TransactionEditorProps {
   item: TransactionDto
@@ -367,6 +381,8 @@ export function TransactionEditor({
   const [screen, setScreen] = useState<Screen>(initialScreen)
   // The kind picked on « Type » whose category is being chosen (#368).
   const [newKind, setNewKind] = useState<TransactionKind>(item.kind)
+  const owed = useQuery(owedSummaryQuery)
+  const iOweCents = owed.data?.iOwe.totalCents ?? 0
   const name = displayLabel(item)
   const raw = secondaryLabel(item)
   const split = item.splits.length > 0
@@ -478,6 +494,22 @@ export function TransactionEditor({
       </div>
     )
   }
+  if (screen === 'share') {
+    return (
+      <div className="space-y-3">
+        <ScreenHeader title="Partager" onBack={back} />
+        <ShareScreen item={item} />
+      </div>
+    )
+  }
+  if (screen === 'repayment') {
+    return (
+      <div className="space-y-3">
+        <ScreenHeader title={repaymentTitle(item)} onBack={back} />
+        <RepaymentScreen item={item} onDone={back} />
+      </div>
+    )
+  }
   if (screen === 'kind') {
     return (
       <div className="space-y-3">
@@ -535,6 +567,16 @@ export function TransactionEditor({
     : (item.category?.name ?? 'Choisir')
   const corrected =
     item.originalAmountCents !== null || item.originalBookingDate !== null
+  // Money owed (#359): who owes what on it, what it repays.
+  const owedShares = item.shares.filter((s) => s.direction === 'owed_to_me')
+  const debt = item.shares.find((s) => s.direction === 'i_owe')
+  const sharedCents = othersPartCents(item)
+  const onAccount = item.accountId !== null
+  const shareable =
+    onAccount && item.kind === 'expense' && item.amountCents < 0 && !split
+  const repaidNames = [
+    ...new Set(item.repayments.map((r) => r.contactName)),
+  ].join(', ')
 
   return (
     <div className="space-y-3">
@@ -572,6 +614,18 @@ export function TransactionEditor({
           {raw && (
             <p className="text-muted-foreground text-xs break-words">{raw}</p>
           )}
+          {sharedCents > 0 && (
+            <p className="text-muted-foreground text-xs">
+              ma part {formatCents(-item.amountCents - sharedCents)}
+            </p>
+          )}
+          {debt && (
+            <p className="text-muted-foreground text-xs">
+              ma part, payée par {debt.contactName}
+              {debt.billCents !== null &&
+                ` sur une addition de ${formatCents(debt.billCents)}`}
+            </p>
+          )}
         </div>
       </div>
 
@@ -589,6 +643,52 @@ export function TransactionEditor({
             value={item.counterpartAccountName ?? 'Choisir'}
             onClick={() => setScreen('counterpart')}
           />
+        )}
+        {shareable && (
+          <SettingRow
+            icon={UsersIcon}
+            label="Partager"
+            value={
+              owedShares.length > 0
+                ? owedShares.map((s) => s.contactName).join(', ')
+                : 'Non'
+            }
+            onClick={() => setScreen('share')}
+          />
+        )}
+        {onAccount && item.amountCents > 0 && (
+          <SettingRow
+            icon={HandCoinsIcon}
+            label="C’est un remboursement"
+            value={repaidNames || 'Non'}
+            onClick={() => setScreen('repayment')}
+          />
+        )}
+        {debt && (
+          <Link
+            to={ROUTES.owedContact}
+            params={{ contactId: debt.contactId }}
+            className={SETTING_ROW_CLASS}
+          >
+            <HandCoinsIcon
+              className="text-muted-foreground size-[0.8rem] shrink-0"
+              aria-hidden="true"
+            />
+            <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5 py-2">
+              <span className="break-normal">Je dois à {debt.contactName}</span>
+              <span className="text-muted-foreground min-w-0 flex-[1_1_0%] truncate text-right">
+                {debt.state === 'repaid'
+                  ? 'Remboursé'
+                  : debt.state === 'forgiven'
+                    ? 'Abandonné'
+                    : formatCents(debt.amountCents - debt.repaidCents)}
+              </span>
+            </span>
+            <ChevronRightIcon
+              className="text-muted-foreground size-[0.7rem] shrink-0"
+              aria-hidden="true"
+            />
+          </Link>
         )}
         <SettingRow
           icon={StickyNoteIcon}
@@ -648,6 +748,16 @@ export function TransactionEditor({
                 onClick={() => setScreen('correct')}
               />
             )}
+        {onAccount &&
+          item.amountCents < 0 &&
+          (item.repayments.length > 0 || iOweCents > 0) && (
+            <SettingRow
+              icon={HandCoinsIcon}
+              label="Je rembourse"
+              value={repaidNames || 'Non'}
+              onClick={() => setScreen('repayment')}
+            />
+          )}
         {/* A split's type is its parts' categories' (#368). */}
         {!split && (
           <SettingRow

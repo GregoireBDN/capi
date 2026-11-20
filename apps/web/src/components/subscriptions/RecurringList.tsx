@@ -21,6 +21,7 @@ import {
   formatPriceChange,
   formatRelativeDay,
   periodAfter,
+  shareText,
 } from './format'
 
 interface RecurringListProps {
@@ -110,7 +111,8 @@ export function RecurringList({
   const credit = items[0].direction === 'credit'
   const activeYearly = items
     .filter((item) => item.active && !item.ended)
-    .reduce((sum, item) => sum + item.yearlyCostCents, 0)
+    // The owner's part of an item shared with a contact (#359).
+    .reduce((sum, item) => sum + item.ownYearlyCostCents, 0)
   return (
     <section aria-labelledby={headingId} className="space-y-2">
       <div className="flex items-baseline justify-between gap-2">
@@ -172,6 +174,11 @@ export function RecurringList({
                       )
                     )}
                   </span>
+                  {item.share && (
+                    <span className="text-muted-foreground block text-xs">
+                      {shareText(item)}
+                    </span>
+                  )}
                   <span className="flex flex-wrap justify-between gap-x-2 text-xs">
                     <span className="text-muted-foreground">
                       <NextDate item={item} today={today} />

@@ -34,9 +34,12 @@ import { Route as AppSettingsProfileRouteImport } from './routes/_app/_settings/
 import { Route as AppSettingsRulesRouteImport } from './routes/_app/_settings/rules'
 import { Route as AppAccountsIndexRouteImport } from './routes/_app/accounts.index'
 import { Route as AppAccountsAccountIdRouteImport } from './routes/_app/accounts.$accountId'
+import { Route as AppOwedIndexRouteImport } from './routes/_app/owed.index'
+import { Route as AppOwedContactIdRouteImport } from './routes/_app/owed.$contactId'
 import { Route as AppSettingsSettingsIndexRouteImport } from './routes/_app/_settings/settings.index'
 import { Route as AppSettingsSettingsAccessRouteImport } from './routes/_app/_settings/settings.access'
 import { Route as AppSettingsSettingsAccountRouteImport } from './routes/_app/_settings/settings.account'
+import { Route as AppSettingsSettingsContactsRouteImport } from './routes/_app/_settings/settings.contacts'
 import { Route as AppSettingsSettingsDangerRouteImport } from './routes/_app/_settings/settings.danger'
 import { Route as AppSettingsSettingsSecurityRouteImport } from './routes/_app/_settings/settings.security'
 
@@ -163,6 +166,16 @@ const AppAccountsAccountIdRoute = AppAccountsAccountIdRouteImport.update({
   path: '/accounts/$accountId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppOwedIndexRoute = AppOwedIndexRouteImport.update({
+  id: '/owed/',
+  path: '/owed/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppOwedContactIdRoute = AppOwedContactIdRouteImport.update({
+  id: '/owed/$contactId',
+  path: '/owed/$contactId',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSettingsSettingsIndexRoute =
   AppSettingsSettingsIndexRouteImport.update({
     id: '/settings/',
@@ -179,6 +192,12 @@ const AppSettingsSettingsAccountRoute =
   AppSettingsSettingsAccountRouteImport.update({
     id: '/settings/account',
     path: '/settings/account',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsSettingsContactsRoute =
+  AppSettingsSettingsContactsRouteImport.update({
+    id: '/settings/contacts',
+    path: '/settings/contacts',
     getParentRoute: () => AppSettingsRoute,
   } as any)
 const AppSettingsSettingsDangerRoute =
@@ -217,9 +236,12 @@ export interface FileRoutesByFullPath {
   '/profile': typeof AppSettingsProfileRoute
   '/rules': typeof AppSettingsRulesRoute
   '/accounts/$accountId': typeof AppAccountsAccountIdRoute
+  '/owed/$contactId': typeof AppOwedContactIdRoute
   '/accounts/': typeof AppAccountsIndexRoute
+  '/owed/': typeof AppOwedIndexRoute
   '/settings/access': typeof AppSettingsSettingsAccessRoute
   '/settings/account': typeof AppSettingsSettingsAccountRoute
+  '/settings/contacts': typeof AppSettingsSettingsContactsRoute
   '/settings/danger': typeof AppSettingsSettingsDangerRoute
   '/settings/security': typeof AppSettingsSettingsSecurityRoute
   '/settings/': typeof AppSettingsSettingsIndexRoute
@@ -247,9 +269,12 @@ export interface FileRoutesByTo {
   '/profile': typeof AppSettingsProfileRoute
   '/rules': typeof AppSettingsRulesRoute
   '/accounts/$accountId': typeof AppAccountsAccountIdRoute
+  '/owed/$contactId': typeof AppOwedContactIdRoute
   '/accounts': typeof AppAccountsIndexRoute
+  '/owed': typeof AppOwedIndexRoute
   '/settings/access': typeof AppSettingsSettingsAccessRoute
   '/settings/account': typeof AppSettingsSettingsAccountRoute
+  '/settings/contacts': typeof AppSettingsSettingsContactsRoute
   '/settings/danger': typeof AppSettingsSettingsDangerRoute
   '/settings/security': typeof AppSettingsSettingsSecurityRoute
   '/settings': typeof AppSettingsSettingsIndexRoute
@@ -280,9 +305,12 @@ export interface FileRoutesById {
   '/_app/_settings/profile': typeof AppSettingsProfileRoute
   '/_app/_settings/rules': typeof AppSettingsRulesRoute
   '/_app/accounts/$accountId': typeof AppAccountsAccountIdRoute
+  '/_app/owed/$contactId': typeof AppOwedContactIdRoute
   '/_app/accounts/': typeof AppAccountsIndexRoute
+  '/_app/owed/': typeof AppOwedIndexRoute
   '/_app/_settings/settings/access': typeof AppSettingsSettingsAccessRoute
   '/_app/_settings/settings/account': typeof AppSettingsSettingsAccountRoute
+  '/_app/_settings/settings/contacts': typeof AppSettingsSettingsContactsRoute
   '/_app/_settings/settings/danger': typeof AppSettingsSettingsDangerRoute
   '/_app/_settings/settings/security': typeof AppSettingsSettingsSecurityRoute
   '/_app/_settings/settings/': typeof AppSettingsSettingsIndexRoute
@@ -312,9 +340,12 @@ export interface FileRouteTypes {
     | '/profile'
     | '/rules'
     | '/accounts/$accountId'
+    | '/owed/$contactId'
     | '/accounts/'
+    | '/owed/'
     | '/settings/access'
     | '/settings/account'
+    | '/settings/contacts'
     | '/settings/danger'
     | '/settings/security'
     | '/settings/'
@@ -342,9 +373,12 @@ export interface FileRouteTypes {
     | '/profile'
     | '/rules'
     | '/accounts/$accountId'
+    | '/owed/$contactId'
     | '/accounts'
+    | '/owed'
     | '/settings/access'
     | '/settings/account'
+    | '/settings/contacts'
     | '/settings/danger'
     | '/settings/security'
     | '/settings'
@@ -374,9 +408,12 @@ export interface FileRouteTypes {
     | '/_app/_settings/profile'
     | '/_app/_settings/rules'
     | '/_app/accounts/$accountId'
+    | '/_app/owed/$contactId'
     | '/_app/accounts/'
+    | '/_app/owed/'
     | '/_app/_settings/settings/access'
     | '/_app/_settings/settings/account'
+    | '/_app/_settings/settings/contacts'
     | '/_app/_settings/settings/danger'
     | '/_app/_settings/settings/security'
     | '/_app/_settings/settings/'
@@ -569,6 +606,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAccountsAccountIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/owed/': {
+      id: '/_app/owed/'
+      path: '/owed'
+      fullPath: '/owed/'
+      preLoaderRoute: typeof AppOwedIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/owed/$contactId': {
+      id: '/_app/owed/$contactId'
+      path: '/owed/$contactId'
+      fullPath: '/owed/$contactId'
+      preLoaderRoute: typeof AppOwedContactIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/_settings/settings/': {
       id: '/_app/_settings/settings/'
       path: '/settings'
@@ -588,6 +639,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/account'
       fullPath: '/settings/account'
       preLoaderRoute: typeof AppSettingsSettingsAccountRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/_settings/settings/contacts': {
+      id: '/_app/_settings/settings/contacts'
+      path: '/settings/contacts'
+      fullPath: '/settings/contacts'
+      preLoaderRoute: typeof AppSettingsSettingsContactsRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/_settings/settings/danger': {
@@ -613,6 +671,7 @@ interface AppSettingsRouteChildren {
   AppSettingsRulesRoute: typeof AppSettingsRulesRoute
   AppSettingsSettingsAccessRoute: typeof AppSettingsSettingsAccessRoute
   AppSettingsSettingsAccountRoute: typeof AppSettingsSettingsAccountRoute
+  AppSettingsSettingsContactsRoute: typeof AppSettingsSettingsContactsRoute
   AppSettingsSettingsDangerRoute: typeof AppSettingsSettingsDangerRoute
   AppSettingsSettingsSecurityRoute: typeof AppSettingsSettingsSecurityRoute
   AppSettingsSettingsIndexRoute: typeof AppSettingsSettingsIndexRoute
@@ -624,6 +683,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsRulesRoute: AppSettingsRulesRoute,
   AppSettingsSettingsAccessRoute: AppSettingsSettingsAccessRoute,
   AppSettingsSettingsAccountRoute: AppSettingsSettingsAccountRoute,
+  AppSettingsSettingsContactsRoute: AppSettingsSettingsContactsRoute,
   AppSettingsSettingsDangerRoute: AppSettingsSettingsDangerRoute,
   AppSettingsSettingsSecurityRoute: AppSettingsSettingsSecurityRoute,
   AppSettingsSettingsIndexRoute: AppSettingsSettingsIndexRoute,
@@ -648,7 +708,9 @@ interface AppRouteChildren {
   AppSubscriptionsRoute: typeof AppSubscriptionsRoute
   AppTransactionsRoute: typeof AppTransactionsRoute
   AppAccountsAccountIdRoute: typeof AppAccountsAccountIdRoute
+  AppOwedContactIdRoute: typeof AppOwedContactIdRoute
   AppAccountsIndexRoute: typeof AppAccountsIndexRoute
+  AppOwedIndexRoute: typeof AppOwedIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -666,7 +728,9 @@ const AppRouteChildren: AppRouteChildren = {
   AppSubscriptionsRoute: AppSubscriptionsRoute,
   AppTransactionsRoute: AppTransactionsRoute,
   AppAccountsAccountIdRoute: AppAccountsAccountIdRoute,
+  AppOwedContactIdRoute: AppOwedContactIdRoute,
   AppAccountsIndexRoute: AppAccountsIndexRoute,
+  AppOwedIndexRoute: AppOwedIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

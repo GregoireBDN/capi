@@ -464,3 +464,18 @@ export function formatChargeCount(
         : 'prélèvement'
   return `${n} ${word} depuis ${formatMonth(item.firstSeenDate, today)}`
 }
+
+/**
+ * « Partagé avec Camille · ta part 50 % · 400,00 € / mois » (#359): an item
+ * shared with a contact, and the owner's part of it.
+ */
+export function shareText(
+  item: Pick<RecurringItemDto, 'share' | 'ownMonthlyEquivalentCents'>,
+): string | null {
+  if (!item.share) return null
+  const part =
+    item.share.bps !== null
+      ? `ta part ${(10_000 - item.share.bps) / 100} %`
+      : `${formatCents(item.share.amountCents ?? 0)} pour ${item.share.contactName}`
+  return `Partagé avec ${item.share.contactName} · ${part} · ${formatCents(item.ownMonthlyEquivalentCents)} / mois`
+}

@@ -55,6 +55,7 @@ import {
   formatEnd,
   formatPrepaid,
 } from './format'
+import { RecurringShareSection } from '#/components/owed/RecurringShareSection'
 import { PrepaidTermControl } from './PrepaidTermControl'
 import {
   afterRecurringChanged,
@@ -401,6 +402,9 @@ export function RecurringEditor({
                     </p>
                   </div>
                 </div>
+              )}
+              {item.status === 'confirmed' && item.direction === 'debit' && (
+                <RecurringShareSection key={item.id} item={item} />
               )}
               <Field>
                 <FieldLabel htmlFor={`${id}-notes`}>Notes</FieldLabel>

@@ -5,7 +5,7 @@ export function recurringItem(
   overrides: Partial<RecurringItemDto> = {},
 ): RecurringItemDto {
   const id = overrides.id ?? 'item-1'
-  return {
+  const item: RecurringItemDto = {
     id,
     accountId: 'a0000000-0000-4000-8000-000000000001',
     accountName: 'Compte courant',
@@ -58,6 +58,13 @@ export function recurringItem(
     ownMonthlyEquivalentCents: 0,
     ownYearlyCostCents: 0,
     ...overrides,
+  }
+  // Not shared (#359): the owner's part is the whole cost.
+  return {
+    ...item,
+    ownMonthlyEquivalentCents:
+      overrides.ownMonthlyEquivalentCents ?? item.monthlyEquivalentCents,
+    ownYearlyCostCents: overrides.ownYearlyCostCents ?? item.yearlyCostCents,
   }
 }
 
