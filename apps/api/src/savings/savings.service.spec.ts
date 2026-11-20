@@ -146,32 +146,30 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
     const cat = await transferCategories(tx)
     const internal = { categoryId: cat.get('internal_transfer')! }
     const investCat = { categoryId: cat.get('investment_transfer')! }
-    await tx
-      .insert(transactionsTable)
-      .values(
-        await bankRows(tx, [
-          row(checking.id, '2026-08-01', 300_000, 'income'),
-          row(checking.id, '2026-08-05', -100_000, 'expense'),
-          row(checking.id, '2026-08-10', -50_000, 'transfer', internal),
-          row(livret.id, '2026-08-10', 50_000, 'transfer', internal),
-          row(checking.id, '2026-08-12', -20_000, 'transfer', investCat),
-          row(checking.id, '2026-09-01', 300_000, 'income'),
-          row(checking.id, '2026-09-03', -200_000, 'expense'),
-          row(checking.id, '2026-09-20', -150_000, 'expense', {
-            isOneOff: true,
-          }),
-          row(livret.id, '2026-09-25', -30_000, 'transfer', internal),
-          row(checking.id, '2026-09-25', 30_000, 'transfer', internal),
-          row(checking.id, '2026-09-26', -10_000, 'transfer', internal),
-          row(checking.id, '2026-10-01', 300_000, 'income'),
-          row(checking.id, '2026-10-15', 100_000, 'income', { isOneOff: true }),
-          row(checking.id, '2026-10-20', -120_000, 'expense'),
-          row(checking.id, '2026-10-31', -60_000, 'transfer', internal),
-          row(livret.id, '2026-10-31', 60_000, 'transfer', internal),
-          row(checking.id, '2026-11-01', 300_000, 'income'),
-          row(checking.id, '2026-11-02', -50_000, 'expense'),
-        ]),
-      )
+    await tx.insert(transactionsTable).values(
+      await bankRows(tx, [
+        row(checking.id, '2026-08-01', 300_000, 'income'),
+        row(checking.id, '2026-08-05', -100_000, 'expense'),
+        row(checking.id, '2026-08-10', -50_000, 'transfer', internal),
+        row(livret.id, '2026-08-10', 50_000, 'transfer', internal),
+        row(checking.id, '2026-08-12', -20_000, 'transfer', investCat),
+        row(checking.id, '2026-09-01', 300_000, 'income'),
+        row(checking.id, '2026-09-03', -200_000, 'expense'),
+        row(checking.id, '2026-09-20', -150_000, 'expense', {
+          isOneOff: true,
+        }),
+        row(livret.id, '2026-09-25', -30_000, 'transfer', internal),
+        row(checking.id, '2026-09-25', 30_000, 'transfer', internal),
+        row(checking.id, '2026-09-26', -10_000, 'transfer', internal),
+        row(checking.id, '2026-10-01', 300_000, 'income'),
+        row(checking.id, '2026-10-15', 100_000, 'income', { isOneOff: true }),
+        row(checking.id, '2026-10-20', -120_000, 'expense'),
+        row(checking.id, '2026-10-31', -60_000, 'transfer', internal),
+        row(livret.id, '2026-10-31', 60_000, 'transfer', internal),
+        row(checking.id, '2026-11-01', 300_000, 'income'),
+        row(checking.id, '2026-11-02', -50_000, 'expense'),
+      ]),
+    )
     await tx.insert(balanceSnapshotsTable).values([
       {
         accountId: pea.id,
