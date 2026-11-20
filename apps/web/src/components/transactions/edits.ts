@@ -8,6 +8,7 @@ import type {
   CorrectTransactionDto,
   SplitPartDto,
   TransactionDto,
+  TransactionKind,
 } from '#/api/types.gen'
 import { unwrap } from '#/lib/queries'
 
@@ -73,10 +74,17 @@ export function splitParts(item: TransactionDto) {
 export function splitError(
   totalCents: number,
   parts: readonly { categoryId: string; amountCents: number | null }[],
+  kindOf: (categoryId: string) => TransactionKind | undefined = () => undefined,
 ): string | null {
   if (parts.length < 2) return 'Répartissez sur au moins deux catégories'
   if (parts.some((part) => !part.categoryId)) {
     return 'Choisissez une catégorie pour chaque part'
+  }
+  const transfers = parts.filter(
+    (part) => kindOf(part.categoryId) === 'transfer',
+  ).length
+  if (transfers > 0 && transfers < parts.length) {
+    return 'Un mouvement interne ne se mêle pas à des dépenses ou des revenus'
   }
   if (
     parts.some(
@@ -92,6 +100,23 @@ export function splitError(
     return 'Les parts doivent faire exactement le montant de l’opération'
   }
   return null
+}
+
+/**
+ * Whether a part is a refund (#357): an incoming part of an income or expense
+ * transaction filed in an expense category counts with that category's kind,
+ * so it is deducted from its spending, budget and envelope (as the API's
+ * `transaction_lines` reads it). A transfer's parts stay transfers.
+ */
+export function isRefundPart(
+  item: Pick<TransactionDto, 'kind' | 'amountCents'>,
+  categoryKind: TransactionKind | undefined,
+): boolean {
+  return (
+    item.amountCents > 0 &&
+    item.kind !== 'transfer' &&
+    categoryKind === 'expense'
+  )
 }
 
 /** What is left to allocate: the amount minus the parts typed so far. */

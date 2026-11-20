@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { remainingCents, splitError } from './edits'
+import type { TransactionKind } from '#/api/types.gen'
+import { isRefundPart, remainingCents, splitError } from './edits'
 import { correctionCents } from './ImportedCorrection'
 
 describe('split arithmetic', () => {
@@ -34,6 +35,34 @@ describe('split arithmetic', () => {
         { categoryId: '', amountCents: -1_550 },
       ]),
     ).toMatch(/catégorie/)
+  })
+
+  it('refuses a transfer category beside income or expense ones (#357)', () => {
+    const kinds: Record<string, TransactionKind> = {
+      food: 'expense',
+      refunds: 'income',
+      moves: 'transfer',
+    }
+    const kindOf = (id: string) => kinds[id]
+    const parts = (a: string, b: string) => [
+      { categoryId: a, amountCents: 2_000 },
+      { categoryId: b, amountCents: 4_000 },
+    ]
+    expect(splitError(6_000, parts('food', 'refunds'), kindOf)).toBeNull()
+    expect(splitError(6_000, parts('food', 'moves'), kindOf)).toMatch(
+      /mouvement interne/,
+    )
+    expect(splitError(6_000, parts('moves', 'moves'), kindOf)).toBeNull()
+  })
+
+  it('calls an incoming part in an expense category a refund (#357)', () => {
+    const income = { kind: 'income' as const, amountCents: 6_000 }
+    expect(isRefundPart(income, 'expense')).toBe(true)
+    expect(isRefundPart(income, 'income')).toBe(false)
+    expect(isRefundPart({ ...income, kind: 'transfer' }, 'expense')).toBe(false)
+    expect(
+      isRefundPart({ kind: 'expense', amountCents: -4_500 }, 'expense'),
+    ).toBe(false)
   })
 })
 
