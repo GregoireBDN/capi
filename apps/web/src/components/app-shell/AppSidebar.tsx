@@ -5,6 +5,8 @@ import { owedSummaryQuery } from '#/components/owed/queries'
 import { formatCents, formatWholeEuros } from '#/lib/money'
 import { ChevronsLeftIcon, ChevronsRightIcon, SettingsIcon } from 'lucide-react'
 import {
+  COUNT_PILL,
+  NotificationDot,
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -106,7 +108,8 @@ export function AppSidebar() {
           </Link>
         </SidebarMenuButton>
         {/* The badge is a link of its own: Opérations filtered on « À
-            revoir » (#322). Hidden while the column is folded. */}
+            revoir » (#322), on « Dépenses », whose sub-page it is (#393).
+            Hidden while the column is folded. */}
         {/* What people owe the owner (#359), hidden at 0. */}
         {badge === 'owedTotal' && queryClient && <OwedBadge to={to} />}
         {count !== null && count > 0 && (
@@ -121,19 +124,26 @@ export function AppSidebar() {
               'opérations à revoir',
             )}
             title="Voir les opérations à revoir"
-            className="bg-primary text-primary-foreground focus-visible:ring-sidebar-ring touch-hitbox absolute top-1/2 right-1 flex h-5 min-w-5 -translate-y-1/2 items-center justify-center rounded-full px-1 text-xs font-medium tabular-nums outline-none select-none hover:opacity-90 focus-visible:ring-2 group-data-[collapsible=icon]:hidden"
+            className={cn(
+              COUNT_PILL,
+              'focus-visible:ring-sidebar-ring touch-hitbox absolute top-1/2 right-2 -translate-y-1/2 outline-none select-none hover:opacity-90 focus-visible:ring-2 group-data-[collapsible=icon]:hidden',
+            )}
           >
             {/* In a span: the link's 44px touch area (::after) must not
                 count as text sticking out of the badge. */}
             <span>{count > 99 ? '99+' : count}</span>
           </Link>
         )}
-        {/* Folded, a dot on the icon says there is something to review. */}
+        {/* Folded, the dot every icon button with something waiting has
+            (`NotificationDot`, #393), astride the corner of the 44px button,
+            rounded `--radius-md`, ringed in the sidebar's colour. */}
         {count !== null && count > 0 && (
-          <span
+          <NotificationDot
             aria-hidden
             data-testid="nav-review-dot"
-            className="bg-primary pointer-events-none absolute top-1.5 right-1.5 hidden size-2 rounded-full group-data-[collapsible=icon]:block"
+            box="var(--rail-button)"
+            radius="var(--radius-md)"
+            className="hidden group-data-[collapsible=icon]:block [&>span]:ring-sidebar"
           />
         )}
       </SidebarMenuItem>

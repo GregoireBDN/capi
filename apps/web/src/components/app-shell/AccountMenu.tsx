@@ -66,9 +66,12 @@ export function AccountMenu({ user }: { user: UserDto }) {
             type="button"
             aria-label={`Compte, ${user.name}`}
             className={cn(
-              'flex size-11 shrink-0 items-center justify-center rounded-full outline-none',
-              'hover:bg-muted/60 focus-visible:ring-ring/50 focus-visible:ring-[3px]',
-              'aria-expanded:bg-muted',
+              // A 44px button like the header's « ⋮ »; its disc a little
+              // smaller (40px), a solid circle reading bigger than the light
+              // tile (the owner, #393).
+              'flex size-8 shrink-0 items-center justify-center rounded-full outline-none',
+              'hover:opacity-90 focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+              'aria-expanded:ring-ring/50 aria-expanded:ring-[3px]',
             )}
           >
             <Avatar name={user.name} size="sm" />
@@ -128,14 +131,14 @@ export function AccountMenu({ user }: { user: UserDto }) {
   )
 }
 
-/** The owner's initials on the primary colour, 32px or 56px. */
+/** The owner's initials on the primary colour, 40px (in the header's 44px button) or 56px. */
 function Avatar({ name, size }: { name: string; size: 'sm' | 'lg' }) {
   return (
     <span
       aria-hidden
       className={cn(
         'bg-primary text-primary-foreground flex shrink-0 items-center justify-center rounded-full font-semibold select-none',
-        size === 'sm' ? 'size-[32px] text-[13px]' : 'size-[56px] text-[20px]',
+        size === 'sm' ? 'size-[40px] text-[15px]' : 'size-[56px] text-[20px]',
       )}
     >
       {initials(name)}

@@ -190,12 +190,14 @@ describe('App shell sidebar (≥ md)', () => {
     expect(document.getElementById('main-content')?.tagName).toBe('MAIN')
   })
 
-  it('keeps a dot on Opérations for the transactions to review while folded', async () => {
+  it('keeps a dot on Dépenses for the transactions to review while folded (#393)', async () => {
     reviewQueue(4)
     await renderShell(false)
 
-    expect(await screen.findByTestId('nav-review-dot')).toHaveClass(
-      'group-data-[collapsible=icon]:block',
+    const dot = await screen.findByTestId('nav-review-dot')
+    expect(dot).toHaveClass('group-data-[collapsible=icon]:block')
+    expect(dot.closest('li')).toContainElement(
+      screen.getByRole('link', { name: 'Dépenses' }),
     )
   })
 
@@ -290,9 +292,15 @@ describe('App shell sidebar (< md)', () => {
     reviewQueue(12)
     const ue = userEvent.setup()
     await renderShell(false)
-    // The sidebar's badge is out of sight: ☰ carries the count.
-    expect(await screen.findByTestId('menu-review-count')).toHaveTextContent(
-      '12 opérations à revoir',
+    // ☰ carries no dot (the owner, #393); the count is still loaded for
+    // the pages that show it.
+    await vi.waitFor(() =>
+      expect(transactionsControllerReviewCount).toHaveBeenCalled(),
+    )
+    expect(
+      screen.getByRole('button', { name: 'Ouvrir le menu' }),
+    ).not.toContainElement(
+      document.querySelector('[data-slot="notification-dot"]'),
     )
 
     expect(

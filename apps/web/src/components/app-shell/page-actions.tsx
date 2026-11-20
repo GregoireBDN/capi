@@ -23,6 +23,13 @@ export interface PageAction {
   primary?: boolean
   loading?: boolean
   disabled?: boolean
+  /**
+   * Something waiting behind the action (#393: the transactions to review
+   * behind Dépenses' « Voir les opérations »): its number beside the item
+   * and on the « ⋮ » itself, so it shows without opening the menu; `label`
+   * says it to screen readers (« 7 opérations à revoir »). Hidden at 0.
+   */
+  count?: { value: number; label: string } | null
 }
 
 type Slot = HTMLElement | null
@@ -38,6 +45,7 @@ interface RegisteredAction {
   primary?: boolean
   disabled?: boolean
   loading?: boolean
+  count?: PageAction['count']
   icon: () => ReactNode
   onSelect: () => void
 }
@@ -184,6 +192,9 @@ export function useRegisterPageAction(action: PageAction | null): boolean {
   const primary = action?.primary
   const disabled = action?.disabled
   const loading = action?.loading
+  const count = action?.count ?? null
+  const countValue = count?.value
+  const countLabel = count?.label
   useEffect(() => {
     if (!register || !unregister || !present) return
     register({
@@ -192,10 +203,25 @@ export function useRegisterPageAction(action: PageAction | null): boolean {
       primary,
       disabled,
       loading,
+      count:
+        countValue === undefined || countLabel === undefined
+          ? null
+          : { value: countValue, label: countLabel },
       icon: () => latest.current?.icon,
       onSelect: () => latest.current?.onSelect(),
     })
     return () => unregister(id)
-  }, [register, unregister, id, present, label, primary, disabled, loading])
+  }, [
+    register,
+    unregister,
+    id,
+    present,
+    label,
+    primary,
+    disabled,
+    loading,
+    countValue,
+    countLabel,
+  ])
   return context !== null
 }

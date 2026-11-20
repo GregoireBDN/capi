@@ -118,6 +118,8 @@ const SCENARIOS: Array<Scenario> = [
   { name: 'shell-nav', path: '/dashboard', step: openNav },
   { name: 'shell-account', path: '/dashboard', step: openAccountMenu },
   { name: 'spending', path: '/spending' },
+  // Dépenses' « ⋮ »: « Ajouter une dépense » and « Voir les opérations » (#393).
+  { name: 'spending-actions', path: '/spending', step: openPageActions },
   { name: 'transactions', path: '/transactions?month=all' },
   {
     name: 'transactions-editor',

@@ -82,10 +82,20 @@ test('signed-in pages load with no CSP violation', async ({ page }) => {
   if (await later.isVisible()) await later.click()
   await expect(page).toHaveURL(/\/dashboard/)
 
-  for (const name of ['Dépenses', 'Opérations', 'Budget', 'Comptes']) {
+  for (const name of ['Dépenses', 'Budget', 'Comptes']) {
     await page.getByRole('link', { name, exact: true }).first().click()
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
   }
+  // Opérations, a sub-page of Dépenses, from its « ⋮ » (#393).
+  await page
+    .getByRole('link', { name: 'Dépenses', exact: true })
+    .first()
+    .click()
+  await page.getByRole('button', { name: 'Actions de la page' }).click()
+  await page.getByRole('menuitem', { name: 'Voir les opérations' }).click()
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Opérations' }),
+  ).toBeVisible()
   expect(await violations(page)).toEqual([])
 })
 

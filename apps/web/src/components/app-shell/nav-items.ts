@@ -1,5 +1,4 @@
 import {
-  ArrowLeftRightIcon,
   BitcoinIcon,
   CalendarCheckIcon,
   ChartPieIcon,
@@ -20,7 +19,6 @@ export interface NavItem {
   to: (typeof ROUTES)[
     | 'dashboard'
     | 'spending'
-    | 'transactions'
     | 'budget'
     | 'monthReview'
     | 'subscriptions'
@@ -32,9 +30,15 @@ export interface NavItem {
   icon: LucideIcon
   /**
    * Counter shown next to the label: the transactions to review, opening
-   * Opérations filtered on « À revoir » (#322).
+   * Opérations filtered on « À revoir » (#322, on « Dépenses » since #393),
+   * or what people owe the owner (#359).
    */
   badge?: 'reviewCount' | 'owedTotal'
+  /**
+   * Sub-pages out of the sidebar whose current entry is this one (#393:
+   * Opérations, reached from Dépenses' « ⋮ », highlights « Dépenses »).
+   */
+  alsoActiveOn?: readonly string[]
 }
 
 /** A titled group of the sidebar (#386: « Suivi », « Patrimoine », « Outils »). */
@@ -86,12 +90,14 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         to: ROUTES.dashboard,
         icon: LayoutDashboardIcon,
       },
-      { label: 'Dépenses', to: ROUTES.spending, icon: ChartPieIcon },
+      // Opérations is its sub-page (#393): reached from its « ⋮ », it
+      // keeps « Dépenses » current, and the « À revoir » count sits here.
       {
-        label: 'Opérations',
-        to: ROUTES.transactions,
-        icon: ArrowLeftRightIcon,
+        label: 'Dépenses',
+        to: ROUTES.spending,
+        icon: ChartPieIcon,
         badge: 'reviewCount',
+        alsoActiveOn: [ROUTES.transactions],
       },
       { label: 'Budget', to: ROUTES.budget, icon: TargetIcon },
       {
@@ -151,7 +157,12 @@ export function isNavItemActive(pathname: string, to: string): boolean {
   return pathname === to || pathname.startsWith(`${to}/`)
 }
 
-/** Whether `item` is the current entry: its page or a nested page. */
+/**
+ * Whether `item` is the current entry: its page, a nested page or one of
+ * the sub-pages it stands for (`alsoActiveOn`).
+ */
 export function isNavEntryActive(pathname: string, item: NavItem): boolean {
-  return isNavItemActive(pathname, item.to)
+  return [item.to, ...(item.alsoActiveOn ?? [])].some((to) =>
+    isNavItemActive(pathname, to),
+  )
 }

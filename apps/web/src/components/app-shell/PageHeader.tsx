@@ -1,11 +1,14 @@
 import { createPortal } from 'react-dom'
+import { useId } from 'react'
 import type { ReactNode } from 'react'
 import {
   Button,
+  CountPill,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  NotificationDot,
   Spinner,
 } from '@finances/ui'
 import { EllipsisVerticalIcon } from 'lucide-react'
@@ -127,19 +130,36 @@ function PageActionsMenu({ actions }: { actions: readonly PageAction[] }) {
     ...actions.filter((action) => !action.primary),
   ]
   const busy = actions.some((action) => action.loading)
+  // Something waits behind an item (#393): a dot on the « ⋮ », seen
+  // without opening the menu (its number is on the item), said to screen
+  // readers after the button's name.
+  const counted = actions.filter(
+    (action) => action.count && action.count.value > 0,
+  )
+  const waiting = counted.length > 0
+  const countId = useId()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
           variant="secondary"
-          ghost
+          // A light filled tile, neither outlined nor tinted like a chosen
+          // item, so its dot sits on a visible corner (#393, the owner).
           iconOnly
           aria-label="Actions de la page"
+          aria-describedby={waiting ? countId : undefined}
           title="Actions de la page"
-          className="[&_svg]:size-[1.1rem]"
+          className="relative [&_svg]:size-[1.1rem]"
         >
           {busy ? <Spinner /> : <EllipsisVerticalIcon />}
+          {waiting && (
+            <NotificationDot
+              data-testid="page-actions-count"
+              labelId={countId}
+              label={counted.map((action) => action.count?.label).join(', ')}
+            />
+          )}
         </Button>
       </DropdownMenuTrigger>
       {/* As wide as its labels (not the icon trigger), within the screen. */}
@@ -155,6 +175,13 @@ function PageActionsMenu({ actions }: { actions: readonly PageAction[] }) {
           >
             {action.loading ? <Spinner /> : action.icon}
             {action.label}
+            {action.count && action.count.value > 0 && (
+              <CountPill
+                value={action.count.value}
+                label={action.count.label}
+                className="ml-auto"
+              />
+            )}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

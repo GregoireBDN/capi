@@ -126,6 +126,71 @@ describe('PageHeader', () => {
     },
   )
 
+  it('shows what waits behind an item on it and on « ⋮ » (#393)', async () => {
+    const user = userEvent.setup()
+    const view = renderInShell(
+      <PageHeader
+        title="Dépenses"
+        actions={[
+          ...actions(),
+          {
+            label: 'Voir les opérations',
+            icon: <PencilIcon />,
+            onSelect: vi.fn(),
+            count: { value: 7, label: '7 opérations à revoir' },
+          },
+        ]}
+      />,
+    )
+
+    const more = await within(topBar()).findByRole('button', {
+      name: 'Actions de la page',
+    })
+    expect(more).toHaveAccessibleDescription('7 opérations à revoir')
+    // A dot on « ⋮ », the number on the item only (the owner).
+    expect(
+      within(topBar())
+        .getByTestId('page-actions-count')
+        .querySelector('[aria-hidden]'),
+    ).toBeEmptyDOMElement()
+    await user.click(more)
+    expect(
+      screen.getByRole('menuitem', {
+        name: /^Voir les opérations\s*, 7 opérations à revoir$/,
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('menuitem', { name: 'Modifier' }),
+    ).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+
+    // Nothing waiting: no count anywhere.
+    view.rerender(
+      <PageActionsSlotProvider>
+        <TopBarSlot />
+        <main>
+          <PageHeader
+            title="Dépenses"
+            actions={[
+              {
+                label: 'Voir les opérations',
+                icon: <PencilIcon />,
+                onSelect: vi.fn(),
+                count: { value: 0, label: '0 opération à revoir' },
+              },
+            ]}
+          />
+        </main>
+      </PageActionsSlotProvider>,
+    )
+    expect(
+      within(topBar()).queryByTestId('page-actions-count'),
+    ).not.toBeInTheDocument()
+    expect(
+      within(topBar()).getByRole('button', { name: 'Actions de la page' }),
+    ).not.toHaveAttribute('aria-describedby')
+  })
+
   it('shows no menu on a page without actions', () => {
     renderInShell(<PageHeader title="Tableau de bord" />)
 

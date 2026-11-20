@@ -23,8 +23,11 @@ const api = vi.hoisted(() => ({
   spendingControllerTrend: vi.fn(),
 }))
 
+const navigate = vi.hoisted(() => vi.fn())
+
 vi.mock('#/api', () => api)
 vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigate,
   Link: ({
     to,
     search,
@@ -301,6 +304,32 @@ describe('SpendingPage', () => {
       query: { month: '2026-10', months: 12, includeOneOffs: false },
       throwOnError: false,
     })
+  })
+
+  it('opens Opérations, its sub-page, on the month shown (#393)', async () => {
+    renderPage()
+    await screen.findByRole('region', { name: 'Indicateurs du mois' })
+
+    // Outside the shell the page actions are buttons beside the title.
+    expect(
+      screen.getByRole('button', { name: 'Ajouter une dépense' }),
+    ).toBeInTheDocument()
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Voir les opérations' }),
+    )
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/transactions',
+      search: { month: '2026-10' },
+    })
+  })
+
+  it('opens Opérations on its default month without one in the URL (#393)', async () => {
+    renderPage({})
+    await screen.findByRole('region', { name: 'Indicateurs du mois' })
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Voir les opérations' }),
+    )
+    expect(navigate).toHaveBeenCalledWith({ to: '/transactions', search: {} })
   })
 
   it('ranks the categories with drill-down links to the transactions', async () => {
