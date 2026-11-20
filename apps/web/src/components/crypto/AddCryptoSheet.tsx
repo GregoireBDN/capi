@@ -220,7 +220,15 @@ type ExchangeTarget =
 const importPlural = (count: number) =>
   `${count.toLocaleString('fr-FR')} ${count > 1 ? 'lignes' : 'ligne'}`
 
-/** One choice of a list: a tap moves on (« Suivant » is the tap). */
+/** « Suivant » of a step: the bar's › once a choice is made. */
+const NEXT_LABEL = (
+  <>
+    Suivant
+    <ChevronRightIcon aria-hidden />
+  </>
+)
+
+/** One choice of a list: a tap moves on, or « Suivant » once chosen. */
 function ChoiceTile({
   icon,
   label,
@@ -633,7 +641,11 @@ export function AddCryptoSheet({
   const exchanges = accounts.filter((account) => account.source === 'exchange')
   let title: string
   let body: ReactNode
-  let action: { label: ReactNode; loading?: boolean } | null = null
+  let action: {
+    label: ReactNode
+    loading?: boolean
+    disabled?: boolean
+  } | null = null
   let onSubmit: () => void = () => undefined
 
   switch (screen) {
@@ -656,6 +668,11 @@ export function AddCryptoSheet({
           ))}
         </ul>
       )
+      // A choice made before (a step back): « Suivant » goes on with it.
+      action = { label: NEXT_LABEL, disabled: chosenSource === null }
+      onSubmit = () => {
+        if (chosenSource) go(FIRST[chosenSource])
+      }
       break
 
     case 'exchange-provider':
@@ -732,6 +749,13 @@ export function AddCryptoSheet({
           </section>
         </div>
       )
+      action = { label: NEXT_LABEL, disabled: !otherPlatform && !exchange }
+      onSubmit = () => {
+        if (otherPlatform) {
+          setTarget(NEW_ACCOUNT)
+          go('manual-asset')
+        } else if (exchange) go('exchange-file')
+      }
       break
 
     case 'exchange-file':
@@ -811,6 +835,12 @@ export function AddCryptoSheet({
           ))}
         </ul>
       )
+      action = { label: NEXT_LABEL, disabled: !walletProvider }
+      onSubmit = () => {
+        if (!walletProvider) return
+        setKeyError(undefined)
+        go('wallet-keys')
+      }
       break
 
     case 'wallet-keys': {
@@ -928,6 +958,10 @@ export function AddCryptoSheet({
           </Field>
         </div>
       )
+      action = { label: NEXT_LABEL, disabled: !asset }
+      onSubmit = () => {
+        if (asset) go('manual-amount')
+      }
       break
 
     case 'manual-amount': {
@@ -1189,6 +1223,7 @@ export function AddCryptoSheet({
                 )
               }
               loading={action.loading}
+              disabled={action.disabled}
             />
           )
         }

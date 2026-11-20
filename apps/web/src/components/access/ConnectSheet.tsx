@@ -141,6 +141,9 @@ export function ConnectSheet({
         title={title}
         step={[STEP_NUMBER[step], 3]}
         onBack={step === 'duration' ? () => setStep('scope') : undefined}
+        next={
+          step === 'scope' ? { onSelect: () => setStep('duration') } : undefined
+        }
         steps={{
           current: step,
           // Back to « Accès » from the duration; the token, once shown,

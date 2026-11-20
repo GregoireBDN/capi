@@ -4,6 +4,7 @@ import {
   DialogContent,
   Sheet,
   SheetBar,
+  SheetBarAction,
   SheetContent,
   SheetSteps,
   useIsMobile,
@@ -28,6 +29,7 @@ export function StepDialog({
   step,
   onBack,
   steps,
+  next,
   action,
   children,
 }: {
@@ -43,6 +45,8 @@ export function StepDialog({
   onBack?: () => void
   /** On a phone, the steps as icons (`SheetSteps`) in place of « Étape n sur m ». */
   steps?: SheetStepsProps
+  /** The bar's › to the next step (a choice already made). */
+  next?: { disabled?: boolean; onSelect: () => void }
   action?: ReactNode
   children: ReactNode
 }) {
@@ -63,6 +67,16 @@ export function StepDialog({
           step ? `${label} · étape ${step[0]} sur ${step[1]}` : description
         }
         steps={steps ? <SheetSteps {...steps} /> : undefined}
+        action={
+          next && (
+            <SheetBarAction
+              label="Suivant"
+              icon={<ChevronRightIcon aria-hidden strokeWidth={2.6} />}
+              disabled={next.disabled}
+              onClick={next.onSelect}
+            />
+          )
+        }
         onBack={onBack}
       />
       <div

@@ -252,6 +252,11 @@ export function AddPrepaidSheet({
           )}
         </div>
       )
+      // A payment chosen before (a step back): « Suivant » goes on.
+      action = { label: 'Suivant', disabled: !payment }
+      onSubmit = () => {
+        if (payment) setScreen('term')
+      }
       break
     case 'term':
       title = 'Pour combien de mois ?'
@@ -368,19 +373,17 @@ export function AddPrepaidSheet({
         }
         onBack={screen !== 'payment' ? back : undefined}
         action={
-          action && (
-            <SheetBarAction
-              type="submit"
-              label={action.label}
-              icon={
-                step === STEP_COUNT ? undefined : (
-                  <ChevronRightIcon aria-hidden strokeWidth={2.6} />
-                )
-              }
-              loading={action.loading}
-              disabled={action.disabled}
-            />
-          )
+          <SheetBarAction
+            type="submit"
+            label={action.label}
+            icon={
+              step === STEP_COUNT ? undefined : (
+                <ChevronRightIcon aria-hidden strokeWidth={2.6} />
+              )
+            }
+            loading={action.loading}
+            disabled={action.disabled}
+          />
         }
       />
       <div

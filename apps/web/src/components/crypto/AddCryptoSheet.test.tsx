@@ -212,8 +212,8 @@ describe('AddCryptoSheet', () => {
       'aria-current',
       'step',
     )
-    // No « Suivant » on a list of choices: the tap is the choice.
-    expect(dialog.queryByRole('button', { name: /Suivant/ })).toBeNull()
+    // A tap is the choice; « Suivant » waits for one.
+    expect(dialog.getByRole('button', { name: 'Suivant' })).toBeDisabled()
     await user.click(dialog.getByRole('button', { name: /^Un wallet/ }))
     expect(
       dialog.getByRole('heading', { name: /Quel wallet \?/ }),
@@ -225,6 +225,15 @@ describe('AddCryptoSheet', () => {
     await user.click(dialog.getByRole('button', { name: 'Retour' }))
     expect(
       dialog.getByRole('heading', { name: /D’où viennent ces cryptos \?/ }),
+    ).toBeInTheDocument()
+    // Back, the choice made stays shown, and « Suivant » goes on with it.
+    expect(dialog.getByRole('button', { name: /^Un wallet/ })).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
+    await user.click(dialog.getByRole('button', { name: 'Suivant' }))
+    expect(
+      dialog.getByRole('heading', { name: /Quel wallet \?/ }),
     ).toBeInTheDocument()
   })
 
