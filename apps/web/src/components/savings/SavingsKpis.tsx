@@ -132,7 +132,7 @@ export function SavingsKpis({ overview }: { overview: SavingsOverviewDto }) {
           }
           deltaDisplay="value"
           deltaFormatter={formatSignedWholeEuros}
-          comparisonLabel="de plus-value"
+          comparisonLabel="de résultat"
           note={noStock ? 'Aucun livret ni placement' : 'Livrets et placements'}
         />
       </div>

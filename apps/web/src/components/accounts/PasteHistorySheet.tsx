@@ -34,7 +34,7 @@ interface PasteHistorySheetProps {
 const EXAMPLE = '31/03/2026;12 345,67;10 000\n30/06/2026;12 890,10;10 500'
 
 /**
- * Pastes a statement history (one `jj/mm/aaaa;valeur;versements` line per
+ * Pastes a statement history (one `jj/mm/aaaa;valeur;investi` line per
  * date), previews what was understood and the lines in error, then saves the
  * valid rows in one request. Existing dates are replaced.
  */
@@ -58,8 +58,8 @@ export function PasteHistorySheet({
         <SheetHeader className="pb-0">
           <SheetTitle>Coller un historique</SheetTitle>
           <SheetDescription>
-            Une ligne par date : date, valeur et, si vous les connaissez, les
-            versements nets, séparés par des points-virgules ou des tabulations.
+            Une ligne par date : date, valeur et, si vous le connaissez, le
+            montant investi, séparés par des points-virgules ou des tabulations.
           </SheetDescription>
         </SheetHeader>
         {open && (
@@ -138,8 +138,8 @@ export function PasteHistoryForm({
           onChange={(event) => setText(event.target.value)}
         />
         <FieldDescription>
-          Format jj/mm/aaaa;valeur;versements, montants en euros (1 234,56). Une
-          date déjà saisie est remplacée ; ses versements sont gardés si la
+          Format jj/mm/aaaa;valeur;investi, montants en euros (1 234,56). Une
+          date déjà saisie est remplacée ; son montant investi est gardé si la
           ligne n’en a pas.
         </FieldDescription>
       </Field>
@@ -185,8 +185,8 @@ export function PasteHistoryForm({
                   </span>
                   <span className="text-muted-foreground block text-xs tabular-nums">
                     {row.contributionsCents === null
-                      ? 'Versements non indiqués'
-                      : `Versé ${formatCents(row.contributionsCents)}`}
+                      ? 'Investi non indiqué'
+                      : `Investi ${formatCents(row.contributionsCents)}`}
                   </span>
                 </span>
               </li>

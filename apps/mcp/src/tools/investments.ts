@@ -86,15 +86,15 @@ function accountLine(
   const gain =
     row.gainCents === null
       ? ''
-      : `, plus-value ${signedEuros(row.gainCents)}${
+      : `, résultat ${signedEuros(row.gainCents)}${
           row.returnRate === null ? '' : ` (${percent(row.returnRate)})`
         }`
   const contributions =
     row.contributionsCents === null
-      ? crypto && account?.cryptoSource !== 'exchange'
-        ? ', montant investi inconnu (set_crypto_invested)'
+      ? !crypto || account?.cryptoSource !== 'exchange'
+        ? ', montant investi inconnu (set_invested_amount)'
         : ''
-      : `, ${crypto ? 'investi' : 'versements nets'} ${euros(row.contributionsCents)}${gain}${unknownCosts}`
+      : `, investi ${euros(row.contributionsCents)}${gain}${unknownCosts}`
   const age =
     row.daysSinceLatest === null ? '' : ` (il y a ${row.daysSinceLatest} j)`
   const stale = row.stale

@@ -36,9 +36,10 @@ import type {
 } from './dto/snapshot.dto'
 import {
   computePerformance,
-  cryptoInvestedAt,
+  investedAt,
   type InvestedBase,
   investedBaseOf,
+  takesInvestedBase,
   type LinkedFlow,
   linkedContributions,
   simpleReturn,
@@ -211,9 +212,8 @@ export class InvestmentsService {
   }
 
   /**
-   * What a wallet or manual crypto account's invested amount, gain and rate
-   * are now and would be with `dto` as its invested base (#358). Saves
-   * nothing.
+   * What an account's invested amount, gain and rate are now and would be
+   * with `dto` as its invested base (#358, #360). Saves nothing.
    */
   async previewInvestedBase(
     accountId: string,
@@ -225,17 +225,19 @@ export class InvestmentsService {
     const account = await this.baseAccount(accountId, this.db)
     const [snapshots, flows] = await Promise.all([
       this.snapshotsOf(this.db, accountId),
-      loadReceivedCoinFlows(this.db, [accountId]),
+      this.linkedFlows(this.db, [account]),
     ])
     const accountFlows = flows.get(accountId) ?? []
     return {
       current: investedFigures(
+        account.type,
         snapshots,
         accountFlows,
         investedBaseOf(account),
         today,
       ),
       next: investedFigures(
+        account.type,
         snapshots,
         accountFlows,
         { cents: dto.amountCents, on: dto.on },
@@ -245,9 +247,11 @@ export class InvestmentsService {
   }
 
   /**
-   * Sets a wallet or manual crypto account's invested base (#358), then
-   * gives the snapshots from its day (or the previous base's, the earlier)
-   * the invested amount as their contributions, so the history follows.
+   * Sets an account's invested base (#358, #360). A crypto account's
+   * snapshots from its day (or the previous base's, the earlier) get the
+   * invested amount as their contributions, so the history follows; a PEA's
+   * keep what was typed on them, the base winning from its day in the
+   * figures.
    */
   async setInvestedBase(
     accountId: string,
@@ -287,12 +291,11 @@ export class InvestmentsService {
           updatedAt: now,
         })
         .where(eq(accountsTable.id, accountId))
-      const flows =
-        (await loadReceivedCoinFlows(tx, [accountId])).get(accountId) ?? []
+      const flows = (await this.linkedFlows(tx, [account])).get(accountId) ?? []
       const from = [previous?.on, base?.on]
         .filter((day): day is string => day !== undefined)
         .sort()[0]
-      if (from !== undefined) {
+      if (from !== undefined && account.type === 'crypto') {
         // Without a base, a manual account's snapshots get its holdings'
         // invested amounts back, as its valuation writes them.
         const holdingsCents =
@@ -303,8 +306,7 @@ export class InvestmentsService {
           .where(and(eq(s.accountId, accountId), gte(s.date, from)))
         for (const row of rewritten) {
           const contributionsCents =
-            cryptoInvestedAt(base, flows, row.date)?.investedCents ??
-            holdingsCents
+            investedAt(base, flows, row.date)?.investedCents ?? holdingsCents
           await tx
             .update(s)
             .set({ contributionsCents, updatedAt: now })
@@ -312,7 +314,7 @@ export class InvestmentsService {
         }
       }
       const snapshots = await this.snapshotsOf(tx, accountId)
-      return investedFigures(snapshots, flows, base, today)
+      return investedFigures(account.type, snapshots, flows, base, today)
     })
   }
 
@@ -331,15 +333,18 @@ export class InvestmentsService {
     return rows.reduce((sum, row) => sum + row.investedCents!, 0)
   }
 
-  /** A writable wallet or manual crypto account: the only ones with a base. */
+  /**
+   * A writable account that takes an invested base: an investment account
+   * other than an exchange, whose holdings carry their cost.
+   */
   private async baseAccount(
     accountId: string,
     executor: Executor,
   ): Promise<AccountWithBalance> {
     const account = await this.writableAccount(accountId, executor)
-    if (account.type !== 'crypto' || account.cryptoSource === 'exchange') {
+    if (!takesInvestedBase(account)) {
       throw new BadRequestException(
-        'Only wallet and manual crypto accounts take an invested base',
+        'Only investment accounts other than exchanges take an invested base',
       )
     }
     return account
@@ -595,14 +600,15 @@ export class InvestmentsService {
   }
 }
 
-/** The invested figures of a crypto account with `base`. */
+/** The invested figures of an account with `base`. */
 function investedFigures(
+  type: AccountType,
   snapshots: readonly SnapshotDto[],
   flows: readonly LinkedFlow[],
   base: InvestedBase | null,
   today: string,
 ): InvestedFiguresDto {
-  const figures = computePerformance(snapshots, 'crypto', today, flows, base)
+  const figures = computePerformance(snapshots, type, today, flows, base)
   return {
     investedBase: base && { amountCents: base.cents, on: base.on },
     valueCents: figures.valueCents,

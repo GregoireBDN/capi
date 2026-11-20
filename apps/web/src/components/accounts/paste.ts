@@ -27,8 +27,8 @@ export interface PastedHistory {
 }
 
 /**
- * Reads a statement history pasted as `jj/mm/aaaa;valeur;versements` lines
- * (`;` or tab separated, versements optional, French amounts). Every line is
+ * Reads a statement history pasted as `jj/mm/aaaa;valeur;investi` lines
+ * (`;` or tab separated, the invested amount optional, French amounts). Every line is
  * checked on its own so the preview can show which ones are wrong.
  */
 export function parseSnapshotHistory(
@@ -57,7 +57,7 @@ export function parseSnapshotHistory(
 
     const cells = content.split(/[;\t]/).map((cell) => cell.trim())
     if (cells.length < 2 || cells.length > 3) {
-      fail('Attendu : date;valeur;versements (versements facultatifs)')
+      fail('Attendu : date;valeur;investi (investi facultatif)')
       return
     }
     const [dateText, valueText, contributionsText = ''] = cells
@@ -83,7 +83,7 @@ export function parseSnapshotHistory(
     if (contributionsText !== '') {
       contributionsCents = parseAmountToCents(contributionsText)
       if (contributionsCents === null) {
-        fail(`Versements invalides « ${contributionsText} »`)
+        fail(`Montant investi invalide « ${contributionsText} »`)
         return
       }
     }

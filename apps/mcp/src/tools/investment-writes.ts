@@ -95,14 +95,14 @@ function snapshotLine(p: PlannedSnapshot): string {
   const contributions =
     p.contributionsCents === undefined
       ? ''
-      : ` (versements nets ${euros(p.contributionsCents)})`
+      : ` (investi ${euros(p.contributionsCents)})`
   if (!p.current) {
     return `- ${frenchDate(p.date)} : nouvelle valeur ${euros(p.valueCents)}${contributions}`
   }
   const contributionsChange =
     p.contributionsCents !== undefined &&
     p.contributionsCents !== p.current.contributionsCents
-      ? `, versements nets ${eurosOrUnknown(p.current.contributionsCents)} → ${euros(p.contributionsCents)}`
+      ? `, investi ${eurosOrUnknown(p.current.contributionsCents)} → ${euros(p.contributionsCents)}`
       : ''
   const value =
     p.current.valueCents === p.valueCents
@@ -210,7 +210,7 @@ export const addInvestmentSnapshotsTool = defineTool({
         contributionsCents:
           row.contributions === undefined
             ? undefined
-            : parseCents(row.contributions, 'Versements', row.date, true),
+            : parseCents(row.contributions, 'Investi', row.date, true),
         current: byDate.get(row.date),
       }))
       .sort((a, b) => a.date.localeCompare(b.date))
@@ -441,7 +441,7 @@ export const syncCryptoHoldingsTool = defineTool({
     account: z
       .string()
       .max(100)
-      .describe('Crypto account name (see list_investment_accounts).'),
+      .describe('Investment account name (see list_investment_accounts).'),
     location: z
       .string()
       .max(LOCATION_MAX)
@@ -692,34 +692,34 @@ export const syncCryptoHoldingsTool = defineTool({
 })
 
 // ---------------------------------------------------------------------------
-// set_crypto_invested
+// set_invested_amount
 // ---------------------------------------------------------------------------
 
-/** « investi 5 000,00 €, plus-value -2 000,00 € (-40 %) ». */
+/** « investi 5 000,00 €, résultat -2 000,00 € (-40 %) ». */
 function investedFiguresText(figures: InvestedFiguresDto): string {
   if (figures.contributionsCents === null) return 'investi inconnu'
   const gain =
     figures.gainCents === null
       ? ''
-      : `, plus-value ${signedEuros(figures.gainCents)}${
+      : `, résultat ${signedEuros(figures.gainCents)}${
           figures.returnRate === null ? '' : ` (${percent(figures.returnRate)})`
         }`
   return `investi ${euros(figures.contributionsCents)}${gain}`
 }
 
-/** « 5 000,00 € jusqu'au 30/06/2026 », or « aucun ». */
+/** « 5 000,00 € au 30/06/2026 », or « aucun ». */
 function baseText(base: InvestedBaseDto | null): string {
-  return base
-    ? `${euros(base.amountCents)} jusqu'au ${frenchDate(base.on)}`
-    : 'aucun'
+  return base ? `${euros(base.amountCents)} au ${frenchDate(base.on)}` : 'aucun'
 }
 
-/** What else makes the invested amount: coins received, unknown costs. */
-function linkedNote(figures: InvestedFiguresDto): string[] {
+/** What else makes the invested amount: transfers or coins, unknown costs. */
+function linkedNote(figures: InvestedFiguresDto, crypto: boolean): string[] {
   const lines: string[] = []
   if (figures.investedBase && figures.linkedTransfersCount > 0) {
     lines.push(
-      `S'y ajoute le coût de ${figures.linkedTransfersCount} envoi(s) reçu(s) d'une plateforme suivie depuis le ${frenchDate(figures.investedBase.on)}.`,
+      crypto
+        ? `S'y ajoute le coût de ${figures.linkedTransfersCount} envoi(s) reçu(s) d'une plateforme suivie depuis le ${frenchDate(figures.investedBase.on)}.`
+        : `S'y ajoutent ${figures.linkedTransfersCount} virement(s) lié(s) depuis le ${frenchDate(figures.investedBase.on)}.`,
     )
   }
   if (figures.unknownCostCount > 0) {
@@ -730,11 +730,11 @@ function linkedNote(figures: InvestedFiguresDto): string[] {
   return lines
 }
 
-export const setCryptoInvestedTool = defineTool({
-  name: 'set_crypto_invested',
-  title: 'Montant investi d’un compte crypto',
+export const setInvestedAmountTool = defineTool({
+  name: 'set_invested_amount',
+  title: 'Montant investi d’un placement',
   description:
-    "Set what the owner invested in a crypto wallet or manual crypto account up to a day (« Investi jusqu'au … »), so its latent gain and rate show like a PEA's. The invested amount is then this base plus the cost of the coins sent to it from a followed exchange after that day; valuations keep it. Not for exchange accounts (their holdings carry their cost). Without confirm: preview of the invested amount, gain and rate now → after. With confirm: true saves it; a repeated call changes nothing. Removing it is done in the app.",
+    'Set what the owner invested in an investment account up to a day (« Investi au … »): a PEA, a life insurance, employee savings, a crypto wallet or manual crypto account (#360), so its result (latent gain) and rate show. The invested amount is then this base plus what is linked to the account after that day (bank transfers, or the cost of coins sent from a followed exchange); it wins over the amounts typed on the values from its day. Not for exchange accounts (their holdings carry their cost). Without confirm: preview of the invested amount, result and rate now → after. With confirm: true saves it; a repeated call changes nothing. Removing it is done in the app.',
   write: { idempotent: true },
   inputSchema: {
     account: z
@@ -751,21 +751,18 @@ export const setCryptoInvestedTool = defineTool({
       .string()
       .regex(DATE_PATTERN)
       .describe(
-        'Last day the amount covers, YYYY-MM-DD, not after today: coins received after it add their cost.',
+        "Day the amount was right, YYYY-MM-DD, not after today (a statement's date): transfers or coins linked after it add on top.",
       ),
     confirm: confirmSchema,
   },
   async run({ api, now }, args) {
     const account = await resolveInvestmentAccount(api, args.account)
-    if (account.type !== 'crypto' || account.cryptoSource === 'exchange') {
+    if (account.type === 'crypto' && account.cryptoSource === 'exchange') {
       throw new ToolInputError(
-        `${account.name} n'est pas un wallet ni un compte crypto saisi à la main : ${
-          account.type === 'crypto'
-            ? 'une plateforme garde le coût de ses avoirs importés'
-            : 'ses versements se donnent avec ses valeurs (add_investment_snapshots)'
-        }. Rien n'a été modifié.`,
+        `${account.name} est une plateforme : elle garde le coût de ses avoirs importés. Rien n'a été modifié.`,
       )
     }
+    const crypto = account.type === 'crypto'
     const parsed = parseEuros(args.amount)
     if (!parsed || parsed.sign === '-') {
       throw new ToolInputError(
@@ -796,14 +793,14 @@ export const setCryptoInvestedTool = defineTool({
       return [
         `Rien à modifier : ${account.name} a déjà ${baseText(previous)} comme montant investi.`,
         `Aujourd'hui : ${investedFiguresText(preview.current)}.`,
-        ...linkedNote(preview.current),
+        ...linkedNote(preview.current, crypto),
       ].join('\n')
     }
     const details = [
       `Montant investi de base : ${baseText(previous)} → ${baseText(preview.next.investedBase)}.`,
       `Avant : ${investedFiguresText(preview.current)}.`,
       `Après : ${investedFiguresText(preview.next)}.`,
-      ...linkedNote(preview.next),
+      ...linkedNote(preview.next, crypto),
     ]
     if (args.confirm !== true) {
       return [
@@ -821,11 +818,11 @@ export const setCryptoInvestedTool = defineTool({
     )
     return [
       `${account.name} : montant investi enregistré, ${investedFiguresText(saved)}.`,
-      ...linkedNote(saved),
+      ...linkedNote(saved, crypto),
       '',
       previous
-        ? `Pour revenir à l'ancien montant : set_crypto_invested account "${account.name}", amount "${centsToText(previous.amountCents)}", until "${previous.on}", confirm: true.`
-        : "Pour le retirer : dans l'application, « Modifier » le compte › « Montant investi » › « Retirer le montant investi » ; aucun outil MCP ne supprime.",
+        ? `Pour revenir à l'ancien montant : set_invested_amount account "${account.name}", amount "${centsToText(previous.amountCents)}", until "${previous.on}", confirm: true.`
+        : "Pour le retirer : dans l'application, page du compte › « Modifier » le montant investi › « Retirer » ; aucun outil MCP ne supprime.",
     ].join('\n')
   },
 })

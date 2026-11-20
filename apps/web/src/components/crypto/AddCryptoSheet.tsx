@@ -891,7 +891,7 @@ export function AddCryptoSheet({
               <FieldError>{shown.invested}</FieldError>
             ) : (
               <FieldDescription>
-                Ce que ces cryptos vous ont coûté, pour la plus-value.
+                Ce que ces cryptos vous ont coûté, pour calculer le résultat.
               </FieldDescription>
             )}
           </Field>

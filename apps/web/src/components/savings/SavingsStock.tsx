@@ -29,13 +29,13 @@ export function SavingsStock({ stock }: { stock: SavingsStockDto }) {
         {investments.totals.withoutContributionsCount > 0 &&
           investments.totals.contributionsCents !== null && (
             <p className="text-muted-foreground text-xs">
-              Versé et plus-value hors{' '}
+              Investi et résultat hors{' '}
               {plural(
                 investments.totals.withoutContributionsCount,
                 'placement',
                 'placements',
               )}{' '}
-              sans versements connus.
+              sans montant investi connu.
             </p>
           )}
       </CardHeader>

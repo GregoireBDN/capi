@@ -21,7 +21,7 @@ import {
 } from '#/database/schema'
 import { loadReceivedCoinFlows } from '#/investments/crypto-flows'
 import { parisToday } from '#/investments/days'
-import { cryptoInvestedAt, investedBaseOf } from '#/investments/performance'
+import { investedAt, investedBaseOf } from '#/investments/performance'
 import { CryptoPricesService, type RefreshMode } from './crypto-prices.service'
 import { formatDecimal, parseDecimal } from './decimal'
 import type {
@@ -631,7 +631,7 @@ export class CryptoService {
       accounts.map((account) => account.id),
     )
     for (const account of accounts) {
-      const invested = cryptoInvestedAt(
+      const invested = investedAt(
         investedBaseOf(account),
         flows.get(account.id) ?? [],
         today,

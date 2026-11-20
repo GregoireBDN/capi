@@ -260,6 +260,13 @@
       "when": 1795160942538,
       "tag": "0036_crypto_invested_base",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795161946698,
+      "tag": "0037_invested_base_all_investments",
+      "breakpoints": true
     }
   ]
 }

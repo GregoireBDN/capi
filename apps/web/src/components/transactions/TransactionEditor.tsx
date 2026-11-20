@@ -296,7 +296,7 @@ function CounterpartScreen({
         {item.amountCents < 0
           ? 'Le compte où cet argent est allé.'
           : 'Le compte d’où vient cet argent.'}{' '}
-        Les virements liés à un placement font ses versements.
+        Les virements liés à un placement comptent dans son montant investi.
       </p>
       {accounts.isPending ? (
         <p className="text-muted-foreground text-sm">Chargement…</p>

@@ -144,16 +144,16 @@ export class AccountSnapshotsController {
   @Put('invested-base')
   @TokenAccess('write')
   @ApiOperation({
-    summary: 'Set the invested base of a wallet or manual crypto account',
+    summary: 'Set the invested base of an investment account',
     description:
-      "What was invested in the account up to a day (#358, « Investi jusqu’au … »). The invested amount is then that base plus the cost of the coins linked to the account after that day; the snapshots from that day get it as their contributions. Not for exchange accounts, which keep their holdings' cost.",
+      "What was invested in the account up to a day (« Investi au … »): a PEA, a life insurance, employee savings (#360), a wallet or manual crypto account (#358). The invested amount is then that base plus what is linked to the account after that day (transfers, or the cost of coins for crypto); a crypto account's snapshots from that day get it as their contributions. Not for exchange accounts, which keep their holdings' cost.",
   })
   @ApiParam(ID_PARAM)
   @ApiBody({ type: SetInvestedBaseDto })
   @ApiOkResponse({ type: InvestedFiguresDto })
   @ApiBadRequestResponse({
     description:
-      'Invalid body, future day, archived account, not a wallet or manual crypto account.',
+      'Invalid body, future day, archived account, not an investment account other than an exchange.',
   })
   @ApiNotFoundResponse()
   setInvestedBase(
@@ -176,7 +176,7 @@ export class AccountSnapshotsController {
   @ApiOkResponse({ type: InvestedBasePreviewDto })
   @ApiBadRequestResponse({
     description:
-      'Invalid body, future day, archived account, not a wallet or manual crypto account.',
+      'Invalid body, future day, archived account, not an investment account other than an exchange.',
   })
   @ApiNotFoundResponse()
   previewInvestedBase(
@@ -189,14 +189,15 @@ export class AccountSnapshotsController {
   @Delete('invested-base')
   @TokenAccess('none')
   @ApiOperation({
-    summary: 'Remove the invested base of a crypto account',
+    summary: 'Remove the invested base of an account',
     description:
-      "The coins linked to it (or its holdings' invested amounts) give its invested amount again. Session only.",
+      "What is typed on its values and linked to it (or a crypto account's holdings' invested amounts) gives its invested amount again. Session only.",
   })
   @ApiParam(ID_PARAM)
   @ApiOkResponse({ type: InvestedFiguresDto })
   @ApiBadRequestResponse({
-    description: 'Archived account, not a wallet or manual crypto account.',
+    description:
+      'Archived account, not an investment account other than an exchange.',
   })
   @ApiNotFoundResponse()
   clearInvestedBase(

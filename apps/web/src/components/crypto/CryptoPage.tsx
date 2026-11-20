@@ -182,7 +182,7 @@ function PortfolioSummary({
           {totals.investedCents !== null && totals.gainCents !== null && (
             <p className="text-muted-foreground text-sm tabular-nums">
               Investi {formatCents(totals.investedCents)} ·{' '}
-              <span className="whitespace-nowrap">plus-value</span>{' '}
+              <span className="whitespace-nowrap">résultat</span>{' '}
               <SignedCents cents={totals.gainCents} />
               {without && ` (${without})`}
             </p>
@@ -325,11 +325,11 @@ function AssetRow({
         {asset.valueCents !== null && (
           <p className="tabular-nums">
             {asset.investedCents === null || asset.gainCents === null ? (
-              'Coût inconnu : pas de plus-value calculée.'
+              'Coût inconnu : pas de résultat calculé.'
             ) : (
               <>
                 Investi {formatCents(asset.investedCents)} ·{' '}
-                <span className="whitespace-nowrap">plus-value</span>{' '}
+                <span className="whitespace-nowrap">résultat</span>{' '}
                 <SignedCents cents={asset.gainCents} />
               </>
             )}

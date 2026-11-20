@@ -480,7 +480,7 @@ export function HoldingEditor({
                       <FieldError>{shown.invested}</FieldError>
                     ) : (
                       <FieldDescription>
-                        Total payé pour cet avoir, pour la plus-value.
+                        Total payé pour cet avoir, pour calculer le résultat.
                       </FieldDescription>
                     )}
                   </Field>

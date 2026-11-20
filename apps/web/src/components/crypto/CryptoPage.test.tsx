@@ -257,7 +257,7 @@ describe('CryptoPage', () => {
     expect(text(summary.textContent)).toContain('+143,30 € sur 24 h')
     // ETH's cost is unknown: the gain is over BTC only, and says so.
     expect(text(summary.textContent)).toContain(
-      'Investi 4 120,00 € · plus-value +2 686,25 € (hors ETH)',
+      'Investi 4 120,00 € · résultat +2 686,25 € (hors ETH)',
     )
     expect(text(summary.textContent)).toContain('Cours il y a 3 min')
     expect(
@@ -291,12 +291,12 @@ describe('CryptoPage', () => {
       '1 BTC = 82 500,00 € · cours il y a 3 min · +2,4 % sur 24 h',
     )
     expect(text(btc.textContent)).toContain(
-      'Investi 4 120,00 € · plus-value +2 686,25 €',
+      'Investi 4 120,00 € · résultat +2 686,25 €',
     )
 
     await user.click(rows[1])
     expect(
-      screen.getByText('Coût inconnu : pas de plus-value calculée.'),
+      screen.getByText('Coût inconnu : pas de résultat calculé.'),
     ).toBeInTheDocument()
   })
 

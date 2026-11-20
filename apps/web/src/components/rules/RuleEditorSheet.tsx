@@ -726,7 +726,8 @@ export function RuleEditorSheet({
                       </NativeSelect>
                       <FieldDescription>
                         Les virements classés par cette règle sont liés à ce
-                        compte : ceux vers un placement font ses versements.
+                        compte : ceux vers un placement comptent dans son
+                        montant investi.
                       </FieldDescription>
                     </Field>
                   )}

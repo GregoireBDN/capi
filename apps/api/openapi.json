@@ -5137,7 +5137,7 @@
     },
     "/api/accounts/{id}/invested-base": {
       "put": {
-        "description": "What was invested in the account up to a day (#358, « Investi jusqu’au … »). The invested amount is then that base plus the cost of the coins linked to the account after that day; the snapshots from that day get it as their contributions. Not for exchange accounts, which keep their holdings' cost.",
+        "description": "What was invested in the account up to a day (« Investi au … »): a PEA, a life insurance, employee savings (#360), a wallet or manual crypto account (#358). The invested amount is then that base plus what is linked to the account after that day (transfers, or the cost of coins for crypto); a crypto account's snapshots from that day get it as their contributions. Not for exchange accounts, which keep their holdings' cost.",
         "operationId": "AccountSnapshotsController_setInvestedBase",
         "parameters": [
           {
@@ -5172,7 +5172,7 @@
             }
           },
           "400": {
-            "description": "Invalid body, future day, archived account, not a wallet or manual crypto account."
+            "description": "Invalid body, future day, archived account, not an investment account other than an exchange."
           },
           "401": {
             "description": ""
@@ -5186,13 +5186,13 @@
             "token": []
           }
         ],
-        "summary": "Set the invested base of a wallet or manual crypto account",
+        "summary": "Set the invested base of an investment account",
         "tags": [
           "Accounts"
         ]
       },
       "delete": {
-        "description": "The coins linked to it (or its holdings' invested amounts) give its invested amount again. Session only.",
+        "description": "What is typed on its values and linked to it (or a crypto account's holdings' invested amounts) gives its invested amount again. Session only.",
         "operationId": "AccountSnapshotsController_clearInvestedBase",
         "parameters": [
           {
@@ -5217,7 +5217,7 @@
             }
           },
           "400": {
-            "description": "Archived account, not a wallet or manual crypto account."
+            "description": "Archived account, not an investment account other than an exchange."
           },
           "401": {
             "description": ""
@@ -5231,7 +5231,7 @@
             "token": []
           }
         ],
-        "summary": "Remove the invested base of a crypto account",
+        "summary": "Remove the invested base of an account",
         "tags": [
           "Accounts"
         ]
@@ -5274,7 +5274,7 @@
             }
           },
           "400": {
-            "description": "Invalid body, future day, archived account, not a wallet or manual crypto account."
+            "description": "Invalid body, future day, archived account, not an investment account other than an exchange."
           },
           "401": {
             "description": ""
@@ -13679,7 +13679,7 @@
           "typed",
           "base"
         ],
-        "description": "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings); `base`: a crypto account's invested base (#358) plus the cost of the coins linked to it since its day."
+        "description": "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings); `base`: the account's invested base (#358, #360) plus what was linked to it since its day (transfers, or the cost of coins for crypto)."
       },
       "ValueChangeDto": {
         "type": "object",
@@ -13775,7 +13775,7 @@
           },
           "contributionsSource": {
             "nullable": true,
-            "description": "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings); `base`: a crypto account's invested base (#358) plus the cost of the coins linked to it since its day.",
+            "description": "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings); `base`: the account's invested base (#358, #360) plus what was linked to it since its day (transfers, or the cost of coins for crypto).",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ContributionsSource"
@@ -14075,7 +14075,7 @@
           },
           "contributionsSource": {
             "nullable": true,
-            "description": "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings); `base`: a crypto account's invested base (#358) plus the cost of the coins linked to it since its day.",
+            "description": "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings); `base`: the account's invested base (#358, #360) plus what was linked to it since its day (transfers, or the cost of coins for crypto).",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ContributionsSource"
