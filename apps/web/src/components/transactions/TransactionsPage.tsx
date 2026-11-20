@@ -26,6 +26,7 @@ import { RepaymentSuggestions } from '#/components/owed/RepaymentSuggestions'
 import { StaleValuesReminder } from '#/components/review/StaleValuesReminder'
 import { currentMonth, formatMonth } from '#/lib/calendar'
 import { accountsQuery, categoriesQuery, isTransactional } from '#/lib/queries'
+import { useKnownReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
 import { BulkActionsBar } from './BulkActionsBar'
 import type { BulkChanges, TransactionChanges } from './changes'
@@ -292,6 +293,8 @@ export function TransactionsPage({
   }
 
   const reviewing = search.review === true
+  // Over every date, from the shell's store (#393: « À revoir » forward).
+  const reviewCount = useKnownReviewCount()
 
   async function applyBulk(
     targets: readonly TransactionDto[],
@@ -357,6 +360,7 @@ export function TransactionsPage({
         accounts={visibleAccounts}
         categories={categoryList}
         defaultMonth={shownMonth}
+        reviewCount={reviewCount}
       />
 
       {/* No block of 0,00 € tiles above an empty list; no totals while

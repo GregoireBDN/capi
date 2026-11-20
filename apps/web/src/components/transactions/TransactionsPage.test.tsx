@@ -17,6 +17,7 @@ import type {
   TransactionSummaryDto,
 } from '#/api/types.gen'
 import { formatCents } from '#/lib/money'
+import { resetReviewCount, setReviewCount } from '#/lib/review-count'
 import {
   categoryField,
   chooseCategory,
@@ -331,6 +332,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
+  resetReviewCount()
 })
 
 describe('TransactionsPage', () => {
@@ -545,7 +547,6 @@ describe('TransactionsPage', () => {
         name: 'Mouvements internes',
       }),
     )
-    await user.click(bar.getByRole('button', { name: 'À revoir' }))
     await user.click(bar.getByRole('button', { name: 'Mois précédent' }))
 
     expect(onChange).toHaveBeenLastCalledWith(
@@ -553,7 +554,6 @@ describe('TransactionsPage', () => {
         account: ACCOUNT_ID,
         category: 'none',
         kind: 'transfer',
-        review: true,
         month: '2026-10',
       },
       undefined,
@@ -564,9 +564,52 @@ describe('TransactionsPage', () => {
         accountId: ACCOUNT_ID,
         uncategorized: true,
         kind: 'transfer',
-        needsReview: true,
       }),
     )
+
+    // « À revoir » opens the queue over every date, like its count (#393).
+    await user.click(bar.getByRole('button', { name: 'À revoir' }))
+    expect(onChange).toHaveBeenLastCalledWith(
+      {
+        account: ACCOUNT_ID,
+        category: 'none',
+        kind: 'transfer',
+        review: true,
+        month: 'all',
+      },
+      undefined,
+    )
+  })
+
+  it('puts « À revoir » first with its count while some wait (#393)', async () => {
+    setReviewCount(7)
+    const { user, onChange } = setup({ month: '2026-10' })
+    await waitForRows()
+    const chips = screen.getAllByRole('button', { pressed: false })
+    const chip = screen.getByRole('button', {
+      name: /^À revoir\s*, 7 opérations à revoir$/,
+    })
+    expect(chips[0]).toBe(chip)
+    expect(chip).toHaveTextContent(/^À revoir7/)
+
+    await user.click(chip)
+    expect(onChange).toHaveBeenLastCalledWith(
+      { review: true, month: 'all' },
+      undefined,
+    )
+    // On, it is a plain filter again: no count, × clears it.
+    expect(
+      screen.getByRole('button', { name: 'À revoir', pressed: true }),
+    ).not.toHaveTextContent('7')
+  })
+
+  it('offers no « À revoir » when nothing waits for review (#393)', async () => {
+    setReviewCount(0)
+    setup({ month: '2026-10' })
+    await waitForRows()
+    expect(
+      screen.queryByRole('button', { name: /À revoir/ }),
+    ).not.toBeInTheDocument()
   })
 
   it('goes back to Dépenses, its parent page, on the month shown (#393)', async () => {

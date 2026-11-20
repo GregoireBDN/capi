@@ -221,13 +221,21 @@ export function ToggleChip({
   pressed,
   onPressedChange,
   hideWhenOff = false,
+  count,
 }: {
   label: string
   pressed: boolean
   onPressedChange: (pressed: boolean) => void
   /** Shown only when on (phones: the « Filtres » sheet turns it on). */
   hideWhenOff?: boolean
+  /**
+   * What the filter would show (#393: the transactions to review), set
+   * forward while off: its number on the chip, on every width; `label`
+   * says it to screen readers (« 7 opérations à revoir »).
+   */
+  count?: { value: number; label: string }
 }) {
+  const counted = !pressed && count !== undefined && count.value > 0
   return (
     <button
       type="button"
@@ -239,11 +247,18 @@ export function ToggleChip({
         CHIP,
         pressed ? CHIP_ON : CHIP_OFF,
         'pointer-coarse:touch-hitbox relative px-3',
-        hideWhenOff && !pressed && 'hidden @[672px]:inline-flex',
+        counted && 'border-primary/50 text-primary hover:bg-primary/10 pr-1',
+        hideWhenOff && !pressed && !counted && 'hidden @[672px]:inline-flex',
       )}
     >
       {label}
       {pressed && <XIcon aria-hidden className="size-4" />}
+      {counted && (
+        <span className="bg-primary text-primary-foreground flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums">
+          <span aria-hidden>{count.value > 99 ? '99+' : count.value}</span>
+          <span className="sr-only">, {count.label}</span>
+        </span>
+      )}
     </button>
   )
 }

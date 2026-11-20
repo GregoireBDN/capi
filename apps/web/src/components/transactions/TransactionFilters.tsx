@@ -15,6 +15,7 @@ import type { AccountDto, CategoryDto, TransactionKind } from '#/api/types.gen'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { MonthToolbar } from '#/components/month/MonthToolbar'
 import { currentMonth } from '#/lib/calendar'
+import { plural } from '#/lib/plural'
 import { FilterChip, ToggleChip } from './FilterChip'
 import type { FilterChipOption } from './FilterChip'
 import { KIND_GROUP_LABELS, TRANSACTION_KINDS } from './labels'
@@ -42,6 +43,13 @@ interface TransactionFiltersProps {
    * when it has data, else the month the data stops in.
    */
   defaultMonth?: string
+  /**
+   * The transactions to review over every date (null while unknown): while
+   * some wait, « À revoir » comes first, with their number, on every width
+   * and opens them over every date; with none, it is offered nowhere unless
+   * already on (#393).
+   */
+  reviewCount?: number | null
 }
 
 /** Filters the chips and the sheet set (not the search, month or sort). */
@@ -108,11 +116,16 @@ function SheetFilters({
   set,
   options,
   onClear,
+  offerReview,
+  onReview,
 }: {
   search: TransactionsSearch
   set: Setter
   options: FilterOptions
   onClear: () => void
+  /** Whether « À revoir » is offered (some to review, or it is on). */
+  offerReview: boolean
+  onReview: (on: boolean) => void
 }) {
   const reviewId = useId()
   const oneOffId = useId()
@@ -170,16 +183,18 @@ function SheetFilters({
           </NativeSelectOption>
         ))}
       </NativeSelect>
-      <div className="flex min-h-11 items-center gap-3">
-        <Switch
-          id={reviewId}
-          checked={search.review === true}
-          onCheckedChange={(on) => set('review', on || undefined)}
-        />
-        <Label htmlFor={reviewId} className="text-sm font-normal">
-          À revoir
-        </Label>
-      </div>
+      {offerReview && (
+        <div className="flex min-h-11 items-center gap-3">
+          <Switch
+            id={reviewId}
+            checked={search.review === true}
+            onCheckedChange={onReview}
+          />
+          <Label htmlFor={reviewId} className="text-sm font-normal">
+            À revoir
+          </Label>
+        </div>
+      )}
       <div className="flex min-h-11 items-center gap-3">
         <Switch
           id={oneOffId}
@@ -213,6 +228,7 @@ export function TransactionFilters({
   accounts,
   categories,
   defaultMonth = currentMonth(),
+  reviewCount = null,
 }: TransactionFiltersProps) {
   const [text, setText] = useState(search.q ?? '')
   const latest = useRef({ search, onSearchChange })
@@ -247,6 +263,20 @@ export function TransactionFilters({
     set('month', target === defaultMonth ? undefined : target)
   const count = chipFilterCount(search)
   const clear = () => onSearchChange(withoutChipFilters(search))
+  const reviewing = search.review === true
+  // Some wait for review: « À revoir » is put forward (#393).
+  const toReview = !reviewing && reviewCount !== null && reviewCount > 0
+  // None at all: no « À revoir » to offer, unless it is on.
+  const offerReview = reviewing || reviewCount === null || reviewCount > 0
+  // The count is over every date, so is the queue it opens.
+  const setReview = (on: boolean) =>
+    onSearchChange(
+      compactSearch(
+        on
+          ? { ...search, review: true, month: ALL_MONTHS }
+          : { ...search, review: undefined },
+      ),
+    )
 
   return (
     <MonthToolbar
@@ -267,6 +297,8 @@ export function TransactionFilters({
           set={set}
           options={options}
           onClear={clear}
+          offerReview={offerReview}
+          onReview={setReview}
         />
       )}
       filtersInline={false}
@@ -288,15 +320,37 @@ export function TransactionFilters({
         </InputGroup>
       }
     >
-      {/* Every chip from 672px; on phones only those that are on. */}
+      {/* Every chip from 672px; on phones only those that are on, and
+          « À revoir » while some wait for review. */}
       <div
         data-slot="filter-chips"
         className={
-          count === 0
+          count === 0 && !toReview
             ? 'hidden flex-wrap items-center gap-2 @[672px]:flex'
             : 'flex flex-wrap items-center gap-2'
         }
       >
+        {/* First: what waits for the owner (#393). */}
+        {offerReview && (
+          <ToggleChip
+            label="À revoir"
+            pressed={reviewing}
+            onPressedChange={setReview}
+            hideWhenOff
+            count={
+              toReview
+                ? {
+                    value: reviewCount,
+                    label: plural(
+                      reviewCount,
+                      'opération à revoir',
+                      'opérations à revoir',
+                    ),
+                  }
+                : undefined
+            }
+          />
+        )}
         <FilterChip
           label="Compte"
           value={search.account}
@@ -318,12 +372,6 @@ export function TransactionFilters({
           options={options.kinds}
           onChange={(value) => set('kind', value as TransactionKind)}
           hideWhenUnset
-        />
-        <ToggleChip
-          label="À revoir"
-          pressed={search.review === true}
-          onPressedChange={(on) => set('review', on || undefined)}
-          hideWhenOff
         />
         <ToggleChip
           label="Ponctuelles"
