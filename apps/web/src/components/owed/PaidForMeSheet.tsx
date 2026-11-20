@@ -6,8 +6,6 @@ import {
   Field,
   FieldLabel,
   Input,
-  SegmentedControl,
-  SegmentedControlItem,
   Sheet,
   SheetBar,
   SheetBarAction,
@@ -35,7 +33,12 @@ import { CategoryPicker } from '#/components/categories/CategoryPicker'
 import { categoryErrorMessage } from '#/components/categories/errors'
 import { DEFAULT_CATEGORY_COLOR } from '#/components/categories/palette'
 import { createCategory } from '#/components/categories/queries'
-import { DateChips } from '#/components/expenses/manual-fields'
+import { typedAmount } from '#/components/expenses/amount-entry'
+import {
+  CHIP_CLASS,
+  CHIP_ON,
+  DateChips,
+} from '#/components/expenses/manual-fields'
 import {
   EDITOR_STEADY_HEIGHT,
   editorSide,
@@ -58,7 +61,6 @@ import {
   UNDO_TOAST_MS,
 } from './queries'
 import { myPartOf } from './shares'
-import type { ShareMode } from './shares'
 
 /** What the sheet opens with (from the quick entry or a person's page). */
 export interface PaidForMeDraft {
@@ -84,8 +86,13 @@ const STEP_NAMES: Record<PaidForMeStep, string> = {
   share: 'Ma part',
 }
 
-/** A segment of « Ma part » on a phone: less padding, so the labels fit. */
-const NARROW_SEGMENT = 'px-1.5 @[20rem]:px-3'
+/**
+ * « On était combien ? » (the owner's « A », #394): 2 (half, the default) to
+ * 5, then « 6+ », which shows − / + up to `PEOPLE_MAX`.
+ */
+const PEOPLE_MORE = 6
+const PEOPLE_MAX = 20
+const PEOPLE_TILES = [2, 3, 4, 5, PEOPLE_MORE] as const
 
 /** What each step needs before the next one: who, the category, the bill. */
 export interface PaidForMeFilled {
@@ -170,9 +177,10 @@ function PaidForMeForm({
   const [bill, setBill] = useState(
     initial?.billCents ? centsToInput(initial.billCents) : '',
   )
-  const [mode, setMode] = useState<ShareMode>('equal')
-  const [people, setPeople] = useState(3)
+  /** How many shared the bill, me included; null once I typed my part. */
+  const [people, setPeople] = useState<number | null>(2)
   const [typed, setTyped] = useState('')
+  const mineRef = useRef<HTMLInputElement>(null)
 
   const billCents = parseEurosToCents(bill) ?? 0
   const dateOk = date !== '' && date <= today
@@ -187,9 +195,10 @@ function PaidForMeForm({
   const stepIndex = PAID_FOR_ME_STEPS.indexOf(step)
 
   const mine =
-    mode === 'amount'
+    people === null
       ? (parseEurosToCents(typed) ?? 0)
-      : (myPartOf(mode, billCents, people) ?? 0)
+      : (myPartOf('equal', billCents, people) ?? 0)
+  const mineText = people === null ? typed : mine > 0 ? centsToInput(mine) : ''
   const over = mine > billCents
   const ok =
     filled.person && filled.category && filled.bill && mine > 0 && !over
@@ -466,86 +475,147 @@ function PaidForMeForm({
 
       {step === 'share' && (
         <>
-          <FormSheetBody>
+          <FormSheetBody className="@container space-y-5 pt-5">
             {recap}
-            {/* « Parts égales » is « Égales », with less padding, where
-                three equal segments can't hold it (phones). */}
-            <div className="@container">
-              <SegmentedControl
-                fullWidth
-                aria-label="Ma part"
-                value={mode}
-                onValueChange={setMode}
+            <div className="space-y-2">
+              <p
+                id={`${id}-people`}
+                className="text-muted-foreground text-center text-sm"
               >
-                <SegmentedControlItem value="half" className={NARROW_SEGMENT}>
-                  Moitié
-                </SegmentedControlItem>
-                <SegmentedControlItem
-                  value="equal"
-                  aria-label="Parts égales"
-                  className={NARROW_SEGMENT}
-                >
-                  <span className="@[20rem]:hidden">Égales</span>
-                  <span className="hidden @[20rem]:inline">Parts égales</span>
-                </SegmentedControlItem>
-                <SegmentedControlItem value="amount" className={NARROW_SEGMENT}>
-                  Montant
-                </SegmentedControlItem>
-              </SegmentedControl>
-            </div>
-            {mode === 'equal' && (
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm">Entre combien, vous compris</span>
-                <span className="flex items-center gap-1">
+                On était combien, vous compris ?
+              </p>
+              {/* One row, whatever the width (the owner's « A », #394). */}
+              <div
+                role="radiogroup"
+                aria-labelledby={`${id}-people`}
+                className="grid grid-cols-5 gap-2"
+              >
+                {PEOPLE_TILES.map((count) => {
+                  const chosen =
+                    count === PEOPLE_MORE
+                      ? people !== null && people >= PEOPLE_MORE
+                      : people === count
+                  return (
+                    <button
+                      key={count}
+                      type="button"
+                      role="radio"
+                      aria-checked={chosen}
+                      aria-label={
+                        count === PEOPLE_MORE
+                          ? `${PEOPLE_MORE} ou plus`
+                          : `${count}`
+                      }
+                      data-state={chosen ? 'on' : 'off'}
+                      onClick={() =>
+                        setPeople(
+                          count === PEOPLE_MORE && chosen ? people : count,
+                        )
+                      }
+                      className={cn(
+                        CHIP_CLASS,
+                        CHIP_ON,
+                        'h-11 min-w-0 px-0 text-base tabular-nums',
+                      )}
+                    >
+                      {count === PEOPLE_MORE
+                        ? chosen
+                          ? people
+                          : `${PEOPLE_MORE}+`
+                        : count}
+                    </button>
+                  )
+                })}
+              </div>
+              {people !== null && people >= PEOPLE_MORE && (
+                <div className="flex items-center justify-center gap-3">
                   <Button
                     type="button"
                     variant="secondary"
                     iconOnly
                     aria-label="Une personne de moins"
-                    disabled={people <= 2}
-                    onClick={() => setPeople((n) => Math.max(2, n - 1))}
+                    disabled={people <= PEOPLE_MORE}
+                    onClick={() => setPeople(Math.max(PEOPLE_MORE, people - 1))}
                   >
                     <MinusIcon aria-hidden />
                   </Button>
-                  <span
-                    className="w-8 text-center tabular-nums"
-                    aria-live="polite"
-                  >
-                    {people}
+                  <span className="text-sm tabular-nums" aria-live="polite">
+                    {people} personnes
                   </span>
                   <Button
                     type="button"
                     variant="secondary"
                     iconOnly
                     aria-label="Une personne de plus"
-                    disabled={people >= 20}
-                    onClick={() => setPeople((n) => Math.min(20, n + 1))}
+                    disabled={people >= PEOPLE_MAX}
+                    onClick={() => setPeople(Math.min(PEOPLE_MAX, people + 1))}
                   >
                     <PlusIcon aria-hidden />
                   </Button>
+                </div>
+              )}
+            </div>
+
+            {/* My part, large: the tiles fill it, typing in it sets an
+                amount of my own. */}
+            <div className="text-center">
+              <label
+                htmlFor={`${id}-mine`}
+                className="text-muted-foreground block text-sm"
+              >
+                Ma part
+              </label>
+              <div
+                className={cn(
+                  'flex items-baseline justify-center gap-[0.2em] py-1 leading-tight font-semibold tabular-nums',
+                  'text-[min(2.5rem,13cqi)]',
+                  over && 'text-destructive',
+                )}
+              >
+                {/* As wide as its text (a hidden copy sizes it). */}
+                <span className="grid">
+                  <span
+                    aria-hidden
+                    className="invisible col-start-1 row-start-1 px-0.5 whitespace-pre"
+                  >
+                    {mineText || '0'}
+                  </span>
+                  <input
+                    ref={mineRef}
+                    id={`${id}-mine`}
+                    size={1}
+                    autoComplete="off"
+                    placeholder="0"
+                    inputMode="decimal"
+                    enterKeyHint="done"
+                    aria-invalid={over || undefined}
+                    value={mineText}
+                    onChange={(event) => {
+                      const next = typedAmount(event.target.value)
+                      if (next === null) return
+                      setPeople(null)
+                      setTyped(next)
+                    }}
+                    className="placeholder:text-muted-foreground focus:border-primary col-start-1 row-start-1 w-full min-w-0 border-b-2 border-transparent bg-transparent text-center outline-none"
+                  />
                 </span>
+                <span aria-hidden>€</span>
               </div>
-            )}
-            {mode === 'amount' && (
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <label htmlFor={`${id}-mine`} className="text-sm">
-                  Ma part
-                </label>
-                <AmountField
-                  id={`${id}-mine`}
-                  groupClassName="w-[8rem]"
-                  className="text-right"
-                  aria-invalid={over || undefined}
-                  value={typed}
-                  onValueChange={setTyped}
-                />
-              </div>
-            )}
-            <p className="text-muted-foreground text-xs">
-              Seule votre part compte dans vos dépenses, le jour de la dépense ;
-              l’addition reste à côté. Votre virement à {name}, une fois lié, ne
-              comptera pas comme une dépense.
-            </p>
+              {people !== null && (
+                <button
+                  type="button"
+                  className="text-primary min-h-11 px-2 text-sm font-medium"
+                  onClick={() => {
+                    setTyped(mineText)
+                    setPeople(null)
+                    mineRef.current?.focus()
+                    mineRef.current?.select()
+                  }}
+                >
+                  Autre montant
+                </button>
+              )}
+            </div>
           </FormSheetBody>
           {/* « Je dois à … », live: on a phone it stays at the bottom, the
               keyboard covering it while a field is typed (#385). */}

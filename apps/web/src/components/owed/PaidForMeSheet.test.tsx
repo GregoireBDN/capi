@@ -86,14 +86,38 @@ describe('PaidForMeSheet in four steps (#394)', () => {
     await user.click(screen.getByRole('button', { name: 'Suivant' }))
 
     expect(stepShown()).toBe('Étape 4 sur 4 : Ma part')
-    // Equal parts between 3 by default, then half.
-    expect(screen.getByText('Je dois à Sam').parentElement).toHaveTextContent(
-      /20,00/,
+    // « On était combien ? »: 2 (half) by default, in one row of tiles.
+    const owed = () => screen.getByText('Je dois à Sam').parentElement
+    const mine = screen.getByLabelText('Ma part')
+    expect(screen.getByRole('radio', { name: '2' })).toBeChecked()
+    expect(mine).toHaveValue('30')
+    expect(owed()).toHaveTextContent(/30,00/)
+    await user.click(screen.getByRole('radio', { name: '3' }))
+    expect(mine).toHaveValue('20')
+    expect(owed()).toHaveTextContent(/20,00/)
+    // « 6+ »: 6, then − / + beyond.
+    await user.click(screen.getByRole('radio', { name: '6 ou plus' }))
+    expect(mine).toHaveValue('10')
+    await user.click(
+      screen.getByRole('button', { name: 'Une personne de plus' }),
     )
-    await user.click(screen.getByRole('radio', { name: 'Moitié' }))
-    expect(screen.getByText('Je dois à Sam').parentElement).toHaveTextContent(
-      /30,00/,
-    )
+    expect(screen.getByText('7 personnes')).toBeInTheDocument()
+    expect(mine).toHaveValue('8,57')
+    // A typed part of my own; past the bill, it can't be added.
+    await user.click(screen.getByRole('button', { name: 'Autre montant' }))
+    expect(mine).toHaveFocus()
+    await user.clear(mine)
+    await user.type(mine, '70')
+    expect(owed()).toHaveTextContent('plus que l’addition')
+    expect(screen.getByRole('button', { name: 'Ajouter' })).toBeDisabled()
+    expect(
+      screen
+        .getAllByRole('radio')
+        .filter((r) => r.getAttribute('aria-checked') === 'true'),
+    ).toHaveLength(0)
+    // Back to half.
+    await user.click(screen.getByRole('radio', { name: '2' }))
+    expect(owed()).toHaveTextContent(/30,00/)
     await user.click(screen.getByRole('button', { name: 'Ajouter' }))
 
     await waitFor(() =>
@@ -139,7 +163,7 @@ describe('PaidForMeSheet in four steps (#394)', () => {
     await user.click(await screen.findByRole('button', { name: /Sam/ }))
     expect(stepShown()).toBe('Étape 4 sur 4 : Ma part')
     expect(screen.getByText('Je dois à Sam').parentElement).toHaveTextContent(
-      /15,00/,
+      /22,50/,
     )
     // « Retour » goes back one step, the bill still there.
     await user.click(screen.getByRole('button', { name: 'Retour' }))
