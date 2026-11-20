@@ -90,6 +90,8 @@ interface Line {
   /** Signed cents of the line. */
   amountCents: number
   label: string
+  /** The bank's label, matched with a contact's bank words. */
+  rawLabel: string
 }
 
 /** Paid so far on each receivable. */
@@ -702,7 +704,9 @@ export class OwedService {
         id: c.id,
         name: c.name,
         owedCents: owedBy.get(c.id) ?? 0,
-        matched: labelMatches(line.label, c.matchLabels),
+        matched:
+          labelMatches(line.rawLabel, c.matchLabels) ||
+          labelMatches(line.label, c.matchLabels),
       }))
       .sort(
         (a, b) =>
@@ -1342,6 +1346,7 @@ export class OwedService {
         bookingDate: transactionsTable.bookingDate,
         amountCents: transactionsTable.amountCents,
         label: sql<string>`coalesce(${transactionsTable.merchant}, ${transactionsTable.rawLabel})`,
+        rawLabel: transactionsTable.rawLabel,
       })
       .from(transactionsTable)
       .where(eq(transactionsTable.id, transactionId))
@@ -1375,6 +1380,7 @@ export class OwedService {
       bookingDate: row.bookingDate,
       amountCents,
       label: row.label,
+      rawLabel: row.rawLabel,
     }
   }
 
