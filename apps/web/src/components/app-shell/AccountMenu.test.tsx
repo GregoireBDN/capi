@@ -103,28 +103,14 @@ describe('AccountMenu (#386)', () => {
     expect(theme.setPreference).toHaveBeenCalledWith('dark')
   })
 
-  it('opens Réglages and closes', async () => {
+  it('leaves Réglages to the sidebar (#386)', async () => {
     const ue = userEvent.setup()
-    const router = await renderMenu()
+    await renderMenu()
     const card = await open(ue)
 
-    await ue.click(within(card).getByRole('link', { name: 'Réglages' }))
-
-    await screen.findByText('Page /settings')
-    expect(router.state.location.pathname).toBe('/settings')
     expect(
-      screen.queryByRole('dialog', { name: 'Compte' }),
+      within(card).queryByRole('link', { name: 'Réglages' }),
     ).not.toBeInTheDocument()
-  })
-
-  it('marks Réglages as the current page on every settings page', async () => {
-    const ue = userEvent.setup()
-    await renderMenu('/settings/security')
-    const card = await open(ue)
-
-    expect(
-      within(card).getByRole('link', { name: 'Réglages' }),
-    ).toHaveAttribute('aria-current', 'page')
   })
 
   it('signs out in one click on a computer', async () => {

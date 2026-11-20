@@ -123,10 +123,13 @@ describe('AppSidebar', () => {
     )
   })
 
-  it('holds the navigation only: no settings, account or sign-out (#386)', async () => {
-    await renderAt('/dashboard')
+  it('ends with Réglages, outside the pages: no account nor sign-out (#386)', async () => {
+    const nav = await renderAt('/dashboard')
 
-    for (const to of ['/settings', '/categories', '/rules', '/profile']) {
+    const settings = screen.getByRole('link', { name: 'Réglages' })
+    expect(settings).toHaveAttribute('href', '/settings')
+    expect(nav.queryByRole('link', { name: 'Réglages' })).toBeNull()
+    for (const to of ['/categories', '/rules', '/profile']) {
       expect(document.querySelectorAll(`a[href="${to}"]`)).toHaveLength(0)
     }
     expect(
@@ -136,14 +139,13 @@ describe('AppSidebar', () => {
   })
 
   it.each(['/categories', '/rules', '/settings', '/settings/security'])(
-    'highlights no page on %s (Réglages is in the account menu)',
+    'highlights Réglages alone on %s',
     async (path) => {
       await renderAt(path)
-      expect(
-        screen
-          .getAllByRole('link')
-          .filter((link) => link.getAttribute('aria-current') === 'page'),
-      ).toHaveLength(0)
+      const current = screen
+        .getAllByRole('link')
+        .filter((link) => link.getAttribute('aria-current') === 'page')
+      expect(current).toEqual([screen.getByRole('link', { name: 'Réglages' })])
     },
   )
 

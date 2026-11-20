@@ -112,9 +112,15 @@ describe('App shell sidebar (≥ md)', () => {
     expect(sidebar()).toHaveAttribute('data-state', 'expanded')
     expect(header()).not.toHaveClass('md:hidden')
     expect(header().tagName).toBe('HEADER')
+    // The column folds from its own foot, not from the header (#386).
     expect(
-      within(header()).getByRole('button', { name: 'Réduire le menu' }),
+      within(sidebar() as HTMLElement).getByRole('button', {
+        name: 'Réduire le menu',
+      }),
     ).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      within(header()).queryByRole('button', { name: /le menu$/ }),
+    ).toHaveClass('md:hidden')
     // Logo, search, quick entry and account in the header.
     expect(
       within(header()).getByRole('link', { name: 'Finances' }),
@@ -158,20 +164,37 @@ describe('App shell sidebar (≥ md)', () => {
     expect(router.state.location.search).toEqual({ q: 'loyer', month: 'all' })
   })
 
-  it('counts the transactions to review on ☰ only while the sidebar is folded', async () => {
+  it('keeps a dot on Opérations for the transactions to review while folded', async () => {
     reviewQueue(4)
-    const ue = userEvent.setup()
-    await renderShell(true)
-    await screen.findByTestId('nav-badge-/transactions')
+    await renderShell(false)
 
-    expect(screen.queryByTestId('menu-review-count')).not.toBeInTheDocument()
-    await ue.click(screen.getByRole('button', { name: 'Réduire le menu' }))
-    expect(screen.getByTestId('menu-review-count')).toHaveTextContent(
-      '4 opérations à revoir',
+    expect(await screen.findByTestId('nav-review-dot')).toHaveClass(
+      'group-data-[collapsible=icon]:block',
     )
   })
 
-  it('folds down to its icons and back from the header', async () => {
+  it('puts Réglages and the fold button at the sidebar’s foot (#386)', async () => {
+    await renderShell(true)
+
+    const settings = within(sidebar() as HTMLElement).getByRole('link', {
+      name: 'Réglages',
+    })
+    expect(settings).toHaveAttribute('href', '/settings')
+    // After the pages, and the only link to the settings.
+    expect(
+      screen
+        .getByRole('link', { name: 'Import' })
+        .compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(document.querySelectorAll('a[href="/settings"]')).toHaveLength(1)
+    expect(
+      settings.compareDocumentPosition(
+        screen.getByRole('button', { name: 'Réduire le menu' }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('folds down to its icons and back from the sidebar’s foot', async () => {
     const ue = userEvent.setup()
     await renderShell(true)
 

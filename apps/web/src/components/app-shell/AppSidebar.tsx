@@ -3,9 +3,11 @@ import { QueryClientContext, useQuery } from '@tanstack/react-query'
 import { useContext } from 'react'
 import { owedSummaryQuery } from '#/components/owed/queries'
 import { formatCents, formatWholeEuros } from '#/lib/money'
+import { ChevronsLeftIcon, ChevronsRightIcon, SettingsIcon } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -21,14 +23,19 @@ import { REVIEW_SEARCH } from '#/components/transactions/search'
 import { plural } from '#/lib/plural'
 import { useReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
-import { NAV_GROUPS, carriedMonth, isNavEntryActive } from './nav-items'
+import {
+  NAV_GROUPS,
+  carriedMonth,
+  isNavEntryActive,
+  isSettingsPage,
+} from './nav-items'
 import type { NavItem } from './nav-items'
 
 /**
  * Page icons a little larger than the menu default, the same size open and
- * folded, and as the header's ☰ (#386: the owner found the folded ones far
- * too big beside it). Folded, square buttons centred in the column under
- * the ☰ (`routes/_app.tsx` sets `--rail-button`).
+ * folded (#386: the owner found the folded ones far too big). Folded,
+ * 44px square buttons centred in the column (`routes/_app.tsx` sets
+ * `--rail-button`).
  */
 export const RAIL_BUTTON = cn(
   '[&_svg]:size-[1.1rem]',
@@ -45,22 +52,25 @@ function monthSearch(month: string | undefined): { month?: string } {
 }
 
 /**
- * Sidebar of the authenticated layout: the navigation only, in titled groups
- * (#386, the owner's direction « A »). From `md` up it is a fixed column
- * under the header (`AppHeader`), which folds it down to its icons and back
- * with its ☰ (or Cmd/Ctrl+B); the page names show as tooltips while it is
- * folded, the group titles give way to a gap. Below `md` the `@finances/ui`
- * Sidebar renders it inside a sheet, opened from the header's ☰, whose top
- * links to the dashboard. Who is signed in, Réglages and the sign-out are in
- * the header's account menu (`AccountMenu`).
+ * Sidebar of the authenticated layout (#386, the owner's direction « A »,
+ * after Azure DevOps): the navigation in titled groups, then at its foot
+ * « Réglages » and the button that folds it. From `md` up it is a fixed
+ * column under the header (`AppHeader`), folded down to its icons and back
+ * by that button (or Cmd/Ctrl+B); folded, the page names show as tooltips
+ * and a short rule replaces each group's title. Below `md` the
+ * `@finances/ui` Sidebar renders it inside a sheet, opened from the
+ * header's ☰, whose top links to the dashboard. Who is signed in, the theme
+ * and the sign-out are in the header's account menu (`AccountMenu`).
  */
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const search = useRouterState({ select: (s) => s.location.search })
-  const { isMobile, setOpenMobile } = useSidebar()
+  const { isMobile, open, setOpenMobile, toggleSidebar } = useSidebar()
   const reviewCount = useReviewCount()
   // The badge reads the query cache when the app provides one.
   const queryClient = useContext(QueryClientContext)
+
+  const onSettings = isSettingsPage(pathname)
 
   // The mobile sheet stays open across navigations unless we close it.
   const closeMobileSheet = () => {
@@ -111,6 +121,14 @@ export function AppSidebar() {
                 count as text sticking out of the badge. */}
             <span>{count > 99 ? '99+' : count}</span>
           </Link>
+        )}
+        {/* Folded, a dot on the icon says there is something to review. */}
+        {count !== null && count > 0 && (
+          <span
+            aria-hidden
+            data-testid="nav-review-dot"
+            className="bg-primary pointer-events-none absolute top-1.5 right-1.5 hidden size-2 rounded-full group-data-[collapsible=icon]:block"
+          />
         )}
       </SidebarMenuItem>
     )
@@ -168,6 +186,48 @@ export function AppSidebar() {
             ))}
           </nav>
         </SidebarContent>
+
+        {/* At the foot (#386, after Azure DevOps, the owner's choice):
+            « Réglages », the one way to the settings pages, and from md up
+            the button that folds the column, beside it (under it once
+            folded). */}
+        <SidebarFooter className="border-sidebar-border border-t">
+          <SidebarMenu className="flex-row items-center group-data-[collapsible=icon]:flex-col">
+            <SidebarMenuItem className="min-w-0 flex-1 group-data-[collapsible=icon]:flex-none">
+              <SidebarMenuButton
+                asChild
+                isActive={onSettings}
+                tooltip="Réglages"
+                className={RAIL_BUTTON}
+              >
+                <Link
+                  to={ROUTES.settings}
+                  onClick={closeMobileSheet}
+                  aria-current={onSettings ? 'page' : undefined}
+                >
+                  <SettingsIcon />
+                  <span>Réglages</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            {!isMobile && (
+              <SidebarMenuItem className="shrink-0">
+                <SidebarMenuButton
+                  tooltip="Agrandir le menu"
+                  aria-label={open ? 'Réduire le menu' : 'Agrandir le menu'}
+                  aria-expanded={open}
+                  onClick={toggleSidebar}
+                  className={cn(
+                    RAIL_BUTTON,
+                    'text-muted-foreground size-8 justify-center p-0',
+                  )}
+                >
+                  {open ? <ChevronsLeftIcon /> : <ChevronsRightIcon />}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+          </SidebarMenu>
+        </SidebarFooter>
       </Sidebar>
     </TooltipProvider>
   )

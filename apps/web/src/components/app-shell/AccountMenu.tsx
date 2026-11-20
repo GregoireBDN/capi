@@ -1,4 +1,3 @@
-import { Link, useRouterState } from '@tanstack/react-router'
 import {
   ConfirmDialog,
   Popover,
@@ -7,19 +6,12 @@ import {
   cn,
   useIsMobile,
 } from '@finances/ui'
-import {
-  ChevronRightIcon,
-  LoaderCircleIcon,
-  LogOutIcon,
-  SettingsIcon,
-} from 'lucide-react'
+import { LoaderCircleIcon, LogOutIcon } from 'lucide-react'
 import { useId, useState } from 'react'
 import type { UserDto } from '#/api/types.gen'
 import { ThemeChoice } from '#/components/settings/ThemeChoice'
-import { ROUTES } from '#/lib/routes'
 import { useSignOut } from '#/lib/use-sign-out'
 import { initials } from './initials'
-import { isSettingsPage } from './nav-items'
 
 /** A row of the menu: 44px, its icon in a 20px column. */
 const ROW = cn(
@@ -32,20 +24,19 @@ const ROW = cn(
 /**
  * The account menu (#386, the owner's direction « A », after Azure DevOps):
  * the avatar at the end of the header opens a card with who is signed in
- * (name, email), Apparence (`ThemeChoice`, applied at once), « Réglages »
- * (the one way to the settings pages) and « Se déconnecter ». A popover on
+ * (name, email), Apparence (`ThemeChoice`, applied at once) and « Se
+ * déconnecter ». Réglages is at the sidebar's foot (`AppSidebar`), its one
+ * place (the owner, #386). A popover on
  * every width, two taps from any page. On a phone « Se déconnecter ? » comes
  * first, since the row sits under the thumb; on a computer one click.
  */
 export function AccountMenu({ user }: { user: UserDto }) {
   const isMobile = useIsMobile()
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
   const signOut = useSignOut()
   const themeId = useId()
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [pending, setPending] = useState(false)
-  const onSettings = isSettingsPage(pathname)
 
   // The browser may hold the logout response while it clears its cache
   // (`Clear-Site-Data`): the row shows a spinner meanwhile.
@@ -107,16 +98,6 @@ export function AccountMenu({ user }: { user: UserDto }) {
             <ThemeChoice labelledBy={themeId} />
           </div>
           <div className="p-1.5">
-            <Link
-              to={ROUTES.settings}
-              onClick={() => setOpen(false)}
-              aria-current={onSettings ? 'page' : undefined}
-              className={cn(ROW, 'no-underline', onSettings && 'font-medium')}
-            >
-              <SettingsIcon aria-hidden />
-              <span className="flex-1">Réglages</span>
-              <ChevronRightIcon aria-hidden />
-            </Link>
             <button
               type="button"
               disabled={pending}

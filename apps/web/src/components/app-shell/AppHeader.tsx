@@ -16,22 +16,21 @@ import { useSetPageActionsSlot, useSetPageBackSlot } from './page-actions'
  * Header of the authenticated layout, on every width (#386, the owner's
  * direction « A », after Azure DevOps), above the sidebar:
  *
- * - ☰: on phones it opens the navigation sheet (with a dot counting the
- *   transactions to review); from `md` up it folds the sidebar down to its
- *   icons and back (also Cmd/Ctrl+B).
+ * - ☰, on phones only: it opens the navigation sheet, with a dot counting
+ *   the transactions to review. From `md` up the sidebar is on screen and
+ *   folds from its own foot (`AppSidebar`), which frees the header.
  * - The logo, back to the dashboard; a sub-page's way back (`PageBack`,
  *   « ‹ Comptes ») takes its place on phones and follows it from `md` up.
  * - Phones: the page's other actions (`PageHeader`; its main action stays
  *   beside the title). From `md` up: a search box opening Opérations on
  *   every date (an icon below `lg`) and « + Opération » (the quick entry).
- * - The avatar: the account menu (`AccountMenu`), the one way to Réglages.
+ * - The avatar: the account menu (`AccountMenu`).
  *
  * `h-12` on every width: sticky elements below it use `top-(--app-top-bar)`
  * (set by `routes/_app.tsx`).
  */
 export function AppHeader({ user }: { user: UserDto }) {
-  const { isMobile, open, openMobile, setOpenMobile, toggleSidebar } =
-    useSidebar()
+  const { openMobile, setOpenMobile } = useSidebar()
   const setActionsSlot = useSetPageActionsSlot()
   const setBackSlot = useSetPageBackSlot()
   const reviewCount = useReviewCount()
@@ -40,8 +39,7 @@ export function AppHeader({ user }: { user: UserDto }) {
   // categories and accounts).
   const [addMounted, setAddMounted] = useState(false)
   // The sidebar's « À revoir » badge is out of sight: on ☰ instead.
-  const showReviewDot =
-    (isMobile || !open) && reviewCount !== null && reviewCount > 0
+  const showReviewDot = reviewCount !== null && reviewCount > 0
 
   return (
     <header
@@ -60,17 +58,10 @@ export function AppHeader({ user }: { user: UserDto }) {
         variant="secondary"
         ghost
         iconOnly
-        // An open sidebar is the usual state, not a pressed button.
-        className="aria-expanded:text-muted-foreground relative aria-expanded:bg-transparent hover:aria-expanded:bg-secondary [&_svg]:size-[1.1rem]"
-        aria-label={
-          isMobile
-            ? 'Ouvrir le menu'
-            : open
-              ? 'Réduire le menu'
-              : 'Agrandir le menu'
-        }
-        aria-expanded={isMobile ? openMobile : open}
-        onClick={() => (isMobile ? setOpenMobile(true) : toggleSidebar())}
+        className="relative md:hidden [&_svg]:size-[1.1rem]"
+        aria-label="Ouvrir le menu"
+        aria-expanded={openMobile}
+        onClick={() => setOpenMobile(true)}
       >
         <MenuIcon />
         {showReviewDot && (
