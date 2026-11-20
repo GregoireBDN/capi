@@ -5,9 +5,6 @@ import {
   Field,
   FieldDescription,
   FieldLabel,
-  ItemList,
-  ItemListGroup,
-  ItemListRow,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -20,6 +17,7 @@ import {
   ArrowDownLeftIcon,
   ArrowUpRightIcon,
   ChevronLeftIcon,
+  ChevronRightIcon,
   CircleHelpIcon,
 } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -175,37 +173,57 @@ export function PendingCard({
       />
       <CardContent className="space-y-3">
         {data.items.length > 0 && (
-          <ItemList>
-            <ItemListGroup>
-              {data.items.map((item) => (
-                <ItemListRow
-                  key={item.movementId}
-                  asChild={writable}
-                  icon={
-                    item.type === 'departure' ? (
-                      <ArrowUpRightIcon />
+          // The whole question, wrapped: never cut on a phone.
+          <ul
+            aria-label="Mouvements à préciser"
+            className="@container space-y-1"
+          >
+            {data.items.map((item) => {
+              const content = (
+                <>
+                  <span className="bg-warning/15 text-warning-foreground dark:text-warning hidden size-8 shrink-0 items-center justify-center rounded-lg @[16rem]:flex [&_svg]:size-4">
+                    {item.type === 'departure' ? (
+                      <ArrowUpRightIcon aria-hidden />
                     ) : item.type === 'arrival' ? (
-                      <ArrowDownLeftIcon />
+                      <ArrowDownLeftIcon aria-hidden />
                     ) : (
-                      <CircleHelpIcon />
-                    )
-                  }
-                  iconClassName="bg-warning/15 text-warning-foreground dark:text-warning"
-                  title={question(item)}
-                  subtitle={whenText(item)}
-                >
+                      <CircleHelpIcon aria-hidden />
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1 space-y-0.5 break-normal">
+                    <span className="block font-medium">{question(item)}</span>
+                    <span className="text-muted-foreground block text-xs">
+                      {whenText(item)}
+                    </span>
+                  </span>
+                  {writable && (
+                    <ChevronRightIcon
+                      aria-hidden
+                      className="text-muted-foreground size-4 shrink-0"
+                    />
+                  )}
+                </>
+              )
+              return (
+                <li key={item.movementId}>
                   {writable ? (
                     <button
                       type="button"
-                      className="w-full text-left"
+                      className="hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-ring flex min-h-11 w-full items-center gap-2 rounded-lg px-1 py-2 text-left text-sm @[16rem]:gap-3 @[16rem]:px-2 outline-none focus-visible:ring-2"
                       aria-label={`${question(item)} ${whenText(item)}`}
                       onClick={() => setOpenId(item.movementId)}
-                    />
-                  ) : undefined}
-                </ItemListRow>
-              ))}
-            </ItemListGroup>
-          </ItemList>
+                    >
+                      {content}
+                    </button>
+                  ) : (
+                    <div className="flex min-h-11 items-center gap-3 px-2 py-2 text-sm">
+                      {content}
+                    </div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
         )}
         {data.answered.length > 0 && (
           <details className="group">
@@ -381,7 +399,7 @@ function AnswerSheet({
             {item && step === 'choice' && (
               <>
                 <p className="text-muted-foreground text-sm">
-                  {whenText(item)}.
+                  {whenText(item).replace(/\.?$/, '.')}
                 </p>
                 <div className="space-y-2">
                   {choices(item).map((choice) => (
