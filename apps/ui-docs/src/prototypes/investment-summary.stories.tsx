@@ -546,13 +546,153 @@ function Tile({
   )
 }
 
-/** Investi on one line across the card: its label, then its amount. */
-function InvestedLine({ account }: { account: Account }) {
+/**
+ * Proposals for the Investi block of A (the owner was not convinced by the
+ * first line): switched with the « Bloc Investi » chips.
+ * - Ligne: label left, amount right, on a muted band.
+ * - Centrée: « Investi 13 800 € » centred on the band.
+ * - Tuile: a tile like the two under it (label, amount, then where it
+ *   comes from), with a pencil to change it.
+ * - Ligne à modifier: a settings row (label and where it comes from, the
+ *   amount, ›), the whole row opening the editor.
+ * - Barre: the amount, then a bar of the value split into what was put in
+ *   and what it made (or lost).
+ */
+type InvestedVariant = 'line' | 'centred' | 'tile' | 'row' | 'bar'
+
+const INVESTED_VARIANTS: { value: InvestedVariant; label: string }[] = [
+  { value: 'line', label: 'Ligne' },
+  { value: 'centred', label: 'Centrée' },
+  { value: 'tile', label: 'Tuile' },
+  { value: 'row', label: 'Ligne à modifier' },
+  { value: 'bar', label: 'Barre' },
+]
+const InvestedVariantContext = createContext<InvestedVariant>('line')
+
+/** The variants that say where the amount comes from themselves. */
+const WITH_SOURCE: InvestedVariant[] = ['tile', 'row']
+
+function InvestedBlock({
+  account,
+  onEdit,
+}: {
+  account: Account
+  onEdit: () => void
+}) {
+  const variant = useContext(InvestedVariantContext)
+  const amount = whole(account.invested)
+  const band = 'bg-muted/50 flex min-h-11 items-center rounded-lg px-3 py-2'
+  if (variant === 'centred') {
+    return (
+      <div className={cn(band, 'justify-center gap-2')}>
+        <span className="text-muted-foreground text-sm">Investi</span>
+        <span className="text-base font-semibold whitespace-nowrap tabular-nums">
+          {amount}
+        </span>
+      </div>
+    )
+  }
+  if (variant === 'tile') {
+    return (
+      <div className="bg-muted/50 flex items-start gap-2 rounded-lg py-2 pr-1 pl-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-muted-foreground text-xs">Investi</p>
+          <p className="text-[1.15rem] font-semibold whitespace-nowrap tabular-nums">
+            {amount}
+          </p>
+          <p className="text-muted-foreground text-xs">{account.source}</p>
+        </div>
+        {account.typed && (
+          <Button
+            iconOnly
+            variant="secondary"
+            ghost
+            aria-label="Modifier le montant investi"
+            onClick={onEdit}
+          >
+            <PencilIcon />
+          </Button>
+        )}
+      </div>
+    )
+  }
+  if (variant === 'row') {
+    // The label, the amount and › on the first line; where it comes from
+    // across the whole row under them.
+    const content = (
+      <>
+        <span className="flex items-center gap-3">
+          <span className="text-sm font-medium">Investi</span>
+          <span className="ml-auto text-base font-semibold whitespace-nowrap tabular-nums">
+            {amount}
+          </span>
+          {account.typed && (
+            <ChevronRightIcon
+              aria-hidden
+              className="text-muted-foreground size-4 shrink-0"
+            />
+          )}
+        </span>
+        <span className="text-muted-foreground block text-xs">
+          {account.source}
+        </span>
+      </>
+    )
+    const row = 'bg-muted/50 block min-h-11 w-full rounded-lg px-3 py-2'
+    return account.typed ? (
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={`Investi ${amount}, ${account.source} : modifier`}
+        className={cn(row, 'hover:bg-muted text-left')}
+      >
+        {content}
+      </button>
+    ) : (
+      <div className={row}>{content}</div>
+    )
+  }
+  if (variant === 'bar') {
+    const gain = account.value - account.invested
+    const total = Math.max(account.value, account.invested)
+    const base = Math.min(account.value, account.invested)
+    return (
+      <div className="bg-muted/50 space-y-2 rounded-lg px-3 py-2.5">
+        <div className="flex items-baseline gap-3">
+          <span className="text-muted-foreground text-sm">Investi</span>
+          <span className="ml-auto text-base font-semibold whitespace-nowrap tabular-nums">
+            {amount}
+          </span>
+        </div>
+        <div
+          role="img"
+          aria-label={
+            gain >= 0
+              ? `La valeur : ${amount} investis et ${signedWhole(gain)} de résultat`
+              : `La valeur : ${amount} investis, dont ${signedWhole(gain)} perdus`
+          }
+          className="bg-background flex h-2.5 overflow-hidden rounded-full"
+        >
+          <span
+            className="bg-muted-foreground/40 h-full"
+            style={{ width: `${(base / total) * 100}%` }}
+          />
+          <span
+            className={cn(
+              'border-background h-full border-l-2',
+              gain >= 0 ? 'bg-chart-delta-good' : 'bg-chart-delta-bad/60',
+            )}
+            style={{ width: `${(Math.abs(gain) / total) * 100}%` }}
+          />
+        </div>
+      </div>
+    )
+  }
   return (
-    <div className="bg-muted/50 flex min-h-11 items-center gap-3 rounded-lg px-3 py-2">
+    <div className={cn(band, 'gap-3')}>
       <span className="text-muted-foreground text-sm">Investi</span>
       <span className="ml-auto text-base font-semibold whitespace-nowrap tabular-nums">
-        {whole(account.invested)}
+        {amount}
       </span>
     </div>
   )
@@ -570,6 +710,7 @@ function SummaryA({
   const gain = account.value - account.invested
   const known = state === 'known'
   const word = useWord()
+  const variant = useContext(InvestedVariantContext)
   return (
     <Card>
       <CardContent className="@container space-y-4 pt-5">
@@ -579,7 +720,7 @@ function SummaryA({
               it, each with its rate. Without it, its line and its action
               take its place. */}
           {known ? (
-            <InvestedLine account={account} />
+            <InvestedBlock account={account} onEdit={onEdit} />
           ) : (
             <MissingInvested account={account} onEdit={onEdit} />
           )}
@@ -609,7 +750,9 @@ function SummaryA({
             />
           </div>
         </div>
-        {known && <SourceLine account={account} onEdit={onEdit} />}
+        {known && !WITH_SOURCE.includes(variant) && (
+          <SourceLine account={account} onEdit={onEdit} />
+        )}
       </CardContent>
     </Card>
   )
@@ -1179,59 +1322,76 @@ function Direction({
   const [state, setState] = useState<InvestedState>('known')
   const [width, setWidth] = useState('375')
   const [word, setWord] = useState('Résultat')
+  const [investedVariant, setInvestedVariant] =
+    useState<InvestedVariant>('line')
   const [editing, setEditing] = useState(false)
   const account = ACCOUNTS[key]
   return (
     <AppScale>
       <WordContext.Provider value={word}>
-        <div className="bg-muted/40 text-foreground min-h-svh space-y-3 p-4">
-          <div>
-            <h1 className="text-lg font-semibold">{title}</h1>
-            <p className="text-muted-foreground max-w-[40rem] text-xs">
-              {description}
-            </p>
-          </div>
-          <Chips
-            label="Compte"
-            options={ACCOUNT_OPTIONS}
-            value={key}
-            onChange={(next) => {
-              setKey(next)
-              setEditing(false)
-            }}
-          />
-          <Chips
-            label="Montant investi"
-            options={STATE_OPTIONS}
-            value={state}
-            onChange={setState}
-          />
-          <Chips label="Mot" options={WORDS} value={word} onChange={setWord} />
-          <Chips
-            label="Largeur"
-            options={WIDTHS}
-            value={width}
-            onChange={setWidth}
-          />
-          <Phone
-            width={width}
-            sheet={
-              editing && (
-                <SheetOver
-                  account={account}
-                  onClose={() => setEditing(false)}
-                />
-              )
-            }
-          >
-            <AccountPage
-              account={account}
-              state={state}
-              direction={direction}
-              onEdit={() => setEditing(true)}
+        <InvestedVariantContext.Provider value={investedVariant}>
+          <div className="bg-muted/40 text-foreground min-h-svh space-y-3 p-4">
+            <div>
+              <h1 className="text-lg font-semibold">{title}</h1>
+              <p className="text-muted-foreground max-w-[40rem] text-xs">
+                {description}
+              </p>
+            </div>
+            <Chips
+              label="Compte"
+              options={ACCOUNT_OPTIONS}
+              value={key}
+              onChange={(next) => {
+                setKey(next)
+                setEditing(false)
+              }}
             />
-          </Phone>
-        </div>
+            <Chips
+              label="Montant investi"
+              options={STATE_OPTIONS}
+              value={state}
+              onChange={setState}
+            />
+            {direction === 'A' && (
+              <Chips
+                label="Bloc Investi"
+                options={INVESTED_VARIANTS}
+                value={investedVariant}
+                onChange={setInvestedVariant}
+              />
+            )}
+            <Chips
+              label="Mot"
+              options={WORDS}
+              value={word}
+              onChange={setWord}
+            />
+            <Chips
+              label="Largeur"
+              options={WIDTHS}
+              value={width}
+              onChange={setWidth}
+            />
+            <Phone
+              width={width}
+              sheet={
+                editing && (
+                  <SheetOver
+                    account={account}
+                    onClose={() => setEditing(false)}
+                  />
+                )
+              }
+            >
+              <AccountPage
+                account={account}
+                state={state}
+                direction={direction}
+                onEdit={() => setEditing(true)}
+              />
+            </Phone>
+          </div>
+        </InvestedVariantContext.Provider>
       </WordContext.Provider>
     </AppScale>
   )
@@ -1365,7 +1525,7 @@ export const A_InvestiPuisDeuxTuiles: StoryObj = {
     <Direction
       direction="A"
       title="A. Investi puis deux tuiles"
-      description="La valeur en grand, sa date et son évolution, puis « Investi » sur une ligne de toute la largeur, puis deux tuiles côte à côte : Résultat et Sur 1 an, chacune avec son pourcentage. Dessous, une ligne dit d’où vient l’investi, avec « Modifier » quand il est saisi. Sans investi : à sa place une ligne et « Renseigner le montant investi », puis la tuile Sur 1 an."
+      description="La valeur en grand, sa date et son évolution, puis « Investi » sur une ligne de toute la largeur, puis deux tuiles côte à côte : Résultat et Sur 1 an, chacune avec son pourcentage. Les puces « Bloc Investi » comparent cinq façons de montrer l’investi : Ligne, Centrée, Tuile (avec son origine et un crayon), Ligne à modifier (toute la ligne ouvre la saisie) et Barre (la valeur en investi + résultat). Sans investi : à sa place une ligne et « Renseigner le montant investi », puis la tuile Sur 1 an."
     />
   ),
 }
