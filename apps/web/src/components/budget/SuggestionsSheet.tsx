@@ -139,10 +139,14 @@ export function SuggestionsSheet({
         <EditorHeader
           className="pb-0"
           title="Proposer des budgets"
-          description={<>Moyenne mensuelle de vos dépenses
-            {period && ` (${period})`}, hors dépenses ponctuelles, arrondie à
-            l’euro. Cochez celles à garder, à partir de{' '}
-            {formatMonth(month).toLowerCase()}.</>}
+          description={
+            <>
+              Moyenne mensuelle de vos dépenses
+              {period && ` (${period})`}, hors dépenses ponctuelles, arrondie à
+              l’euro. Cochez celles à garder, à partir de{' '}
+              {formatMonth(month).toLowerCase()}.
+            </>
+          }
           action={
             items.length > 0
               ? {

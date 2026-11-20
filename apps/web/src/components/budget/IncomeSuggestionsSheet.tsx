@@ -141,9 +141,13 @@ export function IncomeSuggestionsSheet({
         <EditorHeader
           className="pb-0"
           title="Préparer les revenus"
-          description={<>Le plan du mois précédent, ou vos revenus réguliers confirmés
-            (salaire, aides) à leur montant habituel. Cochez ceux à garder, à
-            partir de {formatMonth(month).toLowerCase()}.</>}
+          description={
+            <>
+              Le plan du mois précédent, ou vos revenus réguliers confirmés
+              (salaire, aides) à leur montant habituel. Cochez ceux à garder, à
+              partir de {formatMonth(month).toLowerCase()}.
+            </>
+          }
           action={
             items.length > 0
               ? {

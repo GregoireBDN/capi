@@ -5,9 +5,6 @@ import {
   Button,
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -39,6 +36,12 @@ import {
   holdingsQuery,
 } from './queries'
 import { walletKeyErrorMessage } from './sources'
+import {
+  EditorHeader,
+  editorSide,
+  FORM_SHEET_SCREEN,
+  SheetScroll,
+} from '#/components/sheets/form-sheet'
 
 const KINDS: readonly CryptoKind[] = ['wallet', 'exchange']
 
@@ -150,54 +153,66 @@ export function ChangeCryptoSourceSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
-        className={
-          isMobile
-            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-            : 'overflow-y-auto'
-        }
+        side={editorSide(isMobile)}
+        className={isMobile ? FORM_SHEET_SCREEN : 'overflow-y-auto'}
       >
-        <SheetHeader className="pb-0">
-          <SheetTitle>Relier à un wallet ou une plateforme</SheetTitle>
-          <SheetDescription>
-            Les avoirs ne seront plus saisis à la main : ils seront lus avec les
-            clés publiques du wallet, ou calculés depuis les exports de la
-            plateforme.
-          </SheetDescription>
-        </SheetHeader>
-        <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
-          {held > 0 && (
-            <Alert variant="warning">
-              <AlertTitle>Ce compte a des avoirs saisis à la main</AlertTitle>
-              <AlertDescription>
-                Supprimez-les d’abord : ils seraient comptés deux fois à côté
-                des avoirs lus ou importés.
-              </AlertDescription>
-            </Alert>
-          )}
-          <CryptoSourceFields
-            id={id}
-            values={values}
-            errors={shown}
-            withSource
-            kinds={KINDS}
-            onChange={(patch) => {
-              if ('walletKeys' in patch || 'cryptoKind' in patch)
-                setKeyError(undefined)
-              setValues((current) => ({ ...current, ...patch }))
-            }}
-          />
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={held > 0}
-            loading={change.isPending}
+        <EditorHeader
+          className="pb-0"
+          title="Relier à un wallet ou une plateforme"
+          description="Les avoirs ne seront plus saisis à la main : ils seront lus avec les clés publiques du wallet, ou calculés depuis les exports de la plateforme."
+          action={{
+            type: 'submit',
+            form: `${id}-form`,
+            label:
+              values.cryptoKind === 'exchange'
+                ? 'Relier à la plateforme'
+                : 'Relier au wallet',
+            disabled: held > 0,
+            loading: change.isPending,
+          }}
+        />
+        <SheetScroll>
+          <form
+            id={`${id}-form`}
+            noValidate
+            onSubmit={submit}
+            className="space-y-4 px-4 pb-6"
           >
-            {values.cryptoKind === 'exchange'
-              ? 'Relier à la plateforme'
-              : 'Relier au wallet'}
-          </Button>
-        </form>
+            {held > 0 && (
+              <Alert variant="warning">
+                <AlertTitle>Ce compte a des avoirs saisis à la main</AlertTitle>
+                <AlertDescription>
+                  Supprimez-les d’abord : ils seraient comptés deux fois à côté
+                  des avoirs lus ou importés.
+                </AlertDescription>
+              </Alert>
+            )}
+            <CryptoSourceFields
+              id={id}
+              values={values}
+              errors={shown}
+              withSource
+              kinds={KINDS}
+              onChange={(patch) => {
+                if ('walletKeys' in patch || 'cryptoKind' in patch)
+                  setKeyError(undefined)
+                setValues((current) => ({ ...current, ...patch }))
+              }}
+            />
+            {!isMobile && (
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={held > 0}
+                loading={change.isPending}
+              >
+                {values.cryptoKind === 'exchange'
+                  ? 'Relier à la plateforme'
+                  : 'Relier au wallet'}
+              </Button>
+            )}
+          </form>
+        </SheetScroll>
       </SheetContent>
     </Sheet>
   )

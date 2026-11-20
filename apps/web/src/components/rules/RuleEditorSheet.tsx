@@ -54,9 +54,7 @@ import { bodyFromForm, conditionsFromForm, formFromRule } from './rule-form'
 import type { FormErrors, RuleForm } from './rule-form'
 import { RuleMatches } from './RuleMatches'
 import { PREVIEW_RULE_ID, RulePreview } from './RulePreview'
-import {
-  editorSide,
-} from '#/components/sheets/form-sheet'
+import { editorSide } from '#/components/sheets/form-sheet'
 
 export { bodyFromForm, formFromRule, type RuleForm } from './rule-form'
 
@@ -417,7 +415,9 @@ export function RuleEditorSheet({
             <SheetBar
               title={STEP_NAMES[step]}
               description={`${rule ? 'Modifier la règle' : 'Nouvelle règle'} · étape ${stepIndex + 1} sur ${STEPS.length}`}
-              onBack={stepIndex > 0 ? () => goTo(STEPS[stepIndex - 1]) : undefined}
+              onBack={
+                stepIndex > 0 ? () => goTo(STEPS[stepIndex - 1]) : undefined
+              }
               action={
                 <SheetBarAction
                   type="submit"

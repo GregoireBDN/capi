@@ -188,105 +188,108 @@ export function BudgetEditor({
             }}
           />
           <SheetScroll>
-          <form
-            id={`${id}-form`}
-            noValidate
-            onSubmit={submit}
-            className="space-y-4 px-4 pb-6"
-          >
-            {!budget && (
-              <Field>
-                <FieldLabel htmlFor={`${id}-category`}>Catégorie</FieldLabel>
-                {/* The chosen category's icon beside the list (a native
+            <form
+              id={`${id}-form`}
+              noValidate
+              onSubmit={submit}
+              className="space-y-4 px-4 pb-6"
+            >
+              {!budget && (
+                <Field>
+                  <FieldLabel htmlFor={`${id}-category`}>Catégorie</FieldLabel>
+                  {/* The chosen category's icon beside the list (a native
                     select can't draw one per option). */}
-                <div className="flex items-center gap-2">
-                  {chosen && (
-                    <CategoryIcon icon={chosen.icon} color={chosen.color} />
-                  )}
-                  <NativeSelect
-                    id={`${id}-category`}
-                    className="min-w-0 flex-1"
-                    value={categoryId}
-                    onChange={(event) => setCategoryId(event.target.value)}
-                  >
-                    {available.map((category) => (
-                      <NativeSelectOption key={category.id} value={category.id}>
-                        {category.name}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                </div>
-              </Field>
-            )}
-            <Field data-invalid={showError}>
-              <FieldLabel htmlFor={`${id}-amount`}>
-                {income ? 'Prévu par mois' : 'Objectif par mois'}
-              </FieldLabel>
-              <AmountField
-                id={`${id}-amount`}
-                placeholder={income ? '2100' : '350'}
-                value={amount}
-                aria-invalid={showError}
-                onValueChange={(typed) => setAmount(typed)}
-              />
-              {showError && <FieldError>{amountError}</FieldError>}
-            </Field>
-            <Field>
-              <FieldLabel htmlFor={`${id}-note`}>Note</FieldLabel>
-              <Textarea
-                id={`${id}-note`}
-                rows={2}
-                maxLength={NOTE_MAX}
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-              />
-              <FieldDescription>
-                {income
-                  ? 'Facultative, par ex. « estimation, à corriger avec la fiche de paie ».'
-                  : 'Facultative, par ex. « dépense fixe ».'}
-              </FieldDescription>
-            </Field>
-            {!income && (
-              <div className="flex items-start gap-3">
-                <Switch
-                  id={`${id}-tracked`}
-                  checked={tracked}
-                  onCheckedChange={setTracked}
+                  <div className="flex items-center gap-2">
+                    {chosen && (
+                      <CategoryIcon icon={chosen.icon} color={chosen.color} />
+                    )}
+                    <NativeSelect
+                      id={`${id}-category`}
+                      className="min-w-0 flex-1"
+                      value={categoryId}
+                      onChange={(event) => setCategoryId(event.target.value)}
+                    >
+                      {available.map((category) => (
+                        <NativeSelectOption
+                          key={category.id}
+                          value={category.id}
+                        >
+                          {category.name}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </div>
+                </Field>
+              )}
+              <Field data-invalid={showError}>
+                <FieldLabel htmlFor={`${id}-amount`}>
+                  {income ? 'Prévu par mois' : 'Objectif par mois'}
+                </FieldLabel>
+                <AmountField
+                  id={`${id}-amount`}
+                  placeholder={income ? '2100' : '350'}
+                  value={amount}
+                  aria-invalid={showError}
+                  onValueChange={(typed) => setAmount(typed)}
                 />
-                <div className="space-y-0.5">
-                  <Label htmlFor={`${id}-tracked`} className="font-normal">
-                    Suivre pendant le mois
-                  </Label>
-                  <p className="text-muted-foreground text-xs">
-                    Affiché sur le tableau de bord, avec les dépenses notées à
-                    la main avant l’import du relevé.
-                  </p>
+                {showError && <FieldError>{amountError}</FieldError>}
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={`${id}-note`}>Note</FieldLabel>
+                <Textarea
+                  id={`${id}-note`}
+                  rows={2}
+                  maxLength={NOTE_MAX}
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                />
+                <FieldDescription>
+                  {income
+                    ? 'Facultative, par ex. « estimation, à corriger avec la fiche de paie ».'
+                    : 'Facultative, par ex. « dépense fixe ».'}
+                </FieldDescription>
+              </Field>
+              {!income && (
+                <div className="flex items-start gap-3">
+                  <Switch
+                    id={`${id}-tracked`}
+                    checked={tracked}
+                    onCheckedChange={setTracked}
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor={`${id}-tracked`} className="font-normal">
+                      Suivre pendant le mois
+                    </Label>
+                    <p className="text-muted-foreground text-xs">
+                      Affiché sur le tableau de bord, avec les dépenses notées à
+                      la main avant l’import du relevé.
+                    </p>
+                  </div>
                 </div>
+              )}
+              <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                {budget && (
+                  <Button
+                    type="button"
+                    variant="danger"
+                    outline
+                    onClick={() => setConfirmOpen(true)}
+                  >
+                    {income ? 'Retirer du plan' : 'Arrêter ce budget'}
+                  </Button>
+                )}
+                {!isMobile && (
+                  <Button
+                    type="submit"
+                    className="sm:ml-auto"
+                    loading={save.isPending}
+                    disabled={!categoryId}
+                  >
+                    Enregistrer
+                  </Button>
+                )}
               </div>
-            )}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row">
-              {budget && (
-                <Button
-                  type="button"
-                  variant="danger"
-                  outline
-                  onClick={() => setConfirmOpen(true)}
-                >
-                  {income ? 'Retirer du plan' : 'Arrêter ce budget'}
-                </Button>
-              )}
-              {!isMobile && (
-                <Button
-                  type="submit"
-                  className="sm:ml-auto"
-                  loading={save.isPending}
-                  disabled={!categoryId}
-                >
-                  Enregistrer
-                </Button>
-              )}
-            </div>
-          </form>
+            </form>
           </SheetScroll>
         </SheetContent>
       </Sheet>

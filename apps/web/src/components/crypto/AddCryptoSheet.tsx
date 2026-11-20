@@ -2,7 +2,6 @@ import {
   Alert,
   AlertTitle,
   Button,
-  cn,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -19,6 +18,8 @@ import {
   RadioCard,
   RadioCardGroup,
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
   SheetDescription,
   SheetTitle,
@@ -1032,38 +1033,67 @@ export function AddCryptoSheet({
   const Description = isMobile ? SheetDescription : DialogDescription
   const content = (
     <form noValidate onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-      <Title className="sr-only">Ajouter des cryptos</Title>
-      <Description className="sr-only">
-        D’où elles viennent, puis ce qu’il faut pour les suivre.
-      </Description>
-      {/* The way back and where we are, clear of the close button; the
+      {isMobile ? (
+        <SheetBar
+          title={title}
+          description={`Ajouter des cryptos · étape ${step} sur ${STEP_COUNT}`}
+          onBack={screen !== 'source' ? back : undefined}
+          action={
+            action && (
+              <SheetBarAction
+                type="submit"
+                label={
+                  typeof action.label === 'string' ? action.label : 'Suivant'
+                }
+                icon={
+                  typeof action.label === 'string' ? undefined : (
+                    <ChevronRightIcon aria-hidden strokeWidth={2.6} />
+                  )
+                }
+                loading={action.loading}
+              />
+            )
+          }
+        />
+      ) : (
+        <>
+          <Title className="sr-only">Ajouter des cryptos</Title>
+          <Description className="sr-only">
+            D’où elles viennent, puis ce qu’il faut pour les suivre.
+          </Description>
+          {/* The way back and where we are, clear of the close button; the
           question on a line of its own, so it never gets squeezed. */}
-      <div className="flex min-h-14 items-center gap-2 py-2 pr-12 pl-2">
-        {screen !== 'source' ? (
-          <Button type="button" ghost variant="secondary" onClick={back}>
-            <ChevronLeftIcon aria-hidden />
-            Retour
-          </Button>
-        ) : (
-          <span className="w-2" />
-        )}
-        <p className="text-muted-foreground text-sm whitespace-nowrap">
-          Étape {step} sur {STEP_COUNT}
-        </p>
-      </div>
-      <h3
-        ref={headingRef}
-        tabIndex={-1}
-        className="px-4 pb-3 text-lg leading-snug font-semibold outline-none"
+          <div className="flex min-h-14 items-center gap-2 py-2 pr-12 pl-2">
+            {screen !== 'source' ? (
+              <Button type="button" ghost variant="secondary" onClick={back}>
+                <ChevronLeftIcon aria-hidden />
+                Retour
+              </Button>
+            ) : (
+              <span className="w-2" />
+            )}
+            <p className="text-muted-foreground text-sm whitespace-nowrap">
+              Étape {step} sur {STEP_COUNT}
+            </p>
+          </div>
+          <h3
+            ref={headingRef}
+            tabIndex={-1}
+            className="px-4 pb-3 text-lg leading-snug font-semibold outline-none"
+          >
+            {title}
+          </h3>
+        </>
+      )}
+      <div
+        data-sheet-scroll=""
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 group-data-[side=screen]/sheet:pt-4"
       >
-        {title}
-      </h3>
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4">
         {body}
       </div>
-      {/* Above the keyboard while a field is typed in: the step's button
-          stays in reach (#323). */}
-      {action && (
+      {/* Beside the page: the step's button at the end; on a phone it is
+          the bar's round button (#385). */}
+      {!isMobile && action && (
         <div className="flex shrink-0 gap-2 border-t px-4 py-3">
           <Button
             type="submit"
@@ -1079,19 +1109,7 @@ export function AddCryptoSheet({
 
   return isMobile ? (
     <Sheet open={open} onOpenChange={close}>
-      <SheetContent
-        side="bottom"
-        className={cn(
-          'gap-0 rounded-t-xl data-[side=bottom]:h-[min(36rem,calc(92svh-var(--keyboard-inset,0px)))]',
-          'data-[side=bottom]:data-keyboard-open:h-[calc(100svh-var(--keyboard-inset,0px)-env(safe-area-inset-top)-0.5rem)]',
-        )}
-        onOpenAutoFocus={(event) => {
-          event.preventDefault()
-          headingRef.current?.focus()
-        }}
-      >
-        {content}
-      </SheetContent>
+      <SheetContent side="screen">{content}</SheetContent>
     </Sheet>
   ) : (
     <Dialog open={open} onOpenChange={close}>

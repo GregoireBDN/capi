@@ -355,30 +355,30 @@ export function AddPrepaidSheet({
         />
       ) : (
         <>
-      <Title className="sr-only">Ajouter un abonnement prépayé</Title>
-      <Description className="sr-only">
-        Le paiement, la durée, puis le nom.
-      </Description>
-      <div className="flex min-h-14 items-center gap-2 py-2 pr-12 pl-2">
-        {screen !== 'payment' ? (
-          <Button type="button" ghost variant="secondary" onClick={back}>
-            <ChevronLeftIcon aria-hidden />
-            Retour
-          </Button>
-        ) : (
-          <span className="w-2" />
-        )}
-        <p className="text-muted-foreground text-sm whitespace-nowrap">
-          Étape {step} sur {STEP_COUNT}
-        </p>
-      </div>
-      <h3
-        ref={headingRef}
-        tabIndex={-1}
-        className="px-4 pb-3 text-lg leading-snug font-semibold outline-none"
-      >
-        {title}
-      </h3>
+          <Title className="sr-only">Ajouter un abonnement prépayé</Title>
+          <Description className="sr-only">
+            Le paiement, la durée, puis le nom.
+          </Description>
+          <div className="flex min-h-14 items-center gap-2 py-2 pr-12 pl-2">
+            {screen !== 'payment' ? (
+              <Button type="button" ghost variant="secondary" onClick={back}>
+                <ChevronLeftIcon aria-hidden />
+                Retour
+              </Button>
+            ) : (
+              <span className="w-2" />
+            )}
+            <p className="text-muted-foreground text-sm whitespace-nowrap">
+              Étape {step} sur {STEP_COUNT}
+            </p>
+          </div>
+          <h3
+            ref={headingRef}
+            tabIndex={-1}
+            className="px-4 pb-3 text-lg leading-snug font-semibold outline-none"
+          >
+            {title}
+          </h3>
         </>
       )}
       <div
@@ -404,9 +404,7 @@ export function AddPrepaidSheet({
 
   return isMobile ? (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="screen">
-        {content}
-      </SheetContent>
+      <SheetContent side="screen">{content}</SheetContent>
     </Sheet>
   ) : (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -101,68 +101,68 @@ export function AddCategorySheet({
           }}
         />
         <SheetScroll>
-        <form
-          id={`${id}-form`}
-          noValidate
-          onSubmit={submit}
-          className="space-y-4 px-4 pb-6"
-        >
-          <Field data-invalid={showError}>
-            <FieldLabel htmlFor={`${id}-name`}>Nom</FieldLabel>
-            <Input
-              id={`${id}-name`}
-              autoComplete="off"
-              maxLength={NAME_MAX}
-              value={name}
-              aria-invalid={showError}
-              onChange={(event) => setName(event.target.value)}
-            />
-            {showError && <FieldError>{nameError}</FieldError>}
-          </Field>
-          <Field>
-            <FieldLabel htmlFor={`${id}-kind`}>Type</FieldLabel>
-            <NativeSelect
-              id={`${id}-kind`}
-              className="w-full"
-              value={kind}
-              onChange={(event) =>
-                setKind(event.target.value as TransactionKind)
-              }
-            >
-              {TRANSACTION_KINDS.map((value) => (
-                <NativeSelectOption key={value} value={value}>
-                  {KIND_GROUP_LABELS[value]}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </Field>
-          <Field>
-            <FieldLabel id={`${id}-color`}>Couleur</FieldLabel>
-            <ColorPalette
-              value={color}
-              onChange={setColor}
-              label="Couleur de la nouvelle catégorie"
-            />
-          </Field>
-          <Field>
-            <FieldLabel id={`${id}-icon`}>Icône</FieldLabel>
-            <IconPicker
-              value={icon}
-              onChange={setIcon}
-              color={color}
-              label="Icône de la nouvelle catégorie"
-            />
-          </Field>
-          {!isMobile && (
-            <Button
-              type="submit"
-              className="w-full sm:w-auto"
-              loading={create.isPending}
-            >
-              Ajouter
-            </Button>
-          )}
-        </form>
+          <form
+            id={`${id}-form`}
+            noValidate
+            onSubmit={submit}
+            className="space-y-4 px-4 pb-6"
+          >
+            <Field data-invalid={showError}>
+              <FieldLabel htmlFor={`${id}-name`}>Nom</FieldLabel>
+              <Input
+                id={`${id}-name`}
+                autoComplete="off"
+                maxLength={NAME_MAX}
+                value={name}
+                aria-invalid={showError}
+                onChange={(event) => setName(event.target.value)}
+              />
+              {showError && <FieldError>{nameError}</FieldError>}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`${id}-kind`}>Type</FieldLabel>
+              <NativeSelect
+                id={`${id}-kind`}
+                className="w-full"
+                value={kind}
+                onChange={(event) =>
+                  setKind(event.target.value as TransactionKind)
+                }
+              >
+                {TRANSACTION_KINDS.map((value) => (
+                  <NativeSelectOption key={value} value={value}>
+                    {KIND_GROUP_LABELS[value]}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </Field>
+            <Field>
+              <FieldLabel id={`${id}-color`}>Couleur</FieldLabel>
+              <ColorPalette
+                value={color}
+                onChange={setColor}
+                label="Couleur de la nouvelle catégorie"
+              />
+            </Field>
+            <Field>
+              <FieldLabel id={`${id}-icon`}>Icône</FieldLabel>
+              <IconPicker
+                value={icon}
+                onChange={setIcon}
+                color={color}
+                label="Icône de la nouvelle catégorie"
+              />
+            </Field>
+            {!isMobile && (
+              <Button
+                type="submit"
+                className="w-full sm:w-auto"
+                loading={create.isPending}
+              >
+                Ajouter
+              </Button>
+            )}
+          </form>
         </SheetScroll>
       </SheetContent>
     </Sheet>

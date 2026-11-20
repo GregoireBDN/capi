@@ -14,9 +14,6 @@ import {
   SegmentedControlItem,
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   Skeleton,
   useIsMobile,
 } from '@finances/ui'
@@ -91,6 +88,12 @@ import type { Range, SplitPart, WalletAsset } from './wallet-assets'
 import { chainFailureText } from './wallet-sync-status'
 import { pricesSettling, staleShown, useLiveRefresh } from './live-refresh'
 import { RowsCardSkeleton, ValueCardSkeleton } from './skeletons'
+import {
+  EditorHeader,
+  editorSide,
+  FORM_SHEET_SCREEN,
+  SheetScroll,
+} from '#/components/sheets/form-sheet'
 
 /**
  * « Actualiser » of a wallet account (#269): reads the chains (when the
@@ -720,9 +723,7 @@ function keySubtitle(key: WalletKeyDto): string {
 }
 
 const sheetClass = (isMobile: boolean) =>
-  isMobile
-    ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-    : 'overflow-y-auto'
+  isMobile ? FORM_SHEET_SCREEN : 'overflow-y-auto'
 
 /** « Type d’adresses   Native SegWit (bc1q…) », one line of a key's screen. */
 function KeyFact({
@@ -809,17 +810,21 @@ function WalletKeySheet({
     <>
       <Sheet open={walletKey !== undefined} onOpenChange={onOpenChange}>
         <SheetContent
-          side={isMobile ? 'bottom' : 'right'}
+          side={editorSide(isMobile)}
           className={sheetClass(isMobile)}
         >
-          <SheetHeader className="pb-0">
-            <SheetTitle>{key ? keyTitle(key) : 'Clé publique'}</SheetTitle>
-            <SheetDescription>
-              Clé publique : elle permet de lire les soldes, jamais de dépenser.
-            </SheetDescription>
-          </SheetHeader>
+          <EditorHeader
+            title={<>{key ? keyTitle(key) : 'Clé publique'}</>}
+            description={
+              <>
+                Clé publique : elle permet de lire les soldes, jamais de
+                dépenser.
+              </>
+            }
+            className="pb-0"
+          />
           {key && (
-            <div className="space-y-4 px-4 pb-6">
+            <SheetScroll className="space-y-4 px-4 pb-6">
               <div className="bg-muted/50 flex items-center gap-2 rounded-lg py-1 pr-1 pl-3">
                 <span
                   className="min-w-0 flex-1 truncate font-mono text-sm"
@@ -872,7 +877,7 @@ function WalletKeySheet({
                   Retirer la clé
                 </Button>
               )}
-            </div>
+            </SheetScroll>
           )}
         </SheetContent>
       </Sheet>
@@ -1000,23 +1005,24 @@ function WalletSettings({
       />
       <Sheet open={tokensOpen} onOpenChange={setTokensOpen}>
         <SheetContent
-          side={isMobile ? 'bottom' : 'right'}
+          side={editorSide(isMobile)}
           className={sheetClass(isMobile)}
         >
-          <SheetHeader className="pb-0">
-            <SheetTitle>Jetons lus</SheetTitle>
-            <SheetDescription>
-              Les jetons ERC-20 / BEP-20 lus sur les adresses du wallet.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="px-4 pb-6">
+          <EditorHeader
+            title={<>Jetons lus</>}
+            description={
+              <>Les jetons ERC-20 / BEP-20 lus sur les adresses du wallet.</>
+            }
+            className="pb-0"
+          />
+          <SheetScroll className="px-4 pb-6">
             <WalletTokenList
               accountId={account.id}
               writable={writable}
               chains={evmChains}
               onChanged={onTokensChanged}
             />
-          </div>
+          </SheetScroll>
         </SheetContent>
       </Sheet>
       {writable && (
