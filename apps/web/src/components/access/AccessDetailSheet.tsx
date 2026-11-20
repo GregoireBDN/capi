@@ -8,9 +8,6 @@ import {
   Input,
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   Skeleton,
   useIsMobile,
 } from '@finances/ui'
@@ -42,6 +39,12 @@ import {
 } from './access-labels'
 import type { AuditCall } from './access-labels'
 import type { AccessItem } from './accesses'
+import {
+  EditorHeader,
+  editorSide,
+  FORM_SHEET_SCREEN,
+  SheetScroll,
+} from '#/components/sheets/form-sheet'
 
 const NAME_MAX = 100
 
@@ -78,12 +81,10 @@ export function AccessDetailSheet({
       }}
     >
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
+        side={editorSide(isMobile)}
         className={cn(
           'gap-0',
-          isMobile
-            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-            : 'overflow-y-auto',
+          isMobile ? FORM_SHEET_SCREEN : 'overflow-y-auto',
         )}
       >
         {shown &&
@@ -175,15 +176,16 @@ function MainScreen({
 
   return (
     <>
-      <SheetHeader className="pr-12">
-        <SheetTitle className="break-words">{access.name}</SheetTitle>
-        <SheetDescription>
-          {isApp
+      <EditorHeader
+        className="pr-12"
+        title={access.name}
+        description={
+          isApp
             ? `Connecteur ${access.host ?? ''}, connecté le ${formatDay(access.createdAt)}`
-            : `Créé le ${formatDay(access.createdAt)}`}
-        </SheetDescription>
-      </SheetHeader>
-      <div className="space-y-5 px-4 pb-6">
+            : `Créé le ${formatDay(access.createdAt)}`
+        }
+      />
+      <SheetScroll className="space-y-5 px-4 pb-6">
         <dl className="bg-card divide-y rounded-xl border">
           <Fact label="Peut" value={SCOPE_LABELS[access.scope]} />
           <Fact
@@ -267,7 +269,7 @@ function MainScreen({
             {isApp ? 'Déconnecter' : 'Révoquer'}
           </Button>
         </div>
-      </div>
+      </SheetScroll>
 
       <ConfirmDialog
         open={confirmOpen}
@@ -301,6 +303,7 @@ function RenameScreen({
   onRenamed: (name: string) => void
 }) {
   const id = useId()
+  const isMobile = useIsMobile()
   const queryClient = useQueryClient()
   const [name, setName] = useState(access.name)
   const [submitted, setSubmitted] = useState(false)
@@ -328,21 +331,27 @@ function RenameScreen({
   }
 
   return (
-    <form noValidate onSubmit={submit}>
-      <div className="flex min-h-14 items-center py-2 pr-12 pl-2">
-        <Button type="button" ghost variant="secondary" onClick={onBack}>
-          <ChevronLeftIcon aria-hidden />
-          Retour
-        </Button>
-      </div>
-      <SheetHeader className="pt-0">
-        <SheetTitle>Renommer</SheetTitle>
-        <SheetDescription>
-          Un nom pour le reconnaître&nbsp;: «&nbsp;Claude Desktop&nbsp;»,
-          «&nbsp;Claude Code&nbsp;», «&nbsp;Script d’export&nbsp;».
-        </SheetDescription>
-      </SheetHeader>
-      <div className="space-y-4 px-4 pb-6">
+    <form noValidate onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+      {!isMobile && (
+        <div className="flex min-h-14 items-center py-2 pr-12 pl-2">
+          <Button type="button" ghost variant="secondary" onClick={onBack}>
+            <ChevronLeftIcon aria-hidden />
+            Retour
+          </Button>
+        </div>
+      )}
+      <EditorHeader
+        className="pt-0"
+        title="Renommer"
+        description="Un nom pour le reconnaître : « Claude Desktop », « Claude Code », « Script d’export »."
+        onBack={onBack}
+        action={{
+          type: 'submit',
+          label: 'Enregistrer',
+          loading: rename.isPending,
+        }}
+      />
+      <SheetScroll className="space-y-4 px-4 pb-6">
         <Field data-invalid={submitted && error !== undefined}>
           <FieldLabel htmlFor={`${id}-name`}>Nom</FieldLabel>
           <Input
@@ -355,10 +364,12 @@ function RenameScreen({
           />
           {submitted && error && <FieldError>{error}</FieldError>}
         </Field>
-        <Button type="submit" className="w-full" loading={rename.isPending}>
-          Enregistrer
-        </Button>
-      </div>
+        {!isMobile && (
+          <Button type="submit" className="w-full" loading={rename.isPending}>
+            Enregistrer
+          </Button>
+        )}
+      </SheetScroll>
     </form>
   )
 }

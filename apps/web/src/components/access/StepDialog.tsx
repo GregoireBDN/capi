@@ -1,11 +1,11 @@
 import {
   Button,
-  cn,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle,
   Sheet,
+  SheetBar,
   SheetContent,
   SheetDescription,
   SheetTitle,
@@ -57,31 +57,46 @@ export function StepDialog({
   const Description = isMobile ? SheetDescription : DialogDescription
   const content = (
     <div className="flex min-h-0 flex-1 flex-col">
-      <Title className="sr-only">{label}</Title>
-      <Description className="sr-only">{description}</Description>
-      <div className="flex min-h-14 items-center gap-2 py-2 pr-12 pl-2">
-        {onBack ? (
-          <Button type="button" ghost variant="secondary" onClick={onBack}>
-            <ChevronLeftIcon aria-hidden />
-            Retour
-          </Button>
-        ) : (
-          <span className="w-2" />
-        )}
-        {step && (
-          <p className="text-muted-foreground text-sm whitespace-nowrap">
-            Étape {step[0]} sur {step[1]}
-          </p>
-        )}
-      </div>
-      <h3
-        ref={headingRef}
-        tabIndex={-1}
-        className="px-4 pb-3 text-lg leading-snug font-semibold outline-none"
+      {isMobile ? (
+        <SheetBar
+          title={title}
+          description={
+            step ? `${label} · étape ${step[0]} sur ${step[1]}` : description
+          }
+          onBack={onBack}
+        />
+      ) : (
+        <>
+          <Title className="sr-only">{label}</Title>
+          <Description className="sr-only">{description}</Description>
+          <div className="flex min-h-14 items-center gap-2 py-2 pr-12 pl-2">
+            {onBack ? (
+              <Button type="button" ghost variant="secondary" onClick={onBack}>
+                <ChevronLeftIcon aria-hidden />
+                Retour
+              </Button>
+            ) : (
+              <span className="w-2" />
+            )}
+            {step && (
+              <p className="text-muted-foreground text-sm whitespace-nowrap">
+                Étape {step[0]} sur {step[1]}
+              </p>
+            )}
+          </div>
+          <h3
+            ref={headingRef}
+            tabIndex={-1}
+            className="px-4 pb-3 text-lg leading-snug font-semibold outline-none"
+          >
+            {title}
+          </h3>
+        </>
+      )}
+      <div
+        data-sheet-scroll=""
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 group-data-[side=screen]/sheet:pt-4"
       >
-        {title}
-      </h3>
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4">
         {children}
       </div>
       {action && (
@@ -95,11 +110,7 @@ export function StepDialog({
   return isMobile ? (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side="bottom"
-        className={cn(
-          'gap-0 rounded-t-xl data-[side=bottom]:h-[min(40rem,calc(92svh-var(--keyboard-inset,0px)))]',
-          'data-[side=bottom]:data-keyboard-open:h-[calc(100svh-var(--keyboard-inset,0px)-env(safe-area-inset-top)-0.5rem)]',
-        )}
+        side="screen"
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           headingRef.current?.focus()
