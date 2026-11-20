@@ -72,8 +72,7 @@ export class InvestmentsController {
     name: 'months',
     required: false,
     type: 'integer',
-    description:
-      'Calendar months covered, the current one included (1–120, default 12).',
+    description: 'Calendar months covered, the current one included (1–120, default 12).',
   })
   @ApiOkResponse({ type: InvestmentFlowsDto })
   flows(@Query() query: InvestmentFlowsQueryDto): Promise<InvestmentFlowsDto> {
@@ -93,8 +92,7 @@ export class InvestmentsController {
     name: 'months',
     required: false,
     type: 'integer',
-    description:
-      'Calendar months covered, the current one included (1–120, default 12).',
+    description: 'Calendar months covered, the current one included (1–120, default 12).',
   })
   @ApiQuery({
     name: 'accountId',
