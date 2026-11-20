@@ -134,12 +134,15 @@ export function AppSidebar() {
           </Link>
         )}
         {/* Folded, the dot every icon button with something waiting has
-            (`IconDot`, #393), centred on the 44px button and its icon. */}
+            (`IconDot`, #393), astride the corner of the 44px button,
+            rounded `--radius-md`, ringed in the sidebar's colour. */}
         {count !== null && count > 0 && (
           <IconDot
             aria-hidden
             data-testid="nav-review-dot"
-            className="hidden group-data-[collapsible=icon]:block"
+            box="var(--rail-button)"
+            radius="var(--radius-md)"
+            className="hidden group-data-[collapsible=icon]:block [&>span]:ring-sidebar"
           />
         )}
       </SidebarMenuItem>
