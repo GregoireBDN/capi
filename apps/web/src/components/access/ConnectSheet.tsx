@@ -10,12 +10,7 @@ import {
   SegmentedControlItem,
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  ClockIcon,
-  KeyRoundIcon,
-  PlugIcon,
-  ShieldIcon,
-} from 'lucide-react'
+import { ClockIcon, KeyRoundIcon, PlugIcon, ShieldIcon } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import type { AccessTokenScope, CreatedAccessTokenDto } from '#/api/types.gen'
@@ -150,8 +145,7 @@ export function ConnectSheet({
           current: step,
           // Back to « Accès » from the duration; the token, once shown,
           // is not left.
-          onSelect:
-            step === 'duration' ? () => setStep('scope') : undefined,
+          onSelect: step === 'duration' ? () => setStep('scope') : undefined,
           steps: [
             { key: 'scope', label: 'Accès', icon: <ShieldIcon aria-hidden /> },
             {
