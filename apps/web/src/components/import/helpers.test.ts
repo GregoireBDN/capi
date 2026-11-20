@@ -11,6 +11,7 @@ import {
   formatDate,
   formatPeriod,
   parseIssueFr,
+  undoDescription,
 } from './format'
 import { previewRows } from './test-fixtures'
 
@@ -142,5 +143,36 @@ describe('buildCommitPayload', () => {
         categories: { 1: 'cat-pay' },
       }),
     ).toBe(1)
+  })
+})
+
+describe('undoDescription', () => {
+  const base = {
+    fileName: 'export.csv',
+    accountName: 'Compte courant',
+    inserted: 42,
+    edited: 0,
+    absorbed: 0,
+  }
+
+  it('is the plain sentence when nothing was edited or absorbed', () => {
+    expect(undoDescription(base)).toBe(
+      '42 opérations ajoutées par « export.csv » sur Compte courant seront supprimées. Cette action est irréversible.',
+    )
+    expect(undoDescription({ ...base, inserted: 1 })).toBe(
+      '1 opération ajoutée par « export.csv » sur Compte courant sera supprimée. Cette action est irréversible.',
+    )
+  })
+
+  it('counts the rows edited by hand and the manual entries put back', () => {
+    expect(undoDescription({ ...base, edited: 12, absorbed: 3 })).toBe(
+      '42 opérations ajoutées par « export.csv » sur Compte courant seront supprimées, dont 12 modifiées à la main et 3 rapprochées de vos saisies : ces 3 saisies seront remises comme saisies manuelles. Réimporter le fichier ne rendra pas les modifications.',
+    )
+    expect(undoDescription({ ...base, edited: 1 })).toBe(
+      '42 opérations ajoutées par « export.csv » sur Compte courant seront supprimées, dont 1 modifiée à la main. Réimporter le fichier ne rendra pas les modifications.',
+    )
+    expect(undoDescription({ ...base, absorbed: 1 })).toBe(
+      '42 opérations ajoutées par « export.csv » sur Compte courant seront supprimées, dont 1 rapprochée d’une saisie : cette saisie sera remise comme saisie manuelle.',
+    )
   })
 })

@@ -9966,6 +9966,23 @@
           "unmatchedManual"
         ]
       },
+      "ImportUndoImpactDto": {
+        "type": "object",
+        "properties": {
+          "editedCount": {
+            "type": "integer",
+            "description": "Rows edited by hand that undoing deletes with their edits: filed by hand (not by a rule), kind changed, note, split, corrected amount or date, transfer link set by hand, one-off flag, prepaid subscription link. Absorbed rows are left out."
+          },
+          "absorbedManualCount": {
+            "type": "integer",
+            "description": "Manual transactions absorbed by reconciliation: undoing puts them back as manual transactions."
+          }
+        },
+        "required": [
+          "editedCount",
+          "absorbedManualCount"
+        ]
+      },
       "ImportDetailDto": {
         "type": "object",
         "properties": {
@@ -10039,6 +10056,16 @@
                 "$ref": "#/components/schemas/ImportPreviewDto"
               }
             ]
+          },
+          "undo": {
+            "nullable": true,
+            "description": "What undoing a committed import deletes and puts back (#371); null while pending.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImportUndoImpactDto"
+              }
+            ]
           }
         },
         "required": [
@@ -10054,7 +10081,8 @@
           "createdAt",
           "committedAt",
           "alreadyImported",
-          "preview"
+          "preview",
+          "undo"
         ]
       },
       "ConflictAction": {
@@ -10208,12 +10236,17 @@
           },
           "removedTransactions": {
             "type": "integer"
+          },
+          "restoredManual": {
+            "type": "integer",
+            "description": "Manual transactions absorbed by the undone import, put back as manual transactions (0 for a discarded preview)."
           }
         },
         "required": [
           "id",
           "result",
-          "removedTransactions"
+          "removedTransactions",
+          "restoredManual"
         ]
       },
       "RecurringDetectResultDto": {

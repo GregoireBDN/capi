@@ -17,7 +17,7 @@ import { importsControllerFindOne, importsControllerRemove } from '#/api'
 import type { ImportDetailDto, ImportSummaryDto } from '#/api'
 import { importKeys, importsQuery, unwrap } from './api'
 import { genericErrorMessage } from './errors'
-import { formatDateTime, formatPeriod, plural } from './format'
+import { formatDateTime, formatPeriod, plural, undoDescription } from './format'
 
 const SOURCE_LABEL: Record<string, string> = {
   cic_csv: 'CSV CIC',
@@ -34,7 +34,8 @@ interface ImportHistoryProps {
 export function ImportHistory({ onResume, activeId }: ImportHistoryProps) {
   const queryClient = useQueryClient()
   const history = useQuery(importsQuery)
-  const [toUndo, setToUndo] = useState<ImportSummaryDto | null>(null)
+  // The detail of the import to undo: it counts what undoing loses (#371).
+  const [toUndo, setToUndo] = useState<ImportDetailDto | null>(null)
 
   const refresh = () =>
     Promise.all([
@@ -55,11 +56,30 @@ export function ImportHistory({ onResume, activeId }: ImportHistoryProps) {
       await refresh()
       toast.success(
         result.result === 'undone'
-          ? `Import annulé : ${plural(result.removedTransactions, 'opération supprimée', 'opérations supprimées')}`
+          ? `Import annulé : ${plural(result.removedTransactions, 'opération supprimée', 'opérations supprimées')}${
+              result.restoredManual > 0
+                ? `, ${plural(result.restoredManual, 'saisie remise', 'saisies remises')}`
+                : ''
+            }`
           : 'Aperçu supprimé',
       )
     },
     onError: (error) => toast.error(genericErrorMessage(error)),
+  })
+
+  const prepareUndo = useMutation({
+    mutationFn: (item: ImportSummaryDto) =>
+      unwrap(
+        importsControllerFindOne({
+          path: { id: item.id },
+          throwOnError: false,
+        }),
+      ),
+    onSuccess: (detail) => setToUndo(detail),
+    onError: async (error) => {
+      toast.error(genericErrorMessage(error))
+      await refresh()
+    },
   })
 
   const resume = useMutation({
@@ -88,7 +108,8 @@ export function ImportHistory({ onResume, activeId }: ImportHistoryProps) {
           Historique des imports
         </CardTitle>
         <CardDescription>
-          Annuler un import supprime toutes les opérations qu’il a ajoutées.
+          Annuler un import supprime les opérations qu’il a ajoutées ; les
+          saisies qu’il avait rapprochées sont remises.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -126,7 +147,10 @@ export function ImportHistory({ onResume, activeId }: ImportHistoryProps) {
                   (remove.isPending && remove.variables.id === item.id) ||
                   (resume.isPending && resume.variables.id === item.id)
                 }
-                onUndo={() => setToUndo(item)}
+                preparing={
+                  prepareUndo.isPending && prepareUndo.variables.id === item.id
+                }
+                onUndo={() => prepareUndo.mutate(item)}
                 onDiscard={() => remove.mutate(item)}
                 onResume={() => resume.mutate(item)}
               />
@@ -146,7 +170,13 @@ export function ImportHistory({ onResume, activeId }: ImportHistoryProps) {
         title="Annuler cet import ?"
         description={
           toUndo
-            ? `${plural(toUndo.counts.inserted, 'opération ajoutée', 'opérations ajoutées')} par « ${toUndo.fileName} » sur ${toUndo.accountName} ${toUndo.counts.inserted > 1 ? 'seront supprimées' : 'sera supprimée'}, y compris les catégories que vous leur avez attribuées. Cette action est irréversible.`
+            ? undoDescription({
+                fileName: toUndo.fileName,
+                accountName: toUndo.accountName,
+                inserted: toUndo.counts.inserted,
+                edited: toUndo.undo?.editedCount ?? 0,
+                absorbed: toUndo.undo?.absorbedManualCount ?? 0,
+              })
             : undefined
         }
         confirmLabel="Annuler l’import"
@@ -162,6 +192,8 @@ interface HistoryItemProps {
   item: ImportSummaryDto
   active: boolean
   busy: boolean
+  /** The undo's figures are being read. */
+  preparing: boolean
   onUndo: () => void
   onDiscard: () => void
   onResume: () => void
@@ -171,6 +203,7 @@ function HistoryItem({
   item,
   active,
   busy,
+  preparing,
   onUndo,
   onDiscard,
   onResume,
@@ -228,6 +261,7 @@ function HistoryItem({
               variant="danger"
               outline
               disabled={busy}
+              loading={preparing}
               onClick={onUndo}
             >
               Annuler l’import

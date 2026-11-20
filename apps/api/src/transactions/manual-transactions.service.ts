@@ -51,6 +51,11 @@ type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
  */
 const MANUAL_HASH_PREFIX = 'manual:'
 
+/** A fresh dedupe hash for a manual transaction. */
+export function manualDedupeHash(): string {
+  return `${MANUAL_HASH_PREFIX}${randomUUID()}`
+}
+
 /** Sign of the amount when no direction is sent. */
 function defaultDirection(kind: TransactionKind): MoneyDirection {
   return kind === 'income' ? 'in' : 'out'
@@ -135,7 +140,7 @@ export class ManualTransactionsService {
           isOneOff: dto.isOneOff ?? false,
           note: dto.note ?? null,
           manual: true,
-          dedupeHash: `${MANUAL_HASH_PREFIX}${randomUUID()}`,
+          dedupeHash: manualDedupeHash(),
         })
         .returning({ id: transactionsTable.id })
       return row.id

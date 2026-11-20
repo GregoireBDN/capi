@@ -295,6 +295,13 @@
       "when": 1795168322359,
       "tag": "0041_crypto_daily_values",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1795169017527,
+      "tag": "0042_import_undo_absorbed_manual",
+      "breakpoints": true
     }
   ]
 }

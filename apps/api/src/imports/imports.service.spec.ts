@@ -734,6 +734,7 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
           id: a.id,
           result: 'undone',
           removedTransactions: 4,
+          restoredManual: 0,
         })
         const remaining = await storedTransactions(tx, accountId)
         expect(remaining).toHaveLength(2)
@@ -759,6 +760,7 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
           id,
           result: 'discarded',
           removedTransactions: 0,
+          restoredManual: 0,
         })
         await expect(service.commit(id, {})).rejects.toBeInstanceOf(
           NotFoundException,

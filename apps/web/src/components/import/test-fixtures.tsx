@@ -187,6 +187,7 @@ export const pendingDetail: ImportDetailDto = {
   createdAt: '2026-04-01T08:00:00.000Z',
   committedAt: null,
   alreadyImported: null,
+  undo: null,
   preview: {
     unmatchedManual: [],
     previousBalanceCents: null,
@@ -230,4 +231,12 @@ export const committedSummary: ImportSummaryDto = {
   },
   createdAt: '2026-03-01T09:00:00.000Z',
   committedAt: '2026-03-01T09:01:00.000Z',
+}
+
+/** `committedSummary` as `GET /imports/:id` returns it, nothing edited. */
+export const committedDetail: ImportDetailDto = {
+  ...committedSummary,
+  alreadyImported: null,
+  preview: null,
+  undo: { editedCount: 0, absorbedManualCount: 0 },
 }
