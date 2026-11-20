@@ -64,6 +64,8 @@ describe('accountFreshness', () => {
   it('asks an exchange for its first or a newer export', () => {
     expect(accountFreshness(account({ source: 'exchange' }), NOW)).toEqual({
       text: 'Plateforme · aucun export',
+      short: 'aucun export',
+      event: 'export',
       warning: 'à importer',
     })
     expect(
@@ -73,6 +75,8 @@ describe('accountFreshness', () => {
       ),
     ).toEqual({
       text: 'Plateforme · export importé il y a 2 j',
+      short: 'il y a 2 j',
+      event: 'export',
       warning: null,
     })
     expect(
@@ -93,7 +97,12 @@ describe('accountFreshness', () => {
         }),
         NOW,
       ),
-    ).toEqual({ text: 'Wallet · lecture en cours…', warning: null })
+    ).toEqual({
+      text: 'Wallet · lecture en cours…',
+      short: 'lecture…',
+      event: 'read',
+      warning: null,
+    })
   })
 
   it('says when a wallet was read, or why not', () => {
@@ -107,7 +116,12 @@ describe('accountFreshness', () => {
         }),
         NOW,
       ),
-    ).toEqual({ text: 'Wallet · lu il y a 6 min', warning: null })
+    ).toEqual({
+      text: 'Wallet · lu il y a 6 min',
+      short: 'il y a 6 min',
+      event: 'read',
+      warning: null,
+    })
     expect(
       accountFreshness(
         account({
@@ -120,19 +134,34 @@ describe('accountFreshness', () => {
     ).toBe('lecture en échec')
     expect(
       accountFreshness(account({ source: 'wallet', sync: sync({}) }), NOW),
-    ).toEqual({ text: 'Wallet · jamais lu', warning: 'à lire' })
+    ).toEqual({
+      text: 'Wallet · jamais lu',
+      short: 'jamais lu',
+      event: 'read',
+      warning: 'à lire',
+    })
     expect(
       accountFreshness(
         account({ source: 'wallet', sync: sync({ enabled: false }) }),
         NOW,
       ),
-    ).toEqual({ text: 'Wallet · synchro désactivée', warning: null })
+    ).toEqual({
+      text: 'Wallet · synchro désactivée',
+      short: 'sans synchro',
+      event: 'read',
+      warning: null,
+    })
   })
 
   it('dates the last line edited by hand', () => {
     expect(
       accountFreshness(account({ updatedAt: '2026-10-02T10:00:00Z' }), NOW),
-    ).toEqual({ text: 'Saisie manuelle · modifiée le 2 oct.', warning: null })
+    ).toEqual({
+      text: 'Saisie manuelle · modifiée le 2 oct.',
+      short: 'le 2 oct.',
+      event: 'edit',
+      warning: null,
+    })
     expect(accountFreshness(account({}), NOW).text).toBe(
       'Saisie manuelle · vide',
     )

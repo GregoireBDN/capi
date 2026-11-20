@@ -306,14 +306,14 @@ describe('CryptoPage', () => {
       `/accounts/${LEDGER_ID}`,
       `/accounts/${EXCHANGE_ID}`,
     ])
-    expect(text(places.textContent)).toContain('Ledger test · 0,06 BTC')
+    // Each place with its share of the asset.
+    expect(text(links[0].textContent)).toBe(
+      'Ledger test4 950,00 €0,06 BTC73 % de vos BTC',
+    )
     const btc = rows[0].closest('li')!
-    expect(text(btc.textContent)).toContain(
-      '1 BTC = 82 500,00 € · cours il y a 3 min · +2,4 % sur 24 h',
-    )
-    expect(text(btc.textContent)).toContain(
-      'Investi 4 120,00 € · résultat +2 686,25 €',
-    )
+    expect(text(btc.textContent)).toContain('Investi4 120,00 €')
+    expect(text(btc.textContent)).toContain('Résultat+2 686,25 €')
+    expect(text(btc.textContent)).toContain('Cours82 500,00 €il y a 3 min')
 
     await user.click(rows[1])
     expect(
@@ -547,7 +547,8 @@ describe('CryptoPage', () => {
         name: 'Valeur de vos cryptos',
       })
       expect(text(summary.textContent)).toContain('Lecture des wallets…')
-      expect(screen.getByText('Wallet · lecture en cours…')).toBeVisible()
+      const accounts = screen.getByRole('list', { name: 'Comptes crypto' })
+      expect(text(accounts.textContent)).toContain('Wallet · lecture en cours…')
     })
   })
 })
