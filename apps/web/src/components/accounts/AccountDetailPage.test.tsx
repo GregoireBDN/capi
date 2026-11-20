@@ -871,6 +871,7 @@ describe('AccountDetailPage', () => {
         snapshot: null,
         priceApiEnabled: true,
         refreshFailed: false,
+        refreshDue: false,
         sync,
       }),
     )
@@ -990,6 +991,7 @@ describe('AccountDetailPage', () => {
         failedAt: null,
         failedChains: [],
         retryAt: null,
+        syncing: false,
       },
     )
     api.walletTokensControllerList.mockImplementation(() => ok([]))
@@ -1191,6 +1193,7 @@ describe('AccountDetailPage', () => {
       snapshot: null,
       priceApiEnabled: true,
       refreshFailed: false,
+      refreshDue: false,
       sync,
     }
   }
@@ -1232,6 +1235,7 @@ describe('AccountDetailPage', () => {
       failedAt: null,
       failedChains: [],
       retryAt: null,
+      syncing: false,
     })
     const synced = walletHoldings(
       {
@@ -1240,6 +1244,7 @@ describe('AccountDetailPage', () => {
         failedAt: null,
         failedChains: [],
         retryAt: null,
+        syncing: false,
       },
       [holding({ origin: 'sync', location: 'Bitcoin' })],
     )
@@ -1276,6 +1281,67 @@ describe('AccountDetailPage', () => {
     ).toBeInTheDocument()
   })
 
+  it('shows a wallet from the database, then reads it live in place (#381)', async () => {
+    const sync = {
+      enabled: true,
+      syncedAt: '2026-11-06T08:00:00.000Z',
+      failedAt: null,
+      failedChains: [],
+      retryAt: null,
+      syncing: false,
+    }
+    mockWallet(sync, [
+      holding({ origin: 'sync', location: 'Bitcoin', priceStale: true }),
+    ])
+    api.accountHoldingsControllerList.mockImplementation(() =>
+      ok({
+        ...walletHoldings(sync, [
+          holding({ origin: 'sync', location: 'Bitcoin', priceStale: true }),
+        ]),
+        refreshDue: true,
+        totals: { ...walletHoldings(sync).totals, staleCount: 1 },
+      }),
+    )
+    let answer!: (value: unknown) => void
+    api.accountHoldingsControllerValuate.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve
+        }),
+    )
+    renderPage()
+    const status = await screen.findByRole('region', {
+      name: 'Valeur du wallet',
+    })
+    await waitFor(() =>
+      expect(api.accountHoldingsControllerValuate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { id: ACCOUNT_ID },
+          query: { mode: 'auto' },
+        }),
+      ),
+    )
+    // In place of « Soldes lus … », and no stale note while it runs.
+    expect(
+      within(status).getByText('Actualisation des cours…'),
+    ).toBeInTheDocument()
+    expect(within(status).queryByText(/Cours non actualisés/)).toBeNull()
+    expect(screen.queryByRole('status', { name: /Chargement/ })).toBeNull()
+
+    answer({
+      data: walletHoldings({ ...sync, syncedAt: '2026-11-06T09:59:00.000Z' }, [
+        holding({ origin: 'sync', location: 'Bitcoin' }),
+      ]),
+      response: new Response(null, { status: 200 }),
+    })
+    expect(
+      await within(status).findByText('Soldes lus il y a 1 min'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Valeur du wallet' })).toBe(
+      status,
+    )
+  })
+
   it('shows a wallet value once, without contribution tiles', async () => {
     mockWallet(
       {
@@ -1284,6 +1350,7 @@ describe('AccountDetailPage', () => {
         failedAt: null,
         failedChains: [],
         retryAt: null,
+        syncing: false,
       },
       [holding({ origin: 'sync', location: 'Bitcoin' })],
     )
@@ -1336,6 +1403,7 @@ describe('AccountDetailPage', () => {
         failedAt: null,
         failedChains: [],
         retryAt: null,
+        syncing: false,
       },
       [
         holding({ id: 'h-btc', origin: 'sync', location: 'Bitcoin' }),
@@ -1444,6 +1512,7 @@ describe('AccountDetailPage', () => {
         failedAt: null,
         failedChains: [],
         retryAt: null,
+        syncing: false,
       },
       [holding({ origin: 'sync', location: 'Bitcoin' })],
     )
@@ -1475,6 +1544,7 @@ describe('AccountDetailPage', () => {
         failedAt: null,
         failedChains: [],
         retryAt: null,
+        syncing: false,
       },
       [holding({ origin: 'sync', location: 'Bitcoin' })],
     )
@@ -1518,6 +1588,7 @@ describe('AccountDetailPage', () => {
       failedAt: '2026-11-06T09:00:00.000Z',
       failedChains: [],
       retryAt: null,
+      syncing: false,
     }
     mockWallet(stale)
     api.accountHoldingsControllerSync.mockImplementation(() =>
@@ -1556,6 +1627,7 @@ describe('AccountDetailPage', () => {
         },
       ],
       retryAt: '2026-11-06T10:30:00.000Z',
+      syncing: false,
     }
     mockWallet(partial)
     api.accountHoldingsControllerSync.mockImplementation(() =>
@@ -1597,6 +1669,7 @@ describe('AccountDetailPage', () => {
       failedAt: null,
       failedChains: [],
       retryAt: null,
+      syncing: false,
     }
     mockWallet(sync)
     api.cryptoControllerSearch.mockImplementation(() =>
@@ -1720,6 +1793,7 @@ describe('AccountDetailPage', () => {
         failedAt: null,
         failedChains: [],
         retryAt: null,
+        syncing: false,
       },
       [
         holding({
@@ -1839,6 +1913,7 @@ describe('AccountDetailPage', () => {
         snapshot: null,
         priceApiEnabled: true,
         refreshFailed: false,
+        refreshDue: false,
         sync: null,
       }),
     )

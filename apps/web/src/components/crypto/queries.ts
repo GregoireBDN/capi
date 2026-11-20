@@ -30,6 +30,10 @@ import type {
 } from '#/api/types.gen'
 import { afterSnapshotsChanged } from '#/components/accounts/queries'
 import { unwrap } from '#/lib/queries'
+import { SYNC_POLL_MS } from './live-refresh'
+
+/** `force`: « Actualiser ». `auto`: the live step after the stored values (#381). */
+export type LiveRefreshMode = 'auto' | 'force'
 
 export const cryptoKeys = {
   all: ['crypto'] as const,
@@ -43,17 +47,30 @@ export const cryptoKeys = {
     ['crypto', 'wallet-tokens', accountId] as const,
 }
 
-/** The Crypto page (#295): every asset summed over the accounts. */
+/**
+ * The Crypto page (#295): every asset summed over the accounts, from the
+ * database only (#381); read again every few seconds while a wallet sync
+ * goes on in the background.
+ */
 export const cryptoPortfolioQuery = queryOptions({
   queryKey: cryptoKeys.portfolio,
   queryFn: () => unwrap(cryptoControllerPortfolio({ throwOnError: false })),
-  // Price ages depend on "now"; the API rate-limits the actual refreshes.
+  // Cheap (database only): shown at once from the cache, read again behind.
   staleTime: 0,
+  refetchInterval: (query) =>
+    query.state.data?.accounts.some((account) => account.sync?.syncing)
+      ? SYNC_POLL_MS
+      : false,
 })
 
-/** « Actualiser » of the section: the wallets' chains, then the prices. */
-export function refreshPortfolio() {
-  return unwrap(cryptoControllerRefreshPortfolio({ throwOnError: false }))
+/**
+ * « Actualiser » of the section (`force`: the wallets' chains, then the
+ * prices), or the live step after the stored values (`auto`, #381).
+ */
+export function refreshPortfolio(mode: LiveRefreshMode = 'force') {
+  return unwrap(
+    cryptoControllerRefreshPortfolio({ query: { mode }, throwOnError: false }),
+  )
 }
 
 /** What this server reads by itself (price API, wallet sync). */
@@ -73,8 +90,10 @@ export function holdingsQuery(accountId: string) {
           throwOnError: false,
         }),
       ),
-    // Price ages depend on "now"; the API rate-limits the actual refreshes.
+    // Cheap (database only, #381): shown at once from the cache.
     staleTime: 0,
+    refetchInterval: (query) =>
+      query.state.data?.sync?.syncing ? SYNC_POLL_MS : false,
   })
 }
 
@@ -133,10 +152,15 @@ export function removeHolding(accountId: string, holdingId: string) {
   )
 }
 
-export function refreshPrices(accountId: string) {
+/** « Actualiser les cours » (`force`), or the live step (`auto`, #381). */
+export function refreshPrices(
+  accountId: string,
+  mode: LiveRefreshMode = 'force',
+) {
   return unwrap(
     accountHoldingsControllerValuate({
       path: { id: accountId },
+      query: { mode },
       throwOnError: false,
     }),
   )

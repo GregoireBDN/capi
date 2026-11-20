@@ -70,6 +70,7 @@ function holdings(
     snapshot: null,
     priceApiEnabled: true,
     refreshFailed: false,
+    refreshDue: false,
     sync: null,
     ...overrides,
   }
@@ -422,5 +423,56 @@ describe('row amounts', () => {
     expect(text(rowAmount(287_100))).toBe('2 871 €')
     expect(text(rowGain(47_100))).toBe('+471,00 €')
     expect(text(rowGain(-120_050))).toBe('-1 201 €')
+  })
+
+  describe('loading (#381)', () => {
+    it('shows the card as a titled skeleton on first load', () => {
+      api.accountHoldingsControllerList.mockImplementation(
+        () => new Promise(() => {}),
+      )
+      renderPanel()
+      const loading = screen.getByRole('status', {
+        name: 'Chargement des avoirs',
+      })
+      expect(within(loading).getByText('Avoirs')).toBeVisible()
+    })
+
+    it('shows the stored lines, then the live prices in place, without an alert flash', async () => {
+      const stale = holdings({
+        refreshDue: true,
+        holdings: [holding({ priceStale: true })],
+        totals: { ...holdings().totals, staleCount: 1 },
+      })
+      api.accountHoldingsControllerList.mockImplementation(() => ok(stale))
+      let answer!: (value: unknown) => void
+      api.accountHoldingsControllerValuate.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            answer = resolve
+          }),
+      )
+      renderPanel()
+      const list = await screen.findByRole('list', { name: 'Avoirs' })
+      await waitFor(() =>
+        expect(api.accountHoldingsControllerValuate).toHaveBeenCalledWith(
+          expect.objectContaining({ query: { mode: 'auto' } }),
+        ),
+      )
+      expect(screen.getByText(/actualisation…/)).toBeVisible()
+      expect(screen.queryByText('Cours non actualisés')).toBeNull()
+      expect(within(list).queryByText('non à jour')).toBeNull()
+
+      answer({
+        data: holdings({
+          holdings: [holding({ valueCents: 1_400_000, gainCents: 1_300_000 })],
+        }),
+        response: new Response(null, { status: 200 }),
+      })
+      await waitFor(() => expect(text(list.textContent)).toContain('14 000 €'))
+      expect(screen.queryByText(/actualisation…/)).toBeNull()
+      expect(screen.queryByText('Cours non actualisés')).toBeNull()
+      // Silent: no « Cours actualisés » toast for the live step.
+      expect(toast.success).not.toHaveBeenCalledWith('Cours actualisés')
+    })
   })
 })
