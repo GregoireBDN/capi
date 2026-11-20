@@ -1,12 +1,13 @@
 import { Button, NativeSelect, NativeSelectOption } from '@finances/ui'
-import { CheckIcon } from 'lucide-react'
+import { CheckIcon, TagIcon } from 'lucide-react'
+import { useState } from 'react'
 import type {
   CategoryDto,
   TransactionDto,
   TransactionKind,
 } from '#/api/types.gen'
 import { plural } from '#/lib/plural'
-import { CategoryPicker } from './CategoryPicker'
+import { CategoryPickerSheet } from '#/components/categories/CategoryPicker'
 import type { BulkChanges } from './changes'
 import { KIND_LABELS, TRANSACTION_KINDS } from './labels'
 
@@ -34,6 +35,7 @@ export function BulkActionsBar({
   // A categorized transaction has its category's kind (#368): the type is
   // changed alone only on uncategorized ones, else by choosing a category.
   const anyCategorized = selected.some((item) => item.categoryId !== null)
+  const [picking, setPicking] = useState(false)
 
   return (
     <div
@@ -54,14 +56,30 @@ export function BulkActionsBar({
         </Button>
       </div>
       <div className="short-screen:flex short-screen:shrink-0 grid grid-cols-2 gap-2 @2xl:flex @2xl:min-w-0 @2xl:flex-1 @2xl:flex-wrap @2xl:items-center @2xl:justify-end">
-        <CategoryPicker
+        <Button
+          size="sm"
+          outline
+          variant="secondary"
+          iconStart={<TagIcon />}
+          aria-haspopup="dialog"
+          disabled={busy}
+          onClick={() => setPicking(true)}
+          className="short-screen:w-44 w-full @2xl:w-44"
+        >
+          Classer dans…
+        </Button>
+        <CategoryPickerSheet
+          open={picking}
+          onOpenChange={setPicking}
+          title="Classer dans"
+          description={plural(
+            selected.length,
+            'opération sélectionnée',
+            'opérations sélectionnées',
+          )}
           categories={categories}
           value={null}
-          onChange={(categoryId) => onApply({ categoryId })}
-          label="Classer la sélection dans"
-          placeholder="Classer dans…"
-          disabled={busy}
-          className="short-screen:w-44 w-full @2xl:w-44"
+          onPick={(categoryId) => onApply({ categoryId })}
         />
         <NativeSelect
           aria-label="Changer le type de la sélection"

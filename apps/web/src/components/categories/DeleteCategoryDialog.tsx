@@ -8,14 +8,13 @@ import {
   DialogTitle,
   Field,
   FieldLabel,
-  NativeSelect,
-  NativeSelectOption,
   Skeleton,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import type { CategoryDto, CategoryUsageDto } from '#/api/types.gen'
+import { CategoryField } from './CategoryPicker'
 import { categoryErrorMessage } from './errors'
 import {
   afterCategoriesChanged,
@@ -141,21 +140,14 @@ export function DeleteCategoryDialog({
             {targets.length > 0 ? (
               <Field>
                 <FieldLabel htmlFor={`${id}-target`}>Déplacer vers</FieldLabel>
-                <NativeSelect
+                <CategoryField
                   id={`${id}-target`}
-                  className="w-full"
-                  value={target}
-                  onChange={(event) => setTarget(event.target.value)}
-                >
-                  <NativeSelectOption value="" disabled>
-                    Choisir une catégorie
-                  </NativeSelectOption>
-                  {targets.map((c) => (
-                    <NativeSelectOption key={c.id} value={c.id}>
-                      {c.name}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
+                  label="Déplacer vers"
+                  categories={targets}
+                  kinds={category ? [category.kind] : undefined}
+                  value={target || null}
+                  onPick={setTarget}
+                />
               </Field>
             ) : (
               <p className="text-destructive text-sm">

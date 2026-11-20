@@ -44,11 +44,7 @@ import {
 } from './labels'
 import { othersPartCents } from '#/components/owed/shares'
 import { TransactionEditor } from './TransactionEditor'
-import {
-  editorSide,
-  FORM_SHEET_SCREEN,
-  SheetScroll,
-} from '#/components/sheets/form-sheet'
+import { editorSide } from '#/components/sheets/form-sheet'
 
 /**
  * Columns once the page is ≥ 36rem wide (rems of the 22px root, container
@@ -421,12 +417,9 @@ export function TransactionRow({
       )}
       {triggerButton}
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent
-          side={editorSide(isMobile)}
-          className={isMobile ? FORM_SHEET_SCREEN : 'overflow-y-auto'}
-        >
+        <SheetContent side={editorSide(isMobile)} className="gap-0">
           <SheetBar title="Modifier l’opération" description={name} />
-          <SheetScroll className="px-4 pb-6">{editor}</SheetScroll>
+          {editor}
         </SheetContent>
       </Sheet>
 

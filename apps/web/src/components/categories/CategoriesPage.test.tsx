@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
+import { categoryField, pickCategory } from '#/test/category-picker'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -264,16 +265,19 @@ describe('CategoriesPage', () => {
     })
     expect((confirm as HTMLButtonElement).disabled).toBe(true)
 
-    const target = within(dialog).getByRole('combobox', {
-      name: 'Déplacer vers',
-    })
     // Same kind, not itself, not archived.
-    const options = within(target)
-      .getAllByRole('option')
-      .map((option) => option.textContent)
-    expect(options).toEqual(['Choisir une catégorie', 'Restaurants'])
-
-    await user.selectOptions(target, ['c2'])
+    await user.click(categoryField('Déplacer vers', dialog))
+    const list = await screen.findByRole('radiogroup', { name: 'Catégorie' })
+    expect(
+      within(list)
+        .getAllByRole('radio')
+        .map((option) => option.textContent),
+    ).toEqual(['Restaurants'])
+    // No tiles: one kind.
+    expect(
+      screen.queryByRole('radiogroup', { name: 'Type' }),
+    ).not.toBeInTheDocument()
+    await pickCategory(user, 'Restaurants')
     await user.click(confirm)
 
     await waitFor(() =>

@@ -35,19 +35,16 @@ import {
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type {
-  ManualSuggestionDto,
   MoneyDirection,
   TransactionDto,
   TransactionKind,
 } from '#/api/types.gen'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
+import { CategoryPicker } from '#/components/categories/CategoryPicker'
+import type { CategoryHabit } from '#/components/categories/CategoryPicker'
 import { PaidForMeSheet } from '#/components/owed/PaidForMeSheet'
 import type { PaidForMeDraft } from '#/components/owed/PaidForMeSheet'
 import { isTextEntry } from '#/lib/text-entry'
-import {
-  KIND_LABELS,
-  TRANSACTION_KINDS,
-} from '#/components/transactions/labels'
 import { currentDay } from '#/lib/calendar'
 import { pickableCategories } from '#/lib/categories'
 import { formatCalendarDate, formatCents } from '#/lib/money'
@@ -76,9 +73,7 @@ import {
 import type { AmountKey } from './amount-entry'
 import {
   AccountChips,
-  CategoryChips,
   DateChips,
-  HabitGrid,
   previousDay,
   VoucherDayGauge,
 } from './manual-fields'
@@ -377,7 +372,7 @@ export function ManualTransactionSheet({
 
   // A usual label fills its category too, and moves on to the amount when
   // that leaves a category (or the kind may go without one).
-  function pickSuggestion(item: ManualSuggestionDto) {
+  function pickSuggestion(item: CategoryHabit) {
     setLabel(item.label)
     const usual =
       item.categoryId &&
@@ -729,32 +724,14 @@ export function ManualTransactionSheet({
       />
 
       {step === 'category' && (
-        <>
-          <div
-            data-sheet-scroll=""
-            className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 pt-4"
-          >
-            {/* Three labels on a 320px phone: sized on the row's width. */}
-            <div className="@container">
-              <SegmentedControl
-                fullWidth
-                aria-label="Type"
-                value={kind}
-                onValueChange={changeKind}
-              >
-                {TRANSACTION_KINDS.map((option) => (
-                  <SegmentedControlItem
-                    key={option}
-                    value={option}
-                    className="px-1 text-[min(0.875rem,4.5cqi)]"
-                  >
-                    {option === 'transfer' ? 'Virement' : KIND_LABELS[option]}
-                  </SegmentedControlItem>
-                ))}
-              </SegmentedControl>
-            </div>
-
-            {kind === 'transfer' && (
+        <CategoryPicker
+          categories={categories.data ?? []}
+          value={categoryId || null}
+          onPick={chooseCategory}
+          kind={kind}
+          onKindChange={changeKind}
+          headerExtra={
+            kind === 'transfer' && (
               <SegmentedControl
                 fullWidth
                 aria-label="Sens"
@@ -764,43 +741,23 @@ export function ManualTransactionSheet({
                 <SegmentedControlItem value="out">Sortie</SegmentedControlItem>
                 <SegmentedControlItem value="in">Entrée</SegmentedControlItem>
               </SegmentedControl>
-            )}
-
-            {(suggestions.data?.items.length ?? 0) > 0 && (
-              <section className="space-y-1.5">
-                <p
-                  id={`${id}-habits`}
-                  className="text-muted-foreground text-xs font-medium"
-                >
-                  Habituels
-                </p>
-                <HabitGrid
-                  labelId={`${id}-habits`}
-                  items={suggestions.data?.items ?? []}
-                  label={label}
-                  category={categoryOf}
-                  onPick={pickSuggestion}
-                />
-              </section>
-            )}
-
-            <section className="space-y-1.5">
-              <p
-                id={`${id}-categories`}
-                className="text-muted-foreground text-xs font-medium"
-              >
-                Catégorie
-              </p>
-              <CategoryChips
-                labelId={`${id}-categories`}
-                categories={kindCategories}
-                value={categoryId}
-                allowNone={allowNoCategory}
-                onChoose={chooseCategory}
-              />
-            </section>
-          </div>
-        </>
+            )
+          }
+          habits={suggestions.data?.items ?? []}
+          habitChosen={label}
+          onPickHabit={pickSuggestion}
+          preferred={suggestedCategoryIds}
+          none={
+            allowNoCategory
+              ? {
+                  label: 'Sans catégorie',
+                  detail: 'À classer plus tard',
+                  selected: categoryId === '',
+                  onPick: () => chooseCategory(''),
+                }
+              : undefined
+          }
+        />
       )}
 
       {step === 'amount' && (

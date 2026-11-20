@@ -5,7 +5,7 @@ import { AmountField } from '#/components/amount/AmountField'
 import type { CategoryDto, TransactionDto } from '#/api/types.gen'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
 import { formatCents } from '#/lib/money'
-import { CategoryPicker } from './CategoryPicker'
+import { CategoryField } from '#/components/categories/CategoryPicker'
 import { isRefundPart, remainingCents, splitError } from './edits'
 
 /** Most parts the API accepts. */
@@ -116,11 +116,11 @@ export function SplitEditor({
           const refund = category && isRefundPart(item, category.kind)
           return (
             <li key={part.key} className="flex flex-wrap items-center gap-2">
-              <CategoryPicker
+              <CategoryField
                 id={`${id}-category-${part.key}`}
                 categories={categories}
                 value={part.categoryId || null}
-                onChange={(categoryId) => change(part.key, { categoryId })}
+                onPick={(categoryId) => change(part.key, { categoryId })}
                 label={`Catégorie de la part ${index + 1}`}
                 className="min-w-[8rem] flex-1"
               />

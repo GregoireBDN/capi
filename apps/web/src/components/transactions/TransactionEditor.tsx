@@ -1,13 +1,11 @@
 import {
   Button,
   cn,
-  Input,
   SETTING_GROUP_CLASS,
   SETTING_ROW_CLASS,
   SettingRow,
   SettingSwitchRow,
   Textarea,
-  useIsMobile,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -20,7 +18,6 @@ import {
   FlagIcon,
   HandCoinsIcon,
   PencilIcon,
-  SearchIcon,
   SparkleIcon,
   SplitIcon,
   StickyNoteIcon,
@@ -35,10 +32,7 @@ import type {
   TransactionDto,
   TransactionKind,
 } from '#/api/types.gen'
-import {
-  CategoryAvatar,
-  categoryIconComponent,
-} from '#/components/categories/category-icons'
+import { CategoryAvatar } from '#/components/categories/category-icons'
 import { Link } from '@tanstack/react-router'
 import {
   RepaymentScreen,
@@ -48,7 +42,8 @@ import { owedSummaryQuery } from '#/components/owed/queries'
 import { othersPartCents } from '#/components/owed/shares'
 import { ShareScreen } from '#/components/owed/ShareScreen'
 import { PrepaidScreen } from '#/components/subscriptions/PrepaidScreen'
-import { pickableCategories } from '#/lib/categories'
+import { CategoryPicker } from '#/components/categories/CategoryPicker'
+import { SheetScroll } from '#/components/sheets/form-sheet'
 import { formatCalendarDate, formatCents } from '#/lib/money'
 import { ROUTES } from '#/lib/routes'
 import { accountsQuery } from '#/lib/queries'
@@ -59,7 +54,6 @@ import {
   accountLabel,
   counterpartLabel,
   displayLabel,
-  KIND_GROUP_LABELS,
   KIND_LABELS,
   secondaryLabel,
   TRANSACTION_KINDS,
@@ -102,14 +96,6 @@ interface TransactionEditorProps {
 const GROUP = SETTING_GROUP_CLASS
 const ROW = SETTING_ROW_CLASS
 
-/** Lowercase, without accents, for the category search. */
-function searchable(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-}
-
 /** Title of a screen with « Retour » to the list. */
 function ScreenHeader({
   title,
@@ -134,92 +120,6 @@ function ScreenHeader({
         <ChevronLeftIcon />
       </Button>
       <h3 className="min-w-0 truncate text-base font-semibold">{title}</h3>
-    </div>
-  )
-}
-
-/** The categories as chips with their icon, by kind, with a search (#280). */
-function CategoryScreen({
-  item,
-  categories,
-  onPick,
-  kind,
-}: {
-  item: TransactionDto
-  categories: readonly CategoryDto[]
-  onPick: (categoryId: string) => void
-  /** Only the categories of this kind (the « Type » screen, #368). */
-  kind?: TransactionKind
-}) {
-  // Phones: no keyboard over the chips until the search is tapped.
-  const isMobile = useIsMobile()
-  const [query, setQuery] = useState('')
-  const wanted = searchable(query.trim())
-  const shown = pickableCategories(categories, item.categoryId).filter(
-    (category) => wanted === '' || searchable(category.name).includes(wanted),
-  )
-  // The transaction's own kind first: what it most likely belongs to.
-  const kinds = kind
-    ? [kind]
-    : [item.kind, ...TRANSACTION_KINDS.filter((other) => other !== item.kind)]
-  return (
-    <div className="space-y-3">
-      <div className="relative">
-        <SearchIcon
-          className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-[0.8rem] -translate-y-1/2"
-          aria-hidden="true"
-        />
-        <Input
-          type="search"
-          autoFocus={!isMobile}
-          aria-label="Rechercher une catégorie"
-          placeholder="Rechercher"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          className="pl-9"
-        />
-      </div>
-      {shown.length === 0 && (
-        <p className="text-muted-foreground text-sm">Aucune catégorie.</p>
-      )}
-      {kinds.map((groupKind) => {
-        const group = shown.filter((category) => category.kind === groupKind)
-        if (group.length === 0) return null
-        return (
-          <section key={groupKind} className="space-y-2">
-            <h4 className="text-muted-foreground text-xs font-medium">
-              {KIND_GROUP_LABELS[groupKind]}
-            </h4>
-            <div className="flex flex-wrap gap-1.5">
-              {group.map((category) => {
-                const Icon = categoryIconComponent(category.icon)
-                const current = category.id === item.categoryId
-                return (
-                  <button
-                    key={category.id}
-                    type="button"
-                    aria-pressed={current}
-                    onClick={() => onPick(category.id)}
-                    className={cn(
-                      'focus-visible:ring-ring/50 inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 text-sm outline-none focus-visible:ring-[3px]',
-                      current
-                        ? 'border-primary bg-primary/10 font-medium'
-                        : 'hover:bg-muted/60',
-                    )}
-                  >
-                    <Icon
-                      className="size-[0.75rem] shrink-0"
-                      style={{ color: category.color ?? undefined }}
-                      aria-hidden="true"
-                    />
-                    {category.name}
-                  </button>
-                )
-              })}
-            </div>
-          </section>
-        )
-      })}
     </div>
   )
 }
@@ -390,22 +290,25 @@ export function TransactionEditor({
 
   if (screen === 'category') {
     return (
-      <div className="space-y-3">
-        <ScreenHeader title="Catégorie" onBack={back} />
-        <CategoryScreen
-          item={item}
+      <>
+        <div className="shrink-0 px-4 pt-2">
+          <ScreenHeader title="Catégorie" onBack={back} />
+        </div>
+        <CategoryPicker
           categories={categories}
+          value={item.categoryId}
           onPick={(categoryId) => {
             back()
             if (categoryId !== item.categoryId) onChange({ categoryId })
           }}
+          headerClassName="pt-1"
         />
-      </div>
+      </>
     )
   }
   if (screen === 'note') {
     return (
-      <div className="space-y-3">
+      <SheetScroll className="space-y-3 px-4 pb-6">
         <ScreenHeader title="Note" onBack={back} />
         <NoteScreen
           item={item}
@@ -414,12 +317,12 @@ export function TransactionEditor({
             if (note !== (item.note ?? '')) onChange({ note })
           }}
         />
-      </div>
+      </SheetScroll>
     )
   }
   if (screen === 'split' && onSplit) {
     return (
-      <div className="space-y-3">
+      <SheetScroll className="space-y-3 px-4 pb-6">
         <ScreenHeader title="Répartir" onBack={back} />
         <SplitEditor
           item={item}
@@ -444,12 +347,12 @@ export function TransactionEditor({
             Ne plus répartir
           </Button>
         )}
-      </div>
+      </SheetScroll>
     )
   }
   if (screen === 'correct' && onCorrect && onRestoreBank) {
     return (
-      <div className="space-y-3">
+      <SheetScroll className="space-y-3 px-4 pb-6">
         <ScreenHeader title="Montant et date" onBack={back} />
         <p className="text-muted-foreground text-xs">
           Le solde du compte et les prochains imports gardent les valeurs de la
@@ -467,12 +370,12 @@ export function TransactionEditor({
             onRestoreBank()
           }}
         />
-      </div>
+      </SheetScroll>
     )
   }
   if (screen === 'counterpart') {
     return (
-      <div className="space-y-3">
+      <SheetScroll className="space-y-3 px-4 pb-6">
         <ScreenHeader title={counterpartLabel(item)} onBack={back} />
         <CounterpartScreen
           item={item}
@@ -483,36 +386,36 @@ export function TransactionEditor({
             }
           }}
         />
-      </div>
+      </SheetScroll>
     )
   }
   if (screen === 'prepaid') {
     return (
-      <div className="space-y-3">
+      <SheetScroll className="space-y-3 px-4 pb-6">
         <ScreenHeader title="Abonnement prépayé" onBack={back} />
         <PrepaidScreen item={item} onDone={back} />
-      </div>
+      </SheetScroll>
     )
   }
   if (screen === 'share') {
     return (
-      <div className="space-y-3">
+      <SheetScroll className="space-y-3 px-4 pb-6">
         <ScreenHeader title="Partager" onBack={back} />
         <ShareScreen item={item} />
-      </div>
+      </SheetScroll>
     )
   }
   if (screen === 'repayment') {
     return (
-      <div className="space-y-3">
+      <SheetScroll className="space-y-3 px-4 pb-6">
         <ScreenHeader title={repaymentTitle(item)} onBack={back} />
         <RepaymentScreen item={item} onDone={back} />
-      </div>
+      </SheetScroll>
     )
   }
   if (screen === 'kind') {
     return (
-      <div className="space-y-3">
+      <SheetScroll className="space-y-3 px-4 pb-6">
         <ScreenHeader title="Type" onBack={back} />
         <KindScreen
           value={item.kind}
@@ -527,38 +430,37 @@ export function TransactionEditor({
             setScreen('kind-category')
           }}
         />
-      </div>
+      </SheetScroll>
     )
   }
   if (screen === 'kind-category') {
     return (
-      <div className="space-y-3">
-        <ScreenHeader
-          title={`Classer en ${KIND_LABELS[newKind].toLowerCase()}`}
-          onBack={() => setScreen('kind')}
-        />
-        <CategoryScreen
-          item={item}
+      <>
+        <div className="shrink-0 px-4 pt-2">
+          <ScreenHeader
+            title={`Classer en ${KIND_LABELS[newKind].toLowerCase()}`}
+            onBack={() => setScreen('kind')}
+          />
+        </div>
+        <CategoryPicker
           categories={categories}
-          kind={newKind}
+          kinds={[newKind]}
+          value={null}
           onPick={(categoryId) => {
             back()
             onChange({ categoryId })
           }}
-        />
-        <div className={GROUP}>
-          <button
-            type="button"
-            className={ROW}
-            onClick={() => {
+          none={{
+            label: 'Sans catégorie, à revoir',
+            selected: false,
+            onPick: () => {
               back()
               onChange({ categoryId: null, kind: newKind })
-            }}
-          >
-            Sans catégorie, à revoir
-          </button>
-        </div>
-      </div>
+            },
+          }}
+          headerClassName="pt-1"
+        />
+      </>
     )
   }
 
@@ -579,7 +481,7 @@ export function TransactionEditor({
   ].join(', ')
 
   return (
-    <div className="space-y-3">
+    <SheetScroll className="space-y-3 px-4 pb-6">
       <div className="flex items-start gap-3 px-2">
         <CategoryAvatar
           category={
@@ -774,6 +676,6 @@ export function TransactionEditor({
           la banque, en gardant sa catégorie, sa note et sa répartition.
         </p>
       )}
-    </div>
+    </SheetScroll>
   )
 }

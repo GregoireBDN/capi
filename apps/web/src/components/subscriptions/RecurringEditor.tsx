@@ -37,13 +37,9 @@ import type {
   RecurringItemDto,
   UpdateRecurringItemDto,
 } from '#/api/types.gen'
-import {
-  CHIP_CLASS,
-  CHIP_ON,
-  CategoryChips,
-} from '#/components/expenses/manual-fields'
+import { CategoryField } from '#/components/categories/CategoryPicker'
+import { CHIP_CLASS, CHIP_ON } from '#/components/expenses/manual-fields'
 import { formatCents } from '#/lib/money'
-import { pickableCategories } from '#/lib/categories'
 import {
   CADENCE_LABELS,
   CADENCE_SHORT_LABELS,
@@ -72,7 +68,7 @@ import {
 const NAME_MAX = 255
 const NOTES_MAX = 1000
 
-/** Categories offered first, before « Toutes les catégories » (#279). */
+/** Categories offered first, in « Les plus utilisées » (#279). */
 const USUAL_SLUGS: Record<RecurringItemDto['direction'], readonly string[]> = {
   debit: [
     'subscriptions',
@@ -85,33 +81,16 @@ const USUAL_SLUGS: Record<RecurringItemDto['direction'], readonly string[]> = {
   credit: ['salary', 'refunds'],
 }
 
-/**
- * The category chips' list: the current category and the usual ones first,
- * then (all = true) every other category of the item's kind by name.
- */
-export function categoryChoices(
+/** The usual categories of the item's direction, shown first (#279). */
+export function usualCategoryIds(
   categories: readonly CategoryDto[],
   direction: RecurringItemDto['direction'],
-  current: string,
-  all: boolean,
-): { shown: CategoryDto[]; hiddenCount: number } {
-  const kind = direction === 'debit' ? 'expense' : 'income'
-  const ofKind = pickableCategories(categories, current)
-    .filter((category) => category.kind === kind || category.id === current)
-    .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
-  const usual = USUAL_SLUGS[direction]
-  const first = [
-    ...ofKind.filter((category) => category.id === current),
-    ...usual.flatMap((slug) =>
-      ofKind.filter(
-        (category) => category.slug === slug && category.id !== current,
-      ),
-    ),
-  ]
-  const rest = ofKind.filter((category) => !first.includes(category))
-  return all
-    ? { shown: [...first, ...rest], hiddenCount: 0 }
-    : { shown: first, hiddenCount: rest.length }
+): string[] {
+  return USUAL_SLUGS[direction].flatMap((slug) =>
+    categories
+      .filter((category) => category.slug === slug)
+      .map((category) => category.id),
+  )
 }
 
 interface RecurringEditorProps {
@@ -145,12 +124,10 @@ export function RecurringEditor({
   const [cadence, setCadence] = useState<RecurringCadence>('monthly')
   const [notes, setNotes] = useState('')
   const [termMonths, setTermMonths] = useState<number | null>(null)
-  const [allCategories, setAllCategories] = useState(false)
 
   // Fresh form on every opening.
   useEffect(() => {
     if (!item) return
-    setAllCategories(false)
     setName(item.name)
     setCategoryId(item.categoryId ?? '')
     setIsFixedCost(item.isFixedCost)
@@ -214,9 +191,6 @@ export function RecurringEditor({
     save.mutate(fields())
   }
 
-  const choices = item
-    ? categoryChoices(categories, item.direction, categoryId, allCategories)
-    : { shown: [], hiddenCount: 0 }
   const end = item ? formatEnd(item, today) : null
   const chargedAfterEnd = item ? formatChargedAfterEnd(item, today) : null
   // « Résilier » is for debits; credits would « Arrêter » (later).
@@ -383,27 +357,26 @@ export function RecurringEditor({
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <p id={`${id}-category`} className="text-sm font-medium">
+                  <label
+                    htmlFor={`${id}-category`}
+                    className="text-sm font-medium"
+                  >
                     Catégorie
-                  </p>
-                  <CategoryChips
-                    labelId={`${id}-category`}
-                    categories={choices.shown}
-                    value={categoryId}
-                    allowNone={allCategories || categoryId === ''}
-                    onChoose={setCategoryId}
+                  </label>
+                  <CategoryField
+                    id={`${id}-category`}
+                    label="Catégorie"
+                    categories={categories}
+                    kinds={[item.direction === 'debit' ? 'expense' : 'income']}
+                    preferred={usualCategoryIds(categories, item.direction)}
+                    value={categoryId || null}
+                    onPick={setCategoryId}
+                    none={{
+                      label: 'Sans catégorie',
+                      selected: categoryId === '',
+                      onPick: () => setCategoryId(''),
+                    }}
                   />
-                  {choices.hiddenCount > 0 && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      ghost
-                      variant="secondary"
-                      onClick={() => setAllCategories(true)}
-                    >
-                      Toutes les catégories ({choices.hiddenCount})
-                    </Button>
-                  )}
                 </div>
                 {item.direction === 'debit' && (
                   <div className="flex items-start gap-3">

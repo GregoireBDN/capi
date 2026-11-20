@@ -17,6 +17,11 @@ import type {
   TransactionSummaryDto,
 } from '#/api/types.gen'
 import { formatCents } from '#/lib/money'
+import {
+  categoryField,
+  chooseCategory,
+  pickCategory,
+} from '#/test/category-picker'
 import type { TransactionsSearch } from './search'
 import { TransactionsPage } from './TransactionsPage'
 
@@ -638,7 +643,7 @@ describe('TransactionsPage', () => {
     const editor = await screen.findByRole('dialog')
     // A settings list (#280): the category opens its own screen of chips.
     await user.click(within(editor).getByRole('button', { name: /^Catégorie/ }))
-    await user.click(within(editor).getByRole('button', { name: 'Courses' }))
+    await pickCategory(user, 'Courses')
 
     expect(api.transactionsControllerUpdate).toHaveBeenCalledWith({
       path: { id: shopRow.id },
@@ -777,10 +782,10 @@ describe('TransactionsPage', () => {
       'epar',
     )
     expect(
-      within(editor).getByRole('button', { name: 'Épargne' }),
+      within(editor).getByRole('radio', { name: /^Épargne/ }),
     ).toBeInTheDocument()
     expect(
-      within(editor).queryByRole('button', { name: 'Courses' }),
+      within(editor).queryByRole('radio', { name: /^Courses/ }),
     ).not.toBeInTheDocument()
     await user.click(within(editor).getByRole('button', { name: 'Retour' }))
 
@@ -815,9 +820,9 @@ describe('TransactionsPage', () => {
       within(editor).getByRole('heading', { name: 'Classer en dépense' }),
     ).toBeInTheDocument()
     expect(
-      within(editor).queryByRole('button', { name: 'Épargne' }),
+      within(editor).queryByRole('radio', { name: /^Épargne/ }),
     ).not.toBeInTheDocument()
-    await user.click(within(editor).getByRole('button', { name: 'Courses' }))
+    await pickCategory(user, 'Courses')
     expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
       expect.objectContaining({ body: { categoryId: groceries.id } }),
     )
@@ -837,7 +842,7 @@ describe('TransactionsPage', () => {
     await user.click(within(editor).getByRole('button', { name: /^Type/ }))
     await user.click(within(editor).getByRole('radio', { name: 'Revenu' }))
     await user.click(
-      within(editor).getByRole('button', { name: 'Sans catégorie, à revoir' }),
+      within(editor).getByRole('radio', { name: 'Sans catégorie, à revoir' }),
     )
     expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
       expect.objectContaining({ body: { categoryId: null, kind: 'income' } }),
@@ -939,10 +944,8 @@ describe('TransactionsPage', () => {
     const bar = screen.getByRole('region', { name: 'Actions groupées' })
     expect(bar).toHaveTextContent('2 opérations sélectionnées')
 
-    await user.selectOptions(
-      within(bar).getByLabelText('Classer la sélection dans'),
-      groceries.id,
-    )
+    await user.click(within(bar).getByRole('button', { name: 'Classer dans…' }))
+    await pickCategory(user, groceries.name)
 
     expect(api.transactionsControllerBulkUpdate).toHaveBeenCalledWith({
       body: { categoryId: groceries.id, ids: [salaryRow.id, shopRow.id] },
@@ -1181,7 +1184,7 @@ describe('TransactionsPage', () => {
       // « Classer » opens the editor on the categories: two taps.
       await user.click(screen.getByRole('button', { name: 'Classer Fakemart' }))
       const editor = await screen.findByRole('dialog')
-      await user.click(within(editor).getByRole('button', { name: 'Courses' }))
+      await pickCategory(user, 'Courses')
 
       expect(api.transactionsControllerUpdate).toHaveBeenCalledWith({
         path: { id: shopRow.id },
@@ -1449,17 +1452,19 @@ describe('TransactionsPage', () => {
       expect(within(form).getByLabelText('Montant de la part 1')).toHaveValue(
         '45,50',
       )
-      await user.selectOptions(
-        within(form).getByLabelText('Catégorie de la part 1'),
-        groceries.id,
+      await chooseCategory(
+        user,
+        categoryField('Catégorie de la part 1', form),
+        groceries.name,
       )
       const first = within(form).getByLabelText('Montant de la part 1')
       await user.clear(first)
       await user.type(first, '30')
       expect(form).toHaveTextContent(`Reste à répartir : ${euros(1_550)}`)
-      await user.selectOptions(
-        within(form).getByLabelText('Catégorie de la part 2'),
-        household.id,
+      await chooseCategory(
+        user,
+        categoryField('Catégorie de la part 2', form),
+        household.name,
       )
       await user.type(
         within(form).getByLabelText('Montant de la part 2'),
@@ -1525,13 +1530,15 @@ describe('TransactionsPage', () => {
       const form = within(editor).getByRole('form', {
         name: 'Répartir entre catégories',
       })
-      await user.selectOptions(
-        within(form).getByLabelText('Catégorie de la part 1'),
-        groceries.id,
+      await chooseCategory(
+        user,
+        categoryField('Catégorie de la part 1', form),
+        groceries.name,
       )
-      await user.selectOptions(
-        within(form).getByLabelText('Catégorie de la part 2'),
-        household.id,
+      await chooseCategory(
+        user,
+        categoryField('Catégorie de la part 2', form),
+        household.name,
       )
       await user.type(within(form).getByLabelText('Montant de la part 2'), '1')
       await user.click(

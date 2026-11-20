@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { categoryField, chooseCategory } from '#/test/category-picker'
 import { ImportPage } from './ImportPage'
 import {
   account,
@@ -218,9 +219,7 @@ describe('ImportPage — preview', () => {
       within(decision).getByRole('radio', { name: 'Importer' }),
     ).not.toBeChecked()
     // A skipped row's category cannot be edited.
-    expect(
-      screen.getByLabelText('Catégorie de « CB FAKE CINEMA »'),
-    ).toBeDisabled()
+    expect(categoryField('Catégorie de « CB FAKE CINEMA »')).toBeDisabled()
     expect(
       screen.getByText('2 opérations seront importées.'),
     ).toBeInTheDocument()
@@ -255,14 +254,16 @@ describe('ImportPage — preview', () => {
     await uploadPreview(user)
 
     // Category picked for a new row, then for the conflict once imported.
-    await user.selectOptions(
-      screen.getByLabelText('Catégorie de « CB FAKE BAKERY »'),
-      'cat-fun',
+    await chooseCategory(
+      user,
+      categoryField('Catégorie de « CB FAKE BAKERY »'),
+      'Loisirs',
     )
     await user.click(screen.getByRole('radio', { name: 'Importer' }))
-    await user.selectOptions(
-      screen.getByLabelText('Catégorie de « CB FAKE CINEMA »'),
-      'cat-fun',
+    await chooseCategory(
+      user,
+      categoryField('Catégorie de « CB FAKE CINEMA »'),
+      'Loisirs',
     )
     expect(
       screen.getByText('3 opérations seront importées.'),

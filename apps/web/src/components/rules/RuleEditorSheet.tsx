@@ -43,7 +43,7 @@ import type {
 import { AmountField } from '#/components/amount/AmountField'
 import type { AmountSign } from '#/components/amount/signed-amount'
 import { isTransactional } from '#/lib/queries'
-import { CategoryChips } from './CategoryChips'
+import { CategoryPicker } from '#/components/categories/CategoryPicker'
 import {
   describeAmount,
   describeConditions,
@@ -400,8 +400,32 @@ export function RuleEditorSheet({
               />
             }
           />
+          {step === 'category' && (
+            <>
+              <p className="text-muted-foreground shrink-0 px-4 pt-3 text-sm break-words">
+                {sentence}
+              </p>
+              <CategoryPicker
+                categories={categories}
+                value={form.categoryId || null}
+                onPick={(categoryId) => {
+                  change({ categoryId })
+                  setErrors({})
+                  goTo('review')
+                }}
+                headerExtra={
+                  errors.categoryId && (
+                    <p role="alert" className="text-destructive text-sm">
+                      {errors.categoryId}
+                    </p>
+                  )
+                }
+              />
+            </>
+          )}
           <div
             data-sheet-scroll=""
+            hidden={step === 'category'}
             className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 pt-4"
           >
             {step === 'match' && (
@@ -576,28 +600,6 @@ export function RuleEditorSheet({
                     {errors.amount && <FieldError>{errors.amount}</FieldError>}
                   </Field>
                 </Advanced>
-              </>
-            )}
-
-            {step === 'category' && (
-              <>
-                <p className="text-muted-foreground text-sm break-words">
-                  {sentence}
-                </p>
-                <CategoryChips
-                  categories={categories}
-                  value={form.categoryId}
-                  onPick={(categoryId) => {
-                    change({ categoryId })
-                    setErrors({})
-                    goTo('review')
-                  }}
-                />
-                {errors.categoryId && (
-                  <p role="alert" className="text-destructive text-sm">
-                    {errors.categoryId}
-                  </p>
-                )}
               </>
             )}
 
