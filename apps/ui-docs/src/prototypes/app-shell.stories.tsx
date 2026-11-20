@@ -32,7 +32,6 @@ import {
   SearchIcon,
   SettingsIcon,
   ShieldIcon,
-  SparklesIcon,
   TagsIcon,
   TargetIcon,
   TriangleAlertIcon,
@@ -53,16 +52,17 @@ import { useEffect, useState, type ReactNode } from 'react'
  * 768px, Réglages and « Se déconnecter » at the sidebar's foot).
  *
  * A. Comme Azure DevOps: a header on every width. Phone: ☰ · logo (or
- *    « ‹ Comptes ») · page actions · avatar. Computer: ☰ (folds the
+ *    « ‹ Comptes ») · page actions · avatar; the page's main action (« + »)
+ *    sits beside its title (owner, 20/11). Computer: ☰ (folds the
  *    sidebar) · logo · « Comptes › Livret A » · search · « + Opération » ·
- *    avatar. The sidebar holds the navigation only, in three groups, with
- *    Réglages at its foot. The avatar opens the account card (name, email,
- *    Apparence, Réglages, Se déconnecter).
+ *    avatar. The sidebar holds the navigation only, in three groups.
+ *    Réglages has one place, the account card behind the avatar (name,
+ *    email, Apparence, Réglages, Se déconnecter): never in the sidebar nor
+ *    in ⋮ (owner, 20/11).
  * B. A avec un menu ⋮: the rare global things (add, import, Revue du mois,
- *    Catégories, Règles, Claude et accès, search on the phone, help) go
- *    into ⋮; the sidebar keeps only the everyday pages. On the phone ⋮ also
- *    holds the page's other actions (« Cette page »), so the header has one
- *    ⋮, never two.
+ *    search on the phone, version) go into ⋮; the sidebar keeps only the
+ *    everyday pages. On the phone ⋮ also holds the page's other actions
+ *    (« Cette page »), so the header has one ⋮, never two.
  * C. Un en-tête qui ne change jamais: the header carries only what is
  *    global (☰, logo, « + », avatar) and is the same on every page; the
  *    title, the way back and the page actions are in the page on every
@@ -188,10 +188,10 @@ const SIDEBARS: Record<
       { title: 'Patrimoine', items: ['accounts', 'savings', 'crypto', 'owed'] },
       {
         title: 'Outils',
-        items: ['subscriptions', 'import', 'rules', 'categories'],
+        items: ['subscriptions', 'import'],
       },
     ],
-    foot: 'settings',
+    foot: 'none',
   },
   B: {
     groups: [
@@ -207,7 +207,7 @@ const SIDEBARS: Record<
       },
       { title: 'Patrimoine', items: ['accounts', 'savings', 'crypto', 'owed'] },
     ],
-    foot: 'settings',
+    foot: 'none',
   },
   C: {
     groups: [
@@ -218,7 +218,7 @@ const SIDEBARS: Record<
       { title: 'Patrimoine', items: ['accounts', 'savings', 'crypto', 'owed'] },
       {
         title: 'Outils',
-        items: ['subscriptions', 'import', 'rules', 'categories'],
+        items: ['subscriptions', 'import'],
       },
     ],
     foot: 'none',
@@ -465,14 +465,17 @@ function PhoneHeader(props: ShellProps) {
     </IconButton>
   )
   // C: the same header on every page, no back link nor page action.
-  const main = page.actions.find((action) => action.primary)
+  // A and B: the page's main action (« + ») sits beside its title, so the
+  // header only keeps the others.
+  const headerActions =
+    direction === 'avant'
+      ? page.actions
+      : page.actions.filter((action) => !action.primary)
   // Buttons on the right: at 320px the logo drops its name for three.
   const rightCount =
-    direction === 'B'
-      ? (main ? 1 : 0) + 2
-      : direction === 'C'
-        ? 2
-        : (page.actions.length > 0 ? 1 : 0) + (direction === 'A' ? 1 : 0)
+    direction === 'B' || direction === 'C'
+      ? 2
+      : (headerActions.length > 0 ? 1 : 0) + (direction === 'A' ? 1 : 0)
   const left =
     page.back && direction !== 'C' ? (
       <BackLink label={page.back} />
@@ -485,21 +488,16 @@ function PhoneHeader(props: ShellProps) {
     right = (
       <>
         <HeaderActions
-          actions={page.actions}
+          actions={headerActions}
           onMore={() => toggle(overlay, 'more', setOverlay)}
         />
         {direction === 'A' && <AvatarButton {...props} />}
       </>
     )
   } else if (direction === 'B') {
-    // The page's main action as an icon, the others in the one ⋮.
+    // The page's other actions are in the one ⋮.
     right = (
       <>
-        {main && (
-          <IconButton label={main.label} className="text-primary">
-            <main.icon />
-          </IconButton>
-        )}
         <IconButton
           label="Plus"
           pressed={overlay === 'more'}
@@ -960,6 +958,16 @@ function MoreMenu({ page, phone }: { page: PageDef; phone: boolean }) {
   const others = page.actions.filter((action) => !action.primary)
   const onPage = (label: string) =>
     page.actions.some((action) => action.label === label)
+  // What the page already offers is not repeated.
+  const everywhere = [
+    phone && !onPage('Ajouter une opération') && (
+      <MenuRow key="add" icon={PlusIcon} label="Ajouter une opération" />
+    ),
+    !onPage('Importer un relevé') && (
+      <MenuRow key="import" icon={UploadIcon} label="Importer un relevé" />
+    ),
+    phone && <MenuRow key="search" icon={SearchIcon} label="Rechercher" />,
+  ].filter(Boolean)
   return (
     <div className="max-h-[calc(100%-1rem)] overflow-y-auto">
       {phone && others.length > 0 && (
@@ -973,23 +981,14 @@ function MoreMenu({ page, phone }: { page: PageDef; phone: boolean }) {
           ))}
         </MenuSection>
       )}
-      <MenuSection title="Partout">
-        {/* What the page already offers is not repeated. */}
-        {phone && !onPage('Ajouter une opération') && (
-          <MenuRow icon={PlusIcon} label="Ajouter une opération" />
-        )}
-        {!onPage('Importer un relevé') && (
-          <MenuRow icon={UploadIcon} label="Importer un relevé" />
-        )}
-        {phone && <MenuRow icon={SearchIcon} label="Rechercher" />}
-      </MenuSection>
-      <MenuSection title="Mois et classement">
+      {everywhere.length > 0 && (
+        <MenuSection title="Partout">{everywhere}</MenuSection>
+      )}
+      <MenuSection title="Mois">
         <MenuRow icon={CalendarCheckIcon} label="Revue du mois" />
-        <MenuRow icon={TagsIcon} label="Catégories" />
-        <MenuRow icon={ListFilterIcon} label="Règles" />
       </MenuSection>
+      {/* No settings here: they are only behind the avatar (owner, 20/11). */}
       <MenuSection title="Aide">
-        <MenuRow icon={SparklesIcon} label="Claude et accès" />
         <span className={MENU_ROW}>
           <InfoIcon />
           Version 1.42
@@ -1027,12 +1026,28 @@ function PageTitle({
   // Where the way back and the actions are, per direction.
   const chip =
     page.back && (direction === 'C' || (direction === 'avant' && !phone))
-  const inPage = direction === 'C' || !phone
+  const inPage = direction !== 'avant' || !phone
+  // A and B on a phone: only the main action (« + ») beside the title.
+  const actions =
+    phone && (direction === 'A' || direction === 'B')
+      ? page.actions.filter((action) => action.primary)
+      : page.actions
   return (
     <div>
       {chip && page.back && <BackChip label={page.back} />}
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="min-w-[min(100%,14rem)] flex-1 space-y-1">
+      {/* On a phone the action icons stay on the title's line. */}
+      <div
+        className={cn(
+          'flex items-start justify-between gap-x-6 gap-y-3',
+          phone ? 'gap-x-2' : 'flex-wrap',
+        )}
+      >
+        <div
+          className={cn(
+            'flex-1 space-y-1',
+            phone ? 'min-w-0' : 'min-w-[min(100%,14rem)]',
+          )}
+        >
           <h1
             className={cn(
               'font-semibold tracking-tight',
@@ -1053,11 +1068,11 @@ function PageTitle({
           )}
         </div>
         {inPage &&
-          page.actions.length > 0 &&
+          actions.length > 0 &&
           (phone ? (
-            // C on a phone: the actions as icons at the end of the title.
+            // On a phone: the actions as icons at the end of the title.
             <div className="flex shrink-0 items-center gap-0.5">
-              {page.actions.slice(0, 2).map((action) => (
+              {actions.slice(0, 2).map((action) => (
                 <IconButton
                   key={action.label}
                   label={action.label}
@@ -1070,7 +1085,7 @@ function PageTitle({
                   <action.icon />
                 </IconButton>
               ))}
-              {page.actions.length > 2 && (
+              {actions.length > 2 && (
                 <IconButton label="Plus d’actions" className="border">
                   <EllipsisVerticalIcon />
                 </IconButton>
@@ -1317,10 +1332,20 @@ const SETTINGS_ROWS: { icon: LucideIcon; name: string; state: string }[][] = [
   ],
 ]
 
-function SettingsBody() {
+function SettingsBody({ direction }: { direction: Direction }) {
+  // A–C: Apparence and « Se déconnecter » are in the account card, which
+  // opens this page: they are not repeated in it.
+  const groups =
+    direction === 'avant'
+      ? SETTINGS_ROWS
+      : SETTINGS_ROWS.map((group) =>
+          group.filter(
+            ({ name }) => name !== 'Apparence' && name !== 'Se déconnecter',
+          ),
+        )
   return (
     <div className="space-y-4">
-      {SETTINGS_ROWS.map((group, index) => (
+      {groups.map((group, index) => (
         <div key={index} className="bg-card divide-y rounded-xl border">
           {group.map(({ icon: Icon, name, state }) => (
             <div
@@ -1347,12 +1372,13 @@ function SettingsBody() {
   )
 }
 
-const BODIES: Record<PageKey, () => ReactNode> = {
-  dashboard: DashboardBody,
-  operations: OperationsBody,
-  account: AccountBody,
-  settings: SettingsBody,
-}
+const BODIES: Record<PageKey, (props: { direction: Direction }) => ReactNode> =
+  {
+    dashboard: DashboardBody,
+    operations: OperationsBody,
+    account: AccountBody,
+    settings: SettingsBody,
+  }
 
 /* ---------------------------------------------------------------------------
  * The frame
@@ -1443,7 +1469,7 @@ function Frame(args: FrameArgs) {
             )}
           >
             <PageTitle direction={direction} page={page} phone={phone} />
-            <Body />
+            <Body direction={direction} />
           </div>
         </main>
       </div>
@@ -1485,8 +1511,8 @@ const PLACES: { element: string; place: Place }[] = [
     element: 'Navigation',
     place: {
       avant: 'Une liste de 10 pages',
-      A: '3 groupes : Suivi (Tableau de bord, Dépenses, Opérations, Budget, Revue du mois), Patrimoine (Comptes, Épargne, Crypto, Entre proches), Outils (Abonnements, Import, Règles, Catégories)',
-      B: '2 groupes, les pages de tous les jours : Suivi (… Abonnements), Patrimoine ; le reste dans ⋮',
+      A: '3 groupes : Suivi (Tableau de bord, Dépenses, Opérations, Budget, Revue du mois), Patrimoine (Comptes, Épargne, Crypto, Entre proches), Outils (Abonnements, Import) ; aucun réglage',
+      B: '2 groupes, les pages de tous les jours : Suivi (… Abonnements), Patrimoine ; import, Revue du mois et recherche dans ⋮',
       C: 'Les 3 groupes de A',
     },
   },
@@ -1512,16 +1538,16 @@ const PLACES: { element: string; place: Place }[] = [
     element: 'Réglages',
     place: {
       avant: 'Pied du menu',
-      A: 'Pied du menu et carte du compte',
-      B: 'Comme A ; Catégories, Règles, Claude et accès aussi dans ⋮',
-      C: 'Carte du compte seulement',
+      A: 'Un seul endroit : la carte du compte (avatar) ; Catégories, Règles, Claude et accès sont dans Réglages',
+      B: 'Comme A ; ⋮ n’a aucun réglage',
+      C: 'Comme A',
     },
   },
   {
     element: 'Apparence',
     place: {
       avant: 'Réglages',
-      A: 'Carte du compte (Clair · Sombre · Auto) et Réglages',
+      A: 'Carte du compte seulement (Clair · Sombre · Auto)',
       B: 'Comme A',
       C: 'Comme A',
     },
@@ -1530,7 +1556,7 @@ const PLACES: { element: string; place: Place }[] = [
     element: 'Se déconnecter',
     place: {
       avant: 'Pied du menu et Réglages',
-      A: 'Carte du compte (téléphone : « Se déconnecter ? » d’abord) et Réglages',
+      A: 'Carte du compte seulement (téléphone : « Se déconnecter ? » d’abord)',
       B: 'Comme A',
       C: 'Comme A',
     },
@@ -1539,8 +1565,8 @@ const PLACES: { element: string; place: Place }[] = [
     element: 'Actions de la page, téléphone',
     place: {
       avant: 'Barre du haut (une icône, ou ⋮ si plusieurs)',
-      A: 'En-tête, comme aujourd’hui',
-      B: 'En-tête : l’action principale en icône, les autres dans ⋮ « Cette page »',
+      A: '« + » (action principale) à côté du titre ; les autres dans l’en-tête (une icône, ou ⋮)',
+      B: '« + » (action principale) à côté du titre ; les autres dans ⋮ « Cette page »',
       C: 'Dans la page, au bout du titre',
     },
   },
