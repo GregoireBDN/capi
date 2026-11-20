@@ -65,10 +65,10 @@ const PageActionsSlotContext = createContext<{
 } | null>(null)
 
 /**
- * Lets `AppHeader` host the way back of the page shown, its actions and its
- * month (`MonthNavigator`, #401), and `PageHeader` the end of the title's
- * row: they register their slot elements, the page's pieces render into
- * them through portals.
+ * Lets `AppHeader` host the way back of the page shown and its actions,
+ * `MonthBarSlot` its month (`MonthNavigator`, #401) and `PageHeader` the
+ * end of the title's row: they register their slot elements, the page's
+ * pieces render into them through portals.
  */
 export function PageActionsSlotProvider({ children }: { children: ReactNode }) {
   const [slot, setSlot] = useState<Slot>(null)
@@ -134,14 +134,15 @@ export function useSetPageBackSlot(): ((slot: Slot) => void) | undefined {
 }
 
 /**
- * The header's month slot (#401): a bar under the header on phones, its
- * middle on a computer. Null outside the shell or before it mounts.
+ * The month bar's slot (#401, `MonthBarSlot`): the top of the page's
+ * column, fixed under the header. Null outside the shell or before it
+ * mounts.
  */
 export function usePageMonthSlot(): Slot {
   return useContext(PageActionsSlotContext)?.monthSlot ?? null
 }
 
-/** Ref callback for the element that hosts the page's month (`AppHeader`). */
+/** Ref callback for the element that hosts the page's month (`MonthBarSlot`). */
 export function useSetPageMonthSlot(): ((slot: Slot) => void) | undefined {
   return useContext(PageActionsSlotContext)?.setMonthSlot
 }

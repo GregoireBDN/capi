@@ -22,6 +22,7 @@ import { parseSidebarOpen } from '#/lib/sidebar-state'
 
 import { AppSidebar } from './AppSidebar'
 import { AppHeader } from './AppHeader'
+import { MonthBarSlot } from './MonthBarSlot'
 import { PageHeader } from './PageHeader'
 import { PageActionsSlotProvider } from './page-actions'
 import type { PageAction } from './page-actions'
@@ -73,6 +74,7 @@ async function renderShell(defaultOpen: boolean, actions: PageAction[] = []) {
           <div className="flex">
             <AppSidebar />
             <SidebarInset id="main-content">
+              <MonthBarSlot />
               <Outlet />
             </SidebarInset>
           </div>
@@ -351,17 +353,18 @@ describe('App shell sidebar (< md)', () => {
     expect(within(title).queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('puts a month page’s month in the header and « Filtres » by its title (#401)', async () => {
+  it('puts a month page’s month in its bar, not the header, and « Filtres » by its title (#401)', async () => {
     const ue = userEvent.setup()
     const router = await renderShell(false)
     // Not a month page: no room kept for a month.
     expect(
-      header().querySelector('[data-month-placeholder]'),
+      document.querySelector('[data-month-placeholder]'),
     ).not.toBeInTheDocument()
 
     await act(() => router.navigate({ to: '/spending' }))
     await screen.findByRole('heading', { name: 'Dépenses' })
-    const month = header().querySelector<HTMLElement>('[data-page-month]')!
+    const month = document.querySelector<HTMLElement>('[data-page-month]')!
+    expect(header()).not.toContainElement(month)
     await ue.click(
       within(month).getByRole('button', { name: 'Mois précédent' }),
     )
@@ -370,8 +373,8 @@ describe('App shell sidebar (< md)', () => {
         name: 'Octobre 2026, choisir un mois',
       }),
     ).toBeInTheDocument()
-    // Its room is kept on phones from the first render (#401).
-    expect(header().querySelector('[data-month-placeholder]')).not.toBeNull()
+    // Its room is kept from the first render (#401).
+    expect(document.querySelector('[data-month-placeholder]')).not.toBeNull()
 
     const titleEnd = document.querySelector<HTMLElement>(
       '[data-page-title-end]',

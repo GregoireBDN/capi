@@ -3,6 +3,7 @@ import { Outlet, createFileRoute } from '@tanstack/react-router'
 import { SidebarInset, SidebarProvider } from '@finances/ui'
 import { AppSidebar } from '#/components/app-shell/AppSidebar'
 import { AppHeader } from '#/components/app-shell/AppHeader'
+import { MonthBarSlot } from '#/components/app-shell/MonthBarSlot'
 import { PageActionsSlotProvider } from '#/components/app-shell/page-actions'
 import { useAuth } from '#/lib/auth-context'
 import { requireUser } from '#/lib/auth-guard'
@@ -38,8 +39,8 @@ function AppLayout() {
       defaultOpen={sidebarOpen}
       // The header across the whole width, then the sidebar and the page.
       className="flex-col"
-      // `--app-top-bar` (the header's height) lives in `globals.css`: it
-      // grows on a phone showing a month's bar (#401).
+      // `--app-header` and `--app-top-bar` live in `globals.css`: the
+      // latter grows with a month page's bar (#401).
       data-app-shell
       style={
         {
@@ -63,6 +64,8 @@ function AppLayout() {
             tabIndex={-1}
             className="min-w-0 outline-none"
           >
+            {/* A month page's month, fixed under the header (#401). */}
+            <MonthBarSlot />
             <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 md:py-10">
               <Outlet />
             </div>

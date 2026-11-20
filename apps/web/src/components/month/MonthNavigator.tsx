@@ -208,9 +208,9 @@ export interface MonthNavigatorProps {
  * (months with transactions marked, months after `max` off, shortcuts to the
  * current month and to the month the data stops in), ← / → on a keyboard
  * and a sideways swipe on a touch screen. It is part of the app's frame:
- * in the header's month slot (a bar under the header on phones, sticky with
- * it; the middle of the header on a computer), rendered where it stands
- * outside the shell. Place it with `MonthToolbar` (or alone, like the
+ * the bar at the top of the page's column, fixed under the header, on every
+ * width (`MonthBarSlot`, beside the sidebar on a computer); rendered where
+ * it stands outside the shell. Place it with `MonthToolbar` (or alone, like the
  * dashboard's review).
  */
 export function MonthNavigator({
@@ -354,8 +354,8 @@ export function MonthNavigator({
     </PeriodBar>
   )
 
-  // In the header once it has mounted (it needs JavaScript anyway, and the
-  // header keeps its room on phones until then).
+  // In the month bar once it has mounted (it needs JavaScript anyway, and
+  // the bar keeps its room until then).
   if (inShell) return slot === null ? null : createPortal(bar, slot)
   return <div className="@container">{bar}</div>
 }

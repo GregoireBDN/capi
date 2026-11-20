@@ -72,7 +72,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'The month of a month page, part of the app’s frame (#401, the owner’s « B. Barre du mois »): ‹ · period ⌄ · ›, flat, 44px targets. It fills its container, the period centred between the arrows, so they never move. The app puts it in a bar under its header on phones (sticky with the header) and in the middle of the header on a computer. The label is a button, ready for `PopoverTrigger asChild`; under 300px of container it takes its short text.',
+          'The month of a month page, part of the app’s frame (#401, the owner’s « B. Barre du mois »): ‹ · 📅 period · ›, flat, 44px targets. It fills its container, the period centred between the arrows, so they never move. The app puts it in a bar at the top of the page’s column, fixed under its header, on every width. The label is a button, ready for `PopoverTrigger asChild`; under 300px of container it takes its short text.',
       },
     },
   },
@@ -118,7 +118,7 @@ export const Widths: Story = {
       <Frame width={320} label="320px (phone)" />
       <Frame width={390} label="390px (phone)" />
       <Frame width={280} label="280px: short label" />
-      <Frame width={374} label="Middle of the header on a computer (17rem)" />
+      <Frame width={880} label="Computer: the page column beside the sidebar" />
     </div>
   ),
 }

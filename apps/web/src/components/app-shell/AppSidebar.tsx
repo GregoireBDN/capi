@@ -156,7 +156,7 @@ export function AppSidebar() {
           which already keeps clear of the notch. */}
       <Sidebar
         collapsible="icon"
-        className="md:top-[calc(env(safe-area-inset-top)+var(--app-top-bar))] md:pt-0"
+        className="md:top-[calc(env(safe-area-inset-top)+var(--app-header))] md:pt-0"
       >
         {/* The sheet has no header above it: its top links to the
             dashboard. From md up the logo is in the header. */}
