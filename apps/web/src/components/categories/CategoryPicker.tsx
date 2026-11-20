@@ -40,7 +40,7 @@ import { pickableCategories } from '#/lib/categories'
  * already chosen.
  */
 
-/** A kind's tile: the expense neutral, income green, transfer blue. */
+/** A kind's tile, pastel like a category's: expense orange, income green, transfer blue. */
 export const KIND_TILES: Record<
   TransactionKind,
   ChoiceTileOption<TransactionKind>
@@ -49,19 +49,19 @@ export const KIND_TILES: Record<
     value: 'expense',
     label: 'Dépense',
     icon: <ArrowUpRightIcon />,
-    color: 'var(--foreground)',
+    color: '#d97706',
   },
   income: {
     value: 'income',
     label: 'Revenu',
     icon: <ArrowDownLeftIcon />,
-    color: 'var(--chart-delta-good)',
+    color: '#16a34a',
   },
   transfer: {
     value: 'transfer',
     label: 'Virement',
     icon: <ArrowLeftRightIcon />,
-    color: 'var(--primary)',
+    color: '#0284c7',
   },
 }
 

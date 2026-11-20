@@ -16,7 +16,8 @@ interface ChoiceTileOption<T extends string> {
   icon: React.ReactNode
   /**
    * The tile's colour once chosen (any CSS colour, `var(--…)` included):
-   * its border, its icon and a light tint. The primary colour without one.
+   * a pastel tint of it, its text and icon in it. The primary colour
+   * without one.
    */
   color?: string
 }
@@ -49,8 +50,8 @@ const NAVIGATION_KEYS = new Set([
 /**
  * Choice Tiles
  * One choice among a few, shown big (#396, the owner's « A. Tuiles »): a
- * row of equal tiles, an icon over a short name, the chosen one drawn in its
- * colour. Radio semantics like `SegmentedControl`: an arrow key moves to the
+ * row of equal pastel tiles without border, an icon over a short name, the
+ * chosen one tinted with its colour. Radio semantics like `SegmentedControl`: an arrow key moves to the
  * next tile and chooses it, choosing the chosen tile again keeps it.
  */
 function ChoiceTiles<T extends string>({
@@ -111,24 +112,24 @@ function ChoiceTiles<T extends string>({
           className={cn(
             [
               'group/tile flex min-h-[60px] min-w-0 flex-col items-center justify-center gap-1',
-              'rounded-xl border-2 border-border px-1 py-2',
+              // Pastel, no border, like `CategoryIcon`'s tile (#396).
+              'rounded-xl px-1 py-2',
+              'bg-muted/70 text-muted-foreground dark:bg-muted/50',
               'text-[15px] leading-tight font-semibold',
               'transition-colors outline-none',
-              'hover:bg-muted/50',
+              'hover:bg-muted hover:text-foreground',
               'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
               'disabled:pointer-events-none disabled:opacity-50',
-              // Chosen: its colour's border and a light tint of it.
-              'data-[state=on]:border-(--tile)',
-              'data-[state=on]:bg-[color-mix(in_srgb,var(--tile)_10%,transparent)]',
-              'data-[state=on]:hover:bg-[color-mix(in_srgb,var(--tile)_14%,transparent)]',
+              // Chosen: a tint of its colour, the text in it (nudged towards
+              // the text colour, so it reads in light and dark).
+              'data-[state=on]:bg-[color-mix(in_srgb,var(--tile)_16%,transparent)]',
+              'data-[state=on]:hover:bg-[color-mix(in_srgb,var(--tile)_20%,transparent)]',
+              'data-[state=on]:text-[color-mix(in_oklab,var(--tile)_82%,var(--foreground))]',
               '[&_svg]:pointer-events-none [&_svg]:size-[22px] [&_svg]:shrink-0',
             ].join(' '),
           )}
         >
-          <span
-            aria-hidden
-            className="text-muted-foreground group-data-[state=on]/tile:text-(--tile) flex"
-          >
+          <span aria-hidden className="flex">
             {option.icon}
           </span>
           <span className="w-full truncate text-center">{option.label}</span>

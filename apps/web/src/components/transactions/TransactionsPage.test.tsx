@@ -1183,7 +1183,7 @@ describe('TransactionsPage', () => {
 
       // « Classer » opens the editor on the categories: two taps.
       await user.click(screen.getByRole('button', { name: 'Classer Fakemart' }))
-      const editor = await screen.findByRole('dialog')
+      await screen.findByRole('dialog')
       await pickCategory(user, 'Courses')
 
       expect(api.transactionsControllerUpdate).toHaveBeenCalledWith({

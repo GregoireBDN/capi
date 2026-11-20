@@ -17,7 +17,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'One choice among a few, shown big (#396, the owner’s « A. Tuiles »): equal tiles, an icon over a short name, the chosen one in its colour. Radio semantics: an arrow key moves to the next tile and chooses it.',
+          'One choice among a few, shown big (#396, the owner’s « A. Tuiles »): equal pastel tiles without border, an icon over a short name, the chosen one tinted with its colour. Radio semantics: an arrow key moves to the next tile and chooses it.',
       },
     },
   },
@@ -32,19 +32,19 @@ const KINDS = [
     value: 'expense',
     label: 'Dépense',
     icon: <ArrowUpRightIcon />,
-    color: 'var(--foreground)',
+    color: '#d97706',
   },
   {
     value: 'income',
     label: 'Revenu',
     icon: <ArrowDownLeftIcon />,
-    color: 'var(--chart-delta-good)',
+    color: '#16a34a',
   },
   {
     value: 'transfer',
     label: 'Virement',
     icon: <ArrowLeftRightIcon />,
-    color: 'var(--primary)',
+    color: '#0284c7',
   },
 ] as const
 
