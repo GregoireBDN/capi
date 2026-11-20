@@ -39,6 +39,8 @@ import type {
   TransactionKind,
 } from '#/api/types.gen'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
+import { PaidForMeSheet } from '#/components/owed/PaidForMeSheet'
+import type { PaidForMeDraft } from '#/components/owed/PaidForMeSheet'
 import { isTextEntry } from '#/lib/text-entry'
 import {
   KIND_LABELS,
@@ -223,6 +225,8 @@ export function ManualTransactionSheet({
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const [step, setStep] = useState<Step>('category')
+  // « Payé pour moi » (#359): the draft handed over from this sheet.
+  const [paidForMe, setPaidForMe] = useState<PaidForMeDraft | null>(null)
   const amountRef = useRef<HTMLInputElement>(null)
   const stepRef = useRef<HTMLHeadingElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
@@ -928,6 +932,24 @@ export function ManualTransactionSheet({
               </Field>
             )}
 
+            {kind === 'expense' && !expense && (
+              <button
+                type="button"
+                className="text-primary min-h-11 text-left text-sm font-medium"
+                onClick={() => {
+                  setPaidForMe({
+                    categoryId: categoryId || undefined,
+                    billCents: typedCents > 0 ? typedCents : undefined,
+                    bookingDate: date || undefined,
+                    label: label.trim() || undefined,
+                  })
+                  onOpenChange(false)
+                }}
+              >
+                Payé par quelqu’un d’autre ›
+              </button>
+            )}
+
             <Field data-invalid={showLabelError}>
               <FieldLabel htmlFor={`${id}-label`}>Libellé</FieldLabel>
               <Input
@@ -1093,6 +1115,13 @@ export function ManualTransactionSheet({
           </DialogContent>
         </Dialog>
       )}
+      <PaidForMeSheet
+        open={paidForMe !== null}
+        onOpenChange={(next) => {
+          if (!next) setPaidForMe(null)
+        }}
+        initial={paidForMe ?? undefined}
+      />
       {expense && (
         <ConfirmDialog
           open={confirmOpen}

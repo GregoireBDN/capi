@@ -1,8 +1,12 @@
-import { Card, CardContent } from '@finances/ui'
+import { Card, CardContent, ItemList, ItemListRow } from '@finances/ui'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import { HandCoinsIcon } from 'lucide-react'
 import type { DashboardAccountDto, NetWorthDto } from '#/api/types.gen'
 import { AccountList } from '#/components/accounts/AccountList'
-import { formatCents } from '#/lib/money'
+import { formatCents, formatWholeEuros } from '#/lib/money'
 import { formatShortDay } from '#/lib/period'
+import { owedSummaryQuery } from '#/components/owed/queries'
 import { ROUTES } from '#/lib/routes'
 import { DashboardCardHeader } from './DashboardCardHeader'
 import { FigureTile } from './FigureTile'
@@ -73,6 +77,7 @@ export function AccountsList({
             ))}
           </div>
         </div>
+        <OwedRow />
         <AccountList
           from="dashboard"
           primaryAction="account"
@@ -94,5 +99,45 @@ export function AccountsList({
         />
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * « On me doit 342 € · je dois 114 € › » (#359): what is owed either way,
+ * beside the net worth and never in it, opening « Entre proches »; hidden
+ * when both are 0.
+ */
+function OwedRow() {
+  const summary = useQuery(owedSummaryQuery)
+  const owedToMe = summary.data?.owedToMe.totalCents ?? 0
+  const iOwe = summary.data?.iOwe.totalCents ?? 0
+  if (owedToMe === 0 && iOwe === 0) return null
+  const parts = [
+    owedToMe > 0 ? `On me doit ${formatWholeEuros(owedToMe)}` : null,
+    iOwe > 0 ? `je dois ${formatWholeEuros(iOwe)}` : null,
+  ].filter((part): part is string => part !== null)
+  const title = parts.join(' · ')
+  return (
+    <ItemList>
+      <ul>
+        <ItemListRow
+          asChild
+          icon={<HandCoinsIcon />}
+          iconClassName="bg-warning/15 text-warning-foreground dark:text-warning"
+          // Both totals, whole: they wrap rather than being cut.
+          title={
+            <span className="block whitespace-normal">
+              {title.charAt(0).toUpperCase() + title.slice(1)}
+            </span>
+          }
+          subtitle="Hors patrimoine"
+        >
+          <Link
+            to={ROUTES.owed}
+            search={owedToMe === 0 ? { side: 'owe' } : {}}
+          />
+        </ItemListRow>
+      </ul>
+    </ItemList>
   )
 }

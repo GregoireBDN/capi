@@ -23,6 +23,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
+import { RepaymentSuggestions } from '#/components/owed/RepaymentSuggestions'
 import { StaleValuesReminder } from '#/components/review/StaleValuesReminder'
 import { currentMonth, formatMonth } from '#/lib/calendar'
 import { accountsQuery, categoriesQuery, isTransactional } from '#/lib/queries'
@@ -354,6 +355,9 @@ export function TransactionsPage({
       {reviewing || summary.isError || summary.data?.count === 0 ? null : (
         <TransactionSummary summary={summary.data} />
       )}
+
+      {/* Transfers that look like someone's repayment (#359), first. */}
+      {reviewing && <RepaymentSuggestions />}
 
       {/* The list in a card (#327): its header (count, selection, sort),
           the days, « Charger plus » at its end; empty, loading and error

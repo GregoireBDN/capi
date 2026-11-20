@@ -10,12 +10,14 @@ import {
 } from '@finances/ui'
 import {
   CheckIcon,
+  HandCoinsIcon,
   HandIcon,
   PencilLineIcon,
   SparkleIcon,
   CalendarClockIcon,
   StickyNoteIcon,
   TagIcon,
+  UsersIcon,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -32,7 +34,7 @@ import {
   expenseAmountError,
   ManualTransactionSheet,
 } from '#/components/expenses/ManualTransactionSheet'
-import { formatCalendarDate } from '#/lib/money'
+import { formatCalendarDate, formatCents } from '#/lib/money'
 import { Amount } from './Amount'
 import { CategoryMenu } from './CategoryMenu'
 import type { TransactionChanges } from './changes'
@@ -42,6 +44,7 @@ import {
   displayLabel,
   secondaryLabel,
 } from './labels'
+import { othersPartCents } from '#/components/owed/shares'
 import { TransactionEditor } from './TransactionEditor'
 
 /**
@@ -114,6 +117,19 @@ function Flags({ item }: { item: TransactionDto }) {
       icon: PencilLineIcon,
       label: 'Montant ou date corrigé à la main',
     },
+    // Money owed (#359): who owes what on it, what it repays.
+    {
+      on: item.shares.length > 0,
+      icon: UsersIcon,
+      label: owedLabel(item),
+    },
+    {
+      on: item.repayments.length > 0,
+      icon: HandCoinsIcon,
+      label: `Remboursement : ${item.repayments
+        .map((r) => `${formatCents(r.amountCents)} ${r.contactName}`)
+        .join(', ')}`,
+    },
     {
       on: item.note !== null && item.note !== '',
       icon: StickyNoteIcon,
@@ -128,6 +144,25 @@ function Flags({ item }: { item: TransactionDto }) {
         <span className="sr-only">{label}</span>
       </span>
     ))
+}
+
+/**
+ * « Partagée : ma part 31,66 € (Alex remboursé) », or « Payé par Sam » for
+ * what the owner owes.
+ */
+function owedLabel(item: TransactionDto): string {
+  const debt = item.shares.find((s) => s.direction === 'i_owe')
+  if (debt) {
+    return `Payé par ${debt.contactName}, je dois ${formatCents(debt.amountCents)}${debt.state === 'repaid' ? ' (remboursé)' : debt.state === 'forgiven' ? ' (abandonné)' : ''}`
+  }
+  const shared = othersPartCents(item)
+  const states = item.shares
+    .map(
+      (s) =>
+        `${s.contactName} ${s.state === 'repaid' ? 'remboursé' : s.state === 'forgiven' ? 'abandonné' : `${formatCents(s.repaidCents)} sur ${formatCents(s.amountCents)}`}`,
+    )
+    .join(', ')
+  return `Partagée : ma part ${formatCents(-item.amountCents - shared)} (${states})`
 }
 
 /** Names of a split's categories, or the category of the row. */

@@ -2,6 +2,7 @@ import {
   ArrowLeftRightIcon,
   BitcoinIcon,
   ChartPieIcon,
+  HandCoinsIcon,
   LandmarkIcon,
   LayoutDashboardIcon,
   PiggyBankIcon,
@@ -23,6 +24,7 @@ export interface NavItem {
     | 'budget'
     | 'subscriptions'
     | 'savings'
+    | 'owed'
     | 'crypto'
     | 'accounts'
     | 'import'
@@ -32,7 +34,7 @@ export interface NavItem {
    * Counter shown next to the label: the transactions to review, opening
    * Opérations filtered on « À revoir » (#322).
    */
-  badge?: 'reviewCount'
+  badge?: 'reviewCount' | 'owedTotal'
   /** Other pages on which the item is shown as the current one. */
   alsoActiveOn?: readonly string[]
 }
@@ -79,6 +81,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Abonnements', to: ROUTES.subscriptions, icon: RepeatIcon },
   { label: 'Épargne', to: ROUTES.savings, icon: PiggyBankIcon },
   { label: 'Crypto', to: ROUTES.crypto, icon: BitcoinIcon },
+  // What people owe the owner, both ways on its page (#359).
+  {
+    label: 'Entre proches',
+    to: ROUTES.owed,
+    icon: HandCoinsIcon,
+    badge: 'owedTotal',
+  },
   { label: 'Comptes', to: ROUTES.accounts, icon: LandmarkIcon },
   { label: 'Import', to: ROUTES.import, icon: UploadIcon },
 ]

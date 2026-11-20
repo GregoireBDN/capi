@@ -8,12 +8,14 @@ import {
   TagsIcon,
   TriangleAlertIcon,
   UserIcon,
+  UsersIcon,
 } from 'lucide-react'
 import { useId } from 'react'
 import type { UserDto } from '#/api/types.gen'
 import { accessTokensQuery } from '#/components/access-tokens/queries'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { grantsQuery } from '#/components/oauth/queries'
+import { contactsQuery } from '#/components/owed/queries'
 import { passkeysQuery } from '#/components/passkeys/queries'
 import { rulesQuery } from '#/components/rules/queries'
 import { sessionsQuery } from '#/components/sessions/queries'
@@ -43,6 +45,7 @@ export function SettingsPage({ user }: { user: UserDto }) {
   const rules = useQuery(rulesQuery)
   const tokens = useQuery(accessTokensQuery)
   const grants = useQuery(grantsQuery)
+  const contacts = useQuery(contactsQuery())
 
   const activeCategories = categories.data?.filter((c) => !c.archivedAt)
 
@@ -108,6 +111,22 @@ export function SettingsPage({ user }: { user: UserDto }) {
                     'règle',
                     'règles',
                     'Aucune règle',
+                  )
+                : null
+            }
+          />
+          <SettingsLinkRow
+            to={ROUTES.settingsContacts}
+            icon={UsersIcon}
+            tone="warning"
+            title="Contacts"
+            state={
+              contacts.data
+                ? countLabel(
+                    contacts.data.length,
+                    'contact',
+                    'contacts',
+                    'Aucun contact',
                   )
                 : null
             }

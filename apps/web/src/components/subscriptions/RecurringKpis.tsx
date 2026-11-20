@@ -47,8 +47,9 @@ export function recurringParts(groups: RecurringGroups): RecurringPart[] {
   return parts
     .map((part) => {
       const items = counted(groups[part.key])
+      // The owner's part of an item shared with a contact (#359).
       const yearlyCents = items.reduce(
-        (sum, item) => sum + item.yearlyCostCents,
+        (sum, item) => sum + item.ownYearlyCostCents,
         0,
       )
       return {

@@ -1,4 +1,8 @@
 import { Link, useRouterState } from '@tanstack/react-router'
+import { QueryClientContext, useQuery } from '@tanstack/react-query'
+import { useContext } from 'react'
+import { owedSummaryQuery } from '#/components/owed/queries'
+import { formatCents, formatWholeEuros } from '#/lib/money'
 import { ChevronLeftIcon } from 'lucide-react'
 import {
   Sidebar,
@@ -64,6 +68,8 @@ export function AppSidebar({ user }: { user: UserDto }) {
   const search = useRouterState({ select: (s) => s.location.search })
   const { isMobile, open, setOpenMobile, toggleSidebar } = useSidebar()
   const reviewCount = useReviewCount()
+  // The badge reads the query cache when the app provides one.
+  const queryClient = useContext(QueryClientContext)
 
   // The mobile sheet stays open across navigations unless we close it.
   const closeMobileSheet = () => {
@@ -107,6 +113,8 @@ export function AppSidebar({ user }: { user: UserDto }) {
         </SidebarMenuButton>
         {/* The badge is a link of its own: Opérations filtered on « À
             revoir » (#322). Hidden while the column is folded. */}
+        {/* What people owe the owner (#359), hidden at 0. */}
+        {badge === 'owedTotal' && queryClient && <OwedBadge to={to} />}
         {count !== null && count > 0 && (
           <Link
             to={ROUTES.transactions}
@@ -193,5 +201,21 @@ export function AppSidebar({ user }: { user: UserDto }) {
         </SidebarFooter>
       </Sidebar>
     </TooltipProvider>
+  )
+}
+
+/** What people owe the owner (#359), whole euros, hidden at 0. */
+function OwedBadge({ to }: { to: string }) {
+  const owed = useQuery(owedSummaryQuery)
+  const total = owed.data?.owedToMe.totalCents ?? 0
+  if (total <= 0) return null
+  return (
+    <span
+      data-testid={`nav-badge-${to}`}
+      aria-label={`On me doit ${formatCents(total)}`}
+      className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs whitespace-nowrap tabular-nums group-data-[collapsible=icon]:hidden"
+    >
+      {formatWholeEuros(total)}
+    </span>
   )
 }

@@ -115,6 +115,7 @@ describe('AppSidebar', () => {
       ['Abonnements', '/subscriptions'],
       ['Épargne', '/savings'],
       ['Crypto', '/crypto'],
+      ['Entre proches', '/owed'],
       ['Comptes', '/accounts'],
       ['Import', '/import'],
     ])
