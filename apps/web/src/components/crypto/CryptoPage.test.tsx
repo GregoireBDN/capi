@@ -105,6 +105,7 @@ function account(overrides: Partial<PortfolioAccountDto>): PortfolioAccountDto {
       failedAt: null,
       failedChains: [],
       retryAt: null,
+      syncing: false,
     },
     ...overrides,
   }
@@ -186,6 +187,7 @@ function portfolio(
     priceApiEnabled: true,
     walletSyncEnabled: true,
     refreshFailed: false,
+    refreshDue: false,
     pricesAt: PRICED_AT,
     valued: false,
     ...overrides,
@@ -337,6 +339,7 @@ describe('CryptoPage', () => {
                 failedAt: '2026-11-19T09:58:00Z',
                 failedChains: [],
                 retryAt: null,
+                syncing: false,
               },
             }),
           ],
@@ -386,5 +389,142 @@ describe('CryptoPage', () => {
       screen.queryByRole('button', { name: 'Actualiser' }),
     ).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Ajouter' })).toBeInTheDocument()
+  })
+
+  describe('loading (#381)', () => {
+    function deferred<T>() {
+      let resolve!: (value: T) => void
+      let reject!: (error: unknown) => void
+      const promise = new Promise<T>((res, rej) => {
+        resolve = res
+        reject = rej
+      })
+      return { promise, resolve, reject }
+    }
+
+    /** Stored values whose prices are past the cache TTL. */
+    const stored = () =>
+      portfolio({
+        refreshDue: true,
+        pricesAt: '2026-11-19T08:00:00Z',
+        totals: { ...portfolio().totals, staleCount: 2 },
+        assets: portfolio().assets.map((a) =>
+          a.priceEur === null ? a : { ...a, priceStale: true },
+        ),
+      })
+
+    it('shows one skeleton per card, titled, and the header at once', () => {
+      api.cryptoControllerPortfolio.mockImplementation(
+        () => new Promise(() => {}),
+      )
+      renderPage()
+      const loading = screen.getByRole('status', {
+        name: 'Chargement de vos cryptos',
+      })
+      expect(within(loading).getByText('Valeur de vos cryptos')).toBeVisible()
+      expect(within(loading).getByText('Actifs')).toBeVisible()
+      expect(within(loading).getByText('Où sont mes cryptos')).toBeVisible()
+      expect(screen.getByRole('heading', { name: 'Crypto' })).toBeVisible()
+      expect(screen.getByRole('button', { name: 'Ajouter' })).toBeVisible()
+    })
+
+    it('shows the stored values, then the live ones in place', async () => {
+      api.cryptoControllerPortfolio.mockImplementation(() => ok(stored()))
+      const live = deferred<unknown>()
+      api.cryptoControllerRefreshPortfolio.mockImplementation(
+        () => live.promise,
+      )
+      renderPage()
+      const summary = await screen.findByRole('region', {
+        name: 'Valeur de vos cryptos',
+      })
+      expect(text(summary.textContent)).toContain('7 691,25 €')
+      // The live step is fired once, in auto mode, and said in place.
+      await waitFor(() =>
+        expect(api.cryptoControllerRefreshPortfolio).toHaveBeenCalledTimes(1),
+      )
+      expect(api.cryptoControllerRefreshPortfolio.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ query: { mode: 'auto' } }),
+      )
+      expect(text(summary.textContent)).toContain('Actualisation des cours…')
+      // Stale prices are not news while they are being asked.
+      expect(summary.textContent).not.toContain('Cours non actualisés')
+      expect(screen.queryByText('Non à jour')).not.toBeInTheDocument()
+      expect(screen.queryByRole('status', { name: /Chargement/ })).toBeNull()
+
+      live.resolve({
+        data: portfolio({
+          totals: { ...portfolio().totals, valueCents: 800_000 },
+        }),
+        response: new Response(null, { status: 200 }),
+      })
+      await waitFor(() =>
+        expect(text(summary.textContent)).toContain('8 000,00 €'),
+      )
+      // The same card, its freshness line back in place of the spinner.
+      expect(
+        screen.getByRole('region', { name: 'Valeur de vos cryptos' }),
+      ).toBe(summary)
+      expect(text(summary.textContent)).toContain('Cours il y a 3 min')
+      expect(summary.textContent).not.toContain('Actualisation des cours…')
+      expect(toast.success).not.toHaveBeenCalled()
+    })
+
+    it('asks nothing live when nothing is due', async () => {
+      renderPage()
+      await screen.findByRole('region', { name: 'Valeur de vos cryptos' })
+      expect(api.cryptoControllerRefreshPortfolio).not.toHaveBeenCalled()
+    })
+
+    it('keeps the stored values, flagged stale, when the live step fails', async () => {
+      api.cryptoControllerPortfolio.mockImplementation(() => ok(stored()))
+      api.cryptoControllerRefreshPortfolio.mockImplementation(() =>
+        Promise.resolve({
+          error: { message: 'down' },
+          response: new Response(null, { status: 503 }),
+        }),
+      )
+      renderPage()
+      const summary = await screen.findByRole('region', {
+        name: 'Valeur de vos cryptos',
+      })
+      await waitFor(() =>
+        expect(text(summary.textContent)).toContain(
+          'Cours non actualisés : les derniers connus sont utilisés.',
+        ),
+      )
+      expect(text(summary.textContent)).toContain('7 691,25 €')
+      expect(
+        screen.queryByText('Impossible de charger vos cryptos.'),
+      ).toBeNull()
+      expect(toast.error).not.toHaveBeenCalled()
+    })
+
+    it('shows a wallet being read while its sync goes on', async () => {
+      api.cryptoControllerPortfolio.mockImplementation(() =>
+        ok(
+          portfolio({
+            accounts: [
+              account({
+                sync: {
+                  enabled: true,
+                  syncedAt: '2026-11-19T09:54:00Z',
+                  failedAt: null,
+                  failedChains: [],
+                  retryAt: null,
+                  syncing: true,
+                },
+              }),
+            ],
+          }),
+        ),
+      )
+      renderPage()
+      const summary = await screen.findByRole('region', {
+        name: 'Valeur de vos cryptos',
+      })
+      expect(text(summary.textContent)).toContain('Lecture des wallets…')
+      expect(screen.getByText('Wallet · lecture en cours…')).toBeVisible()
+    })
   })
 })

@@ -34,7 +34,7 @@ import { TokenAccess } from '#/auth/access-tokens/token-access.decorator'
 import '#/auth/request-user'
 import { JwtGuard } from '#/auth/guards/jwt.guard'
 import { CryptoPricesService } from './crypto-prices.service'
-import { CryptoService } from './crypto.service'
+import { CryptoService, type LiveRefreshMode } from './crypto.service'
 import {
   AccountHoldingsDto,
   ASSET_ID_PATTERN,
@@ -55,6 +55,19 @@ const HOLDING_PARAM = {
   format: 'uuid',
 } as const
 const SEARCH_MAX = 50
+const MODE_QUERY = {
+  name: 'mode',
+  enum: ['auto', 'force'],
+  required: false,
+  description:
+    '`force` (default, « Actualiser »): everything now. `auto` (#381): what is due only, the live step a page fires after showing the stored values.',
+} as const
+
+function refreshMode(mode: unknown): LiveRefreshMode {
+  if (mode === undefined || mode === 'force') return 'force'
+  if (mode === 'auto') return 'auto'
+  throw new BadRequestException('mode must be auto or force')
+}
 const TOKEN_FORBIDDEN =
   'Personal access token (#104) on an exchange or wallet account, or on an imported or synced line: tokens only change hand-entered lines of manual crypto accounts.'
 
@@ -70,7 +83,7 @@ export class AccountHoldingsController {
   @ApiOperation({
     summary: 'Holdings of a crypto account, valued at the last known prices',
     description:
-      "When the last valuation is older than the price cache TTL, prices are refreshed first (if the price API is enabled) and today's balance snapshot is written. A failing price API never fails the request: the last known prices are used and flagged stale.",
+      'From the database only (#381): no price request, no chain read. Prices older than the cache TTL are flagged stale; `refreshDue` says whether `POST .../valuate?mode=auto` would refresh something.',
   })
   @ApiParam(ID_PARAM)
   @ApiOkResponse({ type: AccountHoldingsDto })
@@ -109,18 +122,22 @@ export class AccountHoldingsController {
   @Post('valuate')
   @HttpCode(200)
   @ApiOperation({
-    summary: "Refresh prices and write today's snapshot",
+    summary: "Refresh prices, then today's live value",
     description:
-      "Asks the price API for every held asset (each at most every 15 s), values the holdings and upserts today's balance snapshot when every holding has a price. Contributions are the sum of the invested amounts when every holding has one, null otherwise.",
+      "`force`: asks the price API for every held asset (each at most every 15 s). `auto` (#381): reads the wallet when its sync is due and asks the prices older than the TTL only. Then values the holdings (today's live value, never stored, #366). A failing price API or chain never fails the request.",
   })
   @ApiParam(ID_PARAM)
+  @ApiQuery(MODE_QUERY)
   @ApiOkResponse({ type: AccountHoldingsDto })
   @ApiBadRequestResponse({
     description: 'Not a crypto account, archived account.',
   })
   @ApiNotFoundResponse()
-  valuate(@Param('id', ParseUUIDPipe) id: string): Promise<AccountHoldingsDto> {
-    return this.crypto.refresh(id)
+  valuate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('mode') mode?: unknown,
+  ): Promise<AccountHoldingsDto> {
+    return this.crypto.refresh(id, new Date(), refreshMode(mode))
   }
 
   @Post('sync')
@@ -215,7 +232,7 @@ export class CryptoController {
   @ApiOperation({
     summary: 'Holdings, prices, values and gains of every crypto account',
     description:
-      'Non-archived crypto accounts, valued with one batched price request (refreshed when the last valuation is older than the TTL).',
+      'Non-archived crypto accounts, valued at the stored prices (database only, #381).',
   })
   @ApiOkResponse({ type: CryptoSummaryDto })
   summary(): Promise<CryptoSummaryDto> {
@@ -239,7 +256,7 @@ export class CryptoController {
   @ApiOperation({
     summary: 'The crypto portfolio: holdings summed per asset across accounts',
     description:
-      'Every open crypto account valued like `summary` (one batched price request when the last valuation is older than the TTL), its holdings summed per price id with exact quantities, value, change over 24 hours, invested and gain where known (fiat lines left out), then the accounts with when their holdings were last fed. The price API only receives asset ids.',
+      'From the database only (#381): no price request, no chain read. Every open crypto account valued at the last known prices (flagged stale after the cache TTL), its holdings summed per price id with exact quantities, value, change over 24 hours, invested and gain where known (fiat lines left out), then the accounts with when their holdings were last fed. `refreshDue` says whether `POST /crypto/portfolio/refresh?mode=auto` would refresh something.',
   })
   @ApiOkResponse({ type: CryptoPortfolioDto })
   portfolio(): Promise<CryptoPortfolioDto> {
@@ -252,11 +269,12 @@ export class CryptoController {
   @ApiOperation({
     summary: 'Refresh the whole crypto section ("Actualiser")',
     description:
-      "Reads every open wallet account on chain when this server syncs wallets (each at most every 30 s; a failing chain keeps its last lines and is reported in the account's `sync`), then asks fresh prices for every held asset in one request and writes today's values. Never fails because of a chain or the price API. Session only.",
+      "`force` (default): reads every open wallet account on chain when this server syncs wallets (each at most every 30 s; a failing chain keeps its last lines and is reported in the account's `sync`), then asks fresh prices for every held asset in one request. `auto` (#381, fired by the page after it shows the stored portfolio): only the wallets due a sync (waiting 5 s at most, the rest going on in the background with `sync.syncing`) and the prices older than the TTL. Then today's live values, never stored. Never fails because of a chain or the price API. Session only; the price API only receives asset ids.",
   })
+  @ApiQuery(MODE_QUERY)
   @ApiOkResponse({ type: CryptoPortfolioDto })
-  refreshPortfolio(): Promise<CryptoPortfolioDto> {
-    return this.crypto.refreshPortfolio()
+  refreshPortfolio(@Query('mode') mode?: unknown): Promise<CryptoPortfolioDto> {
+    return this.crypto.refreshPortfolio(new Date(), refreshMode(mode))
   }
 
   @Get('assets')

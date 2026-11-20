@@ -88,6 +88,24 @@ export class CryptoPricesService {
     return { quotes: await this.load(ids), refreshFailed }
   }
 
+  /**
+   * Whether an `auto` refresh would ask the provider for any of these
+   * assets (#381): a price missing or older than the TTL, not asked within
+   * the TTL. Read from the stored quotes and memory: no request.
+   */
+  refreshDue(
+    assetIds: readonly string[],
+    quotes: ReadonlyMap<string, Quote>,
+    now: Date = new Date(),
+  ): boolean {
+    if (!this.enabled) return false
+    const at = now.getTime()
+    return assetIds.some(
+      (id) =>
+        !isContractAssetId(id) && this.isDue(id, quotes.get(id), 'auto', at),
+    )
+  }
+
   /** Sets a price by hand (used when the price API is disabled or lacks it). */
   async setManualPrice(
     assetId: string,
@@ -133,15 +151,8 @@ export class CryptoPricesService {
     now: Date,
   ): Promise<boolean> {
     const known = await this.load(ids)
-    const maxAge = mode === 'force' ? 0 : this.ttlMs
-    const retryAfter = mode === 'force' ? FORCE_MIN_INTERVAL_MS : this.ttlMs
     const at = now.getTime()
-    const due = ids.filter((id) => {
-      const quote = known.get(id)
-      if (quote && at - quote.fetchedAt.getTime() <= maxAge) return false
-      const attempt = this.attempts.get(id)
-      return attempt === undefined || at - attempt >= retryAfter
-    })
+    const due = ids.filter((id) => this.isDue(id, known.get(id), mode, at))
     if (due.length === 0) return false
     for (const id of due) this.attempts.set(id, at)
 
@@ -171,6 +182,19 @@ export class CryptoPricesService {
       .filter((row): row is PriceRow => row.priceEur !== null)
     if (rows.length > 0) await this.upsert(rows, 'provider', now)
     return false
+  }
+
+  private isDue(
+    id: string,
+    quote: Quote | undefined,
+    mode: 'auto' | 'force',
+    at: number,
+  ): boolean {
+    const maxAge = mode === 'force' ? 0 : this.ttlMs
+    if (quote && at - quote.fetchedAt.getTime() <= maxAge) return false
+    const retryAfter = mode === 'force' ? FORCE_MIN_INTERVAL_MS : this.ttlMs
+    const attempt = this.attempts.get(id)
+    return attempt === undefined || at - attempt >= retryAfter
   }
 
   private upsert(rows: PriceRow[], source: CryptoPriceSource, now: Date) {

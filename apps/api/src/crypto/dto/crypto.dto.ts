@@ -313,6 +313,13 @@ export class WalletSyncStatusDto {
       'When every failed chain may be asked again (latest end of their rate-limit backoffs); null when nothing waits.',
   })
   retryAt!: string | null
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'A sync of this wallet is running on the server (one a refresh started that outlived its wait): its lines change when it ends (#381).',
+  })
+  syncing!: boolean
 }
 
 export class AccountHoldingsDto {
@@ -335,7 +342,7 @@ export class AccountHoldingsDto {
     type: ValuationSnapshotDto,
     nullable: true,
     description:
-      "Today's balance snapshot written by this request (null when none was written).",
+      "Today's live value at the stored prices, never stored (#366); null while a holding has no price or the account was never valued.",
   })
   snapshot!: ValuationSnapshotDto | null
 
@@ -354,6 +361,13 @@ export class AccountHoldingsDto {
     description: 'Wallet accounts only (null otherwise).',
   })
   sync!: WalletSyncStatusDto | null
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'A live refresh (`mode=auto`) would do something now (#381): a price older than the cache TTL not asked since, or a wallet due a sync. The page fires it after showing these stored values.',
+  })
+  refreshDue!: boolean
 }
 
 export class CryptoSummaryAccountDto extends AccountHoldingsDto {
@@ -627,9 +641,16 @@ export class CryptoPortfolioDto {
   @ApiProperty({
     type: Boolean,
     description:
-      "This request wrote today's value of at least one account (net worth changed).",
+      "At least one account has today's live value (every holding priced; never stored, #366).",
   })
   valued!: boolean
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'A live refresh (`POST /crypto/portfolio/refresh?mode=auto`) would do something now (#381): a price older than the cache TTL not asked since, or a wallet due a sync. Per-asset staleness is `assets[].priceStale`.',
+  })
+  refreshDue!: boolean
 }
 
 /** What this server reads by itself, for the forms that depend on it. */

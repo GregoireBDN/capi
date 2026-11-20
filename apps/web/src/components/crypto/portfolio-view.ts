@@ -73,6 +73,9 @@ export function accountFreshness(
         warning: null,
       }
     }
+    // A sync running in the background (#381): said in place.
+    if (sync?.syncing)
+      return { text: 'Wallet · lecture en cours…', warning: null }
     if (at === null) return { text: 'Wallet · jamais lu', warning: 'à lire' }
     return {
       text: `Wallet · lu ${ageText(at, now)}`,
