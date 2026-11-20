@@ -9,9 +9,6 @@ import {
   FieldLabel,
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   Textarea,
   useIsMobile,
 } from '@finances/ui'
@@ -23,6 +20,12 @@ import { plural } from '#/lib/plural'
 import { snapshotErrorMessage } from './errors'
 import { PASTE_MAX_ROWS, parseSnapshotHistory } from './paste'
 import { afterSnapshotsChanged, saveSnapshotHistory } from './queries'
+import {
+  EditorHeader,
+  editorSide,
+  FORM_SHEET_SCREEN,
+  SheetScroll,
+} from '#/components/sheets/form-sheet'
 
 interface PasteHistorySheetProps {
   open: boolean
@@ -48,28 +51,24 @@ export function PasteHistorySheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
-        className={
-          isMobile
-            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-            : 'overflow-y-auto sm:max-w-lg'
-        }
+        side={editorSide(isMobile)}
+        className={isMobile ? FORM_SHEET_SCREEN : 'overflow-y-auto sm:max-w-lg'}
       >
-        <SheetHeader className="pb-0">
-          <SheetTitle>Coller un historique</SheetTitle>
-          <SheetDescription>
-            Une ligne par date : date, valeur et, si vous le connaissez, le
-            montant investi, séparés par des points-virgules ou des tabulations.
-          </SheetDescription>
-        </SheetHeader>
-        {open && (
-          <PasteHistoryForm
-            className="px-4 pb-6"
-            accountId={accountId}
-            today={today}
-            onDone={() => onOpenChange(false)}
-          />
-        )}
+        <EditorHeader
+          className="pb-0"
+          title="Coller un historique"
+          description="Une ligne par date : date, valeur et, si vous le connaissez, le montant investi, séparés par des points-virgules ou des tabulations."
+        />
+        <SheetScroll>
+          {open && (
+            <PasteHistoryForm
+              className="px-4 pb-6"
+              accountId={accountId}
+              today={today}
+              onDone={() => onOpenChange(false)}
+            />
+          )}
+        </SheetScroll>
       </SheetContent>
     </Sheet>
   )

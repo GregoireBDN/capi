@@ -8,9 +8,6 @@ import {
   NativeSelectOption,
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -27,6 +24,12 @@ import { IconPicker } from './IconPicker'
 import { categoryErrorMessage } from './errors'
 import { DEFAULT_CATEGORY_COLOR } from './palette'
 import { afterCategoriesChanged, createCategory } from './queries'
+import {
+  EditorHeader,
+  editorSide,
+  FORM_SHEET_SCREEN,
+  SheetScroll,
+} from '#/components/sheets/form-sheet'
 
 const NAME_MAX = 100
 
@@ -83,20 +86,27 @@ export function AddCategorySheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
-        className={
-          isMobile
-            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-            : undefined
-        }
+        side={editorSide(isMobile)}
+        className={isMobile ? FORM_SHEET_SCREEN : undefined}
       >
-        <SheetHeader className="pb-0">
-          <SheetTitle>Ajouter une catégorie</SheetTitle>
-          <SheetDescription>
-            Elle apparaît tout de suite dans les listes de catégories.
-          </SheetDescription>
-        </SheetHeader>
-        <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
+        <EditorHeader
+          className="pb-0"
+          title="Ajouter une catégorie"
+          description="Elle apparaît tout de suite dans les listes de catégories."
+          action={{
+            type: 'submit',
+            form: `${id}-form`,
+            label: 'Ajouter',
+            loading: create.isPending,
+          }}
+        />
+        <SheetScroll>
+        <form
+          id={`${id}-form`}
+          noValidate
+          onSubmit={submit}
+          className="space-y-4 px-4 pb-6"
+        >
           <Field data-invalid={showError}>
             <FieldLabel htmlFor={`${id}-name`}>Nom</FieldLabel>
             <Input
@@ -143,14 +153,17 @@ export function AddCategorySheet({
               label="Icône de la nouvelle catégorie"
             />
           </Field>
-          <Button
-            type="submit"
-            className="w-full sm:w-auto"
-            loading={create.isPending}
-          >
-            Ajouter
-          </Button>
+          {!isMobile && (
+            <Button
+              type="submit"
+              className="w-full sm:w-auto"
+              loading={create.isPending}
+            >
+              Ajouter
+            </Button>
+          )}
         </form>
+        </SheetScroll>
       </SheetContent>
     </Sheet>
   )

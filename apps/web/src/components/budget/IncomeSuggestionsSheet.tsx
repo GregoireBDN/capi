@@ -6,10 +6,7 @@ import {
   Checkbox,
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetFooter,
-  SheetHeader,
-  SheetTitle,
   Skeleton,
   useIsMobile,
 } from '@finances/ui'
@@ -28,6 +25,12 @@ import {
   fetchIncomeSuggestions,
   saveBudget,
 } from './queries'
+import {
+  EditorHeader,
+  editorSide,
+  FORM_SHEET_SCREEN,
+  SheetScroll,
+} from '#/components/sheets/form-sheet'
 
 interface IncomeSuggestionsSheetProps {
   open: boolean
@@ -132,23 +135,31 @@ export function IncomeSuggestionsSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
-        className={
-          isMobile
-            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-            : 'overflow-y-auto sm:max-w-md'
-        }
+        side={editorSide(isMobile)}
+        className={isMobile ? FORM_SHEET_SCREEN : 'overflow-y-auto sm:max-w-md'}
       >
-        <SheetHeader className="pb-0">
-          <SheetTitle>Préparer les revenus</SheetTitle>
-          <SheetDescription>
-            Le plan du mois précédent, ou vos revenus réguliers confirmés
+        <EditorHeader
+          className="pb-0"
+          title="Préparer les revenus"
+          description={<>Le plan du mois précédent, ou vos revenus réguliers confirmés
             (salaire, aides) à leur montant habituel. Cochez ceux à garder, à
-            partir de {formatMonth(month).toLowerCase()}.
-          </SheetDescription>
-        </SheetHeader>
+            partir de {formatMonth(month).toLowerCase()}.</>}
+          action={
+            items.length > 0
+              ? {
+                  label:
+                    accepted.length === 0
+                      ? 'Aucun revenu sélectionné'
+                      : `Enregistrer ${plural(accepted.length, 'revenu')}`,
+                  loading: apply.isPending,
+                  disabled: accepted.length === 0 || invalid,
+                  onClick: () => apply.mutate(),
+                }
+              : undefined
+          }
+        />
 
-        <div className="px-4">
+        <SheetScroll className="px-4">
           {suggestions.isPending && (
             <div className="space-y-2" aria-busy="true" aria-label="Chargement">
               {[0, 1].map((i) => (
@@ -222,9 +233,9 @@ export function IncomeSuggestionsSheet({
               })}
             </ul>
           )}
-        </div>
+        </SheetScroll>
 
-        {items.length > 0 && (
+        {!isMobile && items.length > 0 && (
           <SheetFooter>
             <Button
               loading={apply.isPending}

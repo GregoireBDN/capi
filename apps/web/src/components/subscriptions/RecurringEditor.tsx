@@ -3,6 +3,7 @@ import {
   AlertDescription,
   AlertTitle,
   Button,
+  cn,
   Field,
   FieldDescription,
   FieldError,
@@ -10,6 +11,8 @@ import {
   Input,
   Label,
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -18,7 +21,6 @@ import {
   Textarea,
   ToggleGroup,
   ToggleGroupItem,
-  cn,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -64,6 +66,11 @@ import {
   updateRecurringItem,
 } from './queries'
 import { RecurringHistory } from './RecurringHistory'
+import {
+  editorSide,
+  FORM_SHEET_SCREEN,
+  SheetScroll,
+} from '#/components/sheets/form-sheet'
 
 const NAME_MAX = 255
 const NOTES_MAX = 1000
@@ -224,7 +231,7 @@ export function RecurringEditor({
   return (
     <Sheet open={item !== null} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
+        side={editorSide(isMobile)}
         onOpenAutoFocus={(event) => {
           // On a phone, opening must not pop the keyboard up over the
           // summary: focus the sheet, not the name field.
@@ -232,14 +239,24 @@ export function RecurringEditor({
           event.preventDefault()
           ;(event.currentTarget as HTMLElement | null)?.focus()
         }}
-        className={
-          isMobile
-            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-            : 'overflow-y-auto'
-        }
+        className={isMobile ? FORM_SHEET_SCREEN : 'overflow-y-auto'}
       >
         {item && (
           <>
+            {isMobile ? (
+              <SheetBar
+                title={item.name}
+                action={
+                  <SheetBarAction
+                    type="submit"
+                    form={`${id}-form`}
+                    label="Enregistrer"
+                    loading={save.isPending}
+                    disabled={reactivate.isPending}
+                  />
+                }
+              />
+            ) : (
             <SheetHeader className="pb-0">
               <SheetTitle>{item.name}</SheetTitle>
               {/* The summary first (#279): how much, when next, per year. */}
@@ -263,7 +280,38 @@ export function RecurringEditor({
                 {formatCents(item.yearlyCostCents)} par an · {item.accountName}
               </SheetDescription>
             </SheetHeader>
-            <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
+            )}
+            <SheetScroll>
+            {isMobile && (
+              <div className="space-y-1 px-4 pb-4">
+              {/* The summary first (#279): how much, when next, per year. */}
+              <p className="text-2xl font-semibold tabular-nums">
+                {item.direction === 'credit' ? '+' : ''}
+                {formatAmountPerPeriod(item)}
+              </p>
+              <p className="text-muted-foreground text-[15px] leading-snug">
+                {item.termMonths
+                  ? `${formatPrepaid(item)} le ${formatDayMonth(item.lastSeenDate, today)} · ${
+                      item.renewalDate &&
+                      (item.endedOn === null || item.renewalDate < item.endedOn)
+                        ? `renouvellement le ${formatDayMonth(item.renewalDate, today)} · `
+                        : ''
+                    }`
+                  : item.nextExpectedDate &&
+                      (item.endedOn === null ||
+                        item.nextExpectedDate < item.endedOn)
+                    ? `Prochain le ${formatDayMonth(item.nextExpectedDate, today)} · `
+                    : `Dernier le ${formatDayMonth(item.lastSeenDate, today)} · `}
+                {formatCents(item.yearlyCostCents)} par an · {item.accountName}
+              </p>
+              </div>
+            )}
+            <form
+              id={`${id}-form`}
+              noValidate
+              onSubmit={submit}
+              className="space-y-4 px-4 pb-6"
+            >
               {end && item.status === 'confirmed' && (
                 <Alert variant={chargedAfterEnd ? 'warning' : undefined}>
                   {chargedAfterEnd ? <TriangleAlertIcon /> : <BanIcon />}
@@ -420,13 +468,15 @@ export function RecurringEditor({
 
               <RecurringHistory item={item} today={today} />
               <div className="grid gap-2 pt-2">
-                <Button
-                  type="submit"
-                  loading={save.isPending}
-                  disabled={reactivate.isPending}
-                >
-                  Enregistrer
-                </Button>
+                {!isMobile && (
+                  <Button
+                    type="submit"
+                    loading={save.isPending}
+                    disabled={reactivate.isPending}
+                  >
+                    Enregistrer
+                  </Button>
+                )}
                 {item.status === 'suggested' && (
                   <Button
                     type="button"
@@ -479,6 +529,7 @@ export function RecurringEditor({
                 </div>
               </div>
             </form>
+            </SheetScroll>
           </>
         )}
       </SheetContent>

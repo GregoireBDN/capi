@@ -11,9 +11,6 @@ import {
   NativeSelectOption,
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   Switch,
   Textarea,
   useIsMobile,
@@ -28,6 +25,12 @@ import { formatCents } from '#/lib/money'
 import { centsToInput, parseEurosToCents, targetError } from './amount'
 import { budgetErrorMessage } from './errors'
 import { afterBudgetsChanged, removeBudget, saveBudget } from './queries'
+import {
+  EditorHeader,
+  editorSide,
+  FORM_SHEET_SCREEN,
+  SheetScroll,
+} from '#/components/sheets/form-sheet'
 
 const NOTE_MAX = 500
 
@@ -158,27 +161,39 @@ export function BudgetEditor({
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
-          side={isMobile ? 'bottom' : 'right'}
-          className={
-            isMobile
-              ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-              : undefined
-          }
+          side={editorSide(isMobile)}
+          className={isMobile ? FORM_SHEET_SCREEN : undefined}
         >
-          <SheetHeader className="pb-0">
-            <SheetTitle className="flex items-center gap-2">
-              {budget && (
-                <CategoryIcon icon={budget.icon} color={budget.color} />
-              )}
-              <span className="min-w-0">{title}</span>
-            </SheetTitle>
-            <SheetDescription>
-              {income
+          <EditorHeader
+            className="pb-0"
+            title={
+              <span className="inline-flex items-center gap-2">
+                {budget && (
+                  <CategoryIcon icon={budget.icon} color={budget.color} />
+                )}
+                <span className="min-w-0">{title}</span>
+              </span>
+            }
+            description={
+              income
                 ? `Montant attendu chaque mois à partir de ${monthText}. Les mois précédents gardent le leur.`
-                : `Objectif mensuel à partir de ${monthText}. Les mois précédents gardent leur objectif.`}
-            </SheetDescription>
-          </SheetHeader>
-          <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
+                : `Objectif mensuel à partir de ${monthText}. Les mois précédents gardent leur objectif.`
+            }
+            action={{
+              type: 'submit',
+              form: `${id}-form`,
+              label: 'Enregistrer',
+              loading: save.isPending,
+              disabled: !categoryId,
+            }}
+          />
+          <SheetScroll>
+          <form
+            id={`${id}-form`}
+            noValidate
+            onSubmit={submit}
+            className="space-y-4 px-4 pb-6"
+          >
             {!budget && (
               <Field>
                 <FieldLabel htmlFor={`${id}-category`}>Catégorie</FieldLabel>
@@ -260,16 +275,19 @@ export function BudgetEditor({
                   {income ? 'Retirer du plan' : 'Arrêter ce budget'}
                 </Button>
               )}
-              <Button
-                type="submit"
-                className="sm:ml-auto"
-                loading={save.isPending}
-                disabled={!categoryId}
-              >
-                Enregistrer
-              </Button>
+              {!isMobile && (
+                <Button
+                  type="submit"
+                  className="sm:ml-auto"
+                  loading={save.isPending}
+                  disabled={!categoryId}
+                >
+                  Enregistrer
+                </Button>
+              )}
             </div>
           </form>
+          </SheetScroll>
         </SheetContent>
       </Sheet>
       {budget && (

@@ -8,9 +8,6 @@ import {
   Input,
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   Textarea,
   ToggleGroup,
   ToggleGroupItem,
@@ -27,6 +24,12 @@ import {
   undoableRecurringToast,
   updateRecurringItem,
 } from './queries'
+import {
+  EditorHeader,
+  editorSide,
+  FORM_SHEET_SCREEN,
+  SheetScroll,
+} from '#/components/sheets/form-sheet'
 
 const NOTES_MAX = 1000
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
@@ -124,25 +127,19 @@ export function EndRecurringSheet({
   return (
     <Sheet open={item !== null} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
-        className={
-          isMobile
-            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-            : 'overflow-y-auto'
-        }
+        side={editorSide(isMobile)}
+        className={isMobile ? FORM_SHEET_SCREEN : 'overflow-y-auto'}
       >
         {item && (
           <>
-            <SheetHeader className="pb-0">
-              <SheetTitle>
-                {editing ? 'Modifier la date de fin' : `Résilier ${item.name}`}
-              </SheetTitle>
-              <SheetDescription>
-                {item.termMonths
+            <EditorHeader
+              className="pb-0"
+              title={editing ? 'Modifier la date de fin' : `Résilier ${item.name}`}
+              description={item.termMonths
                   ? 'Payé jusqu’à son renouvellement : résilié à cette date, il n’est pas renouvelé et sort ensuite de la prévision et des totaux.'
                   : 'À partir de la date de fin, plus aucun prélèvement n’est attendu : il sort de la prévision et des totaux.'}
-              </SheetDescription>
-            </SheetHeader>
+            />
+            <SheetScroll>
             <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
               <Field data-invalid={submitted && dateError !== null}>
                 <FieldLabel htmlFor={`${id}-date`}>Date de fin</FieldLabel>
@@ -220,17 +217,21 @@ export function EndRecurringSheet({
                 >
                   {editing ? 'Enregistrer' : 'Résilier'}
                 </Button>
-                <Button
-                  type="button"
-                  outline
-                  variant="secondary"
-                  disabled={save.isPending}
-                  onClick={() => onOpenChange(false)}
-                >
-                  Annuler
-                </Button>
+                {/* A phone: the bar's ✕ cancels. */}
+                {!isMobile && (
+                  <Button
+                    type="button"
+                    outline
+                    variant="secondary"
+                    disabled={save.isPending}
+                    onClick={() => onOpenChange(false)}
+                  >
+                    Annuler
+                  </Button>
+                )}
               </div>
             </form>
+            </SheetScroll>
           </>
         )}
       </SheetContent>
