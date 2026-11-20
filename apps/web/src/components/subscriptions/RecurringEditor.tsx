@@ -3,6 +3,7 @@ import {
   AlertDescription,
   AlertTitle,
   Button,
+  cn,
   Field,
   FieldDescription,
   FieldError,
@@ -10,15 +11,13 @@ import {
   Input,
   Label,
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   Switch,
   Textarea,
   ToggleGroup,
   ToggleGroupItem,
-  cn,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -64,6 +63,11 @@ import {
   updateRecurringItem,
 } from './queries'
 import { RecurringHistory } from './RecurringHistory'
+import {
+  editorSide,
+  FORM_SHEET_SCREEN,
+  SheetScroll,
+} from '#/components/sheets/form-sheet'
 
 const NAME_MAX = 255
 const NOTES_MAX = 1000
@@ -224,7 +228,7 @@ export function RecurringEditor({
   return (
     <Sheet open={item !== null} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
+        side={editorSide(isMobile)}
         onOpenAutoFocus={(event) => {
           // On a phone, opening must not pop the keyboard up over the
           // summary: focus the sheet, not the name field.
@@ -232,253 +236,262 @@ export function RecurringEditor({
           event.preventDefault()
           ;(event.currentTarget as HTMLElement | null)?.focus()
         }}
-        className={
-          isMobile
-            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-            : 'overflow-y-auto'
-        }
+        className={isMobile ? FORM_SHEET_SCREEN : 'overflow-y-auto'}
       >
         {item && (
           <>
-            <SheetHeader className="pb-0">
-              <SheetTitle>{item.name}</SheetTitle>
-              {/* The summary first (#279): how much, when next, per year. */}
-              <p className="text-2xl font-semibold tabular-nums">
-                {item.direction === 'credit' ? '+' : ''}
-                {formatAmountPerPeriod(item)}
-              </p>
-              <SheetDescription>
-                {item.termMonths
-                  ? `${formatPrepaid(item)} le ${formatDayMonth(item.lastSeenDate, today)} · ${
-                      item.renewalDate &&
-                      (item.endedOn === null || item.renewalDate < item.endedOn)
-                        ? `renouvellement le ${formatDayMonth(item.renewalDate, today)} · `
-                        : ''
-                    }`
-                  : item.nextExpectedDate &&
-                      (item.endedOn === null ||
-                        item.nextExpectedDate < item.endedOn)
-                    ? `Prochain le ${formatDayMonth(item.nextExpectedDate, today)} · `
-                    : `Dernier le ${formatDayMonth(item.lastSeenDate, today)} · `}
-                {formatCents(item.yearlyCostCents)} par an · {item.accountName}
-              </SheetDescription>
-            </SheetHeader>
-            <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
-              {end && item.status === 'confirmed' && (
-                <Alert variant={chargedAfterEnd ? 'warning' : undefined}>
-                  {chargedAfterEnd ? <TriangleAlertIcon /> : <BanIcon />}
-                  <AlertTitle>{end}</AlertTitle>
-                  <AlertDescription className="text-pretty [&_p:not(:last-child)]:mb-1">
-                    <p>
-                      {chargedAfterEnd ? `${chargedAfterEnd}. ` : ''}
-                      {item.ended
-                        ? 'Hors de la prévision et des totaux.'
-                        : 'Compté jusque-là, puis hors de la prévision et des totaux.'}
+            <SheetBar
+              title={item.name}
+              action={
+                <SheetBarAction
+                  type="submit"
+                  form={`${id}-form`}
+                  label="Enregistrer"
+                  loading={save.isPending}
+                  disabled={reactivate.isPending}
+                />
+              }
+            />
+            <SheetScroll>
+              <div className="space-y-1 px-4 pb-4">
+                {/* The summary first (#279): how much, when next, per year. */}
+                <p className="text-2xl font-semibold tabular-nums">
+                  {item.direction === 'credit' ? '+' : ''}
+                  {formatAmountPerPeriod(item)}
+                </p>
+                <p className="text-muted-foreground text-[15px] leading-snug">
+                  {item.termMonths
+                    ? `${formatPrepaid(item)} le ${formatDayMonth(item.lastSeenDate, today)} · ${
+                        item.renewalDate &&
+                        (item.endedOn === null ||
+                          item.renewalDate < item.endedOn)
+                          ? `renouvellement le ${formatDayMonth(item.renewalDate, today)} · `
+                          : ''
+                      }`
+                    : item.nextExpectedDate &&
+                        (item.endedOn === null ||
+                          item.nextExpectedDate < item.endedOn)
+                      ? `Prochain le ${formatDayMonth(item.nextExpectedDate, today)} · `
+                      : `Dernier le ${formatDayMonth(item.lastSeenDate, today)} · `}
+                  {formatCents(item.yearlyCostCents)} par an ·{' '}
+                  {item.accountName}
+                </p>
+              </div>
+              <form
+                id={`${id}-form`}
+                noValidate
+                onSubmit={submit}
+                className="space-y-4 px-4 pb-6"
+              >
+                {end && item.status === 'confirmed' && (
+                  <Alert variant={chargedAfterEnd ? 'warning' : undefined}>
+                    {chargedAfterEnd ? <TriangleAlertIcon /> : <BanIcon />}
+                    <AlertTitle>{end}</AlertTitle>
+                    <AlertDescription className="text-pretty [&_p:not(:last-child)]:mb-1">
+                      <p>
+                        {chargedAfterEnd ? `${chargedAfterEnd}. ` : ''}
+                        {item.ended
+                          ? 'Hors de la prévision et des totaux.'
+                          : 'Compté jusque-là, puis hors de la prévision et des totaux.'}
+                      </p>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          outline
+                          variant="secondary"
+                          iconStart={<RotateCcwIcon />}
+                          loading={reactivate.isPending}
+                          disabled={pending}
+                          onClick={() => reactivate.mutate()}
+                        >
+                          Réactiver
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          outline
+                          variant="secondary"
+                          iconStart={<CalendarIcon />}
+                          disabled={pending}
+                          onClick={() => onEnd(item)}
+                        >
+                          Modifier la date
+                        </Button>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+                <Field data-invalid={nameError !== null}>
+                  <FieldLabel htmlFor={`${id}-name`}>Nom</FieldLabel>
+                  <Input
+                    id={`${id}-name`}
+                    value={name}
+                    maxLength={NAME_MAX}
+                    autoComplete="off"
+                    aria-invalid={nameError !== null}
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                  {nameError && <FieldError>{nameError}</FieldError>}
+                </Field>
+                {item.direction === 'debit' && (
+                  <PrepaidTermControl
+                    value={termMonths}
+                    onChange={setTermMonths}
+                    allowNone
+                    amountCents={
+                      item.termMonths
+                        ? item.typicalAmountCents
+                        : item.latestAmountCents
+                    }
+                  />
+                )}
+                {termMonths === null && (
+                  <div className="space-y-1.5">
+                    <p id={`${id}-cadence`} className="text-sm font-medium">
+                      Fréquence
                     </p>
-                    <div className="flex flex-wrap gap-2 pt-1">
+                    <ToggleGroup
+                      type="single"
+                      spacing={1.5}
+                      aria-labelledby={`${id}-cadence`}
+                      // Sized to their content, wrapping, start-aligned.
+                      className="flex-wrap justify-start"
+                      value={cadence}
+                      onValueChange={(next) => {
+                        if (next) setCadence(next as RecurringCadence)
+                      }}
+                    >
+                      {CADENCES.map((value) => (
+                        <ToggleGroupItem
+                          key={value}
+                          value={value}
+                          aria-label={CADENCE_LABELS[value]}
+                          className={cn(CHIP_CLASS, CHIP_ON)}
+                        >
+                          {CADENCE_SHORT_LABELS[value]}
+                        </ToggleGroupItem>
+                      ))}
+                    </ToggleGroup>
+                    <p className="text-muted-foreground text-xs">
+                      Détectée :{' '}
+                      {CADENCE_LABELS[item.detectedCadence].toLowerCase()}
+                      {cadence !== item.detectedCadence
+                        ? ' (vous l’avez changée)'
+                        : ''}
+                    </p>
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <p id={`${id}-category`} className="text-sm font-medium">
+                    Catégorie
+                  </p>
+                  <CategoryChips
+                    labelId={`${id}-category`}
+                    categories={choices.shown}
+                    value={categoryId}
+                    allowNone={allCategories || categoryId === ''}
+                    onChoose={setCategoryId}
+                  />
+                  {choices.hiddenCount > 0 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      ghost
+                      variant="secondary"
+                      onClick={() => setAllCategories(true)}
+                    >
+                      Toutes les catégories ({choices.hiddenCount})
+                    </Button>
+                  )}
+                </div>
+                {item.direction === 'debit' && (
+                  <div className="flex items-start gap-3">
+                    <Switch
+                      id={`${id}-fixed`}
+                      checked={isFixedCost}
+                      onCheckedChange={setIsFixedCost}
+                    />
+                    <div className="space-y-0.5">
+                      <Label htmlFor={`${id}-fixed`} className="font-normal">
+                        Charge fixe
+                      </Label>
+                      <p className="text-muted-foreground text-xs">
+                        Loyer, assurances, énergie, télécom, abonnements…
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {item.status === 'confirmed' && item.direction === 'debit' && (
+                  <RecurringShareSection key={item.id} item={item} />
+                )}
+                <Field>
+                  <FieldLabel htmlFor={`${id}-notes`}>Notes</FieldLabel>
+                  <Textarea
+                    id={`${id}-notes`}
+                    rows={2}
+                    maxLength={NOTES_MAX}
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                  />
+                  <FieldDescription>Facultatives.</FieldDescription>
+                </Field>
+
+                <RecurringHistory item={item} today={today} />
+                <div className="grid gap-2 pt-2">
+                  {item.status === 'suggested' && (
+                    <Button
+                      type="button"
+                      variant="success"
+                      iconStart={<CheckIcon />}
+                      disabled={save.isPending || nameError !== null}
+                      onClick={() =>
+                        save.mutate({ ...fields(), status: 'confirmed' })
+                      }
+                    >
+                      Enregistrer et confirmer
+                    </Button>
+                  )}
+                  {/* Secondary actions on one discreet row. */}
+                  <div className="flex flex-wrap justify-center gap-x-4 gap-y-2">
+                    {canEnd && (
                       <Button
                         type="button"
-                        size="sm"
-                        outline
-                        variant="secondary"
-                        iconStart={<RotateCcwIcon />}
-                        loading={reactivate.isPending}
-                        disabled={pending}
-                        onClick={() => reactivate.mutate()}
-                      >
-                        Réactiver
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        outline
-                        variant="secondary"
-                        iconStart={<CalendarIcon />}
+                        variant="danger"
+                        ghost
+                        iconStart={<BanIcon />}
                         disabled={pending}
                         onClick={() => onEnd(item)}
                       >
-                        Modifier la date
+                        Résilier
                       </Button>
-                    </div>
-                  </AlertDescription>
-                </Alert>
-              )}
-              <Field data-invalid={nameError !== null}>
-                <FieldLabel htmlFor={`${id}-name`}>Nom</FieldLabel>
-                <Input
-                  id={`${id}-name`}
-                  value={name}
-                  maxLength={NAME_MAX}
-                  autoComplete="off"
-                  aria-invalid={nameError !== null}
-                  onChange={(event) => setName(event.target.value)}
-                />
-                {nameError && <FieldError>{nameError}</FieldError>}
-              </Field>
-              {item.direction === 'debit' && (
-                <PrepaidTermControl
-                  value={termMonths}
-                  onChange={setTermMonths}
-                  allowNone
-                  amountCents={
-                    item.termMonths
-                      ? item.typicalAmountCents
-                      : item.latestAmountCents
-                  }
-                />
-              )}
-              {termMonths === null && (
-                <div className="space-y-1.5">
-                  <p id={`${id}-cadence`} className="text-sm font-medium">
-                    Fréquence
-                  </p>
-                  <ToggleGroup
-                    type="single"
-                    spacing={1.5}
-                    aria-labelledby={`${id}-cadence`}
-                    // Sized to their content, wrapping, start-aligned.
-                    className="flex-wrap justify-start"
-                    value={cadence}
-                    onValueChange={(next) => {
-                      if (next) setCadence(next as RecurringCadence)
-                    }}
-                  >
-                    {CADENCES.map((value) => (
-                      <ToggleGroupItem
-                        key={value}
-                        value={value}
-                        aria-label={CADENCE_LABELS[value]}
-                        className={cn(CHIP_CLASS, CHIP_ON)}
+                    )}
+                    {item.status !== 'dismissed' ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        ghost
+                        iconStart={<XIcon />}
+                        disabled={save.isPending}
+                        onClick={() => save.mutate({ status: 'dismissed' })}
                       >
-                        {CADENCE_SHORT_LABELS[value]}
-                      </ToggleGroupItem>
-                    ))}
-                  </ToggleGroup>
-                  <p className="text-muted-foreground text-xs">
-                    Détectée :{' '}
-                    {CADENCE_LABELS[item.detectedCadence].toLowerCase()}
-                    {cadence !== item.detectedCadence
-                      ? ' (vous l’avez changée)'
-                      : ''}
-                  </p>
-                </div>
-              )}
-              <div className="space-y-1.5">
-                <p id={`${id}-category`} className="text-sm font-medium">
-                  Catégorie
-                </p>
-                <CategoryChips
-                  labelId={`${id}-category`}
-                  categories={choices.shown}
-                  value={categoryId}
-                  allowNone={allCategories || categoryId === ''}
-                  onChoose={setCategoryId}
-                />
-                {choices.hiddenCount > 0 && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    ghost
-                    variant="secondary"
-                    onClick={() => setAllCategories(true)}
-                  >
-                    Toutes les catégories ({choices.hiddenCount})
-                  </Button>
-                )}
-              </div>
-              {item.direction === 'debit' && (
-                <div className="flex items-start gap-3">
-                  <Switch
-                    id={`${id}-fixed`}
-                    checked={isFixedCost}
-                    onCheckedChange={setIsFixedCost}
-                  />
-                  <div className="space-y-0.5">
-                    <Label htmlFor={`${id}-fixed`} className="font-normal">
-                      Charge fixe
-                    </Label>
-                    <p className="text-muted-foreground text-xs">
-                      Loyer, assurances, énergie, télécom, abonnements…
-                    </p>
+                        Ignorer
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        outline
+                        iconStart={<RotateCcwIcon />}
+                        disabled={save.isPending}
+                        onClick={() => save.mutate({ status: 'suggested' })}
+                      >
+                        Rétablir
+                      </Button>
+                    )}
                   </div>
                 </div>
-              )}
-              {item.status === 'confirmed' && item.direction === 'debit' && (
-                <RecurringShareSection key={item.id} item={item} />
-              )}
-              <Field>
-                <FieldLabel htmlFor={`${id}-notes`}>Notes</FieldLabel>
-                <Textarea
-                  id={`${id}-notes`}
-                  rows={2}
-                  maxLength={NOTES_MAX}
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                />
-                <FieldDescription>Facultatives.</FieldDescription>
-              </Field>
-
-              <RecurringHistory item={item} today={today} />
-              <div className="grid gap-2 pt-2">
-                <Button
-                  type="submit"
-                  loading={save.isPending}
-                  disabled={reactivate.isPending}
-                >
-                  Enregistrer
-                </Button>
-                {item.status === 'suggested' && (
-                  <Button
-                    type="button"
-                    variant="success"
-                    iconStart={<CheckIcon />}
-                    disabled={save.isPending || nameError !== null}
-                    onClick={() =>
-                      save.mutate({ ...fields(), status: 'confirmed' })
-                    }
-                  >
-                    Enregistrer et confirmer
-                  </Button>
-                )}
-                {/* Secondary actions on one discreet row. */}
-                <div className="flex flex-wrap justify-center gap-x-4 gap-y-2">
-                  {canEnd && (
-                    <Button
-                      type="button"
-                      variant="danger"
-                      ghost
-                      iconStart={<BanIcon />}
-                      disabled={pending}
-                      onClick={() => onEnd(item)}
-                    >
-                      Résilier
-                    </Button>
-                  )}
-                  {item.status !== 'dismissed' ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      ghost
-                      iconStart={<XIcon />}
-                      disabled={save.isPending}
-                      onClick={() => save.mutate({ status: 'dismissed' })}
-                    >
-                      Ignorer
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      outline
-                      iconStart={<RotateCcwIcon />}
-                      disabled={save.isPending}
-                      onClick={() => save.mutate({ status: 'suggested' })}
-                    >
-                      Rétablir
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </form>
+              </form>
+            </SheetScroll>
           </>
         )}
       </SheetContent>

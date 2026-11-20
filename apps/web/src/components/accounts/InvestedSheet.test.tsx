@@ -94,9 +94,10 @@ describe('InvestedSheet', () => {
     renderSheet({ account: account(), onOpenChange })
 
     // Step 1: greyed out until an amount is typed.
-    expect(
-      screen.getByRole('heading', { name: /Montant investi/ }),
-    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: '1. Montant' })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
     const next = screen.getByRole('button', { name: 'Suivant' })
     expect(next).toBeDisabled()
     await user.type(
@@ -106,7 +107,10 @@ describe('InvestedSheet', () => {
     await user.click(next)
 
     // Step 2: the latest value's day by default, today or another.
-    expect(screen.getByRole('heading', { name: /^Date/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '2. Date' })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
     expect(
       screen.getByRole('radio', { name: 'Dernière valeur, 31 oct. 2026' }),
     ).toBeChecked()
@@ -160,7 +164,9 @@ describe('InvestedSheet', () => {
       screen.getByRole('textbox', { name: 'Montant investi' }),
     ).toHaveValue('5000')
     expect(screen.getByText(/versements nets/)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Retirer' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Retirer le montant investi' }),
+    )
     await waitFor(() =>
       expect(
         api.accountSnapshotsControllerClearInvestedBase,

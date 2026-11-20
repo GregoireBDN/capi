@@ -13,8 +13,6 @@ import {
   ItemListRow,
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
   SheetTitle,
   Skeleton,
   useIsMobile,
@@ -25,11 +23,12 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import type { ContactDto } from '#/api/types.gen'
 import {
-  FORM_SHEET_BOTTOM,
+  editorSide,
+  FORM_SHEET_SCREEN,
+  EditorHeader,
   FORM_SHEET_FORM,
   FORM_SHEET_SIDE,
   FormSheetBody,
-  FormSheetFooter,
 } from '#/components/sheets/form-sheet'
 import { formatCents } from '#/lib/money'
 import { ContactAvatar } from './ContactAvatar'
@@ -162,17 +161,12 @@ function ContactEditor({
   return (
     <Sheet open={editing !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
-        className={isMobile ? FORM_SHEET_BOTTOM : FORM_SHEET_SIDE}
+        side={editorSide(isMobile)}
+        className={isMobile ? FORM_SHEET_SCREEN : FORM_SHEET_SIDE}
       >
-        <SheetHeader>
-          <SheetTitle>
-            {editing === 'new' ? 'Nouveau contact' : 'Modifier le contact'}
-          </SheetTitle>
-          <SheetDescription>
-            Aucun compte : un nom, et de quoi reconnaître ses virements.
-          </SheetDescription>
-        </SheetHeader>
+        {editing === null && (
+          <SheetTitle className="sr-only">Contact</SheetTitle>
+        )}
         {editing !== null && (
           <ContactForm
             key={editing === 'new' ? 'new' : editing.id}
@@ -242,6 +236,16 @@ function ContactForm({
         if (ok) save.mutate()
       }}
     >
+      <EditorHeader
+        title={contact ? 'Modifier le contact' : 'Nouveau contact'}
+        description="Aucun compte : un nom, et de quoi reconnaître ses virements."
+        action={{
+          type: 'submit',
+          label: contact ? 'Enregistrer' : 'Ajouter',
+          disabled: !ok,
+          loading: save.isPending,
+        }}
+      />
       <FormSheetBody>
         <Field>
           <FieldLabel htmlFor="contact-name">Nom</FieldLabel>
@@ -313,16 +317,6 @@ function ContactForm({
           </div>
         )}
       </FormSheetBody>
-      <FormSheetFooter>
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={!ok}
-          loading={save.isPending}
-        >
-          {contact ? 'Enregistrer' : 'Ajouter'}
-        </Button>
-      </FormSheetFooter>
     </form>
   )
 }

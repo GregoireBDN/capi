@@ -1,17 +1,16 @@
 import {
-  Button,
   cn,
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogTitle,
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
-  SheetDescription,
-  SheetTitle,
+  SheetSteps,
   useIsMobile,
 } from '@finances/ui'
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
+import type { SheetStepsProps } from '@finances/ui'
+import { ChevronRightIcon } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 
@@ -29,6 +28,8 @@ export function StepDialog({
   title,
   step,
   onBack,
+  steps,
+  next,
   action,
   children,
 }: {
@@ -42,6 +43,10 @@ export function StepDialog({
   /** `[n, of]`, or nothing on a screen outside the count. */
   step?: [number, number]
   onBack?: () => void
+  /** On a phone, the steps as icons (`SheetSteps`) in place of « Étape n sur m ». */
+  steps?: SheetStepsProps
+  /** The bar's › to the next step (a choice already made). */
+  next?: { disabled?: boolean; onSelect: () => void }
   action?: ReactNode
   children: ReactNode
 }) {
@@ -53,35 +58,31 @@ export function StepDialog({
     if (open) headingRef.current?.focus()
   }, [open, title])
 
-  const Title = isMobile ? SheetTitle : DialogTitle
-  const Description = isMobile ? SheetDescription : DialogDescription
   const content = (
     <div className="flex min-h-0 flex-1 flex-col">
-      <Title className="sr-only">{label}</Title>
-      <Description className="sr-only">{description}</Description>
-      <div className="flex min-h-14 items-center gap-2 py-2 pr-12 pl-2">
-        {onBack ? (
-          <Button type="button" ghost variant="secondary" onClick={onBack}>
-            <ChevronLeftIcon aria-hidden />
-            Retour
-          </Button>
-        ) : (
-          <span className="w-2" />
-        )}
-        {step && (
-          <p className="text-muted-foreground text-sm whitespace-nowrap">
-            Étape {step[0]} sur {step[1]}
-          </p>
-        )}
-      </div>
-      <h3
-        ref={headingRef}
-        tabIndex={-1}
-        className="px-4 pb-3 text-lg leading-snug font-semibold outline-none"
+      <SheetBar
+        titleRef={headingRef}
+        title={title}
+        description={
+          step ? `${label} · étape ${step[0]} sur ${step[1]}` : description
+        }
+        steps={steps ? <SheetSteps {...steps} /> : undefined}
+        action={
+          next && (
+            <SheetBarAction
+              label="Suivant"
+              icon={<ChevronRightIcon aria-hidden strokeWidth={2.6} />}
+              disabled={next.disabled}
+              onClick={next.onSelect}
+            />
+          )
+        }
+        onBack={onBack}
+      />
+      <div
+        data-sheet-scroll=""
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 pt-4"
       >
-        {title}
-      </h3>
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4">
         {children}
       </div>
       {action && (
@@ -95,11 +96,7 @@ export function StepDialog({
   return isMobile ? (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side="bottom"
-        className={cn(
-          'gap-0 rounded-t-xl data-[side=bottom]:h-[min(40rem,calc(92svh-var(--keyboard-inset,0px)))]',
-          'data-[side=bottom]:data-keyboard-open:h-[calc(100svh-var(--keyboard-inset,0px)-env(safe-area-inset-top)-0.5rem)]',
-        )}
+        side="screen"
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           headingRef.current?.focus()
@@ -129,12 +126,15 @@ export function ChoiceTile({
   label,
   description,
   disabled,
+  selected = false,
   onSelect,
 }: {
   icon?: ReactNode
   label: string
   description?: string
   disabled?: boolean
+  /** The choice made before (shown again after a step back). */
+  selected?: boolean
   onSelect: () => void
 }) {
   return (
@@ -143,12 +143,20 @@ export function ChoiceTile({
         type="button"
         onClick={onSelect}
         disabled={disabled}
-        className="hover:bg-muted/60 focus-visible:ring-ring flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left outline-none focus-visible:ring-2 disabled:opacity-60"
+        aria-current={selected ? 'true' : undefined}
+        className={cn(
+          'hover:bg-muted/60 focus-visible:ring-ring flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left outline-none focus-visible:ring-2 disabled:opacity-60',
+          selected &&
+            'border-primary bg-[color-mix(in_srgb,var(--primary)_8%,var(--popover))]',
+        )}
       >
         {icon && (
           <span
             aria-hidden
-            className="bg-muted text-muted-foreground flex size-[32px] shrink-0 items-center justify-center rounded-full [&_svg]:size-[16px]"
+            className={cn(
+              'bg-muted text-muted-foreground flex size-[32px] shrink-0 items-center justify-center rounded-full [&_svg]:size-[16px]',
+              selected && 'bg-primary/15 text-primary',
+            )}
           >
             {icon}
           </span>
@@ -163,7 +171,10 @@ export function ChoiceTile({
         </span>
         <ChevronRightIcon
           aria-hidden
-          className="text-muted-foreground size-4 shrink-0"
+          className={cn(
+            'size-4 shrink-0',
+            selected ? 'text-primary' : 'text-muted-foreground',
+          )}
         />
       </button>
     </li>

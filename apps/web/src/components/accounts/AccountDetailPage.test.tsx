@@ -328,16 +328,21 @@ describe('AccountDetailPage', () => {
 
     await user.clear(date)
     await user.type(date, '2026-11-07')
-    // Letters never reach the field (#326): the value stays to fill.
+    // Letters never reach the field (#326): the value stays to fill, and
+    // « Enregistrer » stays greyed out until it is.
     await user.type(within(dialog).getByLabelText('Valeur'), 'beaucoup')
     expect(within(dialog).getByLabelText('Valeur')).toHaveValue('')
+    expect(
+      within(dialog).getByRole('button', { name: 'Enregistrer' }),
+    ).toBeDisabled()
+    await user.type(within(dialog).getByLabelText('Valeur'), '12')
     await user.click(
       within(dialog).getByRole('button', { name: 'Enregistrer' }),
     )
     expect(
       within(dialog).getByText('La date ne peut pas être dans le futur'),
     ).toBeInTheDocument()
-    expect(within(dialog).getByText('Indiquez la valeur')).toBeInTheDocument()
+    await user.clear(within(dialog).getByLabelText('Valeur'))
     expect(api.accountSnapshotsControllerUpsert).not.toHaveBeenCalled()
 
     await user.clear(date)
@@ -407,7 +412,9 @@ describe('AccountDetailPage', () => {
       }),
     )
     dialog = await screen.findByRole('dialog')
-    await user.click(within(dialog).getByRole('button', { name: 'Supprimer' }))
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Supprimer cette valeur' }),
+    )
     const confirm = await screen.findByRole('dialog', {
       name: 'Supprimer la valeur du 30 sept. 2026 ?',
     })

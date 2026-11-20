@@ -72,6 +72,79 @@ export function revealEndScrollTop({
   return Math.max(scrollTop, Math.min(end, keepFocus))
 }
 
+/**
+ * Scroll position of a full-screen editor's body (#385) that brings the
+ * focused field out from under the keyboard, and nothing else: a field
+ * already in view leaves the body where it is, so the keyboard opening moves
+ * nothing on screen. `focusTop` / `focusBottom` are the field's edges and
+ * `visibleHeight` the height of the body left above the keyboard (and its
+ * accessory bar), all relative to the body's visible top.
+ */
+export function revealFieldScrollTop({
+  scrollTop,
+  focusTop,
+  focusBottom,
+  visibleHeight,
+}: {
+  scrollTop: number
+  focusTop: number
+  focusBottom: number
+  visibleHeight: number
+}): number {
+  if (focusTop < 0) return Math.max(0, scrollTop + focusTop - FOCUS_MARGIN_PX)
+  const overflow = focusBottom + FOCUS_MARGIN_PX - visibleHeight
+  if (overflow <= 0) return scrollTop
+  // A field taller than what is left (a textarea): its top stays in view.
+  return scrollTop + Math.min(overflow, Math.max(0, focusTop - FOCUS_MARGIN_PX))
+}
+
+/** Input types that open no keyboard (a picker, a button, a box). */
+const NO_KEYBOARD_INPUTS = new Set([
+  'button',
+  'checkbox',
+  'color',
+  'date',
+  'datetime-local',
+  'file',
+  'hidden',
+  'image',
+  'month',
+  'radio',
+  'range',
+  'reset',
+  'submit',
+  'time',
+  'week',
+])
+
+/** What `opensKeyboard` reads from an element. */
+export interface FieldLike {
+  tagName: string
+  type?: string
+  readOnly?: boolean
+  inputMode?: string
+  isContentEditable?: boolean
+}
+
+/** Whether focusing this element brings the on-screen keyboard up. */
+export function opensKeyboard(element: FieldLike | null | undefined): boolean {
+  if (!element) return false
+  if (element.inputMode === 'none') return false
+  if (element.isContentEditable) return true
+  const tag = element.tagName.toUpperCase()
+  if (tag === 'TEXTAREA') return !element.readOnly
+  if (tag !== 'INPUT') return false
+  return !element.readOnly && !NO_KEYBOARD_INPUTS.has(element.type ?? 'text')
+}
+
+/**
+ * Share of the screen's height left above an iPhone keyboard once it is up,
+ * with its suggestions, its floating accessory bar and, in a Safari tab, the
+ * address pill (about 49 % on iOS 26, #385): a field tapped below it is
+ * brought up at once, before iOS pans the whole page to reveal it.
+ */
+export const FREE_ABOVE_KEYBOARD_SHARE = 0.4
+
 /** What `scrollParentWithin` reads from an element. */
 export interface ScrollBox {
   parentElement: ScrollBox | null

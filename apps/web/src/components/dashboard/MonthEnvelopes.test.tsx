@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -192,6 +192,16 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+/** The step shown, from the steps' bar (« 2. Montant »). */
+function currentStep(dialog: HTMLElement): string {
+  return (
+    within(dialog)
+      .getAllByRole('button')
+      .find((button) => button.getAttribute('aria-current') === 'step')
+      ?.getAttribute('aria-label') ?? ''
+  )
+}
+
 describe('MonthEnvelopes', () => {
   it('shows each envelope against its target and the month’s pace', async () => {
     renderCard()
@@ -240,9 +250,7 @@ describe('MonthEnvelopes', () => {
     const dialog = await screen.findByRole('dialog')
     // The envelope chose the category: straight to the amount, focused
     // (desktop: a field, no keypad).
-    expect(within(dialog).getByRole('heading', { level: 3 })).toHaveTextContent(
-      'Montant2/3',
-    )
+    expect(currentStep(dialog)).toMatch(/^2\./)
     await waitFor(() =>
       expect(within(dialog).getByLabelText('Montant')).toHaveFocus(),
     )
@@ -314,9 +322,7 @@ describe('MonthEnvelopes', () => {
       await screen.findByRole('button', { name: 'Ajouter une dépense' }),
     )
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByRole('heading', { level: 3 })).toHaveTextContent(
-      'Catégorie1/3',
-    )
+    expect(currentStep(dialog)).toMatch(/^1\./)
     await waitFor(() => expect(chosenCategory(dialog)).toBe('Shopping'))
     // A tap on a category moves on to the amount, focused.
     await user.click(within(dialog).getByRole('radio', { name: 'Courses' }))
@@ -325,11 +331,9 @@ describe('MonthEnvelopes', () => {
     await user.keyboard('42.5{Backspace}9')
     expect(amount).toHaveValue('42,9')
     await user.keyboard('{Enter}')
-    expect(within(dialog).getByRole('heading', { level: 3 })).toHaveTextContent(
-      'Détails3/3',
-    )
+    expect(currentStep(dialog)).toMatch(/^3\./)
     await waitFor(() =>
-      expect(within(dialog).getByRole('heading', { level: 3 })).toHaveFocus(),
+      expect(within(dialog).getByRole('heading', { level: 2 })).toHaveFocus(),
     )
     await user.keyboard('{Enter}')
     await waitFor(() =>
@@ -344,7 +348,7 @@ describe('MonthEnvelopes', () => {
     )
   })
 
-  it('types the amount on its own keypad on a phone, never the system keyboard', async () => {
+  it('is a page of its own on a phone, the amount typed with the phone keyboard', async () => {
     const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation(
       (query: string) =>
         ({
@@ -375,24 +379,32 @@ describe('MonthEnvelopes', () => {
         ).getByRole('button', { name: /Boulangerie test/ }),
       )
       const amount = within(dialog).getByLabelText('Montant')
-      // The field only shows the amount: not focused, not typed in.
-      expect(amount).not.toHaveFocus()
-      expect(amount).toHaveAttribute('readonly')
-      expect(amount).toHaveAttribute('inputmode', 'none')
+      // A plain field on the phone's decimal keyboard (#385): no keypad.
+      expect(amount).toHaveFocus()
+      expect(amount).not.toHaveAttribute('readonly')
+      expect(amount).toHaveAttribute('inputmode', 'decimal')
+      expect(
+        within(dialog).queryByRole('group', { name: 'Pavé numérique' }),
+      ).not.toBeInTheDocument()
       expect(
         within(dialog).getByText('Courses · Boulangerie test'),
       ).toBeVisible()
-      const keypad = within(dialog).getByRole('group', {
-        name: 'Pavé numérique',
-      })
-      for (const key of ['0', '1', '2', ',', '5', '0', '7']) {
-        await user.click(within(keypad).getByRole('button', { name: key }))
-      }
+      await user.type(amount, '12,50')
       expect(amount).toHaveValue('12,50')
-      await user.click(within(keypad).getByRole('button', { name: 'Effacer' }))
+      await user.type(amount, '{Backspace}')
       expect(amount).toHaveValue('12,5')
-      // "Suivant" is a key of the keypad.
-      await user.click(within(keypad).getByRole('button', { name: 'Suivant' }))
+      // The bar's round button moves on, then adds.
+      await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+      // Its ‹ goes back a step, the amount kept, and never submits.
+      await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
+      expect(within(dialog).getByLabelText('Montant')).toHaveValue('12,5')
+      expect(api.transactionsControllerCreateManual).not.toHaveBeenCalled()
+      await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
+      expect(
+        within(dialog).getByRole('list', { name: 'Habituels' }),
+      ).toBeVisible()
+      await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+      await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
       await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
       await waitFor(() =>
         expect(api.transactionsControllerCreateManual).toHaveBeenCalledWith(
@@ -405,6 +417,47 @@ describe('MonthEnvelopes', () => {
           }),
         ),
       )
+    } finally {
+      matchMedia.mockRestore()
+    }
+  })
+
+  it('moves on to the details when the phone keyboard closes on a valid amount', async () => {
+    const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query: string) =>
+        ({
+          matches: query.includes('max-width'),
+          media: query,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }) as unknown as MediaQueryList,
+    )
+    try {
+      api.transactionsControllerManualSuggestions.mockImplementation(() =>
+        ok({
+          items: [{ label: 'Boulangerie test', categoryId: GROCERIES }],
+          categoryIds: [],
+        }),
+      )
+      const user = userEvent.setup()
+      renderCard()
+      await user.click(
+        await screen.findByRole('button', { name: 'Ajouter une dépense' }),
+      )
+      const dialog = await screen.findByRole('dialog')
+      await user.click(
+        within(
+          await within(dialog).findByRole('list', { name: 'Habituels' }),
+        ).getByRole('button', { name: /Boulangerie test/ }),
+      )
+      const amount = within(dialog).getByLabelText('Montant')
+      // Its ✓ only closes the keyboard: without an amount, nothing moves.
+      act(() => amount.blur())
+      expect(within(dialog).getByLabelText('Montant')).toBeVisible()
+      await user.type(within(dialog).getByLabelText('Montant'), '9,9')
+      act(() => within(dialog).getByLabelText('Montant').blur())
+      expect(await within(dialog).findByLabelText('Libellé')).toBeVisible()
+      expect(api.transactionsControllerCreateManual).not.toHaveBeenCalled()
     } finally {
       matchMedia.mockRestore()
     }
@@ -650,9 +703,7 @@ describe('ManualTransactionSheet (editing)', () => {
 
     const dialog = await screen.findByRole('dialog')
     // An edit opens on the details, with the expense's own values.
-    expect(within(dialog).getByRole('heading', { level: 3 })).toHaveTextContent(
-      'Détails3/3',
-    )
+    expect(currentStep(dialog)).toMatch(/^3\./)
     expect(within(dialog).getByText('− 25 €')).toBeInTheDocument()
     // Nothing optional is set: the options stay folded.
     expect(
@@ -731,7 +782,9 @@ describe('ManualTransactionSheet (editing)', () => {
     const onOpenChange = renderSheet()
 
     const dialog = await screen.findByRole('dialog')
-    await user.click(within(dialog).getByRole('button', { name: 'Supprimer' }))
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Supprimer l’opération' }),
+    )
     const confirm = await screen.findByRole('dialog', {
       name: 'Supprimer cette opération ?',
     })

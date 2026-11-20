@@ -1,11 +1,11 @@
 import {
   Button,
   CategoryIcon,
+  categoryIconComponent,
+  cn,
   ConfirmDialog,
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogTitle,
   Field,
   FieldDescription,
   FieldError,
@@ -16,19 +16,21 @@ import {
   SegmentedControl,
   SegmentedControlItem,
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
-  SheetDescription,
-  SheetTitle,
+  SheetSteps,
   Switch,
   Textarea,
-  cn,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  CalendarDaysIcon,
   ChevronDownIcon,
-  ChevronLeftIcon,
   ChevronRightIcon,
+  EuroIcon,
+  TagIcon,
 } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -74,7 +76,6 @@ import {
 import type { AmountKey } from './amount-entry'
 import {
   AccountChips,
-  AmountKeypad,
   CategoryChips,
   DateChips,
   HabitGrid,
@@ -82,6 +83,7 @@ import {
   VoucherDayGauge,
 } from './manual-fields'
 import { splitTransaction } from '#/components/transactions/edits'
+import { FormSheetMoreActions } from '#/components/sheets/form-sheet'
 
 const LABEL_MAX = 255
 const NOTE_MAX = 2000
@@ -143,6 +145,9 @@ const STEP_NAMES: Record<Step, string> = {
   details: 'Détails',
 }
 
+/** How long after a tap a blur counts as caused by it. */
+const TAP_BLUR_MS = 600
+
 /** Income category of the meal-voucher card's credits (#298). */
 const MEAL_VOUCHER_CATEGORY_SLUG = 'meal_vouchers'
 
@@ -189,11 +194,11 @@ interface ManualTransactionSheetProps {
  * "Retour": the category (the kind, usual labels with their category, every
  * category as a tile; a tap moves on), the amount, then the details (day,
  * label, options) and "Ajouter". An envelope starts at the amount (its
- * category is chosen), an edit at the details. On phones a bottom sheet of
- * one height whose amount is typed on its own keypad, "Suivant" a key of
- * it: the system keyboard never opens for the amount, and the buttons step
- * aside while the label or note is typed. Elsewhere a dialog: the amount is
- * typed in its field, and Enter moves on, then adds.
+ * category is chosen), an edit at the details. On phones a page of its own
+ * (#385): the round bar on top (✕ or ‹, the step, › then ✓), the amount
+ * typed with the phone's decimal keyboard, which covers the end of the page
+ * and moves nothing. Elsewhere a dialog: the amount is typed in its field,
+ * and Enter moves on, then adds.
  */
 export function ManualTransactionSheet({
   open,
@@ -230,8 +235,8 @@ export function ManualTransactionSheet({
   const amountRef = useRef<HTMLInputElement>(null)
   const stepRef = useRef<HTMLHeadingElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
-  /** Phones: the sheet's keypad instead of the system keyboard. */
-  const keypad = isMobile
+  /** The last tap in the sheet: a blur it caused is not a keyboard's ✓. */
+  const lastTap = useRef<{ target: Element; at: number } | null>(null)
   const today = currentDay()
   const suggestions = useQuery({
     ...manualSuggestionsQuery(kind),
@@ -590,9 +595,9 @@ export function ManualTransactionSheet({
   const stepIndex = STEPS.indexOf(step)
 
   // Each step starts on its heading (read out by screen readers), the
-  // amount field on a computer, so typing goes straight to it.
+  // amount step on its field, so typing goes straight to it.
   function focusStep() {
-    if (step === 'amount' && !keypad) {
+    if (step === 'amount') {
       amountRef.current?.focus({ preventScroll: true })
     } else {
       stepRef.current?.focus({ preventScroll: true })
@@ -604,12 +609,12 @@ export function ManualTransactionSheet({
   // render later).
   useEffect(() => {
     if (!open) return
-    if (step === 'amount' && !keypad) {
+    if (step === 'amount') {
       amountRef.current?.focus({ preventScroll: true })
     } else {
       stepRef.current?.focus({ preventScroll: true })
     }
-  }, [open, step, keypad])
+  }, [open, step])
 
   function press(key: AmountKey) {
     setAmount((current) => pressAmountKey(current, key))
@@ -640,10 +645,10 @@ export function ManualTransactionSheet({
     }
   }
 
-  const Title = isMobile ? SheetTitle : DialogTitle
-  const Description = isMobile ? SheetDescription : DialogDescription
   const submitLabel = expense ? 'Enregistrer' : 'Ajouter'
-  const nextDisabled = step === 'category' && !categoryId && !allowNoCategory
+  const categoryChosen = Boolean(categoryId) || allowNoCategory
+  const CategoryGlyph = categoryIconComponent(chosenCategory?.icon ?? null)
+  const nextDisabled = step === 'category' && !categoryChosen
   const saveDisabled =
     (kind === 'expense' && !categoryId) || !accountId || voucherOver
 
@@ -663,39 +668,6 @@ export function ManualTransactionSheet({
     </p>
   )
 
-  const footer = (
-    // Phones: never floating over the keyboard (#245), so it steps aside
-    // while the label or the note is typed; "OK" closes the keyboard.
-    <div className="flex shrink-0 gap-2 border-t px-4 py-3 group-data-keyboard-open/sheet:hidden">
-      {step === 'details' && expense && (
-        <Button
-          type="button"
-          variant="danger"
-          outline
-          className={FIELD_HEIGHT}
-          onClick={() => setConfirmOpen(true)}
-        >
-          Supprimer
-        </Button>
-      )}
-      <Button
-        type="submit"
-        className={cn('flex-1 font-medium', FIELD_HEIGHT)}
-        loading={step === 'details' && save.isPending}
-        disabled={step === 'details' ? saveDisabled : nextDisabled}
-      >
-        {step === 'details' ? (
-          submitLabel
-        ) : (
-          <>
-            Suivant
-            <ChevronRightIcon aria-hidden />
-          </>
-        )}
-      </Button>
-    </div>
-  )
-
   const form = (
     <form
       ref={formRef}
@@ -703,41 +675,65 @@ export function ManualTransactionSheet({
       onSubmit={submit}
       className="flex min-h-0 flex-1 flex-col"
     >
-      <Title className="sr-only">{expense ? editTitle : addTitle}</Title>
-      <Description className="sr-only">
-        L’import du relevé la remplacera.
-      </Description>
-
-      {/* Where we are, and the way back; clear of the close button. */}
-      <div className="flex min-h-14 items-center gap-1 py-2 pr-12 pl-2">
-        {stepIndex > 0 ? (
-          <Button
-            type="button"
-            ghost
-            variant="secondary"
-            onClick={() => setStep(STEPS[stepIndex - 1])}
-          >
-            <ChevronLeftIcon aria-hidden />
-            Retour
-          </Button>
-        ) : (
-          <span className="w-2" />
-        )}
-        <h3
-          ref={stepRef}
-          tabIndex={-1}
-          className="min-w-0 flex-1 truncate text-base font-semibold outline-none"
-        >
-          {STEP_NAMES[step]}
-          <span className="text-muted-foreground ml-1.5 text-sm font-normal">
-            {stepIndex + 1}/{STEPS.length}
-          </span>
-        </h3>
-      </div>
+      <SheetBar
+        titleRef={stepRef}
+        title={expense ? editTitle : addTitle}
+        description={`Étape ${stepIndex + 1} sur ${STEPS.length} : ${STEP_NAMES[step]}`}
+        steps={
+          <SheetSteps
+            current={step}
+            onSelect={(key) => setStep(key as Step)}
+            steps={[
+              // Once chosen, the category's own icon in its colour.
+              chosenCategory
+                ? {
+                    key: 'category',
+                    label: chosenCategory.name,
+                    icon: <CategoryGlyph aria-hidden />,
+                    color: chosenCategory.color,
+                  }
+                : {
+                    key: 'category',
+                    label: STEP_NAMES.category,
+                    icon: <TagIcon aria-hidden />,
+                  },
+              {
+                key: 'amount',
+                label: STEP_NAMES.amount,
+                icon: <EuroIcon aria-hidden />,
+                disabled: !categoryChosen,
+              },
+              {
+                key: 'details',
+                label: STEP_NAMES.details,
+                icon: <CalendarDaysIcon aria-hidden />,
+                disabled: !categoryChosen || amountError !== null,
+              },
+            ]}
+          />
+        }
+        onBack={stepIndex > 0 ? () => setStep(STEPS[stepIndex - 1]) : undefined}
+        action={
+          <SheetBarAction
+            type="submit"
+            label={step === 'details' ? submitLabel : 'Suivant'}
+            icon={
+              step === 'details' ? undefined : (
+                <ChevronRightIcon aria-hidden strokeWidth={2.6} />
+              )
+            }
+            loading={step === 'details' && save.isPending}
+            disabled={step === 'details' ? saveDisabled : nextDisabled}
+          />
+        }
+      />
 
       {step === 'category' && (
         <>
-          <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4">
+          <div
+            data-sheet-scroll=""
+            className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 pt-4"
+          >
             {/* Three labels on a 320px phone: sized on the row's width. */}
             <div className="@container">
               <SegmentedControl
@@ -804,14 +800,14 @@ export function ManualTransactionSheet({
               />
             </section>
           </div>
-          {footer}
         </>
       )}
 
       {step === 'amount' && (
         <>
-          {/* The one focal point: the amount. */}
-          <div className="@container flex flex-1 flex-col justify-center px-4 pt-2 pb-5 text-center">
+          {/* The one focal point: the amount; at the top on a phone, above
+              the keyboard. */}
+          <div className="@container flex flex-1 flex-col justify-center px-4 pt-2 pb-5 text-center group-data-[side=screen]/sheet:justify-start group-data-[side=screen]/sheet:pt-8">
             {recap}
             <label htmlFor={`${id}-amount`} className="sr-only">
               Montant
@@ -844,21 +840,29 @@ export function ManualTransactionSheet({
                   aria-describedby={
                     showAmountError ? `${id}-amount-error` : undefined
                   }
-                  // Phones type on the keypad: the field only shows the
-                  // amount and never opens the system keyboard.
-                  readOnly={keypad}
-                  tabIndex={keypad ? -1 : undefined}
-                  inputMode={keypad ? 'none' : 'decimal'}
+                  inputMode="decimal"
                   enterKeyHint="next"
-                  className={cn(
-                    'col-start-1 row-start-1 w-full min-w-0 bg-transparent text-center outline-none placeholder:text-muted-foreground',
-                    keypad
-                      ? 'pointer-events-none'
-                      : 'border-b-2 border-transparent focus:border-primary',
-                  )}
+                  className="placeholder:text-muted-foreground focus:border-primary col-start-1 row-start-1 w-full min-w-0 border-b-2 border-transparent bg-transparent text-center outline-none"
                   onChange={(event) => {
                     const next = typedAmount(event.target.value)
                     if (next !== null) setAmount(next)
+                  }}
+                  // A phone's decimal keyboard has no Enter: closing it
+                  // (its ✓) with a valid amount moves on to the details,
+                  // as Enter does on a computer. Not when the keyboard
+                  // closes for a tap on a button (‹, ›, a step, ✕).
+                  onBlur={(event) => {
+                    if (!isMobile) return
+                    const tap = lastTap.current
+                    const tappedControl =
+                      tap !== null &&
+                      tap.target !== event.currentTarget &&
+                      performance.now() - tap.at < TAP_BLUR_MS &&
+                      tap.target.closest(
+                        'button, a, input, textarea, select, [role="button"]',
+                      ) !== null
+                    if (tappedControl || amountError || !categoryChosen) return
+                    setStep('details')
                   }}
                 />
               </span>
@@ -876,25 +880,15 @@ export function ManualTransactionSheet({
               )
             )}
           </div>
-          {keypad ? (
-            <div className="bg-muted/60 shrink-0 border-t p-1.5">
-              <AmountKeypad
-                onKey={press}
-                submitLabel="Suivant"
-                submitIcon="next"
-                loading={false}
-                disabled={false}
-              />
-            </div>
-          ) : (
-            footer
-          )}
         </>
       )}
 
       {step === 'details' && (
         <>
-          <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4">
+          <div
+            data-sheet-scroll=""
+            className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 pt-4"
+          >
             <div className="text-center">
               <p
                 className={cn(
@@ -963,8 +957,8 @@ export function ManualTransactionSheet({
                 aria-invalid={showLabelError}
                 onChange={(event) => setLabel(event.target.value)}
                 onKeyDown={(event) => {
-                  // "OK" on a phone closes the keyboard, back to the button.
-                  if (keypad && event.key === 'Enter') {
+                  // "OK" on a phone closes the keyboard.
+                  if (isMobile && event.key === 'Enter') {
                     event.preventDefault()
                     event.currentTarget.blur()
                   }
@@ -1071,8 +1065,19 @@ export function ManualTransactionSheet({
                 </div>
               )}
             </div>
+            {expense && (
+              <FormSheetMoreActions>
+                <Button
+                  type="button"
+                  variant="danger"
+                  outline
+                  onClick={() => setConfirmOpen(true)}
+                >
+                  Supprimer l’opération
+                </Button>
+              </FormSheetMoreActions>
+            )}
           </div>
-          {footer}
         </>
       )}
     </form>
@@ -1083,17 +1088,18 @@ export function ManualTransactionSheet({
       {isMobile ? (
         <Sheet open={open} onOpenChange={onOpenChange}>
           <SheetContent
-            side="bottom"
-            className={cn(
-              // One height for every step, so "Suivant" stays put.
-              'gap-0 rounded-t-xl data-[side=bottom]:h-[min(30rem,calc(92svh-var(--keyboard-inset,0px)))]',
-              // While the label or note is typed, every pixel above the
-              // keyboard up to the status bar.
-              'data-[side=bottom]:data-keyboard-open:h-[calc(100svh-var(--keyboard-inset,0px)-env(safe-area-inset-top)-0.5rem)]',
-            )}
+            side="screen"
             onKeyDown={onKeyDown}
+            onPointerDownCapture={(event) => {
+              if (event.target instanceof Element)
+                lastTap.current = {
+                  target: event.target,
+                  at: performance.now(),
+                }
+            }}
             onOpenAutoFocus={(event) => {
-              // The step's heading, never a field: no system keyboard.
+              // The step's heading, or the amount when it opens there (an
+              // envelope's « + »): the keyboard comes up at once.
               event.preventDefault()
               focusStep()
             }}

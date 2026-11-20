@@ -1,23 +1,27 @@
 import {
-  Button,
   cn,
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogTitle,
   Field,
   FieldError,
   FieldLabel,
   Input,
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
-  SheetDescription,
-  SheetTitle,
+  SheetSteps,
   Skeleton,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from 'lucide-react'
+import {
+  CalendarRangeIcon,
+  ChevronRightIcon,
+  ListChecksIcon,
+  ReceiptIcon,
+  SearchIcon,
+} from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { toast } from 'sonner'
@@ -206,9 +210,15 @@ export function AddPrepaidSheet({
                 <li key={transaction.id}>
                   <button
                     type="button"
+                    // The payment chosen before, after a step back.
+                    aria-current={
+                      payment?.id === transaction.id ? 'true' : undefined
+                    }
                     className={cn(
                       ROW_BUTTON,
                       'flex min-h-11 items-center gap-2 p-3 text-left',
+                      payment?.id === transaction.id &&
+                        'bg-[color-mix(in_srgb,var(--primary)_8%,var(--card))] shadow-[inset_3px_0_0_var(--primary)]',
                     )}
                     onClick={() => {
                       setPayment(transaction)
@@ -242,6 +252,11 @@ export function AddPrepaidSheet({
           )}
         </div>
       )
+      // A payment chosen before (a step back): « Suivant » goes on.
+      action = { label: 'Suivant', disabled: !payment }
+      onSubmit = () => {
+        if (payment) setScreen('term')
+      }
       break
     case 'term':
       title = 'Pour combien de mois ?'
@@ -326,67 +341,71 @@ export function AddPrepaidSheet({
     onSubmit()
   }
 
-  const Title = isMobile ? SheetTitle : DialogTitle
-  const Description = isMobile ? SheetDescription : DialogDescription
   const content = (
     <form noValidate onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-      <Title className="sr-only">Ajouter un abonnement prépayé</Title>
-      <Description className="sr-only">
-        Le paiement, la durée, puis le nom.
-      </Description>
-      <div className="flex min-h-14 items-center gap-2 py-2 pr-12 pl-2">
-        {screen !== 'payment' ? (
-          <Button type="button" ghost variant="secondary" onClick={back}>
-            <ChevronLeftIcon aria-hidden />
-            Retour
-          </Button>
-        ) : (
-          <span className="w-2" />
-        )}
-        <p className="text-muted-foreground text-sm whitespace-nowrap">
-          Étape {step} sur {STEP_COUNT}
-        </p>
-      </div>
-      <h3
-        ref={headingRef}
-        tabIndex={-1}
-        className="px-4 pb-3 text-lg leading-snug font-semibold outline-none"
-      >
-        {title}
-      </h3>
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4">
-        {body}
-      </div>
-      {action && (
-        <div className="flex shrink-0 gap-2 border-t px-4 py-3">
-          <Button
+      <SheetBar
+        title="Abonnement prépayé"
+        description={`Étape ${step} sur ${STEP_COUNT} : ${title}`}
+        steps={
+          <SheetSteps
+            current={screen}
+            onSelect={(key) => setScreen(key as Screen)}
+            steps={[
+              {
+                key: 'payment',
+                label: 'Paiement',
+                icon: <ReceiptIcon aria-hidden />,
+              },
+              {
+                key: 'term',
+                label: 'Durée',
+                icon: <CalendarRangeIcon aria-hidden />,
+                disabled: step < 2,
+              },
+              {
+                key: 'review',
+                label: 'Vérifier',
+                icon: <ListChecksIcon aria-hidden />,
+                disabled: step < 3,
+              },
+            ]}
+          />
+        }
+        onBack={screen !== 'payment' ? back : undefined}
+        action={
+          <SheetBarAction
             type="submit"
-            className="min-h-11 flex-1 font-medium"
+            label={action.label}
+            icon={
+              step === STEP_COUNT ? undefined : (
+                <ChevronRightIcon aria-hidden strokeWidth={2.6} />
+              )
+            }
             loading={action.loading}
             disabled={action.disabled}
-          >
-            {action.label}
-          </Button>
-        </div>
-      )}
+          />
+        }
+      />
+      <div
+        data-sheet-scroll=""
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 pt-4"
+      >
+        {/* The screen's question, on a line of its own. */}
+        <h3
+          ref={headingRef}
+          tabIndex={-1}
+          className="pb-3 text-lg leading-snug font-semibold outline-none"
+        >
+          {title}
+        </h3>
+        {body}
+      </div>
     </form>
   )
 
   return isMobile ? (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="bottom"
-        className={cn(
-          'gap-0 rounded-t-xl data-[side=bottom]:h-[min(36rem,calc(92svh-var(--keyboard-inset,0px)))]',
-          'data-[side=bottom]:data-keyboard-open:h-[calc(100svh-var(--keyboard-inset,0px)-env(safe-area-inset-top)-0.5rem)]',
-        )}
-        onOpenAutoFocus={(event) => {
-          event.preventDefault()
-          headingRef.current?.focus()
-        }}
-      >
-        {content}
-      </SheetContent>
+      <SheetContent side="screen">{content}</SheetContent>
     </Sheet>
   ) : (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -145,7 +145,8 @@ function DialogContent({
             <Button
               variant="secondary"
               ghost
-              className="absolute top-2 right-2"
+              // A dialog with a `SheetBar` has its round ✕ there (#385).
+              className="absolute top-2 right-2 [[data-slot=dialog-content]:has([data-slot=sheet-bar])_&]:hidden"
               iconOnly
             >
               <XIcon className="size-4" />

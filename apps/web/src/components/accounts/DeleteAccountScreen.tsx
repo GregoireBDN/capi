@@ -17,7 +17,7 @@ import { ReauthSheet } from '#/components/auth/ReauthSheet'
 import {
   FORM_SHEET_FORM,
   FormSheetBody,
-  FormSheetFooter,
+  FormSheetMoreActions,
 } from '#/components/sheets/form-sheet'
 import { useAuth } from '#/lib/auth-context'
 import { needsReauth } from '#/lib/reauth'
@@ -77,7 +77,6 @@ function sameName(typed: string, name: string): boolean {
  */
 export function DeleteAccountScreen({
   account,
-  onBack,
   onDeleted,
 }: {
   account: AccountDto
@@ -192,30 +191,20 @@ export function DeleteAccountScreen({
               <FieldError>Le nom ne correspond pas.</FieldError>
             )}
           </Field>
+          {/* A phone: the bar's ‹ goes back, the deletion ends the page. */}
+          <FormSheetMoreActions>
+            <Button
+              type="submit"
+              variant="danger"
+              className="font-medium"
+              disabled={!matches || !preview.isSuccess}
+              loading={deleting}
+            >
+              Supprimer définitivement
+            </Button>
+          </FormSheetMoreActions>
         </FormSheetBody>
-        {/* Above the keyboard while the name is typed (#323); « Retour »
-            on a line of its own when both don't fit. */}
-        <FormSheetFooter className="flex-row-reverse flex-wrap">
-          <Button
-            type="submit"
-            variant="danger"
-            className="min-h-11 grow-[2] font-medium"
-            disabled={!matches || !preview.isSuccess}
-            loading={deleting}
-          >
-            Supprimer définitivement
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            outline
-            className="min-h-11 grow"
-            disabled={deleting}
-            onClick={onBack}
-          >
-            Retour
-          </Button>
-        </FormSheetFooter>
+        {/* « Retour » on a line of its own when both don't fit. */}
       </form>
       {/* Outside the form: React submit events bubble through portals. */}
       <ReauthSheet

@@ -8,9 +8,6 @@ import {
   Input,
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   Textarea,
   ToggleGroup,
   ToggleGroupItem,
@@ -27,6 +24,12 @@ import {
   undoableRecurringToast,
   updateRecurringItem,
 } from './queries'
+import {
+  EditorHeader,
+  editorSide,
+  FORM_SHEET_SCREEN,
+  SheetScroll,
+} from '#/components/sheets/form-sheet'
 
 const NOTES_MAX = 1000
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
@@ -124,113 +127,108 @@ export function EndRecurringSheet({
   return (
     <Sheet open={item !== null} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
-        className={
-          isMobile
-            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-            : 'overflow-y-auto'
-        }
+        side={editorSide(isMobile)}
+        className={isMobile ? FORM_SHEET_SCREEN : 'overflow-y-auto'}
       >
         {item && (
           <>
-            <SheetHeader className="pb-0">
-              <SheetTitle>
-                {editing ? 'Modifier la date de fin' : `Résilier ${item.name}`}
-              </SheetTitle>
-              <SheetDescription>
-                {item.termMonths
+            <EditorHeader
+              className="pb-0"
+              title={
+                editing ? 'Modifier la date de fin' : `Résilier ${item.name}`
+              }
+              description={
+                item.termMonths
                   ? 'Payé jusqu’à son renouvellement : résilié à cette date, il n’est pas renouvelé et sort ensuite de la prévision et des totaux.'
-                  : 'À partir de la date de fin, plus aucun prélèvement n’est attendu : il sort de la prévision et des totaux.'}
-              </SheetDescription>
-            </SheetHeader>
-            <form noValidate onSubmit={submit} className="space-y-4 px-4 pb-6">
-              <Field data-invalid={submitted && dateError !== null}>
-                <FieldLabel htmlFor={`${id}-date`}>Date de fin</FieldLabel>
-                <ToggleGroup
-                  type="single"
-                  spacing={1.5}
-                  aria-label="Date de fin rapide"
-                  className="flex-wrap"
-                  value={quick}
-                  onValueChange={(next) => {
-                    if (next === 'today') setEndedOn(today)
-                    else if (next === 'after-next' && afterNext)
-                      setEndedOn(afterNext)
-                  }}
-                >
-                  <ToggleGroupItem
-                    value="today"
-                    className={cn(CHIP_CLASS, CHIP_ON)}
+                  : 'À partir de la date de fin, plus aucun prélèvement n’est attendu : il sort de la prévision et des totaux.'
+              }
+            />
+            <SheetScroll>
+              <form
+                noValidate
+                onSubmit={submit}
+                className="space-y-4 px-4 pb-6"
+              >
+                <Field data-invalid={submitted && dateError !== null}>
+                  <FieldLabel htmlFor={`${id}-date`}>Date de fin</FieldLabel>
+                  <ToggleGroup
+                    type="single"
+                    spacing={1.5}
+                    aria-label="Date de fin rapide"
+                    className="flex-wrap"
+                    value={quick}
+                    onValueChange={(next) => {
+                      if (next === 'today') setEndedOn(today)
+                      else if (next === 'after-next' && afterNext)
+                        setEndedOn(afterNext)
+                    }}
                   >
-                    Aujourd’hui
-                  </ToggleGroupItem>
-                  {afterNext && item.nextExpectedDate && (
                     <ToggleGroupItem
-                      value="after-next"
-                      // Long: wraps on narrow phones instead of overflowing.
-                      className={cn(
-                        CHIP_CLASS,
-                        CHIP_ON,
-                        'h-auto min-h-8 max-w-full shrink rounded-2xl py-1 text-left whitespace-normal',
-                      )}
+                      value="today"
+                      className={cn(CHIP_CLASS, CHIP_ON)}
                     >
-                      <span>
-                        {item.termMonths
-                          ? 'Au renouvellement'
-                          : 'Après la prochaine échéance'}{' '}
-                        ({formatDayMonth(item.nextExpectedDate, today)})
-                      </span>
+                      Aujourd’hui
                     </ToggleGroupItem>
+                    {afterNext && item.nextExpectedDate && (
+                      <ToggleGroupItem
+                        value="after-next"
+                        // Long: wraps on narrow phones instead of overflowing.
+                        className={cn(
+                          CHIP_CLASS,
+                          CHIP_ON,
+                          'h-auto min-h-8 max-w-full shrink rounded-2xl py-1 text-left whitespace-normal',
+                        )}
+                      >
+                        <span>
+                          {item.termMonths
+                            ? 'Au renouvellement'
+                            : 'Après la prochaine échéance'}{' '}
+                          ({formatDayMonth(item.nextExpectedDate, today)})
+                        </span>
+                      </ToggleGroupItem>
+                    )}
+                  </ToggleGroup>
+                  <Input
+                    id={`${id}-date`}
+                    type="date"
+                    value={endedOn}
+                    aria-invalid={submitted && dateError !== null}
+                    onChange={(event) => setEndedOn(event.target.value)}
+                  />
+                  {submitted && dateError ? (
+                    <FieldError>{dateError}</FieldError>
+                  ) : (
+                    <FieldDescription>
+                      {endedOn <= today
+                        ? 'Premier jour sans prélèvement. Passée ou du jour : il sort des totaux dès maintenant.'
+                        : `Premier jour sans prélèvement. Dernier jour compté : ${formatDayMonth(addDays(endedOn, -1), today)}`}
+                    </FieldDescription>
                   )}
-                </ToggleGroup>
-                <Input
-                  id={`${id}-date`}
-                  type="date"
-                  value={endedOn}
-                  aria-invalid={submitted && dateError !== null}
-                  onChange={(event) => setEndedOn(event.target.value)}
-                />
-                {submitted && dateError ? (
-                  <FieldError>{dateError}</FieldError>
-                ) : (
-                  <FieldDescription>
-                    {endedOn <= today
-                      ? 'Premier jour sans prélèvement. Passée ou du jour : il sort des totaux dès maintenant.'
-                      : `Premier jour sans prélèvement. Dernier jour compté : ${formatDayMonth(addDays(endedOn, -1), today)}`}
-                  </FieldDescription>
-                )}
-              </Field>
-              <Field>
-                <FieldLabel htmlFor={`${id}-notes`}>Note</FieldLabel>
-                <Textarea
-                  id={`${id}-notes`}
-                  rows={2}
-                  maxLength={NOTES_MAX}
-                  value={notes}
-                  placeholder="Ex. : résilié en ligne, confirmation reçue"
-                  onChange={(event) => setNotes(event.target.value)}
-                />
-                <FieldDescription>Facultative.</FieldDescription>
-              </Field>
-              <div className="grid gap-2 pt-2">
-                <Button
-                  type="submit"
-                  variant={editing ? undefined : 'danger'}
-                  loading={save.isPending}
-                >
-                  {editing ? 'Enregistrer' : 'Résilier'}
-                </Button>
-                <Button
-                  type="button"
-                  outline
-                  variant="secondary"
-                  disabled={save.isPending}
-                  onClick={() => onOpenChange(false)}
-                >
-                  Annuler
-                </Button>
-              </div>
-            </form>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={`${id}-notes`}>Note</FieldLabel>
+                  <Textarea
+                    id={`${id}-notes`}
+                    rows={2}
+                    maxLength={NOTES_MAX}
+                    value={notes}
+                    placeholder="Ex. : résilié en ligne, confirmation reçue"
+                    onChange={(event) => setNotes(event.target.value)}
+                  />
+                  <FieldDescription>Facultative.</FieldDescription>
+                </Field>
+                <div className="grid gap-2 pt-2">
+                  <Button
+                    type="submit"
+                    variant={editing ? undefined : 'danger'}
+                    loading={save.isPending}
+                  >
+                    {editing ? 'Enregistrer' : 'Résilier'}
+                  </Button>
+                  {/* A phone: the bar's ✕ cancels. */}
+                </div>
+              </form>
+            </SheetScroll>
           </>
         )}
       </SheetContent>

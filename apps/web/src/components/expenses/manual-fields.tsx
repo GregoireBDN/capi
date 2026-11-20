@@ -1,23 +1,11 @@
-import {
-  Button,
-  CategoryIcon,
-  ToggleGroup,
-  ToggleGroupItem,
-  cn,
-} from '@finances/ui'
-import {
-  CalendarIcon,
-  CheckIcon,
-  ChevronRightIcon,
-  DeleteIcon,
-} from 'lucide-react'
+import { CategoryIcon, ToggleGroup, ToggleGroupItem, cn } from '@finances/ui'
+import { CalendarIcon } from 'lucide-react'
 import type { AccountDto, ManualSuggestionDto } from '#/api/types.gen'
-import type { AmountKey } from './amount-entry'
 
 /**
  * Quick-entry fields of `ManualTransactionSheet` (#196, #245): chips and
  * tiles a thumb can tap instead of a field to type in or a list to scroll
- * through, and the keypad the amount is typed on.
+ * through.
  */
 
 /** A rounded, tappable chip (44px high: the 22px root makes h-8 44px). */
@@ -147,7 +135,7 @@ const TILE_CLASS = cn(
   'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
 )
 
-/** Habits shown at most: two rows of two, so the keypad stays in view. */
+/** Habits shown at most: two rows of two, so the categories stay in view. */
 const HABITS_MAX = 4
 
 /**
@@ -286,88 +274,6 @@ export function CategoryChips({
           </button>
         )
       })}
-    </div>
-  )
-}
-
-const KEYPAD_DIGITS: readonly AmountKey[] = [
-  '1',
-  '2',
-  '3',
-  '4',
-  '5',
-  '6',
-  '7',
-  '8',
-  '9',
-  ',',
-  '0',
-  'back',
-]
-
-/**
- * The sheet's own numeric keypad (#245): no system keyboard, so no
- * accessory bar or keyboard inset, and the action is a key of it, under the
- * thumb. Digits on three columns as on a phone, the action ("Suivant") the
- * height of the fourth.
- */
-export function AmountKeypad({
-  onKey,
-  submitLabel,
-  submitIcon = 'check',
-  loading,
-  disabled,
-}: {
-  onKey: (key: AmountKey) => void
-  submitLabel: string
-  /** "next" for a step that leads to another one. */
-  submitIcon?: 'check' | 'next'
-  loading: boolean
-  disabled: boolean
-}) {
-  return (
-    <div
-      role="group"
-      aria-label="Pavé numérique"
-      className="@container grid touch-manipulation grid-cols-[1fr_1fr_1fr_1.25fr] gap-1.5 select-none"
-    >
-      {KEYPAD_DIGITS.map((key, index) => (
-        <button
-          key={key}
-          type="button"
-          aria-label={key === 'back' ? 'Effacer' : undefined}
-          style={{
-            gridColumn: (index % 3) + 1,
-            gridRow: Math.floor(index / 3) + 1,
-          }}
-          className={cn(
-            'bg-background flex h-[2.2rem] items-center justify-center rounded-lg text-xl font-medium tabular-nums shadow-xs',
-            'short-screen:h-8 transition-colors outline-none active:bg-muted',
-            'focus-visible:ring-3 focus-visible:ring-ring/50',
-            'dark:bg-input/40 dark:active:bg-input/70',
-          )}
-          onClick={() => onKey(key)}
-        >
-          {key === 'back' ? <DeleteIcon aria-hidden className="size-6" /> : key}
-        </button>
-      ))}
-      <Button
-        type="submit"
-        loading={loading}
-        disabled={disabled}
-        style={{ gridColumn: 4, gridRow: '1 / span 4' }}
-        className="h-auto flex-col gap-1 rounded-lg px-1 font-semibold [&_svg]:size-7"
-      >
-        {submitIcon === 'next' ? (
-          <ChevronRightIcon aria-hidden />
-        ) : (
-          <CheckIcon aria-hidden />
-        )}
-        {/* Sized on the keypad: "Enregistrer" fits its key at 320px. */}
-        <span className="text-[min(0.875rem,4.2cqi)] whitespace-nowrap">
-          {submitLabel}
-        </span>
-      </Button>
     </div>
   )
 }

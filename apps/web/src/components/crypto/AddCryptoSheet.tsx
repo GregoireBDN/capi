@@ -2,11 +2,8 @@ import {
   Alert,
   AlertTitle,
   Button,
-  cn,
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogTitle,
   Field,
   FieldDescription,
   FieldError,
@@ -19,19 +16,29 @@ import {
   RadioCard,
   RadioCardGroup,
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
-  SheetDescription,
-  SheetTitle,
+  SheetSteps,
   useIsMobile,
+  cn,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Building2Icon,
-  ChevronLeftIcon,
   ChevronRightIcon,
   CircleAlertIcon,
+  CoinsIcon,
+  CompassIcon,
+  FileUpIcon,
+  HashIcon,
+  KeyRoundIcon,
+  LandmarkIcon,
+  ListChecksIcon,
+  PencilIcon,
   PencilLineIcon,
+  SlidersHorizontalIcon,
   WalletIcon,
 } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -113,7 +120,7 @@ type Screen =
   | 'manual-amount'
   | 'manual-summary'
 
-const STEP_COUNT = 3
+const STEP_COUNT = 4
 
 /** The source's first screen. */
 const FIRST: Record<Source, Screen> = {
@@ -124,7 +131,38 @@ const FIRST: Record<Source, Screen> = {
 
 function stepOf(screen: Screen): number {
   if (screen === 'source') return 1
-  return screen.endsWith('-summary') ? 3 : 2
+  if (screen.endsWith('-summary')) return 4
+  // Which platform, wallet or asset, then its export, keys or quantity.
+  return screen === 'exchange-file' ||
+    screen === 'wallet-keys' ||
+    screen === 'manual-amount'
+    ? 3
+    : 2
+}
+
+/** The 2nd and 3rd steps' names and icons, after the source chosen. */
+function routeSteps(
+  screen: Screen,
+): [{ label: string; icon: ReactNode }, { label: string; icon: ReactNode }] {
+  if (screen.startsWith('exchange'))
+    return [
+      { label: 'Plateforme', icon: <LandmarkIcon aria-hidden /> },
+      { label: 'Export', icon: <FileUpIcon aria-hidden /> },
+    ]
+  if (screen.startsWith('wallet'))
+    return [
+      { label: 'Wallet', icon: <WalletIcon aria-hidden /> },
+      { label: 'Clés', icon: <KeyRoundIcon aria-hidden /> },
+    ]
+  if (screen.startsWith('manual'))
+    return [
+      { label: 'Actif', icon: <CoinsIcon aria-hidden /> },
+      { label: 'Quantité', icon: <HashIcon aria-hidden /> },
+    ]
+  return [
+    { label: 'Choix', icon: <PencilIcon aria-hidden /> },
+    { label: 'Détails', icon: <SlidersHorizontalIcon aria-hidden /> },
+  ]
 }
 
 const BACK: Record<Exclude<Screen, 'source'>, Screen> = {
@@ -182,16 +220,27 @@ type ExchangeTarget =
 const importPlural = (count: number) =>
   `${count.toLocaleString('fr-FR')} ${count > 1 ? 'lignes' : 'ligne'}`
 
-/** One choice of a list: a tap moves on (« Suivant » is the tap). */
+/** « Suivant » of a step: the bar's › once a choice is made. */
+const NEXT_LABEL = (
+  <>
+    Suivant
+    <ChevronRightIcon aria-hidden />
+  </>
+)
+
+/** One choice of a list: a tap moves on, or « Suivant » once chosen. */
 function ChoiceTile({
   icon,
   label,
   description,
+  selected = false,
   onSelect,
 }: {
   icon?: ReactNode
   label: string
   description?: string
+  /** The choice made before (shown again after a step back). */
+  selected?: boolean
   onSelect: () => void
 }) {
   return (
@@ -199,12 +248,20 @@ function ChoiceTile({
       <button
         type="button"
         onClick={onSelect}
-        className="hover:bg-muted/60 focus-visible:ring-ring flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left outline-none focus-visible:ring-2"
+        aria-current={selected ? 'true' : undefined}
+        className={cn(
+          'hover:bg-muted/60 focus-visible:ring-ring flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left outline-none focus-visible:ring-2',
+          selected &&
+            'border-primary bg-[color-mix(in_srgb,var(--primary)_8%,var(--popover))]',
+        )}
       >
         {icon && (
           <span
             aria-hidden
-            className="bg-muted text-muted-foreground flex size-[32px] shrink-0 items-center justify-center rounded-full [&_svg]:size-[16px]"
+            className={cn(
+              'bg-muted text-muted-foreground flex size-[32px] shrink-0 items-center justify-center rounded-full [&_svg]:size-[16px]',
+              selected && 'bg-primary/15 text-primary',
+            )}
           >
             {icon}
           </span>
@@ -219,7 +276,10 @@ function ChoiceTile({
         </span>
         <ChevronRightIcon
           aria-hidden
-          className="text-muted-foreground size-4 shrink-0"
+          className={cn(
+            'size-4 shrink-0',
+            selected ? 'text-primary' : 'text-muted-foreground',
+          )}
         />
       </button>
     </li>
@@ -277,6 +337,9 @@ export function AddCryptoSheet({
   const id = useId()
   const headingRef = useRef<HTMLHeadingElement>(null)
   const [screen, setScreen] = useState<Screen>('source')
+  /** The choices made, shown again after a step back. */
+  const [chosenSource, setChosenSource] = useState<Source | null>(null)
+  const [otherPlatform, setOtherPlatform] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
   // Exchange.
@@ -313,6 +376,8 @@ export function AddCryptoSheet({
   useEffect(() => {
     if (!open) return
     setScreen('source')
+    setChosenSource(null)
+    setOtherPlatform(false)
     setSubmitted(false)
     setExchange(undefined)
     setImportError(undefined)
@@ -368,6 +433,16 @@ export function AddCryptoSheet({
     if (screen === 'source') return
     if (screen === 'exchange-summary') dropPending()
     go(BACK[screen])
+  }
+
+  /** Back to an earlier step (its icon on a phone), screen by screen. */
+  function backTo(stepWanted: number) {
+    let next = screen
+    while (next !== 'source' && stepOf(next) > stepWanted) {
+      if (next === 'exchange-summary') dropPending()
+      next = BACK[next]
+    }
+    if (next !== screen) go(next)
   }
 
   /* ---- Exchange ---------------------------------------------------- */
@@ -566,7 +641,11 @@ export function AddCryptoSheet({
   const exchanges = accounts.filter((account) => account.source === 'exchange')
   let title: string
   let body: ReactNode
-  let action: { label: ReactNode; loading?: boolean } | null = null
+  let action: {
+    label: ReactNode
+    loading?: boolean
+    disabled?: boolean
+  } | null = null
   let onSubmit: () => void = () => undefined
 
   switch (screen) {
@@ -580,11 +659,20 @@ export function AddCryptoSheet({
               icon={source.icon}
               label={source.label}
               description={source.description}
-              onSelect={() => go(FIRST[source.value])}
+              selected={chosenSource === source.value}
+              onSelect={() => {
+                setChosenSource(source.value)
+                go(FIRST[source.value])
+              }}
             />
           ))}
         </ul>
       )
+      // A choice made before (a step back): « Suivant » goes on with it.
+      action = { label: NEXT_LABEL, disabled: chosenSource === null }
+      onSubmit = () => {
+        if (chosenSource) go(FIRST[chosenSource])
+      }
       break
 
     case 'exchange-provider':
@@ -603,7 +691,13 @@ export function AddCryptoSheet({
                     icon={<Building2Icon />}
                     label={account.name}
                     description="Importer un nouvel export"
+                    selected={
+                      !otherPlatform &&
+                      exchange?.kind === 'existing' &&
+                      exchange.accountId === account.accountId
+                    }
                     onSelect={() => {
+                      setOtherPlatform(false)
                       setExchange({
                         kind: 'existing',
                         accountId: account.accountId,
@@ -628,7 +722,13 @@ export function AddCryptoSheet({
                   key={provider}
                   icon={<Building2Icon />}
                   label={CRYPTO_EXCHANGE_PROVIDER_LABELS[provider]}
+                  selected={
+                    !otherPlatform &&
+                    exchange?.kind === 'new' &&
+                    exchange.provider === provider
+                  }
                   onSelect={() => {
+                    setOtherPlatform(false)
                     setExchange({ kind: 'new', provider })
                     go('exchange-file')
                   }}
@@ -638,7 +738,9 @@ export function AddCryptoSheet({
                 icon={<PencilLineIcon />}
                 label="Une autre plateforme"
                 description="Ses exports ne sont pas lus : saisissez ce que vous y détenez."
+                selected={otherPlatform}
                 onSelect={() => {
+                  setOtherPlatform(true)
                   setTarget(NEW_ACCOUNT)
                   go('manual-asset')
                 }}
@@ -647,6 +749,13 @@ export function AddCryptoSheet({
           </section>
         </div>
       )
+      action = { label: NEXT_LABEL, disabled: !otherPlatform && !exchange }
+      onSubmit = () => {
+        if (otherPlatform) {
+          setTarget(NEW_ACCOUNT)
+          go('manual-asset')
+        } else if (exchange) go('exchange-file')
+      }
       break
 
     case 'exchange-file':
@@ -716,6 +825,7 @@ export function AddCryptoSheet({
               key={provider}
               icon={<WalletIcon />}
               label={provider === OTHER_PROVIDER ? 'Un autre wallet' : provider}
+              selected={walletProvider === provider}
               onSelect={() => {
                 setWalletProvider(provider)
                 setKeyError(undefined)
@@ -725,6 +835,12 @@ export function AddCryptoSheet({
           ))}
         </ul>
       )
+      action = { label: NEXT_LABEL, disabled: !walletProvider }
+      onSubmit = () => {
+        if (!walletProvider) return
+        setKeyError(undefined)
+        go('wallet-keys')
+      }
       break
 
     case 'wallet-keys': {
@@ -842,6 +958,10 @@ export function AddCryptoSheet({
           </Field>
         </div>
       )
+      action = { label: NEXT_LABEL, disabled: !asset }
+      onSubmit = () => {
+        if (asset) go('manual-amount')
+      }
       break
 
     case 'manual-amount': {
@@ -1022,76 +1142,114 @@ export function AddCryptoSheet({
   }
 
   const step = stepOf(screen)
+  /** The route's screen to name the steps after, once a source is chosen. */
+  const routeScreen: Screen =
+    screen === 'source' && chosenSource
+      ? otherPlatform
+        ? 'manual-asset'
+        : FIRST[chosenSource]
+      : screen
+  /**
+   * The 3rd step's screen when its choice is already made (a step back
+   * from it): a tap on its icon goes forward to it again.
+   */
+  const entryScreen: Screen | null = routeScreen.startsWith('exchange')
+    ? exchange
+      ? 'exchange-file'
+      : null
+    : routeScreen.startsWith('wallet')
+      ? walletProvider
+        ? 'wallet-keys'
+        : null
+      : routeScreen.startsWith('manual') && asset
+        ? 'manual-amount'
+        : null
 
   function submit(event: FormEvent) {
     event.preventDefault()
     onSubmit()
   }
 
-  const Title = isMobile ? SheetTitle : DialogTitle
-  const Description = isMobile ? SheetDescription : DialogDescription
   const content = (
     <form noValidate onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-      <Title className="sr-only">Ajouter des cryptos</Title>
-      <Description className="sr-only">
-        D’où elles viennent, puis ce qu’il faut pour les suivre.
-      </Description>
-      {/* The way back and where we are, clear of the close button; the
-          question on a line of its own, so it never gets squeezed. */}
-      <div className="flex min-h-14 items-center gap-2 py-2 pr-12 pl-2">
-        {screen !== 'source' ? (
-          <Button type="button" ghost variant="secondary" onClick={back}>
-            <ChevronLeftIcon aria-hidden />
-            Retour
-          </Button>
-        ) : (
-          <span className="w-2" />
-        )}
-        <p className="text-muted-foreground text-sm whitespace-nowrap">
-          Étape {step} sur {STEP_COUNT}
-        </p>
-      </div>
-      <h3
-        ref={headingRef}
-        tabIndex={-1}
-        className="px-4 pb-3 text-lg leading-snug font-semibold outline-none"
+      <SheetBar
+        title="Ajouter des cryptos"
+        description={`Étape ${step} sur ${STEP_COUNT} : ${title}`}
+        steps={
+          <SheetSteps
+            current={String(step)}
+            onSelect={(key) => {
+              const wanted = Number(key)
+              if (wanted < step) backTo(wanted)
+              else if (wanted === 2 && chosenSource) go(FIRST[chosenSource])
+              else if (wanted === 3 && entryScreen) go(entryScreen)
+            }}
+            steps={[
+              {
+                key: '1',
+                label: 'Origine',
+                icon: <CompassIcon aria-hidden />,
+              },
+              {
+                key: '2',
+                ...routeSteps(routeScreen)[0],
+                disabled: step < 2 && chosenSource === null,
+              },
+              {
+                key: '3',
+                ...routeSteps(routeScreen)[1],
+                disabled: step < 3 && entryScreen === null,
+              },
+              {
+                key: '4',
+                label: 'Vérifier',
+                icon: <ListChecksIcon aria-hidden />,
+                disabled: step < 4,
+              },
+            ]}
+          />
+        }
+        onBack={screen !== 'source' ? back : undefined}
+        action={
+          action && (
+            <SheetBarAction
+              type="submit"
+              label={
+                typeof action.label === 'string' ? action.label : 'Suivant'
+              }
+              icon={
+                typeof action.label === 'string' ? undefined : (
+                  <ChevronRightIcon aria-hidden strokeWidth={2.6} />
+                )
+              }
+              loading={action.loading}
+              disabled={action.disabled}
+            />
+          )
+        }
+      />
+      <div
+        data-sheet-scroll=""
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 pt-4"
       >
-        {title}
-      </h3>
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4">
+        {/* The screen's question, on a line of its own. */}
+        <h3
+          ref={headingRef}
+          tabIndex={-1}
+          className="pb-3 text-lg leading-snug font-semibold outline-none"
+        >
+          {title}
+        </h3>
         {body}
       </div>
-      {/* Above the keyboard while a field is typed in: the step's button
-          stays in reach (#323). */}
-      {action && (
-        <div className="flex shrink-0 gap-2 border-t px-4 py-3">
-          <Button
-            type="submit"
-            className="min-h-11 flex-1 font-medium"
-            loading={action.loading}
-          >
-            {action.label}
-          </Button>
-        </div>
-      )}
+      {/* Beside the page: the step's button at the end; on a phone it is
+          the bar's round button (#385). */}
     </form>
   )
 
   return isMobile ? (
     <Sheet open={open} onOpenChange={close}>
-      <SheetContent
-        side="bottom"
-        className={cn(
-          'gap-0 rounded-t-xl data-[side=bottom]:h-[min(36rem,calc(92svh-var(--keyboard-inset,0px)))]',
-          'data-[side=bottom]:data-keyboard-open:h-[calc(100svh-var(--keyboard-inset,0px)-env(safe-area-inset-top)-0.5rem)]',
-        )}
-        onOpenAutoFocus={(event) => {
-          event.preventDefault()
-          headingRef.current?.focus()
-        }}
-      >
-        {content}
-      </SheetContent>
+      <SheetContent side="screen">{content}</SheetContent>
     </Sheet>
   ) : (
     <Dialog open={open} onOpenChange={close}>

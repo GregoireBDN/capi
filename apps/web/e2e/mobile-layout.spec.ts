@@ -92,7 +92,8 @@ const SCENARIOS: Array<Scenario> = [
     step: openExpenseSheet,
   },
   {
-    // The steps of the expense sheet (#245): the amount on its keypad...
+    // The steps of the expense sheet (#245, a full page since #385): the
+    // amount typed in its field...
     name: 'dashboard-expense-amount',
     path: '/dashboard',
     step: async (page) => {

@@ -245,7 +245,10 @@ describe('HoldingsPanel', () => {
       await screen.findByRole('button', { name: 'Ajouter un avoir' }),
     )
     // 1. Actif: picking a result moves on.
-    expect(screen.getByRole('heading', { name: /^Actif\s*1\/3/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: '1. Actif' })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
     expect(screen.getByRole('button', { name: 'Suivant' })).toBeDisabled()
     await user.type(screen.getByLabelText('Rechercher un actif'), 'ether')
     await user.click(
@@ -255,9 +258,10 @@ describe('HoldingsPanel', () => {
       expect.objectContaining({ query: { q: 'ether' } }),
     )
     // 2. Quantité and invested amount, typed on a decimal pad.
-    expect(
-      screen.getByRole('heading', { name: /^Quantité\s*2\/3/ }),
-    ).toBeVisible()
+    expect(screen.getByRole('button', { name: '2. Quantité' })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
     expect(screen.queryByLabelText('Sous-compte')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Quantité')).toHaveAttribute(
       'inputmode',
@@ -271,9 +275,10 @@ describe('HoldingsPanel', () => {
     await user.type(screen.getByLabelText('Montant investi'), '2 000,50')
     await user.click(screen.getByRole('button', { name: 'Suivant' }))
     // 3. Détails, then save.
-    expect(
-      screen.getByRole('heading', { name: /^Détails\s*3\/3/ }),
-    ).toBeVisible()
+    expect(screen.getByRole('button', { name: '3. Détails' })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
     await user.type(screen.getByLabelText('Sous-compte'), ' Spot ')
     await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
 
@@ -313,9 +318,10 @@ describe('HoldingsPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Suivant' }))
     expect(screen.getByText(/^Quantité invalide/)).toBeInTheDocument()
     expect(screen.getByText(/^Montant invalide/)).toBeInTheDocument()
-    expect(
-      screen.getByRole('heading', { name: /^Quantité\s*2\/3/ }),
-    ).toBeVisible()
+    expect(screen.getByRole('button', { name: '2. Quantité' })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
     // « Retour » keeps the asset, offered again above the search.
     await user.click(screen.getByRole('button', { name: 'Retour' }))
     await user.click(
@@ -341,9 +347,10 @@ describe('HoldingsPanel', () => {
       screen.getByRole('button', { name: 'Modifier BTC · Portefeuille test' }),
     )
     // A line being edited keeps its asset and opens at its quantity.
-    expect(
-      screen.getByRole('heading', { name: /^Quantité\s*1\/2/ }),
-    ).toBeVisible()
+    expect(screen.getByRole('button', { name: '1. Quantité' })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
     expect(screen.getByLabelText('Quantité')).toHaveValue('1234,123456789')
     // The row shows no price: the editor does.
     expect(screen.getByText(/^Cours 10,50\s€ · il y a 3 min$/)).toBeVisible()
@@ -351,7 +358,9 @@ describe('HoldingsPanel', () => {
     expect(screen.getByLabelText('Sous-compte')).toHaveValue(
       'Portefeuille test',
     )
-    expect(screen.getByRole('button', { name: 'Supprimer' })).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Supprimer la ligne' }),
+    ).toBeVisible()
     await user.type(screen.getByLabelText('Cours manuel'), '0,0012')
     await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
     await waitFor(() =>
@@ -404,10 +413,11 @@ describe('HoldingsPanel', () => {
         name: 'Modifier BTC · Portefeuille test',
       }),
     )
-    expect(
-      screen.getByRole('heading', { name: /^Quantité\s*1\/2/ }),
-    ).toBeVisible()
-    await user.click(screen.getByRole('button', { name: 'Supprimer' }))
+    expect(screen.getByRole('button', { name: '1. Quantité' })).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
+    await user.click(screen.getByRole('button', { name: 'Supprimer la ligne' }))
     const dialog = await screen.findByRole('dialog', {
       name: 'Supprimer BTC (Portefeuille test) ?',
     })

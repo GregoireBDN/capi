@@ -11,16 +11,22 @@ import {
   InputGroupInput,
   InputGroupText,
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
-  SheetDescription,
-  SheetTitle,
+  SheetSteps,
   Spinner,
   Textarea,
   useIsMobile,
 } from '@finances/ui'
 import { cn } from '@finances/ui/lib/utils'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from 'lucide-react'
+import {
+  ChevronRightIcon,
+  HashIcon,
+  SearchIcon,
+  SlidersHorizontalIcon,
+} from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { CryptoAssetDto, ValuedHoldingDto } from '#/api/types.gen'
@@ -29,8 +35,9 @@ import {
   FORM_SHEET_FORM,
   FORM_SHEET_SIDE,
   FormSheetBody,
-  FormSheetFooter,
-  STEPPED_SHEET_BOTTOM,
+  FormSheetMoreActions,
+  editorSide,
+  FORM_SHEET_SCREEN,
 } from '#/components/sheets/form-sheet'
 import { AssetBadge } from './AssetBadge'
 import { holdingErrorMessage } from './errors'
@@ -183,6 +190,12 @@ export function AssetPicker({
  * exchange, wallet or manual account is the Crypto page's « Ajouter » flow
  * (`AddCryptoSheet`, #295).
  */
+const HOLDING_STEP_ICONS: Record<HoldingStep, React.ReactNode> = {
+  asset: <SearchIcon aria-hidden />,
+  amount: <HashIcon aria-hidden />,
+  details: <SlidersHorizontalIcon aria-hidden />,
+}
+
 export function HoldingEditor({
   open,
   onOpenChange,
@@ -352,45 +365,48 @@ export function HoldingEditor({
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
-          side={isMobile ? 'bottom' : 'right'}
-          className={isMobile ? STEPPED_SHEET_BOTTOM : FORM_SHEET_SIDE}
+          side={editorSide(isMobile)}
+          className={isMobile ? FORM_SHEET_SCREEN : FORM_SHEET_SIDE}
           onOpenAutoFocus={(event) => {
             event.preventDefault()
             focusStep(isMobile)
           }}
         >
           <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
-            <SheetTitle className="sr-only">{title}</SheetTitle>
-            <SheetDescription className="sr-only">
-              Quantité détenue sur ce compte.
-            </SheetDescription>
-
-            {/* Where we are, and the way back; clear of the close button. */}
-            <div className="flex min-h-14 shrink-0 items-center gap-1 py-2 pr-12 pl-2">
-              {stepIndex > 0 ? (
-                <Button
-                  type="button"
-                  ghost
-                  variant="secondary"
-                  onClick={() => setStep(steps[stepIndex - 1])}
-                >
-                  <ChevronLeftIcon aria-hidden />
-                  Retour
-                </Button>
-              ) : (
-                <span className="w-2" />
-              )}
-              <h3
-                ref={headingRef}
-                tabIndex={-1}
-                className="min-w-0 flex-1 truncate text-base font-semibold outline-none"
-              >
-                {HOLDING_STEP_NAMES[step]}
-                <span className="text-muted-foreground ml-1.5 text-sm font-normal">
-                  {stepIndex + 1}/{steps.length}
-                </span>
-              </h3>
-            </div>
+            <SheetBar
+              titleRef={headingRef}
+              title={title}
+              description={`Étape ${stepIndex + 1} sur ${steps.length} : ${HOLDING_STEP_NAMES[step]}`}
+              steps={
+                <SheetSteps
+                  current={step}
+                  onSelect={(key) => setStep(key as HoldingStep)}
+                  steps={steps.map((key, index) => ({
+                    key,
+                    label: HOLDING_STEP_NAMES[key],
+                    icon: HOLDING_STEP_ICONS[key],
+                    // Back any time; ahead once the asset is chosen.
+                    disabled: index > stepIndex && !asset,
+                  }))}
+                />
+              }
+              onBack={
+                stepIndex > 0 ? () => setStep(steps[stepIndex - 1]) : undefined
+              }
+              action={
+                <SheetBarAction
+                  type="submit"
+                  label={last ? 'Enregistrer' : 'Suivant'}
+                  icon={
+                    last ? undefined : (
+                      <ChevronRightIcon aria-hidden strokeWidth={2.6} />
+                    )
+                  }
+                  loading={last && save.isPending}
+                  disabled={step === 'asset' && !asset}
+                />
+              }
+            />
 
             <FormSheetBody ref={fieldRef}>
               {step === 'asset' && (
@@ -554,37 +570,19 @@ export function HoldingEditor({
                   </Field>
                 </>
               )}
-            </FormSheetBody>
-
-            <FormSheetFooter>
-              {/* Any step of an edit: removing a line is one decision. */}
               {holding && (
-                <Button
-                  type="button"
-                  variant="danger"
-                  outline
-                  className="min-h-11"
-                  onClick={() => setConfirmOpen(true)}
-                >
-                  Supprimer
-                </Button>
+                <FormSheetMoreActions>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    outline
+                    onClick={() => setConfirmOpen(true)}
+                  >
+                    Supprimer la ligne
+                  </Button>
+                </FormSheetMoreActions>
               )}
-              <Button
-                type="submit"
-                className="min-h-11 flex-1 font-medium"
-                loading={last && save.isPending}
-                disabled={step === 'asset' && !asset}
-              >
-                {last ? (
-                  'Enregistrer'
-                ) : (
-                  <>
-                    Suivant
-                    <ChevronRightIcon aria-hidden />
-                  </>
-                )}
-              </Button>
-            </FormSheetFooter>
+            </FormSheetBody>
           </form>
         </SheetContent>
       </Sheet>

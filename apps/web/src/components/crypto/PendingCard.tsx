@@ -7,8 +7,8 @@ import {
   FieldLabel,
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetTitle,
+  SheetBar,
+  SheetBarAction,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -16,7 +16,6 @@ import type { QueryClient } from '@tanstack/react-query'
 import {
   ArrowDownLeftIcon,
   ArrowUpRightIcon,
-  ChevronLeftIcon,
   ChevronRightIcon,
   CircleHelpIcon,
 } from 'lucide-react'
@@ -35,8 +34,7 @@ import {
   FORM_SHEET_FORM,
   FORM_SHEET_SIDE,
   FormSheetBody,
-  FormSheetFooter,
-  STEPPED_SHEET_BOTTOM,
+  editorSide,
 } from '#/components/sheets/form-sheet'
 import { plural } from '#/lib/plural'
 import { ApiRequestError } from '#/lib/queries'
@@ -354,53 +352,42 @@ function AnswerSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
-        className={isMobile ? STEPPED_SHEET_BOTTOM : FORM_SHEET_SIDE}
+        side={editorSide(isMobile)}
+        className={FORM_SHEET_SIDE}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           headingRef.current?.focus({ preventScroll: true })
         }}
       >
         <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
-          <SheetTitle className="sr-only">{title}</SheetTitle>
-          <SheetDescription className="sr-only">
-            {item ? whenText(item) : ''}
-          </SheetDescription>
-          <div className="flex min-h-14 shrink-0 items-center gap-1 py-2 pr-12 pl-2">
-            {step !== 'choice' ? (
-              <Button
-                type="button"
-                ghost
-                variant="secondary"
-                onClick={() => setStep('choice')}
-              >
-                <ChevronLeftIcon aria-hidden />
-                Retour
-              </Button>
-            ) : (
-              <span className="w-2" />
-            )}
-            <h3
-              ref={headingRef}
-              tabIndex={-1}
-              className="min-w-0 flex-1 text-base font-semibold break-normal outline-none"
-            >
-              {step === 'pick'
+          <SheetBar
+            titleRef={headingRef}
+            title={
+              step === 'pick'
                 ? item?.type === 'departure'
                   ? 'Vers quel compte ?'
                   : 'Depuis quel envoi ?'
                 : step === 'cost'
                   ? 'Prix de revient'
-                  : title}
-            </h3>
-          </div>
+                  : title
+            }
+            description={item ? whenText(item) : undefined}
+            onBack={step !== 'choice' ? () => setStep('choice') : undefined}
+            action={
+              step === 'cost' ? (
+                <SheetBarAction
+                  type="submit"
+                  label="Enregistrer"
+                  disabled={cents === null}
+                  loading={save.isPending}
+                />
+              ) : undefined
+            }
+          />
 
           <FormSheetBody>
             {item && step === 'choice' && (
               <>
-                <p className="text-muted-foreground text-sm">
-                  {whenText(item).replace(/\.?$/, '.')}
-                </p>
                 <div className="space-y-2">
                   {choices(item).map((choice) => (
                     <Button
@@ -466,19 +453,6 @@ function AnswerSheet({
               </Field>
             )}
           </FormSheetBody>
-
-          {step === 'cost' && (
-            <FormSheetFooter>
-              <Button
-                type="submit"
-                className="min-h-11 flex-1 font-medium"
-                disabled={cents === null}
-                loading={save.isPending}
-              >
-                Enregistrer
-              </Button>
-            </FormSheetFooter>
-          )}
         </form>
       </SheetContent>
     </Sheet>

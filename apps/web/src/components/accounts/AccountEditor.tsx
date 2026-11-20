@@ -10,10 +10,9 @@ import {
   NativeSelect,
   NativeSelectOption,
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -36,11 +35,11 @@ import {
 import type { CryptoSourceValues } from '#/components/crypto/CryptoSourceFields'
 import type { WalletKeyErrors } from '#/components/crypto/WalletKeyFields'
 import {
-  FORM_SHEET_BOTTOM,
+  editorSide,
+  FORM_SHEET_SCREEN,
   FORM_SHEET_FORM,
   FORM_SHEET_SIDE,
   FormSheetBody,
-  FormSheetFooter,
 } from '#/components/sheets/form-sheet'
 import {
   CRYPTO_SOURCE_LABELS,
@@ -417,32 +416,42 @@ export function AccountEditor({
 
   const option = optionOf(values.type)
   const archived = account?.archivedAt != null
+  const deleting = !creating && screen === 'delete'
+  const title = creating
+    ? 'Nouveau compte'
+    : deleting
+      ? `Supprimer « ${account.name} » ?`
+      : 'Modifier le compte'
+  const description = creating
+    ? 'Compte bancaire, livret, titres-restaurant, placement ou crypto.'
+    : deleting
+      ? 'Le compte et toutes ses données.'
+      : account.type === 'crypto'
+        ? 'Nom affiché dans l’application.'
+        : 'Nom et établissement affichés dans l’application.'
 
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
-          side={isMobile ? 'bottom' : 'right'}
-          className={isMobile ? FORM_SHEET_BOTTOM : FORM_SHEET_SIDE}
+          side={editorSide(isMobile)}
+          className={isMobile ? FORM_SHEET_SCREEN : FORM_SHEET_SIDE}
         >
-          <SheetHeader>
-            <SheetTitle>
-              {creating
-                ? 'Nouveau compte'
-                : screen === 'delete'
-                  ? `Supprimer « ${account.name} » ?`
-                  : 'Modifier le compte'}
-            </SheetTitle>
-            <SheetDescription>
-              {creating
-                ? 'Compte bancaire, livret, titres-restaurant, placement ou crypto.'
-                : screen === 'delete'
-                  ? 'Le compte et toutes ses données.'
-                  : account.type === 'crypto'
-                    ? 'Nom affiché dans l’application.'
-                    : 'Nom et établissement affichés dans l’application.'}
-            </SheetDescription>
-          </SheetHeader>
+          <SheetBar
+            title={title}
+            description={description}
+            onBack={deleting ? () => setScreen('edit') : undefined}
+            action={
+              deleting ? undefined : (
+                <SheetBarAction
+                  type="submit"
+                  form={`${id}-form`}
+                  label={creating ? 'Créer le compte' : 'Enregistrer'}
+                  loading={creating ? create.isPending : rename.isPending}
+                />
+              )
+            }
+          />
           {!creating && screen === 'delete' ? (
             <DeleteAccountScreen
               account={account}
@@ -450,7 +459,12 @@ export function AccountEditor({
               onDeleted={() => afterDelete(account)}
             />
           ) : (
-            <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
+            <form
+              id={`${id}-form`}
+              noValidate
+              onSubmit={submit}
+              className={FORM_SHEET_FORM}
+            >
               <FormSheetBody>
                 {creating && (
                   <Field>
@@ -678,15 +692,6 @@ export function AccountEditor({
                   </section>
                 )}
               </FormSheetBody>
-              <FormSheetFooter>
-                <Button
-                  type="submit"
-                  className="min-h-11 flex-1 font-medium"
-                  loading={creating ? create.isPending : rename.isPending}
-                >
-                  {creating ? 'Créer le compte' : 'Enregistrer'}
-                </Button>
-              </FormSheetFooter>
             </form>
           )}
         </SheetContent>

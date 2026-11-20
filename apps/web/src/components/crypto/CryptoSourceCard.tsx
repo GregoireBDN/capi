@@ -16,9 +16,6 @@ import {
   SegmentedControlItem,
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   Skeleton,
   useIsMobile,
 } from '@finances/ui'
@@ -73,6 +70,12 @@ import {
 } from './WalletKeyFields'
 import type { WalletKeyValues } from './WalletKeyFields'
 import { syncFailedToast } from './wallet-sync-status'
+import {
+  EditorHeader,
+  editorSide,
+  FORM_SHEET_SCREEN,
+  SheetScroll,
+} from '#/components/sheets/form-sheet'
 
 const syncedAtFormat = new Intl.DateTimeFormat('fr-FR', {
   timeZone: 'Europe/Paris',
@@ -254,21 +257,25 @@ function AddWalletTokenSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
-        className={
-          isMobile
-            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-            : undefined
-        }
+        side={editorSide(isMobile)}
+        className={isMobile ? FORM_SHEET_SCREEN : undefined}
       >
-        <SheetHeader className="pb-0">
-          <SheetTitle>Ajouter un jeton</SheetTitle>
-          <SheetDescription>
-            ETH, BNB et POL sont toujours lus. Ajoutez les jetons ERC-20 /
-            BEP-20 de vos adresses.
-          </SheetDescription>
-        </SheetHeader>
-        <div className="space-y-4 px-4 pb-6">
+        <EditorHeader
+          className="pb-0"
+          title="Ajouter un jeton"
+          description="ETH, BNB et POL sont toujours lus. Ajoutez les jetons ERC-20 / BEP-20 de vos adresses."
+          action={
+            mode === 'contract'
+              ? {
+                  type: 'submit',
+                  form: `${id}-token-form`,
+                  label: 'Ajouter le jeton',
+                  loading: add.isPending,
+                }
+              : undefined
+          }
+        />
+        <SheetScroll className="space-y-4 px-4 pb-6">
           {/* Both labels on a 320px phone: sized on the row's width. */}
           <div className="@container">
             <SegmentedControl
@@ -304,6 +311,7 @@ function AddWalletTokenSheet({
             </div>
           ) : (
             <form
+              id={`${id}-token-form`}
               noValidate
               className="space-y-4"
               onSubmit={(event) => {
@@ -355,12 +363,9 @@ function AddWalletTokenSheet({
                 sur la page du jeton. Seule cette adresse est envoyée à la
                 chaîne pour lire son symbole et ses décimales.
               </p>
-              <Button type="submit" className="w-full" loading={add.isPending}>
-                Ajouter le jeton
-              </Button>
             </form>
           )}
-        </div>
+        </SheetScroll>
       </SheetContent>
     </Sheet>
   )
@@ -538,43 +543,44 @@ export function AddWalletKeySheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
-        className={
-          isMobile
-            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-            : undefined
-        }
+        side={editorSide(isMobile)}
+        className={isMobile ? FORM_SHEET_SCREEN : undefined}
       >
-        <SheetHeader className="pb-0">
-          <SheetTitle>Ajouter une clé publique</SheetTitle>
-          <SheetDescription>
-            Une autre clé du même wallet (compte Bitcoin, adresse Ethereum…).
-          </SheetDescription>
-        </SheetHeader>
-        <form
-          noValidate
-          className="space-y-4 px-4 pb-6"
-          onSubmit={(event) => {
-            event.preventDefault()
-            setSubmitted(true)
-            if (Object.keys(errors).length === 0) add.mutate()
+        <EditorHeader
+          className="pb-0"
+          title="Ajouter une clé publique"
+          description="Une autre clé du même wallet (compte Bitcoin, adresse Ethereum…)."
+          action={{
+            type: 'submit',
+            form: `${id}-key-form`,
+            label: 'Ajouter la clé',
+            loading: add.isPending,
           }}
-        >
-          <WalletKeyFields
-            id={id}
-            values={values}
-            errors={shown}
-            withLabel
-            provider={provider}
-            onChange={(patch) => {
-              setServerError(undefined)
-              setValues((current) => ({ ...current, ...patch }))
+        />
+        <SheetScroll>
+          <form
+            id={`${id}-key-form`}
+            noValidate
+            className="space-y-4 px-4 pb-6"
+            onSubmit={(event) => {
+              event.preventDefault()
+              setSubmitted(true)
+              if (Object.keys(errors).length === 0) add.mutate()
             }}
-          />
-          <Button type="submit" className="w-full" loading={add.isPending}>
-            Ajouter la clé
-          </Button>
-        </form>
+          >
+            <WalletKeyFields
+              id={id}
+              values={values}
+              errors={shown}
+              withLabel
+              provider={provider}
+              onChange={(patch) => {
+                setServerError(undefined)
+                setValues((current) => ({ ...current, ...patch }))
+              }}
+            />
+          </form>
+        </SheetScroll>
       </SheetContent>
     </Sheet>
   )
@@ -626,34 +632,33 @@ export function WalletKeyTypeSheet({
   return (
     <Sheet open={walletKey !== undefined} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
-        className={
-          isMobile
-            ? 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-            : undefined
-        }
+        side={editorSide(isMobile)}
+        className={isMobile ? FORM_SHEET_SCREEN : undefined}
       >
-        <SheetHeader className="pb-0">
-          <SheetTitle>Type d’adresses</SheetTitle>
-          <SheetDescription>
-            {walletKey && maskPublicKey(walletKey.publicKey)} · Ledger Live
-            affiche « xpub » pour tous ses comptes : le chemin du compte (84’,
-            49’ ou 44’) donne le type.
-          </SheetDescription>
-        </SheetHeader>
-        <form
-          noValidate
-          className="space-y-4 px-4 pb-6"
-          onSubmit={(event) => {
-            event.preventDefault()
-            if (walletKey) save.mutate(walletKey)
+        <EditorHeader
+          className="pb-0"
+          title="Type d’adresses"
+          description={`${walletKey ? `${maskPublicKey(walletKey.publicKey)} · ` : ''}Ledger Live affiche « xpub » pour tous ses comptes : le chemin du compte (84’, 49’ ou 44’) donne le type.`}
+          action={{
+            type: 'submit',
+            form: `${id}-type-form`,
+            label: 'Enregistrer',
+            loading: save.isPending,
           }}
-        >
-          <XpubAddressTypeRadios id={id} value={value} onChange={setValue} />
-          <Button type="submit" className="w-full" loading={save.isPending}>
-            Enregistrer
-          </Button>
-        </form>
+        />
+        <SheetScroll>
+          <form
+            id={`${id}-type-form`}
+            noValidate
+            className="space-y-4 px-4 pb-6"
+            onSubmit={(event) => {
+              event.preventDefault()
+              if (walletKey) save.mutate(walletKey)
+            }}
+          >
+            <XpubAddressTypeRadios id={id} value={value} onChange={setValue} />
+          </form>
+        </SheetScroll>
       </SheetContent>
     </Sheet>
   )

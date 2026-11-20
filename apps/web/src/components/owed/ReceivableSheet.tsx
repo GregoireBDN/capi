@@ -5,17 +5,14 @@ import {
   FieldLabel,
   Input,
   Sheet,
+  SheetBar,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   Skeleton,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   BanknoteIcon,
-  ChevronLeftIcon,
   HandCoinsIcon,
   HandHeartIcon,
   Undo2Icon,
@@ -28,7 +25,8 @@ import { AmountField } from '#/components/amount/AmountField'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
 import { displayLabel } from '#/components/transactions/labels'
 import {
-  FORM_SHEET_BOTTOM,
+  editorSide,
+  FORM_SHEET_SCREEN,
   FORM_SHEET_SIDE,
   FormSheetBody,
 } from '#/components/sheets/form-sheet'
@@ -67,8 +65,8 @@ export function ReceivableSheet({
   return (
     <Sheet open={item !== null} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
-        className={isMobile ? FORM_SHEET_BOTTOM : FORM_SHEET_SIDE}
+        side={editorSide(isMobile)}
+        className={isMobile ? FORM_SHEET_SCREEN : FORM_SHEET_SIDE}
       >
         {item && (
           <ReceivableContent
@@ -165,34 +163,19 @@ function ReceivableContent({
     onError: (error) => toast.error(owedErrorMessage(error)),
   })
 
+  const title =
+    screen === 'link'
+      ? 'Lier un remboursement'
+      : screen === 'other'
+        ? 'Réglé autrement'
+        : item.label
+  const owedText = `${owedToMe ? `${who} vous doit` : `Vous devez à ${who}`} ${formatCents(item.leftCents)}`
   const header = (
-    <SheetHeader>
-      <SheetTitle className="flex items-center gap-1">
-        {screen !== 'main' && (
-          <Button
-            type="button"
-            ghost
-            variant="secondary"
-            iconOnly
-            aria-label="Retour"
-            onClick={() => setScreen('main')}
-          >
-            <ChevronLeftIcon aria-hidden />
-          </Button>
-        )}
-        <span className="min-w-0 truncate">
-          {screen === 'link'
-            ? 'Lier un remboursement'
-            : screen === 'other'
-              ? 'Réglé autrement'
-              : item.label}
-        </span>
-      </SheetTitle>
-      <SheetDescription>
-        {owedToMe ? `${who} vous doit` : `Vous devez à ${who}`}{' '}
-        {formatCents(item.leftCents)}
-      </SheetDescription>
-    </SheetHeader>
+    <SheetBar
+      title={title}
+      description={owedText}
+      onBack={screen !== 'main' ? () => setScreen('main') : undefined}
+    />
   )
 
   if (screen === 'link') {

@@ -2,10 +2,8 @@ import {
   Button,
   cn,
   Sheet,
+  SheetBar,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   useIsMobile,
 } from '@finances/ui'
 import {
@@ -46,6 +44,11 @@ import {
 } from './labels'
 import { othersPartCents } from '#/components/owed/shares'
 import { TransactionEditor } from './TransactionEditor'
+import {
+  editorSide,
+  FORM_SHEET_SCREEN,
+  SheetScroll,
+} from '#/components/sheets/form-sheet'
 
 /**
  * Columns once the page is ≥ 36rem wide (rems of the 22px root, container
@@ -419,20 +422,11 @@ export function TransactionRow({
       {triggerButton}
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
-          side={isMobile ? 'bottom' : 'right'}
-          className={cn(
-            'overflow-y-auto',
-            isMobile &&
-              'max-h-[calc(90svh-var(--keyboard-inset,0px))] rounded-t-xl',
-          )}
+          side={editorSide(isMobile)}
+          className={isMobile ? FORM_SHEET_SCREEN : 'overflow-y-auto'}
         >
-          <SheetHeader className="pb-0">
-            <SheetTitle>Modifier l’opération</SheetTitle>
-            <SheetDescription className="sr-only">
-              Catégorie, note, indicateurs, répartition et correction de {name}
-            </SheetDescription>
-          </SheetHeader>
-          <div className="px-4 pb-6">{editor}</div>
+          <SheetBar title="Modifier l’opération" description={name} />
+          <SheetScroll className="px-4 pb-6">{editor}</SheetScroll>
         </SheetContent>
       </Sheet>
 
