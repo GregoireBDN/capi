@@ -309,23 +309,116 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
     })
   })
 
-  it('caches prices for the TTL and revalues automatically after it', async () => {
+  it('reads stored prices only, the auto refresh asking for the due ones (#381)', async () => {
     await inRollback(async ({ crypto, account, provider }) => {
       const id = await account()
       await crypto.create(id, { ...BTC, quantity: '1' }, NOW)
       expect(provider.fetchEurPrices).toHaveBeenCalledTimes(1)
-      // Within the TTL: no provider call, the stored price.
+      // Within the TTL: the stored price, nothing due.
       const fresh = await crypto.holdings(id, later(5))
-      expect(provider.fetchEurPrices).toHaveBeenCalledTimes(1)
       expect(fresh.snapshot?.valueCents).toBe(6_000_050)
-      // After the TTL: refreshed and valued again.
+      expect(fresh.refreshDue).toBe(false)
+      expect(fresh.holdings[0].priceStale).toBe(false)
       PRICES.bitcoin = '61000'
       try {
-        const next = await crypto.holdings(id, later(11))
+        // After the TTL, a read still asks nothing: stale, refresh due.
+        const stale = await crypto.holdings(id, later(11))
+        expect(provider.fetchEurPrices).toHaveBeenCalledTimes(1)
+        expect(stale.snapshot?.valueCents).toBe(6_000_050)
+        expect(stale.holdings[0].priceStale).toBe(true)
+        expect(stale.refreshDue).toBe(true)
+        // The live step the page fires: refreshed, nothing due any more.
+        const live = await crypto.refresh(id, later(11), 'auto')
         expect(provider.fetchEurPrices).toHaveBeenCalledTimes(2)
-        expect(next.snapshot?.valueCents).toBe(6_100_000)
+        expect(live.snapshot?.valueCents).toBe(6_100_000)
+        expect(live.refreshDue).toBe(false)
+        // A second auto refresh within the TTL asks nothing.
+        await crypto.refresh(id, later(12), 'auto')
+        await crypto.refreshPortfolio(later(12), 'auto')
+        expect(provider.fetchEurPrices).toHaveBeenCalledTimes(2)
       } finally {
         PRICES.bitcoin = '60000.5'
+      }
+    })
+  })
+
+  it('answers the portfolio and holdings without any outgoing request (#381)', async () => {
+    await inRollback(async ({ tx, crypto, account }) => {
+      const manual = await account('crypto', 'Manuel')
+      await crypto.create(manual, { ...BTC, quantity: '0.5' }, NOW)
+      await crypto.create(manual, { ...ETH, quantity: '2' }, NOW)
+      const [wallet] = await tx
+        .insert(schema.accountsTable)
+        .values({ name: 'Ledger', type: 'crypto', cryptoSource: 'wallet' })
+        .returning()
+      await tx.insert(schema.cryptoHoldingsTable).values({
+        accountId: wallet.id,
+        ...ETH,
+        quantity: '1',
+        location: 'Ethereum',
+        origin: 'sync',
+      })
+
+      // A price provider and chain clients that fail if called at all.
+      const offline = () =>
+        vi.fn(() => {
+          throw new Error('no network on a read')
+        })
+      const priceProvider = {
+        fetchEurPrices: offline(),
+        fetchEurQuotes: offline(),
+        fetchEurHistory: offline(),
+        searchAssets: offline(),
+      }
+      const chain = new Proxy({} as Record<string, ReturnType<typeof vi.fn>>, {
+        get: (target, key: string) => (target[key] ??= offline()),
+      })
+      const fetchSpy = offline()
+      vi.stubGlobal('fetch', fetchSpy)
+      try {
+        const database = { db: tx } as never
+        const accounts = new AccountsService(database)
+        const prices = new CryptoPricesService(database, {
+          provider: priceProvider as unknown as PriceProvider,
+          ttlMs: TTL,
+        })
+        const walletSync = new WalletSyncService(database, {
+          bitcoin: chain as never,
+          evm: chain as never,
+          tokens: chain as never,
+          intervalMs: TTL,
+        })
+        const reader = new CryptoService(database, accounts, prices, walletSync)
+
+        const portfolio = await reader.portfolio(later(30))
+        const holdings = await reader.holdings(wallet.id, later(30))
+        const summary = await reader.summary(later(30))
+
+        for (const fn of Object.values(priceProvider)) {
+          expect(fn).not.toHaveBeenCalled()
+        }
+        for (const fn of Object.values(chain)) {
+          expect(fn).not.toHaveBeenCalled()
+        }
+        expect(fetchSpy).not.toHaveBeenCalled()
+
+        // The stored values, with the stale prices said.
+        const btc = portfolio.assets.find((a) => a.assetId === 'bitcoin')
+        const eth = portfolio.assets.find((a) => a.assetId === 'ethereum')
+        expect(btc).toMatchObject({ valueCents: 3_000_025, priceStale: true })
+        expect(eth).toMatchObject({ quantity: '3', priceStale: true })
+        expect(portfolio.refreshFailed).toBe(false)
+        expect(portfolio.refreshDue).toBe(true)
+        expect(holdings.holdings[0]).toMatchObject({
+          priceEur: '2500.123456789012',
+          priceStale: true,
+        })
+        expect(holdings.sync).toMatchObject({ syncing: false, syncedAt: null })
+        // Prices over the TTL and a wallet never read: the live step is due.
+        expect(holdings.refreshDue).toBe(true)
+        expect(summary.totals.staleCount).toBeGreaterThan(0)
+      } finally {
+        vi.unstubAllGlobals()
       }
     })
   })
@@ -402,7 +495,10 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
         NOW,
       )
       provider.fetchEurPrices.mockClear()
-      const summary = await crypto.summary(later(20))
+      // A read asks nothing (#381); « Actualiser » one batched request.
+      await crypto.summary(later(20))
+      expect(provider.fetchEurPrices).not.toHaveBeenCalled()
+      const summary = await crypto.refreshAll(later(20))
       // One batched request for both assets.
       expect(provider.fetchEurPrices).toHaveBeenCalledTimes(1)
       expect(provider.fetchEurPrices.mock.calls[0][0]).toEqual([

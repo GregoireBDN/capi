@@ -382,6 +382,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           failedAt: null,
           failedChains: [],
           retryAt: null,
+          syncing: false,
         })
         // 0.00085 × 60 000 + 1.5 × 2 500 + 1 234.56789 × 0.9 + 2 × 150 €
         expect(result.snapshot).toMatchObject({
@@ -496,6 +497,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             { chain: 'bsc', reason: 'timeout', retryAt: null },
           ],
           retryAt: null,
+          syncing: false,
         })
 
         mocks.evm.balances.mockRejectedValue(new TypeError('boom'))
@@ -561,6 +563,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           failedAt: later(1).toISOString(),
           failedChains: [{ chain: 'bsc', reason: 'timeout', retryAt: null }],
           retryAt: null,
+          syncing: false,
         })
       })
     })
@@ -593,7 +596,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         const before = bitcoinCalls()
         const evmBefore = evmCalls()
         await crypto.sync(id, later(2))
-        await crypto.summary(later(13))
+        await crypto.refreshPortfolio(later(13), 'auto')
         expect(bitcoinCalls()).toBe(before)
         expect(evmCalls()).toBe(evmBefore + 4)
         const waiting = await crypto.holdings(id, later(13))
@@ -725,7 +728,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     it('spares Bitcoin on page loads while its last complete scan is recent', async () => {
       await inRollback(async ({ crypto, tokens, mocks, wallet }) => {
         const id = await wallet()
-        await crypto.holdings(id, NOW)
+        await crypto.refresh(id, NOW, 'auto')
         const bitcoinCalls = () => mocks.bitcoin.addressStates.mock.calls.length
         const evmCalls = () => mocks.evm.balances.mock.calls.length
         const before = bitcoinCalls()
@@ -751,7 +754,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
         // Page loads scan it again once the interval has passed.
         const afterSync = bitcoinCalls()
-        await crypto.summary(later(13))
+        await crypto.refreshPortfolio(later(13), 'auto')
         expect(bitcoinCalls()).toBeGreaterThan(afterSync)
       })
     })
@@ -955,10 +958,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await inRollback(
         async ({ crypto, wallet, tx }) => {
           const id = await wallet()
-          const loaded = await crypto.holdings(id, NOW)
-          // The page did not wait: nothing synced yet, nothing valued.
+          const loaded = await crypto.refresh(id, NOW, 'auto')
+          // The page did not wait: nothing synced yet, nothing valued, the
+          // sync still running (#381: the page polls while it is).
           expect(loaded.holdings).toEqual([])
           expect(loaded.snapshot).toBeNull()
+          expect(loaded.sync?.syncing).toBe(true)
+          expect(loaded.refreshDue).toBe(false)
 
           release()
           await vi.waitFor(async () => {
@@ -1015,16 +1021,16 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await inRollback(async ({ crypto, mocks, wallet }) => {
         const id = await wallet()
         const calls = () => mocks.evm.balances.mock.calls.length
-        await crypto.holdings(id, NOW)
+        await crypto.refresh(id, NOW, 'auto')
         expect(calls()).toBe(2)
-        await crypto.holdings(id, later(5))
-        await crypto.summary(later(5))
+        await crypto.refresh(id, later(5), 'auto')
+        await crypto.refreshPortfolio(later(5), 'auto')
         expect(calls()).toBe(2)
         await crypto.sync(id, new Date(later(5).getTime() + 10_000))
         expect(calls()).toBe(4)
         await crypto.sync(id, new Date(later(5).getTime() + 20_000))
         expect(calls()).toBe(4)
-        await crypto.summary(later(16))
+        await crypto.refreshPortfolio(later(16), 'auto')
         expect(calls()).toBe(6)
       })
     })
@@ -1043,7 +1049,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
             failedAt: null,
             failedChains: [],
             retryAt: null,
+            syncing: false,
           })
+          expect(holdings.refreshDue).toBe(false)
           await tokens.add(id, {
             assetId: 'usd-coin',
             symbol: 'USDC',
