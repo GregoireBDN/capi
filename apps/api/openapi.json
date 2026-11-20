@@ -3939,7 +3939,7 @@
     },
     "/api/transactions/{id}/splits": {
       "put": {
-        "description": "Replaces the parts (2 to 20). Each has the sign of the transaction and they sum exactly to its amount; the transaction takes the category of the largest part. Statistics and budgets count each part in its category. Choosing a category for the whole transaction (`PATCH`) ends the split.",
+        "description": "Replaces the parts (2 to 20). Each has the sign of the transaction and they sum exactly to its amount; the transaction takes the category of the largest part. Statistics and budgets count each part in its category, with its category’s kind: an incoming part in an expense category is a refund of that category, one in an income category is income (a transfer’s parts stay transfers). Choosing a category for the whole transaction (`PATCH`) ends the split.",
         "operationId": "TransactionsController_split",
         "parameters": [
           {
@@ -3974,7 +3974,7 @@
             }
           },
           "400": {
-            "description": "Parts that do not sum to the amount, of the wrong sign, an unknown category, or invalid body."
+            "description": "Parts that do not sum to the amount, of the wrong sign, an unknown category, a transfer category mixed with income or expense ones, or invalid body."
           },
           "401": {
             "description": ""
@@ -10803,13 +10803,22 @@
           "amountCents": {
             "type": "integer",
             "description": "Signed integer cents, same sign as the transaction."
+          },
+          "kind": {
+            "description": "Kind the part counts with (#357): its category’s, so an incoming part in an expense category is a refund of that category and one in an income category is income. A transfer’s parts, and a part in a transfer category, keep the transaction’s kind.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionKind"
+              }
+            ]
           }
         },
         "required": [
           "id",
           "categoryId",
           "category",
-          "amountCents"
+          "amountCents",
+          "kind"
         ]
       },
       "TransactionDto": {
@@ -11302,7 +11311,7 @@
           "parts": {
             "minItems": 2,
             "maxItems": 20,
-            "description": "Replaces the parts. They must sum exactly to the transaction amount.",
+            "description": "Replaces the parts. They must sum exactly to the transaction amount. Each counts with its category’s kind (an incoming part in an expense category is a refund of it); a transfer category cannot be mixed with income or expense categories.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SplitPartDto"

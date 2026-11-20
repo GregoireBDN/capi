@@ -109,7 +109,11 @@ describe.skipIf(!process.env.DATABASE_URL)(
             .insert(categoriesTable)
             .values([
               { slug: 'edits_refunds', name: 'Remboursés', kind: 'income' },
-              { slug: 'edits_own_moves', name: 'Entre comptes', kind: 'transfer' },
+              {
+                slug: 'edits_own_moves',
+                name: 'Entre comptes',
+                kind: 'transfer',
+              },
             ])
             .returning()
           await tx.insert(categorizationRulesTable).values([
@@ -546,8 +550,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             expect(spent(after)).toBe(0)
             expect(received(before)).toBe(6_000)
             expect(received(after)).toBe(4_000)
-            const envelope = (await budgets.envelopes('2026-10', tx, NOW))
-              .items
+            const envelope = (await budgets.envelopes('2026-10', tx, NOW)).items
             expect(
               envelope.find((item) => item.categoryId === outings),
             ).toMatchObject({ spentCents: 0, remainingCents: 5_000 })
@@ -615,13 +618,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
       it('keeps the parts of a transfer transfers', async () => {
         await withFixture(
-          async ({
-            importRows,
-            byLabel,
-            transactions,
-            outings,
-            refunds,
-          }) => {
+          async ({ importRows, byLabel, transactions, outings, refunds }) => {
             await importRows(WITH_PAYBACK)
             const payback = await byLabel(PAYBACK)
             await transactions.update(payback.id, { kind: 'transfer' })

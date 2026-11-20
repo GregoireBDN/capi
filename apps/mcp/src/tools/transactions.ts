@@ -13,6 +13,7 @@ import {
   resolveAccount,
   resolveCategory,
 } from './lookup.js'
+import { partLabel } from './split-writes.js'
 import { defineTool, ToolInputError } from './tool.js'
 
 /** One transaction per line, with its id (what the write tools take). */
@@ -34,7 +35,22 @@ export function transactionLine(t: TransactionDto): string {
   const link = t.counterpartAccountName
     ? ` ${t.amountCents < 0 ? '→' : '←'} ${t.counterpartAccountName}`
     : ''
-  return `- ${frenchDate(t.bookingDate)} · ${signedEuros(t.amountCents)} · ${label} · ${category} · ${t.accountName}${link}${suffix}${note} · id ${t.id}`
+  // A split shows its parts with the kind each counts with (#357).
+  const parts =
+    t.splits.length > 0
+      ? ` (répartie : ${t.splits
+          .map(
+            (part) =>
+              `${euros(Math.abs(part.amountCents))} ${partLabel({
+                categoryId: part.categoryId,
+                name: part.category.name,
+                kind: part.kind,
+                amountCents: part.amountCents,
+              })}`,
+          )
+          .join(' + ')})`
+      : ''
+  return `- ${frenchDate(t.bookingDate)} · ${signedEuros(t.amountCents)} · ${label} · ${category}${parts} · ${t.accountName}${link}${suffix}${note} · id ${t.id}`
 }
 
 export const searchTransactionsTool = defineTool({

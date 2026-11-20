@@ -65,7 +65,8 @@ type TransactionChanges = Omit<
 /** Column values of an `UPDATE transactions SET ...`. */
 type TransactionSet = Partial<{
   [K in keyof typeof transactionsTable.$inferInsert]:
-    (typeof transactionsTable.$inferInsert)[K] | SQL
+    | (typeof transactionsTable.$inferInsert)[K]
+    | SQL
 }>
 
 /** The account a transfer is linked to (#296). */

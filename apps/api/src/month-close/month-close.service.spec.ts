@@ -487,11 +487,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
     it('keeps a frozen report when a split later turns income into a refund (#357)', async () => {
       await inRollback(async ({ tx, accounts, budgets, service }) => {
-        const { groceries } = await completeOctober(
-          tx,
-          accounts,
-          budgets,
-        )
+        const { groceries } = await completeOctober(tx, accounts, budgets)
         const [salary] = await tx
           .insert(categoriesTable)
           .values({ slug: 'test_salary', name: 'Test salaire', kind: 'income' })
