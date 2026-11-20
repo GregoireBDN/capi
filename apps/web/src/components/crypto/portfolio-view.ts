@@ -39,6 +39,13 @@ export const EXPORT_STALE_DAYS = 31
 export interface AccountFreshness {
   /** Second line of the row: the kind and how fresh it is. */
   text: string
+  /**
+   * The same on a narrow row, where the badge says the kind: how fresh it
+   * is only (« il y a 3 h », « le 10 nov. »), one short line on a phone.
+   */
+  short: string
+  /** What happened on that day, drawn as a small icon before `short`. */
+  event: 'export' | 'read' | 'edit'
   /** Under the value, in the warning tone: what to do (null when fine). */
   warning: string | null
 }
@@ -55,11 +62,18 @@ export function accountFreshness(
   const at = account.updatedAt
   if (account.source === 'exchange') {
     if (at === null) {
-      return { text: 'Plateforme · aucun export', warning: 'à importer' }
+      return {
+        text: 'Plateforme · aucun export',
+        short: 'aucun export',
+        event: 'export',
+        warning: 'à importer',
+      }
     }
     const old = now.getTime() - Date.parse(at) > EXPORT_STALE_DAYS * 86_400_000
     return {
       text: `Plateforme · export importé ${ageText(at, now)}`,
+      short: ageText(at, now),
+      event: 'export',
       warning: old ? 'à mettre à jour' : null,
     }
   }
@@ -70,15 +84,31 @@ export function accountFreshness(
         text: at
           ? `Wallet · lu ${ageText(at, now)}, synchro désactivée`
           : 'Wallet · synchro désactivée',
+        short: 'sans synchro',
+        event: 'read',
         warning: null,
       }
     }
     // A sync running in the background (#381): said in place.
     if (sync?.syncing)
-      return { text: 'Wallet · lecture en cours…', warning: null }
-    if (at === null) return { text: 'Wallet · jamais lu', warning: 'à lire' }
+      return {
+        text: 'Wallet · lecture en cours…',
+        short: 'lecture…',
+        event: 'read',
+        warning: null,
+      }
+    if (at === null) {
+      return {
+        text: 'Wallet · jamais lu',
+        short: 'jamais lu',
+        event: 'read',
+        warning: 'à lire',
+      }
+    }
     return {
       text: `Wallet · lu ${ageText(at, now)}`,
+      short: ageText(at, now),
+      event: 'read',
       warning: sync?.failedAt ? 'lecture en échec' : null,
     }
   }
@@ -86,6 +116,8 @@ export function accountFreshness(
     text: at
       ? `Saisie manuelle · modifiée ${ageText(at, now)}`
       : 'Saisie manuelle · vide',
+    short: at ? ageText(at, now) : 'vide',
+    event: 'edit',
     warning: null,
   }
 }
