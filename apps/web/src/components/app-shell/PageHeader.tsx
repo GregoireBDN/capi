@@ -11,7 +11,11 @@ import {
 import { EllipsisVerticalIcon } from 'lucide-react'
 import { PageBack } from './PageBack'
 import type { PageBackLink } from './PageBack'
-import { useInShell, usePageActionsSlot } from './page-actions'
+import {
+  useInShell,
+  usePageActionsSlot,
+  useRegisteredPageActions,
+} from './page-actions'
 import type { PageAction } from './page-actions'
 
 interface PageHeaderProps {
@@ -49,6 +53,12 @@ export function PageHeader({
 }: PageHeaderProps) {
   const inShell = useInShell()
   const slot = usePageActionsSlot()
+  // The page's own actions, then the « add » of its sections.
+  const registered = useRegisteredPageActions()
+  const menu = [...actions, ...registered].filter(
+    (action, index, all) =>
+      all.findIndex((other) => other.label === action.label) === index,
+  )
 
   return (
     <header>
@@ -67,29 +77,29 @@ export function PageHeader({
             </p>
           )}
         </div>
-        {actions.length > 0 &&
-          (inShell ? (
-            // They need JavaScript anyway: the menu appears once the header
+        {inShell
+          ? // They need JavaScript anyway: the menu appears once the header
             // has mounted.
             slot !== null &&
-            createPortal(<PageActionsMenu actions={actions} />, slot)
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {actions.map((action) => (
-                <Button
-                  key={action.label}
-                  variant={action.primary ? 'primary' : 'secondary'}
-                  outline={!action.primary}
-                  iconStart={action.icon}
-                  loading={action.loading}
-                  disabled={action.disabled}
-                  onClick={action.onSelect}
-                >
-                  {action.label}
-                </Button>
-              ))}
-            </div>
-          ))}
+            menu.length > 0 &&
+            createPortal(<PageActionsMenu actions={menu} />, slot)
+          : actions.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {actions.map((action) => (
+                  <Button
+                    key={action.label}
+                    variant={action.primary ? 'primary' : 'secondary'}
+                    outline={!action.primary}
+                    iconStart={action.icon}
+                    loading={action.loading}
+                    disabled={action.disabled}
+                    onClick={action.onSelect}
+                  >
+                    {action.label}
+                  </Button>
+                ))}
+              </div>
+            )}
       </div>
     </header>
   )

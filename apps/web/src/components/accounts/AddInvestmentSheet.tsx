@@ -1,3 +1,4 @@
+import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   Button,
   cn,
@@ -391,6 +392,7 @@ export function AddInvestmentButton({
   outline,
   icon = <PlusIcon />,
   className,
+  inPageMenu = false,
 }: {
   label?: string
   size?: 'sm'
@@ -398,20 +400,31 @@ export function AddInvestmentButton({
   /** Defaults to « + ». */
   icon?: ReactNode
   className?: string
+  /**
+   * In the page's « ⋮ » menu rather than a button (#386), inside the shell.
+   */
+  inPageMenu?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const inMenu = useRegisterPageAction(
+    inPageMenu
+      ? { label, icon, primary: !outline, onSelect: () => setOpen(true) }
+      : null,
+  )
   return (
     <>
-      <Button
-        iconStart={icon}
-        className={className}
-        size={size}
-        outline={outline}
-        variant={outline ? 'secondary' : undefined}
-        onClick={() => setOpen(true)}
-      >
-        {label}
-      </Button>
+      {!(inPageMenu && inMenu) && (
+        <Button
+          iconStart={icon}
+          className={className}
+          size={size}
+          outline={outline}
+          variant={outline ? 'secondary' : undefined}
+          onClick={() => setOpen(true)}
+        >
+          {label}
+        </Button>
+      )}
       <AddInvestmentSheet open={open} onOpenChange={setOpen} />
     </>
   )

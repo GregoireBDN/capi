@@ -1,3 +1,4 @@
+import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   Badge,
   Button,
@@ -230,6 +231,18 @@ export function PasskeysCard({ email }: { email: string }) {
   })
 
   const list = passkeys.data ?? []
+  // In the page's « ⋮ » inside the shell (#386); a tap on it is the user
+  // gesture Safari needs to create a passkey.
+  const inMenu = useRegisterPageAction(
+    supported
+      ? {
+          label: 'Ajouter une passkey',
+          icon: <PlusIcon />,
+          loading: adding,
+          onSelect: () => void add(),
+        }
+      : null,
+  )
 
   return (
     <Card>
@@ -265,17 +278,19 @@ export function PasskeysCard({ email }: { email: string }) {
         )}
 
         {supported ? (
-          <Button
-            type="button"
-            variant="secondary"
-            outline
-            className="w-full"
-            loading={adding}
-            onClick={() => void add()}
-          >
-            <PlusIcon />
-            Ajouter une passkey
-          </Button>
+          !inMenu && (
+            <Button
+              type="button"
+              variant="secondary"
+              outline
+              className="w-full"
+              loading={adding}
+              onClick={() => void add()}
+            >
+              <PlusIcon />
+              Ajouter une passkey
+            </Button>
+          )
         ) : (
           <p className="text-muted-foreground text-sm">
             Ce navigateur ne permet pas d’ajouter une passkey.

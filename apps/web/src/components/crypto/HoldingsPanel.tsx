@@ -1,3 +1,4 @@
+import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   Alert,
   AlertDescription,
@@ -354,6 +355,13 @@ export function HoldingsPanel({
   const now = new Date()
   // A wallet's holdings come from the chain: nothing is typed there (#269).
   const wallet = source === 'wallet'
+  const openAdd = () => setEditor({ open: true })
+  // In the page's « ⋮ » inside the shell (#386).
+  const inMenu = useRegisterPageAction(
+    writable && !wallet
+      ? { label: 'Ajouter un avoir', icon: <PlusIcon />, onSelect: openAdd }
+      : null,
+  )
 
   // Fresh prices or lines: the summary and the curve's live point follow.
   useEffect(() => {
@@ -411,7 +419,6 @@ export function HoldingsPanel({
   const priceAge = oldestPriceAge(data.holdings, now)
   const refreshing = live || refresh.isPending
   const settling = pricesSettling(data, refreshing)
-  const openAdd = () => setEditor({ open: true })
 
   return (
     <section aria-label="Avoirs crypto" className="space-y-3">
@@ -457,9 +464,11 @@ export function HoldingsPanel({
                   Actualiser les cours
                 </Button>
               )}
-              <Button size="sm" iconStart={<PlusIcon />} onClick={openAdd}>
-                Ajouter un avoir
-              </Button>
+              {!inMenu && (
+                <Button size="sm" iconStart={<PlusIcon />} onClick={openAdd}>
+                  Ajouter un avoir
+                </Button>
+              )}
             </div>
           )}
         </CardHeader>

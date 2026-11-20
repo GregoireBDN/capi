@@ -16,9 +16,10 @@ import {
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ChartPieIcon, UploadIcon } from 'lucide-react'
+import { ChartPieIcon, PlusIcon, UploadIcon } from 'lucide-react'
 import { NearestMonthButton } from '#/components/month/NearestMonthButton'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { currentMonth, formatMonth } from '#/lib/calendar'
 import { formatShortDay } from '#/lib/period'
@@ -148,6 +149,8 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
     return chips
   }, [totals.data, trend.data, search.trend])
 
+  const [adding, setAdding] = useState(false)
+
   const set = (patch: Partial<SpendingSearch>) => {
     onSearchChange(compactSearch({ ...search, ...patch }))
   }
@@ -165,6 +168,20 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
       <PageHeader
         title="Dépenses"
         description="Où part votre argent, catégorie par catégorie."
+        // The page's « ⋮ » (#386): add an expense here, where they are read.
+        actions={[
+          {
+            label: 'Ajouter une dépense',
+            icon: <PlusIcon />,
+            primary: true,
+            onSelect: () => setAdding(true),
+          },
+        ]}
+      />
+      <ManualTransactionSheet
+        open={adding}
+        onOpenChange={setAdding}
+        initialKind="expense"
       />
 
       <SpendingFilters

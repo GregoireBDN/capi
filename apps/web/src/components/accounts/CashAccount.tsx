@@ -1,3 +1,4 @@
+import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   AreaChart,
   Button,
@@ -795,6 +796,16 @@ function StatementBalances({
   onPaste: () => void
   onEdit: (snapshot: SnapshotDto) => void
 }) {
+  // In the page's « ⋮ » inside the shell (#386).
+  const inMenu = useRegisterPageAction(
+    writable
+      ? {
+          label: 'Ajouter un solde de relevé',
+          icon: <PlusIcon />,
+          onSelect: onAdd,
+        }
+      : null,
+  )
   if (!writable && snapshots.length === 0) return null
   return (
     <Card size="sm" className="min-w-0">
@@ -823,14 +834,16 @@ function StatementBalances({
           </p>
           {writable && (
             <div className="grid gap-2 @md:grid-cols-2">
-              <Button
-                outline
-                variant="secondary"
-                iconStart={<PlusIcon />}
-                onClick={onAdd}
-              >
-                Ajouter un solde de relevé
-              </Button>
+              {!inMenu && (
+                <Button
+                  outline
+                  variant="secondary"
+                  iconStart={<PlusIcon />}
+                  onClick={onAdd}
+                >
+                  Ajouter un solde de relevé
+                </Button>
+              )}
               <Button
                 outline
                 variant="secondary"

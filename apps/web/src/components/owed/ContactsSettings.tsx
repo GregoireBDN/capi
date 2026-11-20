@@ -1,3 +1,4 @@
+import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   Button,
   Card,
@@ -19,7 +20,7 @@ import {
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { UsersIcon } from 'lucide-react'
+import { PlusIcon, UsersIcon } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import type { ContactDto } from '#/api/types.gen'
@@ -50,6 +51,13 @@ import {
 export function ContactsSettings() {
   const contacts = useQuery(contactsQuery(true))
   const [editing, setEditing] = useState<ContactDto | 'new' | null>(null)
+  // In the page's « ⋮ » inside the shell (#386).
+  const inMenu = useRegisterPageAction({
+    label: 'Ajouter un contact',
+    icon: <PlusIcon />,
+    primary: true,
+    onSelect: () => setEditing('new'),
+  })
 
   if (contacts.isPending) return <Skeleton className="h-40 w-full rounded-xl" />
   const list = contacts.data ?? []
@@ -91,14 +99,16 @@ export function ContactsSettings() {
           </CardContent>
         </Card>
       )}
-      <Button
-        type="button"
-        variant="secondary"
-        className="w-full"
-        onClick={() => setEditing('new')}
-      >
-        Ajouter un contact
-      </Button>
+      {!inMenu && (
+        <Button
+          type="button"
+          variant="secondary"
+          className="w-full"
+          onClick={() => setEditing('new')}
+        >
+          Ajouter un contact
+        </Button>
+      )}
       <ContactEditor editing={editing} onClose={() => setEditing(null)} />
     </div>
   )

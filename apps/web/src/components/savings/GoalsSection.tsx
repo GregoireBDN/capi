@@ -1,3 +1,4 @@
+import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   Button,
   Card,
@@ -152,6 +153,12 @@ export function GoalsSection({
   }
 
   const list = goals.data ?? []
+  // In the page's « ⋮ » inside the shell (#386).
+  const inMenu = useRegisterPageAction({
+    label: 'Ajouter un objectif',
+    icon: <PlusIcon />,
+    onSelect: () => open(),
+  })
 
   return (
     <Card className="min-w-0">
@@ -162,12 +169,14 @@ export function GoalsSection({
             ? 'Pas encore de mois complet pour projeter vos objectifs.'
             : `Au rythme de ${formatWholeEuros(projectionAverageCents)} par mois`}
         </CardDescription>
-        <CardAction>
-          <Button size="sm" onClick={() => open()}>
-            <PlusIcon aria-hidden />
-            Ajouter
-          </Button>
-        </CardAction>
+        {!inMenu && (
+          <CardAction>
+            <Button size="sm" onClick={() => open()}>
+              <PlusIcon aria-hidden />
+              Ajouter
+            </Button>
+          </CardAction>
+        )}
       </CardHeader>
       <CardContent className="space-y-3">
         {goals.isPending ? (

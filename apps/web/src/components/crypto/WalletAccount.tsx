@@ -1,3 +1,4 @@
+import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   AreaChart,
   Badge,
@@ -912,6 +913,16 @@ function WalletSettings({
   const [adding, setAdding] = useState(false)
   const isMobile = useIsMobile()
   const list = keys.data ?? []
+  // In the page's « ⋮ » inside the shell (#386).
+  const inMenu = useRegisterPageAction(
+    writable
+      ? {
+          label: 'Ajouter une clé',
+          icon: <PlusIcon />,
+          onSelect: () => setAdding(true),
+        }
+      : null,
+  )
   const evmChains = [
     ...new Set(
       list.filter((key) => key.family === 'evm').flatMap((key) => key.chains),
@@ -974,7 +985,7 @@ function WalletSettings({
             </ItemListGroup>
           </ItemList>
         )}
-        {writable && (
+        {writable && !inMenu && (
           <Button
             className="w-full"
             outline

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PageHeader } from './PageHeader'
 import {
   PageActionsSlotProvider,
+  useRegisterPageAction,
   useSetPageActionsSlot,
   useSetPageBackSlot,
 } from './page-actions'
@@ -170,5 +171,75 @@ describe('PageHeader', () => {
         screen.getByRole('heading', { name: 'Compte courant' }),
       ) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
+  })
+
+  it('adds the « add » of the page’s sections to its menu (#386)', async () => {
+    const user = userEvent.setup()
+    const onAddGoal = vi.fn()
+    function Goals({ show }: { show: boolean }) {
+      const inMenu = useRegisterPageAction(
+        show
+          ? {
+              label: 'Ajouter un objectif',
+              icon: <PlusIcon />,
+              onSelect: onAddGoal,
+            }
+          : null,
+      )
+      return inMenu ? null : <button type="button">Ajouter un objectif</button>
+    }
+    const view = renderInShell(
+      <>
+        <PageHeader title="Épargne" actions={actions().slice(1)} />
+        <Goals show />
+      </>,
+    )
+
+    await user.click(
+      await within(topBar()).findByRole('button', {
+        name: 'Actions de la page',
+      }),
+    )
+    const items = await screen.findAllByRole('menuitem')
+    expect(items.map((item) => item.textContent)).toEqual([
+      'Modifier',
+      'Ajouter un objectif',
+    ])
+    await user.click(
+      screen.getByRole('menuitem', { name: 'Ajouter un objectif' }),
+    )
+    expect(onAddGoal).toHaveBeenCalledOnce()
+    // No button of its own in the section.
+    expect(
+      within(page()).queryByRole('button', { name: 'Ajouter un objectif' }),
+    ).not.toBeInTheDocument()
+
+    // Hidden section: out of the menu.
+    view.rerender(
+      <PageActionsSlotProvider>
+        <TopBarSlot />
+        <main>
+          <PageHeader title="Épargne" />
+          <Goals show={false} />
+        </main>
+      </PageActionsSlotProvider>,
+    )
+    await vi.waitFor(() => expect(topBar()).toBeEmptyDOMElement())
+  })
+
+  it('keeps a section’s own button outside the shell', () => {
+    function Goals() {
+      const inMenu = useRegisterPageAction({
+        label: 'Ajouter un objectif',
+        icon: <PlusIcon />,
+        onSelect: vi.fn(),
+      })
+      return inMenu ? null : <button type="button">Ajouter un objectif</button>
+    }
+    render(<Goals />)
+
+    expect(
+      screen.getByRole('button', { name: 'Ajouter un objectif' }),
+    ).toBeInTheDocument()
   })
 })

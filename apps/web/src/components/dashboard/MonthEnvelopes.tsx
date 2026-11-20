@@ -1,3 +1,4 @@
+import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   Button,
   Card,
@@ -40,6 +41,18 @@ export function MonthEnvelopes({ month }: { month: string }) {
   // actions of the wrong month.
   const data = envelopes.data
   const live = current && data?.current === true
+  // « Ajouter une dépense » is in the page's « ⋮ » for the current month
+  // (#386); the envelopes keep their own « + ».
+  const inMenu = useRegisterPageAction(
+    current
+      ? {
+          label: 'Ajouter une dépense',
+          icon: <PlusIcon />,
+          primary: true,
+          onSelect: () => setSheet({ open: true }),
+        }
+      : null,
+  )
 
   return (
     <section aria-labelledby="month-envelopes-title" className="min-w-0">
@@ -87,7 +100,7 @@ export function MonthEnvelopes({ month }: { month: string }) {
               <Skeleton className="h-12 w-full" />
             </div>
           )}
-          {current && (
+          {current && !inMenu && (
             <Button className="w-full" onClick={() => setSheet({ open: true })}>
               <PlusIcon aria-hidden />
               Ajouter une dépense

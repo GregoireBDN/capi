@@ -72,9 +72,8 @@ const openPageActions: Step = async (page) => {
 }
 
 async function openExpenseSheet(page: Page) {
-  await page
-    .getByRole('button', { name: 'Ajouter une dépense', exact: true })
-    .click()
+  // An item of the page's « ⋮ » since #386.
+  await pageAction(/^Ajouter une dépense$/)(page)
   await page.getByRole('dialog').waitFor()
 }
 
@@ -151,7 +150,7 @@ const SCENARIOS: Array<Scenario> = [
     name: 'budget-editor',
     path: '/budget',
     step: async (page) => {
-      await clickFirst(/^Ajouter$/)(page)
+      await pageAction(/^Ajouter un budget$/)(page)
       await page.getByRole('dialog').waitFor()
     },
   },
@@ -171,7 +170,7 @@ const SCENARIOS: Array<Scenario> = [
     name: 'crypto-holding-editor',
     path: '/crypto',
     step: async (page) => {
-      await pageAction(/^Ajouter un (avoir|wallet)$/)(page)
+      await pageAction(/^Ajouter des cryptos$/)(page)
       await page.getByRole('dialog').waitFor()
     },
   },

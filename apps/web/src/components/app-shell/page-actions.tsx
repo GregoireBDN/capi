@@ -1,4 +1,12 @@
-import { createContext, useContext, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react'
 import type { ReactNode } from 'react'
 
 /**
@@ -19,11 +27,29 @@ export interface PageAction {
 
 type Slot = HTMLElement | null
 
+/**
+ * An action a section of the page put in the page's menu
+ * (`useRegisterPageAction`): its latest icon and handler are read when the
+ * menu shows them.
+ */
+interface RegisteredAction {
+  id: string
+  label: string
+  primary?: boolean
+  disabled?: boolean
+  loading?: boolean
+  icon: () => ReactNode
+  onSelect: () => void
+}
+
 const PageActionsSlotContext = createContext<{
   slot: Slot
   setSlot: (slot: Slot) => void
   backSlot: Slot
   setBackSlot: (slot: Slot) => void
+  registered: readonly RegisteredAction[]
+  register: (action: RegisteredAction) => void
+  unregister: (id: string) => void
 } | null>(null)
 
 /**
@@ -34,9 +60,29 @@ const PageActionsSlotContext = createContext<{
 export function PageActionsSlotProvider({ children }: { children: ReactNode }) {
   const [slot, setSlot] = useState<Slot>(null)
   const [backSlot, setBackSlot] = useState<Slot>(null)
+  const [registered, setRegistered] = useState<readonly RegisteredAction[]>([])
+  // In place when it is already there, so the menu keeps its order.
+  const register = useCallback((action: RegisteredAction) => {
+    setRegistered((list) =>
+      list.some((item) => item.id === action.id)
+        ? list.map((item) => (item.id === action.id ? action : item))
+        : [...list, action],
+    )
+  }, [])
+  const unregister = useCallback((id: string) => {
+    setRegistered((list) => list.filter((item) => item.id !== id))
+  }, [])
   return (
     <PageActionsSlotContext.Provider
-      value={{ slot, setSlot, backSlot, setBackSlot }}
+      value={{
+        slot,
+        setSlot,
+        backSlot,
+        setBackSlot,
+        registered,
+        register,
+        unregister,
+      }}
     >
       {children}
     </PageActionsSlotContext.Provider>
@@ -66,4 +112,53 @@ export function usePageBackSlot(): Slot {
 /** Ref callback for the element that hosts a page's back button. */
 export function useSetPageBackSlot(): ((slot: Slot) => void) | undefined {
   return useContext(PageActionsSlotContext)?.setBackSlot
+}
+
+/**
+ * The actions the page's sections put in its menu, after `PageHeader`'s own
+ * (#386: every « add » of a page is in the header's « ⋮ »).
+ */
+export function useRegisteredPageActions(): PageAction[] {
+  const registered = useContext(PageActionsSlotContext)?.registered ?? []
+  return registered.map(({ id: _id, icon, ...action }) => ({
+    ...action,
+    icon: icon(),
+  }))
+}
+
+/**
+ * Puts a section's « add » action in the page's « Actions de la page » menu
+ * (the header's « ⋮ », #386) instead of a button in the section; `null`
+ * takes it out (e.g. when the section is hidden). Returns whether it is in
+ * the menu: outside the shell (a component test) it is not, and the
+ * section keeps its own button.
+ */
+export function useRegisterPageAction(action: PageAction | null): boolean {
+  const context = useContext(PageActionsSlotContext)
+  const register = context?.register
+  const unregister = context?.unregister
+  const id = useId()
+  const latest = useRef(action)
+  useEffect(() => {
+    latest.current = action
+  })
+  const present = action !== null
+  const label = action?.label ?? ''
+  const primary = action?.primary
+  const disabled = action?.disabled
+  const loading = action?.loading
+  useEffect(() => {
+    if (!register || !unregister || !present) return
+    register({
+      id,
+      label,
+      primary,
+      disabled,
+      loading,
+      icon: () => latest.current?.icon,
+      onSelect: () => latest.current?.onSelect(),
+    })
+    return () => unregister(id)
+  }, [register, unregister, id, present, label, primary, disabled, loading])
+  return context !== null
 }
