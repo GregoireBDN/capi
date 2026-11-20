@@ -51,7 +51,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       restaurants: string
       salary: string
       savings: string
-      /** Inserts a row straight into the table, bypassing the API. */
+      /** Inserts a manual row straight into the table, bypassing the API. */
       row: (values: {
         amountCents: number
         kind: TransactionKind
@@ -116,7 +116,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
                   accountId: checking,
                   bookingDate: '2026-10-10',
                   rawLabel: 'TEST ROW',
-                  dedupeHash: randomUUID().replaceAll('-', ''),
+                  // A row without an import is a manual one (#367).
+                  manual: true,
+                  dedupeHash: `manual:${randomUUID()}`,
                   ...values,
                 })
                 .returning({ id: transactionsTable.id })
