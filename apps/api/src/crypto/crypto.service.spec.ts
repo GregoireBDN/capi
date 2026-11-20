@@ -274,17 +274,17 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
     })
   })
 
-  it('makes contributions unknown when a holding has no invested amount', async () => {
+  it('leaves coins of unknown cost out of the gain, the others still counted (#373)', async () => {
     await inRollback(async ({ tx, crypto, investments, account }) => {
       const id = await account()
-      // Yesterday's close: a fully invested holding.
+      // Yesterday's close: its value only (#370).
       await tx.insert(schema.balanceSnapshotsTable).values({
         accountId: id,
         date: '2026-11-04',
         valueCents: 80_000,
-        contributionsCents: 40_000,
         source: 'computed',
       })
+      // Typed with what it cost: its arrival is answered at once.
       await crypto.create(
         id,
         { ...ETH, quantity: '0.4', investedCents: 40_000 },
@@ -293,18 +293,22 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
       expect((await investments.performance(id, NOW)).returnRate).toBe(
         (100_005 - 40_000) / 40_000,
       )
-      // An asset without invested amount is added: pairing the old 400 €
-      // with the larger value used to report an inflated return (+185 %).
+      // An asset without invested amount is added: named, out of the gain,
+      // never pairing the 400 € with the larger value (+185 %).
       await crypto.create(id, { ...BTC, quantity: '0.01' }, NOW)
-      expect((await investments.performance(id, NOW)).live).toMatchObject({
+      const performance = await investments.performance(id, NOW)
+      expect(performance.live).toMatchObject({
         date: '2026-11-05',
         valueCents: 100_005 + 60_000,
-        contributionsCents: null,
+        contributionsCents: 40_000,
       })
-      expect(await investments.performance(id, NOW)).toMatchObject({
-        contributionsCents: null,
-        gainCents: null,
-        returnRate: null,
+      expect(performance).toMatchObject({
+        contributionsCents: 40_000,
+        contributionsSource: 'coins',
+        gainCents: 60_005,
+        returnRate: 60_005 / 40_000,
+        unknownCostCount: 1,
+        unknownCost: [{ assetId: 'bitcoin', symbol: 'BTC', quantity: '0.01' }],
       })
     })
   })
@@ -637,52 +641,38 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
     })
   })
 
-  it('keeps the invested base through the next valuations (#358)', async () => {
+  it('keeps a typed cost through any number of valuations (#370)', async () => {
     await inRollback(async ({ crypto, investments, account }) => {
       const id = await account('crypto', 'Ledger')
-      // 0.05 BTC at 60 000,50 €: 3 000,02 € (half to even), bought for 1 000 € on this line.
+      // 0.05 BTC at 60 000,50 €: 3 000,02 € (half to even), bought for 1 000 €.
       await crypto.create(
         id,
         { ...BTC, quantity: '0.05', investedCents: 1_000_00 },
         NOW,
       )
-      await investments.setInvestedBase(
-        id,
-        { amountCents: 5_000_00, on: '2026-11-05' },
-        NOW,
-      )
-      const next = await crypto.refreshAll(later(60 * 24))
-      const row = next.accounts.find((x) => x.accountId === id)
-      // The account's totals say it too, not the line's 1 000 €.
-      expect(row?.totals).toMatchObject({
-        investedCents: 5_000_00,
-        gainCents: -1_999_98,
-        withoutInvestedCount: 0,
+      for (const minutes of [60 * 24, 60 * 48]) {
+        const next = await crypto.refreshAll(later(minutes))
+        const row = next.accounts.find((x) => x.accountId === id)
+        expect(row?.totals).toMatchObject({
+          investedCents: 1_000_00,
+          gainCents: 2_000_02,
+          withoutInvestedCount: 0,
+        })
+      }
+      expect(await investments.performance(id, later(60 * 48))).toMatchObject({
+        contributionsCents: 1_000_00,
+        contributionsSource: 'coins',
+        gainCents: 2_000_02,
       })
-      expect(row?.snapshot).toEqual({
-        date: '2026-11-06',
-        valueCents: 3_000_02,
-        contributionsCents: 5_000_00,
-      })
-      const performance = await investments.performance(id, later(60 * 24))
-      expect(performance).toMatchObject({
-        contributionsCents: 5_000_00,
-        contributionsSource: 'base',
-        gainCents: -1_999_98,
-      })
-      const portfolio = await crypto.portfolio(later(60 * 24))
+      const portfolio = await crypto.portfolio(later(60 * 48))
       expect(portfolio.totals).toMatchObject({
-        investedCents: 5_000_00,
-        gainCents: -1_999_98,
+        investedCents: 1_000_00,
+        gainCents: 2_000_02,
         withoutInvestedSymbols: [],
       })
-
-      // Without it, the line's invested amount counts again.
-      await investments.clearInvestedBase(id, later(60 * 24))
-      const after = await investments.performance(id, later(60 * 24))
-      expect(after).toMatchObject({
-        contributionsCents: 1_000_00,
-        contributionsSource: 'typed',
+      expect(portfolio.assets[0]).toMatchObject({
+        investedCents: 1_000_00,
+        unknownQuantity: '0',
       })
     })
   })

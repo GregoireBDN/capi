@@ -354,6 +354,88 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
+    it("follows a wallet's reads day by day and counts the euros waiting on an exchange (#373)", async () => {
+      await inRollback(async ({ tx, close, account, points }) => {
+        const wallet = await account(
+          'wallet',
+          [{ assetId: 'bitcoin', quantity: '0.5', origin: 'sync' }],
+          new Date('2026-11-01T08:00:00Z'),
+        )
+        const observe = (
+          at: string,
+          since: string | null,
+          quantity: string,
+        ) => ({
+          accountId: wallet,
+          occurredAt: new Date(at),
+          observedSince: since === null ? null : new Date(since),
+          operation: 'wallet_sync',
+          kind: 'observed_in' as const,
+          asset: 'BTC',
+          assetId: 'bitcoin',
+          quantity,
+          dedupeHash: `observed:${at}`,
+        })
+        await tx
+          .insert(schema.cryptoMovementsTable)
+          .values([
+            observe('2026-11-02T08:00:00Z', null, '0.2'),
+            observe('2026-11-04T08:00:00Z', '2026-11-02T08:00:00Z', '0.3'),
+          ])
+        const exchange = await account('exchange', [])
+        const [imported] = await tx
+          .insert(schema.cryptoImportsTable)
+          .values({
+            accountId: exchange,
+            format: 'binance_csv',
+            fileName: 'export-exemple.csv',
+            fileHash: 'f'.repeat(64),
+            committedAt: DAYTIME,
+          })
+          .returning()
+        await tx.insert(schema.cryptoMovementsTable).values({
+          accountId: exchange,
+          importId: imported.id,
+          occurredAt: new Date('2026-11-03T09:00:00Z'),
+          operation: 'Deposit',
+          kind: 'deposit',
+          asset: 'EUR',
+          quantity: '1000',
+          dedupeHash: 'daily-close-eur',
+        })
+        close.requestRebuild(exchange)
+        await close.run(CLOSE)
+        const value = (day: string, quantity: number) =>
+          Math.round(Number(closeOf('bitcoin', day)) * 100 * quantity)
+        expect(await points(wallet)).toEqual(
+          (
+            [
+              ['2026-11-02', 0.2],
+              ['2026-11-03', 0.2],
+              ['2026-11-04', 0.5],
+              ['2026-11-05', 0.5],
+            ] as const
+          ).map(([date, quantity]) => ({
+            date,
+            valueCents: value(date, quantity),
+            source: 'computed',
+          })),
+        )
+        expect(await points(exchange)).toEqual(
+          ['2026-11-03', '2026-11-04', '2026-11-05'].map((date) => ({
+            date,
+            valueCents: 100_000,
+            source: 'computed',
+          })),
+        )
+        // The invested amount is computed on read (#370): never stored.
+        const stored = await tx
+          .select({ c: schema.balanceSnapshotsTable.contributionsCents })
+          .from(schema.balanceSnapshotsTable)
+        expect(stored.every((row) => row.c === null)).toBe(true)
+      })
+    })
+
     it('leaves a day without a price when the API fails, and fills it later', async () => {
       await inRollback(async ({ close, account, points, provider }) => {
         const warn = vi

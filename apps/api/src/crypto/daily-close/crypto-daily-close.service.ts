@@ -3,30 +3,36 @@ import {
   Injectable,
   Logger,
   type OnModuleDestroy,
+  Optional,
 } from '@nestjs/common'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { DatabaseService } from '#/database/database.service'
 import {
   accountsTable,
   balanceSnapshotsTable,
-  cryptoAssetAliasesTable,
   cryptoHoldingsTable,
   cryptoMovementsTable,
 } from '#/database/schema'
-import { knownAsset, FIAT_TICKERS } from '#/imports/crypto/assets'
+import { loadAssetMappings } from '#/imports/crypto/asset-mappings'
 import type { AssetMapping } from '#/imports/crypto/crypto-import.types'
 import type { HoldingMovement } from '#/imports/crypto/holdings'
 import { addDays } from '#/imports/dedupe/calendar-date'
-import { loadReceivedCoinFlows } from '#/investments/crypto-flows'
 import { parisToday } from '#/investments/days'
-import { investedAt, investedBaseOf } from '#/investments/performance'
+import { formatQuantity } from '#/imports/crypto/quantity'
 import { PRICE_HISTORY_MAX_DAYS } from '../coingecko.provider'
+import { isObserved } from '../cost-basis'
+import {
+  CryptoCostBasisService,
+  cryptoInvestedOn,
+  type LoadedCostBasis,
+} from '../cost-basis.service'
 import { CryptoPriceHistoryService } from './crypto-price-history.service'
 import {
   type DayLine,
   dayRange,
   exchangeLinesByDay,
   msUntilNextClose,
+  parisDayEnd,
   valueDay,
 } from './daily-values'
 
@@ -67,8 +73,8 @@ interface Plan {
   lines: Map<string, DayLine[]>
   /** Whether the account already has a stored value (first 0 € left out). */
   valued: boolean
-  /** Contributions of a day, when the account's cost is known as a whole. */
-  invested: (day: string) => number | null | undefined
+  /** Euros waiting on the exchange at the day's end (#373). */
+  fiat: (day: string) => number
 }
 
 /**
@@ -101,11 +107,18 @@ export class CryptoDailyCloseService implements OnModuleDestroy {
   /** Exchanges whose history is rebuilt at the next run. */
   private readonly pendingRebuilds = new Set<string>()
 
+  private readonly costBasis: CryptoCostBasisService
+
   constructor(
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(CryptoPriceHistoryService)
     private readonly history: CryptoPriceHistoryService,
-  ) {}
+    @Optional()
+    @Inject(CryptoCostBasisService)
+    costBasis?: CryptoCostBasisService,
+  ) {
+    this.costBasis = costBasis ?? new CryptoCostBasisService(database)
+  }
 
   private get db() {
     return this.database.db
@@ -175,8 +188,6 @@ export class CryptoDailyCloseService implements OnModuleDestroy {
       .select({
         id: accountsTable.id,
         cryptoSource: accountsTable.cryptoSource,
-        investedBaseCents: accountsTable.investedBaseCents,
-        investedBaseOn: accountsTable.investedBaseOn,
       })
       .from(accountsTable)
       .where(
@@ -195,15 +206,10 @@ export class CryptoDailyCloseService implements OnModuleDestroy {
     for (const id of rebuilt) this.pendingRebuilds.delete(id)
 
     const ids = accounts.map((account) => account.id)
-    const [stored, holdings, flows] = await Promise.all([
+    const [stored, holdings, basis] = await Promise.all([
       this.storedDays(ids),
       this.holdings(ids),
-      loadReceivedCoinFlows(
-        this.db,
-        accounts
-          .filter((account) => account.cryptoSource !== 'exchange')
-          .map((account) => account.id),
-      ),
+      this.costBasis.load(),
     ])
 
     const plans: Plan[] = []
@@ -238,31 +244,45 @@ export class CryptoDailyCloseService implements OnModuleDestroy {
           ]),
         )
       } else {
-        if (lines.length === 0) continue
+        const observed = observedLines(basis, account.id)
+        if (lines.length === 0 && !observed) continue
         // From the first value, else from when its lines appeared (a
         // wallet's first sync), and at most `CLOSE_CATCH_UP_DAYS` back.
-        const start = [days[0], ...lines.map((line) => line.createdOn)]
+        const start = [
+          days[0],
+          observed?.first,
+          ...lines.map((line) => line.createdOn),
+        ]
           .filter((day): day is string => !!day)
           .sort()[0]
         const floor = addDays(yesterday, -CLOSE_CATCH_UP_DAYS)
         const known = new Set(days)
         const others = lines.filter((line) => line.origin !== 'manual')
+        // A wallet's or manual account's quantities day by day are what its
+        // reads (or edits) observed (#373); lines typed by hand on another
+        // account count from the day they were added.
         byDay = new Map(
           dayRange(start < floor ? floor : start, yesterday)
             .filter((day) => !known.has(day))
-            .map((day) => [day, [...others, ...manualOn(day)]]),
+            .map((day) => [
+              day,
+              observed
+                ? [
+                    ...observed.on(day),
+                    ...(account.cryptoSource === 'manual' ? [] : manualOn(day)),
+                  ]
+                : [...others, ...manualOn(day)],
+            ]),
         )
       }
-      const base = investedBaseOf(account)
-      const accountFlows = flows.get(account.id) ?? []
       plans.push({
         accountId: account.id,
         lines: byDay,
         valued: days.length > 0,
-        invested: (day) =>
+        fiat: (day) =>
           account.cryptoSource === 'exchange'
-            ? undefined
-            : investedAt(base, accountFlows, day)?.investedCents,
+            ? (cryptoInvestedOn(basis, account.id, day)?.fiatCents ?? 0)
+            : 0,
       })
     }
 
@@ -285,7 +305,8 @@ export class CryptoDailyCloseService implements OnModuleDestroy {
       for (const [day, lines] of [...plan.lines].sort(([a], [b]) =>
         a.localeCompare(b),
       )) {
-        if (lines.length === 0 && !valued) continue
+        const fiat = plan.fiat(day)
+        if (lines.length === 0 && fiat === 0 && !valued) continue
         const dayPrices = new Map<string, string>()
         for (const line of lines) {
           const price = prices.get(line.assetId)?.get(day)
@@ -293,16 +314,16 @@ export class CryptoDailyCloseService implements OnModuleDestroy {
         }
         const value = valueDay(lines, dayPrices)
         if (value === null) continue
+        const valueCents = value.valueCents + fiat
         // A first value of 0 € is no value (#207).
-        if (value.valueCents === 0 && !valued) continue
+        if (valueCents === 0 && !valued) continue
         valued = true
-        const invested = plan.invested(day)
+        // The invested amount is computed on read (#370): never stored.
         rows.push({
           accountId: plan.accountId,
           date: day,
-          valueCents: value.valueCents,
-          contributionsCents:
-            invested === undefined ? value.investedCents : invested,
+          valueCents,
+          contributionsCents: null,
           source: 'computed',
         })
       }
@@ -333,7 +354,7 @@ export class CryptoDailyCloseService implements OnModuleDestroy {
           target: [s.accountId, s.date],
           set: {
             valueCents: sql`excluded.value_cents`,
-            contributionsCents: sql`excluded.contributions_cents`,
+            contributionsCents: null,
             updatedAt: now,
           },
           setWhere: eq(s.source, 'computed'),
@@ -416,28 +437,51 @@ export class CryptoDailyCloseService implements OnModuleDestroy {
   private async resolver(
     movements: readonly HoldingMovement[],
   ): Promise<(ticker: string) => AssetMapping | null> {
-    const mappings = new Map<string, AssetMapping>()
-    const rest: string[] = []
-    for (const ticker of new Set(movements.map((row) => row.asset))) {
-      if (FIAT_TICKERS.has(ticker)) continue
-      const known = knownAsset(ticker)
-      if (known) mappings.set(ticker, known)
-      else rest.push(ticker)
-    }
-    if (rest.length > 0) {
-      const rows = await this.db
-        .select()
-        .from(cryptoAssetAliasesTable)
-        .where(inArray(cryptoAssetAliasesTable.ticker, rest))
-      for (const row of rows) {
-        mappings.set(row.ticker, {
-          ticker: row.ticker,
-          assetId: row.assetId,
-          symbol: row.symbol,
-          name: row.name,
-        })
-      }
-    }
+    const mappings = await loadAssetMappings(
+      this.db,
+      movements.map((row) => row.asset),
+    )
     return (ticker) => mappings.get(ticker) ?? null
+  }
+}
+
+/**
+ * A wallet's or manual account's quantities at the end of each day from its
+ * observed movements (#373), or null when it has none: the first day it was
+ * read and the lines held at a day's end.
+ */
+function observedLines(
+  basis: Pick<LoadedCostBasis, 'movements'>,
+  accountId: string,
+): { first: string; on: (day: string) => DayLine[] } | null {
+  const movements = [...basis.movements.values()]
+    .filter(
+      (movement) =>
+        movement.accountId === accountId &&
+        isObserved(movement.kind) &&
+        movement.assetId !== null,
+    )
+    .sort((a, b) => a.at - b.at)
+  if (movements.length === 0) return null
+  return {
+    first: parisToday(new Date(movements[0].at)),
+    on: (day) => {
+      const end = parisDayEnd(day).getTime()
+      const held = new Map<string, bigint>()
+      for (const movement of movements) {
+        if (movement.at >= end) break
+        held.set(
+          movement.assetId!,
+          (held.get(movement.assetId!) ?? 0n) + movement.quantity,
+        )
+      }
+      return [...held]
+        .filter(([, units]) => units > 0n)
+        .map(([assetId, units]) => ({
+          assetId,
+          quantity: formatQuantity(units),
+          investedCents: null,
+        }))
+    },
   }
 }

@@ -8,9 +8,12 @@ import {
   AccountHoldingsController,
   CryptoController,
 } from './crypto.controller'
+import { CryptoCostBasisService } from './cost-basis.service'
 import { CryptoService } from './crypto.service'
 import { CryptoDailyCloseService } from './daily-close/crypto-daily-close.service'
 import { CryptoPriceHistoryService } from './daily-close/crypto-price-history.service'
+import { CryptoPendingController } from './pending/crypto-pending.controller'
+import { CryptoPendingService } from './pending/crypto-pending.service'
 import { CRYPTO_PRICE_OPTIONS, type CryptoPriceOptions } from './price-provider'
 import { WalletKeysController } from './wallet-keys/wallet-keys.controller'
 import { WalletKeysService } from './wallet-keys/wallet-keys.service'
@@ -30,6 +33,7 @@ import { WalletTokensService } from './wallet-sync/wallet-tokens.service'
   controllers: [
     AccountHoldingsController,
     CryptoController,
+    CryptoPendingController,
     WalletKeysController,
     WalletTokensController,
   ],
@@ -71,6 +75,8 @@ import { WalletTokensService } from './wallet-sync/wallet-tokens.service'
       },
     },
     CryptoPricesService,
+    CryptoCostBasisService,
+    CryptoPendingService,
     CryptoService,
     CryptoPriceHistoryService,
     CryptoDailyCloseService,
@@ -78,6 +84,11 @@ import { WalletTokensService } from './wallet-sync/wallet-tokens.service'
     WalletSyncService,
     WalletTokensService,
   ],
-  exports: [CryptoService, CryptoPricesService, CryptoDailyCloseService],
+  exports: [
+    CryptoService,
+    CryptoPricesService,
+    CryptoDailyCloseService,
+    CryptoCostBasisService,
+  ],
 })
 export class CryptoModule {}

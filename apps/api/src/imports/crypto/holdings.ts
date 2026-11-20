@@ -11,7 +11,6 @@ export interface HoldingMovement {
   asset: string
   quantity: string
   eurCents: number | null
-  /** Movement id: withdrawals with one get their cost in `outflowCosts`. */
   id?: string
 }
 
@@ -64,13 +63,6 @@ interface GroupEntry {
 export function computeHoldings(
   movements: readonly HoldingMovement[],
   resolve: (ticker: string) => AssetMapping | null,
-  /**
-   * Filled with the EUR cost each `withdrawal` with an id took out of its
-   * holding (#296): its share of the holding's cost at that moment (average
-   * cost), null when that cost is unknown. A wallet it is linked to gets
-   * this cost as its contributions.
-   */
-  outflowCosts?: Map<string, number | null>,
 ): ProjectedHolding[] {
   const states = new Map<string, State>()
   const keyOf = (ticker: string) => {
@@ -101,7 +93,7 @@ export function computeHoldings(
     )
     .map(({ movement }) => movement)
 
-  for (let start = 0; start < ordered.length;) {
+  for (let start = 0; start < ordered.length; ) {
     let end = start
     while (
       end < ordered.length &&
@@ -109,7 +101,7 @@ export function computeHoldings(
     ) {
       end++
     }
-    applyGroup(ordered.slice(start, end), states, keyOf, outflowCosts)
+    applyGroup(ordered.slice(start, end), states, keyOf)
     start = end
   }
 
@@ -136,7 +128,6 @@ function applyGroup(
   group: HoldingMovement[],
   states: Map<string, State>,
   keyOf: (ticker: string) => string,
-  outflowCosts?: Map<string, number | null>,
 ) {
   let eurDelta = 0n
   const entries = new Map<string, GroupEntry>()
@@ -187,8 +178,6 @@ function applyGroup(
   for (const entry of entries.values()) {
     if (entry.delta >= 0n) continue
     const state = states.get(entry.key)!
-    if (outflowCosts)
-      recordWithdrawalCosts(group, entry.key, state, keyOf, outflowCosts)
     const out = -entry.delta
     let removed = 0n
     if (state.quantity > 0n) {
@@ -226,33 +215,6 @@ function applyGroup(
     if (cost === null) state.costKnown = false
     else state.cost += cost
     settle(state)
-  }
-}
-
-/**
- * The cost of each withdrawal of `key` in `group`, from the holding before
- * the group's outflows: its quantity's share of the cost, when known.
- */
-function recordWithdrawalCosts(
-  group: HoldingMovement[],
-  key: string,
-  state: State,
-  keyOf: (ticker: string) => string,
-  outflowCosts: Map<string, number | null>,
-) {
-  for (const movement of group) {
-    if (movement.kind !== 'withdrawal' || movement.id === undefined) continue
-    if (FIAT_TICKERS.has(movement.asset) || keyOf(movement.asset) !== key) {
-      continue
-    }
-    const quantity = parseQuantity(movement.quantity) ?? 0n
-    const out = quantity < 0n ? -quantity : quantity
-    outflowCosts.set(
-      movement.id,
-      state.costKnown && state.quantity > 0n && out <= state.quantity
-        ? Number(divideHalfEven(state.cost * out, state.quantity))
-        : null,
-    )
   }
 }
 

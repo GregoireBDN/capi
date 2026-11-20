@@ -62,12 +62,19 @@ export const accountsTable = pgTable(
       withTimezone: true,
     }),
     /**
+     * The last complete read of a wallet's chains, or the last edit of a
+     * manual account's lines (#373): what rose or fell since is recorded as
+     * observed movements dated after it. Null until the first read, which
+     * records the opening position.
+     */
+    cryptoObservedAt: timestamp('crypto_observed_at', { withTimezone: true }),
+    /**
      * What the owner invested in it up to `investedBaseOn` (« Investi au
-     * … »), typed by hand, never overwritten by a valuation: wallet and
-     * manual crypto accounts (#358), PEA, life insurance and employee
-     * savings (#360); never an exchange (its holdings carry their cost) nor a
-     * cash account. What is linked to the account after that day (transfers,
-     * or coins for crypto) adds on top.
+     * … »), typed by hand, never overwritten by a valuation: PEA, life
+     * insurance and employee savings (#360). The bank transfers linked to the
+     * account after that day add on top. Never a crypto account, whose cost
+     * follows its coins (#373: one replay, the owner's answers per movement),
+     * nor a cash account.
      */
     investedBaseCents: bigint('invested_base_cents', { mode: 'number' }),
     investedBaseOn: date('invested_base_on', { mode: 'string' }),
@@ -87,12 +94,16 @@ export const accountsTable = pgTable(
       sql`${t.type} = 'crypto' or (${t.cryptoSyncedAt} is null and ${t.cryptoSyncFailedAt} is null)`,
     ),
     check(
+      'accounts_crypto_observed_only_wallet_or_manual',
+      sql`${t.cryptoObservedAt} IS NULL OR ${t.cryptoSource} IN ('wallet', 'manual')`,
+    ),
+    check(
       'accounts_invested_base_both',
       sql`(${t.investedBaseCents} IS NULL) = (${t.investedBaseOn} IS NULL)`,
     ),
     check(
       'accounts_invested_base_type',
-      sql`${t.investedBaseCents} IS NULL OR (${t.investedBaseCents} >= 0 AND (${t.cryptoSource} IN ('wallet', 'manual') OR ${t.type} IN ('brokerage', 'life_insurance', 'employee_savings')))`,
+      sql`${t.investedBaseCents} IS NULL OR (${t.investedBaseCents} >= 0 AND ${t.type} IN ('brokerage', 'life_insurance', 'employee_savings'))`,
     ),
   ],
 )

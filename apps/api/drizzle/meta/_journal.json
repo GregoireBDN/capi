@@ -309,6 +309,13 @@
       "when": 1795182312171,
       "tag": "0043_money_owed",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1795189328708,
+      "tag": "0044_cost_follows_coins",
+      "breakpoints": true
     }
   ]
 }

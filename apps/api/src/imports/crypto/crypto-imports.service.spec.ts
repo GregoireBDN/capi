@@ -251,12 +251,22 @@ describe.skipIf(!process.env.DATABASE_URL)(
           .from(schema.balanceSnapshotsTable)
           .where(eq(schema.balanceSnapshotsTable.accountId, accountId))
         expect(snapshots).toEqual([])
-        expect((await crypto.holdings(accountId, NOW)).snapshot).toEqual({
+        const valued = await crypto.holdings(accountId, NOW)
+        expect(valued.snapshot).toEqual({
           date: '2026-11-05',
-          // 0.001992 × 60000 + 0.01 × 2500 + 1.5 × 0.9 + 10 × 4 + 0.00000001 × 500
-          valueCents: 11952 + 2500 + 135 + 4000 + 0,
-          contributionsCents: null,
+          // 0.001992 × 60000 + 0.01 × 2500 + 1.5 × 0.9 + 10 × 4 + 0.00000001 × 500,
+          // and 329,97 € waiting (#373): 500 − 200 + 30 − 0,03.
+          valueCents: 11952 + 2500 + 135 + 4000 + 0 + 32997,
+          // The known costs (BTC 99,80 €, ETH 25,05 €) and the euros; the
+          // RNDR deposited and the BNB of unknown cost are named apart.
+          contributionsCents: 9980 + 2505 + 32997,
         })
+        expect(valued.totals.unknown.map((u) => u.symbol).sort()).toEqual([
+          'BNB',
+          'RENDER',
+        ])
+        // Half the ETH sold for 29,97 € net: it had cost 25,05 €.
+        expect(valued.realised).toMatchObject({ totalCents: 492, count: 1 })
         expect((await crypto.holdings(accountId, NOW)).complete).toBe(true)
 
         const again = await imports.preview(

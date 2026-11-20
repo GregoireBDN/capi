@@ -11,19 +11,23 @@ import {
   AccountsService,
   type AccountWithBalance,
 } from '#/accounts/accounts.service'
-import { CryptoService } from '#/crypto/crypto.service'
+import {
+  CryptoCostBasisService,
+  cryptoInvestedOn,
+  type LoadedCostBasis,
+} from '#/crypto/cost-basis.service'
+import { CryptoService, realisedGains } from '#/crypto/crypto.service'
+import type { AccountHoldingsDto } from '#/crypto/dto/crypto.dto'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import {
   accountsTable,
   balanceSnapshotsTable,
-  cryptoHoldingsTable,
   INVESTMENT_ACCOUNT_TYPES,
   type SelectBalanceSnapshot,
   transactionsTable,
 } from '#/database/schema'
 import type { AccountType } from '#/database/schema/domain-enums'
-import { loadReceivedCoinFlows } from './crypto-flows'
 import { parisToday } from './days'
 import type {
   AccountPerformanceDto,
@@ -39,13 +43,15 @@ import type {
 } from './dto/snapshot.dto'
 import {
   computePerformance,
-  investedAt,
   type InvestedBase,
   investedBaseOf,
-  takesInvestedBase,
+  type InvestedOn,
+  investedOn,
   type LinkedFlow,
-  linkedContributions,
+  type Performance,
   simpleReturn,
+  takesInvestedBase,
+  withInvested,
 } from './performance'
 
 type Db = PostgresJsDatabase<typeof schema>
@@ -93,6 +99,8 @@ export const COMPUTED_VALUE_MESSAGE =
 @Injectable()
 export class InvestmentsService {
   // Explicit tokens: the spec generator runs without decorator metadata.
+  private readonly costBasis: CryptoCostBasisService
+
   constructor(
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(AccountsService) private readonly accounts: AccountsService,
@@ -100,7 +108,12 @@ export class InvestmentsService {
     @Optional()
     @Inject(CryptoService)
     private readonly crypto?: CryptoService,
-  ) {}
+    @Optional()
+    @Inject(CryptoCostBasisService)
+    costBasis?: CryptoCostBasisService,
+  ) {
+    this.costBasis = costBasis ?? new CryptoCostBasisService(database)
+  }
 
   private get db(): Db {
     return this.database.db
@@ -211,48 +224,142 @@ export class InvestmentsService {
     now: Date = new Date(),
   ): Promise<AccountPerformanceDto> {
     const account = await this.accounts.findOne(accountId, this.db)
-    const [stored, flows, live] = await Promise.all([
+    const crypto = account.type === 'crypto'
+    const [stored, flows, live, basis] = await Promise.all([
       this.snapshotsOf(this.db, accountId),
       this.linkedFlows(this.db, [account]),
-      account.type === 'crypto' && this.crypto
-        ? this.crypto.liveValue(accountId, now)
-        : Promise.resolve(null),
+      crypto && this.crypto
+        ? this.crypto.live([accountId], now)
+        : Promise.resolve(new Map<string, AccountHoldingsDto>()),
+      crypto ? this.costBasis.load() : Promise.resolve(null),
     ])
+    const holdings = live.get(accountId) ?? null
+    const today = parisToday(now)
     // A crypto account's last point is today's live value (#366), in place
     // of a value stored today before the daily close.
-    const snapshots = live
-      ? stored.filter((point) => point.date < live.date)
+    const point = holdings?.snapshot ?? null
+    const snapshots = point
+      ? stored.filter((snapshot) => snapshot.date < point.date)
       : stored
-    const series: SnapshotDto[] = live
-      ? [...snapshots, { id: '', note: null, source: 'computed', ...live }]
+    const series: SnapshotDto[] = point
+      ? [...snapshots, { id: '', note: null, source: 'computed', ...point }]
       : snapshots
     const accountFlows = flows.get(accountId) ?? []
     const base = investedBaseOf(account)
-    const history =
-      linkedContributions(series, accountFlows, account.type, base) ?? series
+    const invested = this.investedRule(account, stored, accountFlows, basis)
+    const figures = this.figures(
+      account,
+      series,
+      today,
+      invested,
+      accountFlows,
+      holdings,
+      basis,
+    )
     return {
       accountId,
       type: account.type,
-      ...computePerformance(
-        series,
-        account.type,
-        parisToday(now),
-        accountFlows,
-        base,
-      ),
+      ...figures,
       investedBase: base && { amountCents: base.cents, on: base.on },
       snapshots,
-      live,
-      contributionsHistory: history.map((point) => ({
+      live: point && {
         date: point.date,
-        contributionsCents: point.contributionsCents,
+        valueCents: point.valueCents,
+        contributionsCents: figures.contributionsCents,
+      },
+      contributionsHistory: withInvested(series, invested).map((p) => ({
+        date: p.date,
+        contributionsCents: p.contributionsCents,
       })),
     }
   }
 
   /**
+   * The one source of an account's invested amount (#370): a crypto
+   * account's replay of its coins (#373), any other account's latest typed
+   * point plus the transfers linked after it (`investedAt`).
+   */
+  private investedRule(
+    account: { id: string; type: AccountType } & Parameters<
+      typeof investedBaseOf
+    >[0],
+    stored: readonly SnapshotDto[],
+    flows: readonly LinkedFlow[],
+    basis: LoadedCostBasis | null,
+  ): InvestedOn {
+    if (account.type === 'crypto') {
+      const linked = basis
+        ? basis.links.filter(
+            (link) => basis.movements.get(link.inId)?.accountId === account.id,
+          ).length
+        : 0
+      return (day) => {
+        const step = basis ? cryptoInvestedOn(basis, account.id, day) : null
+        return step
+          ? {
+              investedCents: step.investedCents,
+              source: 'coins',
+              since: null,
+              linkedCount: linked,
+              unknownCostCount: step.unknown.length,
+            }
+          : null
+      }
+    }
+    // Only typed figures: a value's contributions are never computed.
+    const typed = stored.filter((snapshot) => snapshot.source === 'typed')
+    return investedOn(typed, investedBaseOf(account), flows)
+  }
+
+  /**
+   * The figures of an account; a crypto account's gain counts only its
+   * coins of known cost (#373), from today's live valuation when it has one.
+   */
+  private figures(
+    account: { id: string; type: AccountType } & Parameters<
+      typeof investedBaseOf
+    >[0],
+    series: readonly SnapshotDto[],
+    today: string,
+    invested: InvestedOn,
+    flows: readonly LinkedFlow[],
+    holdings: AccountHoldingsDto | null,
+    basis: LoadedCostBasis | null,
+  ): Performance & {
+    unknownCost: AccountHoldingsDto['totals']['unknown']
+    realised: AccountPerformanceDto['realised']
+  } {
+    const figures = computePerformance(
+      series,
+      account.type,
+      today,
+      invested,
+      flows,
+      investedBaseOf(account),
+    )
+    if (account.type !== 'crypto') {
+      return { ...figures, unknownCost: [], realised: null }
+    }
+    const unknownCost = holdings?.totals.unknown ?? []
+    let { gainCents } = figures
+    if (holdings?.snapshot && figures.valueDate === holdings.snapshot.date) {
+      gainCents = holdings.totals.gainCents
+    }
+    return {
+      ...figures,
+      unknownCostCount: holdings
+        ? unknownCost.length
+        : figures.unknownCostCount,
+      gainCents,
+      returnRate: simpleReturn(gainCents, figures.contributionsCents),
+      unknownCost,
+      realised: basis ? realisedGains(basis, account.id, today) : null,
+    }
+  }
+
+  /**
    * What an account's invested amount, gain and rate are now and would be
-   * with `dto` as its invested base (#358, #360). Saves nothing.
+   * with `dto` as its invested base (#360). Saves nothing.
    */
   async previewInvestedBase(
     accountId: string,
@@ -286,11 +393,8 @@ export class InvestmentsService {
   }
 
   /**
-   * Sets an account's invested base (#358, #360). A crypto account's
-   * snapshots from its day (or the previous base's, the earlier) get the
-   * invested amount as their contributions, so the history follows; a PEA's
-   * keep what was typed on them, the base winning from its day in the
-   * figures.
+   * Sets an account's invested base (#360): it wins from its day, the
+   * contributions typed on its values staying as typed.
    */
   async setInvestedBase(
     accountId: string,
@@ -305,7 +409,7 @@ export class InvestmentsService {
     )
   }
 
-  /** Removes the invested base: the coins linked to it, or its holdings, count again. */
+  /** Removes the invested base: what was typed and linked counts again. */
   clearInvestedBase(
     accountId: string,
     now: Date = new Date(),
@@ -321,7 +425,6 @@ export class InvestmentsService {
     const today = parisToday(now)
     return this.db.transaction(async (tx) => {
       const account = await this.baseAccount(accountId, tx)
-      const previous = investedBaseOf(account)
       await tx
         .update(accountsTable)
         .set({
@@ -331,50 +434,14 @@ export class InvestmentsService {
         })
         .where(eq(accountsTable.id, accountId))
       const flows = (await this.linkedFlows(tx, [account])).get(accountId) ?? []
-      const from = [previous?.on, base?.on]
-        .filter((day): day is string => day !== undefined)
-        .sort()[0]
-      if (from !== undefined && account.type === 'crypto') {
-        // Without a base, a manual account's snapshots get its holdings'
-        // invested amounts back, as its valuation writes them.
-        const holdingsCents =
-          base === null ? await this.holdingsInvested(tx, accountId) : null
-        const rewritten = await tx
-          .select({ id: s.id, date: s.date })
-          .from(s)
-          .where(and(eq(s.accountId, accountId), gte(s.date, from)))
-        for (const row of rewritten) {
-          const contributionsCents =
-            investedAt(base, flows, row.date)?.investedCents ?? holdingsCents
-          await tx
-            .update(s)
-            .set({ contributionsCents, updatedAt: now })
-            .where(eq(s.id, row.id))
-        }
-      }
       const snapshots = await this.snapshotsOf(tx, accountId)
       return investedFigures(account.type, snapshots, flows, base, today)
     })
   }
 
-  /** Sum of the holdings' invested amounts, when every line has one. */
-  private async holdingsInvested(
-    executor: Executor,
-    accountId: string,
-  ): Promise<number | null> {
-    const rows = await executor
-      .select({ investedCents: cryptoHoldingsTable.investedCents })
-      .from(cryptoHoldingsTable)
-      .where(eq(cryptoHoldingsTable.accountId, accountId))
-    if (rows.length === 0 || rows.some((row) => row.investedCents === null)) {
-      return null
-    }
-    return rows.reduce((sum, row) => sum + row.investedCents!, 0)
-  }
-
   /**
-   * A writable account that takes an invested base: an investment account
-   * other than an exchange, whose holdings carry their cost.
+   * A writable account that takes an invested base: a PEA, a life insurance
+   * or employee savings. A crypto account's cost follows its coins (#373).
    */
   private async baseAccount(
     accountId: string,
@@ -383,7 +450,7 @@ export class InvestmentsService {
     const account = await this.writableAccount(accountId, executor)
     if (!takesInvestedBase(account)) {
       throw new BadRequestException(
-        'Only investment accounts other than exchanges take an invested base',
+        'Only a PEA, a life insurance or employee savings take an invested base',
       )
     }
     return account
@@ -420,6 +487,17 @@ export class InvestmentsService {
             )
             .orderBy(asc(s.date))
     const flows = await this.linkedFlows(this.db, accounts)
+    const cryptoIds = accounts
+      .filter((account) => account.type === 'crypto')
+      .map((account) => account.id)
+    // Crypto accounts read like their page: today's live value at the stored
+    // prices and the replay of their coins (#366, #373).
+    const [live, basis] = await Promise.all([
+      this.crypto
+        ? this.crypto.live(cryptoIds, now)
+        : Promise.resolve(new Map<string, AccountHoldingsDto>()),
+      cryptoIds.length > 0 ? this.costBasis.load() : Promise.resolve(null),
+    ])
     const byAccount = new Map<string, typeof snapshots>()
     for (const snapshot of snapshots) {
       const list = byAccount.get(snapshot.accountId) ?? []
@@ -434,12 +512,24 @@ export class InvestmentsService {
     let withoutValueCount = 0
     let staleCount = 0
     const rows = accounts.map((account) => {
-      const figures = computePerformance(
-        byAccount.get(account.id) ?? [],
-        account.type,
+      const stored = (byAccount.get(account.id) ?? []).map(toDto)
+      const holdings = live.get(account.id) ?? null
+      const point = holdings?.snapshot ?? null
+      const series: SnapshotDto[] = point
+        ? [
+            ...stored.filter((snapshot) => snapshot.date < point.date),
+            { id: '', note: null, source: 'computed', ...point },
+          ]
+        : stored
+      const accountFlows = flows.get(account.id) ?? []
+      const figures = this.figures(
+        account,
+        series,
         today,
-        flows.get(account.id) ?? [],
-        investedBaseOf(account),
+        this.investedRule(account, stored, accountFlows, basis),
+        accountFlows,
+        holdings,
+        basis,
       )
       if (figures.valueCents === null) withoutValueCount++
       else {
@@ -573,22 +663,17 @@ export class InvestmentsService {
   }
 
   /**
-   * What makes each account's contributions (#296), oldest first: money
-   * paid into (positive) or taken out of it by the bank transfers linked to
-   * it, or, for a crypto account, the cost of the coins withdrawn to it from
-   * an exchange (null when unknown: left out and counted, #358).
+   * The bank transfers linked to each non-crypto account (#296), oldest
+   * first: money paid into it (positive) or taken out of it (negative).
    */
   private async linkedFlows(
     executor: Executor,
     accounts: readonly { id: string; type: AccountType }[],
   ): Promise<Map<string, LinkedFlow[]>> {
+    const byAccount = new Map<string, LinkedFlow[]>()
     const accountIds = accounts
       .filter((account) => account.type !== 'crypto')
       .map((account) => account.id)
-    const cryptoIds = accounts
-      .filter((account) => account.type === 'crypto')
-      .map((account) => account.id)
-    const byAccount = await loadReceivedCoinFlows(executor, cryptoIds)
     if (accountIds.length === 0) return byAccount
     const t = transactionsTable
     const rows = await executor
@@ -662,7 +747,15 @@ function investedFigures(
   base: InvestedBase | null,
   today: string,
 ): InvestedFiguresDto {
-  const figures = computePerformance(snapshots, type, today, flows, base)
+  const typed = snapshots.filter((snapshot) => snapshot.source === 'typed')
+  const figures = computePerformance(
+    snapshots,
+    type,
+    today,
+    investedOn(typed, base, flows),
+    flows,
+    base,
+  )
   return {
     investedBase: base && { amountCents: base.cents, on: base.on },
     valueCents: figures.valueCents,
