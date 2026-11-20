@@ -25,8 +25,13 @@ import { cn } from '../lib/utils'
  * `screen`: the whole screen on a phone (#385), for editors with typed
  * fields. The keyboard covers its end and never moves it; its actions are in
  * its top bar (`SheetBar`).
+ *
+ * `center`: the same editor on a wider screen (#394), a modal in the middle
+ * of the page rather than a panel beside it: its height follows its content
+ * up to the window's, what is inside scrolls (a body marked
+ * `data-sheet-scroll`, or the modal itself).
  */
-type SheetSide = 'top' | 'right' | 'bottom' | 'left' | 'screen'
+type SheetSide = 'top' | 'right' | 'bottom' | 'left' | 'screen' | 'center'
 
 type SheetProps = React.ComponentProps<typeof SheetPrimitive.Root>
 type SheetTriggerProps = React.ComponentProps<typeof SheetPrimitive.Trigger>
@@ -443,6 +448,23 @@ function SheetContent({
             'data-[side=screen]:data-keyboard-open:data-sheet-scroll:pb-[calc(var(--keyboard-accessory,0px)+1rem)]',
             'data-[side=screen]:data-keyboard-open:[&_[data-sheet-scroll]]:pb-[calc(var(--keyboard-accessory,0px)+1rem)]',
 
+            // Side: Center (#394): a modal in the middle of the page, built
+            // like a dialog (`DialogContent`), as tall as its content up to
+            // the window's; its own content scrolls.
+            'data-[side=center]:top-1/2',
+            'data-[side=center]:left-1/2',
+            'data-[side=center]:-translate-x-1/2',
+            'data-[side=center]:-translate-y-1/2',
+            'data-[side=center]:w-[calc(100%-2rem)]',
+            'data-[side=center]:sm:max-w-md',
+            'data-[side=center]:max-h-[min(44rem,calc(100svh-2rem))]',
+            'data-[side=center]:overflow-y-auto',
+            'data-[side=center]:gap-0',
+            'data-[side=center]:rounded-xl',
+            'data-[side=center]:shadow-xl',
+            'data-[side=center]:ring-1',
+            'data-[side=center]:ring-foreground/10',
+
             // Side: Left
             'data-[side=left]:inset-y-0',
             'data-[side=left]:left-0',
@@ -481,6 +503,7 @@ function SheetContent({
             'data-open:fade-in-0',
             'data-[side=bottom]:data-open:slide-in-from-bottom-10',
             'data-[side=screen]:data-open:slide-in-from-bottom-10',
+            'data-[side=center]:data-open:zoom-in-95',
             'data-[side=left]:data-open:slide-in-from-left-10',
             'data-[side=right]:data-open:slide-in-from-right-10',
             'data-[side=top]:data-open:slide-in-from-top-10',
@@ -490,6 +513,7 @@ function SheetContent({
             'data-closed:fade-out-0',
             'data-[side=bottom]:data-closed:slide-out-to-bottom-10',
             'data-[side=screen]:data-closed:slide-out-to-bottom-10',
+            'data-[side=center]:data-closed:zoom-out-95',
             'data-[side=left]:data-closed:slide-out-to-left-10',
             'data-[side=right]:data-closed:slide-out-to-right-10',
             'data-[side=top]:data-closed:slide-out-to-top-10',
