@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
 import {
   BotIcon,
   ListFilterIcon,
@@ -18,9 +17,9 @@ import { grantsQuery } from '#/components/oauth/queries'
 import { passkeysQuery } from '#/components/passkeys/queries'
 import { rulesQuery } from '#/components/rules/queries'
 import { sessionsQuery } from '#/components/sessions/queries'
-import { useAuth } from '#/lib/auth-context'
 import { categoriesQuery } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
+import { useSignOut } from '#/lib/use-sign-out'
 import {
   SettingsButtonRow,
   SettingsControlRow,
@@ -37,13 +36,7 @@ import { accessSummary, countLabel, securitySummary } from './settings-summary'
  */
 export function SettingsPage({ user }: { user: UserDto }) {
   const themeId = useId()
-  const { logout } = useAuth()
-  const navigate = useNavigate()
-
-  async function signOut() {
-    await logout()
-    await navigate({ to: ROUTES.auth })
-  }
+  const signOut = useSignOut()
   const passkeys = useQuery(passkeysQuery)
   const sessions = useQuery(sessionsQuery)
   const categories = useQuery(categoriesQuery)
@@ -135,8 +128,8 @@ export function SettingsPage({ user }: { user: UserDto }) {
           />
         </SettingsGroup>
 
-        {/* Here since the sidebar's account row became the link to
-            Réglages (#300); the account deletion stays last, alone. */}
+        {/* Kept beside the sidebar's quick « Se déconnecter » (#353): the
+            same sign-out. The account deletion stays last, alone. */}
         <SettingsGroup label="Session">
           <SettingsButtonRow
             icon={LogOutIcon}

@@ -182,8 +182,8 @@ export function AppSidebar({ user }: { user: UserDto }) {
           </nav>
         </SidebarContent>
 
-        {/* Who is signed in, at the bottom: the one link to Réglages
-            (#261, #300). */}
+        {/* At the bottom: the one link to Réglages, with who is signed
+            in (#261, #300, #352), and « Se déconnecter » (#353). */}
         <SidebarFooter>
           <AccountLink
             user={user}

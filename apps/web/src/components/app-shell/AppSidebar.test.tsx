@@ -207,19 +207,22 @@ describe('AppSidebar', () => {
     expect(nav.queryByTestId('nav-badge-/transactions')).not.toBeInTheDocument()
   })
 
-  it('shows who is signed in', async () => {
+  it('shows « Réglages » and who is signed in, not the email (#352)', async () => {
     await renderAt('/dashboard')
-    expect(screen.getByText('Owner Test')).toBeInTheDocument()
-    expect(screen.getByText('owner@example.test')).toBeInTheDocument()
+    const link = settingsLink()
+    expect(within(link).getByText('Réglages')).toBeInTheDocument()
+    expect(within(link).getByText('Owner Test')).toBeInTheDocument()
+    // The email is on Réglages › Compte; no initials on a gradient.
+    expect(screen.queryByText('owner@example.test')).not.toBeInTheDocument()
+    expect(screen.queryByText('OT')).not.toBeInTheDocument()
   })
 
-  it('makes who is signed in, at the bottom, the one link to Réglages (#300)', async () => {
+  it('makes the entry at the bottom the one link to Réglages (#300)', async () => {
     const nav = await renderAt('/dashboard')
     const link = settingsLink()
 
     expect(link).toHaveAttribute('href', '/settings')
-    expect(link).toHaveTextContent('Owner Test')
-    expect(link).toHaveTextContent('owner@example.test')
+    expect(link).toHaveAccessibleName('Réglages, Owner Test')
     // Outside the list of pages, after it; no account menu any more.
     expect(nav.queryByRole('link', { name: /Réglages/ })).toBeNull()
     expect(
@@ -253,7 +256,7 @@ describe('AppSidebar', () => {
   })
 })
 
-/** The sidebar's account row, named « Réglages, » then who. */
+/** The sidebar's entry, named « Réglages, » then who. */
 function settingsLink() {
   return screen.getByRole('link', { name: /^Réglages, / })
 }
