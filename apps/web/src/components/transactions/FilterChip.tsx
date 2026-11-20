@@ -223,6 +223,7 @@ export function ToggleChip({
   onPressedChange,
   hideWhenOff = false,
   count,
+  className,
 }: {
   label: string
   pressed: boolean
@@ -236,6 +237,7 @@ export function ToggleChip({
    * readers (« 7 opérations à revoir »).
    */
   count?: { value: number; label: string }
+  className?: string
 }) {
   const counted = !pressed && count !== undefined && count.value > 0
   return (
@@ -251,6 +253,7 @@ export function ToggleChip({
         'pointer-coarse:touch-hitbox relative px-3',
         counted && 'border-primary/50 text-primary hover:bg-primary/10',
         hideWhenOff && !pressed && !counted && 'hidden @[672px]:inline-flex',
+        className,
       )}
     >
       {label}

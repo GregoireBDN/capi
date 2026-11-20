@@ -337,6 +337,11 @@ export function TransactionFilters({
             pressed={reviewing}
             onPressedChange={setReview}
             hideWhenOff
+            // On a narrow bar (phones), while some wait, the whole row: the
+            // owner's way in to the queue (#393).
+            className={
+              toReview ? 'w-full justify-center @[672px]:w-auto' : undefined
+            }
             count={
               toReview
                 ? {
