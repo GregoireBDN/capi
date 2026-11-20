@@ -131,7 +131,8 @@ function PageActionsMenu({ actions }: { actions: readonly PageAction[] }) {
         <Button
           type="button"
           variant="secondary"
-          ghost
+          // Outlined, so its dot sits on a visible corner (#393, the owner).
+          outline
           iconOnly
           aria-label="Actions de la page"
           aria-describedby={waiting ? countId : undefined}
