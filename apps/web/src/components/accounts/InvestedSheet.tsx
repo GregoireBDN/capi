@@ -12,11 +12,17 @@ import {
   SheetBarAction,
   SheetContent,
   SheetDescription,
+  SheetSteps,
   SheetTitle,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
+import {
+  CalendarDaysIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  EuroIcon,
+} from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type {
@@ -185,8 +191,27 @@ export function InvestedSheet({
         <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
           {isMobile ? (
             <SheetBar
-              title={STEP_NAMES[step]}
-              description={`${account.name} · étape ${stepIndex + 1} sur 2`}
+              title={title}
+              description={`${account.name} · étape ${stepIndex + 1} sur 2 : ${STEP_NAMES[step]}`}
+              steps={
+                <SheetSteps
+                  current={step}
+                  onSelect={(key) => setStep(key as Step)}
+                  steps={[
+                    {
+                      key: 'amount',
+                      label: 'Montant',
+                      icon: <EuroIcon aria-hidden />,
+                    },
+                    {
+                      key: 'day',
+                      label: 'Date',
+                      icon: <CalendarDaysIcon aria-hidden />,
+                      disabled: amountError !== null,
+                    },
+                  ]}
+                />
+              }
               onBack={step === 'day' ? () => setStep('amount') : undefined}
               action={
                 <SheetBarAction

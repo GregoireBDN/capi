@@ -21,6 +21,7 @@ import {
   SheetBarAction,
   SheetContent,
   SheetDescription,
+  SheetSteps,
   SheetTitle,
   Switch,
   Textarea,
@@ -28,9 +29,12 @@ import {
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  CalendarDaysIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  EuroIcon,
+  TagIcon,
 } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -643,7 +647,8 @@ export function ManualTransactionSheet({
   const Title = isMobile ? SheetTitle : DialogTitle
   const Description = isMobile ? SheetDescription : DialogDescription
   const submitLabel = expense ? 'Enregistrer' : 'Ajouter'
-  const nextDisabled = step === 'category' && !categoryId && !allowNoCategory
+  const categoryChosen = Boolean(categoryId) || allowNoCategory
+  const nextDisabled = step === 'category' && !categoryChosen
   const saveDisabled =
     (kind === 'expense' && !categoryId) || !accountId || voucherOver
 
@@ -704,8 +709,33 @@ export function ManualTransactionSheet({
     >
       {isMobile ? (
         <SheetBar
-          title={STEP_NAMES[step]}
-          description={`${expense ? editTitle : addTitle} · étape ${stepIndex + 1} sur ${STEPS.length}`}
+          title={expense ? editTitle : addTitle}
+          description={`Étape ${stepIndex + 1} sur ${STEPS.length} : ${STEP_NAMES[step]}`}
+          steps={
+            <SheetSteps
+              current={step}
+              onSelect={(key) => setStep(key as Step)}
+              steps={[
+                {
+                  key: 'category',
+                  label: STEP_NAMES.category,
+                  icon: <TagIcon aria-hidden />,
+                },
+                {
+                  key: 'amount',
+                  label: STEP_NAMES.amount,
+                  icon: <EuroIcon aria-hidden />,
+                  disabled: !categoryChosen,
+                },
+                {
+                  key: 'details',
+                  label: STEP_NAMES.details,
+                  icon: <CalendarDaysIcon aria-hidden />,
+                  disabled: !categoryChosen || amountError !== null,
+                },
+              ]}
+            />
+          }
           onBack={
             stepIndex > 0 ? () => setStep(STEPS[stepIndex - 1]) : undefined
           }

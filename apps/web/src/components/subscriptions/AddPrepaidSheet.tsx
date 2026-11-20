@@ -14,12 +14,20 @@ import {
   SheetBarAction,
   SheetContent,
   SheetDescription,
+  SheetSteps,
   SheetTitle,
   Skeleton,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from 'lucide-react'
+import {
+  CalendarRangeIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ListChecksIcon,
+  ReceiptIcon,
+  SearchIcon,
+} from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { toast } from 'sonner'
@@ -334,8 +342,33 @@ export function AddPrepaidSheet({
     <form noValidate onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
       {isMobile ? (
         <SheetBar
-          title={title}
-          description={`Abonnement prépayé · étape ${step} sur ${STEP_COUNT}`}
+          title="Abonnement prépayé"
+          description={`Étape ${step} sur ${STEP_COUNT} : ${title}`}
+          steps={
+            <SheetSteps
+              current={screen}
+              onSelect={(key) => setScreen(key as Screen)}
+              steps={[
+                {
+                  key: 'payment',
+                  label: 'Paiement',
+                  icon: <ReceiptIcon aria-hidden />,
+                },
+                {
+                  key: 'term',
+                  label: 'Durée',
+                  icon: <CalendarRangeIcon aria-hidden />,
+                  disabled: step < 2,
+                },
+                {
+                  key: 'review',
+                  label: 'Vérifier',
+                  icon: <ListChecksIcon aria-hidden />,
+                  disabled: step < 3,
+                },
+              ]}
+            />
+          }
           onBack={screen !== 'payment' ? back : undefined}
           action={
             action && (

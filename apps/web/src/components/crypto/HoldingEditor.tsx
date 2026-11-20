@@ -15,6 +15,7 @@ import {
   SheetBarAction,
   SheetContent,
   SheetDescription,
+  SheetSteps,
   SheetTitle,
   Spinner,
   Textarea,
@@ -22,7 +23,13 @@ import {
 } from '@finances/ui'
 import { cn } from '@finances/ui/lib/utils'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from 'lucide-react'
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  HashIcon,
+  SearchIcon,
+  SlidersHorizontalIcon,
+} from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { CryptoAssetDto, ValuedHoldingDto } from '#/api/types.gen'
@@ -187,6 +194,12 @@ export function AssetPicker({
  * exchange, wallet or manual account is the Crypto page's « Ajouter » flow
  * (`AddCryptoSheet`, #295).
  */
+const HOLDING_STEP_ICONS: Record<HoldingStep, React.ReactNode> = {
+  asset: <SearchIcon aria-hidden />,
+  amount: <HashIcon aria-hidden />,
+  details: <SlidersHorizontalIcon aria-hidden />,
+}
+
 export function HoldingEditor({
   open,
   onOpenChange,
@@ -366,8 +379,21 @@ export function HoldingEditor({
           <form noValidate onSubmit={submit} className={FORM_SHEET_FORM}>
             {isMobile ? (
               <SheetBar
-                title={HOLDING_STEP_NAMES[step]}
-                description={`${title} · étape ${stepIndex + 1} sur ${steps.length}`}
+                title={title}
+                description={`Étape ${stepIndex + 1} sur ${steps.length} : ${HOLDING_STEP_NAMES[step]}`}
+                steps={
+                  <SheetSteps
+                    current={step}
+                    onSelect={(key) => setStep(key as HoldingStep)}
+                    steps={steps.map((key, index) => ({
+                      key,
+                      label: HOLDING_STEP_NAMES[key],
+                      icon: HOLDING_STEP_ICONS[key],
+                      // Back any time; ahead once the asset is chosen.
+                      disabled: index > stepIndex && !asset,
+                    }))}
+                  />
+                }
                 onBack={
                   stepIndex > 0
                     ? () => setStep(steps[stepIndex - 1])

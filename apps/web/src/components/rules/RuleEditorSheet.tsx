@@ -16,6 +16,7 @@ import {
   SheetBarAction,
   SheetContent,
   SheetDescription,
+  SheetSteps,
   SheetTitle,
   Skeleton,
   Switch,
@@ -26,8 +27,11 @@ import {
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ListChecksIcon,
   MinusIcon,
   PlusIcon,
+  SearchIcon,
+  TagIcon,
   Trash2Icon,
 } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -413,8 +417,34 @@ export function RuleEditorSheet({
         >
           {isMobile ? (
             <SheetBar
-              title={STEP_NAMES[step]}
-              description={`${rule ? 'Modifier la règle' : 'Nouvelle règle'} · étape ${stepIndex + 1} sur ${STEPS.length}`}
+              title={rule ? 'Modifier la règle' : 'Nouvelle règle'}
+              description={`Étape ${stepIndex + 1} sur ${STEPS.length} : ${STEP_NAMES[step]}`}
+              steps={
+                <SheetSteps
+                  current={step}
+                  onSelect={(key) => goTo(key as Step)}
+                  steps={[
+                    {
+                      key: 'match',
+                      label: 'Opérations',
+                      icon: <SearchIcon aria-hidden />,
+                    },
+                    {
+                      key: 'category',
+                      label: 'Catégorie',
+                      icon: <TagIcon aria-hidden />,
+                      disabled: form.labelPattern.trim() === '',
+                    },
+                    {
+                      key: 'review',
+                      label: 'Vérifier',
+                      icon: <ListChecksIcon aria-hidden />,
+                      disabled:
+                        form.labelPattern.trim() === '' || !form.categoryId,
+                    },
+                  ]}
+                />
+              }
               onBack={
                 stepIndex > 0 ? () => goTo(STEPS[stepIndex - 1]) : undefined
               }

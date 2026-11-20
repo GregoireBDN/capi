@@ -47,6 +47,11 @@ type SheetBarProps = Omit<React.ComponentProps<'div'>, 'title'> & {
   closeLabel?: string
   /** The main action, round, at the end of the bar (`SheetBarAction`). */
   action?: React.ReactNode
+  /**
+   * A stepped editor's steps (`SheetSteps`), under the title; the
+   * description is then read by screen readers only.
+   */
+  steps?: React.ReactNode
 }
 type SheetBarActionProps = Omit<
   React.ComponentProps<typeof Button>,
@@ -571,6 +576,7 @@ function SheetBar({
   backLabel = 'Retour',
   closeLabel = 'Fermer',
   action,
+  steps,
   className,
   ...props
 }: SheetBarProps) {
@@ -610,8 +616,14 @@ function SheetBar({
         </SheetTitle>
         {action ?? <span aria-hidden className="size-[40px] shrink-0" />}
       </div>
+      {steps}
       {description && (
-        <SheetDescription className="px-4 pb-3 text-[15px] leading-snug">
+        <SheetDescription
+          className={cn(
+            'px-4 pb-3 text-[15px] leading-snug',
+            steps !== undefined && 'sr-only',
+          )}
+        >
           {description}
         </SheetDescription>
       )}

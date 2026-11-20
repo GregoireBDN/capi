@@ -22,6 +22,7 @@ import {
   SheetBarAction,
   SheetContent,
   SheetDescription,
+  SheetSteps,
   SheetTitle,
   useIsMobile,
 } from '@finances/ui'
@@ -32,6 +33,12 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   CircleAlertIcon,
+  CoinsIcon,
+  CompassIcon,
+  FileUpIcon,
+  KeyRoundIcon,
+  ListChecksIcon,
+  PencilIcon,
   PencilLineIcon,
   WalletIcon,
 } from 'lucide-react'
@@ -126,6 +133,17 @@ const FIRST: Record<Source, Screen> = {
 function stepOf(screen: Screen): number {
   if (screen === 'source') return 1
   return screen.endsWith('-summary') ? 3 : 2
+}
+
+/** The middle step's name and icon, after the source it depends on. */
+function middleStep(screen: Screen): { label: string; icon: ReactNode } {
+  if (screen.startsWith('exchange'))
+    return { label: 'Export', icon: <FileUpIcon aria-hidden /> }
+  if (screen.startsWith('wallet'))
+    return { label: 'Clés', icon: <KeyRoundIcon aria-hidden /> }
+  if (screen.startsWith('manual'))
+    return { label: 'Actif', icon: <CoinsIcon aria-hidden /> }
+  return { label: 'Détails', icon: <PencilIcon aria-hidden /> }
 }
 
 const BACK: Record<Exclude<Screen, 'source'>, Screen> = {
@@ -369,6 +387,16 @@ export function AddCryptoSheet({
     if (screen === 'source') return
     if (screen === 'exchange-summary') dropPending()
     go(BACK[screen])
+  }
+
+  /** Back to an earlier step (its icon on a phone), screen by screen. */
+  function backTo(stepWanted: number) {
+    let next = screen
+    while (next !== 'source' && stepOf(next) > stepWanted) {
+      if (next === 'exchange-summary') dropPending()
+      next = BACK[next]
+    }
+    if (next !== screen) go(next)
   }
 
   /* ---- Exchange ---------------------------------------------------- */
@@ -1035,8 +1063,32 @@ export function AddCryptoSheet({
     <form noValidate onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
       {isMobile ? (
         <SheetBar
-          title={title}
-          description={`Ajouter des cryptos · étape ${step} sur ${STEP_COUNT}`}
+          title="Ajouter des cryptos"
+          description={`Étape ${step} sur ${STEP_COUNT} : ${title}`}
+          steps={
+            <SheetSteps
+              current={String(step)}
+              onSelect={(key) => backTo(Number(key))}
+              steps={[
+                {
+                  key: '1',
+                  label: 'Origine',
+                  icon: <CompassIcon aria-hidden />,
+                },
+                {
+                  key: '2',
+                  ...middleStep(screen),
+                  disabled: step < 2,
+                },
+                {
+                  key: '3',
+                  label: 'Vérifier',
+                  icon: <ListChecksIcon aria-hidden />,
+                  disabled: step < 3,
+                },
+              ]}
+            />
+          }
           onBack={screen !== 'source' ? back : undefined}
           action={
             action && (

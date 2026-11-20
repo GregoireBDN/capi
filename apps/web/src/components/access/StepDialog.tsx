@@ -8,9 +8,11 @@ import {
   SheetBar,
   SheetContent,
   SheetDescription,
+  SheetSteps,
   SheetTitle,
   useIsMobile,
 } from '@finances/ui'
+import type { SheetStepsProps } from '@finances/ui'
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
@@ -29,6 +31,7 @@ export function StepDialog({
   title,
   step,
   onBack,
+  steps,
   action,
   children,
 }: {
@@ -42,6 +45,8 @@ export function StepDialog({
   /** `[n, of]`, or nothing on a screen outside the count. */
   step?: [number, number]
   onBack?: () => void
+  /** On a phone, the steps as icons (`SheetSteps`) in place of « Étape n sur m ». */
+  steps?: SheetStepsProps
   action?: ReactNode
   children: ReactNode
 }) {
@@ -63,6 +68,7 @@ export function StepDialog({
           description={
             step ? `${label} · étape ${step[0]} sur ${step[1]}` : description
           }
+          steps={steps ? <SheetSteps {...steps} /> : undefined}
           onBack={onBack}
         />
       ) : (
