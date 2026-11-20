@@ -12,6 +12,8 @@ import {
   SegmentedControl,
   SegmentedControlItem,
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
   SheetDescription,
   SheetTitle,
@@ -52,6 +54,9 @@ import { bodyFromForm, conditionsFromForm, formFromRule } from './rule-form'
 import type { FormErrors, RuleForm } from './rule-form'
 import { RuleMatches } from './RuleMatches'
 import { PREVIEW_RULE_ID, RulePreview } from './RulePreview'
+import {
+  editorSide,
+} from '#/components/sheets/form-sheet'
 
 export { bodyFromForm, formFromRule, type RuleForm } from './rule-form'
 
@@ -384,32 +389,59 @@ export function RuleEditorSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side={isMobile ? 'bottom' : 'right'}
-        className={cn(
-          'flex flex-col gap-0 overflow-hidden',
-          isMobile &&
-            'h-[calc(92svh-var(--keyboard-inset,0px))] rounded-t-xl data-[side=bottom]:h-[calc(92svh-var(--keyboard-inset,0px))]',
-        )}
+        side={editorSide(isMobile)}
+        className="flex flex-col gap-0 overflow-hidden"
         onOpenAutoFocus={(event) => {
           // The step's heading, never a field: no keyboard on phones.
           event.preventDefault()
           stepRef.current?.focus({ preventScroll: true })
         }}
       >
-        <SheetTitle className="sr-only">
-          {rule ? 'Modifier la règle' : 'Nouvelle règle'}
-        </SheetTitle>
-        <SheetDescription className="sr-only">
-          Les opérations dont le libellé correspond sont classées dans la
-          catégorie choisie.
-        </SheetDescription>
+        {!isMobile && (
+          <>
+            <SheetTitle className="sr-only">
+              {rule ? 'Modifier la règle' : 'Nouvelle règle'}
+            </SheetTitle>
+            <SheetDescription className="sr-only">
+              Les opérations dont le libellé correspond sont classées dans la
+              catégorie choisie.
+            </SheetDescription>
+          </>
+        )}
         <form
           noValidate
           onSubmit={submit}
           className="flex min-h-0 flex-1 flex-col"
         >
-          {header}
-          <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4">
+          {isMobile ? (
+            <SheetBar
+              title={STEP_NAMES[step]}
+              description={`${rule ? 'Modifier la règle' : 'Nouvelle règle'} · étape ${stepIndex + 1} sur ${STEPS.length}`}
+              onBack={stepIndex > 0 ? () => goTo(STEPS[stepIndex - 1]) : undefined}
+              action={
+                <SheetBarAction
+                  type="submit"
+                  label={step === 'review' ? 'Enregistrer' : 'Suivant'}
+                  icon={
+                    step === 'review' ? undefined : (
+                      <ChevronRightIcon aria-hidden strokeWidth={2.6} />
+                    )
+                  }
+                  loading={step === 'review' && save.isPending}
+                  disabled={
+                    (step === 'match' && form.labelPattern.trim() === '') ||
+                    (step === 'category' && !form.categoryId)
+                  }
+                />
+              }
+            />
+          ) : (
+            header
+          )}
+          <div
+            data-sheet-scroll=""
+            className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 group-data-[side=screen]/sheet:pt-4"
+          >
             {step === 'match' && (
               <>
                 <Field data-invalid={errors.labelPattern ? true : undefined}>
@@ -803,7 +835,7 @@ export function RuleEditorSheet({
               </p>
             )}
           </div>
-          {footer}
+          {!isMobile && footer}
         </form>
       </SheetContent>
     </Sheet>

@@ -10,6 +10,8 @@ import {
   FieldLabel,
   Input,
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
   SheetDescription,
   SheetTitle,
@@ -330,6 +332,29 @@ export function AddPrepaidSheet({
   const Description = isMobile ? SheetDescription : DialogDescription
   const content = (
     <form noValidate onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+      {isMobile ? (
+        <SheetBar
+          title={title}
+          description={`Abonnement prépayé · étape ${step} sur ${STEP_COUNT}`}
+          onBack={screen !== 'payment' ? back : undefined}
+          action={
+            action && (
+              <SheetBarAction
+                type="submit"
+                label={action.label}
+                icon={
+                  step === STEP_COUNT ? undefined : (
+                    <ChevronRightIcon aria-hidden strokeWidth={2.6} />
+                  )
+                }
+                loading={action.loading}
+                disabled={action.disabled}
+              />
+            )
+          }
+        />
+      ) : (
+        <>
       <Title className="sr-only">Ajouter un abonnement prépayé</Title>
       <Description className="sr-only">
         Le paiement, la durée, puis le nom.
@@ -354,10 +379,15 @@ export function AddPrepaidSheet({
       >
         {title}
       </h3>
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4">
+        </>
+      )}
+      <div
+        data-sheet-scroll=""
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-4 group-data-[side=screen]/sheet:pt-4"
+      >
         {body}
       </div>
-      {action && (
+      {!isMobile && action && (
         <div className="flex shrink-0 gap-2 border-t px-4 py-3">
           <Button
             type="submit"
@@ -374,17 +404,7 @@ export function AddPrepaidSheet({
 
   return isMobile ? (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="bottom"
-        className={cn(
-          'gap-0 rounded-t-xl data-[side=bottom]:h-[min(36rem,calc(92svh-var(--keyboard-inset,0px)))]',
-          'data-[side=bottom]:data-keyboard-open:h-[calc(100svh-var(--keyboard-inset,0px)-env(safe-area-inset-top)-0.5rem)]',
-        )}
-        onOpenAutoFocus={(event) => {
-          event.preventDefault()
-          headingRef.current?.focus()
-        }}
-      >
+      <SheetContent side="screen">
         {content}
       </SheetContent>
     </Sheet>
