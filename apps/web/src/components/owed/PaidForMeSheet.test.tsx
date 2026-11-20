@@ -59,9 +59,7 @@ describe('PaidForMeSheet in four steps (#394)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     api.contactsControllerList.mockResolvedValue(ok([SAM]))
-    api.categoriesControllerList.mockResolvedValue(
-      ok([RESTAURANTS, GROCERIES]),
-    )
+    api.categoriesControllerList.mockResolvedValue(ok([RESTAURANTS, GROCERIES]))
     api.transactionsControllerManualSuggestions.mockResolvedValue(
       ok({ items: [], categoryIds: [] }),
     )
@@ -114,9 +112,7 @@ describe('PaidForMeSheet in four steps (#394)', () => {
     // The toast's « Annuler » removes the debt.
     await waitFor(() => expect(toast.success).toHaveBeenCalled())
     const [message, options] = toast.success.mock.calls[0]
-    expect(String(message).replace(/\s/g, ' ')).toBe(
-      'Vous devez 30,00 € à Sam',
-    )
+    expect(String(message).replace(/\s/g, ' ')).toBe('Vous devez 30,00 € à Sam')
     options.action.onClick()
     await waitFor(() =>
       expect(api.receivablesControllerRemove).toHaveBeenCalledWith(
@@ -175,7 +171,9 @@ describe('PaidForMeSheet in four steps (#394)', () => {
       />,
     )
     await user.type(
-      await screen.findByRole('searchbox', { name: 'Rechercher une catégorie' }),
+      await screen.findByRole('searchbox', {
+        name: 'Rechercher une catégorie',
+      }),
       'Cinéma',
     )
     api.categoriesControllerList.mockResolvedValue(
@@ -207,7 +205,10 @@ describe('nextPaidForMeStep', () => {
       nextPaidForMeStep({ person: true, category: true, bill: true }, 'person'),
     ).toBe('share')
     expect(
-      nextPaidForMeStep({ person: true, category: false, bill: true }, 'person'),
+      nextPaidForMeStep(
+        { person: true, category: false, bill: true },
+        'person',
+      ),
     ).toBe('category')
     expect(nextPaidForMeStep({ ...none, person: true }, 'bill')).toBe('share')
   })
