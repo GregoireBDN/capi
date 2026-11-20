@@ -10,12 +10,13 @@ import type { ComponentProps, ReactNode } from 'react'
  * fields in a body that scrolls, no footer; the other actions (« Supprimer »)
  * at the end of the body. On a phone it takes the whole screen
  * (`side="screen"`): the keyboard covers the end of the body and never moves
- * anything. Beside the page (wide screens), a right-hand sheet.
+ * anything. On a wider screen, a modal in the middle of the page
+ * (`side="center"`, #394): never a panel beside it.
  */
 
-/** `side` of an editor's `SheetContent`. */
+/** `side` of an editor's `SheetContent`: the whole screen, else centred. */
 export function editorSide(isMobile: boolean) {
-  return isMobile ? 'screen' : 'right'
+  return isMobile ? 'screen' : 'center'
 }
 
 /** The top of an editor: the bar (✕ or ‹, the title, the round action). */
@@ -44,10 +45,18 @@ export function EditorHeader({
   )
 }
 
+/**
+ * An editor whose screens differ in height (steps, a list to search) keeps
+ * one height as a centred modal, so it never jumps as they change or the
+ * list is filtered. No effect on a phone (the whole screen).
+ */
+export const EDITOR_STEADY_HEIGHT =
+  'data-[side=center]:h-[min(40rem,calc(100svh-2rem))]'
+
 /** `SheetContent` of a form editor on a phone: the whole screen. */
 export const FORM_SHEET_SCREEN = 'gap-0'
 
-/** `SheetContent` of a form editor beside the page (wide screens). */
+/** `SheetContent` of a form editor on a wider screen (a centred modal). */
 export const FORM_SHEET_SIDE = 'gap-0'
 
 /** The `<form>` filling the sheet under its header. */

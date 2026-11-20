@@ -1,34 +1,54 @@
 import {
   Button,
+  categoryIconComponent,
+  CategoryIcon,
   cn,
   Field,
   FieldLabel,
   Input,
-  SegmentedControl,
-  SegmentedControlItem,
   Sheet,
+  SheetBar,
+  SheetBarAction,
   SheetContent,
+  SheetSteps,
   SheetTitle,
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { MinusIcon, PlusIcon } from 'lucide-react'
-import { useId, useState } from 'react'
+import {
+  ChartPieIcon,
+  ChevronRightIcon,
+  MinusIcon,
+  PlusIcon,
+  ReceiptIcon,
+  TagIcon,
+  UserRoundIcon,
+} from 'lucide-react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { AmountField } from '#/components/amount/AmountField'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
-import { CategoryField } from '#/components/categories/CategoryPicker'
-import { DateChips } from '#/components/expenses/manual-fields'
+import { DEFAULT_CATEGORY_ICON } from '#/components/categories/category-icons'
+import { CategoryPicker } from '#/components/categories/CategoryPicker'
+import { categoryErrorMessage } from '#/components/categories/errors'
+import { DEFAULT_CATEGORY_COLOR } from '#/components/categories/palette'
+import { createCategory } from '#/components/categories/queries'
+import { typedAmount } from '#/components/expenses/amount-entry'
 import {
+  CHIP_CLASS,
+  CHIP_ON,
+  DateChips,
+} from '#/components/expenses/manual-fields'
+import {
+  EDITOR_STEADY_HEIGHT,
   editorSide,
-  FORM_SHEET_SCREEN,
-  EditorHeader,
   FORM_SHEET_FORM,
+  FORM_SHEET_SCREEN,
   FORM_SHEET_SIDE,
   FormSheetBody,
 } from '#/components/sheets/form-sheet'
 import { currentDay } from '#/lib/calendar'
-import { formatCents } from '#/lib/money'
+import { formatCalendarDate, formatCents } from '#/lib/money'
 import { categoriesQuery } from '#/lib/queries'
 import { PeoplePicker, personRef } from './PeoplePicker'
 import type { Person } from './PeoplePicker'
@@ -41,7 +61,6 @@ import {
   UNDO_TOAST_MS,
 } from './queries'
 import { myPartOf } from './shares'
-import type { ShareMode } from './shares'
 
 /** What the sheet opens with (from the quick entry or a person's page). */
 export interface PaidForMeDraft {
@@ -52,12 +71,64 @@ export interface PaidForMeDraft {
   label?: string
 }
 
+/** The four steps (#394), one decision each. */
+export const PAID_FOR_ME_STEPS = [
+  'person',
+  'category',
+  'bill',
+  'share',
+] as const
+export type PaidForMeStep = (typeof PAID_FOR_ME_STEPS)[number]
+const STEP_NAMES: Record<PaidForMeStep, string> = {
+  person: 'Qui a payé',
+  category: 'Catégorie',
+  bill: 'Addition',
+  share: 'Ma part',
+}
+
 /**
- * « Payé pour moi » (#359, owner's « B. L'addition puis ma part »): who
- * paid, the bill they paid, then my part: « Moitié », « Parts égales »
- * between n (me included, rounded half to even) or « Montant »; « Je dois à
- * Sam 30 € » live. Only my part counts in my spending, in its category on
- * its day; the bill is kept beside it. The toast offers « Annuler ».
+ * « On était combien ? » (the owner's « A », #394): 2 (half, the default) to
+ * 5, then « 6+ », which shows − / + up to `PEOPLE_MAX`.
+ */
+const PEOPLE_MORE = 6
+const PEOPLE_MAX = 20
+const PEOPLE_TILES = [2, 3, 4, 5, PEOPLE_MORE] as const
+
+/** What each step needs before the next one: who, the category, the bill. */
+export interface PaidForMeFilled {
+  person: boolean
+  category: boolean
+  bill: boolean
+}
+
+/**
+ * Where the sheet opens: the first step still to fill in, so a hand-over
+ * skips what it brought; « Ma part » once everything before it is there.
+ * From then on each step moves on to the next one in order, filled or not
+ * (the owner, #394).
+ */
+export function firstPaidForMeStep(filled: PaidForMeFilled): PaidForMeStep {
+  return (
+    PAID_FOR_ME_STEPS.find((step) => step !== 'share' && !filled[step]) ??
+    'share'
+  )
+}
+
+/** The step after `step`, in order (« Ma part » is the last). */
+export function nextPaidForMeStep(step: PaidForMeStep): PaidForMeStep {
+  const index = PAID_FOR_ME_STEPS.indexOf(step)
+  return PAID_FOR_ME_STEPS[Math.min(index + 1, PAID_FOR_ME_STEPS.length - 1)]
+}
+
+/**
+ * « Payé pour moi » (#359, owner's « B. L'addition puis ma part »; in steps
+ * since #394): who paid (a tap moves on), the category (the picker of #396,
+ * « Nouvelle catégorie » when it is missing), the bill with its day and
+ * label, then my part: « Moitié », « Parts égales » between n (me included,
+ * rounded half to even) or « Montant », with « Je dois à Sam 30 € » live.
+ * Only my part counts in my spending, in its category on its day; the bill
+ * is kept beside it. The toast offers « Annuler ». The whole screen on a
+ * phone, a centred modal elsewhere.
  */
 export function PaidForMeSheet({
   open,
@@ -73,7 +144,12 @@ export function PaidForMeSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side={editorSide(isMobile)}
-        className={isMobile ? FORM_SHEET_SCREEN : FORM_SHEET_SIDE}
+        className={cn(
+          isMobile ? FORM_SHEET_SCREEN : FORM_SHEET_SIDE,
+          EDITOR_STEADY_HEIGHT,
+        )}
+        // Each step focuses its own heading (or the bill's field).
+        onOpenAutoFocus={(event) => event.preventDefault()}
       >
         {!open && <SheetTitle className="sr-only">Payé pour moi</SheetTitle>}
         {open && (
@@ -103,24 +179,71 @@ function PaidForMeForm({
   const [bill, setBill] = useState(
     initial?.billCents ? centsToInput(initial.billCents) : '',
   )
-  const [mode, setMode] = useState<ShareMode>('equal')
-  const [people, setPeople] = useState(3)
+  /** How many shared the bill, me included; null once I typed my part. */
+  const [people, setPeople] = useState<number | null>(2)
   const [typed, setTyped] = useState('')
+  const mineRef = useRef<HTMLInputElement>(null)
 
   const billCents = parseEurosToCents(bill) ?? 0
+  const dateOk = date !== '' && date <= today
+  const filled: PaidForMeFilled = {
+    person: person !== null,
+    category: categoryId !== '',
+    bill: billCents > 0 && dateOk,
+  }
+  const [step, setStep] = useState<PaidForMeStep>(() =>
+    firstPaidForMeStep(filled),
+  )
+  const stepIndex = PAID_FOR_ME_STEPS.indexOf(step)
+
   const mine =
-    mode === 'amount'
+    people === null
       ? (parseEurosToCents(typed) ?? 0)
-      : (myPartOf(mode, billCents, people) ?? 0)
+      : (myPartOf('equal', billCents, people) ?? 0)
+  const mineText = people === null ? typed : mine > 0 ? centsToInput(mine) : ''
   const over = mine > billCents
   const ok =
-    person !== null &&
-    categoryId !== '' &&
-    billCents > 0 &&
-    mine > 0 &&
-    !over &&
-    date !== '' &&
-    date <= today
+    filled.person && filled.category && filled.bill && mine > 0 && !over
+
+  /** Every step before `target` is filled in. */
+  const reachable = (target: PaidForMeStep) =>
+    PAID_FOR_ME_STEPS.slice(0, PAID_FOR_ME_STEPS.indexOf(target)).every(
+      (before) => before === 'share' || filled[before],
+    )
+  const stepDone = step === 'share' ? ok : filled[step]
+
+  // Each step starts on its heading (read out by screen readers), the bill
+  // on its field, so typing goes straight to it; right in the commit that
+  // shows the step, so a tap that moved on keeps the phone's keyboard.
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const billRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (step === 'bill') billRef.current?.focus({ preventScroll: true })
+    else headingRef.current?.focus({ preventScroll: true })
+  }, [step])
+
+  /** Moves on from the step shown to the next one, in order. */
+  function moveOn() {
+    setStep(nextPaidForMeStep(step))
+  }
+
+  const createdCategory = useMutation({
+    mutationFn: (name: string) =>
+      createCategory({
+        name,
+        kind: 'expense',
+        color: DEFAULT_CATEGORY_COLOR,
+        icon: DEFAULT_CATEGORY_ICON,
+      }),
+    onSuccess: async (created) => {
+      await queryClient.invalidateQueries({
+        queryKey: categoriesQuery.queryKey,
+      })
+      setCategoryId(created.id)
+      moveOn()
+    },
+    onError: (error) => toast.error(categoryErrorMessage(error)),
+  })
 
   const save = useMutation({
     mutationFn: () =>
@@ -158,6 +281,28 @@ function PaidForMeForm({
   })
 
   const name = person?.name ?? '…'
+  const category = categories.data?.find((c) => c.id === categoryId)
+  const CategoryGlyph = categoryIconComponent(category?.icon ?? null)
+
+  /** What the earlier steps chose, at the top of the later ones. */
+  const recap = (
+    <p className="text-muted-foreground flex min-w-0 items-center justify-center gap-1.5 text-sm">
+      {category && (
+        <CategoryIcon icon={category.icon} color={category.color} size="sm" />
+      )}
+      <span className="truncate">
+        {[
+          person && `Payé par ${person.name}`,
+          category?.name,
+          step === 'share' && billCents > 0 && formatCents(billCents),
+          step === 'share' && dateOk && formatCalendarDate(date),
+        ]
+          .filter(Boolean)
+          .join(' · ')}
+      </span>
+    </p>
+  )
+
   const summary = (
     <div
       aria-live="polite"
@@ -177,148 +322,306 @@ function PaidForMeForm({
       </span>
     </div>
   )
+
   return (
     <form
+      noValidate
       className={FORM_SHEET_FORM}
       onSubmit={(event) => {
         event.preventDefault()
-        if (ok) save.mutate()
+        if (step !== 'share') {
+          if (filled[step]) moveOn()
+        } else if (ok && !save.isPending) save.mutate()
       }}
     >
-      <EditorHeader
+      <SheetBar
+        titleRef={headingRef}
         title="Payé pour moi"
-        description="Quelqu’un a payé : seule votre part compte dans vos dépenses."
-        action={{
-          type: 'submit',
-          label: 'Ajouter',
-          disabled: !ok,
-          loading: save.isPending,
-        }}
+        description={`Étape ${stepIndex + 1} sur ${PAID_FOR_ME_STEPS.length} : ${STEP_NAMES[step]}`}
+        steps={
+          <SheetSteps
+            current={step}
+            onSelect={(key) => setStep(key as PaidForMeStep)}
+            steps={[
+              person
+                ? {
+                    key: 'person',
+                    label: person.name,
+                    icon: <UserRoundIcon aria-hidden />,
+                  }
+                : {
+                    key: 'person',
+                    label: STEP_NAMES.person,
+                    icon: <UserRoundIcon aria-hidden />,
+                  },
+              // Once chosen, the category's own icon in its colour.
+              category
+                ? {
+                    key: 'category',
+                    label: category.name,
+                    icon: <CategoryGlyph aria-hidden />,
+                    color: category.color,
+                    disabled: !reachable('category'),
+                  }
+                : {
+                    key: 'category',
+                    label: STEP_NAMES.category,
+                    icon: <TagIcon aria-hidden />,
+                    disabled: !reachable('category'),
+                  },
+              {
+                key: 'bill',
+                label: STEP_NAMES.bill,
+                icon: <ReceiptIcon aria-hidden />,
+                disabled: !reachable('bill'),
+              },
+              {
+                key: 'share',
+                label: STEP_NAMES.share,
+                icon: <ChartPieIcon aria-hidden />,
+                disabled: !reachable('share'),
+              },
+            ]}
+          />
+        }
+        onBack={
+          stepIndex > 0
+            ? () => setStep(PAID_FOR_ME_STEPS[stepIndex - 1])
+            : undefined
+        }
+        action={
+          <SheetBarAction
+            type="submit"
+            label={step === 'share' ? 'Ajouter' : 'Suivant'}
+            icon={
+              step === 'share' ? undefined : (
+                <ChevronRightIcon aria-hidden strokeWidth={2.6} />
+              )
+            }
+            loading={step === 'share' && save.isPending}
+            disabled={!stepDone}
+          />
+        }
       />
-      <FormSheetBody>
-        <PeoplePicker
-          single
-          label="Qui a payé ?"
-          contacts={contacts.data ?? []}
-          chosen={person ? [person] : []}
-          onPick={setPerson}
+
+      {step === 'person' && (
+        <FormSheetBody>
+          <PeoplePicker
+            single
+            label="Qui a payé ?"
+            contacts={contacts.data ?? []}
+            chosen={person ? [person] : []}
+            onPick={(picked) => {
+              setPerson(picked)
+              moveOn()
+            }}
+          />
+        </FormSheetBody>
+      )}
+
+      {step === 'category' && (
+        <CategoryPicker
+          categories={categories.data ?? []}
+          kinds={['expense']}
+          value={categoryId || null}
+          onPick={(picked) => {
+            setCategoryId(picked)
+            moveOn()
+          }}
+          onCreate={(newName) => createdCategory.mutate(newName)}
+          creating={createdCategory.isPending}
         />
-        <Field>
-          <FieldLabel htmlFor={`${id}-category`}>Catégorie</FieldLabel>
-          <CategoryField
-            id={`${id}-category`}
-            label="Catégorie"
-            categories={categories.data ?? []}
-            kinds={['expense']}
-            value={categoryId || null}
-            onPick={setCategoryId}
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor={`${id}-label`}>Libellé</FieldLabel>
-          <Input
-            id={`${id}-label`}
-            autoComplete="off"
-            maxLength={255}
-            placeholder="Facultatif"
-            value={label}
-            onChange={(event) => setLabel(event.target.value)}
-          />
-        </Field>
-        <Field>
-          <DateChips
-            value={date}
-            today={today}
-            invalid={date > today}
-            onChange={setDate}
-          />
-        </Field>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <label htmlFor={`${id}-bill`} className="text-sm font-medium">
-            Addition payée par {name}
-          </label>
-          <AmountField
-            id={`${id}-bill`}
-            groupClassName="w-[8rem]"
-            className="text-right"
-            value={bill}
-            onValueChange={setBill}
-          />
-        </div>
-        <div className="space-y-2">
-          <p className="text-muted-foreground text-xs font-medium">Ma part</p>
-          <SegmentedControl
-            fullWidth
-            aria-label="Ma part"
-            value={mode}
-            onValueChange={setMode}
-          >
-            <SegmentedControlItem value="half">Moitié</SegmentedControlItem>
-            <SegmentedControlItem value="equal">
-              Parts égales
-            </SegmentedControlItem>
-            <SegmentedControlItem value="amount">Montant</SegmentedControlItem>
-          </SegmentedControl>
-          {mode === 'equal' && (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm">Entre combien, vous compris</span>
-              <span className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  iconOnly
-                  aria-label="Une personne de moins"
-                  disabled={people <= 2}
-                  onClick={() => setPeople((n) => Math.max(2, n - 1))}
-                >
-                  <MinusIcon aria-hidden />
-                </Button>
-                <span
-                  className="w-8 text-center tabular-nums"
-                  aria-live="polite"
-                >
-                  {people}
-                </span>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  iconOnly
-                  aria-label="Une personne de plus"
-                  disabled={people >= 20}
-                  onClick={() => setPeople((n) => Math.min(20, n + 1))}
-                >
-                  <PlusIcon aria-hidden />
-                </Button>
-              </span>
+      )}
+
+      {step === 'bill' && (
+        <FormSheetBody>
+          {recap}
+          <Field>
+            <FieldLabel htmlFor={`${id}-bill`}>
+              Addition payée par {name}
+            </FieldLabel>
+            <AmountField
+              ref={billRef}
+              id={`${id}-bill`}
+              enterKeyHint="next"
+              value={bill}
+              onValueChange={setBill}
+            />
+          </Field>
+          <Field>
+            <DateChips
+              value={date}
+              today={today}
+              invalid={!dateOk}
+              onChange={setDate}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${id}-label`}>Libellé</FieldLabel>
+            <Input
+              id={`${id}-label`}
+              autoComplete="off"
+              enterKeyHint="next"
+              maxLength={255}
+              placeholder="Facultatif"
+              value={label}
+              onChange={(event) => setLabel(event.target.value)}
+            />
+          </Field>
+        </FormSheetBody>
+      )}
+
+      {step === 'share' && (
+        <>
+          <FormSheetBody className="@container space-y-5 pt-5">
+            {recap}
+            <div className="space-y-2">
+              <p
+                id={`${id}-people`}
+                className="text-muted-foreground text-center text-sm"
+              >
+                On était combien, vous compris ?
+              </p>
+              {/* One row, whatever the width (the owner's « A », #394). */}
+              <div
+                role="radiogroup"
+                aria-labelledby={`${id}-people`}
+                className="grid grid-cols-5 gap-2"
+              >
+                {PEOPLE_TILES.map((count) => {
+                  const chosen =
+                    count === PEOPLE_MORE
+                      ? people !== null && people >= PEOPLE_MORE
+                      : people === count
+                  return (
+                    <button
+                      key={count}
+                      type="button"
+                      role="radio"
+                      aria-checked={chosen}
+                      aria-label={
+                        count === PEOPLE_MORE
+                          ? `${PEOPLE_MORE} ou plus`
+                          : `${count}`
+                      }
+                      data-state={chosen ? 'on' : 'off'}
+                      onClick={() =>
+                        setPeople(
+                          count === PEOPLE_MORE && chosen ? people : count,
+                        )
+                      }
+                      className={cn(
+                        CHIP_CLASS,
+                        CHIP_ON,
+                        'h-11 min-w-0 px-0 text-base tabular-nums',
+                      )}
+                    >
+                      {count === PEOPLE_MORE
+                        ? chosen
+                          ? people
+                          : `${PEOPLE_MORE}+`
+                        : count}
+                    </button>
+                  )
+                })}
+              </div>
+              {people !== null && people >= PEOPLE_MORE && (
+                <div className="flex items-center justify-center gap-3">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    iconOnly
+                    aria-label="Une personne de moins"
+                    disabled={people <= PEOPLE_MORE}
+                    onClick={() => setPeople(Math.max(PEOPLE_MORE, people - 1))}
+                  >
+                    <MinusIcon aria-hidden />
+                  </Button>
+                  <span className="text-sm tabular-nums" aria-live="polite">
+                    {people} personnes
+                  </span>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    iconOnly
+                    aria-label="Une personne de plus"
+                    disabled={people >= PEOPLE_MAX}
+                    onClick={() => setPeople(Math.min(PEOPLE_MAX, people + 1))}
+                  >
+                    <PlusIcon aria-hidden />
+                  </Button>
+                </div>
+              )}
             </div>
-          )}
-          {mode === 'amount' && (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <label htmlFor={`${id}-mine`} className="text-sm">
+
+            {/* My part, large: the tiles fill it, typing in it sets an
+                amount of my own. */}
+            <div className="text-center">
+              <label
+                htmlFor={`${id}-mine`}
+                className="text-muted-foreground block text-sm"
+              >
                 Ma part
               </label>
-              <AmountField
-                id={`${id}-mine`}
-                groupClassName="w-[8rem]"
-                className="text-right"
-                aria-invalid={over || undefined}
-                value={typed}
-                onValueChange={setTyped}
-              />
+              <div
+                className={cn(
+                  'flex items-baseline justify-center gap-[0.2em] py-1 leading-tight font-semibold tabular-nums',
+                  'text-[min(2.5rem,13cqi)]',
+                  over && 'text-destructive',
+                )}
+              >
+                {/* As wide as its text (a hidden copy sizes it). */}
+                <span className="grid">
+                  <span
+                    aria-hidden
+                    className="invisible col-start-1 row-start-1 px-0.5 whitespace-pre"
+                  >
+                    {mineText || '0'}
+                  </span>
+                  <input
+                    ref={mineRef}
+                    id={`${id}-mine`}
+                    size={1}
+                    autoComplete="off"
+                    placeholder="0"
+                    inputMode="decimal"
+                    enterKeyHint="done"
+                    aria-invalid={over || undefined}
+                    value={mineText}
+                    onChange={(event) => {
+                      const next = typedAmount(event.target.value)
+                      if (next === null) return
+                      setPeople(null)
+                      setTyped(next)
+                    }}
+                    className="placeholder:text-muted-foreground focus:border-primary col-start-1 row-start-1 w-full min-w-0 border-b-2 border-transparent bg-transparent text-center outline-none"
+                  />
+                </span>
+                <span aria-hidden>€</span>
+              </div>
+              {people !== null && (
+                <button
+                  type="button"
+                  className="text-primary min-h-11 px-2 text-sm font-medium"
+                  onClick={() => {
+                    setTyped(mineText)
+                    setPeople(null)
+                    mineRef.current?.focus()
+                    mineRef.current?.select()
+                  }}
+                >
+                  Autre montant
+                </button>
+              )}
             </div>
-          )}
-        </div>
-        <p className="text-muted-foreground text-xs">
-          Seule votre part compte dans vos dépenses, le jour de la dépense ;
-          l’addition reste à côté. Votre virement à {name}, une fois lié, ne
-          comptera pas comme une dépense.
-        </p>
-      </FormSheetBody>
-      {/* « Je dois à … », live: on a phone it stays at the bottom, the
-          keyboard covering it while a field is typed (#385). */}
-      <div className="flex shrink-0 border-t px-4 py-3 [&>div]:flex-1">
-        {summary}
-      </div>
+          </FormSheetBody>
+          {/* « Je dois à … », live: on a phone it stays at the bottom, the
+              keyboard covering it while a field is typed (#385). */}
+          <div className="flex shrink-0 border-t px-4 py-3 [&>div]:flex-1">
+            {summary}
+          </div>
+        </>
+      )}
     </form>
   )
 }
