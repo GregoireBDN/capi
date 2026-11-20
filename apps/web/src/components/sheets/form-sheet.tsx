@@ -5,8 +5,8 @@ import {
   SheetHeader,
   SheetTitle,
   useIsMobile,
-  type SheetBarActionProps,
 } from '@finances/ui'
+import type { SheetBarActionProps } from '@finances/ui'
 import { cn } from '@finances/ui/lib/utils'
 import type { ComponentProps, ReactNode } from 'react'
 
