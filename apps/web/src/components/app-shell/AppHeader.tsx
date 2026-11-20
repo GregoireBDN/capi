@@ -19,8 +19,8 @@ import { useSetPageActionsSlot, useSetPageBackSlot } from './page-actions'
  *   folds from its own foot (`AppSidebar`), which frees the header.
  * - The logo, back to the dashboard; a sub-page's way back (`PageBack`,
  *   « ‹ Comptes ») takes its place on phones and follows it from `md` up.
- * - Phones: the page's other actions (`PageHeader`; its main action stays
- *   beside the title). From `md` up: « + Ajouter une dépense » (the quick
+ * - Phones: the page's actions as icons (`PageHeader`; the owner's choice:
+ *   every add of the page there). From `md` up: « + Ajouter une dépense » (the quick
  *   entry, on an expense: its usual use; the kind can be changed in it).
  *   « Opération » alone did not say what it added, and a search box here
  *   was unclear beside Opérations' own (the owner, #386): no search.
@@ -83,10 +83,16 @@ export function AppHeader({ user }: { user: UserDto }) {
       </Button>
       <Link
         to={ROUTES.dashboard}
+        // Named even when the word steps aside.
+        aria-label="Finances"
         className="flex h-11 shrink-0 items-center gap-2 rounded-lg px-1 no-underline group-has-[[data-page-back]:not(:empty)]/header:max-md:hidden"
       >
         <img src="/logo.svg" alt="" className="size-6" />
-        <span className="font-semibold tracking-tight">Finances</span>
+        {/* Below 380px with two page actions, the logo alone: the row
+            would not hold the word too. */}
+        <span className="font-semibold tracking-tight group-has-[[data-page-actions]>:nth-child(2)]/header:max-[380px]:hidden">
+          Finances
+        </span>
       </Link>
       <div
         ref={setBackSlot}

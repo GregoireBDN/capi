@@ -270,7 +270,7 @@ describe('App shell sidebar (< md)', () => {
     expect(document.cookie).not.toContain('sidebar_state')
   })
 
-  it('keeps the main action beside the title, the others in the header (#386)', async () => {
+  it('puts every page action in the header as icons (#386)', async () => {
     const ue = userEvent.setup()
     const add = vi.fn()
     const upload = vi.fn()
@@ -284,35 +284,39 @@ describe('App shell sidebar (< md)', () => {
       { label: 'Importer un relevé', icon: <UploadIcon />, onSelect: upload },
     ])
 
+    await ue.click(
+      await within(header()).findByRole('button', {
+        name: 'Ajouter une opération',
+      }),
+    )
+    await ue.click(
+      within(header()).getByRole('button', { name: 'Importer un relevé' }),
+    )
+    expect(add).toHaveBeenCalledOnce()
+    expect(upload).toHaveBeenCalledOnce()
     const title = screen
       .getByRole('heading', { name: 'Tableau de bord' })
       .closest('header') as HTMLElement
-    await ue.click(
-      within(title).getByRole('button', { name: 'Ajouter une opération' }),
-    )
-    expect(add).toHaveBeenCalledOnce()
-    // The other one in the header, named, and not beside the title.
-    await ue.click(
-      await within(header()).findByRole('button', {
-        name: 'Importer un relevé',
-      }),
-    )
-    expect(upload).toHaveBeenCalledOnce()
+    expect(within(title).queryByRole('button')).not.toBeInTheDocument()
+    // The logo keeps its name when its word steps aside on narrow phones.
     expect(
-      within(title).queryByRole('button', { name: 'Importer un relevé' }),
-    ).not.toBeInTheDocument()
+      within(header()).getByRole('link', { name: 'Finances' }),
+    ).toBeInTheDocument()
   })
 
-  it('groups several other actions behind « Plus d’actions » in the header', async () => {
+  it('groups the actions past two behind « Plus d’actions » in the header', async () => {
     await renderShell(false, [
       { label: 'Importer un relevé', icon: <UploadIcon />, onSelect: vi.fn() },
       { label: 'Modifier', icon: <PencilIcon />, onSelect: vi.fn() },
+      { label: 'Ajouter', icon: <PlusIcon />, onSelect: vi.fn() },
     ])
 
     expect(
       await within(header()).findByRole('button', { name: 'Plus d’actions' }),
     ).toBeInTheDocument()
-    // The quick entry and the search stay in the computer's header.
+    expect(
+      within(header()).getByRole('button', { name: 'Importer un relevé' }),
+    ).toBeInTheDocument()
     expect(
       within(header()).queryByRole('button', { name: 'Modifier' }),
     ).not.toBeInTheDocument()

@@ -111,43 +111,31 @@ describe('PageHeader', () => {
     expect(topBar()).toBeEmptyDOMElement()
   })
 
-  it('keeps the main action beside the title as a named icon on phones (#386)', async () => {
+  it('moves the actions to the header as named icon buttons on phones (#386)', async () => {
     emulatePhone()
     const user = userEvent.setup()
     const onAdd = vi.fn()
-    renderInShell(
-      <PageHeader title="Opérations" actions={actions(onAdd).slice(0, 1)} />,
-    )
-
-    const button = await within(page()).findByRole('button', {
-      name: 'Ajouter une opération',
-    })
-    expect(button).not.toHaveTextContent('Ajouter une opération')
-    expect(topBar()).toBeEmptyDOMElement()
-    await user.click(button)
-    expect(onAdd).toHaveBeenCalledOnce()
-  })
-
-  it('moves a single other action to the header as a named icon button on phones', async () => {
-    emulatePhone()
-    const user = userEvent.setup()
     const onEdit = vi.fn()
     renderInShell(
-      <PageHeader
-        title="Comptes"
-        actions={actions(vi.fn(), onEdit).slice(1)}
-      />,
+      <PageHeader title="Comptes" actions={actions(onAdd, onEdit)} />,
     )
 
-    const button = await within(topBar()).findByRole('button', {
-      name: 'Modifier',
+    const add = await within(topBar()).findByRole('button', {
+      name: 'Ajouter une opération',
     })
-    expect(within(page()).queryByRole('button')).not.toBeInTheDocument()
-    await user.click(button)
+    expect(add).not.toHaveTextContent('Ajouter une opération')
+    await user.click(add)
+    await user.click(within(topBar()).getByRole('button', { name: 'Modifier' }))
+    expect(onAdd).toHaveBeenCalledOnce()
     expect(onEdit).toHaveBeenCalledOnce()
+    // Nothing left beside the title, and no menu for two.
+    expect(within(page()).queryByRole('button')).not.toBeInTheDocument()
+    expect(
+      within(topBar()).queryByRole('button', { name: 'Plus d’actions' }),
+    ).not.toBeInTheDocument()
   })
 
-  it('groups several other actions in a menu of the header on phones', async () => {
+  it('keeps the main one and a menu of the others past two actions on phones', async () => {
     emulatePhone()
     const user = userEvent.setup()
     const onEdit = vi.fn()
@@ -163,19 +151,23 @@ describe('PageHeader', () => {
       />,
     )
 
+    expect(
+      await within(topBar()).findByRole('button', {
+        name: 'Ajouter une opération',
+      }),
+    ).toBeInTheDocument()
     await user.click(
-      await within(topBar()).findByRole('button', { name: 'Plus d’actions' }),
+      within(topBar()).getByRole('button', { name: 'Plus d’actions' }),
     )
     expect(
       await screen.findByRole('menuitem', { name: 'Importer un relevé' }),
     ).toBeInTheDocument()
-    // The main action is beside the title, not in the menu.
     expect(
       screen.queryByRole('menuitem', { name: 'Ajouter une opération' }),
     ).not.toBeInTheDocument()
     await user.click(screen.getByRole('menuitem', { name: 'Modifier' }))
     expect(onEdit).toHaveBeenCalledOnce()
-    expect(within(page()).getAllByRole('button')).toHaveLength(1)
+    expect(within(page()).queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('keeps the actions beside the title outside the shell', () => {

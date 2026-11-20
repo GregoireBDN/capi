@@ -3,9 +3,8 @@ import type { ReactNode } from 'react'
 
 /**
  * One action of a page (`PageHeader`'s `actions`): beside the title from `md`
- * up; on phones the main one beside the title as an icon, the others in the
- * header (an icon button, or the « Plus d'actions » menu when there are
- * several).
+ * up; on phones in the header, as icon buttons up to two, else the main one
+ * and a « Plus d'actions » menu of the others.
  */
 export interface PageAction {
   /** Button text, and the icon button's accessible name on phones. */
@@ -13,7 +12,7 @@ export interface PageAction {
   /** A lucide icon element, shown on every screen. */
   icon: ReactNode
   onSelect: () => void
-  /** The page's main action: a filled button beside the title, on phones too. */
+  /** The page's main action: a filled button, in the primary colour on phones. */
   primary?: boolean
   loading?: boolean
   disabled?: boolean
@@ -30,7 +29,7 @@ const PageActionsSlotContext = createContext<{
 
 /**
  * Lets `AppHeader` host the way back of the page shown (every width) and its
- * other actions (phones): the header registers its slot elements,
+ * actions (phones): the header registers its slot elements,
  * `PageBack` and `PageHeader` render into them through portals.
  */
 export function PageActionsSlotProvider({ children }: { children: ReactNode }) {

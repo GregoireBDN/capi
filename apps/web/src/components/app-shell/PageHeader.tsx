@@ -21,9 +21,8 @@ interface PageHeaderProps {
   /** Shown right after the title (e.g. an « Archivé » badge). */
   titleAddon?: ReactNode
   /**
-   * The page's actions: beside the title from `md` up; on phones the main
-   * one (`primary`) beside the title as an icon, the others in the header
-   * (see `PageAction`). Actions tied to one section (the month
+   * The page's actions: beside the title from `md` up, in the header as
+   * icons on phones (see `PageAction`). Actions tied to one section (the month
    * navigator, a card, a sticky bottom bar) stay in that section.
    */
   actions?: readonly PageAction[]
@@ -38,10 +37,10 @@ interface PageHeaderProps {
  * Title block shared by every page of the authenticated app. On phones the
  * title stays on one line (`text-xl` fits « Prévision fin de mois » at
  * 320px: keep new titles that short), the description goes below in a
- * smaller size, the page's main action (`primary`, « + ») stays beside the
- * title as an icon button (the owner's choice on #386) and its other
- * actions move to the header, so the title block never takes a third of
- * the screen. From `md` up every action is a button beside the title.
+ * smaller size and the page's actions move to the header as icons (the
+ * owner's choice on #386, after trying the main one beside the title), so
+ * the title block never takes a third of the screen. From `md` up every
+ * action is a button beside the title.
  */
 export function PageHeader({
   title,
@@ -52,18 +51,16 @@ export function PageHeader({
 }: PageHeaderProps) {
   const isMobile = useIsMobile()
   const slot = usePageActionsSlot()
-  const main = actions.find((action) => action.primary)
-  const others = actions.filter((action) => action !== main)
-  // Phones: the main action beside the title as an icon, the others in the
-  // header. They need JavaScript anyway, so the server renders them as the
-  // buttons of wide screens (hidden below md), rearranged once hydrated.
+  // Phones: the actions live in the header. They need JavaScript anyway, so
+  // the server renders them beside the title (hidden below md) and they move
+  // into the header once hydrated.
   const inHeader = isMobile && slot !== null
 
   return (
     <header>
       {back && <PageBack {...back} />}
-      <div className="flex items-start justify-between gap-x-3 gap-y-3 md:flex-wrap md:gap-x-6">
-        <div className="min-w-0 flex-1 space-y-1 md:min-w-[min(100%,14rem)]">
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="min-w-[min(100%,14rem)] flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <h1 className="min-w-0 text-xl font-semibold tracking-tight break-words md:text-2xl">
               {title}
@@ -76,98 +73,96 @@ export function PageHeader({
             </p>
           )}
         </div>
-        {inHeader && main && (
-          <Button
-            type="button"
-            variant="primary"
-            iconOnly
-            className="shrink-0"
-            aria-label={main.label}
-            title={main.label}
-            loading={main.loading}
-            disabled={main.disabled}
-            onClick={main.onSelect}
-          >
-            {main.icon}
-          </Button>
-        )}
-        {inHeader
-          ? others.length > 0 &&
-            createPortal(<HeaderActions actions={others} />, slot)
-          : actions.length > 0 && (
-              <div className="flex flex-wrap gap-2 max-md:hidden">
-                {actions.map((action) => (
-                  <Button
-                    key={action.label}
-                    variant={action.primary ? 'primary' : 'secondary'}
-                    outline={!action.primary}
-                    iconStart={action.icon}
-                    loading={action.loading}
-                    disabled={action.disabled}
-                    onClick={action.onSelect}
-                  >
-                    {action.label}
-                  </Button>
-                ))}
-              </div>
-            )}
+        {actions.length > 0 &&
+          (inHeader ? (
+            createPortal(<HeaderActions actions={actions} />, slot)
+          ) : (
+            <div className="flex flex-wrap gap-2 max-md:hidden">
+              {actions.map((action) => (
+                <Button
+                  key={action.label}
+                  variant={action.primary ? 'primary' : 'secondary'}
+                  outline={!action.primary}
+                  iconStart={action.icon}
+                  loading={action.loading}
+                  disabled={action.disabled}
+                  onClick={action.onSelect}
+                >
+                  {action.label}
+                </Button>
+              ))}
+            </div>
+          ))}
       </div>
     </header>
   )
 }
 
 /**
- * The page's other actions in the phone header: one is an icon button named
- * by its label, several go into a « Plus d’actions » menu.
+ * The page's actions in the phone header: up to two, each an icon button
+ * named by its label (the main one in the primary colour); more, the main
+ * one (else the first) then a « Plus d’actions » menu of the others, so
+ * the header still fits at 320px.
  */
 function HeaderActions({ actions }: { actions: readonly PageAction[] }) {
-  if (actions.length === 1) {
-    const [only] = actions
-    return (
-      <Button
-        type="button"
-        variant={only.primary ? 'primary' : 'secondary'}
-        ghost
-        iconOnly
-        aria-label={only.label}
-        title={only.label}
-        loading={only.loading}
-        disabled={only.disabled}
-        onClick={only.onSelect}
-      >
-        {only.icon}
-      </Button>
-    )
+  if (actions.length <= 2) {
+    return actions.map((action) => (
+      <ActionIcon key={action.label} action={action} />
+    ))
   }
+  const main = actions.find((action) => action.primary) ?? actions[0]
+  const others = actions.filter((action) => action !== main)
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="secondary"
-          ghost
-          iconOnly
-          aria-label="Plus d’actions"
-        >
-          <EllipsisVerticalIcon />
-        </Button>
-      </DropdownMenuTrigger>
-      {/* As wide as its labels (not the icon trigger), within the screen. */}
-      <DropdownMenuContent
-        align="end"
-        className="w-max max-w-(--radix-dropdown-menu-content-available-width)"
-      >
-        {actions.map((action) => (
-          <DropdownMenuItem
-            key={action.label}
-            disabled={action.disabled || action.loading}
-            onSelect={action.onSelect}
+    <>
+      <ActionIcon action={main} />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="secondary"
+            ghost
+            iconOnly
+            aria-label="Plus d’actions"
           >
-            {action.loading ? <Spinner /> : action.icon}
-            {action.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+            <EllipsisVerticalIcon />
+          </Button>
+        </DropdownMenuTrigger>
+        {/* As wide as its labels (not the icon trigger), within the screen. */}
+        <DropdownMenuContent
+          align="end"
+          className="w-max max-w-(--radix-dropdown-menu-content-available-width)"
+        >
+          {others.map((action) => (
+            <DropdownMenuItem
+              key={action.label}
+              disabled={action.disabled || action.loading}
+              onSelect={action.onSelect}
+            >
+              {action.loading ? <Spinner /> : action.icon}
+              {action.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  )
+}
+
+/** One action as an icon button of the header, named by its label. */
+function ActionIcon({ action }: { action: PageAction }) {
+  return (
+    <Button
+      type="button"
+      variant={action.primary ? 'primary' : 'secondary'}
+      ghost
+      iconOnly
+      aria-label={action.label}
+      title={action.label}
+      loading={action.loading}
+      disabled={action.disabled}
+      onClick={action.onSelect}
+    >
+      {action.icon}
+    </Button>
   )
 }
