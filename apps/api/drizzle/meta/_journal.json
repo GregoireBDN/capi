@@ -267,6 +267,13 @@
       "when": 1795161946698,
       "tag": "0037_invested_base_all_investments",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1795164664222,
+      "tag": "0038_month_report_version",
+      "breakpoints": true
     }
   ]
 }

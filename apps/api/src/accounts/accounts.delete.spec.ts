@@ -94,7 +94,11 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
     const [groceries, outings] = await tx
       .insert(categoriesTable)
       .values([
-        { slug: 'delete_test_groceries', name: 'Courses test', kind: 'expense' },
+        {
+          slug: 'delete_test_groceries',
+          name: 'Courses test',
+          kind: 'expense',
+        },
         { slug: 'delete_test_outings', name: 'Sorties test', kind: 'expense' },
       ])
       .returning()
@@ -181,6 +185,7 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
       month: '2019-03',
       closedAt: new Date('2019-04-02T10:00:00Z'),
       report: { synthetic: true } as never,
+      reportVersion: 1,
     })
     return { doomed, kept, groceries, goal }
   }

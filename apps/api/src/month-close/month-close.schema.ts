@@ -3,6 +3,7 @@ import {
   check,
   jsonb,
   pgTable,
+  smallint,
   text,
   timestamp,
   unique,
@@ -15,8 +16,8 @@ import type { MonthReportDto } from './dto/month-close.dto'
  * The guided month-end review of one calendar month (#75): the steps the
  * owner ticked by hand, the notes, and, once the month is closed, the report
  * as it stood then (`report`), so later edits show as differences. A row is
- * created by the first tick, note or close; reopening clears `closedAt` and
- * `report`.
+ * created by the first tick, note or close; reopening clears `closedAt`,
+ * `report` and `reportVersion`.
  */
 export const monthClosesTable = pgTable(
   'month_closes',
@@ -33,6 +34,11 @@ export const monthClosesTable = pgTable(
     closedAt: timestamp('closed_at'),
     /** Report frozen at the close; null while the month is open. */
     report: jsonb('report').$type<MonthReportDto>(),
+    /**
+     * Shape of `report` (#369): `upgradeReport` turns any stored version into
+     * the current DTO; set with the report, cleared with it.
+     */
+    reportVersion: smallint('report_version'),
   },
   (t) => [
     unique('month_closes_month_unique').on(t.month),
@@ -43,6 +49,10 @@ export const monthClosesTable = pgTable(
     check(
       'month_closes_closed_has_report',
       sql`(${t.closedAt} is null) = (${t.report} is null)`,
+    ),
+    check(
+      'month_closes_report_has_version',
+      sql`(${t.report} is null) = (${t.reportVersion} is null)`,
     ),
   ],
 )

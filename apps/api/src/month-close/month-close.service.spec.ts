@@ -4,7 +4,7 @@ import {
   ConflictException,
   ValidationPipe,
 } from '@nestjs/common'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -24,13 +24,10 @@ import { InvestmentsService } from '#/investments/investments.service'
 import { RecurringService } from '#/recurring/recurring.service'
 import { SavingsService } from '#/savings/savings.service'
 import { TransactionsService } from '#/transactions/transactions.service'
-import {
-  MonthParamDto,
-  type MonthReportDto,
-  UpdateMonthCloseDto,
-} from './dto/month-close.dto'
+import { MonthParamDto, UpdateMonthCloseDto } from './dto/month-close.dto'
 import { monthClosesTable } from './month-close.schema'
-import { MonthCloseService, withIcons } from './month-close.service'
+import { MonthCloseService } from './month-close.service'
+import { REPORT_VERSION } from './report-version'
 
 /**
  * Integration checks against the dedicated test database (see
@@ -603,6 +600,49 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
+    it('stores the report version and reads a version 1 report as before (#369)', async () => {
+      await inRollback(async ({ tx, accounts, budgets, service }) => {
+        await completeOctober(tx, accounts, budgets)
+        const closed = await service.close('2026-10', {}, { now: NOW })
+        const [row] = await tx
+          .select()
+          .from(monthClosesTable)
+          .where(eq(monthClosesTable.month, '2026-10'))
+        expect(row.reportVersion).toBe(REPORT_VERSION)
+
+        // The same report as frozen before #369: categories without icons,
+        // no plan, version 1.
+        const { plan: _plan, ...rest } = closed.closedReport!
+        const v1 = {
+          ...rest,
+          categories: rest.categories.map(({ icon: _icon, ...c }) => c),
+        }
+        await tx
+          .update(monthClosesTable)
+          .set({ report: v1 as never, reportVersion: 1 })
+          .where(eq(monthClosesTable.month, '2026-10'))
+        const read = await service.get('2026-10', { now: NOW })
+        expect(read.closedReport).toEqual({
+          ...closed.closedReport,
+          categories: closed.closedReport!.categories.map((c) => ({
+            ...c,
+            icon: read.report.categories.find(
+              (live) => live.categoryId === c.categoryId,
+            )!.icon,
+          })),
+          plan: null,
+        })
+        expect(read.changes).toEqual([])
+
+        // A report without its version is refused by the database.
+        await expect(
+          tx.execute(
+            sql`update month_closes set report_version = null where month = '2026-10'`,
+          ),
+        ).rejects.toThrow()
+      })
+    })
+
     it('reopens a closed month and keeps its notes', async () => {
       await inRollback(async ({ tx, accounts, budgets, service }) => {
         await completeOctober(tx, accounts, budgets)
@@ -620,7 +660,11 @@ describe.skipIf(!process.env.DATABASE_URL)(
           .select()
           .from(monthClosesTable)
           .where(eq(monthClosesTable.month, '2026-10'))
-        expect(row).toMatchObject({ closedAt: null, report: null })
+        expect(row).toMatchObject({
+          closedAt: null,
+          report: null,
+          reportVersion: null,
+        })
 
         await expect(
           service.reopen('2026-10', { now: NOW }),
@@ -691,48 +735,5 @@ describe('month close validation', () => {
     })
     await expect(body({ acknowledged: ['imports'] })).rejects.toThrow()
     await expect(body({ notes: null })).resolves.toEqual({ notes: null })
-  })
-})
-
-describe('withIcons', () => {
-  const category = {
-    categoryId: 'c1',
-    name: 'Test courses',
-    color: '#16a34a',
-    kind: 'expense' as const,
-    amountCents: 1_000,
-    previousAmountCents: 0,
-    targetCents: null,
-  }
-  const report = (categories: MonthReportDto['categories']) =>
-    ({
-      month: '2026-10',
-      flow: { incomeCents: 0, expenseCents: 0, netCents: 0 },
-      netWorthCents: null,
-      savingsTargetCents: null,
-      categories,
-      oneOffs: [],
-      notes: null,
-    }) as unknown as MonthReportDto
-
-  it('gives a report frozen before icons the current ones', () => {
-    const frozen = report([
-      category as MonthReportDto['categories'][number],
-      {
-        ...category,
-        categoryId: 'gone',
-      } as MonthReportDto['categories'][number],
-    ])
-    const live = report([{ ...category, icon: 'shopping-cart' }])
-    expect(withIcons(frozen, live).categories.map((c) => c.icon)).toEqual([
-      'shopping-cart',
-      null,
-    ])
-  })
-
-  it('keeps the icons a report was frozen with', () => {
-    const frozen = report([{ ...category, icon: 'utensils' }])
-    const live = report([{ ...category, icon: 'shopping-cart' }])
-    expect(withIcons(frozen, live)).toBe(frozen)
   })
 })

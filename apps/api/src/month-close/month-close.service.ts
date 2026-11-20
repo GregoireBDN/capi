@@ -49,6 +49,7 @@ import {
   type UpdateMonthCloseDto,
 } from './dto/month-close.dto'
 import { monthClosesTable, type SelectMonthClose } from './month-close.schema'
+import { REPORT_VERSION, upgradeReport } from './report-version'
 import { storedContinuityGaps, type StoredRow } from './stored-continuity'
 
 type Db = PostgresJsDatabase<typeof schema>
@@ -121,27 +122,6 @@ export function reportChanges(
     })
   }
   return changes
-}
-
-/**
- * A frozen report with every category's icon: reports closed before icons
- * existed (#288) take the one the category has now, from the live report
- * (null when the category is gone).
- */
-export function withIcons(
-  closed: MonthReportDto,
-  current: MonthReportDto,
-): MonthReportDto {
-  if (closed.categories.every((c) => c.icon !== undefined)) return closed
-  const icons = new Map(current.categories.map((c) => [c.categoryId, c.icon]))
-  return {
-    ...closed,
-    categories: closed.categories.map((c) =>
-      c.icon !== undefined
-        ? c
-        : { ...c, icon: icons.get(c.categoryId) ?? null },
-    ),
-  }
 }
 
 /**
@@ -295,9 +275,10 @@ export class MonthCloseService {
       close: closed,
     }
 
-    // Reports frozen before planned income (#315) have no plan.
     const closedReport = closed
-      ? { ...withIcons(row.report!, report), plan: row.report!.plan ?? null }
+      ? upgradeReport(row.reportVersion!, row.report, {
+          icons: new Map(report.categories.map((c) => [c.categoryId, c.icon])),
+        })
       : null
     return {
       month,
@@ -413,7 +394,12 @@ export class MonthCloseService {
     const notes =
       dto.notes !== undefined ? cleanNotes(dto.notes) : (row?.notes ?? null)
     const report = await this.report(month, { now, executor: this.db, notes })
-    const values = { notes, closedAt: now, report }
+    const values = {
+      notes,
+      closedAt: now,
+      report,
+      reportVersion: REPORT_VERSION,
+    }
     const saved = await this.db
       .insert(monthClosesTable)
       .values({ month, ...values })
@@ -435,7 +421,12 @@ export class MonthCloseService {
   ): Promise<MonthCloseDto> {
     const reopened = await this.db
       .update(monthClosesTable)
-      .set({ closedAt: null, report: null, updatedAt: new Date() })
+      .set({
+        closedAt: null,
+        report: null,
+        reportVersion: null,
+        updatedAt: new Date(),
+      })
       .where(
         and(
           eq(monthClosesTable.month, month),

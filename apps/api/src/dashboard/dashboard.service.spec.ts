@@ -609,6 +609,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             month: '2026-10',
             closedAt,
             report: {} as never,
+            reportVersion: 1,
           })
           // A budget that starts after the reviewed month's next one.
           const budgets = new BudgetsService({ db: tx } as never)
@@ -639,6 +640,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             month: '2026-10',
             closedAt: new Date('2026-11-03T09:00:00Z'),
             report: {} as never,
+            reportVersion: 1,
           })
           expect(await dashboard.review(undefined, { now: NOW })).toMatchObject(
             {
