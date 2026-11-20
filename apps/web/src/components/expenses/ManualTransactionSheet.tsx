@@ -150,6 +150,9 @@ const STEP_NAMES: Record<Step, string> = {
   details: 'Détails',
 }
 
+/** How long after a tap a blur counts as caused by it. */
+const TAP_BLUR_MS = 600
+
 /** Income category of the meal-voucher card's credits (#298). */
 const MEAL_VOUCHER_CATEGORY_SLUG = 'meal_vouchers'
 
@@ -237,6 +240,8 @@ export function ManualTransactionSheet({
   const amountRef = useRef<HTMLInputElement>(null)
   const stepRef = useRef<HTMLHeadingElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
+  /** The last tap in the sheet: a blur it caused is not a keyboard's ✓. */
+  const lastTap = useRef<{ target: Element; at: number } | null>(null)
   const today = currentDay()
   const suggestions = useQuery({
     ...manualSuggestionsQuery(kind),
@@ -919,6 +924,23 @@ export function ManualTransactionSheet({
                     const next = typedAmount(event.target.value)
                     if (next !== null) setAmount(next)
                   }}
+                  // A phone's decimal keyboard has no Enter: closing it
+                  // (its ✓) with a valid amount moves on to the details,
+                  // as Enter does on a computer. Not when the keyboard
+                  // closes for a tap on a button (‹, ›, a step, ✕).
+                  onBlur={(event) => {
+                    if (!isMobile) return
+                    const tap = lastTap.current
+                    const tappedControl =
+                      tap !== null &&
+                      tap.target !== event.currentTarget &&
+                      performance.now() - tap.at < TAP_BLUR_MS &&
+                      tap.target.closest(
+                        'button, a, input, textarea, select, [role="button"]',
+                      ) !== null
+                    if (tappedControl || amountError || !categoryChosen) return
+                    setStep('details')
+                  }}
                 />
               </span>
               <span aria-hidden>€</span>
@@ -1147,6 +1169,13 @@ export function ManualTransactionSheet({
           <SheetContent
             side="screen"
             onKeyDown={onKeyDown}
+            onPointerDownCapture={(event) => {
+              if (event.target instanceof Element)
+                lastTap.current = {
+                  target: event.target,
+                  at: performance.now(),
+                }
+            }}
             onOpenAutoFocus={(event) => {
               // The step's heading, or the amount when it opens there (an
               // envelope's « + »): the keyboard comes up at once.

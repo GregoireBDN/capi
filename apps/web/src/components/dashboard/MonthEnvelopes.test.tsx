@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -413,6 +413,47 @@ describe('MonthEnvelopes', () => {
           }),
         ),
       )
+    } finally {
+      matchMedia.mockRestore()
+    }
+  })
+
+  it('moves on to the details when the phone keyboard closes on a valid amount', async () => {
+    const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query: string) =>
+        ({
+          matches: query.includes('max-width'),
+          media: query,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }) as unknown as MediaQueryList,
+    )
+    try {
+      api.transactionsControllerManualSuggestions.mockImplementation(() =>
+        ok({
+          items: [{ label: 'Boulangerie test', categoryId: GROCERIES }],
+          categoryIds: [],
+        }),
+      )
+      const user = userEvent.setup()
+      renderCard()
+      await user.click(
+        await screen.findByRole('button', { name: 'Ajouter une dépense' }),
+      )
+      const dialog = await screen.findByRole('dialog')
+      await user.click(
+        within(
+          await within(dialog).findByRole('list', { name: 'Habituels' }),
+        ).getByRole('button', { name: /Boulangerie test/ }),
+      )
+      const amount = within(dialog).getByLabelText('Montant')
+      // Its ✓ only closes the keyboard: without an amount, nothing moves.
+      act(() => amount.blur())
+      expect(within(dialog).getByLabelText('Montant')).toBeVisible()
+      await user.type(within(dialog).getByLabelText('Montant'), '9,9')
+      act(() => within(dialog).getByLabelText('Montant').blur())
+      expect(await within(dialog).findByLabelText('Libellé')).toBeVisible()
+      expect(api.transactionsControllerCreateManual).not.toHaveBeenCalled()
     } finally {
       matchMedia.mockRestore()
     }
