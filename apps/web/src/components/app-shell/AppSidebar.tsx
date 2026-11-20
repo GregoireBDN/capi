@@ -107,7 +107,9 @@ export function AppSidebar() {
             title="Voir les opérations à revoir"
             className="bg-primary text-primary-foreground focus-visible:ring-sidebar-ring touch-hitbox absolute top-1/2 right-1 flex h-5 min-w-5 -translate-y-1/2 items-center justify-center rounded-full px-1 text-xs font-medium tabular-nums outline-none select-none hover:opacity-90 focus-visible:ring-2 group-data-[collapsible=icon]:hidden"
           >
-            {count > 99 ? '99+' : count}
+            {/* In a span: the link's 44px touch area (::after) must not
+                count as text sticking out of the badge. */}
+            <span>{count > 99 ? '99+' : count}</span>
           </Link>
         )}
       </SidebarMenuItem>

@@ -50,7 +50,8 @@ export function AppHeader({ user }: { user: UserDto }) {
     >
       <a
         href="#main-content"
-        className="bg-background focus-visible:ring-ring/50 sr-only rounded-lg px-3 py-2 text-sm font-medium focus:not-sr-only focus:absolute focus:top-1 focus:left-2 focus:z-30 focus-visible:ring-[3px]"
+        // Visually hidden until focused: its box only appears with the focus.
+        className="focus:bg-background focus-visible:ring-ring/50 sr-only text-sm font-medium focus:not-sr-only focus:absolute focus:top-1 focus:left-2 focus:z-30 focus:rounded-lg focus:px-3 focus:py-2 focus-visible:ring-[3px]"
       >
         Aller au contenu
       </a>

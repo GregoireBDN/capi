@@ -71,6 +71,14 @@ const openPageActions: Step = async (page) => {
   // ≥ md the actions sit beside the title: no menu.
   if (await page.getByRole('button', { name: 'Ouvrir le menu' }).isHidden())
     return
+  // Phones: the main action stays beside the title (#386); the others reach
+  // the header once hydrated, in a menu only when there are several.
+  await page
+    .locator('[data-page-actions] > *')
+    .first()
+    .waitFor({ timeout: 5000 })
+    .catch(() => undefined)
+  if (!(await more.isVisible())) return
   await more.click()
   await page.getByRole('menu').waitFor()
 }
@@ -254,6 +262,9 @@ function auditPage(min: { target: number; font: number; width: number }) {
     if (r.width === 0 || r.height === 0) return false
     const s = getComputedStyle(el)
     if (s.visibility === 'hidden' || s.display === 'none') return false
+    // Visually hidden until focused (`sr-only`: the skip link, a way back
+    // before hydration): not a target nor a text box on screen.
+    if (s.clipPath === 'inset(50%)') return false
     // The content of a folded <details> is not rendered (its summary is).
     const folded = el.closest('details:not([open])')
     if (folded && !folded.querySelector(':scope > summary')?.contains(el))
@@ -325,6 +336,21 @@ function auditPage(min: { target: number; font: number; width: number }) {
       front.closest('[data-radix-popper-content-wrapper],[role=dialog]')
     )
       continue
+    // Partly under an open popover (the account menu, #386): not reachable
+    // either until it closes.
+    const under = [
+      ...document.querySelectorAll('[data-radix-popper-content-wrapper]'),
+    ].some((popper) => {
+      if (popper.contains(el)) return false
+      const p = popper.getBoundingClientRect()
+      return (
+        r.bottom > p.top &&
+        r.top < p.bottom &&
+        r.right > p.left &&
+        r.left < p.right
+      )
+    })
+    if (under) continue
     if (!hits(el))
       smallTargets.push({
         tag: el.tagName.toLowerCase(),
