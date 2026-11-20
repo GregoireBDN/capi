@@ -7,7 +7,7 @@ import {
   createRouter,
 } from '@tanstack/react-router'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { PlusIcon } from 'lucide-react'
+import { PlusIcon, UploadIcon } from 'lucide-react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarInset, SidebarProvider } from '@finances/ui'
@@ -17,7 +17,7 @@ import { resetReviewCount } from '#/lib/review-count'
 import { parseSidebarOpen } from '#/lib/sidebar-state'
 
 import { AppSidebar } from './AppSidebar'
-import { AppTopBar } from './AppTopBar'
+import { AppHeader } from './AppHeader'
 import { PageHeader } from './PageHeader'
 import { PageActionsSlotProvider } from './page-actions'
 import type { PageAction } from './page-actions'
@@ -53,14 +53,16 @@ afterEach(clearSidebarCookie)
 async function renderShell(defaultOpen: boolean, actions: PageAction[] = []) {
   const rootRoute = createRootRoute({
     component: () => (
-      <SidebarProvider defaultOpen={defaultOpen}>
-        <AppSidebar user={user} />
-        <SidebarInset>
-          <PageActionsSlotProvider>
-            <AppTopBar />
-            <Outlet />
-          </PageActionsSlotProvider>
-        </SidebarInset>
+      <SidebarProvider defaultOpen={defaultOpen} className="flex-col">
+        <PageActionsSlotProvider>
+          <AppHeader user={user} />
+          <div className="flex">
+            <AppSidebar />
+            <SidebarInset id="main-content">
+              <Outlet />
+            </SidebarInset>
+          </div>
+        </PageActionsSlotProvider>
       </SidebarProvider>
     ),
   })
@@ -69,12 +71,18 @@ async function renderShell(defaultOpen: boolean, actions: PageAction[] = []) {
     path: '/dashboard',
     component: () => <PageHeader title="Tableau de bord" actions={actions} />,
   })
+  const transactions = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/transactions',
+    component: () => <PageHeader title="Opérations" />,
+  })
   const router = createRouter({
-    routeTree: rootRoute.addChildren([dashboard]),
+    routeTree: rootRoute.addChildren([dashboard, transactions]),
     history: createMemoryHistory({ initialEntries: ['/dashboard'] }),
   })
   render(<RouterProvider router={router} />)
   await screen.findByRole('heading', { name: 'Tableau de bord' })
+  return router
 }
 
 /** The fixed sidebar column (≥ md). */
@@ -84,44 +92,113 @@ function sidebar() {
   return element
 }
 
-function topBar() {
-  const element = document.querySelector('[data-app-top-bar]')
-  if (!element) throw new Error('No top bar')
-  return element
+function header() {
+  const element = document.querySelector('[data-app-header]')
+  if (!element) throw new Error('No header')
+  return element as HTMLElement
+}
+
+/** Synthetic queue size for the « À revoir » counter. */
+function reviewQueue(count: number) {
+  vi.mocked(transactionsControllerReviewCount).mockReturnValue(
+    Promise.resolve({ data: { count } }) as never,
+  )
 }
 
 describe('App shell sidebar (≥ md)', () => {
-  it('shows the full sidebar and no top bar by default', async () => {
+  it('shows the header above the full sidebar by default (#386)', async () => {
     await renderShell(true)
 
     expect(sidebar()).toHaveAttribute('data-state', 'expanded')
-    expect(topBar()).toHaveClass('md:hidden')
+    expect(header()).not.toHaveClass('md:hidden')
+    expect(header().tagName).toBe('HEADER')
+    // The column folds from its own foot, not from the header (#386).
     expect(
-      screen.getByRole('button', { name: 'Réduire le menu' }),
+      within(sidebar() as HTMLElement).getByRole('button', {
+        name: 'Réduire le menu',
+      }),
     ).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      within(header()).queryByRole('button', { name: /le menu$/ }),
+    ).toHaveClass('md:hidden')
+    // Logo and account in the header.
+    expect(
+      within(header()).getByRole('link', { name: 'Finances' }),
+    ).toHaveAttribute('href', '/dashboard')
+    // No search: Opérations has its own (#386).
+    expect(within(header()).queryByRole('searchbox')).not.toBeInTheDocument()
+    // No permanent quick entry, and no menu on a page without actions.
+    expect(
+      within(header()).queryByRole('button', { name: /Ajouter/ }),
+    ).toBeNull()
+    expect(
+      within(header()).queryByRole('button', { name: 'Actions de la page' }),
+    ).toBeNull()
+    expect(
+      within(header()).getByRole('button', { name: 'Compte, Owner Test' }),
+    ).toBeInTheDocument()
   })
 
-  it('folds down to its icons and back from its header', async () => {
+  it('opens with a skip link to the page', async () => {
+    await renderShell(true)
+
+    const skip = within(header()).getByRole('link', {
+      name: 'Aller au contenu',
+    })
+    expect(skip).toHaveAttribute('href', '#main-content')
+    expect(document.getElementById('main-content')?.tagName).toBe('MAIN')
+  })
+
+  it('keeps a dot on Opérations for the transactions to review while folded', async () => {
+    reviewQueue(4)
+    await renderShell(false)
+
+    expect(await screen.findByTestId('nav-review-dot')).toHaveClass(
+      'group-data-[collapsible=icon]:block',
+    )
+  })
+
+  it('puts Réglages and the fold button at the sidebar’s foot (#386)', async () => {
+    await renderShell(true)
+
+    const settings = within(sidebar() as HTMLElement).getByRole('link', {
+      name: 'Réglages',
+    })
+    expect(settings).toHaveAttribute('href', '/settings')
+    // After the pages, and the only link to the settings.
+    expect(
+      screen
+        .getByRole('link', { name: 'Import' })
+        .compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(document.querySelectorAll('a[href="/settings"]')).toHaveLength(1)
+    expect(
+      settings.compareDocumentPosition(
+        screen.getByRole('button', { name: 'Réduire le menu' }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('folds down to its icons and back from the sidebar’s foot', async () => {
     const ue = userEvent.setup()
     await renderShell(true)
 
-    const header = screen.getByRole('button', { name: 'Réduire le menu' })
-    await ue.click(header)
+    const fold = screen.getByRole('button', { name: 'Réduire le menu' })
+    await ue.click(fold)
 
     expect(sidebar()).toHaveAttribute('data-state', 'collapsed')
     expect(sidebar()).toHaveAttribute('data-collapsible', 'icon')
-    // Still on screen: no top bar from md up, the pages stay reachable.
-    expect(topBar()).toHaveClass('md:hidden')
+    // Still on screen: the pages stay reachable.
     expect(screen.getByRole('link', { name: 'Budget' })).toBeInTheDocument()
     // The same control, which keeps the focus, unfolds it.
-    expect(header).toHaveAccessibleName('Agrandir le menu')
-    expect(header).toHaveAttribute('aria-expanded', 'false')
-    expect(header).toHaveFocus()
+    expect(fold).toHaveAccessibleName('Agrandir le menu')
+    expect(fold).toHaveAttribute('aria-expanded', 'false')
+    expect(fold).toHaveFocus()
     expect(parseSidebarOpen(document.cookie)).toBe(false)
 
-    await ue.click(header)
+    await ue.click(fold)
     expect(sidebar()).toHaveAttribute('data-state', 'expanded')
-    expect(header).toHaveAccessibleName('Réduire le menu')
+    expect(fold).toHaveAccessibleName('Réduire le menu')
     expect(parseSidebarOpen(document.cookie)).toBe(true)
   })
 
@@ -168,9 +245,14 @@ describe('App shell sidebar (< md)', () => {
     vi.restoreAllMocks()
   })
 
-  it('opens the navigation sheet from the top bar, with no fold button', async () => {
+  it('opens the navigation sheet from the header, with no fold button', async () => {
+    reviewQueue(12)
     const ue = userEvent.setup()
     await renderShell(false)
+    // The sidebar's badge is out of sight: ☰ carries the count.
+    expect(await screen.findByTestId('menu-review-count')).toHaveTextContent(
+      '12 opérations à revoir',
+    )
 
     expect(
       screen.queryByRole('button', {
@@ -192,22 +274,31 @@ describe('App shell sidebar (< md)', () => {
     expect(document.cookie).not.toContain('sidebar_state')
   })
 
-  it('hosts the page actions in the top bar', async () => {
+  it('puts the page actions in the header’s « ⋮ » menu (#386)', async () => {
     const ue = userEvent.setup()
-    const onSelect = vi.fn()
+    const upload = vi.fn()
     await renderShell(false, [
-      { label: 'Ajouter une opération', icon: <PlusIcon />, onSelect },
+      {
+        label: 'Ajouter une opération',
+        icon: <PlusIcon />,
+        onSelect: vi.fn(),
+        primary: true,
+      },
+      { label: 'Importer un relevé', icon: <UploadIcon />, onSelect: upload },
     ])
 
     await ue.click(
-      await within(topBar() as HTMLElement).findByRole('button', {
-        name: 'Ajouter une opération',
+      await within(header()).findByRole('button', {
+        name: 'Actions de la page',
       }),
     )
-    expect(onSelect).toHaveBeenCalledOnce()
-    // Not also beside the title.
-    expect(
-      screen.getAllByRole('button', { name: 'Ajouter une opération' }),
-    ).toHaveLength(1)
+    await ue.click(
+      await screen.findByRole('menuitem', { name: 'Importer un relevé' }),
+    )
+    expect(upload).toHaveBeenCalledOnce()
+    const title = screen
+      .getByRole('heading', { name: 'Tableau de bord' })
+      .closest('header') as HTMLElement
+    expect(within(title).queryByRole('button')).not.toBeInTheDocument()
   })
 })

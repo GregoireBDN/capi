@@ -35,6 +35,7 @@ describe('settings layout', () => {
   it('goes back to Réglages from its screens, with the one back link (#324)', () => {
     location.pathname = '/settings/security'
     render(<Layout />)
+    // Outside the shell's header: in the page (`PageBack`).
     expect(screen.getByRole('link', { name: 'Réglages' })).toHaveAttribute(
       'href',
       '/settings',

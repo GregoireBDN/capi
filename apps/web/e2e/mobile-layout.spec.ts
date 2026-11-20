@@ -35,10 +35,16 @@ type Scenario = {
 
 const openNav: Step = async (page) => {
   const trigger = page.getByRole('button', { name: 'Ouvrir le menu' })
-  // ≥ md the sidebar is a fixed column: nothing to open.
+  // ≥ md the sidebar is a fixed column (the header's ☰ folds it): nothing
+  // to open.
   if (!(await trigger.isVisible())) return
   await trigger.click()
   await page.getByRole('dialog').waitFor()
+}
+/** The header's avatar: the account menu (#386). */
+const openAccountMenu: Step = async (page) => {
+  await page.getByRole('button', { name: /^Compte, / }).click()
+  await page.getByRole('dialog', { name: 'Compte' }).waitFor()
 }
 const clickFirst =
   (name: RegExp, role: 'button' | 'checkbox' = 'button'): Step =>
@@ -46,33 +52,28 @@ const clickFirst =
     await page.getByRole(role, { name }).first().click()
   }
 /**
- * Runs a page action (`PageHeader`): a button beside the title or in the top
- * bar, or an item of the top bar's « Plus d’actions » menu on phones.
+ * Runs a page action (`PageHeader`): an item of the header's « Actions de la
+ * page » menu (« ⋮ », every width since #386), or a button of the page.
  */
 const pageAction =
   (name: RegExp): Step =>
   async (page) => {
     const button = page.getByRole('button', { name }).first()
-    const more = page.getByRole('button', { name: 'Plus d’actions' })
-    // Phones: the actions reach the top bar once the page is hydrated.
+    const more = page.getByRole('button', { name: 'Actions de la page' })
+    // The menu reaches the header once the page is hydrated.
     await button.or(more).first().waitFor()
     if (await button.isVisible()) return button.click()
     await more.click()
     await page.getByRole('menuitem', { name }).first().click()
   }
 const openPageActions: Step = async (page) => {
-  const more = page.getByRole('button', { name: 'Plus d’actions' })
-  // ≥ md the actions sit beside the title: no menu.
-  if (await page.getByRole('button', { name: 'Ouvrir le menu' }).isHidden())
-    return
-  await more.click()
+  await page.getByRole('button', { name: 'Actions de la page' }).click()
   await page.getByRole('menu').waitFor()
 }
 
 async function openExpenseSheet(page: Page) {
-  await page
-    .getByRole('button', { name: 'Ajouter une dépense', exact: true })
-    .click()
+  // An item of the page's « ⋮ » since #386.
+  await pageAction(/^Ajouter une dépense$/)(page)
   await page.getByRole('dialog').waitFor()
 }
 
@@ -114,6 +115,7 @@ const SCENARIOS: Array<Scenario> = [
   },
   { name: 'net-worth', path: '/net-worth' },
   { name: 'shell-nav', path: '/dashboard', step: openNav },
+  { name: 'shell-account', path: '/dashboard', step: openAccountMenu },
   { name: 'spending', path: '/spending' },
   { name: 'transactions', path: '/transactions?month=all' },
   {
@@ -148,7 +150,7 @@ const SCENARIOS: Array<Scenario> = [
     name: 'budget-editor',
     path: '/budget',
     step: async (page) => {
-      await clickFirst(/^Ajouter$/)(page)
+      await pageAction(/^Ajouter un budget$/)(page)
       await page.getByRole('dialog').waitFor()
     },
   },
@@ -168,7 +170,7 @@ const SCENARIOS: Array<Scenario> = [
     name: 'crypto-holding-editor',
     path: '/crypto',
     step: async (page) => {
-      await pageAction(/^Ajouter un (avoir|wallet)$/)(page)
+      await pageAction(/^Ajouter des cryptos$/)(page)
       await page.getByRole('dialog').waitFor()
     },
   },
@@ -247,6 +249,9 @@ function auditPage(min: { target: number; font: number; width: number }) {
     if (r.width === 0 || r.height === 0) return false
     const s = getComputedStyle(el)
     if (s.visibility === 'hidden' || s.display === 'none') return false
+    // Visually hidden until focused (`sr-only`: the skip link, a way back
+    // before hydration): not a target nor a text box on screen.
+    if (s.clipPath === 'inset(50%)') return false
     // The content of a folded <details> is not rendered (its summary is).
     const folded = el.closest('details:not([open])')
     if (folded && !folded.querySelector(':scope > summary')?.contains(el))
@@ -318,6 +323,21 @@ function auditPage(min: { target: number; font: number; width: number }) {
       front.closest('[data-radix-popper-content-wrapper],[role=dialog]')
     )
       continue
+    // Partly under an open popover (the account menu, #386): not reachable
+    // either until it closes.
+    const under = [
+      ...document.querySelectorAll('[data-radix-popper-content-wrapper]'),
+    ].some((popper) => {
+      if (popper.contains(el)) return false
+      const p = popper.getBoundingClientRect()
+      return (
+        r.bottom > p.top &&
+        r.top < p.bottom &&
+        r.right > p.left &&
+        r.left < p.right
+      )
+    })
+    if (under) continue
     if (!hits(el))
       smallTargets.push({
         tag: el.tagName.toLowerCase(),

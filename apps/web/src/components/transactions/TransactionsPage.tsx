@@ -16,7 +16,6 @@ import {
   ArrowLeftRightIcon,
   CheckIcon,
   CircleCheckBigIcon,
-  PlusIcon,
   SearchXIcon,
   UploadIcon,
 } from 'lucide-react'
@@ -326,7 +325,7 @@ export function TransactionsPage({
         actions={[
           {
             label: 'Ajouter une opération',
-            icon: <PlusIcon />,
+            icon: <ArrowLeftRightIcon />,
             primary: true,
             onSelect: () => setAddOpen(true),
           },
@@ -362,7 +361,7 @@ export function TransactionsPage({
       {/* The list in a card (#327): its header (count, selection, sort),
           the days, « Charger plus » at its end; empty, loading and error
           states inside it. `overflow-clip`, not `hidden`: the day headings
-          stay sticky under the top bar. */}
+          stay sticky under the header. */}
       <Card data-slot="transactions-card" className="gap-0 overflow-clip py-0">
         {list.isPending && <ListSkeleton />}
 
