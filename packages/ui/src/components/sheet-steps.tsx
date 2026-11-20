@@ -106,7 +106,9 @@ function SheetSteps({
                   'focus-visible:ring-3 focus-visible:ring-ring/50',
                   isCurrent &&
                     'border-primary bg-primary text-primary-foreground ring-4 ring-primary/20',
-                  done && 'border-primary bg-popover text-primary',
+                  // Done: a light blue round (opaque, the line stays behind it).
+                  done &&
+                    'border-primary bg-[color-mix(in_srgb,var(--primary)_14%,var(--popover))] text-primary',
                   !isCurrent &&
                     !done &&
                     (step.disabled
