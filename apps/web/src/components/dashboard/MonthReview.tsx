@@ -3,7 +3,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardHeader,
   cn,
   formatPercent,
   formatWholeEuros,
@@ -21,7 +20,7 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { MonthReviewDto, ReviewMissingAccountDto } from '#/api/types.gen'
-import { MonthNavigator } from '#/components/month/MonthNavigator'
+import { PageTitleEnd } from '#/components/app-shell/PageTitleEnd'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
 import { accountLinkSearch } from '#/components/accounts/account-origin'
@@ -41,19 +40,17 @@ export function formatSignedWhole(cents: number): string {
 
 interface MonthReviewProps {
   review: MonthReviewDto
-  /** Latest month that can be reviewed (the current month, #321). */
-  max: string
   /**
    * Shown in place of the net worth while the current month runs: how it
    * will end (the forecast row). Today's net worth is in « Comptes ».
    */
   forecast?: ReactNode
-  onMonthChange: (month: string) => void
 }
 
 /**
  * Review of a month (#262, the owner's direction « A. Tuiles »): the month
- * navigator heads the card with the month's close status, then the
+ * is in the app header (the page's `MonthNavigator`, #401) and its close
+ * status at the end of the page title's row; the card holds the
  * accounts left to update, the month's income, expenses and savings as
  * three figures, the net worth at the month end (its change only when
  * investments moved it, otherwise it is what was saved), spending against
@@ -65,13 +62,8 @@ interface MonthReviewProps {
  * with its change since the last month end), no account to update and no
  * close until it is over.
  */
-export function MonthReview({
-  review,
-  max,
-  forecast,
-  onMonthChange,
-}: MonthReviewProps) {
-  const { month, missing, current } = review
+export function MonthReview({ review, forecast }: MonthReviewProps) {
+  const { missing, current } = review
   const closed = review.closedAt !== null
   const status = current
     ? {
@@ -96,33 +88,26 @@ export function MonthReview({
 
   return (
     <section aria-label="Bilan du mois" className="min-w-0">
+      {/* Beside the page title (#401): as tall as a button, mid-tone
+          background, white text; an icon on a phone, its word from 22rem
+          of page. */}
+      <PageTitleEnd>
+        <Badge
+          data-testid="month-status"
+          className="h-8 shrink-0 gap-1.5 border-transparent px-3 text-white"
+          // A mid tone between the theme's light and dark shades of the
+          // status colour, under white text.
+          style={{ backgroundColor: status.color }}
+          title={status.label}
+        >
+          {/* Wrapped: the badge sizes its direct svg children to 12px. */}
+          <span aria-hidden className="flex">
+            {status.icon}
+          </span>
+          <span className="sr-only @[22rem]:not-sr-only">{status.label}</span>
+        </Badge>
+      </PageTitleEnd>
       <Card className="min-w-0">
-        {/* The navigator fills the row up to the status; its label grows
-            between the two arrows (#264). */}
-        <CardHeader className="@container flex flex-row flex-wrap items-center gap-2">
-          <MonthNavigator
-            month={month}
-            max={max}
-            onMonthChange={onMonthChange}
-            className="w-auto flex-auto"
-          />
-          {/* As tall as the navigator, mid-tone background, white text; an
-              icon on a phone, its word from
-              22rem of header. */}
-          <Badge
-            className="h-auto shrink-0 gap-1.5 self-stretch border-transparent px-3 text-white"
-            // A mid tone between the theme's light and dark shades of the
-            // status colour, under white text.
-            style={{ backgroundColor: status.color }}
-          >
-            {/* Wrapped: the badge sizes its direct svg children to 12px. */}
-            <span aria-hidden className="flex">
-              {status.icon}
-            </span>
-            <span className="sr-only @[22rem]:not-sr-only">{status.label}</span>
-          </Badge>
-        </CardHeader>
-
         <CardContent className="@container space-y-5">
           {current && <SoFarNote dataUntil={review.period.dataUntil} />}
           {/* The current month's end has not come: nothing is late yet. */}

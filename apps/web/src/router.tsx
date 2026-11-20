@@ -40,6 +40,14 @@ export function getRouter() {
 }
 
 declare module '@tanstack/react-router' {
+  interface StaticDataRouteOption {
+    /**
+     * A month page: its month (`MonthNavigator`) is in the app header, a
+     * bar of its own on phones whose room is kept from the first render
+     * (#401).
+     */
+    monthBar?: boolean
+  }
   interface Register {
     router: ReturnType<typeof getRouter>
   }

@@ -27,7 +27,7 @@ const toolbar = (container: HTMLElement) =>
   container.querySelector<HTMLElement>('[data-slot=month-toolbar]')!
 
 describe('MonthToolbar', () => {
-  it('holds the navigator, the actions and the period note in one bar', () => {
+  it('holds the navigator, the period note and the actions, without a card', () => {
     const { container } = render(
       <MonthToolbar
         navigator={<div data-testid="navigator" />}
@@ -36,6 +36,8 @@ describe('MonthToolbar', () => {
       />,
     )
     const bar = toolbar(container)
+    // Outside the shell the navigator stays here; in it, it goes to the
+    // app header (#401).
     expect(bar).toContainElement(screen.getByTestId('navigator'))
     expect(
       within(
@@ -45,6 +47,7 @@ describe('MonthToolbar', () => {
     expect(bar.querySelector('[data-slot=period-note]')).toHaveTextContent(
       /3 nov\./,
     )
+    expect(bar).not.toHaveClass('border')
     // No filters, no « Filtres » button.
     expect(screen.queryByRole('button', { name: /^Filtres/ })).toBeNull()
   })
@@ -67,29 +70,16 @@ describe('MonthToolbar', () => {
     expect(within(sheet).getByLabelText('Compte (sheet)')).toBeInTheDocument()
   })
 
-  it('puts the search in the navigator’s row', () => {
-    render(
+  it('puts the search on a row of its own', () => {
+    const { container } = render(
       <MonthToolbar
         navigator={<div data-testid="navigator" />}
         search={<input aria-label="Rechercher" />}
       />,
     )
-    const row = screen.getByTestId('navigator').parentElement!.parentElement!
     expect(
-      row.querySelector('[data-slot=month-toolbar-search]'),
+      toolbar(container).querySelector('[data-slot=month-toolbar-search]'),
     ).toContainElement(screen.getByLabelText('Rechercher'))
-  })
-
-  it('puts the period note in the row when the page has nothing to set', () => {
-    const { container } = render(
-      <MonthToolbar
-        navigator={<div data-testid="navigator" />}
-        period={partial}
-      />,
-    )
-    const row = screen.getByTestId('navigator').parentElement!.parentElement!
-    expect(row.querySelector('[data-slot=period-note]')).not.toBeNull()
-    expect(toolbar(container)).toHaveClass('border')
   })
 
   it('renders only the navigator without a period, filters or actions', () => {
@@ -103,7 +93,5 @@ describe('MonthToolbar', () => {
     expect(
       container.querySelector('[data-slot=month-toolbar-filters]'),
     ).toBeNull()
-    // No empty bar around a lone navigator.
-    expect(toolbar(container)).not.toHaveClass('border')
   })
 })

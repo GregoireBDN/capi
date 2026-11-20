@@ -55,19 +55,26 @@ const PageActionsSlotContext = createContext<{
   setSlot: (slot: Slot) => void
   backSlot: Slot
   setBackSlot: (slot: Slot) => void
+  monthSlot: Slot
+  setMonthSlot: (slot: Slot) => void
+  titleEndSlot: Slot
+  setTitleEndSlot: (slot: Slot) => void
   registered: readonly RegisteredAction[]
   register: (action: RegisteredAction) => void
   unregister: (id: string) => void
 } | null>(null)
 
 /**
- * Lets `AppHeader` host the way back of the page shown (every width) and its
- * actions (phones): the header registers its slot elements,
- * `PageBack` and `PageHeader` render into them through portals.
+ * Lets `AppHeader` host the way back of the page shown and its actions,
+ * `MonthBarSlot` its month (`MonthNavigator`, #401) and `PageHeader` the
+ * end of the title's row: they register their slot elements, the page's
+ * pieces render into them through portals.
  */
 export function PageActionsSlotProvider({ children }: { children: ReactNode }) {
   const [slot, setSlot] = useState<Slot>(null)
   const [backSlot, setBackSlot] = useState<Slot>(null)
+  const [monthSlot, setMonthSlot] = useState<Slot>(null)
+  const [titleEndSlot, setTitleEndSlot] = useState<Slot>(null)
   const [registered, setRegistered] = useState<readonly RegisteredAction[]>([])
   // In place when it is already there, so the menu keeps its order.
   const register = useCallback((action: RegisteredAction) => {
@@ -87,6 +94,10 @@ export function PageActionsSlotProvider({ children }: { children: ReactNode }) {
         setSlot,
         backSlot,
         setBackSlot,
+        monthSlot,
+        setMonthSlot,
+        titleEndSlot,
+        setTitleEndSlot,
         registered,
         register,
         unregister,
@@ -120,6 +131,33 @@ export function usePageBackSlot(): Slot {
 /** Ref callback for the element that hosts a page's back button. */
 export function useSetPageBackSlot(): ((slot: Slot) => void) | undefined {
   return useContext(PageActionsSlotContext)?.setBackSlot
+}
+
+/**
+ * The month bar's slot (#401, `MonthBarSlot`): the top of the page's
+ * column, fixed under the header. Null outside the shell or before it
+ * mounts.
+ */
+export function usePageMonthSlot(): Slot {
+  return useContext(PageActionsSlotContext)?.monthSlot ?? null
+}
+
+/** Ref callback for the element that hosts the page's month (`MonthBarSlot`). */
+export function useSetPageMonthSlot(): ((slot: Slot) => void) | undefined {
+  return useContext(PageActionsSlotContext)?.setMonthSlot
+}
+
+/**
+ * The end of the page title's row (`PageHeader`): the month's status on the
+ * dashboard, « Filtres » on phones (#401). Null outside the shell.
+ */
+export function usePageTitleEndSlot(): Slot {
+  return useContext(PageActionsSlotContext)?.titleEndSlot ?? null
+}
+
+/** Ref callback for the end of the page title's row (`PageHeader`). */
+export function useSetPageTitleEndSlot(): ((slot: Slot) => void) | undefined {
+  return useContext(PageActionsSlotContext)?.setTitleEndSlot
 }
 
 /**

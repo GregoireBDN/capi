@@ -30,6 +30,22 @@
  * bars to one row. */
 @custom-variant short-screen (@media (max-height: 600px));
 
+/* `--app-header`: the height of `AppHeader` (the sidebar's column starts
+ * under it, #386). `--app-top-bar`: what stays on screen above the page,
+ * for sticky elements under it: the header, plus a month page's bar
+ * (`MonthBarSlot`, #401). */
+[data-app-shell] {
+  --app-header: 3rem;
+  --app-top-bar: 3rem;
+}
+[data-app-shell]:has([data-page-month]:not(:empty), [data-month-placeholder]) {
+  --app-top-bar: 6rem;
+}
+/* A month page keeps its bar's room until its month is in (`MonthBarSlot`). */
+[data-page-month]:not(:empty) ~ [data-month-placeholder] {
+  display: none;
+}
+
 /* =============================================================================
  * BASE LAYER STYLES
  * =============================================================================

@@ -22,8 +22,11 @@ import { useSetPageActionsSlot, useSetPageBackSlot } from './page-actions'
  *   permanent « + Ajouter une dépense »).
  * - The avatar: the account menu (`AccountMenu`).
  *
- * `h-12` on every width: sticky elements below it use `top-(--app-top-bar)`
- * (set by `routes/_app.tsx`).
+ * A month page's month is not in it: it is the bar at the top of the page's
+ * column (`MonthBarSlot`, #401), fixed under the header.
+ *
+ * `h-12` on every width (`--app-header`, `globals.css`): sticky elements
+ * below it use `top-(--app-top-bar)`, the header plus a month page's bar.
  */
 export function AppHeader({ user }: { user: UserDto }) {
   const { openMobile, setOpenMobile } = useSidebar()

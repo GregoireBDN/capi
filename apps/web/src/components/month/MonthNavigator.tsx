@@ -1,8 +1,8 @@
 import {
   Button,
   cn,
-  PeriodStepper,
-  PeriodStepperLabel,
+  PeriodBar,
+  PeriodBarLabel,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -15,14 +15,20 @@ import {
   ChevronRightIcon,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   currentMonth,
   formatMonth,
   formatShortMonth,
   shiftMonth,
 } from '#/lib/calendar'
+import {
+  useInShell,
+  usePageMonthSlot,
+} from '#/components/app-shell/page-actions'
 import { coverageQuery } from './coverage'
 import { isMonthKey } from './month-keys'
+import { useMonthSwipe } from './month-swipe'
 
 const shortMonth = new Intl.DateTimeFormat('fr-FR', {
   month: 'short',
@@ -171,18 +177,6 @@ function MonthGrid({
   )
 }
 
-function monthsOfYear(month: string): string[] {
-  const year = month.slice(0, 4)
-  return Array.from(
-    { length: 12 },
-    (_, index) => `${year}-${String(index + 1).padStart(2, '0')}`,
-  )
-}
-
-/** Every month name of the year shown, so the label keeps the widest one's width. */
-const fullSizers = (month: string) => monthsOfYear(month).map(formatMonth)
-const shortSizers = (month: string) => monthsOfYear(month).map(formatShortMonth)
-
 export interface MonthNavigatorProps {
   /** Month shown (`YYYY-MM`). */
   month: string
@@ -200,18 +194,24 @@ export interface MonthNavigatorProps {
    * `label` too), `onSelect` when it is picked.
    */
   allDates?: { selected: boolean; onSelect: () => void }
-  /** Whether ← / → move the month (one navigator per page). Default: on. */
+  /**
+   * Whether ← / → on a keyboard and a sideways swipe on a touch screen move
+   * the month (one navigator per page). Default: on.
+   */
   keyboard?: boolean
   className?: string
 }
 
 /**
- * The month navigator of every month page: previous / next month, the
- * month's name opening a month picker (months with transactions marked,
- * months after `max` off, shortcuts to the current month and to the month
- * the data stops in), and ← / → on a keyboard. One box with 44px targets,
- * as wide as its content; short label when its container (`@container`) is
- * under 420px. Place it with `MonthToolbar`.
+ * The month navigator of every month page (#401, the owner's « B. Barre du
+ * mois »): previous / next month, the month's name opening a month picker
+ * (months with transactions marked, months after `max` off, shortcuts to the
+ * current month and to the month the data stops in), ← / → on a keyboard
+ * and a sideways swipe on a touch screen. It is part of the app's frame:
+ * the bar at the top of the page's column, fixed under the header, on every
+ * width (`MonthBarSlot`, beside the sidebar on a computer); rendered where
+ * it stands outside the shell. Place it with `MonthToolbar` (or alone, like the
+ * dashboard's review).
  */
 export function MonthNavigator({
   month,
@@ -263,10 +263,20 @@ export function MonthNavigator({
     if (target !== month || !free) onMonthChange(target)
   }
 
+  useMonthSwipe(keyboard, (direction) => {
+    const state = latest.current
+    if (!state.free) return
+    const target = shiftMonth(state.month, direction === 'next' ? 1 : -1)
+    if (target > state.max) return
+    state.onMonthChange(target)
+  })
+
+  const inShell = useInShell()
+  const slot = usePageMonthSlot()
   const name = label ?? formatMonth(month)
 
-  return (
-    <PeriodStepper
+  const bar = (
+    <PeriodBar
       data-slot="month-navigator"
       aria-label="Mois"
       className={className}
@@ -285,12 +295,10 @@ export function MonthNavigator({
     >
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <PeriodStepperLabel
+          <PeriodBarLabel
             aria-label={`${name}, choisir un mois`}
             text={name}
             shortText={label ?? formatShortMonth(month)}
-            sizers={label === undefined ? fullSizers(month) : undefined}
-            shortSizers={label === undefined ? shortSizers(month) : undefined}
           />
         </PopoverTrigger>
         <PopoverContent
@@ -343,6 +351,11 @@ export function MonthNavigator({
           )}
         </PopoverContent>
       </Popover>
-    </PeriodStepper>
+    </PeriodBar>
   )
+
+  // In the month bar once it has mounted (it needs JavaScript anyway, and
+  // the bar keeps its room until then).
+  if (inShell) return slot === null ? null : createPortal(bar, slot)
+  return <div className="@container">{bar}</div>
 }

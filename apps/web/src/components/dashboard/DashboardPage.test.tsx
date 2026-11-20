@@ -361,8 +361,11 @@ describe('DashboardPage', () => {
     })
     // Not closed in « Revue du mois » yet.
     expect(within(card).getByText('À clôturer')).toBeInTheDocument()
-    // The month is named once, by the navigator.
-    expect(card.textContent.match(/octobre/gi)).toHaveLength(1)
+    // The month is named once, by the navigator (the app header's, #401).
+    expect(card.textContent).not.toMatch(/octobre/i)
+    expect(
+      screen.getByRole('button', { name: 'Octobre 2026, choisir un mois' }),
+    ).toBeInTheDocument()
 
     const flow = within(card).getByLabelText('Flux du mois')
     expect(flow).toHaveTextContent(text('Revenus2 500 €'))

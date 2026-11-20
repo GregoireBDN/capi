@@ -9,6 +9,8 @@ const searchSchema = z.object({
 })
 
 export const Route = createFileRoute('/_app/savings')({
+  // Its month is in the app header (#401).
+  staticData: { monthBar: true },
   validateSearch: (search: Record<string, unknown>) => {
     const { month } = searchSchema.parse(search)
     return month ? { month } : {}
