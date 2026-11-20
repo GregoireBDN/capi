@@ -170,7 +170,10 @@ export function CategoriesPage() {
         </div>
       )}
 
-      <div className="sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex justify-end">
+      <div
+        data-sticky-bottom-bar
+        className="sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex justify-end"
+      >
         <Button
           className="w-full shadow-lg sm:w-auto"
           onClick={() => setAdding(true)}
