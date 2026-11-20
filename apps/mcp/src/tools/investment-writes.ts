@@ -710,19 +710,17 @@ function baseText(base: InvestedBaseDto | null): string {
   return base ? `${euros(base.amountCents)} au ${frenchDate(base.on)}` : 'aucun'
 }
 
-/** What else makes the invested amount: transfers or coins, unknown costs. */
-function linkedNote(figures: InvestedFiguresDto, crypto: boolean): string[] {
+/** What else makes the invested amount: transfers linked, unknown amounts. */
+function linkedNote(figures: InvestedFiguresDto): string[] {
   const lines: string[] = []
   if (figures.investedBase && figures.linkedTransfersCount > 0) {
     lines.push(
-      crypto
-        ? `S'y ajoute le coût de ${figures.linkedTransfersCount} envoi(s) reçu(s) d'une plateforme suivie depuis le ${frenchDate(figures.investedBase.on)}.`
-        : `S'y ajoutent ${figures.linkedTransfersCount} virement(s) lié(s) depuis le ${frenchDate(figures.investedBase.on)}.`,
+      `S'y ajoutent ${figures.linkedTransfersCount} virement(s) lié(s) depuis le ${frenchDate(figures.investedBase.on)}.`,
     )
   }
   if (figures.unknownCostCount > 0) {
     lines.push(
-      `Dont ${figures.unknownCostCount} envoi(s) sans coût connu, non compté(s) dans l'investi.`,
+      `Dont ${figures.unknownCostCount} virement(s) de montant inconnu, non compté(s) dans l'investi.`,
     )
   }
   return lines
@@ -732,13 +730,13 @@ export const setInvestedAmountTool = defineTool({
   name: 'set_invested_amount',
   title: 'Montant investi d’un placement',
   description:
-    'Set what the owner invested in an investment account up to a day (« Investi au … »): a PEA, a life insurance, employee savings, a crypto wallet or manual crypto account (#360), so its result (latent gain) and rate show. The invested amount is then this base plus what is linked to the account after that day (bank transfers, or the cost of coins sent from a followed exchange); it wins over the amounts typed on the values from its day. Not for exchange accounts (their holdings carry their cost). Without confirm: preview of the invested amount, result and rate now → after. With confirm: true saves it; a repeated call changes nothing. Removing it is done in the app.',
+    'Set what the owner invested in a PEA, a life insurance or employee savings up to a day (« Investi au … »), so its result (latent gain) and rate show. The invested amount is then this base plus the bank transfers linked to the account after that day, until a value typed later with its own invested amount. Not for crypto accounts: their invested amount is the cost of their coins, carried from exchange to wallet and back (#373); coins whose cost is unknown are answered in the app (« À préciser »). Without confirm: preview of the invested amount, result and rate now → after. With confirm: true saves it; a repeated call changes nothing. Removing it is done in the app.',
   write: { idempotent: true },
   inputSchema: {
     account: z
       .string()
       .max(100)
-      .describe('Crypto account name (see list_investment_accounts).'),
+      .describe('Investment account name (see list_investment_accounts).'),
     amount: z
       .string()
       .max(20)
@@ -749,18 +747,18 @@ export const setInvestedAmountTool = defineTool({
       .string()
       .regex(DATE_PATTERN)
       .describe(
-        "Day the amount was right, YYYY-MM-DD, not after today (a statement's date): transfers or coins linked after it add on top.",
+        "Day the amount was right, YYYY-MM-DD, not after today (a statement's date): transfers linked after it add on top.",
       ),
     confirm: confirmSchema,
   },
   async run({ api, now }, args) {
     const account = await resolveInvestmentAccount(api, args.account)
-    if (account.type === 'crypto' && account.cryptoSource === 'exchange') {
+    // A crypto account's cost follows its coins (#373).
+    if (account.type === 'crypto') {
       throw new ToolInputError(
-        `${account.name} est une plateforme : elle garde le coût de ses avoirs importés. Rien n'a été modifié.`,
+        `${account.name} est un compte crypto : son montant investi est le coût de ses cryptos, suivi d'une plateforme au wallet et retour, sans rien saisir. Le prix de revient des cryptos venues d'ailleurs se donne dans l'application, page du compte › « À préciser ». Rien n'a été modifié.`,
       )
     }
-    const crypto = account.type === 'crypto'
     const parsed = parseEuros(args.amount)
     if (!parsed || parsed.sign === '-') {
       throw new ToolInputError(
@@ -791,14 +789,14 @@ export const setInvestedAmountTool = defineTool({
       return [
         `Rien à modifier : ${account.name} a déjà ${baseText(previous)} comme montant investi.`,
         `Aujourd'hui : ${investedFiguresText(preview.current)}.`,
-        ...linkedNote(preview.current, crypto),
+        ...linkedNote(preview.current),
       ].join('\n')
     }
     const details = [
       `Montant investi de base : ${baseText(previous)} → ${baseText(preview.next.investedBase)}.`,
       `Avant : ${investedFiguresText(preview.current)}.`,
       `Après : ${investedFiguresText(preview.next)}.`,
-      ...linkedNote(preview.next, crypto),
+      ...linkedNote(preview.next),
     ]
     if (args.confirm !== true) {
       return [
@@ -816,7 +814,7 @@ export const setInvestedAmountTool = defineTool({
     )
     return [
       `${account.name} : montant investi enregistré, ${investedFiguresText(saved)}.`,
-      ...linkedNote(saved, crypto),
+      ...linkedNote(saved),
       '',
       previous
         ? `Pour revenir à l'ancien montant : set_invested_amount account "${account.name}", amount "${centsToText(previous.amountCents)}", until "${previous.on}", confirm: true.`

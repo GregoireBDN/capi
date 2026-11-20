@@ -9,6 +9,8 @@ import {
   balanceSnapshotsTable,
   contactsTable,
   cryptoImportsTable,
+  cryptoMovementsTable,
+  cryptoTransferLinksTable,
   importsTable,
   type InsertRecurringItem,
   type InsertTransaction,
@@ -407,6 +409,205 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
             nested
               .delete(accountsTable)
               .where(eq(accountsTable.id, exchange.id)),
+        )
+      })
+    })
+  })
+
+  describe('crypto movements and transfers (#373)', () => {
+    const DAY = new Date('2026-10-31T09:00:00Z')
+
+    async function setup(tx: Tx) {
+      const exchange = await account(tx, {
+        type: 'crypto',
+        cryptoSource: 'exchange',
+        cryptoProvider: 'coinbase',
+      })
+      const wallet = await account(tx, {
+        type: 'crypto',
+        cryptoSource: 'wallet',
+      })
+      const [imported] = await tx
+        .insert(cryptoImportsTable)
+        .values({
+          accountId: exchange.id,
+          format: 'coinbase_csv',
+          fileName: 'export-fictif.csv',
+          fileHash: 'fixture',
+          committedAt: DAY,
+        })
+        .returning()
+      let n = 0
+      const line = (
+        values: Partial<typeof cryptoMovementsTable.$inferInsert> = {},
+      ): typeof cryptoMovementsTable.$inferInsert => ({
+        accountId: exchange.id,
+        importId: imported.id,
+        occurredAt: DAY,
+        operation: 'Send',
+        kind: 'withdrawal',
+        asset: 'BTC',
+        quantity: '-0.5',
+        dedupeHash: `fixture-${++n}`,
+        ...values,
+      })
+      const observedIn = (
+        values: Partial<typeof cryptoMovementsTable.$inferInsert> = {},
+      ) =>
+        line({
+          accountId: wallet.id,
+          importId: null,
+          operation: 'wallet_sync',
+          kind: 'observed_in',
+          assetId: 'bitcoin',
+          quantity: '0.4999',
+          observedSince: new Date('2026-10-30T09:00:00Z'),
+          ...values,
+        })
+      const insert = async (
+        executor: Tx,
+        row: typeof cryptoMovementsTable.$inferInsert,
+      ) =>
+        (await executor.insert(cryptoMovementsTable).values(row).returning())[0]
+      return { exchange, wallet, line, observedIn, insert }
+    }
+
+    it('reads a wallet only on wallets and manual accounts, a base never on crypto', async () => {
+      await inRollback(async (tx) => {
+        await refused(
+          tx,
+          'accounts_crypto_observed_only_wallet_or_manual',
+          (nested) =>
+            account(nested, {
+              type: 'crypto',
+              cryptoSource: 'exchange',
+              cryptoProvider: 'binance',
+              cryptoObservedAt: DAY,
+            }),
+        )
+        await refused(tx, 'accounts_invested_base_type', (nested) =>
+          account(nested, {
+            type: 'crypto',
+            cryptoSource: 'wallet',
+            investedBaseCents: 1_000_00,
+            investedBaseOn: '2026-10-31',
+          }),
+        )
+        await account(tx, {
+          type: 'crypto',
+          cryptoSource: 'manual',
+          cryptoObservedAt: DAY,
+        })
+        await account(tx, {
+          type: 'brokerage',
+          investedBaseCents: 1_000_00,
+          investedBaseOn: '2026-10-31',
+        })
+      })
+    })
+
+    it('keeps an observed movement without import, with its price id, signed by its kind', async () => {
+      await inRollback(async (tx) => {
+        const { line, observedIn, insert } = await setup(tx)
+        await refused(tx, 'crypto_movements_observed_shape', (nested) =>
+          insert(nested, observedIn({ assetId: null })),
+        )
+        await refused(tx, 'crypto_movements_observed_shape', (nested) =>
+          insert(nested, line({ importId: null })),
+        )
+        await refused(tx, 'crypto_movements_observed_shape', (nested) =>
+          insert(nested, line({ observedSince: DAY })),
+        )
+        await refused(tx, 'crypto_movements_observed_sign', (nested) =>
+          insert(nested, observedIn({ quantity: '-0.1' })),
+        )
+        await refused(tx, 'crypto_movements_observed_sign', (nested) =>
+          insert(nested, observedIn({ kind: 'observed_out', quantity: '0.1' })),
+        )
+        await insert(tx, observedIn())
+      })
+    })
+
+    it('answers arrivals with a cost and departures without one', async () => {
+      await inRollback(async (tx) => {
+        const { line, observedIn, insert } = await setup(tx)
+        await refused(tx, 'crypto_movements_resolution_kind', (nested) =>
+          insert(nested, line({ resolution: 'gift', costCents: 0 })),
+        )
+        await refused(tx, 'crypto_movements_resolution_kind', (nested) =>
+          insert(nested, observedIn({ resolution: 'disposed' })),
+        )
+        await refused(tx, 'crypto_movements_given_cost', (nested) =>
+          insert(nested, observedIn({ resolution: 'bought' })),
+        )
+        await refused(tx, 'crypto_movements_given_cost', (nested) =>
+          insert(nested, observedIn({ costCents: 100_00 })),
+        )
+        await refused(tx, 'crypto_movements_given_cost', (nested) =>
+          insert(nested, observedIn({ resolution: 'gift', costCents: 100_00 })),
+        )
+        await insert(
+          tx,
+          observedIn({ resolution: 'bought', costCents: 100_00 }),
+        )
+        await insert(tx, line({ resolution: 'disposed' }))
+      })
+    })
+
+    it('links a departure to an arrival of another account, once, never answered otherwise', async () => {
+      await inRollback(async (tx) => {
+        const { line, observedIn, insert } = await setup(tx)
+        const out = await insert(tx, line())
+        const arrival = await insert(tx, observedIn())
+        const opening = await insert(tx, observedIn({ observedSince: null }))
+        const sameAccount = await insert(
+          tx,
+          line({ kind: 'deposit', quantity: '0.5' }),
+        )
+        const link = (outId: string, inId: string) => (nested: Tx) =>
+          nested
+            .insert(cryptoTransferLinksTable)
+            .values({
+              outMovementId: outId,
+              inMovementId: inId,
+              matched: 'auto',
+            })
+        await refused(
+          tx,
+          'crypto_transfer_links_sides',
+          link(arrival.id, out.id),
+        )
+        await refused(
+          tx,
+          'crypto_transfer_links_sides',
+          link(out.id, opening.id),
+        )
+        await refused(
+          tx,
+          'crypto_transfer_links_sides',
+          link(out.id, sameAccount.id),
+        )
+        await link(out.id, arrival.id)(tx)
+        await refused(
+          tx,
+          'crypto_transfer_links_out_unique',
+          link(out.id, arrival.id),
+        )
+        await refused(tx, 'crypto_movements_linked_unanswered', (nested) =>
+          nested
+            .update(cryptoMovementsTable)
+            .set({ resolution: 'gift', costCents: 0 })
+            .where(eq(cryptoMovementsTable.id, arrival.id)),
+        )
+        const answered = await insert(
+          tx,
+          observedIn({ resolution: 'gift', costCents: 0 }),
+        )
+        const other = await insert(tx, line())
+        await refused(
+          tx,
+          'crypto_transfer_links_sides',
+          link(other.id, answered.id),
         )
       })
     })

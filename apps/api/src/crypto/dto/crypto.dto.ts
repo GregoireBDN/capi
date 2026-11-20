@@ -211,6 +211,82 @@ export class ValuedHoldingDto extends HoldingDto {
   gainCents!: number | null
 }
 
+/** Coins of one asset whose cost is unknown (#373, « sans coût connu »). */
+export class UnknownCostDto {
+  @ApiProperty({ type: String, description: 'Price id.' })
+  assetId!: string
+
+  @ApiProperty({ type: String })
+  symbol!: string
+
+  @ApiProperty({ type: String, description: 'Exact decimal quantity.' })
+  quantity!: string
+}
+
+/**
+ * What one asset of an account cost (#373, « Prix de revient »): the cost
+ * of the coins whose cost is known (average cost, carried across transfers
+ * between the owner's accounts) and those whose cost is unknown.
+ */
+export class AssetCostDto {
+  @ApiProperty({ type: String, description: 'Price id.' })
+  assetId!: string
+
+  @ApiProperty({ type: String })
+  symbol!: string
+
+  @ApiProperty({ type: String, description: 'Exact decimal quantity held.' })
+  quantity!: string
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Cost of the coins held whose cost is known, in cents.',
+  })
+  costCents!: number
+
+  @ApiProperty({
+    type: String,
+    description: 'Part of the quantity whose cost is unknown ("0" if none).',
+  })
+  unknownQuantity!: string
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: 'Without a price: null.',
+  })
+  valueCents!: number | null
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Value of the coins whose cost is known minus that cost; null without a price or when no coin has a known cost.',
+  })
+  gainCents!: number | null
+}
+
+/** Gains realised by sales into euros (#373), computed by the replay. */
+export class RealisedGainsDto {
+  @ApiProperty({
+    type: 'integer',
+    description: 'Gains of the sales of the current year (Europe/Paris).',
+  })
+  yearCents!: number
+
+  @ApiProperty({ type: 'integer', description: 'Gains of every sale.' })
+  totalCents!: number
+
+  @ApiProperty({ type: 'integer', description: 'Sales counted.' })
+  count!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Sales of coins whose cost is wholly unknown: no gain.',
+  })
+  unknownCount!: number
+}
+
 export class HoldingsTotalsDto {
   @ApiProperty({
     type: 'integer',
@@ -221,11 +297,17 @@ export class HoldingsTotalsDto {
   @ApiProperty({
     type: 'integer',
     nullable: true,
-    description: 'Sum of the invested amounts, when every holding has one.',
+    description:
+      'What the account invested (#373): the cost of the coins it holds whose cost is known, plus the euros waiting on an exchange; null when it holds nothing of known cost.',
   })
   investedCents!: number | null
 
-  @ApiProperty({ type: 'integer', nullable: true })
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Value of the coins of known cost and of the euros minus `investedCents`; null while a price is missing.',
+  })
   gainCents!: number | null
 
   @ApiProperty({ type: 'integer' })
@@ -234,8 +316,24 @@ export class HoldingsTotalsDto {
   @ApiProperty({ type: 'integer' })
   staleCount!: number
 
-  @ApiProperty({ type: 'integer' })
+  @ApiProperty({
+    type: 'integer',
+    description: 'Assets held with coins of unknown cost (`unknown`).',
+  })
   withoutInvestedCount!: number
+
+  @ApiProperty({
+    type: [UnknownCostDto],
+    description: 'Coins held whose cost is unknown, per asset (#373).',
+  })
+  unknown!: UnknownCostDto[]
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Euros waiting on an exchange (#373): in the value at face value.',
+  })
+  fiatCents!: number
 }
 
 export class ValuationSnapshotDto {
@@ -368,6 +466,15 @@ export class AccountHoldingsDto {
       'A live refresh (`mode=auto`) would do something now (#381): a price older than the cache TTL not asked since, or a wallet due a sync. The page fires it after showing these stored values.',
   })
   refreshDue!: boolean
+
+  @ApiProperty({
+    type: [AssetCostDto],
+    description: 'Cost of each asset the account holds (#373).',
+  })
+  costs!: AssetCostDto[]
+
+  @ApiProperty({ type: RealisedGainsDto })
+  realised!: RealisedGainsDto
 }
 
 export class CryptoSummaryAccountDto extends AccountHoldingsDto {
@@ -470,12 +577,24 @@ export class PortfolioAssetDto {
   @ApiProperty({
     type: 'integer',
     nullable: true,
-    description: 'Sum of the invested amounts, only when every line has one.',
+    description:
+      'Cost of the coins held whose cost is known (#373); null when none is.',
   })
   investedCents!: number | null
 
-  @ApiProperty({ type: 'integer', nullable: true })
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Value of the coins of known cost minus `investedCents`; null without a price or a known cost.',
+  })
   gainCents!: number | null
+
+  @ApiProperty({
+    type: String,
+    description: 'Part of the quantity whose cost is unknown ("0" if none).',
+  })
+  unknownQuantity!: string
 
   @ApiProperty({
     type: Boolean,
@@ -510,20 +629,21 @@ export class PortfolioTotalsDto {
     type: 'integer',
     nullable: true,
     description:
-      "Invested in the priced assets whose cost is known, plus what the accounts whose cost is known as a whole invested (#358: a wallet's invested base and the coins linked to it); null if none.",
+      'The cost of every priced coin held whose cost is known, plus the euros waiting on exchanges (#373): it moves with buys, sales and costs given, never with transfers; null if none.',
   })
   investedCents!: number | null
 
   @ApiProperty({
     type: 'integer',
     nullable: true,
-    description: 'Value of those assets and accounts minus what was invested.',
+    description:
+      'Value of those coins and euros minus what was invested; coins of unknown cost are left out.',
   })
   gainCents!: number | null
 
   @ApiProperty({
     type: 'integer',
-    description: 'Priced assets whose cost is unknown (out of the gain).',
+    description: 'Priced assets held with coins of unknown cost.',
   })
   withoutInvestedCount!: number
 
@@ -532,6 +652,21 @@ export class PortfolioTotalsDto {
     description: 'Tickers of those assets, largest value first.',
   })
   withoutInvestedSymbols!: string[]
+
+  @ApiProperty({
+    type: [UnknownCostDto],
+    description: 'Coins of unknown cost per asset, largest value first.',
+  })
+  unknown!: UnknownCostDto[]
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Euros waiting on the exchanges (in `valueCents`).',
+  })
+  fiatCents!: number
+
+  @ApiProperty({ type: RealisedGainsDto })
+  realised!: RealisedGainsDto
 
   @ApiProperty({
     type: 'integer',

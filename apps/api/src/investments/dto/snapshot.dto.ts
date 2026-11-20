@@ -23,6 +23,7 @@ import {
   SNAPSHOT_SOURCES,
   type SnapshotSource,
 } from '#/database/schema/domain-enums'
+import { RealisedGainsDto, UnknownCostDto } from '#/crypto/dto/crypto.dto'
 import { isCalendarDate } from '../calendar-date'
 
 /** Most snapshots one bulk upsert may write. */
@@ -229,7 +230,7 @@ class PerformanceFiguresDto {
     type: 'integer',
     nullable: true,
     description:
-      'Latest known net contributions. When the latest snapshot has none, those of the latest snapshot that has them (see `contributionsDate`).',
+      'What was invested as of the latest value (#370, one rule for every page): a crypto account’s coins at their cost plus its euros waiting (#373); any other account, its latest typed point (base or contributions typed on a value) plus the transfers linked after it.',
   })
   contributionsCents!: number | null
 
@@ -238,40 +239,47 @@ class PerformanceFiguresDto {
     format: 'date',
     nullable: true,
     description:
-      'Snapshot the contributions come from; earlier than `valueDate` when the latest snapshot has no contributions.',
+      'The typed point it counts from (the base’s day or the value’s), else the latest value’s day.',
   })
   contributionsDate!: string | null
 
   @ApiProperty({
-    enum: ['links', 'typed', 'base'],
+    enum: ['links', 'typed', 'base', 'coins'],
     enumName: 'ContributionsSource',
     nullable: true,
     description:
-      "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings); `base`: the account's invested base (#358, #360) plus what was linked to it since its day (transfers, or the cost of coins for crypto).",
+      "`base`: the account's invested base (#360) plus the transfers linked after its day; `typed`: the contributions typed on a value plus the transfers linked after it; `links`: the transfers linked to the account alone (#296); `coins`: a crypto account's coins at their cost, carried across transfers between the owner's accounts (#373).",
   })
-  contributionsSource!: 'links' | 'typed' | 'base' | null
-
-  @ApiProperty({
-    type: 'integer',
-    nullable: true,
-    description:
-      'Latest contributions typed on a snapshot when the linked transfers replace them and differ from them; null otherwise.',
-  })
-  typedContributionsCents!: number | null
+  contributionsSource!: 'links' | 'typed' | 'base' | 'coins' | null
 
   @ApiProperty({
     type: 'integer',
     description:
-      "Transfers linked to the account; for crypto, the coins received from an exchange whose cost is counted (after the invested base's day when there is one).",
+      'Transfers linked after the typed point (or all of them); for crypto, the arrivals linked to a departure of another account.',
   })
   linkedTransfersCount!: number
 
   @ApiProperty({
     type: 'integer',
     description:
-      'Crypto (#358): coins received from an exchange whose cost is unknown, left out of the contributions (0 otherwise).',
+      'Crypto (#373): assets held with coins of unknown cost (`unknownCost`), left out of the gain; otherwise linked transfers of unknown amount.',
   })
   unknownCostCount!: number
+
+  @ApiProperty({
+    type: [UnknownCostDto],
+    description:
+      'Crypto (#373): the coins of unknown cost per asset (« 0,1 BTC sans coût connu »); empty otherwise.',
+  })
+  unknownCost!: UnknownCostDto[]
+
+  @ApiProperty({
+    type: RealisedGainsDto,
+    nullable: true,
+    description:
+      'Crypto (#373): the gains realised by its sales into euros; null otherwise.',
+  })
+  realised!: RealisedGainsDto | null
 
   @ApiProperty({
     type: 'integer',
@@ -283,7 +291,8 @@ class PerformanceFiguresDto {
   @ApiProperty({
     type: 'integer',
     nullable: true,
-    description: '`valueCents - contributionsCents`.',
+    description:
+      '`valueCents - contributionsCents`; crypto: the value of the coins of known cost (and euros) minus it.',
   })
   gainCents!: number | null
 
@@ -331,8 +340,7 @@ export class SetInvestedBaseDto {
   @ApiProperty({
     type: 'integer',
     minimum: 0,
-    description:
-      'What was invested in the account up to `on` (coins bought, fees included), in cents.',
+    description: 'What was invested in the account up to `on`, in cents.',
   })
   @Cents(0)
   amountCents!: number
@@ -341,7 +349,7 @@ export class SetInvestedBaseDto {
     type: String,
     format: 'date',
     description:
-      'Last day the amount covers (`YYYY-MM-DD`, not after today in Europe/Paris): coins linked to the account after it add their cost.',
+      'Last day the amount covers (`YYYY-MM-DD`, not after today in Europe/Paris): the transfers linked to the account after it add on top.',
     example: '2026-10-31',
   })
   @CalendarDate()
@@ -371,11 +379,11 @@ export class InvestedFiguresDto {
   contributionsCents!: number | null
 
   @ApiProperty({
-    enum: ['links', 'typed', 'base'],
+    enum: ['links', 'typed', 'base', 'coins'],
     enumName: 'ContributionsSource',
     nullable: true,
   })
-  contributionsSource!: 'links' | 'typed' | 'base' | null
+  contributionsSource!: 'links' | 'typed' | 'base' | 'coins' | null
 
   @ApiProperty({ type: 'integer', nullable: true })
   gainCents!: number | null
@@ -385,13 +393,13 @@ export class InvestedFiguresDto {
 
   @ApiProperty({
     type: 'integer',
-    description: 'Coins received whose cost is counted.',
+    description: 'Transfers linked after the base.',
   })
   linkedTransfersCount!: number
 
   @ApiProperty({
     type: 'integer',
-    description: 'Coins received whose cost is unknown, left out.',
+    description: 'Linked transfers of unknown amount, left out.',
   })
   unknownCostCount!: number
 }
@@ -447,7 +455,7 @@ export class AccountPerformanceDto extends PerformanceFiguresDto {
   @ApiProperty({
     type: [ContributionPointDto],
     description:
-      'Net contributions at each snapshot (same order as `snapshots`, then `live` when there is one): from the linked transfers when `contributionsSource` is `links`, from the invested base when `base`, else as typed.',
+      'What was invested at each snapshot (same order as `snapshots`, then `live` when there is one), by the same rule as `contributionsCents`.',
   })
   contributionsHistory!: ContributionPointDto[]
 
@@ -455,7 +463,7 @@ export class AccountPerformanceDto extends PerformanceFiguresDto {
     type: InvestedBaseDto,
     nullable: true,
     description:
-      'Wallet and manual crypto accounts (#358): the invested base typed by the owner.',
+      'PEA, life insurance, employee savings (#360): the invested base typed by the owner.',
   })
   investedBase!: InvestedBaseDto | null
 }

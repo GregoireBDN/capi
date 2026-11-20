@@ -1,7 +1,9 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common'
 import {
   and,
@@ -17,6 +19,8 @@ import {
   type SQL,
 } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
+import type { Carried } from '#/crypto/cost-basis'
+import { CryptoCostBasisService } from '#/crypto/cost-basis.service'
 import { DatabaseService } from '#/database/database.service'
 import {
   accountsTable,
@@ -56,6 +60,12 @@ function account(
   return id === null ? null : { id, name: name!, type: type! }
 }
 
+/** A withdrawal's cost: null when none of its coins had a known cost. */
+function costOf(carried: Carried | undefined): number | null {
+  if (!carried || carried.unknownQuantity >= carried.quantity) return null
+  return Number(carried.costCents)
+}
+
 /** Positive exact decimal text of a signed quantity. */
 function magnitude(quantity: string): string {
   return quantity.startsWith('-') ? quantity.slice(1) : quantity
@@ -69,7 +79,16 @@ function magnitude(quantity: string): string {
  */
 @Injectable()
 export class MovementsService {
-  constructor(private readonly database: DatabaseService) {}
+  private readonly costBasis: CryptoCostBasisService
+
+  constructor(
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Optional()
+    @Inject(CryptoCostBasisService)
+    costBasis?: CryptoCostBasisService,
+  ) {
+    this.costBasis = costBasis ?? new CryptoCostBasisService(database)
+  }
 
   private get db() {
     return this.database.db
@@ -114,7 +133,6 @@ export class MovementsService {
         kind: cm.kind,
         asset: cm.asset,
         quantity: cm.quantity,
-        costCents: cm.costCents,
         ownId: own.id,
         ownName: own.name,
         ownType: own.type,
@@ -141,6 +159,10 @@ export class MovementsService {
       )
       .orderBy(desc(cm.occurredAt), desc(cm.id))
       .limit(MOVEMENTS_MAX)
+    // What each withdrawal took out, from the replay (#373): unknown when
+    // none of its coins had a known cost.
+    const costs =
+      crypto.length > 0 ? (await this.costBasis.load()).movementCosts : null
 
     const items: InvestmentMovementDto[] = [
       ...bank.map((row): InvestmentMovementDto => {
@@ -170,7 +192,7 @@ export class MovementsService {
           date: parisToday(row.occurredAt),
           from: withdrawal ? exchange : otherAccount,
           to: withdrawal ? otherAccount : exchange,
-          amountCents: withdrawal ? row.costCents : null,
+          amountCents: withdrawal ? costOf(costs?.get(row.id)) : null,
           asset: row.asset,
           quantity: magnitude(row.quantity),
           cryptoKind: withdrawal ? 'withdrawal' : 'deposit',

@@ -31,12 +31,18 @@ function investmentLine(a: InvestmentAccountSummaryDto): string {
       ? ''
       : `, résultat ${signedEuros(a.gainCents)} (${percent(a.returnRate)})`
   const stale = a.stale ? ' — valeur pas à jour' : ''
+  const linked =
+    a.linkedTransfersCount > 0 ? ` + ${a.linkedTransfersCount} lié(s)` : ''
   const source =
     a.contributionsSource === 'links'
-      ? ` (d'après ${a.linkedTransfersCount} virement(s) lié(s)${a.typedContributionsCents === null ? '' : `, les relevés indiquent ${euros(a.typedContributionsCents)}`})`
+      ? ` (d'après ${a.linkedTransfersCount} virement(s) lié(s))`
       : a.contributionsSource === 'base'
-        ? ` (montant saisi${a.linkedTransfersCount > 0 ? ` + ${a.linkedTransfersCount} lié(s)` : ''})`
-        : ''
+        ? ` (montant saisi${linked})`
+        : a.contributionsSource === 'typed'
+          ? ` (saisi sur un relevé${linked})`
+          : a.contributionsSource === 'coins'
+            ? ' (coût des cryptos détenues)'
+            : ''
   const later =
     a.linkedAfterValueCents === 0
       ? ''

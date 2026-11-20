@@ -26,16 +26,27 @@ export interface PortfolioLine {
   valueCents: number | null
 }
 
+/** What one asset of an account cost (#373), from the replay. */
+export interface PortfolioCost {
+  /** Cost of the coins whose cost is known. */
+  costCents: number
+  /** Exact decimal: part of the quantity whose cost is unknown. */
+  unknownQuantity: string
+}
+
 export interface PortfolioAccountLines {
   accountId: string
   name: string
   lines: readonly PortfolioLine[]
   /**
-   * What the account as a whole had invested (#358: a wallet's invested
-   * base, the coins linked to it), when known: its lines' own invested
-   * amounts are then left aside in the totals.
+   * The cost of each asset the account holds (#373, the replay of every
+   * crypto account): an asset without one counts its lines' own invested
+   * amounts (a line typed by hand), its coins of unknown cost when a line
+   * has none.
    */
-  investedCents?: number | null
+  costs?: ReadonlyMap<string, PortfolioCost>
+  /** Euros waiting on the exchange (#373): value and cost alike. */
+  fiatCents?: number
 }
 
 /** Where an asset is held: one account, its locations summed. */
@@ -61,9 +72,12 @@ export interface PortfolioAsset {
   valueCents: number | null
   /** What the value moved over 24 hours, from the price's change. */
   change24hCents: number | null
-  /** Sum of the invested amounts, only when every line has one. */
+  /** Cost of the coins whose cost is known; null when none is. */
   investedCents: number | null
+  /** Value of the coins of known cost minus their cost. */
   gainCents: number | null
+  /** Exact decimal: coins of unknown cost ("0" if none). */
+  unknownQuantity: string
   /**
    * False for a token known by its contract only: it never gets a price and
    * waits for none (« sans cours »).
@@ -74,18 +88,26 @@ export interface PortfolioAsset {
 }
 
 export interface PortfolioTotals {
-  /** Sum over the assets that have a price. */
+  /** Sum over the assets that have a price, plus the euros waiting. */
   valueCents: number
   /** Sum of the change over 24 hours of the assets that have one; null if none. */
   change24hCents: number | null
-  /** Invested in the priced assets whose cost is known (null if none). */
+  /**
+   * Cost of the priced coins whose cost is known, plus the euros waiting
+   * (null if none): it moves with buys, sales and costs given, never with
+   * transfers between the owner's accounts.
+   */
   investedCents: number | null
   /** Their value minus that invested amount (null if none). */
   gainCents: number | null
-  /** Priced assets whose invested amount is unknown (left out of the gain). */
+  /** Priced assets held with coins of unknown cost (left out of the gain). */
   withoutInvestedCount: number
   /** Their tickers, largest value first. */
   withoutInvestedSymbols: string[]
+  /** Their coins of unknown cost, largest value first. */
+  unknown: { assetId: string; symbol: string; quantity: string }[]
+  /** Euros waiting on the exchanges. */
+  fiatCents: number
   /** Assets waiting for a price (contract-only tokens are not counted). */
   missingPriceCount: number
   staleCount: number
@@ -160,10 +182,64 @@ function sumValues(values: readonly (number | null)[]): number | null {
 }
 
 /**
+ * The value of the coins of known cost in `valueCents` (the whole of
+ * `quantity`): its share `(quantity − unknown) / quantity`, rounded half to
+ * even.
+ */
+export function knownValue(
+  valueCents: number,
+  quantity: string,
+  unknownQuantity: string,
+): number {
+  const total = parseDecimal(quantity)
+  const unknown = parseDecimal(unknownQuantity)
+  if (!total || !unknown || unknown.digits === 0n) return valueCents
+  const scale = Math.max(total.scale, unknown.scale)
+  const all = rescale(total, scale).digits
+  const part = rescale(unknown, scale).digits
+  if (all === 0n || part >= all) return 0
+  const negative = valueCents < 0
+  const cents = BigInt(Math.abs(valueCents))
+  const share = divideHalfEven(cents * (all - part), all)
+  return Number(negative ? -share : share)
+}
+
+/** `a < b` for non-negative decimal strings. */
+function lessThan(a: string, b: string): boolean {
+  const x = parseDecimal(a)
+  const y = parseDecimal(b)
+  if (!x || !y) return false
+  const scale = Math.max(x.scale, y.scale)
+  return rescale(x, scale).digits < rescale(y, scale).digits
+}
+
+/** What the coins of one asset of one account cost: replay, else lines. */
+function costOf(
+  account: PortfolioAccountLines,
+  assetId: string,
+  lines: readonly PortfolioLine[],
+): { costCents: number; unknownQuantity: string } {
+  const cost = account.costs?.get(assetId)
+  if (cost) return cost
+  if (lines.every((line) => line.investedCents !== null)) {
+    return {
+      costCents: lines.reduce((sum, line) => sum + line.investedCents!, 0),
+      unknownQuantity: '0',
+    }
+  }
+  return {
+    costCents: 0,
+    unknownQuantity: sumDecimals(lines.map((line) => line.quantity)),
+  }
+}
+
+/**
  * The holdings of every account summed per asset: quantities exactly, values
- * from the lines (so the total is the accounts' total), the invested amount
- * when every line has one. Fiat lines (EUR left on an exchange typed by
- * hand) are left out: they are not crypto. Priced assets come first, largest
+ * from the lines (so the total is the accounts' total), the cost of each
+ * account's coins from the replay (#373). Coins of unknown cost are named
+ * and left out of the gain, the others still counted. Fiat lines (EUR typed
+ * by hand on an exchange) are left out; the euros the exchanges' movements
+ * leave waiting count in the totals. Priced assets come first, largest
  * value first; those without a price after them, by symbol.
  */
 export function aggregatePortfolio(
@@ -188,15 +264,31 @@ export function aggregatePortfolio(
       // Every line of an asset shares its price.
       const priced = lines.find((line) => line.priceEur !== null) ?? null
       const valueCents = sumValues(lines.map((line) => line.valueCents))
-      const invested = lines.every((line) => line.investedCents !== null)
-        ? lines.reduce((sum, line) => sum + line.investedCents!, 0)
-        : null
       const places = new Map<string, PortfolioLine[]>()
       for (const { line, account } of entries) {
         places.set(account.accountId, [
           ...(places.get(account.accountId) ?? []),
           line,
         ])
+      }
+      let invested = 0
+      let gain = 0
+      const unknown: string[] = []
+      let anyKnown = false
+      for (const [accountId, placeLines] of places) {
+        const account = accounts.find((a) => a.accountId === accountId)!
+        const cost = costOf(account, assetId, placeLines)
+        const quantity = sumDecimals(placeLines.map((line) => line.quantity))
+        unknown.push(cost.unknownQuantity)
+        if (cost.costCents === 0 && !lessThan(cost.unknownQuantity, quantity)) {
+          continue
+        }
+        anyKnown = true
+        invested += cost.costCents
+        const value = sumValues(placeLines.map((line) => line.valueCents))
+        gain +=
+          knownValue(value ?? 0, quantity, cost.unknownQuantity) -
+          cost.costCents
       }
       const change = priced?.priceChange24hPercent ?? null
       return {
@@ -214,11 +306,9 @@ export function aggregatePortfolio(
           valueCents === null || change === null
             ? null
             : changeOverDay(valueCents, change),
-        investedCents: invested,
-        gainCents:
-          valueCents === null || invested === null
-            ? null
-            : valueCents - invested,
+        investedCents: anyKnown ? invested : null,
+        gainCents: anyKnown && valueCents !== null ? gain : null,
+        unknownQuantity: sumDecimals(unknown),
         priceable: !isContractAssetId(assetId),
         places: [...places.entries()]
           .map(([accountId, placeLines]) => ({
@@ -234,43 +324,34 @@ export function aggregatePortfolio(
   assets.sort(byValue((asset) => asset.symbol))
 
   const valued = assets.filter((asset) => asset.valueCents !== null)
-  // Accounts whose cost is known as a whole (#358) count as one; the other
-  // lines count per asset, when every one of them has a cost.
-  let invested: number | null = null
+  const fiatCents = accounts.reduce(
+    (sum, account) => sum + (account.fiatCents ?? 0),
+    0,
+  )
+  let invested: number | null = fiatCents > 0 ? fiatCents : null
   let gain = 0
-  for (const account of accounts) {
-    if (account.investedCents == null) continue
-    const value = sumValues(
-      account.lines
-        .filter((line) => !FIAT_TICKERS.has(line.symbol.toUpperCase()))
-        .map((line) => line.valueCents),
-    )
-    invested = (invested ?? 0) + account.investedCents
-    gain += (value ?? 0) - account.investedCents
-  }
-  const without: PortfolioAsset[] = []
   for (const asset of valued) {
-    const lines = (byAsset.get(asset.assetId) ?? [])
-      .filter(({ account }) => account.investedCents == null)
-      .map(({ line }) => line)
-    if (lines.length === 0) continue
-    if (lines.some((line) => line.investedCents === null)) {
-      without.push(asset)
-      continue
-    }
-    const cost = lines.reduce((sum, line) => sum + line.investedCents!, 0)
-    invested = (invested ?? 0) + cost
-    gain += (sumValues(lines.map((line) => line.valueCents)) ?? 0) - cost
+    if (asset.investedCents === null) continue
+    invested = (invested ?? 0) + asset.investedCents
+    gain += asset.gainCents ?? 0
   }
+  const without = valued.filter((asset) => lessThan('0', asset.unknownQuantity))
   return {
     assets,
     totals: {
-      valueCents: valued.reduce((sum, asset) => sum + asset.valueCents!, 0),
+      valueCents:
+        valued.reduce((sum, asset) => sum + asset.valueCents!, 0) + fiatCents,
       change24hCents: sumValues(assets.map((asset) => asset.change24hCents)),
       investedCents: invested,
       gainCents: invested === null ? null : gain,
       withoutInvestedCount: without.length,
       withoutInvestedSymbols: without.map((asset) => asset.symbol),
+      unknown: without.map((asset) => ({
+        assetId: asset.assetId,
+        symbol: asset.symbol,
+        quantity: asset.unknownQuantity,
+      })),
+      fiatCents,
       missingPriceCount: assets.filter(
         (asset) => asset.priceable && asset.valueCents === null,
       ).length,

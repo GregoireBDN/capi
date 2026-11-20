@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type * as schema from '#/database/schema'
 import {
@@ -20,37 +20,13 @@ const CHUNK = 500
 export const CRYPTO_TRANSFER_KINDS = ['withdrawal', 'deposit'] as const
 
 /**
- * Writes the EUR cost of each withdrawal (`computeHoldings`' `outflowCosts`)
- * on its movement, only where it changed.
- */
-export async function storeWithdrawalCosts(
-  executor: Executor,
-  costs: ReadonlyMap<string, number | null>,
-): Promise<void> {
-  const entries = [...costs.entries()]
-  for (let start = 0; start < entries.length; start += CHUNK) {
-    const values = sql.join(
-      entries
-        .slice(start, start + CHUNK)
-        .map(([id, cost]) => sql`(${id}::uuid, ${cost}::bigint)`),
-      sql`, `,
-    )
-    await executor.execute(sql`
-      update ${cryptoMovementsTable} as m
-      set cost_cents = v.cost_cents, updated_at = now()
-      from (values ${values}) as v(id, cost_cents)
-      where m.id = v.id and m.cost_cents is distinct from v.cost_cents
-    `)
-  }
-}
-
-/**
- * Links the new withdrawals and deposits of an exchange account (#296) to
+ * Names on the new withdrawals and deposits of an exchange account (#296)
  * the owner's other crypto account of their asset: the only open wallet or
- * manual crypto account holding it (e.g. the Ledger). With none or several,
- * the movement stays unlinked, to link by hand. Only new movements are
- * passed, so a link removed by hand stays removed. Returns how many it
- * linked.
+ * manual crypto account holding it (e.g. the Ledger). Before that account's
+ * first read the coins' cost follows this link alone; after it, the link
+ * only narrows the matching of the two sides (#373). With none or several,
+ * the movement stays unnamed. Only new movements are passed, so a link
+ * removed by hand stays removed. Returns how many it named.
  */
 export async function linkNewCryptoTransfers(
   executor: Executor,

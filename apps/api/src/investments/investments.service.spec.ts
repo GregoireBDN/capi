@@ -334,7 +334,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
         expect(performance.sincePrevious).toMatchObject({
           fromDate: '2025-12-31',
           changeCents: 900_00,
-          contributionsChangeCents: null,
+          // Nothing paid in since the typed amount (#370).
+          contributionsChangeCents: 0,
         })
         // Last snapshot on or before 2025-08-01.
         expect(performance.sinceOneYear).toMatchObject({
@@ -414,119 +415,99 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
-    it('gives a crypto account its invested base and the coins linked since (#358)', async () => {
+    it('gives a crypto account the cost of its coins, never a base (#370, #373)', async () => {
       await inRollback(async ({ tx, accounts, investments, account }) => {
         const wallet = await account('crypto', 'Test wallet')
         const exchange = await accounts.create({
           name: 'Test exchange',
           type: 'crypto',
           cryptoSource: 'exchange',
-          cryptoProvider: 'binance',
+          cryptoProvider: 'coinbase',
         })
         const [imported] = await tx
           .insert(cryptoImportsTable)
           .values({
             accountId: exchange.id,
-            format: 'binance_csv',
+            format: 'coinbase_csv',
             fileName: 'export-exemple.csv',
             fileHash: 'd'.repeat(64),
-            preview: {} as never,
           })
           .returning()
-        const withdrawal = (day: string, costCents: number | null, n: number) =>
-          ({
-            accountId: exchange.id,
-            importId: imported.id,
-            occurredAt: new Date(`${day}T10:00:00Z`),
-            operation: 'Withdraw',
-            kind: 'withdrawal',
-            asset: 'BTC',
-            quantity: '-0.01',
+        const line = (
+          day: string,
+          kind: 'buy' | 'withdrawal',
+          quantity: string,
+          extra: { eurCents?: number; counterpartAccountId?: string } = {},
+        ) => ({
+          accountId: exchange.id,
+          importId: imported.id,
+          occurredAt: new Date(`${day}T10:00:00Z`),
+          operation: kind,
+          kind,
+          asset: 'BTC',
+          quantity,
+          dedupeHash: `cost-${day}-${kind}`,
+          ...extra,
+        })
+        // 1 BTC for 30 000 €; half of it sent to the wallet, which never
+        // read its coins: the named account carries their cost.
+        await tx.insert(cryptoMovementsTable).values([
+          line('2026-05-10', 'buy', '1', { eurCents: 30_000_00 }),
+          line('2026-08-02', 'withdrawal', '-0.5', {
             counterpartAccountId: wallet,
-            costCents,
-            dedupeHash: `invested-base-${n}`,
-          }) as const
-        await tx
-          .insert(cryptoMovementsTable)
-          .values([
-            withdrawal('2026-05-10', 700_00, 1),
-            withdrawal('2026-08-02', 400_00, 2),
-            withdrawal('2026-09-15', null, 3),
-          ])
+          }),
+        ])
         for (const [date, valueCents] of [
-          ['2026-05-31', 900_00],
-          ['2026-07-31', 4_800_00],
-          ['2026-11-04', 3_000_00],
+          ['2026-07-31', 0],
+          ['2026-08-31', 16_000_00],
+          ['2026-11-04', 17_000_00],
         ] as const) {
           await computed(tx, wallet, date, valueCents)
         }
-        const base = { amountCents: 5_000_00, on: '2026-06-30' }
-
-        const preview = await investments.previewInvestedBase(wallet, base, NOW)
-        expect(preview.current).toMatchObject({
+        const performance = await investments.performance(wallet, NOW)
+        expect(performance).toMatchObject({
+          contributionsSource: 'coins',
+          contributionsCents: 15_000_00,
+          gainCents: 2_000_00,
           investedBase: null,
-          contributionsCents: 1_100_00,
-          contributionsSource: 'links',
-          linkedTransfersCount: 2,
-          unknownCostCount: 1,
         })
-        expect(preview.next).toMatchObject({
-          investedBase: base,
-          valueCents: 3_000_00,
-          contributionsCents: 5_400_00,
-          contributionsSource: 'base',
-          gainCents: -2_400_00,
-          returnRate: -2_400_00 / 5_400_00,
-          linkedTransfersCount: 1,
-          unknownCostCount: 1,
-        })
-        // A preview writes nothing.
-        const [before] = await tx
-          .select()
-          .from(accountsTable)
-          .where(eq(accountsTable.id, wallet))
-        expect(before.investedBaseCents).toBeNull()
-
-        await expect(
-          investments.setInvestedBase(wallet, base, NOW),
-        ).resolves.toEqual(preview.next)
+        expect(
+          performance.contributionsHistory.map((p) => p.contributionsCents),
+        ).toEqual([null, 15_000_00, 15_000_00])
+        const summary = await investments.summary(NOW)
+        expect(
+          summary.accounts.find((row) => row.id === exchange.id),
+        ).toMatchObject({ valueCents: null })
+        expect(summary.accounts.find((row) => row.id === wallet)).toMatchObject(
+          {
+            contributionsCents: 15_000_00,
+            gainCents: 2_000_00,
+            contributionsSource: 'coins',
+          },
+        )
+        // The values computed by the close never carry an invested amount.
         const stored = await tx
           .select({
-            date: balanceSnapshotsTable.date,
             contributionsCents: balanceSnapshotsTable.contributionsCents,
           })
           .from(balanceSnapshotsTable)
           .where(eq(balanceSnapshotsTable.accountId, wallet))
-          .orderBy(balanceSnapshotsTable.date)
-        expect(stored.map((row) => row.contributionsCents)).toEqual([
-          null,
-          5_000_00,
-          5_400_00,
-        ])
-        const performance = await investments.performance(wallet, NOW)
-        expect(performance).toMatchObject({
-          investedBase: base,
-          contributionsSource: 'base',
-          contributionsCents: 5_400_00,
-          gainCents: -2_400_00,
-          unknownCostCount: 1,
-        })
-        expect(
-          performance.contributionsHistory.map((p) => p.contributionsCents),
-        ).toEqual([700_00, 5_000_00, 5_400_00])
-        const summary = await investments.summary(NOW)
-        expect(summary.accounts.find((row) => row.id === wallet)).toMatchObject(
-          { gainCents: -2_400_00, contributionsSource: 'base' },
+        expect(stored.every((row) => row.contributionsCents === null)).toBe(
+          true,
         )
 
-        // Removing it gives the linked coins back.
         await expect(
-          investments.clearInvestedBase(wallet, NOW),
-        ).resolves.toMatchObject({
-          investedBase: null,
-          contributionsCents: 1_100_00,
-          contributionsSource: 'links',
-        })
+          investments.setInvestedBase(
+            wallet,
+            { amountCents: 5_000_00, on: '2026-06-30' },
+            NOW,
+          ),
+        ).rejects.toBeInstanceOf(BadRequestException)
+        const [after] = await tx
+          .select()
+          .from(accountsTable)
+          .where(eq(accountsTable.id, wallet))
+        expect(after.investedBaseCents).toBeNull()
       })
     })
 
@@ -566,7 +547,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
-    it('refuses an invested base on an exchange or a cash account', async () => {
+    it('refuses an invested base on a crypto or a cash account', async () => {
       await inRollback(async ({ accounts, investments, account }) => {
         const cash = await account('checking')
         const exchange = await accounts.create({
@@ -576,22 +557,20 @@ describe.skipIf(!process.env.DATABASE_URL)(
           cryptoProvider: 'coinbase',
         })
         const wallet = await account('crypto')
+        const pea = await account('brokerage')
         const base = { amountCents: 1_000_00, on: '2026-10-31' }
-        for (const id of [cash, exchange.id]) {
+        // A crypto account's cost follows its coins (#373).
+        for (const id of [cash, exchange.id, wallet]) {
           await expect(
             investments.setInvestedBase(id, base, NOW),
           ).rejects.toBeInstanceOf(BadRequestException)
         }
         await expect(
-          investments.setInvestedBase(
-            wallet,
-            { ...base, on: '2026-11-06' },
-            NOW,
-          ),
+          investments.setInvestedBase(pea, { ...base, on: '2026-11-06' }, NOW),
         ).rejects.toBeInstanceOf(BadRequestException)
-        await accounts.update(wallet, { archived: true })
+        await accounts.update(pea, { archived: true })
         await expect(
-          investments.previewInvestedBase(wallet, base, NOW),
+          investments.previewInvestedBase(pea, base, NOW),
         ).rejects.toBeInstanceOf(BadRequestException)
       })
     })

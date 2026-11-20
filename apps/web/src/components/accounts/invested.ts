@@ -2,6 +2,7 @@ import type {
   AccountDto,
   AccountPerformanceDto,
   InvestedBaseDto,
+  UnknownCostDto,
 } from '#/api/types.gen'
 import { formatCalendarDate } from '#/lib/money'
 import { plural } from '#/lib/plural'
@@ -22,17 +23,16 @@ const BASE_TYPES: readonly AccountDto['type'][] = [
 ]
 
 /**
- * Whether the owner types the account's invested amount (#358, #360): a PEA,
- * a life insurance, employee savings, a wallet or a manual crypto account.
- * Not an exchange, whose exports give it, nor an archived account.
+ * Whether the owner types the account's invested amount (#360): a PEA, a
+ * life insurance or employee savings, not archived. Never a crypto account,
+ * whose cost follows its coins (#373: the cost of coins from elsewhere is
+ * given in « À préciser »).
  */
 export function takesInvestedBase(
   account: Pick<AccountDto, 'type' | 'cryptoSource' | 'archivedAt'>,
 ): boolean {
   if (account.archivedAt !== null) return false
-  return account.type === 'crypto'
-    ? account.cryptoSource !== 'exchange'
-    : BASE_TYPES.includes(account.type)
+  return BASE_TYPES.includes(account.type)
 }
 
 /** « 2 janv. 2026 », « 1er mars 2025 ». */
@@ -40,17 +40,28 @@ function dayText(date: string): string {
   return formatCalendarDate(date).replace(/^1 /, '1er ')
 }
 
-/** What is linked to the account: bank transfers, or coins for crypto. */
-function linkedText(count: number, crypto: boolean): string {
-  return crypto
-    ? plural(count, 'envoi d’une plateforme', 'envois d’une plateforme')
-    : plural(count, 'virement lié', 'virements liés')
+/** « 0,1 BTC », exact. */
+export function coinText(coin: Pick<UnknownCostDto, 'quantity' | 'symbol'>) {
+  return `${coin.quantity.replace('.', ',')} ${coin.symbol}`
+}
+
+/** « 0,1 BTC et 2 ETH sans coût connu », or null. */
+export function unknownCostText(
+  unknown: readonly Pick<UnknownCostDto, 'quantity' | 'symbol'>[],
+): string | null {
+  if (unknown.length === 0) return null
+  const coins = unknown.map(coinText)
+  const list =
+    coins.length === 1
+      ? coins[0]
+      : `${coins.slice(0, -1).join(', ')} et ${coins.at(-1)}`
+  return `${list} sans coût connu`
 }
 
 /**
- * Where the account's invested amount comes from, in one short line (#360):
- * « D’après vos exports », « Saisi au 2 janv. 2026 + 3 virements liés »…
- * Null when it is unknown.
+ * Where the account's invested amount comes from, in one short line (#360,
+ * #373): « D’après vos exports », « Saisi au 2 janv. 2026 + 3 virements
+ * liés », « Au prix d’achat des cryptos reçues »… Null when it is unknown.
  */
 export function investedSourceText(
   account: Pick<AccountDto, 'type' | 'cryptoSource'>,
@@ -62,7 +73,7 @@ export function investedSourceText(
     | 'investedBase'
     | 'linkedTransfersCount'
     | 'unknownCostCount'
-  >,
+  > & { unknownCost?: AccountPerformanceDto['unknownCost'] },
 ): string | null {
   const {
     contributionsCents,
@@ -73,28 +84,31 @@ export function investedSourceText(
     unknownCostCount,
   } = performance
   if (contributionsCents === null) return null
-  const crypto = account.type === 'crypto'
+  if (account.type === 'crypto') {
+    const unknown = unknownCostText(performance.unknownCost ?? [])
+    const base =
+      account.cryptoSource === 'exchange'
+        ? 'D’après vos exports, au prix d’achat'
+        : linkedTransfersCount > 0
+          ? 'Au prix d’achat des cryptos reçues de vos plateformes'
+          : 'Au prix de revient de vos cryptos'
+    return unknown ? `${base} · hors ${unknown}` : base
+  }
+  const linked =
+    linkedTransfersCount > 0
+      ? ` + ${plural(linkedTransfersCount, 'virement lié', 'virements liés')}`
+      : ''
   const unknown =
     unknownCostCount > 0
-      ? ` · dont ${plural(unknownCostCount, 'envoi', 'envois')} sans coût connu`
+      ? ` · dont ${plural(unknownCostCount, 'virement', 'virements')} de montant inconnu`
       : ''
-  if (crypto && account.cryptoSource === 'exchange') {
-    return 'D’après vos exports, au prix d’achat'
-  }
   if (contributionsSource === 'base' && investedBase) {
-    const linked =
-      linkedTransfersCount > 0
-        ? ` + ${linkedText(linkedTransfersCount, crypto)}`
-        : ''
     return `Saisi au ${dayText(investedBase.on)}${linked}${unknown}`
   }
   if (contributionsSource === 'links') {
-    return crypto
-      ? `D’après ${linkedText(linkedTransfersCount, true)}, au prix d’achat${unknown}`
-      : `D’après ${linkedText(linkedTransfersCount, false)}`
+    return `D’après ${plural(linkedTransfersCount, 'virement lié', 'virements liés')}${unknown}`
   }
-  if (crypto) return 'D’après les montants investis de vos avoirs'
   return contributionsDate
-    ? `Saisi sur la valeur du ${dayText(contributionsDate)}`
+    ? `Saisi sur la valeur du ${dayText(contributionsDate)}${linked}${unknown}`
     : null
 }

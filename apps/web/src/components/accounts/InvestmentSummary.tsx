@@ -159,12 +159,11 @@ export function InvestmentSummary({
     returnRate,
     sincePrevious,
     sinceOneYear,
-    typedContributionsCents,
     linkedAfterValueCents,
   } = performance
   const editable = writable && takesInvestedBase(account)
-  const exchange =
-    account.type === 'crypto' && account.cryptoSource === 'exchange'
+  const crypto = account.type === 'crypto'
+  const exchange = crypto && account.cryptoSource === 'exchange'
   const known = contributionsCents !== null && gainCents !== null
   const source = investedSourceText(account, performance)
   const year = (performance.valueDate ?? '').slice(0, 4)
@@ -199,14 +198,17 @@ export function InvestmentSummary({
         <div className="space-y-2">
           {known ? (
             <InvestedBar
-              valueCents={performance.valueCents ?? valueCents ?? 0}
+              // Coins of unknown cost are out of the bar and the result (#373).
+              valueCents={contributionsCents + gainCents}
               investedCents={contributionsCents}
             />
           ) : (
             <div className="space-y-2">
               <p className="text-muted-foreground text-sm">
-                {exchange
-                  ? 'Vos exports n’indiquent pas le prix d’achat de tous vos actifs : le résultat s’affichera avec un export qui le donne.'
+                {crypto
+                  ? exchange
+                    ? 'Vos exports n’indiquent pas le prix d’achat de vos actifs : précisez d’où viennent vos cryptos pour voir le résultat.'
+                    : 'Le prix de revient de vos cryptos n’est pas encore connu : précisez d’où elles viennent pour voir le résultat.'
                   : 'Montant investi pas encore renseigné : le gain ou la perte s’affichera dès qu’il le sera.'}
               </p>
               {editable && (
@@ -266,24 +268,13 @@ export function InvestmentSummary({
             )}
           </div>
         )}
-        {known &&
-          (typedContributionsCents !== null || linkedAfterValueCents !== 0) && (
-            <ul className="text-muted-foreground -mt-2 space-y-1 text-xs">
-              {typedContributionsCents !== null && (
-                <li>
-                  Les relevés indiquent {formatCents(typedContributionsCents)}{' '}
-                  investis : un virement manque peut-être ou n’est pas lié.
-                </li>
-              )}
-              {linkedAfterValueCents !== 0 && (
-                <li>
-                  {formatCents(Math.abs(linkedAfterValueCents))}{' '}
-                  {linkedAfterValueCents > 0 ? 'versés' : 'retirés'} depuis la
-                  dernière valeur : ils compteront avec la prochaine.
-                </li>
-              )}
-            </ul>
-          )}
+        {known && linkedAfterValueCents !== 0 && (
+          <p className="text-muted-foreground -mt-2 text-xs">
+            {formatCents(Math.abs(linkedAfterValueCents))}{' '}
+            {linkedAfterValueCents > 0 ? 'versés' : 'retirés'} depuis la
+            dernière valeur : ils compteront avec la prochaine.
+          </p>
+        )}
       </CardContent>
     </Card>
   )

@@ -145,9 +145,10 @@ describe('list_investment_accounts', () => {
           contributionsCents: 2000000,
           contributionsDate: '2026-09-30',
           contributionsSource: 'typed',
-          typedContributionsCents: null,
           linkedTransfersCount: 0,
           unknownCostCount: 0,
+          unknownCost: [],
+          realised: null,
           linkedAfterValueCents: 0,
           gainCents: 500000,
           returnRate: 0.25,
@@ -165,9 +166,10 @@ describe('list_investment_accounts', () => {
           contributionsCents: null,
           contributionsDate: null,
           contributionsSource: null,
-          typedContributionsCents: null,
           linkedTransfersCount: 0,
           unknownCostCount: 0,
+          unknownCost: [],
+          realised: { yearCents: 0, totalCents: 0, count: 0, unknownCount: 0 },
           linkedAfterValueCents: 0,
           gainCents: null,
           returnRate: null,
@@ -184,10 +186,16 @@ describe('list_investment_accounts', () => {
           valueDate: '2026-11-14',
           contributionsCents: 500000,
           contributionsDate: '2026-11-14',
-          contributionsSource: 'base',
-          typedContributionsCents: null,
-          linkedTransfersCount: 0,
+          contributionsSource: 'coins',
+          linkedTransfersCount: 2,
           unknownCostCount: 1,
+          unknownCost: [{ assetId: 'bitcoin', symbol: 'BTC', quantity: '0.1' }],
+          realised: {
+            yearCents: 200000,
+            totalCents: 250000,
+            count: 2,
+            unknownCount: 0,
+          },
           linkedAfterValueCents: 0,
           gainCents: -200000,
           returnRate: -0.4,
@@ -207,9 +215,10 @@ describe('list_investment_accounts', () => {
     expect(text).toContain(
       '- PEA (PEA / compte-titres, Banque Test) : dernière valeur 25 000,00 € au 30/09/2026 (il y a 45 j), investi 20 000,00 €, résultat +5 000,00 € (25 %) — PAS À JOUR',
     )
-    // Crypto too (#358): invested, gain, rate and the coins of unknown cost.
+    // Crypto too (#373): invested, result, rate, the coins of unknown cost
+    // and the realised gain.
     expect(text).toContain(
-      '- Portefeuille Test (crypto, portefeuille synchronisé) : dernière valeur 3 000,00 € au 14/11/2026 (il y a 0 j), investi 5 000,00 €, résultat -2 000,00 € (-40 %), dont 1 envoi(s) sans coût connu non compté(s)',
+      "- Portefeuille Test (crypto, portefeuille synchronisé) : dernière valeur 3 000,00 € au 14/11/2026 (il y a 0 j), investi 5 000,00 €, résultat -2 000,00 € (-40 %), hors 0,1 BTC sans coût connu (à préciser dans l'application), plus-value réalisée +2 000,00 € cette année (+2 500,00 € en tout)",
     )
     expect(text).toContain(
       '- Crypto Test (crypto, saisie manuelle) : aucune valeur enregistrée',
@@ -220,7 +229,7 @@ describe('list_investment_accounts', () => {
 })
 
 describe('set_invested_amount', () => {
-  /** The API's invested base of the wallet, set by the PUT like the API. */
+  /** The API's invested base of the PEA, set by the PUT like the API. */
   function investedRoutes() {
     const state: { base: SetInvestedBaseDto | null } = { base: null }
     const figures = (base: SetInvestedBaseDto | null): InvestedFiguresDto => ({
@@ -240,14 +249,14 @@ describe('set_invested_amount', () => {
       state,
       routes: {
         '/api/accounts': accounts,
-        [`POST /api/accounts/${ledger.id}/invested-base/preview`]: (
+        [`POST /api/accounts/${pea.id}/invested-base/preview`]: (
           _url: URL,
           body: unknown,
         ): InvestedBasePreviewDto => ({
           current: figures(state.base),
           next: figures(body as SetInvestedBaseDto),
         }),
-        [`PUT /api/accounts/${ledger.id}/invested-base`]: (
+        [`PUT /api/accounts/${pea.id}/invested-base`]: (
           _url: URL,
           body: unknown,
         ) => {
@@ -258,7 +267,7 @@ describe('set_invested_amount', () => {
     }
   }
   const args = {
-    account: 'portefeuille test',
+    account: 'pea',
     amount: '4 600',
     until: '2026-06-30',
   }
@@ -276,7 +285,7 @@ describe('set_invested_amount', () => {
     expect(text).toContain(
       'Après : investi 5 000,00 €, résultat -2 000,00 € (-40 %).',
     )
-    expect(text).toContain('Dont 1 envoi(s) sans coût connu')
+    expect(text).toContain('Dont 1 virement(s) de montant inconnu')
     expect(writes()).toHaveLength(0)
     expect(state.base).toBeNull()
   })
@@ -287,7 +296,7 @@ describe('set_invested_amount', () => {
     const saved = await call('set_invested_amount', { ...args, confirm: true })
     expect(saved.isError).toBe(false)
     expect(saved.text).toContain(
-      'Portefeuille Test : montant investi enregistré, investi 5 000,00 €, résultat -2 000,00 € (-40 %).',
+      'PEA : montant investi enregistré, investi 5 000,00 €, résultat -2 000,00 € (-40 %).',
     )
     expect(saved.text).toContain("dans l'application")
     expect(state.base).toEqual({ amountCents: 460000, on: '2026-06-30' })
@@ -342,11 +351,12 @@ describe('set_invested_amount', () => {
     expect(writes()).toHaveLength(0)
   })
 
-  it('refuses an exchange, negative amounts and future days', async () => {
+  it('refuses crypto accounts (#373), negative amounts and future days', async () => {
     const { routes } = investedRoutes()
     const { call, writes } = await connect(routes)
     for (const [input, message] of [
-      [{ ...args, account: 'plateforme test' }, 'elle garde le coût'],
+      [{ ...args, account: 'plateforme test' }, 'est un compte crypto'],
+      [{ ...args, account: 'portefeuille test' }, '« À préciser »'],
       [{ ...args, amount: '-10' }, 'invalide'],
       [{ ...args, until: '2026-11-15' }, 'dans le futur'],
     ] as const) {
@@ -566,6 +576,8 @@ describe('sync_crypto_holdings', () => {
         missingPriceCount: 0,
         staleCount: 0,
         withoutInvestedCount: 0,
+        unknown: [],
+        fiatCents: 0,
       },
       complete: true,
       snapshot: null,
@@ -573,6 +585,8 @@ describe('sync_crypto_holdings', () => {
       refreshFailed: false,
       refreshDue: false,
       sync: null,
+      costs: [],
+      realised: { yearCents: 0, totalCents: 0, count: 0, unknownCount: 0 },
     })
     return {
       lines,

@@ -166,10 +166,13 @@ export const CRYPTO_HOLDING_ORIGINS = ['import', 'sync', 'manual'] as const
 export type CryptoHoldingOrigin = (typeof CRYPTO_HOLDING_ORIGINS)[number]
 
 /**
- * What a crypto movement of an exchange export does (#128). Moves between the
- * owner's own places (`deposit`, `withdrawal`, `transfer_internal`) only move
- * quantities: none of them is income or expense. `other` is an operation type
- * the parser does not know; its quantity still counts in the holdings.
+ * What a crypto movement does. An exchange export's lines (#128): moves
+ * between the owner's own places (`deposit`, `withdrawal`,
+ * `transfer_internal`) only move quantities, none of them is income or
+ * expense; `other` is an operation type the parser does not know, its
+ * quantity still counts in the holdings. A wallet's or a manual account's
+ * (#373): `observed_in` / `observed_out`, a rise or a fall of an asset seen
+ * between two reads of the chain (or two edits of its lines).
  */
 export const CRYPTO_MOVEMENT_KINDS = [
   'buy',
@@ -181,8 +184,32 @@ export const CRYPTO_MOVEMENT_KINDS = [
   'transfer_internal',
   'income',
   'other',
+  'observed_in',
+  'observed_out',
 ] as const
 export type CryptoMovementKind = (typeof CRYPTO_MOVEMENT_KINDS)[number]
+
+/** The kinds a wallet or a manual crypto account records (#373). */
+export const OBSERVED_MOVEMENT_KINDS = ['observed_in', 'observed_out'] as const
+
+/**
+ * How the owner answered a movement the app could not explain (#373, « À
+ * préciser »): coins that arrived were `bought` elsewhere (their cost typed)
+ * or came as a `gift` (cost 0: an airdrop, staking rewards); coins that left
+ * were `disposed` of (sold or given: they leave at average cost). A
+ * movement that is one side of a transfer is linked instead.
+ */
+export const CRYPTO_MOVEMENT_RESOLUTIONS = [
+  'bought',
+  'gift',
+  'disposed',
+] as const
+export type CryptoMovementResolution =
+  (typeof CRYPTO_MOVEMENT_RESOLUTIONS)[number]
+
+/** Who linked the two sides of a crypto transfer (#373). */
+export const CRYPTO_TRANSFER_MATCHES = ['auto', 'manual'] as const
+export type CryptoTransferMatch = (typeof CRYPTO_TRANSFER_MATCHES)[number]
 
 /** Exchange export formats that can be imported. */
 export const CRYPTO_IMPORT_FORMATS = ['binance_csv', 'coinbase_csv'] as const

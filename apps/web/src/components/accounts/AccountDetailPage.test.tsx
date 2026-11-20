@@ -141,9 +141,10 @@ function performance(
     contributionsCents: 1_020_000,
     contributionsDate: '2026-09-30',
     contributionsSource: 'typed',
-    typedContributionsCents: null,
     linkedTransfersCount: 0,
     unknownCostCount: 0,
+    unknownCost: [],
+    realised: null,
     linkedAfterValueCents: 0,
     gainCents: 230_000,
     returnRate: 230_000 / 1_020_000,
@@ -866,6 +867,8 @@ describe('AccountDetailPage', () => {
           missingPriceCount: 0,
           staleCount: 0,
           withoutInvestedCount: 0,
+          unknown: [],
+          fiatCents: 0,
         },
         complete: true,
         snapshot: null,
@@ -873,6 +876,8 @@ describe('AccountDetailPage', () => {
         refreshFailed: false,
         refreshDue: false,
         sync,
+        costs: [],
+        realised: { yearCents: 0, totalCents: 0, count: 0, unknownCount: 0 },
       }),
     )
   }
@@ -1188,6 +1193,8 @@ describe('AccountDetailPage', () => {
         missingPriceCount: 0,
         staleCount: 0,
         withoutInvestedCount: 0,
+        unknown: [],
+        fiatCents: 0,
       },
       complete: true,
       snapshot: null,
@@ -1195,6 +1202,8 @@ describe('AccountDetailPage', () => {
       refreshFailed: false,
       refreshDue: false,
       sync,
+      costs: [],
+      realised: { yearCents: 0, totalCents: 0, count: 0, unknownCount: 0 },
     }
   }
 
@@ -1453,15 +1462,15 @@ describe('AccountDetailPage', () => {
     expect(
       within(summary).getByText('Soldes lus il y a 6 min'),
     ).toBeInTheDocument()
-    // No invested amount yet: one line and its action, no dashes (#360).
+    // No known cost yet: one line, no dashes (#360); never typed (#373).
     expect(text(summary.textContent)).toContain(
-      'Montant investi pas encore renseigné',
+      'Le prix de revient de vos cryptos n’est pas encore connu',
     )
     expect(
-      within(summary).getByRole('button', {
+      within(summary).queryByRole('button', {
         name: 'Renseigner le montant investi',
       }),
-    ).toBeInTheDocument()
+    ).not.toBeInTheDocument()
     expect(text(summary.textContent)).toContain('Sur 1 an+2 500 €+25 %')
     expect(text(summary.textContent)).not.toContain('—')
     // The split by asset, priced ones only, heads the holdings.
@@ -1536,7 +1545,7 @@ describe('AccountDetailPage', () => {
     expect(text(summary.textContent)).toContain('Résultat+6 000 €+25 %')
   })
 
-  it('shows the invested base of a wallet and the coins of unknown cost (#358)', async () => {
+  it('shows what the coins of a wallet cost and those of unknown cost (#373)', async () => {
     mockWallet(
       {
         enabled: true,
@@ -1554,11 +1563,13 @@ describe('AccountDetailPage', () => {
           type: 'crypto',
           valueCents: 300_000,
           contributionsCents: 500_000,
-          contributionsSource: 'base',
+          contributionsSource: 'coins',
           gainCents: -200_000,
           returnRate: -0.4,
+          linkedTransfersCount: 2,
           unknownCostCount: 1,
-          investedBase: { amountCents: 500_000, on: '2026-06-30' },
+          unknownCost: [{ assetId: 'bitcoin', symbol: 'BTC', quantity: '0.1' }],
+          realised: null,
         }),
       ),
     )
@@ -1570,7 +1581,7 @@ describe('AccountDetailPage', () => {
     expect(text(summary.textContent)).toContain('Investi5 000 €')
     expect(text(summary.textContent)).toContain('Résultat-2 000 €-40 %')
     expect(text(summary.textContent)).toContain(
-      'Saisi au 30 juin 2026 · dont 1 envoi sans coût connu',
+      'Au prix d’achat des cryptos reçues de vos plateformes · hors 0,1 BTC sans coût connu',
     )
     expect(
       within(summary).getByRole('img', {
@@ -1908,6 +1919,8 @@ describe('AccountDetailPage', () => {
           missingPriceCount: 0,
           staleCount: 0,
           withoutInvestedCount: 0,
+          unknown: [],
+          fiatCents: 0,
         },
         complete: true,
         snapshot: null,
@@ -1915,6 +1928,8 @@ describe('AccountDetailPage', () => {
         refreshFailed: false,
         refreshDue: false,
         sync: null,
+        costs: [],
+        realised: { yearCents: 0, totalCents: 0, count: 0, unknownCount: 0 },
       }),
     )
     renderPage()
