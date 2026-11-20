@@ -159,6 +159,83 @@ function SheetOverlay({ className, ...props }: SheetOverlayProps) {
  * sheet, or a body inside it with the actions in a footer) so the field stays
  * in view and, as far as it allows, the end too.
  */
+/**
+ * While a full-screen editor is open, the page behind it cannot scroll, not
+ * even when iOS scrolls the document to reveal a focused field (the classic
+ * `position: fixed` body lock; `overflow: hidden` alone does not stop iOS):
+ * only the visual viewport can still pan, and the editor follows it.
+ */
+function usePageLock(enabled: boolean) {
+  React.useEffect(() => {
+    if (!enabled || typeof window === 'undefined') return
+    const body = document.body
+    const scrollY = window.scrollY
+    const before = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+    }
+    Object.assign(body.style, {
+      position: 'fixed',
+      top: `-${scrollY}px`,
+      left: '0',
+      right: '0',
+      width: '100%',
+    })
+    const keepTop = () => {
+      if (window.scrollY !== 0) window.scrollTo(0, 0)
+    }
+    window.addEventListener('scroll', keepTop)
+    return () => {
+      window.removeEventListener('scroll', keepTop)
+      Object.assign(body.style, before)
+      window.scrollTo(0, scrollY)
+    }
+  }, [enabled])
+}
+
+/*
+ * #385, throwaway: live measurements shown in a full-screen editor while it
+ * is tested on the phone. Removed with the header switch.
+ */
+function KeyboardDebug({ node }: { node: HTMLElement | null }) {
+  const [text, setText] = React.useState('')
+  React.useEffect(() => {
+    if (!node) return
+    let frame = 0
+    const tick = () => {
+      const vv = window.visualViewport
+      const rect = node.getBoundingClientRect()
+      const scroller = node.querySelector<HTMLElement>('[data-sheet-scroll]')
+      const focused = document.activeElement as HTMLElement | null
+      const f = focused?.getBoundingClientRect()
+      setText(
+        [
+          `inner ${window.innerHeight} sY ${Math.round(window.scrollY)}`,
+          `vv h ${Math.round(vv?.height ?? 0)} top ${Math.round(vv?.offsetTop ?? 0)}`,
+          `ed top ${Math.round(rect.top)} h ${Math.round(rect.height)}`,
+          `sc ${scroller ? `${Math.round(scroller.scrollTop)}/${scroller.scrollHeight}/${scroller.clientHeight}` : '-'}`,
+          `${node.hasAttribute('data-keyboard-expected') ? 'exp ' : ''}${node.hasAttribute('data-keyboard-open') ? 'open' : ''}`,
+          `focus ${focused?.tagName ?? ''} ${f ? `${Math.round(f.top)}-${Math.round(f.bottom)}` : ''}`,
+        ].join('\n'),
+      )
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [node])
+  return (
+    <pre
+      aria-hidden
+      className="pointer-events-none fixed top-[calc(env(safe-area-inset-top)+60px)] right-1 z-[100] rounded bg-yellow-200/90 p-1 font-mono text-[10px] leading-tight text-black"
+    >
+      {text}
+    </pre>
+  )
+}
+
 function useKeyboardInset(
   node: HTMLElement | null,
   mode: 'sheet' | 'screen' | null,
@@ -310,6 +387,8 @@ function SheetContent({
     node,
     side === 'bottom' ? 'sheet' : side === 'screen' ? 'screen' : null,
   )
+  // `node` is null while the sheet is closed (its content unmounted).
+  usePageLock(side === 'screen' && node !== null)
   const setRefs = React.useCallback(
     (element: HTMLDivElement | null) => {
       setNode(element)
@@ -463,6 +542,7 @@ function SheetContent({
         }}
       >
         {children}
+        {side === 'screen' && <KeyboardDebug node={node} />}
         {showCloseButton && (
           <SheetPrimitive.Close data-slot="sheet-close" asChild>
             <Button
