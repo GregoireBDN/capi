@@ -5,7 +5,11 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { BCRYPT_SALT_ROUNDS } from '#/auth/auth.constants'
 import { categorize } from '#/categories/rules/categorize'
 import { seedDefaultCategories } from '#/categories/seed-default-categories'
-import { valueInCents } from '#/crypto/decimal'
+import {
+  dayRange,
+  exchangeLinesByDay,
+  valueDay,
+} from '#/crypto/daily-close/daily-values'
 import type * as schema from '#/database/schema'
 import {
   accountsTable,
@@ -17,6 +21,7 @@ import {
   cryptoHoldingsTable,
   cryptoImportsTable,
   cryptoMovementsTable,
+  cryptoPriceHistoryTable,
   cryptoPricesTable,
   importsTable,
   recurringItemsTable,
@@ -38,6 +43,7 @@ import {
 import { formatQuantity, parseQuantity } from '#/imports/crypto/quantity'
 import { computeDedupeHashes } from '#/imports/dedupe/dedupe'
 import { normalizeLabel } from '#/imports/normalize/label'
+import { parisToday as parisDay } from '#/investments/days'
 import {
   addDays,
   addMonths,
@@ -1073,7 +1079,7 @@ export async function generateDemoData(
 
   // Crypto (#296): the euros sent to Binance buy BTC and ETH there; every
   // fourth month the coins go to the Ledger, which holds them by hand
-  // (manual lines). Prices are manual (no price API); valued today.
+  // (manual lines). Prices are manual (no price API).
   const prices: Record<string, string> = {
     bitcoin: '82500.00',
     ethereum: '2950.00',
@@ -1240,65 +1246,97 @@ export async function generateDemoData(
         fetchedAt: new Date(),
       },
     })
-  const valued = [
-    { account: crypto, lines: holdings },
-    {
-      account: exchange,
-      lines: exchangeHoldings
-        .filter((h) => h.status === 'ok')
-        .map((h) => ({ ...h, assetId: h.assetId! })),
-    },
-  ]
-  for (const { account, lines } of valued) {
-    if (lines.length === 0) continue
+  // Crypto values (#366): computed, one per day, from seeded daily prices
+  // (a random walk ending at the manual prices: no price API call) and what
+  // each account held at the end of the day, as the daily close writes
+  // them; today's value is live, never stored.
+  const yesterday = addDays(today, -1)
+  const firstCryptoDay = dayIn(monthList[0], 5)
+  const priceDays = dayRange(firstCryptoDay, yesterday)
+  const dayPrices = new Map<string, Map<string, string>>()
+  const priceRows: (typeof cryptoPriceHistoryTable.$inferInsert)[] = []
+  for (const [assetId, target] of Object.entries(prices)) {
+    const byDay = new Map<string, string>()
+    let cents = Math.round(Number(target) * 100)
+    for (const day of [...priceDays].reverse()) {
+      const price = `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`
+      byDay.set(day, price)
+      priceRows.push({ assetId, day, priceEur: price, source: 'manual' })
+      cents = Math.max(100, Math.round(cents / (0.97 + 0.06 * random.next())))
+    }
+    dayPrices.set(assetId, byDay)
+  }
+  for (let i = 0; i < priceRows.length; i += 500) {
+    await db.insert(cryptoPriceHistoryTable).values(priceRows.slice(i, i + 500))
+  }
+  const pricesOn = (day: string) =>
+    new Map(
+      [...dayPrices].map(([assetId, byDay]) => [assetId, byDay.get(day)!]),
+    )
+  const cryptoPoints: (typeof balanceSnapshotsTable.$inferInsert)[] = []
+  // The exchange: its movements, day by day.
+  const exchangeLines = exchangeLinesByDay(
+    movements.map((row) => ({
+      ...row,
+      occurredAt: row.occurredAt.toISOString(),
+    })),
+    knownAsset,
+    priceDays,
+  )
+  // The Ledger: what was withdrawn to it so far, at the cost it left with.
+  const withdrawals = movements
+    .filter((row) => row.kind === 'withdrawal')
+    .map((row) => ({
+      day: parisDay(row.occurredAt),
+      assetId: knownAsset(row.asset)!.assetId,
+      quantity: -parseQuantity(row.quantity)!,
+      cost: outflowCosts.get(row.id) ?? 0,
+    }))
+  const started = { exchange: false, ledger: false }
+  for (const day of priceDays) {
+    const exchangeValue = valueDay(exchangeLines.get(day) ?? [], pricesOn(day))
+    if (exchangeValue && (started.exchange || exchangeValue.valueCents > 0)) {
+      started.exchange = true
+      cryptoPoints.push({
+        accountId: exchange.id,
+        date: day,
+        valueCents: exchangeValue.valueCents,
+        contributionsCents: exchangeValue.investedCents,
+        source: 'computed',
+      })
+    }
+    const received = withdrawals.filter((w) => w.day <= day)
+    if (received.length === 0) continue
+    const held = new Map<string, bigint>()
+    for (const w of received) {
+      held.set(w.assetId, (held.get(w.assetId) ?? 0n) + w.quantity)
+    }
+    const ledgerValue = valueDay(
+      [...held].map(([assetId, quantity]) => ({
+        assetId,
+        quantity: formatQuantity(quantity),
+        investedCents: null,
+      })),
+      pricesOn(day),
+    )
+    if (!ledgerValue || (!started.ledger && ledgerValue.valueCents === 0)) {
+      continue
+    }
+    started.ledger = true
+    cryptoPoints.push({
+      accountId: crypto.id,
+      date: day,
+      valueCents: ledgerValue.valueCents,
+      contributionsCents: received.reduce((sum, w) => sum + w.cost, 0),
+      source: 'computed',
+    })
+  }
+  for (let i = 0; i < cryptoPoints.length; i += 500) {
     await db
       .insert(balanceSnapshotsTable)
-      .values({
-        accountId: account.id,
-        date: today,
-        valueCents: lines.reduce(
-          (sum, h) => sum + Number(valueInCents(h.quantity, prices[h.assetId])),
-          0,
-        ),
-        contributionsCents: lines.every((h) => h.investedCents !== null)
-          ? lines.reduce((sum, h) => sum + (h.investedCents ?? 0), 0)
-          : null,
-      })
-      .onConflictDoNothing()
-    snapshotCount++
+      .values(cryptoPoints.slice(i, i + 500))
   }
-
-  // The Ledger's month ends: what it received so far, moved by the market;
-  // its contributions come from the withdrawals (#296), none is typed.
-  {
-    let factor = 1
-    const received = movements
-      .filter((row) => row.kind === 'withdrawal')
-      .map((row) => ({
-        date: row.occurredAt.toISOString().slice(0, 10),
-        cost: outflowCosts.get(row.id) ?? 0,
-      }))
-    const ledgerSnapshots = []
-    for (const month of monthList) {
-      const date = lastDayOf(month)
-      if (date > dataUntil || date >= today) break
-      factor *= 1 - 0.12 + 0.27 * random.next()
-      const cost = received
-        .filter((r) => r.date <= date)
-        .reduce((sum, r) => sum + r.cost, 0)
-      if (cost === 0) continue
-      ledgerSnapshots.push({
-        accountId: crypto.id,
-        date,
-        valueCents: Math.round(cost * factor),
-        contributionsCents: null,
-      })
-    }
-    if (ledgerSnapshots.length > 0) {
-      await db.insert(balanceSnapshotsTable).values(ledgerSnapshots)
-      snapshotCount += ledgerSnapshots.length
-    }
-  }
+  snapshotCount += cryptoPoints.length
 
   // Budgets from the first month, some tracked; groceries raised later.
   const budgetSpecs: [string, number, boolean, string | null][] = [

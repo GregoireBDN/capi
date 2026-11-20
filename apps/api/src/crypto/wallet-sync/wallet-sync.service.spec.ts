@@ -845,7 +845,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         await expect(
           crypto.update(id, old.id, { ...line, quantity: '3' }, NOW),
         ).rejects.toBeInstanceOf(BadRequestException)
-        await crypto.remove(id, old.id, NOW)
+        await crypto.remove(id, old.id)
         const left = await crypto.holdings(id, later(1))
         expect(left.holdings.map((h) => h.symbol)).not.toContain('SOL')
       })
@@ -939,7 +939,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
-    it('values a wallet again when its background sync ends after the page load (#269)', async () => {
+    it('shows a wallet’s value once its background sync ends after the page load (#269)', async () => {
       // A Bitcoin scan slower than what a page load waits for.
       let release!: () => void
       const gate = new Promise<void>((resolve) => (release = resolve))
@@ -962,13 +962,17 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
           release()
           await vi.waitFor(async () => {
-            const [snapshot] = await tx
+            const after = await crypto.holdings(id, NOW)
+            // Valued once the sync is done: 1.5 ETH and 0.00085 BTC.
+            expect(after.snapshot?.valueCents).toBe(375_000 + 5_100)
+          })
+          // Shown, never stored (#366): the daily close writes the day.
+          expect(
+            await tx
               .select()
               .from(schema.balanceSnapshotsTable)
-              .where(eq(schema.balanceSnapshotsTable.accountId, id))
-            // Valued once the sync is done: 1.5 ETH and 0.00085 BTC.
-            expect(snapshot?.valueCents).toBe(375_000 + 5_100)
-          })
+              .where(eq(schema.balanceSnapshotsTable.accountId, id)),
+          ).toEqual([])
         },
         { bitcoin: slow, backgroundWaitMs: 20 },
       )

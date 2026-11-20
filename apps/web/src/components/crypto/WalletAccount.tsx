@@ -24,13 +24,11 @@ import type { ChartConfig } from '@finances/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CheckIcon,
-  ChevronDownIcon,
   CoinsIcon,
   CopyIcon,
   KeyRoundIcon,
   LineChartIcon,
   LoaderCircleIcon,
-  PencilIcon,
   PlusIcon,
   RefreshCwIcon,
   Trash2Icon,
@@ -43,13 +41,13 @@ import type {
   AccountDto,
   AccountHoldingsDto,
   AccountPerformanceDto,
-  SnapshotDto,
   ValuedHoldingDto,
   WalletKeyDto,
 } from '#/api/types.gen'
 import { InvestmentSummary } from '#/components/accounts/InvestmentSummary'
 import { MovementsCard } from '#/components/accounts/Movements'
-import { afterSnapshotsChanged } from '#/components/accounts/queries'
+import { accountKeys } from '#/components/accounts/queries'
+import { historyPoints } from '#/components/accounts/history'
 import { DashboardCardHeader } from '#/components/dashboard/DashboardCardHeader'
 import { formatCalendarDate, formatCents } from '#/lib/money'
 import { plural } from '#/lib/plural'
@@ -591,28 +589,26 @@ const investedChartConfig = {
 } satisfies ChartConfig
 
 /**
- * The wallet's value over time (one value per day it was valued), its
- * change over one year, and the values themselves, folded.
+ * The wallet's value over time (#366): one value per day, written by the
+ * daily close, then today's live value. Read only: a value comes from the
+ * holdings and the prices, never typed.
  */
-function WalletHistory({
+export function CryptoHistory({
   performance,
   today,
-  writable,
-  onEditSnapshot,
+  label = 'Valeur du wallet',
 }: {
   performance: AccountPerformanceDto
   today: string
-  writable: boolean
-  onEditSnapshot: (snapshot: SnapshotDto) => void
+  /** The chart's accessible name. */
+  label?: string
 }) {
-  const { snapshots } = performance
+  const snapshots = historyPoints(performance)
   const ranges = chartRanges(snapshots, today)
   const [chosen, setChosen] = useState<Range>('1y')
   const range: Range = ranges.includes(chosen)
     ? chosen
     : (ranges.find((r) => r !== 'all') ?? 'all')
-  const [showValues, setShowValues] = useState(false)
-  const valuesId = useId()
   const from =
     range === '6m'
       ? monthsBefore(today, 6)
@@ -640,7 +636,7 @@ function WalletHistory({
             variant="inline"
             icon={<LineChartIcon />}
             title="Une seule valeur pour l’instant"
-            description="La courbe apparaîtra dès la prochaine valorisation du wallet, un autre jour."
+            description="Une valeur est enregistrée chaque nuit : la courbe apparaîtra dès demain."
           />
         ) : (
           <>
@@ -671,73 +667,11 @@ function WalletHistory({
               indexScale="time"
               tooltipIndexFormatter={formatCalendarDate}
               indexLabel="Date"
-              label="Valeur du wallet"
+              label={label}
               height={200}
             />
           </>
         )}
-        <div>
-          <button
-            type="button"
-            aria-expanded={showValues}
-            aria-controls={valuesId}
-            onClick={() => setShowValues(!showValues)}
-            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-2 text-left text-sm outline-none focus-visible:ring-2"
-          >
-            {`Valeurs enregistrées (${snapshots.length})`}
-            <ChevronDownIcon
-              aria-hidden
-              className={cn(
-                'size-4 shrink-0 transition-transform',
-                showValues && 'rotate-180',
-              )}
-            />
-          </button>
-          <ul
-            id={valuesId}
-            hidden={!showValues}
-            aria-label="Valeurs enregistrées"
-            className="space-y-0.5"
-          >
-            {[...snapshots].reverse().map((snapshot) => {
-              const content = (
-                <>
-                  <span className="min-w-0 flex-1">
-                    {formatCalendarDate(snapshot.date)}
-                  </span>
-                  <span className="font-medium whitespace-nowrap tabular-nums">
-                    {formatCents(snapshot.valueCents)}
-                  </span>
-                </>
-              )
-              const row =
-                'flex min-h-11 w-full items-center gap-3 rounded-lg px-2 text-left text-sm'
-              return (
-                <li key={snapshot.id}>
-                  {writable ? (
-                    <button
-                      type="button"
-                      aria-label={`Modifier la valeur du ${formatCalendarDate(snapshot.date)}`}
-                      onClick={() => onEditSnapshot(snapshot)}
-                      className={cn(
-                        row,
-                        'hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-ring outline-none focus-visible:ring-2',
-                      )}
-                    >
-                      {content}
-                      <PencilIcon
-                        aria-hidden
-                        className="text-muted-foreground size-4 shrink-0"
-                      />
-                    </button>
-                  ) : (
-                    <div className={row}>{content}</div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        </div>
       </CardContent>
     </Card>
   )
@@ -1105,7 +1039,6 @@ export function WalletAccount({
   today,
   refreshing,
   onTokensChanged,
-  onEditSnapshot,
   onEditInvested,
 }: {
   account: AccountDto
@@ -1116,7 +1049,6 @@ export function WalletAccount({
   refreshing: boolean
   /** A token added or removed: read it at once (« Actualiser »). */
   onTokensChanged: () => void
-  onEditSnapshot: (snapshot: SnapshotDto) => void
   /** Opens the invested amount's editor. */
   onEditInvested: () => void
 }) {
@@ -1124,11 +1056,14 @@ export function WalletAccount({
   const holdings = useQuery(holdingsQuery(account.id))
   const now = new Date()
 
-  // A valuation wrote today's snapshot: balance, chart and net worth follow.
-  const written = holdings.data?.snapshot
+  // Fresh prices or balances: the summary and the curve's live point follow.
   useEffect(() => {
-    if (written) void afterSnapshotsChanged(queryClient)
-  }, [written, holdings.dataUpdatedAt, queryClient])
+    if (holdings.dataUpdatedAt) {
+      void queryClient.invalidateQueries({
+        queryKey: accountKeys.performance(account.id),
+      })
+    }
+  }, [account.id, holdings.dataUpdatedAt, queryClient])
 
   if (holdings.isPending) {
     return (
@@ -1179,13 +1114,8 @@ export function WalletAccount({
       />
       {/* Bank → exchange → Ledger, with the cost the coins left with (#296). */}
       <MovementsCard accountId={account.id} />
-      {performance.snapshots.length > 0 && (
-        <WalletHistory
-          performance={performance}
-          today={today}
-          writable={writable}
-          onEditSnapshot={onEditSnapshot}
-        />
+      {historyPoints(performance).length > 0 && (
+        <CryptoHistory performance={performance} today={today} />
       )}
       <WalletSettings
         account={account}

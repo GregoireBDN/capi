@@ -151,6 +151,7 @@ describe('chart ranges', () => {
     valueCents: 100,
     contributionsCents: null,
     note: null,
+    source: 'computed',
   })
 
   it('goes back by calendar months, clamped to the month end', () => {

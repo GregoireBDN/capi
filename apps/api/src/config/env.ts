@@ -127,6 +127,15 @@ const envSchema = z.object({
   PRICE_API_URL: z.url().default('https://api.coingecko.com/api/v3'),
   /** How long a fetched price is fresh before it is asked again. */
   PRICE_CACHE_TTL_SECONDS: z.coerce.number().int().min(30).default(600),
+  /**
+   * The daily close of crypto accounts (#366): one computed value per day,
+   * shortly after midnight (Europe/Paris), and a catch-up on boot. Anything
+   * but the literal "false" keeps it on.
+   */
+  CRYPTO_DAILY_CLOSE_ENABLED: z
+    .string()
+    .optional()
+    .transform((value) => value !== 'false'),
 
   // Wallet sync (#129, ADR 0002): reads wallet balances from their public
   // keys on key-less public endpoints, which then see the addresses. Opt-in:

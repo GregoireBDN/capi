@@ -11,6 +11,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { AccountsService } from '#/accounts/accounts.service'
 import { CryptoPricesService } from '#/crypto/crypto-prices.service'
 import { CryptoService } from '#/crypto/crypto.service'
+import { CryptoDailyCloseService } from '#/crypto/daily-close/crypto-daily-close.service'
+import { CryptoPriceHistoryService } from '#/crypto/daily-close/crypto-price-history.service'
 import type { PriceProvider } from '#/crypto/price-provider'
 import { WalletSyncService } from '#/crypto/wallet-sync/wallet-sync.service'
 import * as schema from '#/database/schema'
@@ -127,11 +129,19 @@ describe.skipIf(!process.env.DATABASE_URL)(
             prices,
             walletSync,
           )
+          const dailyClose = new CryptoDailyCloseService(
+            database,
+            new CryptoPriceHistoryService(database, {
+              provider: provider as PriceProvider,
+              ttlMs: 600_000,
+            }),
+          )
           const imports = new CryptoImportsService(
             database,
             accounts,
             prices,
             crypto,
+            dailyClose,
           )
           const exchange = async (
             cryptoProvider: CryptoExchangeProvider = 'binance',
@@ -234,19 +244,19 @@ describe.skipIf(!process.env.DATABASE_URL)(
           .from(schema.accountsTable)
           .where(eq(schema.accountsTable.id, accountId))
         expect(account.cryptoSyncedAt).toEqual(NOW)
-        // Valued: today's snapshot written at the fixture prices.
+        // Nothing stored (#366): today's value is live, and the history is
+        // rebuilt from the movements by the daily close.
         const snapshots = await tx
           .select()
           .from(schema.balanceSnapshotsTable)
           .where(eq(schema.balanceSnapshotsTable.accountId, accountId))
-        expect(snapshots).toEqual([
-          expect.objectContaining({
-            date: '2026-11-05',
-            // 0.001992 × 60000 + 0.01 × 2500 + 1.5 × 0.9 + 10 × 4 + 0.00000001 × 500
-            valueCents: 11952 + 2500 + 135 + 4000 + 0,
-            contributionsCents: null,
-          }),
-        ])
+        expect(snapshots).toEqual([])
+        expect((await crypto.holdings(accountId, NOW)).snapshot).toEqual({
+          date: '2026-11-05',
+          // 0.001992 × 60000 + 0.01 × 2500 + 1.5 × 0.9 + 10 × 4 + 0.00000001 × 500
+          valueCents: 11952 + 2500 + 135 + 4000 + 0,
+          contributionsCents: null,
+        })
         expect((await crypto.holdings(accountId, NOW)).complete).toBe(true)
 
         const again = await imports.preview(

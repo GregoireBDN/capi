@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   check,
+  date,
   index,
   integer,
   numeric,
@@ -254,6 +255,27 @@ export const cryptoPricesTable = pgTable(
     fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull(),
   },
   (t) => [check('crypto_prices_price_non_negative', sql`${t.priceEur} >= 0`)],
+)
+
+/**
+ * The EUR price of an asset at the end of each day (#366), for the daily
+ * close and the history rebuilt from an exchange's movements: from the price
+ * API's daily history (`provider`), or the manual price of the day when the
+ * API is off or lacks the asset (`manual`). Exact decimal strings.
+ */
+export const cryptoPriceHistoryTable = pgTable(
+  'crypto_price_history',
+  {
+    ...coreColumns,
+    assetId: varchar('asset_id', { length: 100 }).notNull(),
+    day: date('day', { mode: 'string' }).notNull(),
+    priceEur: numeric('price_eur', { precision: 38, scale: 12 }).notNull(),
+    source: cryptoPriceSourceEnum('source').notNull(),
+  },
+  (t) => [
+    unique('crypto_price_history_asset_day_unique').on(t.assetId, t.day),
+    check('crypto_price_history_price_non_negative', sql`${t.priceEur} >= 0`),
+  ],
 )
 
 export type SelectCryptoHolding = typeof cryptoHoldingsTable.$inferSelect

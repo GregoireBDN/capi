@@ -384,6 +384,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           accountId: manual.id,
           date: '2026-11-10',
           valueCents: 0,
+          source: 'computed',
         })
 
         const wallet = await accounts.changeCryptoSource(manual.id, {
@@ -431,8 +432,18 @@ describe.skipIf(!process.env.DATABASE_URL)(
           type: 'crypto',
         })
         await tx.insert(balanceSnapshotsTable).values([
-          { accountId: manual.id, date: '2026-10-31', valueCents: 125_000 },
-          { accountId: manual.id, date: '2026-11-10', valueCents: 0 },
+          {
+            accountId: manual.id,
+            date: '2026-10-31',
+            valueCents: 125_000,
+            source: 'computed',
+          },
+          {
+            accountId: manual.id,
+            date: '2026-11-10',
+            valueCents: 0,
+            source: 'computed',
+          },
         ])
         const exchange = await accounts.changeCryptoSource(manual.id, {
           cryptoSource: 'exchange',

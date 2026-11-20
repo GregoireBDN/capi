@@ -362,6 +362,7 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
         accountId: wallet.id,
         date: '2019-03-31',
         valueCents: 1_000_000,
+        source: 'computed',
       })
 
       await expect(service.deletionPreview(wallet.id)).resolves.toMatchObject({

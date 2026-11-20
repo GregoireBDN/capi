@@ -23,7 +23,7 @@ Open work taken into account: #357 (split part's kind, PR #363: the view reads a
 | One-off, review, note                        | `transactions.is_one_off`, `needs_review`, `note`; prepaid payments count as one-off in the view                                                                                                                          | uncategorized ⇒ in review (code)                                                                                                                                                                                      |
 | Rules                                        | `categorization_rules`                                                                                                                                                                                                    | computed order: `priority`, specificity, `position` (code)                                                                                                                                                            |
 | **Value held**: cash balance                 | computed from `transactions` (bank values) anchored on `balance_after_cents` or a `balance_snapshots` row                                                                                                                 | code (`AccountsService.loadBalances`)                                                                                                                                                                                 |
-| Investment value                             | `balance_snapshots.value_cents`, one per account and day (DB unique)                                                                                                                                                      | crypto: today's snapshot written by each valuation (code)                                                                                                                                                             |
+| Investment value                             | `balance_snapshots.value_cents`, one per account and day (DB unique)                                                                                                                                                      | crypto: one `computed` point per day, written by the daily close (#366); `source` checked by a trigger                                                                                                                |
 | Crypto holdings                              | `crypto_holdings` (origins `import`, `sync`, `manual`)                                                                                                                                                                    | each origin replaced only by its own writer (code); quantity ≥ 0 (DB)                                                                                                                                                 |
 | Invested amount                              | `balance_snapshots.contributions_cents` (typed or computed), linked transfers (`transactions.counterpart_account_id`), `crypto_holdings.invested_cents`, `crypto_movements.cost_cents`, `accounts.invested_base_*` (#358) | merged by `investments/performance.ts` and `crypto/valuation.ts` (code)                                                                                                                                               |
 | **Plans**: budgets and planned income        | `budgets` (effective-dated, carried over)                                                                                                                                                                                 | first of month, target > 0 (DB); transfer categories refused, income never tracked (code)                                                                                                                             |
@@ -150,6 +150,7 @@ erDiagram
     bigint value_cents
     bigint contributions_cents "typed or computed"
     text note
+    snapshot_source source "typed | computed (#366)"
   }
   savings_goals {
     varchar name
@@ -206,6 +207,12 @@ erDiagram
     numeric change_24h_percent
     crypto_price_source source
     timestamptz fetched_at
+  }
+  crypto_price_history {
+    varchar asset_id "unique with day"
+    date day
+    numeric price_eur "38,12"
+    crypto_price_source source
   }
   crypto_asset_aliases {
     varchar ticker "unique"
@@ -300,7 +307,7 @@ These 13 tables are covered by `CLAUDE.md` (Auth, Passkeys, Personal access toke
 
 - **`budgets`** — effective-dated monthly targets per category (expense targets and planned income, #315): first of month and target > 0 (DB), unique `(category_id, effective_from)` (DB). Code only: no transfer category, income lines never `tracked`.
 - **`recurring_items`** — one detected series per account + merchant key + direction. Detection columns (cadence, amount type, typical amount, confidence, last seen, next expected) are a snapshot refreshed by each run and recomputed by the list endpoint; the owner's columns (name, category, fixed cost, cadence override, notes, status, `ended_on`, `term_months`, `renewal_kept_on`) are never touched by detection (code). `ended_on` only on `confirmed`, prepaid only on debits (DB, #367); leaving `confirmed` clears `ended_on`.
-- **`balance_snapshots`** — dated value of an account, unique per account and day (DB). Two roles: statement balances of cash accounts (anchors of the balance) and values of investment accounts. `contributions_cents` holds typed statement figures for PEA-like accounts **and** computed costs for crypto accounts.
+- **`balance_snapshots`** — dated value of an account, unique per account and day (DB). Two roles: statement balances of cash accounts (anchors of the balance) and values of investment accounts. `contributions_cents` holds typed statement figures for PEA-like accounts **and** computed costs for crypto accounts. Since #366 `source` says which: `typed` for every account but crypto, `computed` for crypto (trigger `balance_snapshots_source_by_type`), one point per day written by the daily close and never edited.
 - **`savings_goals`**, **`savings_goal_accounts`** — goals and the accounts whose balances make them up. `manual_amount_cents` set iff `source = 'manual'` (DB, #367).
 - **`app_settings`** — key / jsonb value; one key today (`savings.monthly_target_cents`).
 - **`month_closes`** — one row per month touched by the review: ticks, notes, close time and the frozen `report` (DB: month format, closed ⇔ report ⇔ `report_version`, ticks among `recurring`, `budget`, `savings` since #367). The report is versioned (#369, R6): `upgradeReport` (`month-close/report-version.ts`) turns any stored version into the current DTO where it is read, filling what an older shape lacks (version 1 → 2: icons from the live categories, `plan: null`), never recomputing a figure.
@@ -309,6 +316,7 @@ These 13 tables are covered by `CLAUDE.md` (Auth, Passkeys, Personal access toke
 
 - **`crypto_holdings`** — quantity of one asset in one place, per origin. Unique `(account_id, asset_id, location, origin)` (DB). `import` lines are the sum of the account's movements (derived, rewritten on commit); `sync` lines come from the chain (a cache of the last read); `manual` lines are the owner's. Code only: wallet accounts take no manual line, tokens may only touch manual lines of manual-source accounts.
 - **`crypto_prices`** — last known EUR price per asset (API cache or manual), with the 24-hour change.
+- **`crypto_price_history`** (#366) — closing EUR price per asset and Europe/Paris day (provider daily history, or the manual price of the day), read by the daily close and the exchange history rebuild.
 - **`crypto_asset_aliases`** — ticker → price id for tickers outside the built-in table.
 - **`crypto_wallet_keys`**, **`crypto_wallet_tokens`** — what a wallet account reads; public key unique (DB), chains not empty (DB), contract fields all or none (DB).
 - **`crypto_bitcoin_scans`**, **`crypto_bitcoin_scan_addresses`** — resumable scan state per key and address type; addresses are derived again, never stored.
@@ -327,7 +335,7 @@ These 13 tables are covered by `CLAUDE.md` (Auth, Passkeys, Personal access toke
 | Exchange holdings (`origin = import`) | `crypto_holdings`                       | `crypto_movements`               | rewritten on every commit; safe as long as nothing else writes them               |
 | Withdrawal cost                       | `crypto_movements.cost_cents`           | holdings replay                  | same                                                                              |
 | Wallet holdings (`origin = sync`)     | `crypto_holdings`                       | the chain                        | a cache by nature: keep                                                           |
-| Crypto value per day                  | `balance_snapshots`                     | holdings × today's price         | must be stored: past prices are not kept                                          |
+| Crypto value per day                  | `balance_snapshots` (`computed`)        | holdings × that day's close      | stored by the daily close (#366); past prices kept in `crypto_price_history`      |
 | Crypto invested per day               | `balance_snapshots.contributions_cents` | holdings' cost, linked movements | **overwrites typed values** (#358), shares a column with typed statement figures  |
 | Recurring stats                       | `recurring_items`                       | transactions                     | recomputed on read anyway; the stored copy feeds the forecast and the month close |
 | Transaction category of a split       | `transactions.category_id`              | largest part                     | kept by the split writer                                                          |

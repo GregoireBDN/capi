@@ -8,6 +8,7 @@ import {
 import {
   type CryptoAsset,
   type EurQuote,
+  type PricePoint,
   type PriceProvider,
   PriceProviderError,
 } from './price-provider'
@@ -37,6 +38,12 @@ const pricesSchema = z.record(
     eur_24h_change: z.unknown().optional(),
   }),
 )
+const historySchema = z.looseObject({
+  prices: z.array(z.tuple([jsonNumber, jsonNumber.nullable()])),
+})
+/** The key-less API serves at most the last 365 days of history. */
+export const PRICE_HISTORY_MAX_DAYS = 365
+
 const searchSchema = z.looseObject({
   coins: z.array(
     z.looseObject({
@@ -131,6 +138,35 @@ export class CoinGeckoPriceProvider
       })
     }
     return quotes
+  }
+
+  /**
+   * Daily EUR prices of one asset (`coins/:id/market_chart`, `interval=daily`,
+   * at most `PRICE_HISTORY_MAX_DAYS` days on the key-less API): one point per
+   * day at 00:00 UTC, then the current price. Only the asset id is sent.
+   */
+  async fetchEurHistory(assetId: string, days: number): Promise<PricePoint[]> {
+    const span = Math.max(1, Math.min(PRICE_HISTORY_MAX_DAYS, Math.ceil(days)))
+    const body = await this.getJson(
+      `coins/${encodeURIComponent(assetId)}/market_chart`,
+      {
+        vs_currency: 'eur',
+        days: String(span),
+        interval: 'daily',
+        precision: 'full',
+      },
+    )
+    const parsed = historySchema.safeParse(body)
+    if (!parsed.success) throw new PriceProviderError('malformed')
+    const points: PricePoint[] = []
+    for (const [time, price] of parsed.data.prices) {
+      const ms = Number(time)
+      if (!Number.isSafeInteger(ms) || price === null) continue
+      const priceEur = decimalFromJsonNumber(price)
+      if (priceEur === null) continue
+      points.push({ at: new Date(ms), priceEur })
+    }
+    return points.sort((a, b) => a.at.getTime() - b.at.getTime())
   }
 
   async searchAssets(query: string): Promise<CryptoAsset[]> {

@@ -288,6 +288,13 @@
       "when": 1795167023821,
       "tag": "0040_kind_follows_category",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1795168322359,
+      "tag": "0041_crypto_daily_values",
+      "breakpoints": true
     }
   ]
 }

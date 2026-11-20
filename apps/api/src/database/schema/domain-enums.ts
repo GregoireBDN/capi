@@ -79,6 +79,14 @@ export const CRYPTO_PRICE_SOURCES = ['provider', 'manual'] as const
 export type CryptoPriceSource = (typeof CRYPTO_PRICE_SOURCES)[number]
 
 /**
+ * Where a value snapshot comes from (#366): `typed` (a statement, a value
+ * entered by hand or through the MCP) or `computed` (a crypto account's daily
+ * close, holdings × that day's price), which is never edited or deleted.
+ */
+export const SNAPSHOT_SOURCES = ['typed', 'computed'] as const
+export type SnapshotSource = (typeof SNAPSHOT_SOURCES)[number]
+
+/**
  * Where a savings goal's current amount comes from: the balances of its
  * linked accounts, or an amount entered by hand.
  */

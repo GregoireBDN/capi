@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import * as schema from './index'
 import {
   accountsTable,
+  balanceSnapshotsTable,
   cryptoImportsTable,
   importsTable,
   type InsertRecurringItem,
@@ -418,6 +419,48 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
         await tx
           .insert(monthClosesTable)
           .values({ month: '2026-10', acknowledged: ['recurring', 'savings'] })
+      })
+    })
+  })
+
+  describe('balance_snapshots (#366)', () => {
+    it('stores a crypto account’s values as computed, every other as typed', async () => {
+      await inRollback(async (tx) => {
+        const crypto = await account(tx, {
+          type: 'crypto',
+          cryptoSource: 'manual',
+        })
+        const pea = await account(tx, { type: 'brokerage' })
+        const value = (accountId: string, source: 'typed' | 'computed') =>
+          tx.insert(balanceSnapshotsTable).values({
+            accountId,
+            date: '2026-10-31',
+            valueCents: 100_00,
+            source,
+          })
+        await refused(tx, 'balance_snapshots_source_by_type', (nested) =>
+          nested.insert(balanceSnapshotsTable).values({
+            accountId: crypto.id,
+            date: '2026-10-31',
+            valueCents: 100_00,
+          }),
+        )
+        await refused(tx, 'balance_snapshots_source_by_type', (nested) =>
+          nested.insert(balanceSnapshotsTable).values({
+            accountId: pea.id,
+            date: '2026-10-31',
+            valueCents: 100_00,
+            source: 'computed',
+          }),
+        )
+        await value(crypto.id, 'computed')
+        await value(pea.id, 'typed')
+        await refused(tx, 'balance_snapshots_source_by_type', (nested) =>
+          nested
+            .update(balanceSnapshotsTable)
+            .set({ source: 'typed' })
+            .where(eq(balanceSnapshotsTable.accountId, crypto.id)),
+        )
       })
     })
   })

@@ -33,7 +33,7 @@ import type {
   HoldingsTotalsDto,
   ValuedHoldingDto,
 } from '#/api/types.gen'
-import { afterSnapshotsChanged } from '#/components/accounts/queries'
+import { accountKeys } from '#/components/accounts/queries'
 import { formatCents } from '#/lib/money'
 import { DIVIDED_LIST, ROW_BUTTON } from '#/lib/row-list'
 import { holdingErrorMessage } from './errors'
@@ -294,8 +294,8 @@ export function HoldingList({
 /**
  * Holdings of a crypto account valued at the last known EUR prices: what is
  * held where, price and its age, value, invested and gain. Opening the page
- * may refresh prices (rate-limited by the API) and write today's value; the
- * snapshot history then gets a point for the day.
+ * may refresh prices (rate-limited by the API): today's live value follows,
+ * never stored (#366; the daily close writes one value per day).
  */
 export function HoldingsPanel({
   accountId,
@@ -315,11 +315,14 @@ export function HoldingsPanel({
   // A wallet's holdings come from the chain: nothing is typed there (#269).
   const wallet = source === 'wallet'
 
-  // A valuation wrote today's snapshot: balance, chart and net worth follow.
-  const written = holdings.data?.snapshot
+  // Fresh prices or lines: the summary and the curve's live point follow.
   useEffect(() => {
-    if (written) void afterSnapshotsChanged(queryClient)
-  }, [written, holdings.dataUpdatedAt, queryClient])
+    if (holdings.dataUpdatedAt) {
+      void queryClient.invalidateQueries({
+        queryKey: accountKeys.performance(accountId),
+      })
+    }
+  }, [accountId, holdings.dataUpdatedAt, queryClient])
 
   const refresh = useMutation({
     mutationFn: () => refreshPrices(accountId),

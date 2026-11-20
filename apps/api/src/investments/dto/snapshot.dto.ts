@@ -17,7 +17,12 @@ import {
   type ValidatorConstraintInterface,
   ValidatorConstraint,
 } from 'class-validator'
-import { ACCOUNT_TYPES, type AccountType } from '#/database/schema/domain-enums'
+import {
+  ACCOUNT_TYPES,
+  type AccountType,
+  SNAPSHOT_SOURCES,
+  type SnapshotSource,
+} from '#/database/schema/domain-enums'
 import { isCalendarDate } from '../calendar-date'
 
 /** Most snapshots one bulk upsert may write. */
@@ -83,6 +88,26 @@ export class SnapshotDto {
 
   @ApiProperty({ type: String, nullable: true })
   note!: string | null
+
+  @ApiProperty({
+    enum: SNAPSHOT_SOURCES,
+    enumName: 'SnapshotSource',
+    description:
+      '`typed` (a statement, a value typed by hand or through the MCP) or `computed` (a crypto account’s daily close, #366: read only).',
+  })
+  source!: SnapshotSource
+}
+
+/** Today's live value of a crypto account (#366): shown, never stored. */
+export class LiveValueDto {
+  @ApiProperty({ type: String, format: 'date' })
+  date!: string
+
+  @ApiProperty(VALUE_DOC)
+  valueCents!: number
+
+  @ApiProperty(CONTRIBUTIONS_DOC)
+  contributionsCents!: number | null
 }
 
 /** Full replacement of the snapshot of a day: omitted fields become null. */
@@ -407,14 +432,22 @@ export class AccountPerformanceDto extends PerformanceFiguresDto {
   @ApiProperty({
     type: [SnapshotDto],
     description:
-      'Every snapshot, oldest first, with the contributions typed on it.',
+      'Every stored snapshot, oldest first, with the contributions typed on it (a crypto account: its daily closes before `live`).',
   })
   snapshots!: SnapshotDto[]
 
   @ApiProperty({
+    type: LiveValueDto,
+    nullable: true,
+    description:
+      'Crypto accounts (#366): today’s live value at the last known prices, never stored, the last point of the history. The figures (value, changes, gain) count it.',
+  })
+  live!: LiveValueDto | null
+
+  @ApiProperty({
     type: [ContributionPointDto],
     description:
-      'Net contributions at each snapshot (same order as `snapshots`): from the linked transfers when `contributionsSource` is `links`, from the invested base when `base`, else as typed.',
+      'Net contributions at each snapshot (same order as `snapshots`, then `live` when there is one): from the linked transfers when `contributionsSource` is `links`, from the invested base when `base`, else as typed.',
   })
   contributionsHistory!: ContributionPointDto[]
 
