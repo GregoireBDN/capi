@@ -44,6 +44,8 @@ export const RAIL_BUTTON = cn(
   'hover:bg-foreground/6 hover:text-sidebar-foreground',
   'data-active:bg-primary/12 data-active:text-primary data-active:hover:bg-primary/16 data-active:hover:text-primary',
   'group-data-[collapsible=icon]:size-(--rail-button)!',
+  // Centred in the column, under the header's logo and the groups' rules.
+  'group-data-[collapsible=icon]:mx-auto',
   'group-data-[collapsible=icon]:p-0!',
   'group-data-[collapsible=icon]:justify-center',
   // The name stays for screen readers but takes no room: the icon centres.
@@ -170,8 +172,9 @@ export function AppSidebar() {
                 key={group.label}
                 role="group"
                 aria-labelledby={groupId(group.label)}
-                // The titles already part the groups: less room around them.
-                className="py-1"
+                // The titles already part the groups: less room around them;
+                // folded, a little more around the rule that replaces them.
+                className="py-1 group-data-[collapsible=icon]:py-1.5"
               >
                 {/* Folded, the group titles give way to a short rule
                     between the groups (the owner, #386). */}
