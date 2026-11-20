@@ -217,7 +217,8 @@ describe.skipIf(!process.env.DATABASE_URL)('Import undo (database)', () => {
           amountCents: 50_000,
           rawLabel: 'VIR RECU TEST',
           kind: 'transfer',
-          dedupeHash: 'undo-spec-savings-side',
+          manual: true,
+          dedupeHash: 'manual:undo-spec-savings-side',
         })
         const id = await importRows([
           { date: '2026-10-01', amountCents: 200_000, label: SALARY },
