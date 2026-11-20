@@ -485,6 +485,64 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
+    it('keeps a frozen report when a split later turns income into a refund (#357)', async () => {
+      await inRollback(async ({ tx, accounts, budgets, service }) => {
+        const { groceries } = await completeOctober(
+          tx,
+          accounts,
+          budgets,
+        )
+        const [salary] = await tx
+          .insert(categoriesTable)
+          .values({ slug: 'test_salary', name: 'Test salaire', kind: 'income' })
+          .returning()
+        const [income] = await tx
+          .select({ id: transactionsTable.id })
+          .from(transactionsTable)
+          .where(eq(transactionsTable.amountCents, 250_000))
+        await tx
+          .update(transactionsTable)
+          .set({ categoryId: salary.id })
+          .where(eq(transactionsTable.id, income.id))
+        const closed = await service.close('2026-10', {}, { now: NOW })
+        const frozen = closed.closedReport!
+        expect(frozen.flow).toMatchObject({
+          incomeCents: 250_000,
+          expenseCents: -30_000,
+        })
+
+        // 20 € of the credit pay back groceries, filed after the close.
+        await new TransactionsService({ db: tx } as never).split(income.id, [
+          { categoryId: groceries, amountCents: 2_000 },
+          { categoryId: salary.id, amountCents: 248_000 },
+        ])
+        const later = await service.get('2026-10', { now: NOW })
+        expect(later.closedReport).toEqual(frozen)
+        expect(later.report.flow).toMatchObject({
+          incomeCents: 248_000,
+          expenseCents: -28_000,
+        })
+        expect(later.changes).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              field: 'category',
+              kind: 'expense',
+              categoryId: groceries,
+              closedCents: 30_000,
+              currentCents: 28_000,
+            }),
+            expect.objectContaining({
+              field: 'category',
+              kind: 'income',
+              categoryId: salary.id,
+              closedCents: 250_000,
+              currentCents: 248_000,
+            }),
+          ]),
+        )
+      })
+    })
+
     it('freezes planned vs received income and planned vs actual savings (#315)', async () => {
       await inRollback(async ({ tx, accounts, budgets, service }) => {
         await completeOctober(tx, accounts, budgets)

@@ -97,6 +97,8 @@ const PUBLIC_ROUTES = [
  * session-only.
  * close_months (#342) uses `POST /api/month-close/:month/close`; reopening,
  * ticking steps and notes stay session-only.
+ * split_transaction (#357) uses `PUT /api/transactions/:id/splits`; undoing a
+ * split stays session-only.
  * The others were opened with the tokens for scripts and later tools.
  */
 const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
@@ -130,6 +132,9 @@ const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
   'PUT /api/accounts/:id/snapshots/:date': 'write',
   'PUT /api/budgets/:categoryId': 'write',
   'PUT /api/savings/target': 'write',
+  // #357: split_transaction (MCP); DELETE (undoing the split) stays
+  // session-only.
+  'PUT /api/transactions/:id/splits': 'write',
 }
 
 /** The only import routes a token may call besides GETs (#103). */

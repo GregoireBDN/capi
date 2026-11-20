@@ -48,6 +48,7 @@ import {
   type UpdateTransactionDto,
 } from './dto/transaction.dto'
 import type { CorrectTransactionDto } from './dto/manual-transaction.dto'
+import { splitPartKind } from './split-kind'
 
 type Db = PostgresJsDatabase<typeof schema>
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
@@ -307,7 +308,11 @@ export class TransactionsService {
    * Splits a transaction between categories, replacing any previous split.
    * The parts keep its sign, are never 0 and sum exactly to its amount; the
    * transaction takes the category of its largest part (first on a tie),
-   * filed by hand and out of review. Statistics count each part.
+   * filed by hand and out of review. Statistics count each part with its
+   * category's kind (#357, `splitPartKind`): an incoming part in an expense
+   * category is a refund of it. A transfer category is refused beside income
+   * or expense categories, since such a part would keep the transaction's
+   * kind while the others take theirs.
    */
   split(id: string, parts: SplitPartDto[]): Promise<TransactionDto> {
     return this.db.transaction(async (tx) => {
@@ -331,11 +336,17 @@ export class TransactionsService {
       }
       const categoryIds = [...new Set(parts.map((part) => part.categoryId))]
       const known = await tx
-        .select({ id: categoriesTable.id })
+        .select({ id: categoriesTable.id, kind: categoriesTable.kind })
         .from(categoriesTable)
         .where(inArray(categoriesTable.id, categoryIds))
       if (known.length !== categoryIds.length) {
         throw new BadRequestException('categoryId does not match any category')
+      }
+      const transfers = known.filter((category) => category.kind === 'transfer')
+      if (transfers.length > 0 && transfers.length < known.length) {
+        throw new BadRequestException(
+          'A transfer category cannot be mixed with income or expense categories in a split',
+        )
       }
       const largest = parts.reduce((best, part) =>
         Math.abs(part.amountCents) > Math.abs(best.amountCents) ? part : best,
@@ -477,6 +488,7 @@ export class TransactionsService {
     executor: Executor,
   ): Promise<TransactionDto[]> {
     if (rows.length === 0) return []
+    const kinds = new Map(rows.map((row) => [row.id, row.kind]))
     const s = transactionSplitsTable
     const parts = await executor
       .select({
@@ -506,6 +518,7 @@ export class TransactionsService {
         id: part.id,
         categoryId: part.categoryId,
         amountCents: part.amountCents,
+        kind: splitPartKind(kinds.get(part.transactionId)!, part.kind),
         category: {
           id: part.categoryId,
           slug: part.slug,

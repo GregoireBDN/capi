@@ -106,6 +106,13 @@ export class TransactionSplitDto {
     description: 'Signed integer cents, same sign as the transaction.',
   })
   amountCents!: number
+
+  @ApiProperty({
+    ...KIND_DOC,
+    description:
+      'Kind the part counts with (#357): its category’s, so an incoming part in an expense category is a refund of that category and one in an income category is income. A transfer’s parts, and a part in a transfer category, keep the transaction’s kind.',
+  })
+  kind!: TransactionKind
 }
 
 export class TransactionDto {
@@ -589,7 +596,7 @@ export class SplitTransactionDto {
     minItems: 2,
     maxItems: SPLIT_MAX_PARTS,
     description:
-      'Replaces the parts. They must sum exactly to the transaction amount.',
+      'Replaces the parts. They must sum exactly to the transaction amount. Each counts with its category’s kind (an incoming part in an expense category is a refund of it); a transfer category cannot be mixed with income or expense categories.',
   })
   @IsArray()
   @ArrayMinSize(2)

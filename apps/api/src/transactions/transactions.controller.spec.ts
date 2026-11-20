@@ -15,7 +15,8 @@ import {
   it,
   vi,
 } from 'vitest'
-import { JWT_GUARD_TEST_PROVIDERS } from '#/auth/guards/jwt-guard.testing'
+import { AccessTokensService } from '#/auth/access-tokens/access-tokens.service'
+import { JwtGuard } from '#/auth/guards/jwt.guard'
 import { BULK_UPDATE_MAX_IDS } from './dto/transaction.dto'
 import { ManualTransactionsService } from './manual-transactions.service'
 import { TransactionsController } from './transactions.controller'
@@ -28,6 +29,9 @@ import { TransactionsService } from './transactions.service'
 
 const ID = '7f0c5a7e-2d1b-4c3a-9e8f-123456789abc'
 const OTHER_ID = '3b9d2f1e-8c7a-4b6d-9e0f-abcdef012345'
+// Synthetic personal access tokens, known only to the mocked service.
+const READ_TOKEN = 'fin_pat_read-token-for-tests'
+const WRITE_TOKEN = 'fin_pat_write-token-for-tests'
 
 describe('TransactionsController (HTTP)', () => {
   let app: NestFastifyApplication
@@ -49,13 +53,24 @@ describe('TransactionsController (HTTP)', () => {
     update: vi.fn(),
     remove: vi.fn(),
   }
+  const accessTokens = {
+    authenticate: (token: string) =>
+      Promise.resolve(
+        token === READ_TOKEN
+          ? { id: 'tok-read', userId: 'user-1', scope: 'read' }
+          : token === WRITE_TOKEN
+            ? { id: 'tok-write', userId: 'user-1', scope: 'write' }
+            : null,
+      ),
+  }
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [TransactionsController],
       providers: [
-        ...JWT_GUARD_TEST_PROVIDERS,
+        JwtGuard,
+        { provide: AccessTokensService, useValue: accessTokens },
         { provide: TransactionsService, useValue: service },
         { provide: ManualTransactionsService, useValue: manual },
       ],
@@ -491,6 +506,36 @@ describe('TransactionsController (HTTP)', () => {
       const response = await request('DELETE', `/transactions/${ID}/splits`)
       expect(response.statusCode).toBe(200)
       expect(service.unsplit).toHaveBeenCalledWith(ID)
+    })
+
+    describe('with a personal access token (#357)', () => {
+      const bearer = (token: string) => ({ authorization: `Bearer ${token}` })
+      const parts = [
+        { categoryId: ID, amountCents: 2000 },
+        { categoryId: OTHER_ID, amountCents: 4000 },
+      ]
+
+      it('lets a write token split and refuses a read token', async () => {
+        const split = (token: string) =>
+          request('PUT', `/transactions/${ID}/splits`, { parts }, bearer(token))
+        expect((await split(READ_TOKEN)).statusCode).toBe(403)
+        expect(service.split).not.toHaveBeenCalled()
+        expect((await split(WRITE_TOKEN)).statusCode).toBe(200)
+        expect(service.split).toHaveBeenCalledWith(ID, parts)
+      })
+
+      it('never lets a token undo a split', async () => {
+        for (const token of [READ_TOKEN, WRITE_TOKEN]) {
+          const response = await request(
+            'DELETE',
+            `/transactions/${ID}/splits`,
+            undefined,
+            bearer(token),
+          )
+          expect(response.statusCode).toBe(403)
+        }
+        expect(service.unsplit).not.toHaveBeenCalled()
+      })
     })
   })
 
