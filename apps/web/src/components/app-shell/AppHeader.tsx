@@ -61,7 +61,7 @@ export function AppHeader({ user }: { user: UserDto }) {
         ghost
         iconOnly
         // An open sidebar is the usual state, not a pressed button.
-        className="aria-expanded:text-muted-foreground relative aria-expanded:bg-transparent hover:aria-expanded:bg-secondary"
+        className="aria-expanded:text-muted-foreground relative aria-expanded:bg-transparent hover:aria-expanded:bg-secondary [&_svg]:size-[1.1rem]"
         aria-label={
           isMobile
             ? 'Ouvrir le menu'

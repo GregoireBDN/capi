@@ -25,16 +25,16 @@ import { NAV_GROUPS, carriedMonth, isNavEntryActive } from './nav-items'
 import type { NavItem } from './nav-items'
 
 /**
- * Page icons a little larger than the menu default, and, folded, square
- * buttons that fill the column with icons sized from it (`routes/_app.tsx`
- * sets `--rail-button` and `--rail-icon` from the column width).
+ * Page icons a little larger than the menu default, the same size open and
+ * folded, and as the header's ☰ (#386: the owner found the folded ones far
+ * too big beside it). Folded, square buttons centred in the column under
+ * the ☰ (`routes/_app.tsx` sets `--rail-button`).
  */
 export const RAIL_BUTTON = cn(
   '[&_svg]:size-[1.1rem]',
   'group-data-[collapsible=icon]:size-(--rail-button)!',
   'group-data-[collapsible=icon]:p-0!',
   'group-data-[collapsible=icon]:justify-center',
-  'group-data-[collapsible=icon]:[&_svg]:size-(--rail-icon)',
   // The name stays for screen readers but takes no room: the icon centres.
   'group-data-[collapsible=icon]:[&>span]:sr-only',
 )

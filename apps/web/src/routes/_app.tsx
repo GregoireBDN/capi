@@ -41,12 +41,11 @@ function AppLayout() {
       style={
         {
           '--sidebar-width': 'min(16rem, 32vw)',
-          // Folded to its icons: a column that grows a little with the
-          // screen (about 72px up to 1500px wide, 88px on a large one)...
-          '--sidebar-width-icon': 'clamp(3.25rem, 4.6vw, 4rem)',
-          // ...and its buttons and icons sized from it (`AppSidebar`).
-          '--rail-button': 'calc(var(--sidebar-width-icon) - 1rem)',
-          '--rail-icon': 'calc(var(--rail-button) * 0.5)',
+          // Folded to its icons: a column whose centre is the header's ☰
+          // (0.75rem of padding + half its 2rem button), with square
+          // buttons around icons of the ☰'s size (`AppSidebar`, #386).
+          '--sidebar-width-icon': '3.5rem',
+          '--rail-button': '2rem',
           // Height of `AppHeader`, on every width (#386), for sticky
           // elements under it and the sidebar's column.
           '--app-top-bar': '3rem',
