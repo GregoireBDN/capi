@@ -555,7 +555,7 @@ function Tile({
  *   comes from), with a pencil to change it.
  * - Ligne à modifier: a settings row (label and where it comes from, the
  *   amount, ›), the whole row opening the editor.
- * - Barre: the amount, then a bar of the value split into what was put in
+ * - Barre (the owner's choice, 20/11): the amount, then a bar of the value split into what was put in
  *   and what it made (or lost).
  */
 type InvestedVariant = 'line' | 'centred' | 'tile' | 'row' | 'bar'
@@ -565,9 +565,9 @@ const INVESTED_VARIANTS: { value: InvestedVariant; label: string }[] = [
   { value: 'centred', label: 'Centrée' },
   { value: 'tile', label: 'Tuile' },
   { value: 'row', label: 'Ligne à modifier' },
-  { value: 'bar', label: 'Barre' },
+  { value: 'bar', label: 'Barre (choisie)' },
 ]
-const InvestedVariantContext = createContext<InvestedVariant>('line')
+const InvestedVariantContext = createContext<InvestedVariant>('bar')
 
 /** The variants that say where the amount comes from themselves. */
 const WITH_SOURCE: InvestedVariant[] = ['tile', 'row']
@@ -1322,8 +1322,7 @@ function Direction({
   const [state, setState] = useState<InvestedState>('known')
   const [width, setWidth] = useState('375')
   const [word, setWord] = useState('Résultat')
-  const [investedVariant, setInvestedVariant] =
-    useState<InvestedVariant>('line')
+  const [investedVariant, setInvestedVariant] = useState<InvestedVariant>('bar')
   const [editing, setEditing] = useState(false)
   const account = ACCOUNTS[key]
   return (
