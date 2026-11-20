@@ -57,6 +57,14 @@ export function resetReviewCount() {
   emit()
 }
 
+/**
+ * Current queue size as last fetched (null until known), without a request
+ * of its own: for a page inside the shell, whose sidebar fetches it.
+ */
+export function useKnownReviewCount(): number | null {
+  return useSyncExternalStore(subscribe, getReviewCount, () => null)
+}
+
 /** Current queue size (null until known); fetched once on mount. */
 export function useReviewCount(): number | null {
   const value = useSyncExternalStore(subscribe, getReviewCount, () => null)

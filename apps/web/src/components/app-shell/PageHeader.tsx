@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom'
+import { useId } from 'react'
 import type { ReactNode } from 'react'
 import {
   Button,
@@ -115,6 +116,16 @@ function PageActionsMenu({ actions }: { actions: readonly PageAction[] }) {
     ...actions.filter((action) => !action.primary),
   ]
   const busy = actions.some((action) => action.loading)
+  // What waits behind the items (#393), on the « ⋮ » too: seen without
+  // opening the menu, said to screen readers after its name.
+  const counted = actions.filter(
+    (action) => action.count && action.count.value > 0,
+  )
+  const total = counted.reduce(
+    (sum, action) => sum + (action.count?.value ?? 0),
+    0,
+  )
+  const countId = useId()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -124,10 +135,22 @@ function PageActionsMenu({ actions }: { actions: readonly PageAction[] }) {
           ghost
           iconOnly
           aria-label="Actions de la page"
+          aria-describedby={total > 0 ? countId : undefined}
           title="Actions de la page"
-          className="[&_svg]:size-[1.1rem]"
+          className="relative [&_svg]:size-[1.1rem]"
         >
           {busy ? <Spinner /> : <EllipsisVerticalIcon />}
+          {total > 0 && (
+            <span
+              data-testid="page-actions-count"
+              className="bg-primary text-primary-foreground pointer-events-none absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] leading-none font-semibold tabular-nums"
+            >
+              <span aria-hidden>{countText(total)}</span>
+              <span id={countId} className="sr-only">
+                {counted.map((action) => action.count?.label).join(', ')}
+              </span>
+            </span>
+          )}
         </Button>
       </DropdownMenuTrigger>
       {/* As wide as its labels (not the icon trigger), within the screen. */}
@@ -143,9 +166,20 @@ function PageActionsMenu({ actions }: { actions: readonly PageAction[] }) {
           >
             {action.loading ? <Spinner /> : action.icon}
             {action.label}
+            {action.count && action.count.value > 0 && (
+              <span className="bg-primary text-primary-foreground ml-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-medium tabular-nums">
+                <span aria-hidden>{countText(action.count.value)}</span>
+                <span className="sr-only">, {action.count.label}</span>
+              </span>
+            )}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
   )
+}
+
+/** A count as a badge shows it: « 99+ » past 99. */
+function countText(value: number): string {
+  return value > 99 ? '99+' : String(value)
 }

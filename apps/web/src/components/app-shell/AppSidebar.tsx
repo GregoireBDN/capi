@@ -129,12 +129,15 @@ export function AppSidebar() {
             <span>{count > 99 ? '99+' : count}</span>
           </Link>
         )}
-        {/* Folded, a dot on the icon says there is something to review. */}
+        {/* Folded, a dot on the icon's top-right corner says there is
+            something to review: placed from the centre of the 44px button,
+            where the 1.1rem icon sits, ringed in the sidebar's colour so it
+            reads apart from the glyph (#393). */}
         {count !== null && count > 0 && (
           <span
             aria-hidden
             data-testid="nav-review-dot"
-            className="bg-primary pointer-events-none absolute top-1.5 right-1.5 hidden size-2 rounded-full group-data-[collapsible=icon]:block"
+            className="bg-primary ring-sidebar pointer-events-none absolute top-[calc(50%-0.7rem)] left-[calc(50%+0.2rem)] hidden size-[0.45rem] rounded-full ring-2 group-data-[collapsible=icon]:block"
           />
         )}
       </SidebarMenuItem>

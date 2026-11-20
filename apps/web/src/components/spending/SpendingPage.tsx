@@ -29,6 +29,8 @@ import { PageHeader } from '#/components/app-shell/PageHeader'
 import { currentMonth, formatMonth } from '#/lib/calendar'
 import { formatShortDay } from '#/lib/period'
 import { accountsQuery, isTransactional } from '#/lib/queries'
+import { plural } from '#/lib/plural'
+import { useKnownReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
 import { CategoryRanking } from './CategoryRanking'
 import { monthName, seriesLabel } from './labels'
@@ -156,6 +158,9 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
 
   const [adding, setAdding] = useState(false)
   const navigate = useNavigate()
+  // The transactions to review, on « Voir les opérations » and its « ⋮ »
+  // (#393): the menu is the way to Opérations from here.
+  const reviewCount = useKnownReviewCount()
 
   const set = (patch: Partial<SpendingSearch>) => {
     onSearchChange(compactSearch({ ...search, ...patch }))
@@ -186,6 +191,16 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
           {
             label: 'Voir les opérations',
             icon: <ArrowLeftRightIcon />,
+            count: reviewCount
+              ? {
+                  value: reviewCount,
+                  label: plural(
+                    reviewCount,
+                    'opération à revoir',
+                    'opérations à revoir',
+                  ),
+                }
+              : null,
             onSelect: () =>
               void navigate({
                 to: ROUTES.transactions,
