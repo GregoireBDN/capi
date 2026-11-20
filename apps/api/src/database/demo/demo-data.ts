@@ -8,6 +8,7 @@ import { seedDefaultCategories } from '#/categories/seed-default-categories'
 import {
   dayRange,
   exchangeLinesByDay,
+  parisDayEnd,
   valueDay,
 } from '#/crypto/daily-close/daily-values'
 import type * as schema from '#/database/schema'
@@ -36,16 +37,15 @@ import {
   usersTable,
 } from '#/database/schema'
 import type { TransactionKind } from '#/database/schema/domain-enums'
+import {
+  CryptoCostBasisService,
+  cryptoInvestedOn,
+} from '#/crypto/cost-basis.service'
 import { knownAsset } from '#/imports/crypto/assets'
 import { computeHoldings } from '#/imports/crypto/holdings'
-import {
-  linkNewCryptoTransfers,
-  storeWithdrawalCosts,
-} from '#/imports/crypto/movement-links'
 import { formatQuantity, parseQuantity } from '#/imports/crypto/quantity'
 import { computeDedupeHashes } from '#/imports/dedupe/dedupe'
 import { normalizeLabel } from '#/imports/normalize/label'
-import { parisToday as parisDay } from '#/investments/days'
 import {
   addDays,
   addMonths,
@@ -1109,9 +1109,12 @@ export async function generateDemoData(
     snapshotCount += snapshots.length
   }
 
-  // Crypto (#296): the euros sent to Binance buy BTC and ETH there; every
-  // fourth month the coins go to the Ledger, which holds them by hand
-  // (manual lines). Prices are manual (no price API).
+  // Crypto (#296, #373): the euros sent to Binance buy BTC and ETH there;
+  // every fourth month the coins go to the Ledger (a manual account whose
+  // lines record what arrived), each arrival linked to its withdrawal so
+  // its cost follows. Last month the Ledger sent BTC back to Binance, sold
+  // there (a realised gain, the euros waiting), and 0,01 BTC arrived on it
+  // from elsewhere (« À préciser »). Prices are manual (no price API).
   const prices: Record<string, string> = {
     bitcoin: '82500.00',
     ethereum: '2950.00',
@@ -1157,6 +1160,7 @@ export async function generateDemoData(
     })
   let btcSince = 0
   let ethSince = 0
+  const sent: { at: string; asset: string; quantity: number }[] = []
   for (const [index, month] of monthList.entries()) {
     const day = dayIn(month, 5)
     if (day > dataUntil) break
@@ -1183,9 +1187,42 @@ export async function generateDemoData(
         'ETH',
         units(-ethSince),
       )
+      sent.push({
+        at: `${withdrawal}T16:00:00Z`,
+        asset: 'BTC',
+        quantity: btcSince,
+      })
+      sent.push({
+        at: `${withdrawal}T16:30:00Z`,
+        asset: 'ETH',
+        quantity: ethSince,
+      })
       btcSince = 0
       ethSince = 0
     }
+  }
+  // The Ledger sends 0,005 BTC back to Binance, sold there for euros.
+  const backDay = addDays(dataUntil, -12)
+  const ledgerBtc = sent
+    .filter((s) => s.asset === 'BTC' && s.at < `${backDay}T00:00:00Z`)
+    .reduce((sum, s) => sum + s.quantity, 0)
+  const back = ledgerBtc >= 50 ? 50 : 0
+  if (back > 0) {
+    move(`${backDay}T11:00:00Z`, 'deposit', 'Deposit', 'BTC', units(back))
+    move(
+      `${addDays(backDay, 1)}T10:00:00Z`,
+      'sell',
+      'Transaction Sold',
+      'BTC',
+      units(-back),
+    )
+    move(
+      `${addDays(backDay, 1)}T10:00:00Z`,
+      'sell',
+      'Transaction Revenue',
+      'EUR',
+      units(4_150_000),
+    )
   }
   const movements = await db
     .insert(cryptoMovementsTable)
@@ -1198,35 +1235,81 @@ export async function generateDemoData(
       quantity: cryptoMovementsTable.quantity,
       eurCents: cryptoMovementsTable.eurCents,
     })
-  const outflowCosts = new Map<string, number | null>()
   const exchangeHoldings = computeHoldings(
     movements.map((row) => ({
       ...row,
       occurredAt: row.occurredAt.toISOString(),
     })),
     knownAsset,
-    outflowCosts,
   )
-  await storeWithdrawalCosts(db, outflowCosts)
 
-  // The Ledger holds what was withdrawn to it, at the cost it left with.
-  const ledger = new Map<string, { quantity: bigint; invested: number }>()
-  for (const row of movements) {
-    if (row.kind !== 'withdrawal') continue
-    const assetId = knownAsset(row.asset)!.assetId
-    const held = ledger.get(assetId) ?? { quantity: 0n, invested: 0 }
-    held.quantity -= parseQuantity(row.quantity)!
-    held.invested += outflowCosts.get(row.id) ?? 0
-    ledger.set(assetId, held)
+  // The Ledger's arrivals, as its line edits record them (#373): first read
+  // empty on the first day, then each withdrawal seen two hours later.
+  let observedAt = new Date(`${dayIn(monthList[0], 1)}T08:00:00Z`)
+  const ledgerRows: (typeof cryptoMovementsTable.$inferInsert)[] = []
+  const observe = (at: Date, asset: string, quantity: number) => {
+    const known = knownAsset(asset)!
+    ledgerRows.push({
+      accountId: crypto.id,
+      occurredAt: at,
+      observedSince: observedAt,
+      operation: 'manual_edit',
+      kind: quantity > 0 ? 'observed_in' : 'observed_out',
+      asset: known.symbol,
+      assetId: known.assetId,
+      quantity: units(quantity),
+      dedupeHash: `observed:demo-${ledgerRows.length}`,
+    })
+    observedAt = at
+  }
+  for (const s of sent) {
+    observe(new Date(Date.parse(s.at) + 2 * 3_600_000), s.asset, s.quantity)
+  }
+  if (back > 0) observe(new Date(`${backDay}T12:00:00Z`), 'BTC', -back)
+  // 0,01 BTC from a wallet the app does not follow: its cost to give.
+  const giftAt = new Date(`${addDays(dataUntil, -5)}T18:00:00Z`)
+  if (giftAt > observedAt) observe(giftAt, 'BTC', 100)
+  const observed = await db
+    .insert(cryptoMovementsTable)
+    .values(ledgerRows)
+    .returning({
+      id: cryptoMovementsTable.id,
+      occurredAt: cryptoMovementsTable.occurredAt,
+      kind: cryptoMovementsTable.kind,
+      asset: cryptoMovementsTable.asset,
+    })
+  await db
+    .update(accountsTable)
+    .set({ cryptoObservedAt: observedAt })
+    .where(eq(accountsTable.id, crypto.id))
+  // Each arrival is the coins of its withdrawal; the departure is the
+  // deposit on Binance.
+  const costBasis = new CryptoCostBasisService({ db } as never)
+  const withdrawalRows = movements.filter((row) => row.kind === 'withdrawal')
+  for (const [i, row] of withdrawalRows.entries()) {
+    await costBasis.writeLink(db, row.id, observed[i].id, 'auto')
+  }
+  const departure = observed.find((row) => row.kind === 'observed_out')
+  const deposit = movements.find(
+    (row) => row.kind === 'deposit' && row.asset === 'BTC',
+  )
+  if (departure && deposit) {
+    await costBasis.writeLink(db, departure.id, deposit.id, 'auto')
+  }
+  const ledger = new Map<string, bigint>()
+  for (const row of ledgerRows) {
+    ledger.set(
+      row.assetId!,
+      (ledger.get(row.assetId!) ?? 0n) + parseQuantity(row.quantity as string)!,
+    )
   }
   const holdings = [btc, eth]
-    .filter((asset) => ledger.has(asset.assetId))
+    .filter((asset) => (ledger.get(asset.assetId) ?? 0n) > 0n)
     .map((asset) => ({
       assetId: asset.assetId,
       symbol: asset.symbol,
       name: asset.name,
-      quantity: formatQuantity(ledger.get(asset.assetId)!.quantity),
-      investedCents: ledger.get(asset.assetId)!.invested,
+      quantity: formatQuantity(ledger.get(asset.assetId)!),
     }))
   await db.insert(cryptoHoldingsTable).values([
     ...holdings.map((h) => ({
@@ -1248,16 +1331,6 @@ export async function generateDemoData(
         origin: 'import' as const,
       })),
   ])
-  // Withdrawals reach the Ledger, the only account holding BTC and ETH.
-  await linkNewCryptoTransfers(
-    db,
-    exchange.id,
-    movements.map((row) => row.id),
-    new Map([
-      ['BTC', btc],
-      ['ETH', eth],
-    ]),
-  )
   await db
     .insert(cryptoPricesTable)
     .values(
@@ -1280,8 +1353,9 @@ export async function generateDemoData(
     })
   // Crypto values (#366): computed, one per day, from seeded daily prices
   // (a random walk ending at the manual prices: no price API call) and what
-  // each account held at the end of the day, as the daily close writes
-  // them; today's value is live, never stored.
+  // each account held at the end of the day (the euros waiting on Binance
+  // included), as the daily close writes them; today's value is live,
+  // never stored. Their invested amount is computed on read (#370).
   const yesterday = addDays(today, -1)
   const firstCryptoDay = dayIn(monthList[0], 5)
   const priceDays = dayRange(firstCryptoDay, yesterday)
@@ -1305,6 +1379,7 @@ export async function generateDemoData(
     new Map(
       [...dayPrices].map(([assetId, byDay]) => [assetId, byDay.get(day)!]),
     )
+  const basis = await costBasis.load(db)
   const cryptoPoints: (typeof balanceSnapshotsTable.$inferInsert)[] = []
   // The exchange: its movements, day by day.
   const exchangeLines = exchangeLinesByDay(
@@ -1315,34 +1390,32 @@ export async function generateDemoData(
     knownAsset,
     priceDays,
   )
-  // The Ledger: what was withdrawn to it so far, at the cost it left with.
-  const withdrawals = movements
-    .filter((row) => row.kind === 'withdrawal')
-    .map((row) => ({
-      day: parisDay(row.occurredAt),
-      assetId: knownAsset(row.asset)!.assetId,
-      quantity: -parseQuantity(row.quantity)!,
-      cost: outflowCosts.get(row.id) ?? 0,
-    }))
   const started = { exchange: false, ledger: false }
   for (const day of priceDays) {
     const exchangeValue = valueDay(exchangeLines.get(day) ?? [], pricesOn(day))
-    if (exchangeValue && (started.exchange || exchangeValue.valueCents > 0)) {
+    const fiat = cryptoInvestedOn(basis, exchange.id, day)?.fiatCents ?? 0
+    if (
+      exchangeValue &&
+      (started.exchange || exchangeValue.valueCents + fiat > 0)
+    ) {
       started.exchange = true
       cryptoPoints.push({
         accountId: exchange.id,
         date: day,
-        valueCents: exchangeValue.valueCents,
-        contributionsCents: exchangeValue.investedCents,
+        valueCents: exchangeValue.valueCents + fiat,
         source: 'computed',
       })
     }
-    const received = withdrawals.filter((w) => w.day <= day)
-    if (received.length === 0) continue
+    const end = parisDayEnd(day).getTime()
     const held = new Map<string, bigint>()
-    for (const w of received) {
-      held.set(w.assetId, (held.get(w.assetId) ?? 0n) + w.quantity)
+    for (const row of ledgerRows) {
+      if ((row.occurredAt as Date).getTime() >= end) continue
+      held.set(
+        row.assetId!,
+        (held.get(row.assetId!) ?? 0n) + parseQuantity(row.quantity as string)!,
+      )
     }
+    if (held.size === 0) continue
     const ledgerValue = valueDay(
       [...held].map(([assetId, quantity]) => ({
         assetId,
@@ -1359,7 +1432,6 @@ export async function generateDemoData(
       accountId: crypto.id,
       date: day,
       valueCents: ledgerValue.valueCents,
-      contributionsCents: received.reduce((sum, w) => sum + w.cost, 0),
       source: 'computed',
     })
   }

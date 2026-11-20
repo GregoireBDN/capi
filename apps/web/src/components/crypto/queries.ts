@@ -13,6 +13,11 @@ import {
   cryptoControllerSearch,
   cryptoControllerSetPrice,
   cryptoControllerSettings,
+  cryptoMovementsControllerLink,
+  cryptoPendingControllerAnswer,
+  cryptoPendingControllerClear,
+  cryptoPendingControllerList,
+  cryptoPendingControllerUnlink,
   walletKeysControllerAdd,
   walletKeysControllerList,
   walletKeysControllerRemove,
@@ -23,6 +28,7 @@ import {
 } from '#/api'
 import type {
   AddWalletTokenDto,
+  AnswerCryptoMovementDto,
   ChangeCryptoSourceDto,
   SaveHoldingDto,
   WalletKeyAddressTypeChoice,
@@ -45,6 +51,69 @@ export const cryptoKeys = {
     ['crypto', 'wallet-keys', accountId] as const,
   walletTokens: (accountId: string) =>
     ['crypto', 'wallet-tokens', accountId] as const,
+  pending: (accountId: string) => ['crypto', 'pending', accountId] as const,
+}
+
+/** « À préciser » (#373): the coins of an account the app can't explain. */
+export function pendingQuery(accountId: string) {
+  return queryOptions({
+    queryKey: cryptoKeys.pending(accountId),
+    queryFn: () =>
+      unwrap(
+        cryptoPendingControllerList({
+          path: { id: accountId },
+          throwOnError: false,
+        }),
+      ),
+    staleTime: 0,
+  })
+}
+
+export function answerMovement(
+  movementId: string,
+  body: AnswerCryptoMovementDto,
+) {
+  return unwrap(
+    cryptoPendingControllerAnswer({
+      path: { id: movementId },
+      body,
+      throwOnError: false,
+    }),
+  )
+}
+
+/** Takes an answer back: the movement is asked again. */
+export function clearAnswer(movementId: string) {
+  return unwrap(
+    cryptoPendingControllerClear({
+      path: { id: movementId },
+      throwOnError: false,
+    }),
+  )
+}
+
+/** Unlinks a transfer: both sides are asked again, never relinked by itself. */
+export function unlinkMovement(movementId: string) {
+  return unwrap(
+    cryptoPendingControllerUnlink({
+      path: { id: movementId },
+      throwOnError: false,
+    }),
+  )
+}
+
+/** Names (or clears) the account an exchange withdrawal went to. */
+export function nameCounterpart(
+  movementId: string,
+  counterpartAccountId: string | null,
+) {
+  return unwrap(
+    cryptoMovementsControllerLink({
+      path: { id: movementId },
+      body: { counterpartAccountId },
+      throwOnError: false,
+    }),
+  )
 }
 
 /**

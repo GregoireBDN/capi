@@ -23,6 +23,11 @@ const signedWholeEuros = new Intl.NumberFormat('fr-FR', {
 const formatSignedWholeEuros = (cents: number) =>
   signedWholeEuros.format(cents / 100)
 
+/** « +2 000,00 € », « −150,00 € ». */
+function signedCents(cents: number): string {
+  return `${cents > 0 ? '+' : ''}${formatCents(cents)}`
+}
+
 function tone(cents: number) {
   return cn(
     cents > 0 && 'text-chart-delta-good',
@@ -31,15 +36,18 @@ function tone(cents: number) {
 }
 
 /** A figure with its rate under it: Résultat, Sur 1 an. */
-function Tile({
+export function Tile({
   label,
   cents,
   rate,
+  note,
   className,
 }: {
   label: string
   cents: number
   rate: number | null
+  /** Under the figure when there is no rate (« ventes »). */
+  note?: string
   className?: string
 }) {
   return (
@@ -65,6 +73,9 @@ function Tile({
           {formatSignedPercent(rate)}
         </p>
       )}
+      {rate === null && note && (
+        <p className="text-muted-foreground truncate text-xs">{note}</p>
+      )}
     </div>
   )
 }
@@ -73,7 +84,7 @@ function Tile({
  * « Investi 13 800 € », then the value as one bar: what was put in, and the
  * result (green) or what was lost (red) (#360, the owner's « Barre »).
  */
-function InvestedBar({
+export function InvestedBar({
   valueCents,
   investedCents,
 }: {
@@ -149,8 +160,8 @@ export function InvestmentSummary({
   caption?: ReactNode
   /** Under the change: how fresh the figures are (a wallet's chains). */
   status?: ReactNode
-  /** Opens the invested amount's editor. */
-  onEditInvested: () => void
+  /** Opens the invested amount's editor (accounts that take one). */
+  onEditInvested?: () => void
 }) {
   const id = useId()
   const {
@@ -159,12 +170,13 @@ export function InvestmentSummary({
     returnRate,
     sincePrevious,
     sinceOneYear,
-    typedContributionsCents,
     linkedAfterValueCents,
   } = performance
-  const editable = writable && takesInvestedBase(account)
-  const exchange =
-    account.type === 'crypto' && account.cryptoSource === 'exchange'
+  const editable =
+    writable && takesInvestedBase(account) && onEditInvested !== undefined
+  const realised = performance.realised
+  const crypto = account.type === 'crypto'
+  const exchange = crypto && account.cryptoSource === 'exchange'
   const known = contributionsCents !== null && gainCents !== null
   const source = investedSourceText(account, performance)
   const year = (performance.valueDate ?? '').slice(0, 4)
@@ -199,14 +211,17 @@ export function InvestmentSummary({
         <div className="space-y-2">
           {known ? (
             <InvestedBar
-              valueCents={performance.valueCents ?? valueCents ?? 0}
+              // Coins of unknown cost are out of the bar and the result (#373).
+              valueCents={contributionsCents + gainCents}
               investedCents={contributionsCents}
             />
           ) : (
             <div className="space-y-2">
               <p className="text-muted-foreground text-sm">
-                {exchange
-                  ? 'Vos exports n’indiquent pas le prix d’achat de tous vos actifs : le résultat s’affichera avec un export qui le donne.'
+                {crypto
+                  ? exchange
+                    ? 'Vos exports n’indiquent pas le prix d’achat de vos actifs : précisez d’où viennent vos cryptos pour voir le résultat.'
+                    : 'Le prix de revient de vos cryptos n’est pas encore connu : précisez d’où elles viennent pour voir le résultat.'
                   : 'Montant investi pas encore renseigné : le gain ou la perte s’affichera dès qu’il le sera.'}
               </p>
               {editable && (
@@ -244,6 +259,26 @@ export function InvestmentSummary({
           )}
         </div>
 
+        {/* Sales into euros (#373): realised, apart from the result. */}
+        {realised && realised.count > 0 && (
+          <div className="flex min-h-11 flex-wrap items-baseline gap-x-3 border-t pt-3 text-sm">
+            <span className="text-muted-foreground min-w-[9rem] flex-1">
+              Plus-value réalisée
+            </span>
+            <span className="ml-auto text-right tabular-nums">
+              <span className={tone(realised.yearCents)}>
+                {signedCents(realised.yearCents)}
+              </span>{' '}
+              <span className="text-muted-foreground text-xs">
+                cette année · {signedCents(realised.totalCents)} en tout
+                {realised.unknownCount > 0
+                  ? ` · ${realised.unknownCount} vente${realised.unknownCount > 1 ? 's' : ''} au coût inconnu`
+                  : ''}
+              </span>
+            </span>
+          </div>
+        )}
+
         {known && (source || editable) && (
           <div className="flex flex-wrap items-center gap-x-2">
             {source && (
@@ -266,24 +301,13 @@ export function InvestmentSummary({
             )}
           </div>
         )}
-        {known &&
-          (typedContributionsCents !== null || linkedAfterValueCents !== 0) && (
-            <ul className="text-muted-foreground -mt-2 space-y-1 text-xs">
-              {typedContributionsCents !== null && (
-                <li>
-                  Les relevés indiquent {formatCents(typedContributionsCents)}{' '}
-                  investis : un virement manque peut-être ou n’est pas lié.
-                </li>
-              )}
-              {linkedAfterValueCents !== 0 && (
-                <li>
-                  {formatCents(Math.abs(linkedAfterValueCents))}{' '}
-                  {linkedAfterValueCents > 0 ? 'versés' : 'retirés'} depuis la
-                  dernière valeur : ils compteront avec la prochaine.
-                </li>
-              )}
-            </ul>
-          )}
+        {known && linkedAfterValueCents !== 0 && (
+          <p className="text-muted-foreground -mt-2 text-xs">
+            {formatCents(Math.abs(linkedAfterValueCents))}{' '}
+            {linkedAfterValueCents > 0 ? 'versés' : 'retirés'} depuis la
+            dernière valeur : ils compteront avec la prochaine.
+          </p>
+        )}
       </CardContent>
     </Card>
   )

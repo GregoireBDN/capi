@@ -1,14 +1,17 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common'
 import { and, asc, eq, inArray, isNull, lt, notInArray, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { createHash } from 'node:crypto'
 import { AccountsService } from '#/accounts/accounts.service'
+import { CryptoCostBasisService } from '#/crypto/cost-basis.service'
 import { CryptoPricesService } from '#/crypto/crypto-prices.service'
 import { CryptoService } from '#/crypto/crypto.service'
 import { CryptoDailyCloseService } from '#/crypto/daily-close/crypto-daily-close.service'
@@ -38,7 +41,7 @@ import type {
   DeleteCryptoImportResultDto,
 } from './dto/crypto-import.dto'
 import { computeHoldings, type HoldingMovement } from './holdings'
-import { linkNewCryptoTransfers, storeWithdrawalCosts } from './movement-links'
+import { linkNewCryptoTransfers } from './movement-links'
 import {
   parseCryptoExport,
   UnsupportedCryptoExportError,
@@ -90,13 +93,21 @@ export interface CryptoPreviewInput {
 export class CryptoImportsService {
   private readonly logger = new Logger(CryptoImportsService.name)
 
+  private readonly costBasis: CryptoCostBasisService
+
   constructor(
-    private readonly database: DatabaseService,
-    private readonly accounts: AccountsService,
-    private readonly prices: CryptoPricesService,
-    private readonly crypto: CryptoService,
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(AccountsService) private readonly accounts: AccountsService,
+    @Inject(CryptoPricesService) private readonly prices: CryptoPricesService,
+    @Inject(CryptoService) private readonly crypto: CryptoService,
+    @Inject(CryptoDailyCloseService)
     private readonly dailyClose: CryptoDailyCloseService,
-  ) {}
+    @Optional()
+    @Inject(CryptoCostBasisService)
+    costBasis?: CryptoCostBasisService,
+  ) {
+    this.costBasis = costBasis ?? new CryptoCostBasisService(database)
+  }
 
   private get db(): Db {
     return this.database.db
@@ -274,8 +285,10 @@ export class CryptoImportsService {
         current.accountId,
         now,
       )
-      // Withdrawals to the Ledger, deposits from it (#296).
+      // Withdrawals to the Ledger, deposits from it (#296), then the two
+      // sides of each transfer (#373).
       await linkNewCryptoTransfers(tx, current.accountId, insertedIds, mappings)
+      await this.costBasis.match(tx)
       await tx
         .update(accountsTable)
         .set({ cryptoSyncedAt: now, updatedAt: now })
@@ -350,15 +363,8 @@ export class CryptoImportsService {
       (ticker) => !FIAT_TICKERS.has(ticker),
     )
     const mappings = await this.knownMappings(tx, tickers)
-    const outflowCosts = new Map<string, number | null>()
-    const holdings = computeHoldings(
-      movements,
-      resolverOf(mappings),
-      outflowCosts,
-    )
+    const holdings = computeHoldings(movements, resolverOf(mappings))
     const kept = holdings.filter((holding) => holding.status === 'ok')
-    // What each withdrawal took out, for the wallet it went to (#296).
-    await storeWithdrawalCosts(tx, outflowCosts)
 
     await tx.delete(h).where(
       and(

@@ -31,6 +31,7 @@ import {
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import type {
+  AssetCostDto,
   CryptoAccountSource,
   HoldingsTotalsDto,
   ValuedHoldingDto,
@@ -43,6 +44,7 @@ import { formatPriceAge, formatQuantity } from './format'
 import { AssetBadge } from './AssetBadge'
 import { HoldingEditor } from './HoldingEditor'
 import { pricesSettling, staleShown, useLiveRefresh } from './live-refresh'
+import { costLines } from './pending-text'
 import {
   afterHoldingsChanged,
   cryptoKeys,
@@ -194,6 +196,46 @@ function HoldingRow({
         </span>
       </span>
     </>
+  )
+}
+
+/**
+ * « Prix de revient » per asset (#373): what its coins cost, carried from
+ * exchange to wallet and back, and those of unknown cost; then the euros
+ * waiting on an exchange, counted in its value.
+ */
+function CostList({
+  costs,
+  fiatCents,
+}: {
+  costs: readonly AssetCostDto[]
+  fiatCents: number
+}) {
+  if (costs.length === 0 && fiatCents === 0) return null
+  return (
+    <div className="space-y-1 border-t pt-3 text-xs">
+      {costs.length > 0 && (
+        <>
+          <h3 className="text-muted-foreground font-medium">Prix de revient</h3>
+          <ul aria-label="Prix de revient" className="space-y-1">
+            {costs.map((cost) => (
+              <li key={cost.assetId} className="flex gap-2 tabular-nums">
+                <span className="w-12 shrink-0 font-medium">{cost.symbol}</span>
+                <span className="text-muted-foreground min-w-0 flex-1">
+                  {costLines(cost).join(' · ')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {fiatCents > 0 && (
+        <p className="text-muted-foreground tabular-nums">
+          {formatCents(fiatCents)} en euros sur la plateforme, comptés dans la
+          valeur.
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -521,6 +563,7 @@ export function HoldingsPanel({
               onDelete={writable && wallet ? setDeleting : undefined}
             />
           )}
+          <CostList costs={data.costs} fiatCents={data.totals.fiatCents} />
         </CardContent>
       </Card>
 

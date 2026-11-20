@@ -37,6 +37,7 @@ import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 import type {
   AccountDto,
+  AssetCostDto,
   AccountHoldingsDto,
   AccountPerformanceDto,
   ValuedHoldingDto,
@@ -85,6 +86,8 @@ import {
   shareText,
   splitParts,
 } from './wallet-assets'
+import { costLines } from './pending-text'
+import { PendingCard } from './PendingCard'
 import type { Range, SplitPart, WalletAsset } from './wallet-assets'
 import { chainFailureText } from './wallet-sync-status'
 import { pricesSettling, staleShown, useLiveRefresh } from './live-refresh'
@@ -323,6 +326,7 @@ function priceText(line: ValuedHoldingDto, now: Date): string | null {
 function AssetRow({
   asset,
   color,
+  cost,
   totalCents,
   mixed,
   settling,
@@ -331,6 +335,8 @@ function AssetRow({
 }: {
   asset: WalletAsset
   color?: string
+  /** What its coins cost (#373, « Prix de revient »). */
+  cost?: AssetCostDto
   totalCents: number
   /** The wallet holds lines typed by hand beside the synced ones. */
   mixed: boolean
@@ -454,6 +460,12 @@ function AssetRow({
             )}
           </p>
         )}
+        {cost &&
+          costLines(cost).map((line) => (
+            <p key={line} className="tabular-nums">
+              {line}
+            </p>
+          ))}
         {asset.valueCents === null && (
           <p>Jeton sans cours : il ne compte pas dans la valeur du wallet.</p>
         )}
@@ -522,6 +534,7 @@ function WalletHoldings({
   ]
     .filter(Boolean)
     .join(' · ')
+  const costs = new Map(data.costs.map((cost) => [cost.assetId, cost]))
   const rowProps = {
     totalCents: total,
     mixed,
@@ -561,6 +574,7 @@ function WalletHoldings({
                     key={asset.assetId}
                     asset={asset}
                     color={colors.get(asset.assetId)}
+                    cost={costs.get(asset.assetId)}
                     {...rowProps}
                   />
                 ))}
@@ -573,7 +587,12 @@ function WalletHoldings({
                 </h3>
                 <ul aria-label="Avoirs sans cours" className="space-y-0.5">
                   {unpriced.map((asset) => (
-                    <AssetRow key={asset.assetId} asset={asset} {...rowProps} />
+                    <AssetRow
+                      key={asset.assetId}
+                      asset={asset}
+                      cost={costs.get(asset.assetId)}
+                      {...rowProps}
+                    />
                   ))}
                 </ul>
               </div>
@@ -1072,7 +1091,6 @@ export function WalletAccount({
   today,
   refreshing,
   onTokensChanged,
-  onEditInvested,
 }: {
   account: AccountDto
   performance: AccountPerformanceDto
@@ -1082,8 +1100,6 @@ export function WalletAccount({
   refreshing: boolean
   /** A token added or removed: read it at once (« Actualiser »). */
   onTokensChanged: () => void
-  /** Opens the invested amount's editor. */
-  onEditInvested: () => void
 }) {
   const queryClient = useQueryClient()
   // Stored balances and prices at once (#381), then the live step: the
@@ -1154,8 +1170,9 @@ export function WalletAccount({
             now={now}
           />
         }
-        onEditInvested={onEditInvested}
       />
+      {/* Coins from or to somewhere the app can't see (#373). */}
+      <PendingCard accountId={account.id} writable={writable} />
       <WalletHoldings
         accountId={account.id}
         data={data}

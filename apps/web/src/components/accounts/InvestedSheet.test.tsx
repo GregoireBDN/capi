@@ -153,8 +153,7 @@ describe('InvestedSheet', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderSheet({
       account: account({
-        type: 'crypto',
-        cryptoSource: 'wallet',
+        type: 'life_insurance',
         investedBaseCents: 500_000,
         investedBaseOn: '2026-06-30',
       }),
@@ -164,7 +163,7 @@ describe('InvestedSheet', () => {
     expect(
       screen.getByRole('textbox', { name: 'Montant investi' }),
     ).toHaveValue('5000')
-    expect(screen.getByText(/coûté les cryptos/)).toBeInTheDocument()
+    expect(screen.getByText(/versements nets/)).toBeInTheDocument()
     await user.click(
       screen.getByRole('button', { name: 'Retirer le montant investi' }),
     )

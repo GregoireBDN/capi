@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common'
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common'
 import { and, eq, inArray, isNull, notInArray } from 'drizzle-orm'
 import { DatabaseService } from '#/database/database.service'
 import {
@@ -14,6 +14,7 @@ import {
   DERIVABLE_ADDRESS_TYPES,
   type DerivableAddressType,
 } from '#/database/schema/domain-enums'
+import { CryptoCostBasisService } from '../cost-basis.service'
 import { fitsNumeric, formatDecimal, rescale } from '../decimal'
 import { checkPublicKey } from '../wallet-keys/public-key'
 import { effectiveAddressTypes } from '../wallet-keys/wallet-keys.repository'
@@ -195,10 +196,24 @@ export class WalletSyncService {
 
   // Explicit tokens: esbuild-based runners (tsx, used by the spec generator)
   // drop the reflected type of a parameter next to a decorated one.
+  private readonly costBasis: CryptoCostBasisService
+
   constructor(
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(WALLET_SYNC_OPTIONS) private readonly options: WalletSyncOptions,
-  ) {}
+    @Optional()
+    @Inject(CryptoCostBasisService)
+    costBasis?: CryptoCostBasisService,
+  ) {
+    this.costBasis = costBasis ?? new CryptoCostBasisService(database)
+  }
+
+  /** Whether this server reads `chain` at all (its endpoint configured). */
+  private reads(chain: CryptoChain): boolean {
+    return chain === 'bitcoin'
+      ? this.options.bitcoin !== null
+      : (this.options.evm?.chains.includes(chain) ?? false)
+  }
 
   get enabled(): boolean {
     return this.options.bitcoin !== null || this.options.evm !== null
@@ -432,6 +447,15 @@ export class WalletSyncService {
     const rows = mergeLines(lines)
     // Lines of the chains that failed stay as last synced.
     const kept = [...failed.keys()].map((chain) => CHAIN_LABELS[chain])
+    // Only a read of every chain of every key says what rose or fell (#373):
+    // a failed or partial read records no movement.
+    const complete =
+      failed.size === 0 &&
+      keys.length > 0 &&
+      keys.every((key) =>
+        key.chains.every((chain) => read.has(chain) || !this.reads(chain)),
+      )
+    let observed = 0
     await this.db.transaction(async (tx) => {
       await tx
         .delete(h)
@@ -463,7 +487,21 @@ export class WalletSyncService {
           updatedAt: now,
         })
         .where(eq(a.id, accountId))
+      if (complete) {
+        observed = await this.costBasis.observe(
+          tx,
+          accountId,
+          rows.map((row) => ({
+            assetId: row.asset.id,
+            symbol: row.asset.symbol,
+            quantity: row.quantity,
+          })),
+          now,
+          'wallet_sync',
+        )
+      }
     })
+    if (observed > 0) await this.costBasis.match()
     this.logger.log(
       `Wallet synced: ${rows.length} holding line(s)` +
         (failed.size > 0
