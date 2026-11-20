@@ -1,7 +1,9 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common'
 import { and, asc, eq, gte, inArray, isNull, lte, ne, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -9,6 +11,7 @@ import {
   AccountsService,
   type AccountWithBalance,
 } from '#/accounts/accounts.service'
+import { CryptoService } from '#/crypto/crypto.service'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import {
@@ -56,6 +59,7 @@ const SNAPSHOT_COLUMNS = {
   accountId: s.accountId,
   date: s.date,
   valueCents: s.valueCents,
+  source: s.source,
   contributionsCents: s.contributionsCents,
   note: s.note,
 }
@@ -63,7 +67,7 @@ const SNAPSHOT_COLUMNS = {
 function toDto(
   snapshot: Pick<
     SelectBalanceSnapshot,
-    'id' | 'date' | 'valueCents' | 'contributionsCents' | 'note'
+    'id' | 'date' | 'valueCents' | 'contributionsCents' | 'note' | 'source'
   >,
 ): SnapshotDto {
   return {
@@ -72,8 +76,13 @@ function toDto(
     valueCents: snapshot.valueCents,
     contributionsCents: snapshot.contributionsCents,
     note: snapshot.note,
+    source: snapshot.source,
   }
 }
+
+/** A crypto account's value is computed from its holdings, never typed (#366). */
+export const COMPUTED_VALUE_MESSAGE =
+  'A crypto account’s values are computed from its holdings and prices'
 
 /**
  * Dated value snapshots of an account (statements of investment accounts,
@@ -83,9 +92,14 @@ function toDto(
  */
 @Injectable()
 export class InvestmentsService {
+  // Explicit tokens: the spec generator runs without decorator metadata.
   constructor(
-    private readonly database: DatabaseService,
-    private readonly accounts: AccountsService,
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(AccountsService) private readonly accounts: AccountsService,
+    /** Today's live value of crypto accounts (#366); absent in some specs. */
+    @Optional()
+    @Inject(CryptoService)
+    private readonly crypto?: CryptoService,
   ) {}
 
   private get db(): Db {
@@ -105,7 +119,7 @@ export class InvestmentsService {
     dto: UpsertSnapshotDto,
     now: Date = new Date(),
   ): Promise<SnapshotDto> {
-    await this.writableAccount(accountId)
+    await this.typedAccount(accountId)
     assertNotFuture([date], now)
     const values = {
       valueCents: dto.valueCents,
@@ -117,21 +131,34 @@ export class InvestmentsService {
       .values({ accountId, date, ...values })
       .onConflictDoUpdate({
         target: [s.accountId, s.date],
-        set: { ...values, updatedAt: now },
+        set: { ...values, source: 'typed', updatedAt: now },
+        // A computed point is never replaced by hand.
+        setWhere: eq(s.source, 'typed'),
       })
       .returning(SNAPSHOT_COLUMNS)
+    if (!snapshot) throw new BadRequestException(COMPUTED_VALUE_MESSAGE)
     return toDto(snapshot)
   }
 
   async remove(accountId: string, date: string): Promise<void> {
     await this.writableAccount(accountId)
-    const deleted = await this.db
-      .delete(s)
+    const [existing] = await this.db
+      .select({ source: s.source })
+      .from(s)
       .where(and(eq(s.accountId, accountId), eq(s.date, date)))
-      .returning({ id: s.id })
-    if (deleted.length === 0) {
-      throw new NotFoundException('No snapshot on that date')
+    if (!existing) throw new NotFoundException('No snapshot on that date')
+    if (existing.source === 'computed') {
+      throw new BadRequestException(COMPUTED_VALUE_MESSAGE)
     }
+    await this.db
+      .delete(s)
+      .where(
+        and(
+          eq(s.accountId, accountId),
+          eq(s.date, date),
+          eq(s.source, 'typed'),
+        ),
+      )
   }
 
   /**
@@ -152,7 +179,7 @@ export class InvestmentsService {
     assertNotFuture(dates, now)
 
     return this.db.transaction(async (tx) => {
-      await this.writableAccount(accountId, tx)
+      await this.typedAccount(accountId, tx)
       const written = await tx
         .insert(s)
         .values(
@@ -170,6 +197,7 @@ export class InvestmentsService {
             contributionsCents: sql`coalesce(excluded.contributions_cents, ${s.contributionsCents})`,
             updatedAt: now,
           },
+          setWhere: eq(s.source, 'typed'),
         })
         // `xmax` is 0 on a freshly inserted row version.
         .returning({ inserted: sql<boolean>`(xmax = 0)` })
@@ -183,20 +211,30 @@ export class InvestmentsService {
     now: Date = new Date(),
   ): Promise<AccountPerformanceDto> {
     const account = await this.accounts.findOne(accountId, this.db)
-    const [snapshots, flows] = await Promise.all([
+    const [stored, flows, live] = await Promise.all([
       this.snapshotsOf(this.db, accountId),
       this.linkedFlows(this.db, [account]),
+      account.type === 'crypto' && this.crypto
+        ? this.crypto.liveValue(accountId, now)
+        : Promise.resolve(null),
     ])
+    // A crypto account's last point is today's live value (#366), in place
+    // of a value stored today before the daily close.
+    const snapshots = live
+      ? stored.filter((point) => point.date < live.date)
+      : stored
+    const series: SnapshotDto[] = live
+      ? [...snapshots, { id: '', note: null, source: 'computed', ...live }]
+      : snapshots
     const accountFlows = flows.get(accountId) ?? []
     const base = investedBaseOf(account)
     const history =
-      linkedContributions(snapshots, accountFlows, account.type, base) ??
-      snapshots
+      linkedContributions(series, accountFlows, account.type, base) ?? series
     return {
       accountId,
       type: account.type,
       ...computePerformance(
-        snapshots,
+        series,
         account.type,
         parisToday(now),
         accountFlows,
@@ -204,6 +242,7 @@ export class InvestmentsService {
       ),
       investedBase: base && { amountCents: base.cents, on: base.on },
       snapshots,
+      live,
       contributionsHistory: history.map((point) => ({
         date: point.date,
         contributionsCents: point.contributionsCents,
@@ -585,6 +624,21 @@ export class InvestmentsService {
       .where(eq(s.accountId, accountId))
       .orderBy(asc(s.date))
     return rows.map(toDto)
+  }
+
+  /**
+   * A writable account whose values are typed: never a crypto account,
+   * whose values are computed (#366).
+   */
+  private async typedAccount(
+    accountId: string,
+    executor: Executor = this.db,
+  ): Promise<AccountWithBalance> {
+    const account = await this.writableAccount(accountId, executor)
+    if (account.type === 'crypto') {
+      throw new BadRequestException(COMPUTED_VALUE_MESSAGE)
+    }
+    return account
   }
 
   /** The account, refused when it is archived (its history is frozen). */

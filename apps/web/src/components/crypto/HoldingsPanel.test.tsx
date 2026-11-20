@@ -1,3 +1,4 @@
+import { accountKeys } from '#/components/accounts/queries'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -189,7 +190,7 @@ describe('HoldingsPanel', () => {
     expect(screen.getByText('cours inconnu')).toBeInTheDocument()
   })
 
-  it('refreshes the snapshot readers when a valuation wrote today', async () => {
+  it('refreshes the live value of the summary and the curve after a load (#366)', async () => {
     api.accountHoldingsControllerList.mockImplementation(() =>
       ok(
         holdings({
@@ -203,8 +204,12 @@ describe('HoldingsPanel', () => {
     )
     const { invalidate } = renderPanel()
     await waitFor(() =>
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['accounts'] }),
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: accountKeys.performance(ACCOUNT_ID),
+      }),
     )
+    // Nothing stored: the balances and the net worth stay as they are.
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['accounts'] })
   })
 
   it('refreshes prices on demand', async () => {

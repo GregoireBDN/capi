@@ -114,7 +114,14 @@ function snapshot(
   contributionsCents: number | null,
   note: string | null = null,
 ): SnapshotDto {
-  return { id: `s-${date}`, date, valueCents, contributionsCents, note }
+  return {
+    id: `s-${date}`,
+    date,
+    valueCents,
+    contributionsCents,
+    note,
+    source: 'typed',
+  }
 }
 
 const snapshots = [
@@ -163,6 +170,7 @@ function performance(
       contributionsCents: s.contributionsCents,
     })),
     investedBase: null,
+    live: null,
     ...overrides,
   }
 }
@@ -250,7 +258,9 @@ describe('AccountDetailPage', () => {
     expect(content).toContain('Investi10 200 €')
     expect(
       within(summary).getByRole('img', {
-        name: (name) => text(name) === 'Valeur : 10 200,00 € investis et 2 300,00 € de résultat',
+        name: (name) =>
+          text(name) ===
+          'Valeur : 10 200,00 € investis et 2 300,00 € de résultat',
       }),
     ).toBeInTheDocument()
     expect(content).toContain('Résultat+2 300 €+22,5 %')
@@ -1315,7 +1325,6 @@ describe('AccountDetailPage', () => {
   })
 
   it('shows what the wallet holds before its keys: change, split, assets, evolution', async () => {
-    const user = userEvent.setup()
     mockWallet(
       {
         enabled: true,
@@ -1402,20 +1411,14 @@ describe('AccountDetailPage', () => {
       screen.getByText('3 actifs · 3 réseaux · cours à l’instant'),
     ).toBeInTheDocument()
 
-    // The evolution: the values folded (its change over one year is the
-    // summary's).
+    // The evolution: read only, no list of values to edit (#366; its
+    // change over one year is the summary's).
     const evolution = screen.getByRole('region', { name: 'Évolution' })
     expect(text(evolution.textContent)).not.toContain('sur 1 an')
-    const values = within(evolution).getByRole('button', {
-      name: 'Valeurs enregistrées (3)',
-    })
-    expect(values).toHaveAttribute('aria-expanded', 'false')
-    await user.click(values)
     expect(
-      within(evolution).getByRole('button', {
-        name: /^Modifier la valeur du 30 sept\.? 2026$/,
-      }),
-    ).toBeInTheDocument()
+      within(evolution).queryAllByRole('button', { name: /Valeurs|Modifier/ }),
+    ).toEqual([])
+    expect(within(evolution).queryByRole('list')).not.toBeInTheDocument()
 
     // Then the keys and tokens, last.
     const regions = screen
@@ -1497,7 +1500,8 @@ describe('AccountDetailPage', () => {
     )
     expect(
       within(summary).getByRole('img', {
-        name: (name) => text(name) === 'Valeur : 5 000,00 € investis, dont 2 000,00 € perdus',
+        name: (name) =>
+          text(name) === 'Valeur : 5 000,00 € investis, dont 2 000,00 € perdus',
       }),
     ).toBeInTheDocument()
   })
@@ -1854,14 +1858,14 @@ describe('AccountDetailPage', () => {
     expect(
       screen.queryByText('Aucune valeur pour ce compte'),
     ).not.toBeInTheDocument()
-    // Its value comes from its holdings: no "Ajouter" next to "Ajouter un
-    // avoir", only past values can be pasted.
+    // Its value comes from its holdings, computed every day (#366): no
+    // "Ajouter" next to "Ajouter un avoir", no value to paste.
     expect(
       screen.queryByRole('button', { name: 'Ajouter' }),
     ).not.toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Coller un historique de valeurs' }),
-    ).toBeInTheDocument()
+      screen.queryByRole('button', { name: /Coller un historique/ }),
+    ).not.toBeInTheDocument()
     expect(
       screen.getAllByRole('button', { name: 'Ajouter un avoir' }),
     ).not.toHaveLength(0)

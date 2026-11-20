@@ -3,6 +3,7 @@ import {
   ACCOUNT_TYPES,
   CRYPTO_ACCOUNT_SOURCES,
   CRYPTO_EXCHANGE_PROVIDERS,
+  SNAPSHOT_SOURCES,
 } from '#/database/schema/domain-enums'
 import {
   bigint,
@@ -22,6 +23,7 @@ import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { coreColumns } from '#/database/schema/core.schema'
 
 export const accountTypeEnum = pgEnum('account_type', ACCOUNT_TYPES)
+export const snapshotSourceEnum = pgEnum('snapshot_source', SNAPSHOT_SOURCES)
 export const cryptoAccountSourceEnum = pgEnum(
   'crypto_account_source',
   CRYPTO_ACCOUNT_SOURCES,
@@ -112,6 +114,11 @@ export const balanceSnapshotsTable = pgTable(
     /** Net contributions to date (deposits minus withdrawals), when known. */
     contributionsCents: bigint('contributions_cents', { mode: 'number' }),
     note: text('note'),
+    /**
+     * `typed` (statements, values typed by hand or through the MCP) or
+     * `computed` (a crypto account's daily close, #366: never edited).
+     */
+    source: snapshotSourceEnum('source').notNull().default('typed'),
   },
   (t) => [
     unique('balance_snapshots_account_date_unique').on(t.accountId, t.date),

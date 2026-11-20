@@ -54,6 +54,18 @@ describe.skipIf(!process.env.DATABASE_URL)(
       account: (type: AccountType, name?: string) => Promise<string>
     }
 
+    /** A crypto account's value, as the daily close writes it (#366). */
+    async function computed(
+      tx: Db,
+      accountId: string,
+      date: string,
+      valueCents: number,
+    ) {
+      await tx
+        .insert(balanceSnapshotsTable)
+        .values({ accountId, date, valueCents, source: 'computed' })
+    }
+
     async function inRollback(fn: (f: Fixture) => Promise<void>) {
       await db
         .transaction(async (tx) => {
@@ -121,9 +133,47 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
     })
 
+    it('never types, replaces or deletes a crypto account’s values (#366)', async () => {
+      await inRollback(async ({ tx, investments, account }) => {
+        const crypto = await account('crypto')
+        await computed(tx, crypto, '2026-10-31', 500_00)
+        await expect(
+          investments.upsert(crypto, '2026-10-31', { valueCents: 1 }, NOW),
+        ).rejects.toThrow(BadRequestException)
+        await expect(
+          investments.upsert(crypto, '2026-10-30', { valueCents: 1 }, NOW),
+        ).rejects.toThrow(BadRequestException)
+        await expect(
+          investments.bulkUpsert(
+            crypto,
+            [{ date: '2026-10-29', valueCents: 1 }],
+            NOW,
+          ),
+        ).rejects.toThrow(BadRequestException)
+        await expect(investments.remove(crypto, '2026-10-31')).rejects.toThrow(
+          BadRequestException,
+        )
+        expect(await investments.list(crypto)).toEqual([
+          expect.objectContaining({
+            date: '2026-10-31',
+            valueCents: 500_00,
+            source: 'computed',
+          }),
+        ])
+
+        // A PEA's values are typed, as before.
+        const pea = await account('brokerage')
+        await expect(
+          investments.upsert(pea, '2026-10-31', { valueCents: 1 }, NOW),
+        ).resolves.toMatchObject({ source: 'typed' })
+        await investments.remove(pea, '2026-10-31')
+        expect(await investments.list(pea)).toEqual([])
+      })
+    })
+
     it('accepts today in Paris and refuses future dates', async () => {
       await inRollback(async ({ investments, account }) => {
-        const id = await account('crypto')
+        const id = await account('brokerage')
         // 23:30 UTC on 5 November is already 6 November in Paris.
         const lateEvening = new Date('2026-11-05T23:30:00Z')
         await expect(
@@ -301,7 +351,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     })
 
     it('sums the investment accounts in the summary', async () => {
-      await inRollback(async ({ accounts, investments, account }) => {
+      await inRollback(async ({ tx, accounts, investments, account }) => {
         const pea = await account('brokerage', 'Test PEA')
         const life = await account('life_insurance', 'Test life')
         const crypto = await account('crypto', 'Test crypto')
@@ -320,12 +370,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           { valueCents: 5_500_00, contributionsCents: 5_000_00 },
           NOW,
         )
-        await investments.upsert(
-          crypto,
-          '2026-06-01',
-          { valueCents: 800_00 },
-          NOW,
-        )
+        await computed(tx, crypto, '2026-06-01', 800_00)
         await investments.upsert(
           archived,
           '2026-01-01',
@@ -413,7 +458,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           ['2026-07-31', 4_800_00],
           ['2026-11-04', 3_000_00],
         ] as const) {
-          await investments.upsert(wallet, date, { valueCents }, NOW)
+          await computed(tx, wallet, date, valueCents)
         }
         const base = { amountCents: 5_000_00, on: '2026-06-30' }
 

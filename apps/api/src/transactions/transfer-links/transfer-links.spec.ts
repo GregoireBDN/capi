@@ -399,12 +399,13 @@ describe.skipIf(!process.env.DATABASE_URL)('transfer links (database)', () => {
         ),
       ).toBe(1)
 
-      await investments.upsert(
-        ids.wallet,
-        '2026-11-01',
-        { valueCents: 650_00 },
-        NOW,
-      )
+      // Its value of the day, as the daily close writes it (#366).
+      await tx.insert(schema.balanceSnapshotsTable).values({
+        accountId: ids.wallet,
+        date: '2026-11-01',
+        valueCents: 650_00,
+        source: 'computed',
+      })
       const wallet = await investments.performance(ids.wallet, NOW)
       expect(wallet.contributionsSource).toBe('links')
       expect(wallet.contributionsCents).toBe(500_00)

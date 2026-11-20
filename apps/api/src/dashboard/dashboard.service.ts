@@ -290,8 +290,11 @@ export class DashboardService {
         : endCents - previousEndCents
 
     // A meal-voucher card is entered by hand: nothing to import (#298).
+    // A crypto account's month end is computed by its daily close (#366):
+    // nothing to type.
     const missing: ReviewMissingAccountDto[] = latest.flatMap((account) => {
       if (isTransactionalAccount(account) && !isBankAccount(account)) return []
+      if (account.type === 'crypto') return []
       const cash = isTransactionalAccount(account)
       const lastDate = cash
         ? (coverage.get(account.id) ?? null)

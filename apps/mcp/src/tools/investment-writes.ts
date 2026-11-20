@@ -148,7 +148,7 @@ export const addInvestmentSnapshotsTool = defineTool({
   name: 'add_investment_snapshots',
   title: 'Ajouter des valeurs de placement',
   description:
-    "Record dated values of an investment account (PEA, life insurance, employee savings, crypto) read from statements: one row per day, upserted on (account, day). Without confirm: preview of new / changed / unchanged days and the effect on the account's current value and net worth. With confirm: true writes only the days that differ (one transaction, all or nothing), so a repeated call changes nothing. A day's value is the account value at the end of that day; use the statement date (or the last day of the quarter / year it covers). Never after today.",
+    "Record dated values of an investment account (PEA, life insurance, employee savings) read from statements: one row per day, upserted on (account, day). Without confirm: preview of new / changed / unchanged days and the effect on the account's current value and net worth. With confirm: true writes only the days that differ (one transaction, all or nothing), so a repeated call changes nothing. A day's value is the account value at the end of that day; use the statement date (or the last day of the quarter / year it covers). Never after today. Not for crypto accounts: their values are computed every day from their holdings and prices (use sync_crypto_holdings for the quantities of a manual one).",
   write: { idempotent: true },
   inputSchema: {
     account: z
@@ -184,6 +184,12 @@ export const addInvestmentSnapshotsTool = defineTool({
   },
   async run({ api, now }, args) {
     const account = await resolveInvestmentAccount(api, args.account)
+    // A crypto account's values are computed by the app every day (#366).
+    if (account.type === 'crypto') {
+      throw new ToolInputError(
+        `${account.name} est un compte crypto : sa valeur est calculée chaque jour à partir de ses avoirs et des cours, jamais saisie. Pour un compte en saisie manuelle, mettez ses quantités à jour avec sync_crypto_holdings. Rien n'a été modifié.`,
+      )
+    }
     const today = parisToday(now())
     const seen = new Set<string>()
     for (const row of args.snapshots) {
@@ -226,13 +232,6 @@ export const addInvestmentSnapshotsTool = defineTool({
             `Déjà enregistrés à l'identique, rien à faire : ${unchangedCount} jour(s).`,
           ]
         : []
-    const cryptoNote =
-      account.type === 'crypto'
-        ? [
-            "Compte crypto : sa valeur du jour est recalculée à partir des avoirs à chaque valorisation ; préférez sync_crypto_holdings pour les quantités, et ces valeurs pour l'historique passé.",
-          ]
-        : []
-
     if (changes.length === 0) {
       return `Rien à modifier : ${header} a déjà ces ${planned.length} valeur(s).`
     }
@@ -257,7 +256,6 @@ export const addInvestmentSnapshotsTool = defineTool({
         header,
         ...details,
         netWorthEffect(account, existing, changes),
-        ...cryptoNote,
         '',
         PREVIEW_FOOTER,
       ].join('\n')

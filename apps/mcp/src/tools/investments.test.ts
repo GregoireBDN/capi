@@ -74,6 +74,7 @@ function snapshot(
     date,
     valueCents,
     contributionsCents,
+    source: 'typed',
     note: null,
   }
 }
@@ -482,6 +483,20 @@ describe('add_investment_snapshots', () => {
     })
     expect(cash.isError).toBe(true)
     expect(cash.text).toContain('introuvable')
+    expect(writes()).toHaveLength(0)
+  })
+
+  it('refuses a crypto account, whose values are computed (#366)', async () => {
+    const { routes } = snapshotRoutes([])
+    const { call, writes } = await connect(routes)
+    const { text, isError } = await call('add_investment_snapshots', {
+      account: 'Crypto Test',
+      snapshots: [{ date: '2026-10-31', value: '1' }],
+      confirm: true,
+    })
+    expect(isError).toBe(true)
+    expect(text).toContain('calculée chaque jour')
+    expect(text).toContain('sync_crypto_holdings')
     expect(writes()).toHaveLength(0)
   })
 

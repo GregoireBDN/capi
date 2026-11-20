@@ -840,6 +840,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
             name: 'Test titres-restaurant',
             type: 'meal_voucher',
           })
+          // Valued by its daily close, nothing to type: never listed (#366).
+          await accounts.create({ name: 'Test crypto', type: 'crypto' })
           await tx
             .insert(transactionsTable)
             .values(

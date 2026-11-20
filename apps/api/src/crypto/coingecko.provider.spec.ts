@@ -201,4 +201,37 @@ describe('CoinGeckoPriceProvider', () => {
     )
     expect(error.reason).toBe('malformed')
   })
+  it('reads the daily history of one asset exactly, sending its id only (#366)', async () => {
+    const calls: URL[] = []
+    const client = provider((url) => {
+      calls.push(url)
+      return json(
+        '{"prices":[[1793404800000,61234.123456789],[1793491200000,62000],[1793532000000,null],[1793533000000,62100.5]],"market_caps":[],"total_volumes":[]}',
+      )
+    })
+    const points = await client.fetchEurHistory('bitcoin', 400)
+    expect(calls).toHaveLength(1)
+    expect(calls[0].pathname).toBe('/api/v3/coins/bitcoin/market_chart')
+    expect(Object.fromEntries(calls[0].searchParams)).toEqual({
+      vs_currency: 'eur',
+      // The key-less API serves 365 days at most.
+      days: '365',
+      interval: 'daily',
+      precision: 'full',
+    })
+    expect(points).toEqual([
+      { at: new Date(1793404800000), priceEur: '61234.123456789' },
+      { at: new Date(1793491200000), priceEur: '62000' },
+      { at: new Date(1793533000000), priceEur: '62100.5' },
+    ])
+    const malformed = provider(() => json('{"prices":"nope"}'))
+    expect(
+      (await failure(malformed.fetchEurHistory('bitcoin', 2))).reason,
+    ).toBe('malformed')
+    const unknown = provider(() => json('{}', 404))
+    expect(await failure(unknown.fetchEurHistory('nope', 2))).toMatchObject({
+      reason: 'http',
+      status: 404,
+    })
+  })
 })

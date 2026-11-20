@@ -24,14 +24,13 @@ import {
   TriangleAlertIcon,
   WalletIcon,
 } from 'lucide-react'
-import { useEffect, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import { toast } from 'sonner'
 import type {
   CryptoPortfolioDto,
   PortfolioAccountDto,
   PortfolioAssetDto,
 } from '#/api/types.gen'
-import { afterSnapshotsChanged } from '#/components/accounts/queries'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { DashboardCardHeader } from '#/components/dashboard/DashboardCardHeader'
 import { formatCents } from '#/lib/money'
@@ -507,12 +506,6 @@ export function CryptoPage() {
   const portfolio = useQuery(cryptoPortfolioQuery)
   const [adding, setAdding] = useState(false)
   const now = new Date()
-
-  // A valuation wrote today's values: balances and net worth follow.
-  const valued = portfolio.data?.valued
-  useEffect(() => {
-    if (valued) void afterSnapshotsChanged(queryClient)
-  }, [valued, portfolio.dataUpdatedAt, queryClient])
 
   const refresh = useMutation({
     mutationFn: refreshPortfolio,

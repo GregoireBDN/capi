@@ -93,7 +93,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
           intervalMs: TTL,
         })
         const crypto = new CryptoService(database, accounts, prices, walletSync)
-        const investments = new InvestmentsService(database, accounts)
+        const investments = new InvestmentsService(database, accounts, crypto)
         const dashboard = new DashboardService(
           database,
           accounts,
@@ -164,7 +164,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
         location: '',
         note: null,
       })
-      await crypto.remove(id, ledger.id, NOW)
+      await crypto.remove(id, ledger.id)
       expect((await crypto.holdings(id, NOW)).holdings).toHaveLength(1)
     })
   })
@@ -178,21 +178,27 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
     })
   })
 
-  it('never records a first value of 0 € (#207)', async () => {
-    await inRollback(async ({ crypto, investments, account }) => {
+  it('never shows a first value of 0 € (#207)', async () => {
+    await inRollback(async ({ tx, crypto, investments, account }) => {
       const id = await account()
-      const zero = await crypto.create(id, { ...BTC, quantity: '0' }, NOW)
+      await crypto.create(id, { ...BTC, quantity: '0' }, NOW)
       const empty = await crypto.refresh(id, later(1))
       expect(empty.totals.valueCents).toBe(0)
       expect(empty.snapshot).toBeNull()
       expect(await investments.list(id)).toEqual([])
 
       // Once the account has had a value, 0 € is a real value (sold out).
-      await crypto.update(id, zero.id, { ...BTC, quantity: '0.5' }, later(2))
-      await crypto.update(id, zero.id, { ...BTC, quantity: '0' }, later(3))
-      expect(await investments.list(id)).toMatchObject([
-        { date: '2026-11-05', valueCents: 0 },
-      ])
+      await tx.insert(schema.balanceSnapshotsTable).values({
+        accountId: id,
+        date: '2026-11-04',
+        valueCents: 300_00,
+        source: 'computed',
+      })
+      expect((await crypto.holdings(id, later(2))).snapshot).toEqual({
+        date: '2026-11-05',
+        valueCents: 0,
+        contributionsCents: null,
+      })
     })
   })
 
@@ -213,7 +219,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
     })
   })
 
-  it("valuates and writes today's snapshot with the invested total", async () => {
+  it("values today's live value with the invested total and stores nothing (#366)", async () => {
     await inRollback(async ({ crypto, investments, account, provider }) => {
       const id = await account()
       await crypto.create(
@@ -252,13 +258,15 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
         valueCents: 4_500_037,
         contributionsCents: 3_000_000,
       })
-      expect(await investments.list(id)).toMatchObject([
-        {
-          date: '2026-11-05',
-          valueCents: 4_500_037,
-          contributionsCents: 3_000_000,
-        },
-      ])
+      // Shown, never stored: the daily close writes the day's value.
+      expect(await investments.list(id)).toEqual([])
+      const performance = await investments.performance(id, later(1))
+      expect(performance.live).toEqual(result.snapshot)
+      expect(performance).toMatchObject({
+        valueCents: 4_500_037,
+        valueDate: '2026-11-05',
+        snapshots: [],
+      })
       // Only asset ids reach the provider, batched in one call.
       for (const [ids] of provider.fetchEurPrices.mock.calls) {
         expect(ids).toEqual(['bitcoin'])
@@ -267,15 +275,16 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
   })
 
   it('makes contributions unknown when a holding has no invested amount', async () => {
-    await inRollback(async ({ crypto, investments, account }) => {
+    await inRollback(async ({ tx, crypto, investments, account }) => {
       const id = await account()
-      // Yesterday: a fully invested holding.
-      await investments.upsert(
-        id,
-        '2026-11-04',
-        { valueCents: 80_000, contributionsCents: 40_000 },
-        NOW,
-      )
+      // Yesterday's close: a fully invested holding.
+      await tx.insert(schema.balanceSnapshotsTable).values({
+        accountId: id,
+        date: '2026-11-04',
+        valueCents: 80_000,
+        contributionsCents: 40_000,
+        source: 'computed',
+      })
       await crypto.create(
         id,
         { ...ETH, quantity: '0.4', investedCents: 40_000 },
@@ -287,8 +296,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
       // An asset without invested amount is added: pairing the old 400 €
       // with the larger value used to report an inflated return (+185 %).
       await crypto.create(id, { ...BTC, quantity: '0.01' }, NOW)
-      const [, today] = await investments.list(id)
-      expect(today).toMatchObject({
+      expect((await investments.performance(id, NOW)).live).toMatchObject({
         date: '2026-11-05',
         valueCents: 100_005 + 60_000,
         contributionsCents: null,
@@ -306,10 +314,10 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
       const id = await account()
       await crypto.create(id, { ...BTC, quantity: '1' }, NOW)
       expect(provider.fetchEurPrices).toHaveBeenCalledTimes(1)
-      // Within the TTL: no provider call, no snapshot write.
+      // Within the TTL: no provider call, the stored price.
       const fresh = await crypto.holdings(id, later(5))
       expect(provider.fetchEurPrices).toHaveBeenCalledTimes(1)
-      expect(fresh.snapshot).toBeNull()
+      expect(fresh.snapshot?.valueCents).toBe(6_000_050)
       // After the TTL: refreshed and valued again.
       PRICES.bitcoin = '61000'
       try {
@@ -340,13 +348,13 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
         valueCents: 12_000_100,
       })
       expect(failed.totals.staleCount).toBe(1)
-      // The snapshot still uses the last known price.
+      // The live value still uses the last known price.
       expect(failed.snapshot?.valueCents).toBe(12_000_100)
       // A second forced refresh within 15 s does not hit the provider again.
       const calls = provider.fetchEurPrices.mock.calls.length
       await crypto.refresh(id, new Date(later(30).getTime() + 5_000))
       expect(provider.fetchEurPrices.mock.calls.length).toBe(calls)
-      expect((await investments.list(id)).length).toBe(1)
+      expect(await investments.list(id)).toEqual([])
     })
   })
 
@@ -368,11 +376,11 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
           priceStale: false,
           valueCents: 4, // 3 × 0.012345 € = 3.7035 cents → 4
         })
-        // Manual price day, then the automatic valuation of the next day.
-        expect(await investments.list(id)).toMatchObject([
-          { date: '2026-11-05', valueCents: 4 },
-          { date: '2026-11-06', valueCents: 4 },
-        ])
+        expect(valued.snapshot).toMatchObject({
+          date: '2026-11-06',
+          valueCents: 4,
+        })
+        expect(await investments.list(id)).toEqual([])
         expect(provider.fetchEurPrices).not.toHaveBeenCalled()
       },
       { enabled: false },
@@ -499,7 +507,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
     })
   })
 
-  it('refreshes every crypto account at once and writes their snapshots', async () => {
+  it('refreshes every crypto account at once, storing nothing', async () => {
     await inRollback(async ({ crypto, investments, account, provider }) => {
       const a = await account('crypto', 'Wallet A')
       const b = await account('crypto', 'Wallet B')
@@ -526,10 +534,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
           { date: '2026-11-06', valueCents: 250_012 },
         ])
         expect(next.refreshFailed).toBe(false)
-        expect((await investments.list(a)).map((x) => x.date)).toEqual([
-          '2026-11-05',
-          '2026-11-06',
-        ])
+        expect(await investments.list(a)).toEqual([])
       } finally {
         PRICES.bitcoin = '60000.5'
       }
@@ -604,15 +609,18 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
     })
   })
 
-  it('feeds the dashboard net worth', async () => {
-    await inRollback(async ({ crypto, dashboard, account }) => {
+  it('leaves the net worth to the daily close: page loads write nothing (#366)', async () => {
+    await inRollback(async ({ crypto, dashboard, investments, account }) => {
       const id = await account()
       const before = await dashboard.overview('2026-11', { now: NOW })
       await crypto.create(id, { ...BTC, quantity: '0.01' }, NOW)
-      const after = await dashboard.overview('2026-11', { now: NOW })
-      expect(
-        after.netWorth.investmentsCents - before.netWorth.investmentsCents,
-      ).toBe(60_000) // 0.01 × 60000.5 € = 60 000.5 cents → 60 000 (half to even)
+      for (let i = 0; i < 10; i++) await crypto.holdings(id, later(i * 15))
+      await crypto.refresh(id, later(200))
+      const after = await dashboard.overview('2026-11', { now: later(201) })
+      expect(after.netWorth.investmentsCents).toBe(
+        before.netWorth.investmentsCents,
+      )
+      expect(await investments.list(id)).toEqual([])
     })
   })
 
@@ -656,7 +664,7 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
       await expect(
         crypto.update(id, synced.id, { ...BTC, quantity: '9' }, NOW),
       ).rejects.toThrow('Imported or synced holdings are read-only')
-      await expect(crypto.remove(id, synced.id, NOW)).rejects.toBeInstanceOf(
+      await expect(crypto.remove(id, synced.id)).rejects.toBeInstanceOf(
         BadRequestException,
       )
       await crypto.update(

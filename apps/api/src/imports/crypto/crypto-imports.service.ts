@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto'
 import { AccountsService } from '#/accounts/accounts.service'
 import { CryptoPricesService } from '#/crypto/crypto-prices.service'
 import { CryptoService } from '#/crypto/crypto.service'
+import { CryptoDailyCloseService } from '#/crypto/daily-close/crypto-daily-close.service'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import {
@@ -94,6 +95,7 @@ export class CryptoImportsService {
     private readonly accounts: AccountsService,
     private readonly prices: CryptoPricesService,
     private readonly crypto: CryptoService,
+    private readonly dailyClose: CryptoDailyCloseService,
   ) {}
 
   private get db(): Db {
@@ -401,8 +403,13 @@ export class CryptoImportsService {
     }
   }
 
-  /** Values the account at today's prices; a failure never fails the import. */
+  /**
+   * Rebuilds the account's daily values from its movements (#366, in the
+   * background), then fetches today's prices of its assets; a failure never
+   * fails the import.
+   */
   private async valuate(accountId: string, now: Date) {
+    this.dailyClose.requestRebuild(accountId)
     try {
       await this.crypto.refresh(accountId, now)
     } catch (error) {

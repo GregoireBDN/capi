@@ -9,6 +9,8 @@ import {
   CryptoController,
 } from './crypto.controller'
 import { CryptoService } from './crypto.service'
+import { CryptoDailyCloseService } from './daily-close/crypto-daily-close.service'
+import { CryptoPriceHistoryService } from './daily-close/crypto-price-history.service'
 import { CRYPTO_PRICE_OPTIONS, type CryptoPriceOptions } from './price-provider'
 import { WalletKeysController } from './wallet-keys/wallet-keys.controller'
 import { WalletKeysService } from './wallet-keys/wallet-keys.service'
@@ -39,6 +41,8 @@ import { WalletTokensService } from './wallet-sync/wallet-tokens.service'
           ? new CoinGeckoPriceProvider({ baseUrl: env.PRICE_API_URL })
           : null,
         ttlMs: env.PRICE_CACHE_TTL_SECONDS * 1000,
+        // The key-less API answers a few calls a minute (#366).
+        historyIntervalMs: 2_000,
       }),
     },
     {
@@ -68,10 +72,12 @@ import { WalletTokensService } from './wallet-sync/wallet-tokens.service'
     },
     CryptoPricesService,
     CryptoService,
+    CryptoPriceHistoryService,
+    CryptoDailyCloseService,
     WalletKeysService,
     WalletSyncService,
     WalletTokensService,
   ],
-  exports: [CryptoService, CryptoPricesService],
+  exports: [CryptoService, CryptoPricesService, CryptoDailyCloseService],
 })
 export class CryptoModule {}

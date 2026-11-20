@@ -31,6 +31,7 @@ import type { PageAction } from '#/components/app-shell/page-actions'
 import { CryptoSourceCard } from '#/components/crypto/CryptoSourceCard'
 import { HoldingsPanel } from '#/components/crypto/HoldingsPanel'
 import {
+  CryptoHistory,
   useWalletRefresh,
   WalletAccount,
 } from '#/components/crypto/WalletAccount'
@@ -45,6 +46,7 @@ import { CashAccount } from './CashAccount'
 import { todayInParis } from './dates'
 import { InvestedSheet } from './InvestedSheet'
 import { InvestmentSummary } from './InvestmentSummary'
+import { historyPoints } from './history'
 import { formatAge, isInvestmentType, valueAgeText } from './labels'
 import { LinkedTransfers } from './LinkedTransfers'
 import { MealVoucherAccount } from './MealVoucherAccount'
@@ -229,9 +231,9 @@ export function AccountDetailPage({
         ? // A meal-voucher card has its own entries (#298).
           []
         : crypto
-          ? // Holdings are added in their own panel and today's value is
-            // computed from them; only older values can be pasted.
-            [paste('Coller un historique de valeurs')]
+          ? // Holdings are added in their own panel; the values are
+            // computed from them every day, never typed (#366).
+            []
           : investment
             ? [
                 // PEA, life insurance, employee savings: the value is typed by
@@ -271,7 +273,6 @@ export function AccountDetailPage({
           today={today}
           refreshing={walletRefresh.isPending}
           onTokensChanged={walletRefresh.refresh}
-          onEditSnapshot={(snapshot) => setEditor({ open: true, snapshot })}
           onEditInvested={() => setInvestedOpen(true)}
         />
         {writable && (
@@ -280,17 +281,6 @@ export function AccountDetailPage({
             onOpenChange={setInvestedOpen}
             account={current}
             performance={data}
-          />
-        )}
-        {writable && (
-          <SnapshotEditor
-            open={editor.open}
-            onOpenChange={(open) => !open && setEditor({ open: false })}
-            accountId={current.id}
-            today={today}
-            withContributions={false}
-            snapshot={editor.open ? editor.snapshot : undefined}
-            defaultContributionsCents={null}
           />
         )}
       </div>
@@ -389,15 +379,20 @@ export function AccountDetailPage({
       {/* Bank → exchange → Ledger, with the cost the coins left with. */}
       {crypto && <MovementsCard accountId={current.id} />}
 
-      {investment && data.snapshots.length > 0 && (
+      {/* A crypto account's values: one per day and today's, read only. */}
+      {crypto && historyPoints(data).length > 0 && (
+        <CryptoHistory performance={data} today={today} label="Valeur" />
+      )}
+
+      {investment && !crypto && data.snapshots.length > 0 && (
         <ValueChart
           snapshots={chartSnapshots}
           withContributions
-          onAdd={writable && !crypto ? openAdd : undefined}
+          onAdd={writable ? openAdd : undefined}
         />
       )}
 
-      {investment && (
+      {investment && !crypto && (
         <SnapshotList
           snapshots={data.snapshots}
           withContributions
@@ -419,21 +414,24 @@ export function AccountDetailPage({
 
       {writable && (
         <>
-          <SnapshotEditor
-            open={editor.open}
-            onOpenChange={(open) => !open && setEditor({ open: false })}
-            accountId={current.id}
-            today={today}
-            withContributions={investment}
-            snapshot={editor.open ? editor.snapshot : undefined}
-            // A new value carries the invested amount only while it is
-            // typed on the values: a base counts from its own day (#360).
-            defaultContributionsCents={
-              data.investedBase || data.contributionsSource === 'links'
-                ? null
-                : data.contributionsCents
-            }
-          />
+          {/* A crypto account's values are never typed (#366). */}
+          {!crypto && (
+            <SnapshotEditor
+              open={editor.open}
+              onOpenChange={(open) => !open && setEditor({ open: false })}
+              accountId={current.id}
+              today={today}
+              withContributions={investment}
+              snapshot={editor.open ? editor.snapshot : undefined}
+              // A new value carries the invested amount only while it is
+              // typed on the values: a base counts from its own day (#360).
+              defaultContributionsCents={
+                data.investedBase || data.contributionsSource === 'links'
+                  ? null
+                  : data.contributionsCents
+              }
+            />
+          )}
           {investment && (
             <InvestedSheet
               open={investedOpen}
@@ -442,12 +440,14 @@ export function AccountDetailPage({
               performance={data}
             />
           )}
-          <PasteHistorySheet
-            open={pasteOpen}
-            onOpenChange={setPasteOpen}
-            accountId={current.id}
-            today={today}
-          />
+          {!crypto && (
+            <PasteHistorySheet
+              open={pasteOpen}
+              onOpenChange={setPasteOpen}
+              accountId={current.id}
+              today={today}
+            />
+          )}
           {!investment && (
             <ManualTransactionSheet
               open={addOpen}

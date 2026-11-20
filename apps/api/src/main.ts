@@ -11,6 +11,7 @@ import { registerJsonDepthLimit } from './common/http/json-depth'
 import { registerNoStoreHeaders } from './common/http/no-store'
 import { registerPermissionsPolicy } from './common/http/permissions-policy'
 import { registerSameOriginCheck } from './common/http/same-origin'
+import { CryptoDailyCloseService } from './crypto/daily-close/crypto-daily-close.service'
 import { env } from './config/env'
 import { createFastifyAdapter } from './config/fastify-adapter'
 import { REQUEST_ID_HEADER } from './config/logger'
@@ -118,6 +119,10 @@ async function bootstrap() {
   if (swagger) {
     logger.log(`Swagger UI: http://localhost:${port}/${SWAGGER_UI_PATH}`)
   }
+
+  // Crypto values, one per day (#366): only the running server closes days,
+  // never the specs, the spec generator or the scripts.
+  if (env.CRYPTO_DAILY_CLOSE_ENABLED) app.get(CryptoDailyCloseService).start()
 }
 
 bootstrap()

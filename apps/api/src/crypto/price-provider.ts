@@ -21,6 +21,13 @@ export interface EurQuote {
   change24hPercent: string | null
 }
 
+/** A price at an instant, from the provider's daily history (#366). */
+export interface PricePoint {
+  at: Date
+  /** Exact decimal string. */
+  priceEur: string
+}
+
 export interface PriceProvider {
   /**
    * EUR prices of the given assets as exact decimal strings, in one request.
@@ -33,6 +40,12 @@ export interface PriceProvider {
    */
   fetchEurQuotes?(assetIds: readonly string[]): Promise<Map<string, EurQuote>>
   searchAssets(query: string): Promise<CryptoAsset[]>
+  /**
+   * EUR prices of one asset over the last `days` days (#366), one per day
+   * (00:00 UTC) plus the current one last, oldest first. Only the asset id
+   * is sent. Optional: without it, the daily close uses the stored prices.
+   */
+  fetchEurHistory?(assetId: string, days: number): Promise<PricePoint[]>
 }
 
 export type PriceProviderFailure =
@@ -60,4 +73,6 @@ export interface CryptoPriceOptions {
   provider: PriceProvider | null
   /** How long a fetched price is fresh. */
   ttlMs: number
+  /** Minimum spacing of two daily-history requests (#366); 0 by default. */
+  historyIntervalMs?: number
 }

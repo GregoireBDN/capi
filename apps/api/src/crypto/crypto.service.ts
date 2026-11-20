@@ -104,15 +104,16 @@ function isUniqueViolation(error: unknown): boolean {
  * Crypto holdings (quantity of an asset per wallet or exchange inside a
  * crypto account) and their valuation at the last known EUR prices.
  *
- * Valuing an account upserts its balance snapshot for today (Europe/Paris), so
- * account balances, performance and the dashboard net worth pick the value up
- * through the usual snapshot path. An account is valued again automatically
- * when it is read and its last valuation is older than the price TTL, after
- * every change to its holdings, and on demand.
+ * Valuing an account gives today's live value (holdings × the last known
+ * prices) and stores nothing (#366): its stored values are the `computed`
+ * points of the daily close (`CryptoDailyCloseService`), one per day, which
+ * balances, performance and the net worth read through the usual snapshot
+ * path. Prices are refreshed when an account is read and its last
+ * valuation is older than the price TTL, and on demand.
  */
 @Injectable()
 export class CryptoService {
-  /** Last valuation per account (epoch ms), for the automatic one. */
+  /** Last price refresh per account (epoch ms), for the automatic one. */
   private readonly valuedAt = new Map<string, number>()
 
   constructor(
@@ -133,22 +134,32 @@ export class CryptoService {
     const account = await this.cryptoAccount(accountId)
     const due =
       account.archivedAt === null && this.valuationDue(account.id, now)
-    const [result] = await this.valuate(
-      [account],
-      due ? 'auto' : 'none',
-      due,
-      now,
-    )
+    const [result] = await this.valuate([account], due ? 'auto' : 'none', now)
     return result
   }
 
-  /** "Actualiser les cours": fresh prices, then today's snapshot. */
+  /**
+   * Today's live value of a crypto account (#366) at the stored prices, for
+   * the last point of its « Évolution »: null while a holding has no price,
+   * or while it holds nothing worth anything and was never valued.
+   */
+  async liveValue(
+    accountId: string,
+    now: Date = new Date(),
+  ): Promise<ValuationSnapshotDto | null> {
+    const account = await this.cryptoAccount(accountId)
+    if (account.archivedAt !== null) return null
+    const [result] = await this.valuate([account], 'none', now)
+    return result.snapshot
+  }
+
+  /** "Actualiser les cours": fresh prices, then today's live value. */
   async refresh(
     accountId: string,
     now: Date = new Date(),
   ): Promise<AccountHoldingsDto> {
     const account = await this.writableCryptoAccount(accountId)
-    const [result] = await this.valuate([account], 'force', true, now)
+    const [result] = await this.valuate([account], 'force', now)
     return result
   }
 
@@ -170,7 +181,7 @@ export class CryptoService {
     }
     await this.walletSync.syncNow(account.id, now)
     // « Actualiser » (#269): fresh balances, then fresh prices.
-    const [result] = await this.valuate([account], 'force', true, now)
+    const [result] = await this.valuate([account], 'force', now)
     return result
   }
 
@@ -218,7 +229,7 @@ export class CryptoService {
         .returning()
       return created
     })
-    await this.valuate([account], 'auto', true, now)
+    await this.valuate([account], 'auto', now)
     return toHoldingDto(row)
   }
 
@@ -246,16 +257,12 @@ export class CryptoService {
       return updated
     })
     if (!row) throw new NotFoundException('Holding not found')
-    await this.valuate([account], 'auto', true, now)
+    await this.valuate([account], 'auto', now)
     return toHoldingDto(row)
   }
 
-  async remove(
-    accountId: string,
-    holdingId: string,
-    now: Date = new Date(),
-  ): Promise<void> {
-    const account = await this.writableCryptoAccount(accountId)
+  async remove(accountId: string, holdingId: string): Promise<void> {
+    await this.writableCryptoAccount(accountId)
     await this.manualHolding(accountId, holdingId)
     const deleted = await this.db
       .delete(h)
@@ -268,7 +275,6 @@ export class CryptoService {
       )
       .returning({ id: h.id })
     if (deleted.length === 0) throw new NotFoundException('Holding not found')
-    await this.valuate([account], 'none', true, now)
   }
 
   settings(): CryptoSettingsDto {
@@ -285,13 +291,12 @@ export class CryptoService {
 
   /**
    * "Actualiser les cours" for every crypto account: one batched price
-   * request, then today's snapshot of each account.
+   * request, then today's live value of each account.
    */
   refreshAll(now: Date = new Date()): Promise<CryptoSummaryDto> {
     return this.summarize(true, now)
   }
 
-  /** The open crypto accounts, valued with one batched price fetch. */
   /**
    * The Crypto page (#295): every open crypto account's holdings summed per
    * asset, then the accounts with how fresh they are. Valued like `summary`.
@@ -303,7 +308,7 @@ export class CryptoService {
   /**
    * The section's one « Actualiser » (#295): reads every wallet on chain
    * (when this server syncs wallets; each at most every 30 s), then fresh
-   * prices for every account and today's values.
+   * prices for every account and today's live values.
    */
   async refreshPortfolio(now: Date = new Date()): Promise<CryptoPortfolioDto> {
     if (this.walletSync.enabled) {
@@ -429,7 +434,7 @@ export class CryptoService {
     const due =
       force || accounts.some((account) => this.valuationDue(account.id, now))
     const mode: RefreshMode = force ? 'force' : due ? 'auto' : 'none'
-    const rows = await this.valuate(accounts, mode, due, now)
+    const rows = await this.valuate(accounts, mode, now)
     return { accounts, rows }
   }
 
@@ -475,45 +480,37 @@ export class CryptoService {
     }
   }
 
-  /** Manual price, then the accounts holding the asset are valued again. */
-  async setManualPrice(
+  /**
+   * A manual price: today's live values use it at once, and the daily close
+   * takes it as the day's price when the price API is off or lacks the
+   * asset (#366).
+   */
+  setManualPrice(
     assetId: string,
     priceEur: string,
     now: Date = new Date(),
   ): Promise<CryptoPriceDto> {
-    const price = await this.prices.setManualPrice(assetId, priceEur, now)
-    const holders = await this.db
-      .selectDistinct({
-        id: accountsTable.id,
-        name: accountsTable.name,
-        institution: accountsTable.institution,
-        archivedAt: accountsTable.archivedAt,
-      })
-      .from(h)
-      .innerJoin(accountsTable, eq(accountsTable.id, h.accountId))
-      .where(and(eq(h.assetId, assetId), isNull(accountsTable.archivedAt)))
-    if (holders.length > 0) await this.valuate(holders, 'none', true, now)
-    return price
+    return this.prices.setManualPrice(assetId, priceEur, now)
   }
 
   /**
-   * Values the accounts at the stored prices (refreshed per `mode`) and, when
-   * `write`, upserts today's snapshot of each writable account whose holdings
-   * all have a price. Contributions are the sum of the invested amounts when
+   * Values the accounts at the stored prices (refreshed per `mode`): today's
+   * live value of each open account whose holdings all have a price, never
+   * stored (#366). Contributions are the sum of the invested amounts when
    * every holding has one, and unknown (null) otherwise.
    */
   private async valuate(
     accounts: CryptoAccount[],
     mode: RefreshMode,
-    write: boolean,
     now: Date,
   ): Promise<AccountHoldingsDto[]> {
     const ids = accounts.map((account) => account.id)
     // A valuation that refreshes prices first reads the wallets due a sync;
-    // one that outlives the wait is valued again once done.
+    // one that outlives the wait fetches the prices of what it found.
     if (mode !== 'none') {
+      for (const id of ids) this.valuedAt.set(id, now.getTime())
       await this.walletSync.syncDue(ids, now, (late) =>
-        this.valueAfterSync(late, now),
+        this.pricesAfterSync(late, now),
       )
     }
     const syncStatuses = await this.walletSync.statuses(ids, now)
@@ -532,6 +529,7 @@ export class CryptoService {
     )
     const today = parisToday(now)
     const accountInvested = await this.accountInvested(ids, today)
+    const valued = await this.valuedAccounts(ids)
 
     const results: AccountHoldingsDto[] = []
     for (const account of accounts) {
@@ -556,24 +554,19 @@ export class CryptoService {
                 : null,
               withoutInvestedCount: 0,
             }
-      let snapshot: ValuationSnapshotDto | null = null
-      if (write && account.archivedAt === null) {
-        this.valuedAt.set(account.id, now.getTime())
-        // A first value of 0 € (lines at 0, nothing synced yet) records
-        // nothing: the account stays "not valued yet" until it holds some.
-        const firstZero = async () =>
-          valuation.totals.valueCents === 0 &&
-          !(await this.hasSnapshot(account.id))
-        if (holdings.length > 0 && valuation.complete && !(await firstZero())) {
-          snapshot = await this.writeSnapshot(
-            account.id,
-            today,
-            totals.valueCents,
-            totals.investedCents,
-            now,
-          )
-        }
-      }
+      // A first value of 0 € (lines at 0, nothing synced yet) is no value:
+      // the account stays "not valued yet" until it holds some (#207).
+      const snapshot: ValuationSnapshotDto | null =
+        account.archivedAt === null &&
+        holdings.length > 0 &&
+        valuation.complete &&
+        (totals.valueCents !== 0 || valued.has(account.id))
+          ? {
+              date: today,
+              valueCents: totals.valueCents,
+              contributionsCents: totals.investedCents,
+            }
+          : null
       results.push({
         accountId: account.id,
         holdings: holdings.map((row, i) => {
@@ -641,59 +634,31 @@ export class CryptoService {
     return result
   }
 
-  /** Values wallets whose background sync ended after their valuation. */
-  private async valueAfterSync(accountIds: string[], now: Date): Promise<void> {
-    for (const id of accountIds) {
-      const account = await this.cryptoAccount(id)
-      // `auto`: prices of assets the sync just found are fetched too (the
-      // wallet itself was just tried, so it is not synced again).
-      if (account.archivedAt === null) {
-        await this.valuate([account], 'auto', true, now)
-      }
-    }
-  }
-
-  private async hasSnapshot(accountId: string): Promise<boolean> {
-    const [row] = await this.db
-      .select({ id: s.id })
-      .from(s)
-      .where(eq(s.accountId, accountId))
-      .limit(1)
-    return row !== undefined
-  }
-
-  private async writeSnapshot(
-    accountId: string,
-    date: string,
-    valueCents: number,
-    investedCents: number | null,
+  /** Prices of the assets a background sync found (the next load shows them). */
+  private async pricesAfterSync(
+    accountIds: string[],
     now: Date,
-  ): Promise<ValuationSnapshotDto> {
-    const [row] = await this.db
-      .insert(s)
-      .values({
-        accountId,
-        date,
-        valueCents,
-        contributionsCents: investedCents,
-      })
-      .onConflictDoUpdate({
-        target: [s.accountId, s.date],
-        set: {
-          valueCents,
-          // Unknown when a holding has no invested amount and the account
-          // has neither an invested base nor coins linked to it (#358): an
-          // older total would leave out the assets added since.
-          contributionsCents: investedCents,
-          updatedAt: now,
-        },
-      })
-      .returning({
-        date: s.date,
-        valueCents: s.valueCents,
-        contributionsCents: s.contributionsCents,
-      })
-    return row
+  ): Promise<void> {
+    if (accountIds.length === 0) return
+    const rows = await this.db
+      .selectDistinct({ assetId: h.assetId })
+      .from(h)
+      .where(inArray(h.accountId, accountIds))
+    await this.prices.quotes(
+      rows.map((row) => row.assetId),
+      'auto',
+      now,
+    )
+  }
+
+  /** The accounts among `ids` that already have a stored value. */
+  private async valuedAccounts(ids: readonly string[]): Promise<Set<string>> {
+    if (ids.length === 0) return new Set()
+    const rows = await this.db
+      .selectDistinct({ accountId: s.accountId })
+      .from(s)
+      .where(inArray(s.accountId, [...ids]))
+    return new Set(rows.map((row) => row.accountId))
   }
 
   private valuationDue(accountId: string, now: Date): boolean {
