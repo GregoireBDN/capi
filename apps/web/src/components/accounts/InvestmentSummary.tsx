@@ -23,6 +23,11 @@ const signedWholeEuros = new Intl.NumberFormat('fr-FR', {
 const formatSignedWholeEuros = (cents: number) =>
   signedWholeEuros.format(cents / 100)
 
+/** « +2 000,00 € », « −150,00 € ». */
+function signedCents(cents: number): string {
+  return `${cents > 0 ? '+' : ''}${formatCents(cents)}`
+}
+
 function tone(cents: number) {
   return cn(
     cents > 0 && 'text-chart-delta-good',
@@ -149,8 +154,8 @@ export function InvestmentSummary({
   caption?: ReactNode
   /** Under the change: how fresh the figures are (a wallet's chains). */
   status?: ReactNode
-  /** Opens the invested amount's editor. */
-  onEditInvested: () => void
+  /** Opens the invested amount's editor (accounts that take one). */
+  onEditInvested?: () => void
 }) {
   const id = useId()
   const {
@@ -161,7 +166,9 @@ export function InvestmentSummary({
     sinceOneYear,
     linkedAfterValueCents,
   } = performance
-  const editable = writable && takesInvestedBase(account)
+  const editable =
+    writable && takesInvestedBase(account) && onEditInvested !== undefined
+  const realised = performance.realised
   const crypto = account.type === 'crypto'
   const exchange = crypto && account.cryptoSource === 'exchange'
   const known = contributionsCents !== null && gainCents !== null
@@ -245,6 +252,26 @@ export function InvestmentSummary({
             </div>
           )}
         </div>
+
+        {/* Sales into euros (#373): realised, apart from the result. */}
+        {realised && realised.count > 0 && (
+          <div className="flex min-h-11 flex-wrap items-baseline gap-x-3 border-t pt-3 text-sm">
+            <span className="text-muted-foreground min-w-[9rem] flex-1">
+              Plus-value réalisée
+            </span>
+            <span className="ml-auto text-right tabular-nums">
+              <span className={tone(realised.yearCents)}>
+                {signedCents(realised.yearCents)}
+              </span>{' '}
+              <span className="text-muted-foreground text-xs">
+                cette année · {signedCents(realised.totalCents)} en tout
+                {realised.unknownCount > 0
+                  ? ` · ${realised.unknownCount} vente${realised.unknownCount > 1 ? 's' : ''} au coût inconnu`
+                  : ''}
+              </span>
+            </span>
+          </div>
+        )}
 
         {known && (source || editable) && (
           <div className="flex flex-wrap items-center gap-x-2">

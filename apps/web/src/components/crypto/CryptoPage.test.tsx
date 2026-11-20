@@ -169,9 +169,14 @@ function portfolio(
       gainCents: 268_625,
       withoutInvestedCount: 1,
       withoutInvestedSymbols: ['ETH'],
-      unknown: [],
-      fiatCents: 0,
-      realised: { yearCents: 0, totalCents: 0, count: 0, unknownCount: 0 },
+      unknown: [{ assetId: 'ethereum', symbol: 'ETH', quantity: '0.3' }],
+      fiatCents: 100_000,
+      realised: {
+        yearCents: 200_000,
+        totalCents: 250_000,
+        count: 2,
+        unknownCount: 0,
+      },
       missingPriceCount: 0,
       staleCount: 0,
     },
@@ -261,9 +266,15 @@ describe('CryptoPage', () => {
     })
     expect(text(summary.textContent)).toContain('7 691,25 €')
     expect(text(summary.textContent)).toContain('+143,30 € sur 24 h')
-    // ETH's cost is unknown: the gain is over BTC only, and says so.
+    // ETH's cost is unknown: the gain is over BTC only, and says so (#373).
     expect(text(summary.textContent)).toContain(
-      'Investi 4 120,00 € · résultat +2 686,25 € (hors ETH)',
+      'Investi 4 120,00 € · résultat +2 686,25 € (hors 0,3 ETH sans coût connu)',
+    )
+    expect(text(summary.textContent)).toContain(
+      'Dont 1 000,00 € en euros sur vos plateformes',
+    )
+    expect(text(summary.textContent)).toContain(
+      'Plus-value réalisée +2 000,00 € cette année · +2 500,00 € en tout',
     )
     expect(text(summary.textContent)).toContain('Cours il y a 3 min')
     expect(
@@ -302,7 +313,7 @@ describe('CryptoPage', () => {
 
     await user.click(rows[1])
     expect(
-      screen.getByText('Coût inconnu : pas de résultat calculé.'),
+      screen.getByText('Coût inconnu : à préciser sur la page du compte.'),
     ).toBeInTheDocument()
   })
 

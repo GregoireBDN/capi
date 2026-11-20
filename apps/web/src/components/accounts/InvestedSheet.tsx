@@ -52,8 +52,8 @@ const STEP_NAMES: Record<Step, string> = {
  * « Renseigner / Modifier le montant investi » (#360), from the account's
  * summary, in two steps: the amount, then the day it was right (the latest
  * value's, today or another). Saved as the account's invested base: what is
- * linked to the account after that day (transfers, or the cost of coins for
- * crypto) adds on top. Every change offers « Annuler ».
+ * linked to the account after that day adds on top. A PEA, a life insurance
+ * or employee savings only: a crypto account's cost follows its coins (#373). Every change offers « Annuler ».
  */
 export function InvestedSheet({
   open,
@@ -71,7 +71,6 @@ export function InvestedSheet({
   const queryClient = useQueryClient()
   const today = todayInParis()
   const current = investedBaseOf(account)
-  const crypto = account.type === 'crypto'
   // The latest value's day, when it is not today: the day a statement gives.
   const valueDay =
     performance.valueDate && performance.valueDate < today
@@ -231,9 +230,9 @@ export function InvestedSheet({
                   <FieldError>{amountError}</FieldError>
                 ) : (
                   <FieldDescription>
-                    {crypto
-                      ? 'Ce que vous ont coûté les cryptos de ce compte, frais compris. Les cryptos reçues ensuite d’une plateforme suivie y ajoutent leur coût.'
-                      : 'Le total versé moins les retraits : « versements nets » ou « cumul des versements » sur un relevé. Les virements liés ensuite s’y ajoutent.'}
+                    Le total versé moins les retraits : « versements nets » ou «
+                    cumul des versements » sur un relevé. Les virements liés
+                    ensuite s’y ajoutent.
                   </FieldDescription>
                 )}
               </Field>
@@ -284,10 +283,7 @@ export function InvestedSheet({
                     <strong className="tabular-nums">
                       {formatCents(cents)}
                     </strong>{' '}
-                    au {formatCalendarDate(on)}
-                    {crypto
-                      ? ', puis le coût des cryptos reçues depuis.'
-                      : ', puis les virements liés depuis.'}
+                    au {formatCalendarDate(on)}, puis les virements liés depuis.
                   </p>
                 )}
               </>

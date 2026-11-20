@@ -39,6 +39,7 @@ import { ROUTES } from '#/lib/routes'
 import { accountLinkSearch } from '#/components/accounts/account-origin'
 import { AddCryptoSheet } from './AddCryptoSheet'
 import { AssetBadge } from './AssetBadge'
+import { coins } from './pending-text'
 import { holdingErrorMessage } from './errors'
 import { pricesSettling, staleShown, useLiveRefresh } from './live-refresh'
 import { formatPrice, formatPriceAge, formatQuantity } from './format'
@@ -74,11 +75,14 @@ function SignedCents({ cents }: { cents: number }) {
 }
 
 /** « hors SOL, ADA », « hors 4 actifs »: priced assets of unknown cost. */
-function withoutCostText(symbols: readonly string[]): string | null {
-  if (symbols.length === 0) return null
-  return symbols.length <= 3
-    ? `hors ${symbols.join(', ')}`
-    : `hors ${plural(symbols.length, 'actif')}`
+/** « hors 0,1 BTC sans coût connu » (#373), or the number of assets. */
+function withoutCostText(
+  unknown: readonly { symbol: string; quantity: string }[],
+): string | null {
+  if (unknown.length === 0) return null
+  return unknown.length <= 2
+    ? `hors ${unknown.map(coins).join(' et ')} sans coût connu`
+    : `hors ${plural(unknown.length, 'actif')} au coût inconnu`
 }
 
 /**
@@ -175,7 +179,7 @@ function PortfolioSummary({
   const { totals } = data
   const parts = splitParts(data.assets)
   const splitTotal = parts.reduce((sum, part) => sum + part.valueCents, 0)
-  const without = withoutCostText(totals.withoutInvestedSymbols)
+  const without = withoutCostText(totals.unknown)
   return (
     <Card role="region" aria-labelledby={id} className="min-w-0">
       <CardContent
@@ -201,6 +205,18 @@ function PortfolioSummary({
               <span className="whitespace-nowrap">résultat</span>{' '}
               <SignedCents cents={totals.gainCents} />
               {without && ` (${without})`}
+            </p>
+          )}
+          {totals.fiatCents > 0 && (
+            <p className="text-muted-foreground text-sm tabular-nums">
+              Dont {formatCents(totals.fiatCents)} en euros sur vos plateformes
+            </p>
+          )}
+          {totals.realised.count > 0 && (
+            <p className="text-muted-foreground text-sm tabular-nums">
+              Plus-value réalisée{' '}
+              <SignedCents cents={totals.realised.yearCents} /> cette année ·{' '}
+              <SignedCents cents={totals.realised.totalCents} /> en tout
             </p>
           )}
         </div>
@@ -347,17 +363,30 @@ function AssetRow({
           </p>
         )}
         {asset.valueCents !== null && (
-          <p className="tabular-nums">
-            {asset.investedCents === null || asset.gainCents === null ? (
-              'Coût inconnu : pas de résultat calculé.'
-            ) : (
-              <>
-                Investi {formatCents(asset.investedCents)} ·{' '}
-                <span className="whitespace-nowrap">résultat</span>{' '}
-                <SignedCents cents={asset.gainCents} />
-              </>
-            )}
-          </p>
+          <>
+            <p className="tabular-nums">
+              {asset.investedCents === null || asset.gainCents === null ? (
+                'Coût inconnu : à préciser sur la page du compte.'
+              ) : (
+                <>
+                  Investi {formatCents(asset.investedCents)} ·{' '}
+                  <span className="whitespace-nowrap">résultat</span>{' '}
+                  <SignedCents cents={asset.gainCents} />
+                </>
+              )}
+            </p>
+            {asset.investedCents !== null &&
+              /[1-9]/.test(asset.unknownQuantity) && (
+                <p className="tabular-nums">
+                  Dont{' '}
+                  {coins({
+                    quantity: asset.unknownQuantity,
+                    symbol: asset.symbol,
+                  })}{' '}
+                  sans coût connu, hors résultat
+                </p>
+              )}
+          </>
         )}
         {asset.valueCents === null && (
           <p>
