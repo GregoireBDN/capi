@@ -1,3 +1,4 @@
+import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   Button,
   Card,
@@ -16,6 +17,8 @@ import {
   PencilLineIcon,
   PlusIcon,
   ReceiptIcon,
+  UtensilsIcon,
+  WalletCardsIcon,
 } from 'lucide-react'
 import { useState } from 'react'
 import type { AccountDto, TransactionDto } from '#/api/types.gen'
@@ -64,10 +67,30 @@ export function MealVoucherAccount({
     transactionListQuery({ accountId: account.id }, 'date_desc'),
   )
   const rows = latest.data?.pages[0]?.items.slice(0, LATEST_COUNT) ?? []
+  // In the page's « ⋮ » inside the shell (#386), the payment first.
+  const paymentInMenu = useRegisterPageAction(
+    writable
+      ? {
+          label: 'Ajouter un paiement',
+          icon: <UtensilsIcon />,
+          primary: true,
+          onSelect: () => setEntry({ open: true, kind: 'expense' }),
+        }
+      : null,
+  )
+  useRegisterPageAction(
+    writable
+      ? {
+          label: 'Ajouter un crédit',
+          icon: <WalletCardsIcon />,
+          onSelect: () => setEntry({ open: true, kind: 'income' }),
+        }
+      : null,
+  )
 
   return (
     <>
-      {writable && (
+      {writable && !paymentInMenu && (
         <div className="grid gap-2 @lg:grid-cols-2">
           <Button
             iconStart={<MinusIcon />}

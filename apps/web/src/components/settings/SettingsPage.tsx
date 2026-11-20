@@ -2,15 +2,12 @@ import { useQuery } from '@tanstack/react-query'
 import {
   BotIcon,
   ListFilterIcon,
-  LogOutIcon,
   ShieldCheckIcon,
-  SunMoonIcon,
   TagsIcon,
   TriangleAlertIcon,
   UserIcon,
   UsersIcon,
 } from 'lucide-react'
-import { useId } from 'react'
 import type { UserDto } from '#/api/types.gen'
 import { accessTokensQuery } from '#/components/access-tokens/queries'
 import { PageHeader } from '#/components/app-shell/PageHeader'
@@ -21,24 +18,17 @@ import { rulesQuery } from '#/components/rules/queries'
 import { sessionsQuery } from '#/components/sessions/queries'
 import { categoriesQuery } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
-import { useSignOut } from '#/lib/use-sign-out'
-import {
-  SettingsButtonRow,
-  SettingsControlRow,
-  SettingsGroup,
-  SettingsLinkRow,
-} from './SettingsList'
-import { ThemeChoice } from './ThemeChoice'
+import { SettingsGroup, SettingsLinkRow } from './SettingsList'
 import { accessSummary, countLabel, securitySummary } from './settings-summary'
 
 /**
  * Réglages (#300): one list of sections, like iOS Settings, each row with
- * its current state and opening its own screen (the theme is chosen in
- * place). Replaces the former Profil page, ten cards in one scroll.
+ * its current state and opening its own screen. Replaces the former Profil
+ * page, ten cards in one scroll. Since #386 the theme and « Se
+ * déconnecter » are in the account menu (`AccountMenu`, the header's
+ * avatar), which opens this page: they are not repeated here.
  */
 export function SettingsPage({ user }: { user: UserDto }) {
-  const themeId = useId()
-  const signOut = useSignOut()
   const passkeys = useQuery(passkeysQuery)
   const sessions = useQuery(sessionsQuery)
   const categories = useQuery(categoriesQuery)
@@ -62,14 +52,6 @@ export function SettingsPage({ user }: { user: UserDto }) {
             title="Compte"
             state={user.name}
           />
-          <SettingsControlRow
-            icon={SunMoonIcon}
-            tone="info"
-            title="Apparence"
-            titleId={themeId}
-          >
-            <ThemeChoice labelledBy={themeId} />
-          </SettingsControlRow>
           <SettingsLinkRow
             to={ROUTES.settingsSecurity}
             icon={ShieldCheckIcon}
@@ -147,16 +129,7 @@ export function SettingsPage({ user }: { user: UserDto }) {
           />
         </SettingsGroup>
 
-        {/* Kept beside the sidebar's quick « Se déconnecter » (#353): the
-            same sign-out. The account deletion stays last, alone. */}
-        <SettingsGroup label="Session">
-          <SettingsButtonRow
-            icon={LogOutIcon}
-            title="Se déconnecter"
-            onClick={() => void signOut()}
-          />
-        </SettingsGroup>
-
+        {/* The account deletion stays last, alone. */}
         <SettingsGroup label="Zone dangereuse">
           <SettingsLinkRow
             to={ROUTES.settingsDanger}

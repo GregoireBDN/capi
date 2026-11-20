@@ -388,7 +388,9 @@ describe('CryptoPage', () => {
     expect(
       screen.queryByRole('button', { name: 'Actualiser' }),
     ).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Ajouter' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Ajouter des cryptos' }),
+    ).toBeInTheDocument()
   })
 
   describe('loading (#381)', () => {
@@ -425,7 +427,9 @@ describe('CryptoPage', () => {
       expect(within(loading).getByText('Actifs')).toBeVisible()
       expect(within(loading).getByText('Où sont mes cryptos')).toBeVisible()
       expect(screen.getByRole('heading', { name: 'Crypto' })).toBeVisible()
-      expect(screen.getByRole('button', { name: 'Ajouter' })).toBeVisible()
+      expect(
+        screen.getByRole('button', { name: 'Ajouter des cryptos' }),
+      ).toBeVisible()
     })
 
     it('shows the stored values, then the live ones in place', async () => {
