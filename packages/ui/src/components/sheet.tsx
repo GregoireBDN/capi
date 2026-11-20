@@ -574,8 +574,11 @@ function SheetBar({
   className,
   ...props
 }: SheetBarProps) {
+  // `type="button"`: the bar sits inside the editor's form, where a button
+  // without a type would submit it (a step back moved forward again).
   const leave = (
     <Button
+      type="button"
       variant="secondary"
       iconOnly
       className={ROUND}
@@ -630,6 +633,8 @@ function SheetBarAction({
 }: SheetBarActionProps) {
   return (
     <Button
+      // A plain button unless the caller makes it the form's submit.
+      type="button"
       iconOnly
       loading={loading}
       aria-label={label}

@@ -391,6 +391,16 @@ describe('MonthEnvelopes', () => {
       expect(amount).toHaveValue('12,5')
       // The bar's round button moves on, then adds.
       await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+      // Its ‹ goes back a step, the amount kept, and never submits.
+      await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
+      expect(within(dialog).getByLabelText('Montant')).toHaveValue('12,5')
+      expect(api.transactionsControllerCreateManual).not.toHaveBeenCalled()
+      await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
+      expect(
+        within(dialog).getByRole('list', { name: 'Habituels' }),
+      ).toBeVisible()
+      await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+      await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
       await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
       await waitFor(() =>
         expect(api.transactionsControllerCreateManual).toHaveBeenCalledWith(
