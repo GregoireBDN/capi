@@ -77,6 +77,11 @@ async function openExpenseSheet(page: Page) {
   await page.getByRole('dialog').waitFor()
 }
 
+async function openPaidForMe(page: Page) {
+  await pageAction(/^Payé pour moi$/)(page)
+  await page.getByRole('dialog').waitFor()
+}
+
 const SCENARIOS: Array<Scenario> = [
   { name: 'auth', path: '/auth', signedIn: false },
   {
@@ -178,6 +183,30 @@ const SCENARIOS: Array<Scenario> = [
     },
   },
   { name: 'forecast', path: '/forecast' },
+  { name: 'owed', path: '/owed' },
+  {
+    // « Payé pour moi » in four steps (#394): the first, then the last.
+    name: 'owed-paid-for-me',
+    path: '/owed',
+    step: openPaidForMe,
+  },
+  {
+    name: 'owed-paid-for-me-share',
+    path: '/owed',
+    step: async (page) => {
+      await openPaidForMe(page)
+      const dialog = page.getByRole('dialog')
+      await dialog
+        .getByRole('button', { name: /Sam|Camille|Alex/ })
+        .first()
+        .click()
+      const list = dialog.getByRole('radiogroup', { name: 'Catégorie' })
+      await list.getByRole('radio').first().click()
+      await dialog.getByLabel(/^Addition payée par/).fill('60')
+      await dialog.getByRole('button', { name: 'Suivant' }).click()
+      await dialog.getByText(/^Je dois à/).waitFor()
+    },
+  },
   { name: 'import', path: '/import' },
   {
     name: 'import-preview',
