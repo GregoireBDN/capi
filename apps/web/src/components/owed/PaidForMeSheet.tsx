@@ -182,7 +182,6 @@ function PaidForMeForm({
   /** How many shared the bill, me included; null once I typed my part. */
   const [people, setPeople] = useState<number | null>(2)
   const [typed, setTyped] = useState('')
-  const mineRef = useRef<HTMLInputElement>(null)
 
   const billCents = parseEurosToCents(bill) ?? 0
   const dateOk = date !== '' && date <= today
@@ -196,11 +195,7 @@ function PaidForMeForm({
   )
   const stepIndex = PAID_FOR_ME_STEPS.indexOf(step)
 
-  const mine =
-    people === null
-      ? (parseEurosToCents(typed) ?? 0)
-      : (myPartOf('equal', billCents, people) ?? 0)
-  const mineText = people === null ? typed : mine > 0 ? centsToInput(mine) : ''
+  const mine = myPartCents(billCents, people, typed)
   const over = mine > billCents
   const ok =
     filled.person && filled.category && filled.bill && mine > 0 && !over
@@ -475,145 +470,13 @@ function PaidForMeForm({
         <>
           <FormSheetBody className="@container space-y-5 pt-5">
             {recap}
-            <div className="space-y-2">
-              <p
-                id={`${id}-people`}
-                className="text-muted-foreground text-center text-sm"
-              >
-                On était combien, vous compris ?
-              </p>
-              {/* One row, whatever the width (the owner's « A », #394). */}
-              <div
-                role="radiogroup"
-                aria-labelledby={`${id}-people`}
-                className="grid grid-cols-5 gap-2"
-              >
-                {PEOPLE_TILES.map((count) => {
-                  const chosen =
-                    count === PEOPLE_MORE
-                      ? people !== null && people >= PEOPLE_MORE
-                      : people === count
-                  return (
-                    <button
-                      key={count}
-                      type="button"
-                      role="radio"
-                      aria-checked={chosen}
-                      aria-label={
-                        count === PEOPLE_MORE
-                          ? `${PEOPLE_MORE} ou plus`
-                          : `${count}`
-                      }
-                      data-state={chosen ? 'on' : 'off'}
-                      onClick={() =>
-                        setPeople(
-                          count === PEOPLE_MORE && chosen ? people : count,
-                        )
-                      }
-                      className={cn(
-                        CHIP_CLASS,
-                        CHIP_ON,
-                        'h-11 min-w-0 px-0 text-base tabular-nums',
-                      )}
-                    >
-                      {count === PEOPLE_MORE
-                        ? chosen
-                          ? people
-                          : `${PEOPLE_MORE}+`
-                        : count}
-                    </button>
-                  )
-                })}
-              </div>
-              {people !== null && people >= PEOPLE_MORE && (
-                <div className="flex items-center justify-center gap-3">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    iconOnly
-                    aria-label="Une personne de moins"
-                    disabled={people <= PEOPLE_MORE}
-                    onClick={() => setPeople(Math.max(PEOPLE_MORE, people - 1))}
-                  >
-                    <MinusIcon aria-hidden />
-                  </Button>
-                  <span className="text-sm tabular-nums" aria-live="polite">
-                    {people} personnes
-                  </span>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    iconOnly
-                    aria-label="Une personne de plus"
-                    disabled={people >= PEOPLE_MAX}
-                    onClick={() => setPeople(Math.min(PEOPLE_MAX, people + 1))}
-                  >
-                    <PlusIcon aria-hidden />
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {/* My part, large: the tiles fill it, typing in it sets an
-                amount of my own. */}
-            <div className="text-center">
-              <label
-                htmlFor={`${id}-mine`}
-                className="text-muted-foreground block text-sm"
-              >
-                Ma part
-              </label>
-              <div
-                className={cn(
-                  'flex items-baseline justify-center gap-[0.2em] py-1 leading-tight font-semibold tabular-nums',
-                  'text-[min(2.5rem,13cqi)]',
-                  over && 'text-destructive',
-                )}
-              >
-                {/* As wide as its text (a hidden copy sizes it). */}
-                <span className="grid">
-                  <span
-                    aria-hidden
-                    className="invisible col-start-1 row-start-1 px-0.5 whitespace-pre"
-                  >
-                    {mineText || '0'}
-                  </span>
-                  <input
-                    ref={mineRef}
-                    id={`${id}-mine`}
-                    size={1}
-                    autoComplete="off"
-                    placeholder="0"
-                    inputMode="decimal"
-                    enterKeyHint="done"
-                    aria-invalid={over || undefined}
-                    value={mineText}
-                    onChange={(event) => {
-                      const next = typedAmount(event.target.value)
-                      if (next === null) return
-                      setPeople(null)
-                      setTyped(next)
-                    }}
-                    className="placeholder:text-muted-foreground focus:border-primary col-start-1 row-start-1 w-full min-w-0 border-b-2 border-transparent bg-transparent text-center outline-none"
-                  />
-                </span>
-                <span aria-hidden>€</span>
-              </div>
-              {people !== null && (
-                <button
-                  type="button"
-                  className="text-primary min-h-11 px-2 text-sm font-medium"
-                  onClick={() => {
-                    setTyped(mineText)
-                    setPeople(null)
-                    mineRef.current?.focus()
-                    mineRef.current?.select()
-                  }}
-                >
-                  Autre montant
-                </button>
-              )}
-            </div>
+            <MyPartFields
+              billCents={billCents}
+              people={people}
+              onPeopleChange={setPeople}
+              typed={typed}
+              onTypedChange={setTyped}
+            />
           </FormSheetBody>
           {/* « Je dois à … », live: on a phone it stays at the bottom, the
               keyboard covering it while a field is typed (#385). */}
@@ -624,4 +487,181 @@ function PaidForMeForm({
       )}
     </form>
   )
+}
+
+/**
+ * « Ma part » of an expense someone else paid (#394, the owner's « A »):
+ * how many we were (2 · 3 · 4 · 5 · 6+, « 6+ » showing − / + up to 20),
+ * my part large below, typed over for an amount of my own (« Autre
+ * montant »). Controlled: « Payé pour moi » and the quick entry (#398) keep
+ * `people` (null once a part is typed) and the text typed.
+ */
+export function MyPartFields({
+  billCents,
+  people,
+  onPeopleChange: setPeople,
+  typed,
+  onTypedChange: setTyped,
+}: {
+  billCents: number
+  people: number | null
+  onPeopleChange: (people: number | null) => void
+  typed: string
+  onTypedChange: (typed: string) => void
+}) {
+  const id = useId()
+  const mineRef = useRef<HTMLInputElement>(null)
+  const mine = myPartCents(billCents, people, typed)
+  const mineText = people === null ? typed : mine > 0 ? centsToInput(mine) : ''
+  const over = mine > billCents
+  return (
+    <>
+      <div className="space-y-2">
+        <p
+          id={`${id}-people`}
+          className="text-muted-foreground text-center text-sm"
+        >
+          On était combien, vous compris ?
+        </p>
+        {/* One row, whatever the width (the owner's « A », #394). */}
+        <div
+          role="radiogroup"
+          aria-labelledby={`${id}-people`}
+          className="grid grid-cols-5 gap-2"
+        >
+          {PEOPLE_TILES.map((count) => {
+            const chosen =
+              count === PEOPLE_MORE
+                ? people !== null && people >= PEOPLE_MORE
+                : people === count
+            return (
+              <button
+                key={count}
+                type="button"
+                role="radio"
+                aria-checked={chosen}
+                aria-label={
+                  count === PEOPLE_MORE ? `${PEOPLE_MORE} ou plus` : `${count}`
+                }
+                data-state={chosen ? 'on' : 'off'}
+                onClick={() =>
+                  setPeople(count === PEOPLE_MORE && chosen ? people : count)
+                }
+                className={cn(
+                  CHIP_CLASS,
+                  CHIP_ON,
+                  'h-11 min-w-0 px-0 text-base tabular-nums',
+                )}
+              >
+                {count === PEOPLE_MORE
+                  ? chosen
+                    ? people
+                    : `${PEOPLE_MORE}+`
+                  : count}
+              </button>
+            )
+          })}
+        </div>
+        {people !== null && people >= PEOPLE_MORE && (
+          <div className="flex items-center justify-center gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              iconOnly
+              aria-label="Une personne de moins"
+              disabled={people <= PEOPLE_MORE}
+              onClick={() => setPeople(Math.max(PEOPLE_MORE, people - 1))}
+            >
+              <MinusIcon aria-hidden />
+            </Button>
+            <span className="text-sm tabular-nums" aria-live="polite">
+              {people} personnes
+            </span>
+            <Button
+              type="button"
+              variant="secondary"
+              iconOnly
+              aria-label="Une personne de plus"
+              disabled={people >= PEOPLE_MAX}
+              onClick={() => setPeople(Math.min(PEOPLE_MAX, people + 1))}
+            >
+              <PlusIcon aria-hidden />
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* My part, large: the tiles fill it, typing in it sets an
+          amount of my own. */}
+      <div className="text-center">
+        <label
+          htmlFor={`${id}-mine`}
+          className="text-muted-foreground block text-sm"
+        >
+          Ma part
+        </label>
+        <div
+          className={cn(
+            'flex items-baseline justify-center gap-[0.2em] py-1 leading-tight font-semibold tabular-nums',
+            'text-[min(2.5rem,13cqi)]',
+            over && 'text-destructive',
+          )}
+        >
+          {/* As wide as its text (a hidden copy sizes it). */}
+          <span className="grid">
+            <span
+              aria-hidden
+              className="invisible col-start-1 row-start-1 px-0.5 whitespace-pre"
+            >
+              {mineText || '0'}
+            </span>
+            <input
+              ref={mineRef}
+              id={`${id}-mine`}
+              size={1}
+              autoComplete="off"
+              placeholder="0"
+              inputMode="decimal"
+              enterKeyHint="done"
+              aria-invalid={over || undefined}
+              value={mineText}
+              onChange={(event) => {
+                const next = typedAmount(event.target.value)
+                if (next === null) return
+                setPeople(null)
+                setTyped(next)
+              }}
+              className="placeholder:text-muted-foreground focus:border-primary col-start-1 row-start-1 w-full min-w-0 border-b-2 border-transparent bg-transparent text-center outline-none"
+            />
+          </span>
+          <span aria-hidden>€</span>
+        </div>
+        {people !== null && (
+          <button
+            type="button"
+            className="text-primary min-h-11 px-2 text-sm font-medium"
+            onClick={() => {
+              setTyped(mineText)
+              setPeople(null)
+              mineRef.current?.focus()
+              mineRef.current?.select()
+            }}
+          >
+            Autre montant
+          </button>
+        )}
+      </div>
+    </>
+  )
+}
+
+/** My part in cents: an equal share of the bill, or the amount typed. */
+export function myPartCents(
+  billCents: number,
+  people: number | null,
+  typed: string,
+): number {
+  return people === null
+    ? (parseEurosToCents(typed) ?? 0)
+    : (myPartOf('equal', billCents, people) ?? 0)
 }

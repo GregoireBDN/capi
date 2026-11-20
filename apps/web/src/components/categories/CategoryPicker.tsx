@@ -132,6 +132,8 @@ export interface CategoryPickerProps {
   autoFocusSearch?: boolean
   headerClassName?: string
   listClassName?: string
+  /** After the list (not while searching): e.g. another kind (#398). */
+  footer?: ReactNode
 }
 
 /**
@@ -158,6 +160,7 @@ export function CategoryPicker({
   autoFocusSearch = false,
   headerClassName,
   listClassName,
+  footer,
 }: CategoryPickerProps) {
   const pickable = pickableCategories(categories, value).filter(
     (category) =>
@@ -339,6 +342,7 @@ export function CategoryPicker({
               Aucune catégorie « {query.trim()} ».
             </p>
           )}
+          {!searching && footer}
         </div>
         {canCreate && (
           <OptionRow

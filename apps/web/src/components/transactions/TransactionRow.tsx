@@ -1,11 +1,4 @@
-import {
-  Button,
-  cn,
-  Sheet,
-  SheetBar,
-  SheetContent,
-  useIsMobile,
-} from '@finances/ui'
+import { Button, cn } from '@finances/ui'
 import {
   CheckIcon,
   HandCoinsIcon,
@@ -20,12 +13,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { AmountField } from '#/components/amount/AmountField'
-import type {
-  CategoryDto,
-  CorrectTransactionDto,
-  TransactionDto,
-  UpdateManualTransactionDto,
-} from '#/api/types.gen'
+import type { CategoryDto, TransactionDto } from '#/api/types.gen'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
 import { CategoryAvatar } from '#/components/categories/category-icons'
 import {
@@ -43,11 +31,7 @@ import {
   secondaryLabel,
 } from './labels'
 import { othersPartCents } from '#/components/owed/shares'
-import { TransactionEditor } from './TransactionEditor'
-import {
-  EDITOR_STEADY_HEIGHT,
-  editorSide,
-} from '#/components/sheets/form-sheet'
+import type { TransactionEditActions } from './edit-options'
 
 /**
  * Columns once the page is ≥ 36rem wide (rems of the 22px root, container
@@ -70,14 +54,8 @@ const REVIEW_ROW_COLUMNS_WITH_ACCOUNT =
 const REVIEW_ACTION = 'size-8 p-0 @xl:size-auto @xl:pr-2 @xl:pl-1.5'
 const REVIEW_ACTION_TEXT = 'sr-only @xl:not-sr-only'
 
-export interface TransactionRowActions {
-  onChange: (changes: TransactionChanges) => void
-  onUpdateManual: (changes: UpdateManualTransactionDto) => Promise<boolean>
-  onCorrect: (body: CorrectTransactionDto) => void
-  onRestoreBank: () => void
-  onSplit: (parts: { categoryId: string; amountCents: number }[]) => void
-  onUnsplit: () => void
-}
+/** What the row's editor applies (#398): `TransactionEditActions`. */
+export type TransactionRowActions = TransactionEditActions
 
 interface TransactionRowProps extends TransactionRowActions {
   item: TransactionDto
@@ -233,10 +211,9 @@ function InlineAmount({
  * One transaction (#266): the category's icon (which selects the row), one
  * label, the category, the account when it helps, small flag icons and the
  * amount. Stacked on narrow pages, in columns on wide ones. Activating the
- * label opens its editor (#280: the whole screen on phones, a centred modal
- * on wide pages, #394); on
- * wide pages the category is picked in the row, as is the amount of a
- * transaction entered by hand.
+ * label opens its editor (#398: the four steps of adding one, filled in,
+ * `ManualTransactionSheet`); on wide pages the category is picked in the
+ * row, as is the amount of a transaction entered by hand.
  */
 export function TransactionRow({
   item,
@@ -253,10 +230,8 @@ export function TransactionRow({
   showAccount = true,
   onValidate,
 }: TransactionRowProps) {
-  const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
-  const [openOn, setOpenOn] = useState<'list' | 'category'>('list')
-  const [manualOpen, setManualOpen] = useState(false)
+  const [openOn, setOpenOn] = useState<'options' | 'category'>('options')
   const [editingAmount, setEditingAmount] = useState(false)
   const amountButton = useRef<HTMLButtonElement>(null)
   const name = displayLabel(item)
@@ -284,7 +259,7 @@ export function TransactionRow({
       aria-haspopup="dialog"
       className="hover:bg-muted/50 focus-visible:ring-ring/50 min-w-0 flex-1 rounded-lg px-1.5 py-1.5 text-left outline-none focus-visible:ring-[3px]"
       onClick={() => {
-        setOpenOn('list')
+        setOpenOn('options')
         setOpen(true)
       }}
     >
@@ -360,35 +335,6 @@ export function TransactionRow({
     />
   )
 
-  const editor = (
-    <TransactionEditor
-      item={item}
-      categories={categories}
-      initialScreen={openOn}
-      onChange={change}
-      onEditManual={() => {
-        setOpen(false)
-        setManualOpen(true)
-      }}
-      onCorrect={(body) => {
-        setOpen(false)
-        onCorrect(body)
-      }}
-      onRestoreBank={() => {
-        setOpen(false)
-        onRestoreBank()
-      }}
-      onSplit={(parts) => {
-        setOpen(false)
-        onSplit(parts)
-      }}
-      onUnsplit={() => {
-        setOpen(false)
-        onUnsplit()
-      }}
-    />
-  )
-
   return (
     <li
       className={cn(
@@ -419,15 +365,21 @@ export function TransactionRow({
         </span>
       )}
       {triggerButton}
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent
-          side={editorSide(isMobile)}
-          className={cn('gap-0', EDITOR_STEADY_HEIGHT)}
-        >
-          <SheetBar title="Modifier l’opération" description={name} />
-          {editor}
-        </SheetContent>
-      </Sheet>
+      {/* The editor (#398): the same four steps as adding one. */}
+      <ManualTransactionSheet
+        open={open}
+        onOpenChange={setOpen}
+        item={item}
+        startOnCategory={openOn === 'category'}
+        actions={{
+          onChange: change,
+          onUpdateManual,
+          onCorrect,
+          onRestoreBank,
+          onSplit,
+          onUnsplit,
+        }}
+      />
 
       {/* Wide pages: the category, picked in place. */}
       <span className="hidden min-w-0 @xl:block">
@@ -513,14 +465,6 @@ export function TransactionRow({
             </Button>
           )}
         </span>
-      )}
-
-      {item.manual && (
-        <ManualTransactionSheet
-          open={manualOpen}
-          onOpenChange={setManualOpen}
-          expense={item}
-        />
       )}
     </li>
   )

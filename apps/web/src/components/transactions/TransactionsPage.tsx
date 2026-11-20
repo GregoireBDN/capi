@@ -14,8 +14,10 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   ArrowLeftRightIcon,
+  BanknoteIcon,
   CheckIcon,
   CircleCheckBigIcon,
+  ReceiptIcon,
   SearchXIcon,
   UploadIcon,
 } from 'lucide-react'
@@ -48,6 +50,7 @@ import {
 import type {
   CoverageDto,
   TransactionDto,
+  TransactionKind,
   TransactionSort,
 } from '#/api/types.gen'
 import { plural } from '#/lib/plural'
@@ -269,7 +272,8 @@ export function TransactionsPage({
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
-  const [addOpen, setAddOpen] = useState(false)
+  // The kind is chosen before adding (#398).
+  const [addKind, setAddKind] = useState<TransactionKind | null>(null)
 
   const items = useMemo(
     () => list.data?.pages.flatMap((page) => page.items) ?? [],
@@ -337,14 +341,30 @@ export function TransactionsPage({
         }}
         actions={[
           {
-            label: 'Ajouter une opération',
-            icon: <ArrowLeftRightIcon />,
+            label: 'Ajouter une dépense',
+            icon: <ReceiptIcon />,
             primary: true,
-            onSelect: () => setAddOpen(true),
+            onSelect: () => setAddKind('expense'),
+          },
+          {
+            label: 'Ajouter un revenu',
+            icon: <BanknoteIcon />,
+            onSelect: () => setAddKind('income'),
+          },
+          {
+            label: 'Ajouter un virement',
+            icon: <ArrowLeftRightIcon />,
+            onSelect: () => setAddKind('transfer'),
           },
         ]}
       />
-      <ManualTransactionSheet open={addOpen} onOpenChange={setAddOpen} />
+      <ManualTransactionSheet
+        open={addKind !== null}
+        onOpenChange={(open) => {
+          if (!open) setAddKind(null)
+        }}
+        initialKind={addKind ?? 'expense'}
+      />
 
       {actions.offer && (
         <RuleOfferBanner

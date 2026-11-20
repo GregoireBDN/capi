@@ -108,7 +108,7 @@ const SCENARIOS: Array<Scenario> = [
     },
   },
   {
-    // ...then the details, with the options open.
+    // ...then the details: the day strip and the accounts (#398)...
     name: 'dashboard-expense-details',
     path: '/dashboard',
     step: async (page) => {
@@ -116,7 +116,18 @@ const SCENARIOS: Array<Scenario> = [
       await page.getByRole('button', { name: 'Suivant' }).click()
       await page.keyboard.type('12,5')
       await page.getByRole('button', { name: 'Suivant' }).click()
-      await page.getByRole('button', { name: /Plus d’options/ }).click()
+    },
+  },
+  {
+    // ...and the options.
+    name: 'dashboard-expense-options',
+    path: '/dashboard',
+    step: async (page) => {
+      await openExpenseSheet(page)
+      await page.getByRole('button', { name: 'Suivant' }).click()
+      await page.keyboard.type('12,5')
+      await page.getByRole('button', { name: 'Suivant' }).click()
+      await page.getByRole('button', { name: /^4\. Options/ }).click()
     },
   },
   { name: 'net-worth', path: '/net-worth' },
@@ -132,6 +143,16 @@ const SCENARIOS: Array<Scenario> = [
     step: async (page) => {
       await clickFirst(/^Modifier /)(page)
       await page.getByRole('dialog').waitFor()
+    },
+  },
+  {
+    // The editor's day strip (#398).
+    name: 'transactions-editor-details',
+    path: '/transactions?month=all',
+    step: async (page) => {
+      await clickFirst(/^Modifier /)(page)
+      await page.getByRole('dialog').waitFor()
+      await page.getByRole('button', { name: /^3\. Détails/ }).click()
     },
   },
   {

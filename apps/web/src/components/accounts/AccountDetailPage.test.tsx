@@ -711,11 +711,19 @@ describe('AccountDetailPage', () => {
           .filter((label) =>
             [
               'Importer un relevé',
-              'Ajouter une opération',
+              'Ajouter une dépense',
+              'Ajouter un revenu',
+              'Ajouter un virement',
               'Modifier',
             ].includes(label),
           ),
-      ).toEqual(['Importer un relevé', 'Ajouter une opération', 'Modifier'])
+      ).toEqual([
+        'Importer un relevé',
+        'Ajouter une dépense',
+        'Ajouter un revenu',
+        'Ajouter un virement',
+        'Modifier',
+      ])
 
       await user.click(
         screen.getByRole('button', { name: 'Importer un relevé' }),
@@ -725,10 +733,13 @@ describe('AccountDetailPage', () => {
         search: { account: ACCOUNT_ID },
       })
 
+      // The kind is chosen before adding (#398).
       await user.click(
-        screen.getByRole('button', { name: 'Ajouter une opération' }),
+        screen.getByRole('button', { name: 'Ajouter un virement' }),
       )
-      expect(await screen.findByRole('dialog')).toBeInTheDocument()
+      expect(
+        await screen.findByRole('dialog', { name: 'Ajouter un virement' }),
+      ).toBeInTheDocument()
     })
 
     it('warns when the bank data stops before the previous month end', async () => {

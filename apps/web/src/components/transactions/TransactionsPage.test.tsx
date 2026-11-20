@@ -620,7 +620,7 @@ describe('TransactionsPage', () => {
       '/spending?month=2026-10',
     )
     expect(
-      screen.getByRole('button', { name: 'Ajouter une opération' }),
+      screen.getByRole('button', { name: 'Ajouter une dépense' }),
     ).toBeInTheDocument()
   })
 
@@ -714,9 +714,14 @@ describe('TransactionsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Modifier Fakemart' }))
     const editor = await screen.findByRole('dialog')
-    // A settings list (#280): the category opens its own screen of chips.
-    await user.click(within(editor).getByRole('button', { name: /^Catégorie/ }))
+    // The editor (#398): the add steps, filled in; the category on step 1.
+    await user.click(within(editor).getByRole('button', { name: /^1\. / }))
     await pickCategory(user, 'Courses')
+    // Back on the options; ✓ saves.
+    expect(api.transactionsControllerUpdate).not.toHaveBeenCalled()
+    await user.click(
+      within(editor).getByRole('button', { name: 'Enregistrer' }),
+    )
 
     expect(api.transactionsControllerUpdate).toHaveBeenCalledWith({
       path: { id: shopRow.id },
@@ -796,6 +801,7 @@ describe('TransactionsPage', () => {
       screen.getByRole('button', { name: 'Modifier VIR LIVRET TEST' }),
     )
     const editor = await screen.findByRole('dialog')
+    // What only an edit has, on its own screen from « Options ».
     await user.click(within(editor).getByRole('button', { name: /^Vers/ }))
     const choices = within(editor).getByRole('radiogroup', { name: 'Vers' })
     // Every other account, never the transaction's own.
@@ -817,7 +823,7 @@ describe('TransactionsPage', () => {
         expect.anything(),
       ),
     )
-    // Back on the list of settings, which shows the link.
+    // Back on the options, which show the link.
     expect(
       within(editor).getByRole('button', { name: /^Vers/ }),
     ).toHaveTextContent('PEA test')
@@ -831,7 +837,7 @@ describe('TransactionsPage', () => {
     )
   })
 
-  it('edits from a settings list, one screen per choice (#280)', async () => {
+  it('edits in the four steps of adding, the kind with its tiles (#398)', async () => {
     const { user } = setup()
     await waitForRows()
     api.transactionsControllerUpdate.mockImplementation(
@@ -840,14 +846,27 @@ describe('TransactionsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Modifier Fakemart' }))
     const editor = await screen.findByRole('dialog')
-    // The list: frequent settings first, no select and no type field.
+    // Opens on « Options »: no select, no « Type » screen any more.
+    expect(
+      within(editor).getByRole('button', { name: /^4\. Options/ }),
+    ).toHaveAttribute('aria-current', 'step')
     expect(within(editor).queryByRole('combobox')).not.toBeInTheDocument()
     expect(
-      within(editor).getByRole('button', { name: /^Catégorie/ }),
-    ).toHaveTextContent('Choisir')
+      within(editor).queryByRole('button', { name: /^Type/ }),
+    ).not.toBeInTheDocument()
+    expect(
+      within(editor).getByRole('button', { name: 'Enregistrer' }),
+    ).toBeDisabled()
 
-    // The category screen searches without accents, « Retour » goes back.
-    await user.click(within(editor).getByRole('button', { name: /^Catégorie/ }))
+    // The category step: the row's kind only, another one at its end; its
+    // search ignores accents.
+    await user.click(within(editor).getByRole('button', { name: /^1\. / }))
+    expect(
+      within(editor).queryByRole('radio', { name: /^Épargne/ }),
+    ).not.toBeInTheDocument()
+    await user.click(
+      within(editor).getByRole('button', { name: /^Classer en virement/ }),
+    )
     await user.type(
       within(editor).getByRole('searchbox', {
         name: 'Rechercher une catégorie',
@@ -860,17 +879,25 @@ describe('TransactionsPage', () => {
     expect(
       within(editor).queryByRole('radio', { name: /^Courses/ }),
     ).not.toBeInTheDocument()
-    await user.click(within(editor).getByRole('button', { name: 'Retour' }))
+    await user.clear(
+      within(editor).getByRole('searchbox', {
+        name: 'Rechercher une catégorie',
+      }),
+    )
 
-    // The type, an exception, on its own screen.
-    await user.click(within(editor).getByRole('button', { name: /^Type/ }))
-    await user.click(within(editor).getByRole('radio', { name: 'Revenu' }))
+    // An uncategorized row takes a kind alone.
+    await user.click(
+      within(editor).getByRole('button', { name: /^Classer en revenu/ }),
+    )
+    await user.click(
+      within(editor).getByRole('radio', { name: 'Sans catégorie, à revoir' }),
+    )
+    await user.click(
+      within(editor).getByRole('button', { name: 'Enregistrer' }),
+    )
     expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
       expect.objectContaining({ body: { kind: 'income' } }),
     )
-    expect(
-      within(editor).getByRole('button', { name: /^Type/ }),
-    ).toHaveTextContent('Revenu')
   })
 
   it('changes the type of a categorized row by choosing a category of it (#368)', async () => {
@@ -884,18 +911,19 @@ describe('TransactionsPage', () => {
       screen.getByRole('button', { name: 'Modifier VIR LIVRET TEST' }),
     )
     const editor = await screen.findByRole('dialog')
-    await user.click(within(editor).getByRole('button', { name: /^Type/ }))
-    expect(editor).toHaveTextContent('Le type vient de la catégorie')
-    await user.click(within(editor).getByRole('radio', { name: 'Dépense' }))
+    await user.click(within(editor).getByRole('button', { name: /^1\. / }))
+    await user.click(
+      within(editor).getByRole('button', { name: /^Classer en dépense/ }),
+    )
     // No request yet: the categories of that kind, and only them.
     expect(api.transactionsControllerUpdate).not.toHaveBeenCalled()
-    expect(
-      within(editor).getByRole('heading', { name: 'Classer en dépense' }),
-    ).toBeInTheDocument()
     expect(
       within(editor).queryByRole('radio', { name: /^Épargne/ }),
     ).not.toBeInTheDocument()
     await pickCategory(user, 'Courses')
+    await user.click(
+      within(editor).getByRole('button', { name: 'Enregistrer' }),
+    )
     expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
       expect.objectContaining({ body: { categoryId: groceries.id } }),
     )
@@ -912,10 +940,15 @@ describe('TransactionsPage', () => {
       screen.getByRole('button', { name: 'Modifier VIR LIVRET TEST' }),
     )
     const editor = await screen.findByRole('dialog')
-    await user.click(within(editor).getByRole('button', { name: /^Type/ }))
-    await user.click(within(editor).getByRole('radio', { name: 'Revenu' }))
+    await user.click(within(editor).getByRole('button', { name: /^1\. / }))
+    await user.click(
+      within(editor).getByRole('button', { name: /^Classer en revenu/ }),
+    )
     await user.click(
       within(editor).getByRole('radio', { name: 'Sans catégorie, à revoir' }),
+    )
+    await user.click(
+      within(editor).getByRole('button', { name: 'Enregistrer' }),
     )
     expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
       expect.objectContaining({ body: { categoryId: null, kind: 'income' } }),
@@ -948,6 +981,9 @@ describe('TransactionsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Modifier Fakemart' }))
     const editor = await screen.findByRole('dialog')
     await user.click(within(editor).getByRole('switch', { name: /Ponctuelle/ }))
+    await user.click(
+      within(editor).getByRole('button', { name: 'Enregistrer' }),
+    )
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
@@ -955,8 +991,8 @@ describe('TransactionsPage', () => {
       ),
     )
     expect(
-      within(editor).getByRole('switch', { name: /Ponctuelle/ }),
-    ).not.toBeChecked()
+      screen.getByRole('listitem', { name: 'Fakemart' }),
+    ).not.toHaveTextContent('Ponctuelle')
   })
 
   it('saves a note and marks a row reviewed from the editor', async () => {
@@ -969,35 +1005,25 @@ describe('TransactionsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Modifier Fakemart' }))
     const editor = await screen.findByRole('dialog')
     await user.click(within(editor).getByRole('switch', { name: /À revoir/ }))
-    expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
-      expect.objectContaining({ body: { needsReview: false } }),
-    )
-
-    await user.click(within(editor).getByRole('button', { name: /^Note/ }))
-    await user.type(within(editor).getByLabelText('Note de Fakemart'), 'Cadeau')
+    await user.type(within(editor).getByLabelText('Note'), 'Cadeau')
+    // Nothing is sent before ✓, then one request for both.
+    expect(api.transactionsControllerUpdate).not.toHaveBeenCalled()
     await user.click(
       within(editor).getByRole('button', { name: 'Enregistrer' }),
     )
-    // Back to the list, the note previewed in its row.
-    expect(
-      within(editor).getByRole('switch', { name: /Ponctuelle/ }),
-    ).toBeInTheDocument()
     expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
-      expect.objectContaining({ body: { note: 'Cadeau' } }),
+      expect.objectContaining({
+        body: { needsReview: false, note: 'Cadeau' },
+      }),
     )
     await waitFor(() =>
       expect(toast.success).toHaveBeenLastCalledWith(
-        'Note enregistrée',
+        'Opération validée',
         expect.anything(),
       ),
     )
-
-    // Undoing a note only puts the note back.
-    lastToastAction().onClick()
     await waitFor(() =>
-      expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
-        expect.objectContaining({ body: { note: '' } }),
-      ),
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
     )
   })
 
@@ -1562,6 +1588,13 @@ describe('TransactionsPage', () => {
           throwOnError: false,
         }),
       )
+      // Back on the options of the editor, which shows the split.
+      await waitFor(() =>
+        expect(
+          within(editor).getByRole('button', { name: /^Répartition/ }),
+        ).toHaveTextContent('Courses, Maison'),
+      )
+      await user.keyboard('{Escape}')
       await waitFor(() =>
         expect(
           screen.getByRole('listitem', { name: 'Fakemart' }),
@@ -1625,7 +1658,7 @@ describe('TransactionsPage', () => {
       expect(api.transactionsControllerSplit).not.toHaveBeenCalled()
     })
 
-    it('corrects an imported amount behind an explicit action, and undoes it', async () => {
+    it('corrects an imported amount in its step, the bank value kept, and undoes it', async () => {
       const { user } = setup()
       await waitForRows()
       api.transactionsControllerCorrect.mockReturnValue(
@@ -1637,27 +1670,19 @@ describe('TransactionsPage', () => {
       )
       const editor = await screen.findByRole('dialog')
       await user.click(
-        within(editor).getByRole('button', {
-          name: /^Corriger montant ou date/,
-        }),
+        within(editor).getByRole('button', { name: /^2\. Montant/ }),
       )
-      const amount = within(editor).getByLabelText('Montant corrigé')
+      const amount = within(editor).getByLabelText('Montant')
       // Typed unsigned (#326): the sign is the transaction's own.
       expect(amount).toHaveValue('45,50')
-      expect(
-        within(editor).getByRole('button', { name: 'Montant négatif' }),
-      ).toHaveAttribute('aria-pressed', 'true')
-      const save = within(editor).getByRole('button', { name: 'Enregistrer' })
+      expect(editor).toHaveTextContent('Montant de la banque')
       await user.clear(amount)
-      // An empty amount: its error in place of the help, nothing to save.
-      expect(
-        within(editor).getByText('Indiquez un montant'),
-      ).toBeInTheDocument()
-      expect(within(editor).queryByText('Sortie d’argent')).toBeNull()
-      expect(save).toBeDisabled()
-      await user.type(amount, 'abc40')
-      expect(save).toBeEnabled()
-      await user.click(save)
+      await user.type(amount, '40')
+      // The bank's value stays in view, one tap to put it back.
+      expect(editor).toHaveTextContent(`Corrigé · banque : ${euros(-4_550)}`)
+      await user.click(
+        within(editor).getByRole('button', { name: 'Enregistrer' }),
+      )
       await waitFor(() =>
         expect(api.transactionsControllerCorrect).toHaveBeenCalledWith({
           path: { id: shopRow.id },
@@ -1670,6 +1695,7 @@ describe('TransactionsPage', () => {
           screen.getByRole('listitem', { name: 'Fakemart' }),
         ).toHaveTextContent('Montant ou date corrigé à la main'),
       )
+      expect(api.transactionsControllerUpdate).not.toHaveBeenCalled()
 
       api.transactionsControllerRestoreBankValues.mockReturnValue(ok(shopRow))
       lastToastAction().onClick()
@@ -1696,16 +1722,13 @@ describe('TransactionsPage', () => {
       })
       api.transactionsControllerCreateManual.mockReturnValue(ok(created))
 
+      // The kind is chosen first (#398): three page actions.
       await user.click(
-        screen.getByRole('button', { name: 'Ajouter une opération' }),
+        screen.getByRole('button', { name: 'Ajouter un revenu' }),
       )
       const sheet = await screen.findByRole('dialog', {
-        name: 'Ajouter une dépense',
+        name: 'Ajouter un revenu',
       })
-      await user.click(within(sheet).getByRole('radio', { name: 'Revenu' }))
-      expect(
-        screen.getByRole('dialog', { name: 'Ajouter un revenu' }),
-      ).toBeInTheDocument()
       // Category, amount, then the details.
       await user.click(
         within(
@@ -1713,13 +1736,18 @@ describe('TransactionsPage', () => {
         ).getByRole('radio', { name: salary.name }),
       )
       await user.type(within(sheet).getByLabelText('Montant'), '300')
+      // The kind sets the sign, shown on the amount.
+      expect(
+        within(sheet).getByRole('button', {
+          name: 'Entrée d’argent, changer de signe',
+        }),
+      ).toHaveTextContent('+')
       await user.click(within(sheet).getByRole('button', { name: 'Suivant' }))
-      await user.type(within(sheet).getByLabelText('Libellé'), 'Prime')
+      // The label and the rest in « Options » (#398).
       await user.click(
-        within(sheet).getByRole('button', { name: /Plus d’options/ }),
+        within(sheet).getByRole('button', { name: /^4\. Options/ }),
       )
-      // The kind sets the sign; it is only changed for a correction.
-      expect(within(sheet).getByLabelText('Sens')).toHaveValue('in')
+      await user.type(within(sheet).getByLabelText('Libellé'), 'Prime')
       await user.click(
         within(sheet).getByRole('switch', { name: /Ponctuelle/ }),
       )

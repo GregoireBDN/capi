@@ -10,6 +10,7 @@ import type {
   TransactionDto,
 } from '#/api/types.gen'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
+import { formatCents } from '#/lib/money'
 import { referenceKeys } from '#/lib/queries'
 import { MonthEnvelopes } from './MonthEnvelopes'
 
@@ -22,6 +23,10 @@ const api = vi.hoisted(() => ({
   transactionsControllerList: vi.fn(),
   accountsControllerList: vi.fn(),
   categoriesControllerList: vi.fn(),
+  contactsControllerList: vi.fn(),
+  receivablesControllerCreateDebt: vi.fn(),
+  owedLinksControllerReplaceShares: vi.fn(),
+  owedControllerSummary: vi.fn(),
 }))
 
 vi.mock('#/api', () => api)
@@ -75,6 +80,18 @@ const category = (id: string, name: string, kind: CategoryDto['kind']) =>
   }) as CategoryDto
 const OUTINGS = 'c0000000-0000-4000-8000-000000000001'
 const SHOPPING = 'c0000000-0000-4000-8000-000000000002'
+const CAMILLE = 'b0000000-0000-4000-8000-000000000001'
+/** Euros as shown, its spaces made plain. */
+const euros = (cents: number) => formatCents(cents).replace(/\s/g, ' ')
+const contact = (id: string, name: string) => ({
+  id,
+  name,
+  matchLabels: [],
+  repaymentDay: null,
+  archivedAt: null,
+  owedToMeCents: 0,
+  iOweCents: 0,
+})
 const GROCERIES = 'c0000000-0000-4000-8000-000000000004'
 const categories = [
   category(SHOPPING, 'Shopping', 'expense'),
@@ -108,12 +125,6 @@ function chosenCategory(dialog: HTMLElement) {
     .getAllByRole('radio')
     .find((radio) => radio.getAttribute('aria-checked') === 'true')
   return chosen?.querySelector('[data-slot=option-label]')?.textContent
-}
-
-function optionNames(select: HTMLElement) {
-  return within(select)
-    .getAllByRole('option')
-    .map((option) => option.textContent)
 }
 
 const account = (id: string, name: string, type: AccountDto['type']) =>
@@ -196,6 +207,7 @@ beforeEach(() => {
   api.transactionsControllerManualSuggestions.mockImplementation(() =>
     ok({ items: [], categoryIds: [] }),
   )
+  api.contactsControllerList.mockImplementation(() => ok([]))
   api.transactionsControllerCreateManual.mockImplementation(() =>
     ok({ amountCents: -1_250, category: categories[1] }),
   )
@@ -294,21 +306,39 @@ describe('MonthEnvelopes', () => {
     expect(within(dialog).getByLabelText('Montant')).toHaveValue('12,50')
     await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
 
-    // Details: today by default, the checking account under the options.
+    // Details (#398): the day on its strip, today by default; the account
+    // as rows, the checking one by default.
+    expect(currentStep(dialog)).toMatch(/^3\./)
     expect(within(dialog).getByText('− 12,50 €')).toBeInTheDocument()
-    expect(within(dialog).getByLabelText('Date')).toHaveValue('2026-11-13')
     expect(
       within(dialog).getByRole('radio', { name: 'Aujourd’hui' }),
     ).toHaveAttribute('aria-checked', 'true')
-    await user.click(
-      within(dialog).getByRole('button', { name: /Plus d’options/ }),
+    const paidWith = within(dialog).getByRole('radiogroup', {
+      name: 'Payé par',
+    })
+    await waitFor(() =>
+      expect(
+        within(paidWith).getByRole('radio', { name: /^Compte courant/ }),
+      ).toHaveAttribute('aria-checked', 'true'),
     )
-    const accountSelect = within(dialog).getByLabelText('Compte')
-    await waitFor(() => expect(accountSelect).toHaveValue(CHECKING))
-    expect(optionNames(accountSelect)).toEqual(['Livret A', 'Compte courant'])
-    await user.type(within(dialog).getByLabelText('Libellé'), ' Ciné ')
+    expect(
+      within(paidWith)
+        .getAllByRole('radio')
+        .map(
+          (radio) =>
+            radio.querySelector('[data-slot=option-label]')?.textContent,
+        ),
+    ).toEqual(['Livret A', 'Compte courant'])
     await user.click(within(dialog).getByRole('radio', { name: 'Hier' }))
-    expect(within(dialog).getByLabelText('Date')).toHaveValue('2026-11-12')
+    expect(within(dialog).getByRole('radio', { name: 'Hier' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    // Options: the label.
+    await user.click(
+      within(dialog).getByRole('button', { name: /^4\. Options/ }),
+    )
+    await user.type(within(dialog).getByLabelText('Libellé'), ' Ciné ')
     expect(api.transactionsControllerCreateManual).not.toHaveBeenCalled()
     await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
 
@@ -477,7 +507,9 @@ describe('MonthEnvelopes', () => {
       expect(within(dialog).getByLabelText('Montant')).toBeVisible()
       await user.type(within(dialog).getByLabelText('Montant'), '9,9')
       act(() => within(dialog).getByLabelText('Montant').blur())
-      expect(await within(dialog).findByLabelText('Libellé')).toBeVisible()
+      expect(
+        await within(dialog).findByRole('radiogroup', { name: 'Jour' }),
+      ).toBeVisible()
       expect(api.transactionsControllerCreateManual).not.toHaveBeenCalled()
     } finally {
       matchMedia.mockRestore()
@@ -537,6 +569,9 @@ describe('MonthEnvelopes', () => {
 
     await user.type(within(dialog).getByLabelText('Montant'), '4,20')
     await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+    await user.click(
+      within(dialog).getByRole('button', { name: /^4\. Options/ }),
+    )
     expect(within(dialog).getByLabelText('Libellé')).toHaveValue('Marché test')
     await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
     await waitFor(() =>
@@ -552,7 +587,7 @@ describe('MonthEnvelopes', () => {
     )
   })
 
-  it('sets the sign from the kind; a transfer asks for it', async () => {
+  it('adds the kind chosen before it, the sign on the amount (#398)', async () => {
     const user = userEvent.setup()
     renderCard()
 
@@ -560,42 +595,47 @@ describe('MonthEnvelopes', () => {
       await screen.findByRole('button', { name: 'Ajouter une dépense' }),
     )
     const dialog = await screen.findByRole('dialog')
+    // An expense: its categories only, no kind to choose, no « Sens ».
+    expect(
+      within(dialog).queryByRole('radio', { name: 'Virement' }),
+    ).not.toBeInTheDocument()
+    await waitFor(() => expect(chosenCategory(dialog)).toBe('Shopping'))
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+    await user.type(within(dialog).getByLabelText('Montant'), '20')
+    // The sign is the kind's own; one tap makes it a refund.
+    await user.click(
+      within(dialog).getByRole('button', {
+        name: 'Sortie d’argent, changer de signe',
+      }),
+    )
+    expect(
+      within(dialog).getByRole('button', {
+        name: 'Entrée d’argent, changer de signe',
+      }),
+    ).toHaveTextContent('+')
+    expect(dialog).toHaveTextContent('Un remboursement : déduit de Shopping')
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+    await user.click(
+      within(dialog).getByRole('button', { name: /^4\. Options/ }),
+    )
     expect(
       within(dialog).queryByRole('radiogroup', { name: 'Sens' }),
     ).not.toBeInTheDocument()
-    await user.click(within(dialog).getByRole('radio', { name: 'Virement' }))
-    const direction = within(dialog).getByRole('radiogroup', { name: 'Sens' })
-    expect(
-      within(direction).getByRole('radio', { name: 'Sortie' }),
-    ).toHaveAttribute('aria-checked', 'true')
-    await user.click(within(direction).getByRole('radio', { name: 'Entrée' }))
-    // A transfer needs no category.
-    expect(chosenCategory(dialog)).toBe('Sans catégorie')
-    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
-    await user.type(within(dialog).getByLabelText('Montant'), '100')
-    expect(within(dialog).getByText('+')).toBeInTheDocument()
-    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
-    await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
-    expect(
-      within(dialog).getByText('Sans catégorie, indiquez un libellé'),
-    ).toBeInTheDocument()
-    await user.type(within(dialog).getByLabelText('Libellé'), 'Épargne')
     await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
     await waitFor(() =>
       expect(api.transactionsControllerCreateManual).toHaveBeenCalledWith(
         expect.objectContaining({
           body: expect.objectContaining({
-            kind: 'transfer',
+            kind: 'expense',
             direction: 'in',
-            categoryId: null,
-            label: 'Épargne',
+            amountCents: 2_000,
           }) as unknown,
         }),
       ),
     )
   })
 
-  it('refuses a date in the future', async () => {
+  it('offers no day to come', async () => {
     const user = userEvent.setup()
     renderCard()
 
@@ -607,13 +647,125 @@ describe('MonthEnvelopes', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
     await user.type(within(dialog).getByLabelText('Montant'), '5')
     await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
-    const date = within(dialog).getByLabelText('Date')
-    await user.clear(date)
-    await user.type(date, '2026-11-14')
-    await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
     expect(
-      within(dialog).getByText('La date ne peut pas être dans le futur'),
-    ).toBeInTheDocument()
+      within(dialog).getByRole('button', { name: 'Jours suivants' }),
+    ).toBeDisabled()
+    await user.click(
+      within(dialog).getByRole('button', {
+        name: 'Choisir dans le calendrier',
+      }),
+    )
+    const grid = within(dialog).getByRole('grid')
+    expect(within(grid).getByText('14').closest('button')).toBeDisabled()
+  })
+
+  it('shares an expense while adding it, created with its shares (#398)', async () => {
+    api.contactsControllerList.mockImplementation(() =>
+      ok([contact(CAMILLE, 'Camille')]),
+    )
+    api.transactionsControllerCreateManual.mockImplementation(() =>
+      ok({ id: 'new-1', amountCents: -6_000, category: categories[1] }),
+    )
+    api.owedLinksControllerReplaceShares.mockImplementation(() =>
+      ok({ id: 'new-1', amountCents: -6_000, shares: [] }),
+    )
+    const user = userEvent.setup()
+    renderCard()
+    await user.click(
+      await screen.findByRole('button', { name: 'Ajouter une dépense' }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => expect(chosenCategory(dialog)).toBe('Shopping'))
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+    await user.type(within(dialog).getByLabelText('Montant'), '60')
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+    await user.click(
+      within(dialog).getByRole('button', { name: /^4\. Options/ }),
+    )
+    // « Partager › » opens in the same frame, ‹ back to the options.
+    await user.click(within(dialog).getByRole('button', { name: /^Partager/ }))
+    await user.click(
+      await within(dialog).findByRole('button', { name: /Camille/ }),
+    )
+    expect(dialog).toHaveTextContent(
+      `Ma part${euros(3_000)} sur ${euros(6_000)}`,
+    )
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Retour aux options' }),
+    )
+    expect(
+      within(dialog).getByRole('button', { name: /^Partager/ }),
+    ).toHaveTextContent('Camille')
+    // Nothing is sent before « Ajouter », then the expense and its share.
+    expect(api.owedLinksControllerReplaceShares).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
+    await waitFor(() =>
+      expect(api.owedLinksControllerReplaceShares).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { id: 'new-1' },
+          body: { shares: [{ contactId: CAMILLE, amountCents: 3_000 }] },
+        }),
+      ),
+    )
+  })
+
+  it('says someone else paid, then my part, while adding (#398)', async () => {
+    api.contactsControllerList.mockImplementation(() =>
+      ok([contact(CAMILLE, 'Camille')]),
+    )
+    api.receivablesControllerCreateDebt.mockImplementation(() =>
+      ok({ id: 'debt-1', amountCents: -2_000, shares: [] }),
+    )
+    const user = userEvent.setup()
+    renderCard()
+    await user.click(
+      await screen.findByRole('button', { name: 'Ajouter une dépense' }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => expect(chosenCategory(dialog)).toBe('Shopping'))
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+    await user.type(within(dialog).getByLabelText('Montant'), '60')
+    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+    // « Payé par » ends with « Quelqu’un d’autre »: who, in the same frame.
+    await user.click(
+      within(dialog).getByRole('button', { name: /^Quelqu’un d’autre/ }),
+    )
+    await user.click(
+      await within(dialog).findByRole('radio', { name: /Camille/ }),
+    )
+    expect(
+      within(
+        within(dialog).getByRole('radiogroup', { name: 'Payé par' }),
+      ).getByRole('radio', { name: /^Camille/ }),
+    ).toHaveAttribute('aria-checked', 'true')
+    // My part: half by default, three of us here.
+    await user.click(
+      within(dialog).getByRole('button', { name: /^4\. Options/ }),
+    )
+    expect(
+      within(dialog).getByRole('button', { name: /^Je dois à Camille/ }),
+    ).toHaveTextContent(euros(3_000))
+    await user.click(
+      within(dialog).getByRole('button', { name: /^Je dois à Camille/ }),
+    )
+    await user.click(within(dialog).getByRole('radio', { name: '3' }))
+    expect(dialog).toHaveTextContent(`Je dois à Camille${euros(2_000)}`)
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Retour aux options' }),
+    )
+    await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
+    await waitFor(() =>
+      expect(api.receivablesControllerCreateDebt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            contactId: CAMILLE,
+            billCents: 6_000,
+            partCents: 2_000,
+            categoryId: SHOPPING,
+          }) as unknown,
+        }),
+      ),
+    )
     expect(api.transactionsControllerCreateManual).not.toHaveBeenCalled()
   })
 
@@ -706,96 +858,126 @@ describe('ManualTransactionSheet (editing)', () => {
     // override the expense's own values set in the same render.
     queryClient.setQueryData(referenceKeys.categories, categories)
     queryClient.setQueryData(referenceKeys.accounts, accounts)
+    const actions = {
+      onChange: vi.fn(),
+      onUpdateManual: vi.fn(() => Promise.resolve(true)),
+      onCorrect: vi.fn(),
+      onRestoreBank: vi.fn(),
+      onSplit: vi.fn(),
+      onUnsplit: vi.fn(),
+    }
     render(
       <QueryClientProvider client={queryClient}>
         <ManualTransactionSheet
           open
           onOpenChange={onOpenChange}
-          expense={item}
+          item={item}
+          actions={actions}
         />
       </QueryClientProvider>,
     )
-    return onOpenChange
+    return { onOpenChange, actions }
   }
 
-  it('starts from the expense and saves the changes', async () => {
-    api.transactionsControllerUpdateManual.mockImplementation(() => ok(expense))
+  it('opens on its options, every step a tap away, and saves what changed', async () => {
     const user = userEvent.setup()
-    renderSheet()
+    const { onOpenChange, actions } = renderSheet()
 
     const dialog = await screen.findByRole('dialog')
-    // An edit opens on the details, with the expense's own values.
-    expect(currentStep(dialog)).toMatch(/^3\./)
+    // An edit opens on « Options » (#398), with the expense's own values.
+    expect(currentStep(dialog)).toMatch(/^4\./)
     expect(within(dialog).getByText('− 25 €')).toBeInTheDocument()
-    // Nothing optional is set: the options stay folded.
-    expect(
-      within(dialog).getByRole('button', { name: /Plus d’options/ }),
-    ).toHaveAttribute('aria-expanded', 'false')
-    expect(within(dialog).queryByLabelText('Compte')).not.toBeInTheDocument()
-    expect(within(dialog).getByLabelText('Date')).toHaveValue('2026-11-08')
     expect(within(dialog).getByLabelText('Libellé')).toHaveValue('Ciné')
+    // Nothing changed yet: ✓ is greyed out.
+    expect(
+      within(dialog).getByRole('button', { name: 'Enregistrer' }),
+    ).toBeDisabled()
 
-    await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
+    await user.click(
+      within(dialog).getByRole('button', { name: /^3\. Détails/ }),
+    )
+    expect(
+      within(dialog).getByRole('radio', { name: 'dim. 8 nov.' }),
+    ).toHaveAttribute('aria-checked', 'true')
+    await user.click(
+      within(dialog).getByRole('button', { name: /^2\. Montant/ }),
+    )
     const amount = within(dialog).getByLabelText('Montant')
     expect(amount).toHaveValue('25')
     await user.clear(amount)
     await user.type(amount, '27')
     // Once the lists are loaded, the expense's own category is kept.
-    await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
+    await user.click(
+      within(dialog).getByRole('button', { name: /^1\. Sorties/ }),
+    )
     await waitFor(() =>
-      expect(groupNames(dialog, 'Toutes les catégories')).toHaveLength(3),
+      expect(groupNames(dialog, 'Toutes les catégories')).toContain('Sorties'),
     )
     expect(chosenCategory(dialog)).toBe('Sorties')
-    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
-    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Enregistrer' }),
+    )
+    // Only what changed, through the row's actions (their toast « Annuler »).
+    await waitFor(() =>
+      expect(actions.onUpdateManual).toHaveBeenCalledWith({
+        amountCents: 2_700,
+        direction: 'out',
+      }),
+    )
+    expect(actions.onChange).not.toHaveBeenCalled()
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+  })
+
+  it('keeps the sign of a refund and saves a note and « À revoir »', async () => {
+    const refund = { ...expense, amountCents: 1_500, note: 'Avoir' }
+    const user = userEvent.setup()
+    const { actions } = renderSheet(vi.fn(), refund)
+
+    const dialog = await screen.findByRole('dialog')
+    await user.click(
+      within(dialog).getByRole('button', { name: /^2\. Montant/ }),
+    )
+    expect(
+      within(dialog).getByRole('button', {
+        name: 'Entrée d’argent, changer de signe',
+      }),
+    ).toBeInTheDocument()
+    await user.click(
+      within(dialog).getByRole('button', { name: /^4\. Options/ }),
+    )
+    const note = within(dialog).getByLabelText('Note')
+    expect(note).toHaveValue('Avoir')
+    await user.type(note, ' Fnac')
+    await user.click(within(dialog).getByRole('switch', { name: 'À revoir' }))
     await user.click(
       within(dialog).getByRole('button', { name: 'Enregistrer' }),
     )
     await waitFor(() =>
-      expect(api.transactionsControllerUpdateManual).toHaveBeenCalledWith({
-        path: { id: expense.id },
-        body: {
-          amountCents: 2_700,
-          kind: 'expense',
-          direction: 'out',
-          categoryId: OUTINGS,
-          bookingDate: '2026-11-08',
-          label: 'Ciné',
-          accountId: CHECKING,
-          isOneOff: false,
-          note: null,
-        },
-        throwOnError: false,
+      expect(actions.onUpdateManual).toHaveBeenCalledWith({
+        note: 'Avoir Fnac',
       }),
+    )
+    await waitFor(() =>
+      expect(actions.onChange).toHaveBeenCalledWith({ needsReview: true }),
     )
   })
 
-  it('shows the options of a refund, and keeps its sign', async () => {
-    const refund = { ...expense, amountCents: 1_500, note: 'Avoir' }
-    api.transactionsControllerUpdateManual.mockImplementation(() => ok(refund))
+  it('reaches what only an edit has from its options', async () => {
     const user = userEvent.setup()
-    renderSheet(vi.fn(), refund)
-
+    renderSheet()
     const dialog = await screen.findByRole('dialog')
+    // Its own screen in the same frame, ‹ back to the options.
+    await user.click(within(dialog).getByRole('button', { name: /^Répartir/ }))
     expect(
-      within(dialog).getByRole('button', { name: /Plus d’options/ }),
-    ).toHaveAttribute('aria-expanded', 'true')
-    expect(within(dialog).getByLabelText('Sens')).toHaveValue('in')
-    expect(within(dialog).getByLabelText('Note')).toHaveValue('Avoir')
+      within(dialog).getByRole('heading', { name: 'Répartir' }),
+    ).toBeInTheDocument()
     await user.click(
-      within(dialog).getByRole('button', { name: 'Enregistrer' }),
+      within(dialog).getByRole('button', { name: 'Retour aux options' }),
     )
-    await waitFor(() =>
-      expect(api.transactionsControllerUpdateManual).toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: expect.objectContaining({
-            amountCents: 1_500,
-            direction: 'in',
-            note: 'Avoir',
-          }) as unknown,
-        }),
-      ),
-    )
+    expect(currentStep(dialog)).toMatch(/^4\./)
+    expect(
+      within(dialog).getByRole('button', { name: /^Prépayé/ }),
+    ).toBeInTheDocument()
   })
 
   it('deletes it after confirmation', async () => {
@@ -803,7 +985,7 @@ describe('ManualTransactionSheet (editing)', () => {
       Promise.resolve({ response: { ok: true, status: 204 } }),
     )
     const user = userEvent.setup()
-    const onOpenChange = renderSheet()
+    const { onOpenChange } = renderSheet()
 
     const dialog = await screen.findByRole('dialog')
     await user.click(
@@ -884,16 +1066,16 @@ describe('ManualTransactionSheet with a meal-voucher card (#298)', () => {
     await user.type(within(dialog).getByLabelText('Montant'), '9,80')
     await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
 
-    const paidWith = await within(dialog).findByRole('group', {
-      name: 'Payé avec',
+    const paidWith = await within(dialog).findByRole('radiogroup', {
+      name: 'Payé par',
     })
     await waitFor(() =>
       expect(
-        within(paidWith).getByRole('radio', { name: 'Compte courant' }),
+        within(paidWith).getByRole('radio', { name: /^Compte courant/ }),
       ).toHaveAttribute('aria-checked', 'true'),
     )
     await user.click(
-      within(paidWith).getByRole('radio', { name: 'Titres-restaurant' }),
+      within(paidWith).getByRole('radio', { name: /^Titres-restaurant/ }),
     )
     // The day's gauge under the choice: 15 € paid, 9,80 € now, 0,20 € left.
     expect(
@@ -948,11 +1130,11 @@ describe('ManualTransactionSheet with a meal-voucher card (#298)', () => {
     )
     await user.type(within(dialog).getByLabelText('Montant'), '189')
     await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
-    const creditedTo = await within(dialog).findByRole('group', {
+    const creditedTo = await within(dialog).findByRole('radiogroup', {
       name: 'Crédité sur',
     })
     expect(
-      within(creditedTo).getByRole('radio', { name: 'Titres-restaurant' }),
+      within(creditedTo).getByRole('radio', { name: /^Titres-restaurant/ }),
     ).toHaveAttribute('aria-checked', 'true')
     await user.click(within(dialog).getByRole('button', { name: 'Ajouter' }))
     await waitFor(() =>
@@ -967,15 +1149,5 @@ describe('ManualTransactionSheet with a meal-voucher card (#298)', () => {
         }),
       ),
     )
-
-    // An expense outside food on the card still shows where it goes.
-    await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
-    await user.click(within(dialog).getByRole('button', { name: 'Retour' }))
-    await user.click(within(dialog).getByRole('radio', { name: 'Dépense' }))
-    await user.click(within(dialog).getByRole('radio', { name: 'Sorties' }))
-    await user.click(within(dialog).getByRole('button', { name: 'Suivant' }))
-    expect(
-      within(dialog).queryByRole('group', { name: 'Payé avec' }),
-    ).toBeInTheDocument()
   })
 })

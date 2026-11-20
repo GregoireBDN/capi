@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TransactionKind } from '#/api/types.gen'
 import { isRefundPart, remainingCents, splitError } from './edits'
-import { correctionCents } from './ImportedCorrection'
 
 describe('split arithmetic', () => {
   it('tells what is left to allocate, in exact cents', () => {
@@ -60,19 +59,5 @@ describe('split arithmetic', () => {
     expect(isRefundPart(income, 'expense')).toBe(true)
     expect(isRefundPart(income, 'income')).toBe(false)
     expect(isRefundPart({ amountCents: -4_500 }, 'expense')).toBe(false)
-  })
-})
-
-describe('correctionCents', () => {
-  it('applies the chosen sign to the unsigned amount, never through floats', () => {
-    expect(correctionCents('12,50', 'out')).toEqual({ cents: -1_250 })
-    expect(correctionCents('0,1', 'out')).toEqual({ cents: -10 })
-    expect(correctionCents('1234,56', 'in')).toEqual({ cents: 123_456 })
-    expect(correctionCents('0', 'out')).toHaveProperty('error')
-    expect(correctionCents('abc', 'in')).toHaveProperty('error')
-    expect(correctionCents('', 'out')).toHaveProperty('error')
-    expect(correctionCents('1000000,01', 'out')).toEqual({
-      error: 'Montant trop élevé',
-    })
   })
 })

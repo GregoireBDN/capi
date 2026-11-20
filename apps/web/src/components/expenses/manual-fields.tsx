@@ -1,6 +1,9 @@
-import { ToggleGroup, ToggleGroupItem, cn } from '@finances/ui'
+import { OptionRow, ToggleGroup, ToggleGroupItem, cn } from '@finances/ui'
 import { CalendarIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { AccountDto } from '#/api/types.gen'
+import { ACCOUNT_TYPE_ICONS } from '#/components/accounts/labels'
+import { formatCents } from '#/lib/money'
 
 /**
  * Quick-entry fields of `ManualTransactionSheet` (#196, #245): chips and
@@ -120,41 +123,55 @@ export function DateChips({
 }
 
 /**
- * The account as chips (#298): « Payé avec » the bank account or the
- * meal-voucher card, one tap, for the categories the card pays.
+ * « Payé avec » (#398, the owner's choice): one row per account, its type's
+ * badge, its name and balance, a check on the chosen one. `children` ends
+ * the choice (« Quelqu’un d’autre », #398).
  */
-export function AccountChips({
+export function AccountRows({
   labelId,
   accounts,
   value,
   onChange,
+  children,
 }: {
   labelId: string
-  accounts: readonly Pick<AccountDto, 'id' | 'name'>[]
+  accounts: readonly Pick<AccountDto, 'id' | 'name' | 'type' | 'balanceCents'>[]
   value: string
   onChange: (accountId: string) => void
+  children?: ReactNode
 }) {
   return (
-    <ToggleGroup
-      type="single"
-      spacing={1.5}
-      aria-labelledby={labelId}
-      className="flex-wrap"
-      value={value}
-      onValueChange={(next) => {
-        if (next) onChange(next)
-      }}
-    >
-      {accounts.map((account) => (
-        <ToggleGroupItem
-          key={account.id}
-          value={account.id}
-          className={cn(CHIP_CLASS, CHIP_ON, 'max-w-full')}
-        >
-          <span className="truncate">{account.name}</span>
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
+    <div className="bg-muted/40 divide-y overflow-hidden rounded-md">
+      <div role="radiogroup" aria-labelledby={labelId} className="divide-y">
+        {accounts.map((account) => {
+          const { icon: Icon, className } = ACCOUNT_TYPE_ICONS[account.type]
+          return (
+            <OptionRow
+              key={account.id}
+              selected={account.id === value}
+              leading={
+                <span
+                  className={cn(
+                    'flex size-[36px] shrink-0 items-center justify-center rounded-full',
+                    className,
+                  )}
+                >
+                  <Icon aria-hidden className="size-[18px]" />
+                </span>
+              }
+              label={account.name}
+              detail={
+                account.balanceCents === null
+                  ? undefined
+                  : `Solde ${formatCents(account.balanceCents)}`
+              }
+              onClick={() => onChange(account.id)}
+            />
+          )
+        })}
+        {children}
+      </div>
+    </div>
   )
 }
 
