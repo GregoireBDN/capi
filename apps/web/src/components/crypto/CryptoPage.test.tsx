@@ -166,6 +166,7 @@ function portfolio(
       investedCents: 412_000,
       gainCents: 268_625,
       withoutInvestedCount: 1,
+      withoutInvestedSymbols: ['ETH'],
       missingPriceCount: 0,
       staleCount: 0,
     },

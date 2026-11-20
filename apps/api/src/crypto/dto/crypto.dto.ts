@@ -496,14 +496,14 @@ export class PortfolioTotalsDto {
     type: 'integer',
     nullable: true,
     description:
-      'Invested in the priced assets whose cost is known; null if none.',
+      "Invested in the priced assets whose cost is known, plus what the accounts whose cost is known as a whole invested (#358: a wallet's invested base and the coins linked to it); null if none.",
   })
   investedCents!: number | null
 
   @ApiProperty({
     type: 'integer',
     nullable: true,
-    description: 'Value of those assets minus what was invested in them.',
+    description: 'Value of those assets and accounts minus what was invested.',
   })
   gainCents!: number | null
 
@@ -512,6 +512,12 @@ export class PortfolioTotalsDto {
     description: 'Priced assets whose cost is unknown (out of the gain).',
   })
   withoutInvestedCount!: number
+
+  @ApiProperty({
+    type: [String],
+    description: 'Tickers of those assets, largest value first.',
+  })
+  withoutInvestedSymbols!: string[]
 
   @ApiProperty({
     type: 'integer',

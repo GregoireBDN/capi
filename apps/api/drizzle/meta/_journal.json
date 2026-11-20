@@ -253,6 +253,13 @@
       "when": 1795158834898,
       "tag": "0035_split_part_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795160942538,
+      "tag": "0036_crypto_invested_base",
+      "breakpoints": true
     }
   ]
 }

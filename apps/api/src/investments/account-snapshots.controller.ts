@@ -29,6 +29,9 @@ import {
   AccountPerformanceDto,
   BulkSnapshotsDto,
   BulkSnapshotsResultDto,
+  InvestedBasePreviewDto,
+  InvestedFiguresDto,
+  SetInvestedBaseDto,
   SnapshotDto,
   UpsertSnapshotDto,
 } from './dto/snapshot.dto'
@@ -136,5 +139,69 @@ export class AccountSnapshotsController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<AccountPerformanceDto> {
     return this.investments.performance(id)
+  }
+
+  @Put('invested-base')
+  @TokenAccess('write')
+  @ApiOperation({
+    summary: 'Set the invested base of a wallet or manual crypto account',
+    description:
+      "What was invested in the account up to a day (#358, « Investi jusqu’au … »). The invested amount is then that base plus the cost of the coins linked to the account after that day; the snapshots from that day get it as their contributions. Not for exchange accounts, which keep their holdings' cost.",
+  })
+  @ApiParam(ID_PARAM)
+  @ApiBody({ type: SetInvestedBaseDto })
+  @ApiOkResponse({ type: InvestedFiguresDto })
+  @ApiBadRequestResponse({
+    description:
+      'Invalid body, future day, archived account, not a wallet or manual crypto account.',
+  })
+  @ApiNotFoundResponse()
+  setInvestedBase(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetInvestedBaseDto,
+  ): Promise<InvestedFiguresDto> {
+    return this.investments.setInvestedBase(id, dto)
+  }
+
+  @Post('invested-base/preview')
+  @TokenAccess('read')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Preview an invested base',
+    description:
+      'The invested amount, gain and rate of the account now and with this base. Saves nothing.',
+  })
+  @ApiParam(ID_PARAM)
+  @ApiBody({ type: SetInvestedBaseDto })
+  @ApiOkResponse({ type: InvestedBasePreviewDto })
+  @ApiBadRequestResponse({
+    description:
+      'Invalid body, future day, archived account, not a wallet or manual crypto account.',
+  })
+  @ApiNotFoundResponse()
+  previewInvestedBase(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetInvestedBaseDto,
+  ): Promise<InvestedBasePreviewDto> {
+    return this.investments.previewInvestedBase(id, dto)
+  }
+
+  @Delete('invested-base')
+  @TokenAccess('none')
+  @ApiOperation({
+    summary: 'Remove the invested base of a crypto account',
+    description:
+      "The coins linked to it (or its holdings' invested amounts) give its invested amount again. Session only.",
+  })
+  @ApiParam(ID_PARAM)
+  @ApiOkResponse({ type: InvestedFiguresDto })
+  @ApiBadRequestResponse({
+    description: 'Archived account, not a wallet or manual crypto account.',
+  })
+  @ApiNotFoundResponse()
+  clearInvestedBase(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<InvestedFiguresDto> {
+    return this.investments.clearInvestedBase(id)
   }
 }

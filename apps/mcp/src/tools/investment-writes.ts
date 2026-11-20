@@ -14,7 +14,11 @@ import type {
   BulkSnapshotsResultDto,
   CryptoAssetDto,
   HoldingDto,
+  InvestedBaseDto,
+  InvestedBasePreviewDto,
+  InvestedFiguresDto,
   SaveHoldingDto,
+  SetInvestedBaseDto,
   SnapshotDto,
   ValuedHoldingDto,
 } from '../api/types.js'
@@ -26,6 +30,7 @@ import {
   frenchDate,
   parisToday,
   parseEuros,
+  percent,
   signedEuros,
 } from '../format.js'
 import {
@@ -682,6 +687,145 @@ export const syncCryptoHoldingsTool = defineTool({
       `Valeur du compte : ${euros(before.totals.valueCents)} → ${euros(after.totals.valueCents)}${after.complete ? '' : ' (incomplète : des actifs sans prix ; fixez leur prix dans l’application)'}.`,
       '',
       `Pour revenir à l'état précédent : sync_crypto_holdings account "${account.name}", location ${JSON.stringify(location)}, holdings ${JSON.stringify(undo)}, confirm: true${added.length > 0 ? ' (les lignes ajoutées passeront à 0 ; supprimez-les dans l’application si besoin)' : ''}.`,
+    ].join('\n')
+  },
+})
+
+// ---------------------------------------------------------------------------
+// set_crypto_invested
+// ---------------------------------------------------------------------------
+
+/** « investi 5 000,00 €, plus-value -2 000,00 € (-40 %) ». */
+function investedFiguresText(figures: InvestedFiguresDto): string {
+  if (figures.contributionsCents === null) return 'investi inconnu'
+  const gain =
+    figures.gainCents === null
+      ? ''
+      : `, plus-value ${signedEuros(figures.gainCents)}${
+          figures.returnRate === null ? '' : ` (${percent(figures.returnRate)})`
+        }`
+  return `investi ${euros(figures.contributionsCents)}${gain}`
+}
+
+/** « 5 000,00 € jusqu'au 30/06/2026 », or « aucun ». */
+function baseText(base: InvestedBaseDto | null): string {
+  return base
+    ? `${euros(base.amountCents)} jusqu'au ${frenchDate(base.on)}`
+    : 'aucun'
+}
+
+/** What else makes the invested amount: coins received, unknown costs. */
+function linkedNote(figures: InvestedFiguresDto): string[] {
+  const lines: string[] = []
+  if (figures.investedBase && figures.linkedTransfersCount > 0) {
+    lines.push(
+      `S'y ajoute le coût de ${figures.linkedTransfersCount} envoi(s) reçu(s) d'une plateforme suivie depuis le ${frenchDate(figures.investedBase.on)}.`,
+    )
+  }
+  if (figures.unknownCostCount > 0) {
+    lines.push(
+      `Dont ${figures.unknownCostCount} envoi(s) sans coût connu, non compté(s) dans l'investi.`,
+    )
+  }
+  return lines
+}
+
+export const setCryptoInvestedTool = defineTool({
+  name: 'set_crypto_invested',
+  title: 'Montant investi d’un compte crypto',
+  description:
+    "Set what the owner invested in a crypto wallet or manual crypto account up to a day (« Investi jusqu'au … »), so its latent gain and rate show like a PEA's. The invested amount is then this base plus the cost of the coins sent to it from a followed exchange after that day; valuations keep it. Not for exchange accounts (their holdings carry their cost). Without confirm: preview of the invested amount, gain and rate now → after. With confirm: true saves it; a repeated call changes nothing. Removing it is done in the app.",
+  write: { idempotent: true },
+  inputSchema: {
+    account: z
+      .string()
+      .max(100)
+      .describe('Crypto account name (see list_investment_accounts).'),
+    amount: z
+      .string()
+      .max(20)
+      .describe(
+        'Total invested up to that day in euros as text, fees included, e.g. "5 000". Copy the owner\'s figure; never compute it.',
+      ),
+    until: z
+      .string()
+      .regex(DATE_PATTERN)
+      .describe(
+        'Last day the amount covers, YYYY-MM-DD, not after today: coins received after it add their cost.',
+      ),
+    confirm: confirmSchema,
+  },
+  async run({ api, now }, args) {
+    const account = await resolveInvestmentAccount(api, args.account)
+    if (account.type !== 'crypto' || account.cryptoSource === 'exchange') {
+      throw new ToolInputError(
+        `${account.name} n'est pas un wallet ni un compte crypto saisi à la main : ${
+          account.type === 'crypto'
+            ? 'une plateforme garde le coût de ses avoirs importés'
+            : 'ses versements se donnent avec ses valeurs (add_investment_snapshots)'
+        }. Rien n'a été modifié.`,
+      )
+    }
+    const parsed = parseEuros(args.amount)
+    if (!parsed || parsed.sign === '-') {
+      throw new ToolInputError(
+        `Montant « ${args.amount} » invalide : un montant en euros positif (ex. 5 000). Rien n'a été modifié.`,
+      )
+    }
+    const today = parisToday(now())
+    if (args.until > today) {
+      throw new ToolInputError(
+        `Le ${frenchDate(args.until)} est dans le futur : la date ne peut pas être après aujourd'hui (${frenchDate(today)}). Rien n'a été modifié.`,
+      )
+    }
+    const body: SetInvestedBaseDto = {
+      amountCents: parsed.cents,
+      on: args.until,
+    }
+    const preview = await api.send<InvestedBasePreviewDto>(
+      'POST',
+      `/api/accounts/${account.id}/invested-base/preview`,
+      body,
+    )
+    const previous = preview.current.investedBase
+    if (
+      previous &&
+      previous.amountCents === body.amountCents &&
+      previous.on === body.on
+    ) {
+      return [
+        `Rien à modifier : ${account.name} a déjà ${baseText(previous)} comme montant investi.`,
+        `Aujourd'hui : ${investedFiguresText(preview.current)}.`,
+        ...linkedNote(preview.current),
+      ].join('\n')
+    }
+    const details = [
+      `Montant investi de base : ${baseText(previous)} → ${baseText(preview.next.investedBase)}.`,
+      `Avant : ${investedFiguresText(preview.current)}.`,
+      `Après : ${investedFiguresText(preview.next)}.`,
+      ...linkedNote(preview.next),
+    ]
+    if (args.confirm !== true) {
+      return [
+        PREVIEW_HEADER,
+        account.name,
+        ...details,
+        '',
+        PREVIEW_FOOTER,
+      ].join('\n')
+    }
+    const saved = await api.send<InvestedFiguresDto>(
+      'PUT',
+      `/api/accounts/${account.id}/invested-base`,
+      body,
+    )
+    return [
+      `${account.name} : montant investi enregistré, ${investedFiguresText(saved)}.`,
+      ...linkedNote(saved),
+      '',
+      previous
+        ? `Pour revenir à l'ancien montant : set_crypto_invested account "${account.name}", amount "${centsToText(previous.amountCents)}", until "${previous.on}", confirm: true.`
+        : "Pour le retirer : dans l'application, « Modifier » le compte › « Montant investi » › « Retirer le montant investi » ; aucun outil MCP ne supprime.",
     ].join('\n')
   },
 })

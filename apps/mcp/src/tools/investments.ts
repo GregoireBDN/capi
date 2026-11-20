@@ -10,7 +10,7 @@ import type {
   InvestmentsSummaryDto,
 } from '../api/types.js'
 import type { ApiClient } from '../api/client.js'
-import { euros, frenchDate } from '../format.js'
+import { euros, frenchDate, percent, signedEuros } from '../format.js'
 import { ACCOUNT_TYPE_LABELS } from './labels.js'
 import { listAccounts, normalize, pickAccount } from './lookup.js'
 import { defineTool, ToolInputError } from './tool.js'
@@ -78,10 +78,23 @@ function accountLine(
   if (row.valueCents === null || row.valueDate === null) {
     return `- ${row.name} (${details}) : aucune valeur enregistrée — tous les relevés sont à importer`
   }
+  const crypto = row.type === 'crypto'
+  const unknownCosts =
+    row.unknownCostCount > 0
+      ? `, dont ${row.unknownCostCount} envoi(s) sans coût connu non compté(s)`
+      : ''
+  const gain =
+    row.gainCents === null
+      ? ''
+      : `, plus-value ${signedEuros(row.gainCents)}${
+          row.returnRate === null ? '' : ` (${percent(row.returnRate)})`
+        }`
   const contributions =
     row.contributionsCents === null
-      ? ''
-      : `, versements nets ${euros(row.contributionsCents)}`
+      ? crypto && account?.cryptoSource !== 'exchange'
+        ? ', montant investi inconnu (set_crypto_invested)'
+        : ''
+      : `, ${crypto ? 'investi' : 'versements nets'} ${euros(row.contributionsCents)}${gain}${unknownCosts}`
   const age =
     row.daysSinceLatest === null ? '' : ` (il y a ${row.daysSinceLatest} j)`
   const stale = row.stale
@@ -94,7 +107,7 @@ export const listInvestmentAccountsTool = defineTool({
   name: 'list_investment_accounts',
   title: 'Comptes de placement',
   description:
-    'Open investment accounts (PEA / brokerage, life insurance, employee savings, crypto) with their institution, crypto source, last snapshot date and value, net contributions and whether they are stale. Call it before importing statement values: only documents dated after the last snapshot need importing, and it gives the account names add_investment_snapshots and sync_crypto_holdings accept.',
+    'Open investment accounts (PEA / brokerage, life insurance, employee savings, crypto) with their institution, crypto source, last snapshot date and value, net contributions (crypto: invested amount) with the latent gain and rate, and whether they are stale. Call it before importing statement values: only documents dated after the last snapshot need importing, and it gives the account names add_investment_snapshots and sync_crypto_holdings accept.',
   inputSchema: {},
   async run({ api }) {
     const [summary, accounts] = await Promise.all([

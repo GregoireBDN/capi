@@ -321,11 +321,13 @@ function ChangeLine({
 }
 
 /**
- * « Investi 6 200,00 € · +1 571,12 € (+25 %) »: the cost of the coins sent
- * to the wallet (#296), only when it is known.
+ * « Investi 6 200,00 € · +1 571,12 € (+25 %) »: the invested base typed by
+ * the owner (#358) and the cost of the coins sent to the wallet (#296), only
+ * when it is known, naming the coins of unknown cost left out.
  */
 function InvestedLine({ performance }: { performance: AccountPerformanceDto }) {
-  const { contributionsCents, gainCents, returnRate } = performance
+  const { contributionsCents, gainCents, returnRate, unknownCostCount } =
+    performance
   if (contributionsCents === null || gainCents === null) return null
   return (
     <p className="text-muted-foreground text-sm tabular-nums">
@@ -340,6 +342,8 @@ function InvestedLine({ performance }: { performance: AccountPerformanceDto }) {
         {formatCents(gainCents)}
         {returnRate !== null && ` (${formatSignedPercent(returnRate)})`}
       </span>
+      {unknownCostCount > 0 &&
+        ` · dont ${plural(unknownCostCount, 'envoi', 'envois')} sans coût connu`}
     </p>
   )
 }

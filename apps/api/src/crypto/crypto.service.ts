@@ -5,7 +5,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common'
-import { and, asc, eq, inArray, isNull, max } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, max, ne } from 'drizzle-orm'
 import {
   AccountsService,
   type AccountWithBalance,
@@ -19,7 +19,9 @@ import {
   type SelectAccount,
   type SelectCryptoHolding,
 } from '#/database/schema'
+import { loadReceivedCoinFlows } from '#/investments/crypto-flows'
 import { parisToday } from '#/investments/days'
+import { cryptoInvestedAt, investedBaseOf } from '#/investments/performance'
 import { CryptoPricesService, type RefreshMode } from './crypto-prices.service'
 import { formatDecimal, parseDecimal } from './decimal'
 import type {
@@ -326,11 +328,16 @@ export class CryptoService {
     now: Date,
   ): Promise<CryptoPortfolioDto> {
     const { accounts, rows } = await this.valueOpenAccounts(force, now)
+    const invested = await this.accountInvested(
+      accounts.map((account) => account.id),
+      parisToday(now),
+    )
     const { assets, totals } = aggregatePortfolio(
       rows.map((row, i) => ({
         accountId: row.accountId,
         name: accounts[i].name,
         lines: row.holdings,
+        investedCents: invested.get(row.accountId) ?? null,
       })),
     )
     const updated = await this.lastFed(accounts)
@@ -524,6 +531,7 @@ export class CryptoService {
       now,
     )
     const today = parisToday(now)
+    const accountInvested = await this.accountInvested(ids, today)
 
     const results: AccountHoldingsDto[] = []
     for (const account of accounts) {
@@ -534,6 +542,20 @@ export class CryptoService {
         now,
         this.prices.ttlMs,
       )
+      // An account whose cost is known as a whole (#358) shows it rather
+      // than its lines' invested amounts.
+      const invested = accountInvested.get(account.id)
+      const totals =
+        invested === undefined
+          ? valuation.totals
+          : {
+              ...valuation.totals,
+              investedCents: invested,
+              gainCents: valuation.complete
+                ? valuation.totals.valueCents - invested
+                : null,
+              withoutInvestedCount: 0,
+            }
       let snapshot: ValuationSnapshotDto | null = null
       if (write && account.archivedAt === null) {
         this.valuedAt.set(account.id, now.getTime())
@@ -546,8 +568,8 @@ export class CryptoService {
           snapshot = await this.writeSnapshot(
             account.id,
             today,
-            valuation.totals.valueCents,
-            valuation.totals.investedCents,
+            totals.valueCents,
+            totals.investedCents,
             now,
           )
         }
@@ -567,7 +589,7 @@ export class CryptoService {
             gainCents: value.gainCents,
           }
         }),
-        totals: valuation.totals,
+        totals,
         complete: valuation.complete,
         snapshot,
         priceApiEnabled: this.prices.enabled,
@@ -576,6 +598,47 @@ export class CryptoService {
       })
     }
     return results
+  }
+
+  /**
+   * What the wallet and manual accounts among `ids` had invested by `today`
+   * (#358): their invested base plus the cost of the coins linked to them
+   * since, or the coins linked to them without a base. Their totals and
+   * snapshots show it; missing, the holdings' invested amounts count
+   * (exchanges, accounts with neither).
+   */
+  private async accountInvested(
+    ids: readonly string[],
+    today: string,
+  ): Promise<Map<string, number>> {
+    const result = new Map<string, number>()
+    if (ids.length === 0) return result
+    const accounts = await this.db
+      .select({
+        id: accountsTable.id,
+        investedBaseCents: accountsTable.investedBaseCents,
+        investedBaseOn: accountsTable.investedBaseOn,
+      })
+      .from(accountsTable)
+      .where(
+        and(
+          inArray(accountsTable.id, [...ids]),
+          ne(accountsTable.cryptoSource, 'exchange'),
+        ),
+      )
+    const flows = await loadReceivedCoinFlows(
+      this.db,
+      accounts.map((account) => account.id),
+    )
+    for (const account of accounts) {
+      const invested = cryptoInvestedAt(
+        investedBaseOf(account),
+        flows.get(account.id) ?? [],
+        today,
+      )
+      if (invested) result.set(account.id, invested.investedCents)
+    }
+    return result
   }
 
   /** Values wallets whose background sync ended after their valuation. */
@@ -618,8 +681,9 @@ export class CryptoService {
         target: [s.accountId, s.date],
         set: {
           valueCents,
-          // Unknown when a holding has no invested amount: an older total
-          // would leave out the assets added since.
+          // Unknown when a holding has no invested amount and the account
+          // has neither an invested base nor coins linked to it (#358): an
+          // older total would leave out the assets added since.
           contributionsCents: investedCents,
           updatedAt: now,
         },

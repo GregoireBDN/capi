@@ -202,6 +202,41 @@ describe('aggregatePortfolio', () => {
     })
   })
 
+  it('counts a wallet whose cost is known as a whole (#358)', () => {
+    const { assets, totals } = aggregatePortfolio([
+      {
+        accountId: 'ledger',
+        name: 'Ledger',
+        // Synced lines have no cost; the wallet's invested base gives it.
+        lines: [
+          line('bitcoin', 'BTC', '0.02', 200_000),
+          line('ethereum', 'ETH', '0.5', 100_000),
+        ],
+        investedCents: 500_000,
+      },
+      {
+        accountId: 'exchange',
+        name: 'Plateforme',
+        lines: [
+          line('bitcoin', 'BTC', '0.01', 100_000, { investedCents: 60_000 }),
+          line('solana', 'SOL', '2', 30_000),
+        ],
+      },
+    ])
+    expect(totals).toMatchObject({
+      valueCents: 430_000,
+      investedCents: 560_000,
+      // Wallet: 3 000 − 5 000; exchange BTC: 1 000 − 600.
+      gainCents: -160_000,
+      withoutInvestedCount: 1,
+      withoutInvestedSymbols: ['SOL'],
+    })
+    // Per asset, only the lines say what was paid.
+    expect(assets.find((asset) => asset.symbol === 'BTC')?.investedCents).toBe(
+      null,
+    )
+  })
+
   it('returns nothing for no account', () => {
     expect(aggregatePortfolio([])).toEqual({
       assets: [],
@@ -211,6 +246,7 @@ describe('aggregatePortfolio', () => {
         investedCents: null,
         gainCents: null,
         withoutInvestedCount: 0,
+        withoutInvestedSymbols: [],
         missingPriceCount: 0,
         staleCount: 0,
       },

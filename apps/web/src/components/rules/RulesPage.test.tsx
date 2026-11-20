@@ -90,6 +90,8 @@ const ACCOUNT: AccountDto = {
   cryptoSource: null,
   cryptoProvider: null,
   cryptoSyncedAt: null,
+  investedBaseCents: null,
+  investedBaseOn: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 }

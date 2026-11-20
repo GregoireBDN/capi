@@ -281,6 +281,11 @@ export class AccountsService {
           cryptoProvider: crypto.provider,
           cryptoSyncedAt: null,
           cryptoSyncFailedAt: null,
+          // An exchange keeps its holdings' cost: no invested base (#358).
+          ...(crypto.source === 'exchange' && {
+            investedBaseCents: null,
+            investedBaseOn: null,
+          }),
         })
         .where(eq(accountsTable.id, id))
       await insertWalletKeys(tx, id, crypto.keys)

@@ -218,13 +218,13 @@ class PerformanceFiguresDto {
   contributionsDate!: string | null
 
   @ApiProperty({
-    enum: ['links', 'typed'],
+    enum: ['links', 'typed', 'base'],
     enumName: 'ContributionsSource',
     nullable: true,
     description:
-      '`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings).',
+      "`links`: from the transfers linked to the account (#296), on top of the contributions typed on the last snapshot before the first of them; `typed`: typed on the snapshots (or, for crypto, the invested amounts of the holdings); `base`: a crypto account's invested base (#358) plus the cost of the coins linked to it since its day.",
   })
-  contributionsSource!: 'links' | 'typed' | null
+  contributionsSource!: 'links' | 'typed' | 'base' | null
 
   @ApiProperty({
     type: 'integer',
@@ -237,9 +237,16 @@ class PerformanceFiguresDto {
   @ApiProperty({
     type: 'integer',
     description:
-      'Transfers linked to the account (0 for crypto, whose contributions come from its holdings).',
+      "Transfers linked to the account; for crypto, the coins received from an exchange whose cost is counted (after the invested base's day when there is one).",
   })
   linkedTransfersCount!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Crypto (#358): coins received from an exchange whose cost is unknown, left out of the contributions (0 otherwise).',
+  })
+  unknownCostCount!: number
 
   @ApiProperty({
     type: 'integer',
@@ -283,6 +290,98 @@ class PerformanceFiguresDto {
   stale!: boolean
 }
 
+export class InvestedBaseDto {
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    description: 'Invested in the account up to `on`, in cents.',
+  })
+  amountCents!: number
+
+  @ApiProperty({ type: String, format: 'date' })
+  on!: string
+}
+
+export class SetInvestedBaseDto {
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    description:
+      'What was invested in the account up to `on` (coins bought, fees included), in cents.',
+  })
+  @Cents(0)
+  amountCents!: number
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    description:
+      'Last day the amount covers (`YYYY-MM-DD`, not after today in Europe/Paris): coins linked to the account after it add their cost.',
+    example: '2026-10-31',
+  })
+  @CalendarDate()
+  on!: string
+}
+
+/** What a crypto account's invested amount is, with or without a new base. */
+export class InvestedFiguresDto {
+  @ApiProperty({ type: InvestedBaseDto, nullable: true })
+  investedBase!: InvestedBaseDto | null
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: 'Latest value; null without one.',
+  })
+  valueCents!: number | null
+
+  @ApiProperty({ type: String, format: 'date', nullable: true })
+  valueDate!: string | null
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: 'Invested amount (null when unknown).',
+  })
+  contributionsCents!: number | null
+
+  @ApiProperty({
+    enum: ['links', 'typed', 'base'],
+    enumName: 'ContributionsSource',
+    nullable: true,
+  })
+  contributionsSource!: 'links' | 'typed' | 'base' | null
+
+  @ApiProperty({ type: 'integer', nullable: true })
+  gainCents!: number | null
+
+  @ApiProperty({ type: Number, nullable: true })
+  returnRate!: number | null
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Coins received whose cost is counted.',
+  })
+  linkedTransfersCount!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Coins received whose cost is unknown, left out.',
+  })
+  unknownCostCount!: number
+}
+
+export class InvestedBasePreviewDto {
+  @ApiProperty({ type: InvestedFiguresDto })
+  current!: InvestedFiguresDto
+
+  @ApiProperty({
+    type: InvestedFiguresDto,
+    description: 'The same figures once the base is saved.',
+  })
+  next!: InvestedFiguresDto
+}
+
 export class AccountPerformanceDto extends PerformanceFiguresDto {
   @ApiProperty({ type: String, format: 'uuid' })
   accountId!: string
@@ -315,9 +414,17 @@ export class AccountPerformanceDto extends PerformanceFiguresDto {
   @ApiProperty({
     type: [ContributionPointDto],
     description:
-      'Net contributions at each snapshot (same order as `snapshots`): from the linked transfers when `contributionsSource` is `links`, else as typed.',
+      'Net contributions at each snapshot (same order as `snapshots`): from the linked transfers when `contributionsSource` is `links`, from the invested base when `base`, else as typed.',
   })
   contributionsHistory!: ContributionPointDto[]
+
+  @ApiProperty({
+    type: InvestedBaseDto,
+    nullable: true,
+    description:
+      'Wallet and manual crypto accounts (#358): the invested base typed by the owner.',
+  })
+  investedBase!: InvestedBaseDto | null
 }
 
 export class InvestmentAccountSummaryDto extends PerformanceFiguresDto {

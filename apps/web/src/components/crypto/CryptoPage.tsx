@@ -73,14 +73,11 @@ function SignedCents({ cents }: { cents: number }) {
 }
 
 /** « hors SOL, ADA », « hors 4 actifs »: priced assets of unknown cost. */
-function withoutCostText(assets: readonly PortfolioAssetDto[]): string | null {
-  const unknown = assets.filter(
-    (asset) => asset.valueCents !== null && asset.investedCents === null,
-  )
-  if (unknown.length === 0) return null
-  return unknown.length <= 3
-    ? `hors ${unknown.map((asset) => asset.symbol).join(', ')}`
-    : `hors ${plural(unknown.length, 'actif')}`
+function withoutCostText(symbols: readonly string[]): string | null {
+  if (symbols.length === 0) return null
+  return symbols.length <= 3
+    ? `hors ${symbols.join(', ')}`
+    : `hors ${plural(symbols.length, 'actif')}`
 }
 
 /**
@@ -165,7 +162,7 @@ function PortfolioSummary({
   const { totals } = data
   const parts = splitParts(data.assets)
   const splitTotal = parts.reduce((sum, part) => sum + part.valueCents, 0)
-  const without = withoutCostText(data.assets)
+  const without = withoutCostText(totals.withoutInvestedSymbols)
   return (
     <Card role="region" aria-labelledby={id} className="min-w-0">
       <CardContent className="@container space-y-4 pt-5">

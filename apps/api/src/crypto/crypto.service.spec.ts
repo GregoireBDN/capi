@@ -536,6 +536,56 @@ describe.skipIf(!process.env.DATABASE_URL)('CryptoService (database)', () => {
     })
   })
 
+  it('keeps the invested base through the next valuations (#358)', async () => {
+    await inRollback(async ({ crypto, investments, account }) => {
+      const id = await account('crypto', 'Ledger')
+      // 0.05 BTC at 60 000,50 €: 3 000,02 € (half to even), bought for 1 000 € on this line.
+      await crypto.create(
+        id,
+        { ...BTC, quantity: '0.05', investedCents: 1_000_00 },
+        NOW,
+      )
+      await investments.setInvestedBase(
+        id,
+        { amountCents: 5_000_00, on: '2026-11-05' },
+        NOW,
+      )
+      const next = await crypto.refreshAll(later(60 * 24))
+      const row = next.accounts.find((x) => x.accountId === id)
+      // The account's totals say it too, not the line's 1 000 €.
+      expect(row?.totals).toMatchObject({
+        investedCents: 5_000_00,
+        gainCents: -1_999_98,
+        withoutInvestedCount: 0,
+      })
+      expect(row?.snapshot).toEqual({
+        date: '2026-11-06',
+        valueCents: 3_000_02,
+        contributionsCents: 5_000_00,
+      })
+      const performance = await investments.performance(id, later(60 * 24))
+      expect(performance).toMatchObject({
+        contributionsCents: 5_000_00,
+        contributionsSource: 'base',
+        gainCents: -1_999_98,
+      })
+      const portfolio = await crypto.portfolio(later(60 * 24))
+      expect(portfolio.totals).toMatchObject({
+        investedCents: 5_000_00,
+        gainCents: -1_999_98,
+        withoutInvestedSymbols: [],
+      })
+
+      // Without it, the line's invested amount counts again.
+      await investments.clearInvestedBase(id, later(60 * 24))
+      const after = await investments.performance(id, later(60 * 24))
+      expect(after).toMatchObject({
+        contributionsCents: 1_000_00,
+        contributionsSource: 'typed',
+      })
+    })
+  })
+
   it('flags a failed refresh of every account without failing', async () => {
     await inRollback(async ({ crypto, account, provider }) => {
       const id = await account()

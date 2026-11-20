@@ -12,6 +12,8 @@ const api = vi.hoisted(() => ({
   accountsControllerUpdate: vi.fn(),
   authControllerLogin: vi.fn(),
   accountSnapshotsControllerUpsert: vi.fn(),
+  accountSnapshotsControllerSetInvestedBase: vi.fn(),
+  accountSnapshotsControllerClearInvestedBase: vi.fn(),
   cryptoControllerSettings: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
@@ -52,6 +54,8 @@ function account(overrides: Partial<AccountDto> = {}): AccountDto {
     cryptoSource: null,
     cryptoProvider: null,
     cryptoSyncedAt: null,
+    investedBaseCents: null,
+    investedBaseOn: null,
     createdAt: '2026-11-06T10:00:00.000Z',
     updatedAt: '2026-11-06T10:00:00.000Z',
     ...overrides,
@@ -98,6 +102,90 @@ describe('AccountEditor', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('sets the invested amount of a wallet, with « Annuler » (#358)', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    api.accountSnapshotsControllerSetInvestedBase.mockImplementation(() =>
+      ok({}),
+    )
+    api.accountSnapshotsControllerClearInvestedBase.mockImplementation(() =>
+      ok({}),
+    )
+    const onOpenChange = vi.fn()
+    renderWithClient(
+      <AccountEditor
+        open
+        onOpenChange={onOpenChange}
+        account={account({
+          name: 'Ledger test',
+          type: 'crypto',
+          institution: 'Ledger',
+          cryptoSource: 'wallet',
+        })}
+      />,
+    )
+
+    expect(screen.getByText(/Non renseigné/)).toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: 'Modifier le montant investi' }),
+    )
+    const save = screen.getByRole('button', { name: 'Enregistrer' })
+    // Greyed out until an amount is typed.
+    expect(save).toBeDisabled()
+    await user.type(
+      screen.getByRole('textbox', { name: 'Montant investi' }),
+      '5 000',
+    )
+    const day = screen.getByLabelText('Investi jusqu’au')
+    expect(day).toHaveValue('2026-11-06')
+    await user.clear(day)
+    await user.type(day, '2026-06-30')
+    await user.click(save)
+
+    await waitFor(() =>
+      expect(
+        api.accountSnapshotsControllerSetInvestedBase,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { id: NEW_ID },
+          body: { amountCents: 500_000, on: '2026-06-30' },
+        }),
+      ),
+    )
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(toast.success).toHaveBeenCalledWith(
+      'Montant investi enregistré',
+      expect.anything(),
+    )
+    // « Annuler » removes it again: there was none.
+    const [, options] = toast.success.mock.calls[0] as [
+      string,
+      { action: { onClick: () => void } },
+    ]
+    options.action.onClick()
+    await waitFor(() =>
+      expect(
+        api.accountSnapshotsControllerClearInvestedBase,
+      ).toHaveBeenCalled(),
+    )
+  })
+
+  it('offers no invested amount on an exchange account', () => {
+    renderWithClient(
+      <AccountEditor
+        open
+        onOpenChange={vi.fn()}
+        account={account({
+          type: 'crypto',
+          cryptoSource: 'exchange',
+          cryptoProvider: 'binance',
+        })}
+      />,
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Modifier le montant investi' }),
+    ).not.toBeInTheDocument()
   })
 
   it('creates a PEA with its current value and opens its page', async () => {
