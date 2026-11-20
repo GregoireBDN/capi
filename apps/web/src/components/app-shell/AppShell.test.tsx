@@ -7,7 +7,7 @@ import {
   createRouter,
 } from '@tanstack/react-router'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { PencilIcon, PlusIcon, UploadIcon } from 'lucide-react'
+import { PlusIcon, UploadIcon } from 'lucide-react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarInset, SidebarProvider } from '@finances/ui'
@@ -121,15 +121,19 @@ describe('App shell sidebar (≥ md)', () => {
     expect(
       within(header()).queryByRole('button', { name: /le menu$/ }),
     ).toHaveClass('md:hidden')
-    // Logo, quick entry and account in the header.
+    // Logo and account in the header.
     expect(
       within(header()).getByRole('link', { name: 'Finances' }),
     ).toHaveAttribute('href', '/dashboard')
     // No search: Opérations has its own (#386).
     expect(within(header()).queryByRole('searchbox')).not.toBeInTheDocument()
+    // No permanent quick entry, and no menu on a page without actions.
     expect(
-      within(header()).getByRole('button', { name: 'Ajouter une dépense' }),
-    ).toBeInTheDocument()
+      within(header()).queryByRole('button', { name: /Ajouter/ }),
+    ).toBeNull()
+    expect(
+      within(header()).queryByRole('button', { name: 'Actions de la page' }),
+    ).toBeNull()
     expect(
       within(header()).getByRole('button', { name: 'Compte, Owner Test' }),
     ).toBeInTheDocument()
@@ -270,15 +274,14 @@ describe('App shell sidebar (< md)', () => {
     expect(document.cookie).not.toContain('sidebar_state')
   })
 
-  it('puts every page action in the header as icons (#386)', async () => {
+  it('puts the page actions in the header’s « ⋮ » menu (#386)', async () => {
     const ue = userEvent.setup()
-    const add = vi.fn()
     const upload = vi.fn()
     await renderShell(false, [
       {
         label: 'Ajouter une opération',
         icon: <PlusIcon />,
-        onSelect: add,
+        onSelect: vi.fn(),
         primary: true,
       },
       { label: 'Importer un relevé', icon: <UploadIcon />, onSelect: upload },
@@ -286,39 +289,16 @@ describe('App shell sidebar (< md)', () => {
 
     await ue.click(
       await within(header()).findByRole('button', {
-        name: 'Ajouter une opération',
+        name: 'Actions de la page',
       }),
     )
     await ue.click(
-      within(header()).getByRole('button', { name: 'Importer un relevé' }),
+      await screen.findByRole('menuitem', { name: 'Importer un relevé' }),
     )
-    expect(add).toHaveBeenCalledOnce()
     expect(upload).toHaveBeenCalledOnce()
     const title = screen
       .getByRole('heading', { name: 'Tableau de bord' })
       .closest('header') as HTMLElement
     expect(within(title).queryByRole('button')).not.toBeInTheDocument()
-    // The logo keeps its name when its word steps aside on narrow phones.
-    expect(
-      within(header()).getByRole('link', { name: 'Finances' }),
-    ).toBeInTheDocument()
-  })
-
-  it('groups the actions past two behind « Plus d’actions » in the header', async () => {
-    await renderShell(false, [
-      { label: 'Importer un relevé', icon: <UploadIcon />, onSelect: vi.fn() },
-      { label: 'Modifier', icon: <PencilIcon />, onSelect: vi.fn() },
-      { label: 'Ajouter', icon: <PlusIcon />, onSelect: vi.fn() },
-    ])
-
-    expect(
-      await within(header()).findByRole('button', { name: 'Plus d’actions' }),
-    ).toBeInTheDocument()
-    expect(
-      within(header()).getByRole('button', { name: 'Importer un relevé' }),
-    ).toBeInTheDocument()
-    expect(
-      within(header()).queryByRole('button', { name: 'Modifier' }),
-    ).not.toBeInTheDocument()
   })
 })

@@ -7,12 +7,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Spinner,
-  useIsMobile,
 } from '@finances/ui'
 import { EllipsisVerticalIcon } from 'lucide-react'
 import { PageBack } from './PageBack'
 import type { PageBackLink } from './PageBack'
-import { usePageActionsSlot } from './page-actions'
+import { useInShell, usePageActionsSlot } from './page-actions'
 import type { PageAction } from './page-actions'
 
 interface PageHeaderProps {
@@ -21,8 +20,7 @@ interface PageHeaderProps {
   /** Shown right after the title (e.g. an « Archivé » badge). */
   titleAddon?: ReactNode
   /**
-   * The page's actions: beside the title from `md` up, in the header as
-   * icons on phones (see `PageAction`). Actions tied to one section (the month
+   * The page's actions: the header's « ⋮ » menu (see `PageAction`). Actions tied to one section (the month
    * navigator, a card, a sticky bottom bar) stay in that section.
    */
   actions?: readonly PageAction[]
@@ -36,11 +34,11 @@ interface PageHeaderProps {
 /**
  * Title block shared by every page of the authenticated app. On phones the
  * title stays on one line (`text-xl` fits « Prévision fin de mois » at
- * 320px: keep new titles that short), the description goes below in a
- * smaller size and the page's actions move to the header as icons (the
- * owner's choice on #386, after trying the main one beside the title), so
- * the title block never takes a third of the screen. From `md` up every
- * action is a button beside the title.
+ * 320px: keep new titles that short) and the description goes below in a
+ * smaller size. The page's actions are the header's « ⋮ » menu on every
+ * width (the owner's choice on #386, after trying them as icons and beside
+ * the title): the same header everywhere, nothing beside the title. Outside
+ * the shell (no header) they stay as buttons beside the title.
  */
 export function PageHeader({
   title,
@@ -49,12 +47,8 @@ export function PageHeader({
   actions = [],
   back,
 }: PageHeaderProps) {
-  const isMobile = useIsMobile()
+  const inShell = useInShell()
   const slot = usePageActionsSlot()
-  // Phones: the actions live in the header. They need JavaScript anyway, so
-  // the server renders them beside the title (hidden below md) and they move
-  // into the header once hydrated.
-  const inHeader = isMobile && slot !== null
 
   return (
     <header>
@@ -74,10 +68,13 @@ export function PageHeader({
           )}
         </div>
         {actions.length > 0 &&
-          (inHeader ? (
-            createPortal(<HeaderActions actions={actions} />, slot)
+          (inShell ? (
+            // They need JavaScript anyway: the menu appears once the header
+            // has mounted.
+            slot !== null &&
+            createPortal(<PageActionsMenu actions={actions} />, slot)
           ) : (
-            <div className="flex flex-wrap gap-2 max-md:hidden">
+            <div className="flex flex-wrap gap-2">
               {actions.map((action) => (
                 <Button
                   key={action.label}
@@ -99,70 +96,46 @@ export function PageHeader({
 }
 
 /**
- * The page's actions in the phone header: up to two, each an icon button
- * named by its label (the main one in the primary colour); more, the main
- * one (else the first) then a « Plus d’actions » menu of the others, so
- * the header still fits at 320px.
+ * The page's actions in the header: « ⋮ » named « Actions de la page »,
+ * opening a menu of them, the main one first.
  */
-function HeaderActions({ actions }: { actions: readonly PageAction[] }) {
-  if (actions.length <= 2) {
-    return actions.map((action) => (
-      <ActionIcon key={action.label} action={action} />
-    ))
-  }
-  const main = actions.find((action) => action.primary) ?? actions[0]
-  const others = actions.filter((action) => action !== main)
+function PageActionsMenu({ actions }: { actions: readonly PageAction[] }) {
+  const ordered = [
+    ...actions.filter((action) => action.primary),
+    ...actions.filter((action) => !action.primary),
+  ]
+  const busy = actions.some((action) => action.loading)
   return (
-    <>
-      <ActionIcon action={main} />
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="secondary"
-            ghost
-            iconOnly
-            aria-label="Plus d’actions"
-          >
-            <EllipsisVerticalIcon />
-          </Button>
-        </DropdownMenuTrigger>
-        {/* As wide as its labels (not the icon trigger), within the screen. */}
-        <DropdownMenuContent
-          align="end"
-          className="w-max max-w-(--radix-dropdown-menu-content-available-width)"
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="secondary"
+          ghost
+          iconOnly
+          aria-label="Actions de la page"
+          title="Actions de la page"
+          className="[&_svg]:size-[1.1rem]"
         >
-          {others.map((action) => (
-            <DropdownMenuItem
-              key={action.label}
-              disabled={action.disabled || action.loading}
-              onSelect={action.onSelect}
-            >
-              {action.loading ? <Spinner /> : action.icon}
-              {action.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </>
-  )
-}
-
-/** One action as an icon button of the header, named by its label. */
-function ActionIcon({ action }: { action: PageAction }) {
-  return (
-    <Button
-      type="button"
-      variant={action.primary ? 'primary' : 'secondary'}
-      ghost
-      iconOnly
-      aria-label={action.label}
-      title={action.label}
-      loading={action.loading}
-      disabled={action.disabled}
-      onClick={action.onSelect}
-    >
-      {action.icon}
-    </Button>
+          {busy ? <Spinner /> : <EllipsisVerticalIcon />}
+        </Button>
+      </DropdownMenuTrigger>
+      {/* As wide as its labels (not the icon trigger), within the screen. */}
+      <DropdownMenuContent
+        align="end"
+        className="w-max max-w-(--radix-dropdown-menu-content-available-width)"
+      >
+        {ordered.map((action) => (
+          <DropdownMenuItem
+            key={action.label}
+            disabled={action.disabled || action.loading}
+            onSelect={action.onSelect}
+          >
+            {action.loading ? <Spinner /> : action.icon}
+            {action.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

@@ -2,17 +2,16 @@ import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 
 /**
- * One action of a page (`PageHeader`'s `actions`): beside the title from `md`
- * up; on phones in the header, as icon buttons up to two, else the main one
- * and a « Plus d'actions » menu of the others.
+ * One action of a page (`PageHeader`'s `actions`): an item of the header's
+ * « Actions de la page » menu (« ⋮ »), on every width (#386).
  */
 export interface PageAction {
-  /** Button text, and the icon button's accessible name on phones. */
+  /** The menu item's text. */
   label: string
   /** A lucide icon element, shown on every screen. */
   icon: ReactNode
   onSelect: () => void
-  /** The page's main action: a filled button, in the primary colour on phones. */
+  /** The page's main action: first in the menu. */
   primary?: boolean
   loading?: boolean
   disabled?: boolean
@@ -44,9 +43,14 @@ export function PageActionsSlotProvider({ children }: { children: ReactNode }) {
   )
 }
 
-/** The header's actions slot, null outside the authenticated shell. */
+/** The header's actions slot, null outside the shell or before it mounts. */
 export function usePageActionsSlot(): Slot {
   return useContext(PageActionsSlotContext)?.slot ?? null
+}
+
+/** Whether the page is shown inside the authenticated shell (its header). */
+export function useInShell(): boolean {
+  return useContext(PageActionsSlotContext) !== null
 }
 
 /** Ref callback for the element that hosts the page actions. */

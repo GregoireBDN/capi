@@ -52,34 +52,22 @@ const clickFirst =
     await page.getByRole(role, { name }).first().click()
   }
 /**
- * Runs a page action (`PageHeader`): a button beside the title or in the
- * header, or an item of the header's « Plus d’actions » menu on phones.
+ * Runs a page action (`PageHeader`): an item of the header's « Actions de la
+ * page » menu (« ⋮ », every width since #386), or a button of the page.
  */
 const pageAction =
   (name: RegExp): Step =>
   async (page) => {
     const button = page.getByRole('button', { name }).first()
-    const more = page.getByRole('button', { name: 'Plus d’actions' })
-    // Phones: the actions reach the header once the page is hydrated.
+    const more = page.getByRole('button', { name: 'Actions de la page' })
+    // The menu reaches the header once the page is hydrated.
     await button.or(more).first().waitFor()
     if (await button.isVisible()) return button.click()
     await more.click()
     await page.getByRole('menuitem', { name }).first().click()
   }
 const openPageActions: Step = async (page) => {
-  const more = page.getByRole('button', { name: 'Plus d’actions' })
-  // ≥ md the actions sit beside the title: no menu.
-  if (await page.getByRole('button', { name: 'Ouvrir le menu' }).isHidden())
-    return
-  // Phones: the main action stays beside the title (#386); the others reach
-  // the header once hydrated, in a menu only when there are several.
-  await page
-    .locator('[data-page-actions] > *')
-    .first()
-    .waitFor({ timeout: 5000 })
-    .catch(() => undefined)
-  if (!(await more.isVisible())) return
-  await more.click()
+  await page.getByRole('button', { name: 'Actions de la page' }).click()
   await page.getByRole('menu').waitFor()
 }
 
