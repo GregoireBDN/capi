@@ -616,28 +616,24 @@ describe.skipIf(!process.env.DATABASE_URL)(
         )
       })
 
-      it('keeps the parts of a transfer transfers', async () => {
+      it('gives every part its category kind, and the transaction its largest part’s (#368)', async () => {
         await withFixture(
           async ({ importRows, byLabel, transactions, outings, refunds }) => {
             await importRows(WITH_PAYBACK)
             const payback = await byLabel(PAYBACK)
-            await transactions.update(payback.id, { kind: 'transfer' })
-            const before = await transactions.summary({ month: '2026-10' })
             const split = await transactions.split(payback.id, [
               { categoryId: outings, amountCents: 2_000 },
               { categoryId: refunds, amountCents: 4_000 },
             ])
             expect(split.splits.map((part) => part.kind)).toEqual([
-              'transfer',
-              'transfer',
+              'expense',
+              'income',
             ])
-            expect(
-              await transactions.summary({ month: '2026-10' }),
-            ).toMatchObject({
-              incomeCents: before.incomeCents,
-              expenseCents: before.expenseCents,
-              transferCount: before.transferCount,
-            })
+            expect(split).toMatchObject({ categoryId: refunds, kind: 'income' })
+            // A kind alone no longer goes against the category.
+            await expect(
+              transactions.update(payback.id, { kind: 'transfer' }),
+            ).rejects.toBeInstanceOf(BadRequestException)
           },
         )
       })

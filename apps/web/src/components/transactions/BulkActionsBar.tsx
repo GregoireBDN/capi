@@ -31,6 +31,9 @@ export function BulkActionsBar({
 }: BulkActionsBarProps) {
   const allOneOff = selected.every((item) => item.isOneOff)
   const anyInReview = selected.some((item) => item.needsReview)
+  // A categorized transaction has its category's kind (#368): the type is
+  // changed alone only on uncategorized ones, else by choosing a category.
+  const anyCategorized = selected.some((item) => item.categoryId !== null)
 
   return (
     <div
@@ -62,8 +65,13 @@ export function BulkActionsBar({
         />
         <NativeSelect
           aria-label="Changer le type de la sélection"
+          title={
+            anyCategorized
+              ? 'Le type vient de la catégorie : classez-les plutôt'
+              : undefined
+          }
           value=""
-          disabled={busy}
+          disabled={busy || anyCategorized}
           className="short-screen:w-40 w-full @2xl:w-40"
           onChange={(event) => {
             if (event.target.value) {

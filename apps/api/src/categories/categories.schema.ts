@@ -78,8 +78,6 @@ export const categorizationRulesTable = pgTable(
     categoryId: uuid('category_id')
       .notNull()
       .references(() => categoriesTable.id, { onDelete: 'cascade' }),
-    /** Overrides the category's kind when set (e.g. an internal transfer filed under savings). */
-    kind: transactionKindEnum('kind'),
     merchant: varchar('merchant', { length: 255 }),
     /**
      * Destination account of the transfers the rule files (#296): set as

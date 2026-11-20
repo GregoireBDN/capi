@@ -70,7 +70,6 @@ function rule(
     minAmountCents: null,
     maxAmountCents: null,
     categoryId: 'restaurants',
-    kind: null,
     merchant: null,
     counterpartAccountId: null,
     ...overrides,
@@ -89,14 +88,13 @@ describe('proposeRules', () => {
         merchantKey: 'EPICERIE FICTIVE',
         labelPattern: 'EPICERIE FICTIVE',
         categoryId: 'groceries',
-        kind: null,
         occurrences: 3,
         agreeing: 3,
       },
     ])
   })
 
-  it('requires 90 % of the rows in the same category and kind', () => {
+  it('requires 90 % of the rows in the same category', () => {
     const nineOfTen = [
       ...rows('Epicerie Fictive', 9),
       ...rows('Epicerie Fictive', 1, { categoryId: 'restaurants' }),
@@ -108,12 +106,6 @@ describe('proposeRules', () => {
       ...rows('Epicerie Fictive', 2, { categoryId: 'restaurants' }),
     ]
     expect(proposeRules(eightOfTen, [], CATEGORIES).proposed).toEqual([])
-
-    const otherKind = [
-      ...rows('Epicerie Fictive', 8),
-      ...rows('Epicerie Fictive', 2, { kind: 'income', amountCents: 100 }),
-    ]
-    expect(proposeRules(otherKind, [], CATEGORIES).proposed).toEqual([])
   })
 
   it('never lets uncategorized or flagged rows vote', () => {
@@ -124,16 +116,14 @@ describe('proposeRules', () => {
     ).toEqual([])
   })
 
-  it('overrides the kind only when it differs from the category', () => {
+  it('files refunds in their expense category, with its kind (#368)', () => {
     const refunds = rows('Remboursement Fictif', 3, {
       categoryId: 'groceries',
-      kind: 'income',
       amountCents: 500,
     })
-    expect(proposeRules(refunds, [], CATEGORIES).proposed[0]).toMatchObject({
-      categoryId: 'groceries',
-      kind: 'income',
-    })
+    const [proposed] = proposeRules(refunds, [], CATEGORIES).proposed
+    expect(proposed).toMatchObject({ categoryId: 'groceries' })
+    expect(proposed).not.toHaveProperty('kind')
   })
 
   it('skips merchants already covered by an existing rule', () => {

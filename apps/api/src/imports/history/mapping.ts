@@ -120,15 +120,17 @@ const FALLBACK_TRANSFER_CATEGORY = 'internal_transfer'
 /**
  * Maps one sheet row to a category and a kind.
  *
- * - The kind comes from `Groupe` (`Mouvement` → transfer, `Revenu` →
- *   income, `Dépense` → expense), which wins over the category's own kind;
- *   without a usable `Groupe`, from the category, else from the amount sign.
+ * - A categorized row has its category's kind (#368). Without a category,
+ *   the kind comes from `Groupe` (`Mouvement` → transfer, `Revenu` →
+ *   income, `Dépense` → expense), else from the amount sign.
  * - Unknown, missing or ambiguous categories keep a best-effort category (or
  *   none) and are flagged for review. A transfer without a category falls
  *   back to `internal_transfer`, so it never counts as income or expense.
- * - A disagreement between `Groupe` and the category's kind is flagged only
- *   when one side is a transfer (it decides whether the row counts in stats
- *   at all); an income row in an expense category (a refund) is accepted.
+ * - A disagreement between `Groupe` and the category's kind where one side is
+ *   a transfer (it decides whether the row counts in stats at all) is filed
+ *   without a category, with `Groupe`'s kind, in review. An income row in an
+ *   expense category is a refund of it, and an expense row in an income
+ *   category lowers that income: both keep their category and its kind.
  *
  * @param categoryKinds kinds of the categories that exist, by slug.
  */
@@ -160,19 +162,22 @@ export function mapCategory(
     reasons.push('missing_target_category')
     slug = null
   }
-  const categoryKind = slug === null ? null : categoryKinds.get(slug)!
-  const kind = row.group ?? categoryKind ?? defaultKind(row.amountCents)
-
+  let categoryKind = slug === null ? null : categoryKinds.get(slug)!
   if (
     categoryKind !== null &&
-    categoryKind !== kind &&
-    (categoryKind === 'transfer' || kind === 'transfer')
+    row.group !== null &&
+    categoryKind !== row.group &&
+    (categoryKind === 'transfer' || row.group === 'transfer')
   ) {
     reasons.push('transfer_kind_mismatch')
+    slug = null
+    categoryKind = null
   }
+  const kind = categoryKind ?? row.group ?? defaultKind(row.amountCents)
   if (
     slug === null &&
     kind === 'transfer' &&
+    !reasons.includes('transfer_kind_mismatch') &&
     categoryKinds.get(FALLBACK_TRANSFER_CATEGORY) === 'transfer'
   ) {
     slug = FALLBACK_TRANSFER_CATEGORY

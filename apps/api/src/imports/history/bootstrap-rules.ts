@@ -33,18 +33,16 @@ export interface ProposedRule {
   /** The rule's `contains` pattern (the merchant key). */
   labelPattern: string
   categoryId: string
-  /** Set only when it differs from the category's own kind. */
-  kind: TransactionKind | null
   /** Rows of this merchant key. */
   occurrences: number
-  /** Rows of this merchant key filed under the proposed category and kind. */
+  /** Rows of this merchant key filed under the proposed category. */
   agreeing: number
 }
 
 export interface ProposeRulesOptions {
   /** Minimum rows of one merchant key. Defaults to 3. */
   minOccurrences?: number
-  /** Minimum share of those rows in the same category and kind. Defaults to 0.9. */
+  /** Minimum share of those rows in the same category. Defaults to 0.9. */
   minShare?: number
 }
 
@@ -67,7 +65,7 @@ const MIN_PATTERN_LENGTH = 3
  *
  * 1. rows are grouped by merchant key; a key qualifies when it has at least
  *    `minOccurrences` rows and at least `minShare` of them share one
- *    (category, kind), rows without a category or flagged for review counting
+ *    category, rows without a category or flagged for review counting
  *    against it;
  * 2. a key is skipped when every one of its rows is already matched by an
  *    existing enabled rule (or by a rule proposed before it);
@@ -105,7 +103,6 @@ export function proposeRules(
       merchantKey,
       labelPattern: merchantKey,
       categoryId: dominant.categoryId,
-      kind: dominant.kind === category.kind ? null : dominant.kind,
       occurrences: group.length,
       agreeing: dominant.count,
     })
@@ -146,13 +143,9 @@ export function proposeRules(
       (f) =>
         f.label.includes(needle) || (f.merchant?.includes(needle) ?? false),
     )
-    const category = categoriesById.get(candidate.categoryId)!
-    const kind = candidate.kind ?? category.kind
+    // A categorized row has its category's kind (#368): the category says it all.
     const agreeing = matched.filter(
-      (f) =>
-        !f.row.needsReview &&
-        f.row.categoryId === candidate.categoryId &&
-        f.row.kind === kind,
+      (f) => !f.row.needsReview && f.row.categoryId === candidate.categoryId,
     ).length
     if (matched.length === 0 || agreeing / matched.length < minShare) {
       skippedTooBroad++
@@ -168,27 +161,18 @@ export function proposeRules(
 
 function dominantOutcome(
   group: readonly RuleBootstrapRow[],
-): { categoryId: string; kind: TransactionKind; count: number } | null {
-  const counts = new Map<
-    string,
-    { categoryId: string; kind: TransactionKind; count: number }
-  >()
+): { categoryId: string; count: number } | null {
+  const counts = new Map<string, { categoryId: string; count: number }>()
   for (const row of group) {
     if (row.needsReview || row.categoryId === null) continue
-    const key = `${row.categoryId}\n${row.kind}`
-    const entry = counts.get(key) ?? {
+    const entry = counts.get(row.categoryId) ?? {
       categoryId: row.categoryId,
-      kind: row.kind,
       count: 0,
     }
     entry.count++
-    counts.set(key, entry)
+    counts.set(row.categoryId, entry)
   }
-  let best: {
-    categoryId: string
-    kind: TransactionKind
-    count: number
-  } | null = null
+  let best: { categoryId: string; count: number } | null = null
   for (const entry of counts.values()) {
     if (!best || entry.count > best.count) best = entry
   }
@@ -215,7 +199,6 @@ function toRule(
     maxAmountCents: null,
     categoryId: proposal.categoryId,
     counterpartAccountId: null,
-    kind: proposal.kind,
     merchant: null,
   }
 }
@@ -245,7 +228,6 @@ export async function createProposedRules(
         minAmountCents: null,
         maxAmountCents: null,
         categoryId: p.categoryId,
-        kind: p.kind,
         merchant: null,
       })),
     )

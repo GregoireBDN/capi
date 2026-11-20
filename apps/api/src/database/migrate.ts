@@ -15,15 +15,28 @@ import { env } from '#/config/env'
  *   `drizzle/` folder next to `dist/`);
  * - from a checkout: `pnpm --filter @finances/api exec tsx src/database/migrate.ts`.
  *
- * Idempotent: already applied migrations are skipped. Prints no data.
+ * Idempotent: already applied migrations are skipped. Prints no data, only
+ * the counts a migration reports.
  */
 
 /** `drizzle/` from both `src/database/` (tsx) and `dist/database/` (compiled). */
 export const MIGRATIONS_FOLDER = resolve(__dirname, '../../drizzle')
 
+/** Prefix of the NOTICEs a migration raises to be printed. */
+const MIGRATION_NOTICE_PREFIX = 'finances: '
+
 async function main() {
-  // One connection; silence the NOTICEs Postgres sends for `IF NOT EXISTS`.
-  const client = postgres(env.DATABASE_URL, { max: 1, onnotice: () => {} })
+  // One connection. Silence the NOTICEs Postgres sends for `IF NOT EXISTS`;
+  // print only the ones a migration raises for the owner (`finances: …`,
+  // counts and never data, e.g. the rows #368 put in review).
+  const client = postgres(env.DATABASE_URL, {
+    max: 1,
+    onnotice: (notice) => {
+      if (notice.message?.startsWith(MIGRATION_NOTICE_PREFIX)) {
+        console.log(notice.message.slice(MIGRATION_NOTICE_PREFIX.length))
+      }
+    },
+  })
   try {
     await migrate(drizzle(client), { migrationsFolder: MIGRATIONS_FOLDER })
     console.log('Migrations applied.')

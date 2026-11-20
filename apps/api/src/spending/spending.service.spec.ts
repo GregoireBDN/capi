@@ -189,16 +189,12 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
           row(f.checking, '2026-10-03', -4_000, { categoryId: groceries }),
           row(f.checking, '2026-10-20', -2_500, { categoryId: groceries }),
           row(f.checking, '2026-10-01', -80_000, { categoryId: rent }),
-          // Transfer to savings, filed under an expense category by mistake
-          // or not: never spending.
+          // Transfer to savings, filed or not: never spending.
           row(f.checking, '2026-10-05', -50_000, {
             kind: 'transfer',
             categoryId: f.livret,
           }),
-          row(f.checking, '2026-10-06', -10_000, {
-            kind: 'transfer',
-            categoryId: groceries,
-          }),
+          row(f.checking, '2026-10-06', -10_000, { kind: 'transfer' }),
           row(f.savings, '2026-10-05', 50_000, {
             kind: 'transfer',
             categoryId: f.livret,

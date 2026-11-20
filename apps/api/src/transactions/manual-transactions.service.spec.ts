@@ -534,25 +534,34 @@ describe.skipIf(!process.env.DATABASE_URL)(
             NOW,
           ),
         ).toMatchObject({ amountCents: 2_000, kind: 'income' })
+        // A categorized row has its category's kind (#368).
+        await expect(
+          service.update(created.id, { kind: 'transfer' }, NOW),
+        ).rejects.toBeInstanceOf(BadRequestException)
         expect(
           await service.update(
             created.id,
-            { kind: 'transfer', isOneOff: true, note: 'Note' },
+            { isOneOff: true, note: 'Note' },
             NOW,
           ),
         ).toMatchObject({
           amountCents: 2_000,
-          kind: 'transfer',
+          kind: 'income',
           isOneOff: true,
           note: 'Note',
         })
         expect(
           await service.update(
             created.id,
-            { categoryId: null, note: null },
+            { categoryId: null, kind: 'transfer', note: null },
             NOW,
           ),
-        ).toMatchObject({ categoryId: null, needsReview: true, note: null })
+        ).toMatchObject({
+          categoryId: null,
+          kind: 'transfer',
+          needsReview: true,
+          note: null,
+        })
       })
     })
 

@@ -86,7 +86,8 @@ export class TransactionCategoryDto {
 
   @ApiProperty({
     ...KIND_DOC,
-    description: 'Category group: the kind its transactions get by default.',
+    description:
+      'Category group: the kind of every transaction and split part filed under it (#368).',
   })
   kind!: TransactionKind
 }
@@ -110,7 +111,7 @@ export class TransactionSplitDto {
   @ApiProperty({
     ...KIND_DOC,
     description:
-      'Kind the part counts with (#357): its category’s, so an incoming part in an expense category is a refund of that category and one in an income category is income. A transfer’s parts, and a part in a transfer category, keep the transaction’s kind.',
+      'Kind the part counts with: its category’s (#357, #368), so an incoming part in an expense category is a refund of that category and one in an income category is income.',
   })
   kind!: TransactionKind
 }
@@ -480,7 +481,7 @@ export class ReviewCountDto {
 }
 
 const CATEGORY_CHANGE_DOC =
-  'Setting a category files the transaction by hand (`ruleId` = null, so rules never overwrite it), gives it the category’s kind unless `kind` is sent, and takes it out of review unless `needsReview` is sent. `null` removes the category (the kind is kept unless sent).'
+  'Setting a category files the transaction by hand (`ruleId` = null, so rules never overwrite it), gives it the category’s kind (#368: a `kind` sent with it must be that kind, else 400), and takes it out of review unless `needsReview` is sent. `null` removes the category (the kind is kept unless sent).'
 
 const RULE_ID_DOC =
   'Restores a categorization made by a rule (e.g. to undo a correction). Requires `categoryId`, equal to the rule’s category.'
@@ -510,7 +511,7 @@ class TransactionChangesDto {
   @ApiPropertyOptional({
     ...KIND_DOC,
     description:
-      'Overrides the kind (e.g. `transfer` for a move between own accounts). Changing the kind of a rule-categorized transaction files it by hand.',
+      'Kind of an uncategorized transaction (e.g. `transfer` for a move between own accounts). A categorized transaction has its category’s kind (#368): a different kind is refused (400), choose a category of that kind instead.',
   })
   @NotNullIfPresent()
   @IsIn(TRANSACTION_KINDS)

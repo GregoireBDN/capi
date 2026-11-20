@@ -12,9 +12,9 @@ export type BulkChanges = Omit<BulkUpdateTransactionsDto, 'ids' | 'ruleId'>
 /**
  * The transaction as the API will return it after `changes`, for optimistic
  * updates. Mirrors `TransactionsService.resolveChanges`: a category files it
- * by hand (rule cleared), gives it the category's kind unless `kind` is sent
- * and takes it out of review unless `needsReview` is sent; a kind change
- * alone clears the rule when the kind actually changes.
+ * by hand (rule cleared), gives it the category's kind (#368: a categorized
+ * transaction always has it) and takes it out of review unless
+ * `needsReview` is sent; a kind alone is for an uncategorized one.
  */
 export function applyChanges(
   item: TransactionDto,
@@ -46,12 +46,11 @@ export function applyChanges(
             kind: category.kind,
           }
         : null
-      next.kind = changes.kind ?? category?.kind ?? item.kind
+      next.kind = category?.kind ?? changes.kind ?? item.kind
       next.needsReview = changes.needsReview ?? false
     }
   } else {
-    if (changes.kind !== undefined) {
-      if (changes.kind !== item.kind) next.ruleId = null
+    if (changes.kind !== undefined && item.categoryId === null) {
       next.kind = changes.kind
     }
     if (changes.needsReview !== undefined) {

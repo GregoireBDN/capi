@@ -289,10 +289,10 @@ function ordered(
  * - `regex`: case-insensitive, tested against the raw label and the merchant.
  * - amount range: inclusive bounds on the signed amount.
  *
- * The kind comes from the rule when it overrides it (e.g. an internal transfer
- * filed under a savings category), else from the category, so a transfer rule
- * never yields income or expense. Returns `null` when no rule matches: the
- * caller then flags the transaction for review with `defaultKind`.
+ * The kind is the category's (#368): a rule filing transfers files them in a
+ * transfer category, so it never yields income or expense. Returns `null`
+ * when no rule matches: the caller then flags the transaction for review
+ * with `defaultKind`.
  *
  * Pass the same `rules` array for a whole batch: it is sorted once.
  */
@@ -308,7 +308,7 @@ export function categorize(
     // Rules cascade with their category; a stale snapshot just skips the rule.
     if (!category) continue
     if (!matchesSubject(rule, subject)) continue
-    const kind = rule.kind ?? category.kind
+    const kind = category.kind
     return {
       categoryId: category.id,
       kind,
@@ -342,12 +342,12 @@ export function matchingRules(
   )
 }
 
-/** Category and kind a rule gives (its kind, else its category's). */
+/** Category and kind a rule gives (the kind is its category's, #368). */
 export function ruleOutcome(
-  rule: Pick<SelectCategorizationRule, 'categoryId' | 'kind'>,
+  rule: Pick<SelectCategorizationRule, 'categoryId'>,
   categoriesById: ReadonlyMap<string, SelectCategory>,
 ): { categoryId: string; kind: TransactionKind } | null {
   const category = categoriesById.get(rule.categoryId)
   if (!category) return null
-  return { categoryId: category.id, kind: rule.kind ?? category.kind }
+  return { categoryId: category.id, kind: category.kind }
 }

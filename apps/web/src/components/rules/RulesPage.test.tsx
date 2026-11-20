@@ -114,7 +114,6 @@ function rule(
     minAmountCents: null,
     maxAmountCents: null,
     categoryId: GROCERIES.id,
-    kind: null,
     merchant: null,
     counterpartAccountId: null,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -809,7 +808,6 @@ describe('bodyFromForm', () => {
         amountSign: 'out',
         accountId: '',
         merchant: '  ',
-        kind: 'transfer',
       }),
     ).toEqual({
       body: expect.objectContaining({
@@ -817,7 +815,6 @@ describe('bodyFromForm', () => {
         maxAmountCents: 0,
         accountId: null,
         merchant: null,
-        kind: 'transfer',
         priority: 0,
       }),
     })
@@ -825,9 +822,6 @@ describe('bodyFromForm', () => {
 
   it('sends a destination account only with transfers (#296)', () => {
     const withDestination = { ...form, counterpartAccountId: 'acc-pea' }
-    expect(bodyFromForm({ ...withDestination, kind: 'transfer' })).toEqual({
-      body: expect.objectContaining({ counterpartAccountId: 'acc-pea' }),
-    })
     expect(bodyFromForm(withDestination, 'transfer')).toEqual({
       body: expect.objectContaining({ counterpartAccountId: 'acc-pea' }),
     })

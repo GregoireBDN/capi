@@ -517,92 +517,53 @@ describe.skipIf(!process.env.DATABASE_URL)(
         )
       })
 
-      it('honours an explicit kind and review flag with a category', async () => {
+      it('honours the review flag, and refuses a kind other than the category’s (#368)', async () => {
         await withFixture(async ({ tx, service, checking, groceries }) => {
           const [row] = await insert(tx, [
             transaction(checking, { needsReview: true }),
           ])
 
+          await expect(
+            service.update(row.id, { categoryId: groceries, kind: 'transfer' }),
+          ).rejects.toBeInstanceOf(BadRequestException)
           const updated = await service.update(row.id, {
             categoryId: groceries,
-            kind: 'transfer',
+            kind: 'expense',
             needsReview: true,
           })
 
           expect(updated).toMatchObject({
             categoryId: groceries,
-            kind: 'transfer',
+            kind: 'expense',
             needsReview: true,
           })
         })
       })
 
-      it('validates without a category: review flag, one-off, note', async () => {
-        await withFixture(async ({ tx, service, checking, groceries }) => {
-          const [row] = await insert(tx, [
-            transaction(checking, { categoryId: groceries, needsReview: true }),
-          ])
-
-          const updated = await service.update(row.id, {
-            needsReview: false,
-            isOneOff: true,
-            note: 'Synthetic note',
-          })
-
-          expect(updated).toMatchObject({
-            categoryId: groceries,
-            needsReview: false,
-            isOneOff: true,
-            note: 'Synthetic note',
-          })
-          await service.update(row.id, { note: null })
-          expect((await reload(tx, row.id)).note).toBeNull()
-        })
-      })
-
-      it('removes a category, keeping the kind unless sent', async () => {
-        await withFixture(async ({ tx, service, checking, livret }) => {
-          const [row] = await insert(tx, [
-            transaction(checking, { categoryId: livret, kind: 'transfer' }),
-          ])
-
-          const updated = await service.update(row.id, {
-            categoryId: null,
-            needsReview: true,
-          })
-
-          expect(updated).toMatchObject({
-            categoryId: null,
-            category: null,
-            ruleId: null,
-            kind: 'transfer',
-            needsReview: true,
-          })
-        })
-      })
-
-      it('pins a rule categorization when only the kind changes', async () => {
+      it('keeps a rule categorization when the kind sent is its category’s', async () => {
         await withFixture(
           async ({ tx, service, rules, checking, groceries }) => {
             const rule = await rules.create({
               labelPattern: 'FAKEMART',
               categoryId: groceries,
             })
-            const [kept, changed] = await insert(tx, [
+            const [kept, refused] = await insert(tx, [
               transaction(checking, { categoryId: groceries, ruleId: rule.id }),
               transaction(checking, { categoryId: groceries, ruleId: rule.id }),
             ])
 
             await service.update(kept.id, { kind: 'expense' })
-            await service.update(changed.id, { kind: 'transfer' })
+            await expect(
+              service.update(refused.id, { kind: 'transfer' }),
+            ).rejects.toBeInstanceOf(BadRequestException)
 
             expect(await reload(tx, kept.id)).toMatchObject({
               ruleId: rule.id,
               kind: 'expense',
             })
-            expect(await reload(tx, changed.id)).toMatchObject({
-              ruleId: null,
-              kind: 'transfer',
+            expect(await reload(tx, refused.id)).toMatchObject({
+              ruleId: rule.id,
+              kind: 'expense',
               categoryId: groceries,
             })
           },

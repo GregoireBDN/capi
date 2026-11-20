@@ -8307,15 +8307,6 @@
             "type": "string",
             "format": "uuid"
           },
-          "kind": {
-            "nullable": true,
-            "description": "Overrides the category's kind when set (e.g. `transfer` for a move to one of the user's own accounts).",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/TransactionKind"
-              }
-            ]
-          },
           "merchant": {
             "type": "string",
             "nullable": true,
@@ -8348,7 +8339,6 @@
           "minAmountCents",
           "maxAmountCents",
           "categoryId",
-          "kind",
           "merchant",
           "counterpartAccountId",
           "createdAt",
@@ -8399,15 +8389,6 @@
           "categoryId": {
             "type": "string",
             "format": "uuid"
-          },
-          "kind": {
-            "nullable": true,
-            "description": "Overrides the category's kind when set (e.g. `transfer` for a move to one of the user's own accounts).",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/TransactionKind"
-              }
-            ]
           },
           "merchant": {
             "type": "string",
@@ -8701,15 +8682,6 @@
             "type": "string",
             "format": "uuid"
           },
-          "kind": {
-            "nullable": true,
-            "description": "Overrides the category's kind when set (e.g. `transfer` for a move to one of the user's own accounts).",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/TransactionKind"
-              }
-            ]
-          },
           "merchant": {
             "type": "string",
             "nullable": true
@@ -8723,7 +8695,6 @@
           "minAmountCents",
           "maxAmountCents",
           "categoryId",
-          "kind",
           "merchant"
         ]
       },
@@ -8771,15 +8742,6 @@
           "categoryId": {
             "type": "string",
             "format": "uuid"
-          },
-          "kind": {
-            "nullable": true,
-            "description": "Overrides the category's kind when set (e.g. `transfer` for a move to one of the user's own accounts).",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/TransactionKind"
-              }
-            ]
           },
           "merchant": {
             "type": "string",
@@ -8896,7 +8858,7 @@
             }
           },
           "conflicts": {
-            "description": "Other rules that also match transactions this rule matches but file them differently (category or kind), with who wins. Transactions filed by hand are never counted.",
+            "description": "Other rules that also match transactions this rule matches but file them in another category, with who wins. Transactions filed by hand are never counted.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CategorizationRuleConflictDto"
@@ -8985,15 +8947,6 @@
           "categoryId": {
             "type": "string",
             "format": "uuid"
-          },
-          "kind": {
-            "nullable": true,
-            "description": "Overrides the category's kind when set (e.g. `transfer` for a move to one of the user's own accounts).",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/TransactionKind"
-              }
-            ]
           },
           "merchant": {
             "type": "string",
@@ -10941,7 +10894,7 @@
             ]
           },
           "kind": {
-            "description": "Category group: the kind its transactions get by default.",
+            "description": "Category group: the kind of every transaction and split part filed under it (#368).",
             "allOf": [
               {
                 "$ref": "#/components/schemas/TransactionKind"
@@ -10977,7 +10930,7 @@
             "description": "Signed integer cents, same sign as the transaction."
           },
           "kind": {
-            "description": "Kind the part counts with (#357): its category’s, so an incoming part in an expense category is a refund of that category and one in an income category is income. A transfer’s parts, and a part in a transfer category, keep the transaction’s kind.",
+            "description": "Kind the part counts with: its category’s (#357, #368), so an incoming part in an expense category is a refund of that category and one in an income category is income.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/TransactionKind"
@@ -11241,7 +11194,7 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Setting a category files the transaction by hand (`ruleId` = null, so rules never overwrite it), gives it the category’s kind unless `kind` is sent, and takes it out of review unless `needsReview` is sent. `null` removes the category (the kind is kept unless sent)."
+            "description": "Setting a category files the transaction by hand (`ruleId` = null, so rules never overwrite it), gives it the category’s kind (#368: a `kind` sent with it must be that kind, else 400), and takes it out of review unless `needsReview` is sent. `null` removes the category (the kind is kept unless sent)."
           },
           "ruleId": {
             "type": "string",
@@ -11250,7 +11203,7 @@
             "description": "Restores a categorization made by a rule (e.g. to undo a correction). Requires `categoryId`, equal to the rule’s category."
           },
           "kind": {
-            "description": "Overrides the kind (e.g. `transfer` for a move between own accounts). Changing the kind of a rule-categorized transaction files it by hand.",
+            "description": "Kind of an uncategorized transaction (e.g. `transfer` for a move between own accounts). A categorized transaction has its category’s kind (#368): a different kind is refused (400), choose a category of that kind instead.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/TransactionKind"
@@ -11360,7 +11313,7 @@
             ]
           },
           "kind": {
-            "description": "Default: the kind of the category, else `expense`. `transfer` = move between own accounts, never income or expense.",
+            "description": "The category’s kind when there is a category (#368: another kind is refused, 400), else this kind, default `expense`. `transfer` = move between own accounts, never income or expense.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/TransactionKind"
@@ -11422,6 +11375,7 @@
             ]
           },
           "kind": {
+            "description": "Kind of an uncategorized transaction. A categorized one has its category’s kind (#368): another kind is refused (400).",
             "allOf": [
               {
                 "$ref": "#/components/schemas/TransactionKind"
@@ -11432,7 +11386,7 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Null: no category (back to the review queue). Sets the category’s kind unless `kind` is sent."
+            "description": "Null: no category (back to the review queue). Sets the category’s kind."
           },
           "bookingDate": {
             "type": "string",
@@ -11518,7 +11472,7 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Setting a category files the transaction by hand (`ruleId` = null, so rules never overwrite it), gives it the category’s kind unless `kind` is sent, and takes it out of review unless `needsReview` is sent. `null` removes the category (the kind is kept unless sent)."
+            "description": "Setting a category files the transaction by hand (`ruleId` = null, so rules never overwrite it), gives it the category’s kind (#368: a `kind` sent with it must be that kind, else 400), and takes it out of review unless `needsReview` is sent. `null` removes the category (the kind is kept unless sent)."
           },
           "ruleId": {
             "type": "string",
@@ -11527,7 +11481,7 @@
             "description": "Restores a categorization made by a rule (e.g. to undo a correction). Requires `categoryId`, equal to the rule’s category."
           },
           "kind": {
-            "description": "Overrides the kind (e.g. `transfer` for a move between own accounts). Changing the kind of a rule-categorized transaction files it by hand.",
+            "description": "Kind of an uncategorized transaction (e.g. `transfer` for a move between own accounts). A categorized transaction has its category’s kind (#368): a different kind is refused (400), choose a category of that kind instead.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/TransactionKind"

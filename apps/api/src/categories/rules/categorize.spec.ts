@@ -62,7 +62,6 @@ function rule(
     minAmountCents: null,
     maxAmountCents: null,
     categoryId: 'cat-groceries',
-    kind: null,
     merchant: null,
     counterpartAccountId: null,
     createdAt: NOW,
@@ -112,8 +111,7 @@ describe('categorize', () => {
 
     it('never links a non-transfer or a transaction to its own account', () => {
       const asExpense = rule({
-        categoryId: 'cat-savings',
-        kind: 'expense',
+        categoryId: 'cat-groceries',
         counterpartAccountId: 'account-pea',
       })
       expect(
@@ -479,13 +477,21 @@ describe('categorize', () => {
       ).toBe('income')
     })
 
-    it('uses the rule override, so an internal transfer is never income or expense', () => {
-      // A move from checking to the user's own savings account, filed under
-      // an expense-group category but overridden as a transfer.
+    it('gives the category kind whatever the sign (#368: no override)', () => {
+      // A refund caught by a groceries rule stays in groceries, as an expense
+      // (it nets that category), and a move to savings stays a transfer.
+      const refund = categorize(
+        tx({ amountCents: 1_500 }),
+        [rule({ categoryId: 'cat-groceries' })],
+        categoriesById,
+      )
+      expect(refund).toMatchObject({
+        categoryId: 'cat-groceries',
+        kind: 'expense',
+      })
       const transferRule = rule({
         labelPattern: 'VIR LIVRET TEST',
-        categoryId: 'cat-groceries',
-        kind: 'transfer',
+        categoryId: 'cat-savings',
       })
 
       const out = categorize(

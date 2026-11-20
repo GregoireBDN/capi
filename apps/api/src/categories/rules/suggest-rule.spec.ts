@@ -83,7 +83,6 @@ describe('suggestRuleFromTransaction', () => {
       minAmountCents: null,
       maxAmountCents: null,
       categoryId: CATEGORY_ID,
-      kind: null,
       merchant: null,
     })
   })

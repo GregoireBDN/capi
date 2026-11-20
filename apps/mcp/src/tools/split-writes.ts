@@ -42,20 +42,6 @@ interface Line {
   amountCents: number
 }
 
-/**
- * The kind a part counts with, as the API's `transaction_lines` computes it:
- * its category's, except that a transfer's parts and a part in a transfer
- * category keep the transaction's kind.
- */
-export function partKind(
-  transactionKind: TransactionKind,
-  categoryKind: TransactionKind,
-): TransactionKind {
-  return transactionKind === 'transfer' || categoryKind === 'transfer'
-    ? transactionKind
-    : categoryKind
-}
-
 /** « remboursement de Restaurants », « revenu Remboursements »… */
 export function partLabel(line: Line): string {
   const incoming = line.amountCents > 0
@@ -146,7 +132,7 @@ export const splitTransactionTool = defineTool({
   name: 'split_transaction',
   title: 'Répartir une opération',
   description:
-    "Split one transaction (by id) between 2 to 20 categories, e.g. a 60 € transfer received that pays back 20 € of a restaurant bill and keeps 40 € as income. Each part counts with its category's kind: an incoming part in an expense category is a refund of that category (it lowers its spending and budget), an incoming part in an income category is income; a transfer's parts stay internal transfers, and a transfer category cannot be mixed with income or expense ones. Amounts are euros as text without sign (the transaction's sign applies) and must add up exactly to the transaction's amount. Without confirm: preview (the parts, their kind, the effect on the month's budget). With confirm: true the split replaces any previous one; the same parts again change nothing. Undoing a split is done in the app, or with categorize_transactions (one category for the whole transaction).",
+    "Split one transaction (by id) between 2 to 20 categories, e.g. a 60 € transfer received that pays back 20 € of a restaurant bill and keeps 40 € as income. Each part counts with its category's kind: an incoming part in an expense category is a refund of that category (it lowers its spending and budget), an incoming part in an income category is income; a part in a transfer category is an internal transfer, and a transfer category cannot be mixed with income or expense ones. Amounts are euros as text without sign (the transaction's sign applies) and must add up exactly to the transaction's amount. Without confirm: preview (the parts, their kind, the effect on the month's budget). With confirm: true the split replaces any previous one; the same parts again change nothing. Undoing a split is done in the app, or with categorize_transactions (one category for the whole transaction).",
   write: { idempotent: true },
   inputSchema: {
     id: z
@@ -227,7 +213,8 @@ export const splitTransactionTool = defineTool({
     const after: Line[] = parts.map((part) => ({
       categoryId: part.category.id,
       name: part.category.name,
-      kind: partKind(t.kind, part.category.kind),
+      // Every part counts with its category's kind (#357, #368).
+      kind: part.category.kind,
       amountCents: part.amountCents,
     }))
     const before = currentLines(t)
@@ -254,9 +241,9 @@ export const splitTransactionTool = defineTool({
       ...after.map(partLine),
     ]
     const transferNote =
-      t.kind === 'transfer'
+      t.kind === 'transfer' && after.some((line) => line.kind !== 'transfer')
         ? [
-            "C'est un virement interne : ses parts restent des virements, jamais comptées comme revenu ou dépense.",
+            "C'est un virement interne : réparti dans ces catégories, il compterait comme dépense ou revenu.",
           ]
         : []
 
@@ -293,7 +280,7 @@ export const splitTransactionTool = defineTool({
               amount: centsToText(Math.abs(part.amountCents)),
             })),
           )}, confirm: true.`
-        : `Pour annuler : categorize_transactions ids ["${t.id}"], category "${t.category?.slug ?? 'uncategorized'}", kind "${t.kind}", confirm: true (une seule catégorie pour toute l'opération), ou « Ne plus répartir » dans l'application.`
+        : `Pour annuler : categorize_transactions ids ["${t.id}"], category "${t.category?.slug ?? 'uncategorized'}"${t.category ? '' : `, kind "${t.kind}"`}, confirm: true (une seule catégorie pour toute l'opération), ou « Ne plus répartir » dans l'application.`
     return [
       'Opération répartie :',
       `- ${transactionRef(saved)}`,

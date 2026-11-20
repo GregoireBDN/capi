@@ -117,7 +117,6 @@ export function RuleFromCorrectionDialog({
         matchType: next.matchType,
         labelPattern: next.labelPattern,
         categoryId: next.categoryId,
-        kind: data?.kind ?? null,
       })
       setPattern(next.labelPattern)
     })

@@ -33,8 +33,6 @@ export interface RuleForm {
    */
   keptAmounts: AmountBounds | null
   categoryId: string
-  /** '' = the category's kind. */
-  kind: TransactionKind | ''
   merchant: string
   enabled: boolean
   /** Destination of the transfers it files (#296); '' = none. */
@@ -113,7 +111,6 @@ export function formFromRule(rule: CategorizationRuleDto | null): RuleForm {
     ...(fields ?? { minAmount: '', maxAmount: '', amountSign: 'out' }),
     keptAmounts: fields ? null : bounds,
     categoryId: rule?.categoryId ?? '',
-    kind: rule?.kind ?? '',
     merchant: rule?.merchant ?? '',
     enabled: rule?.enabled ?? true,
     counterpartAccountId: rule?.counterpartAccountId ?? '',
@@ -134,7 +131,6 @@ export function bodyFromRule(
     minAmountCents: rule.minAmountCents,
     maxAmountCents: rule.maxAmountCents,
     categoryId: rule.categoryId,
-    kind: rule.kind,
     merchant: rule.merchant,
     counterpartAccountId: rule.counterpartAccountId,
   }
@@ -213,10 +209,9 @@ export function bodyFromForm(
       priority: form.priority,
       ...result.conditions,
       categoryId: form.categoryId,
-      kind: form.kind || null,
       merchant: form.merchant.trim() || null,
       counterpartAccountId:
-        (form.kind || categoryKind) === 'transfer' &&
+        categoryKind === 'transfer' &&
         form.counterpartAccountId !== form.accountId
           ? form.counterpartAccountId || null
           : null,

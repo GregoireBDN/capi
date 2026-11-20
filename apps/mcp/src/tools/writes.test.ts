@@ -251,24 +251,35 @@ describe('categorize_transactions', () => {
       category: 'Courses',
     })
     expect(text).toContain('virement interne → dépense')
-    expect(text).toContain('kind "transfer" le garde en virement')
+    expect(text).toContain(
+      'une catégorie de virement interne le garde en virement',
+    )
   })
 
-  it('uses PATCH for one transaction and passes an explicit kind', async () => {
+  it('uses PATCH for one transaction, and the kind only without a category (#368)', async () => {
     const { call, writes } = await connect(routes)
-    const { text } = await call('categorize_transactions', {
+    const refused = await call('categorize_transactions', {
       ids: [ID_1],
       category: 'Courses',
+      kind: 'transfer',
+      confirm: true,
+    })
+    expect(refused.isError).toBe(true)
+    expect(refused.text).toContain(
+      'Une opération classée prend le type de sa catégorie',
+    )
+    expect(writes()).toHaveLength(0)
+
+    const { text } = await call('categorize_transactions', {
+      ids: [ID_1],
+      category: 'uncategorized',
       kind: 'transfer',
       confirm: true,
     })
     expect(writes()).toHaveLength(1)
     expect(writes()[0]?.method).toBe('PATCH')
     expect(writes()[0]?.url.pathname).toBe(`/api/transactions/${ID_1}`)
-    expect(writes()[0]?.body).toEqual({
-      categoryId: groceries.id,
-      kind: 'transfer',
-    })
+    expect(writes()[0]?.body).toEqual({ categoryId: null, kind: 'transfer' })
     expect(text).toContain('dépense → virement interne')
   })
 
@@ -384,7 +395,6 @@ describe('create_rule', () => {
     minAmountCents: null,
     maxAmountCents: null,
     categoryId: groceries.id,
-    kind: null,
     merchant: null,
     counterpartAccountId: null,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -453,7 +463,6 @@ describe('create_rule', () => {
       matchType: 'contains',
       labelPattern: 'BOULANGERIE TEST',
       categoryId: groceries.id,
-      kind: null,
       accountId: null,
     })
   })

@@ -86,25 +86,27 @@ describe('mapCategory', () => {
     })
   })
 
-  it('lets Groupe win over the category kind', () => {
-    // A refund filed under groceries: income, no review.
+  it('gives a categorized row its category kind (#368)', () => {
+    // A refund filed under groceries: a refund of groceries, no review.
     expect(map({ group: 'income', amountCents: 500 })).toEqual({
       categorySlug: 'groceries',
-      kind: 'income',
+      kind: 'expense',
       needsReview: false,
       reviewReason: null,
     })
-    // An expense in a transfer category: Groupe wins but it is flagged,
-    // since it decides whether the row counts in stats at all.
+    // An expense in a transfer category: filed without a category, with
+    // Groupe's kind, for review (it decides whether the row counts at all).
     expect(map({ categorySlug: 'epargne', group: 'expense' })).toEqual({
-      categorySlug: 'savings_transfer',
+      categorySlug: null,
       kind: 'expense',
       needsReview: true,
       reviewReason: 'transfer_kind_mismatch',
     })
-    expect(map({ categorySlug: 'courses', group: 'transfer' })).toMatchObject({
-      categorySlug: 'groceries',
+    // No fallback to `internal_transfer` either: the owner decides.
+    expect(map({ categorySlug: 'courses', group: 'transfer' })).toEqual({
+      categorySlug: null,
       kind: 'transfer',
+      needsReview: true,
       reviewReason: 'transfer_kind_mismatch',
     })
   })
