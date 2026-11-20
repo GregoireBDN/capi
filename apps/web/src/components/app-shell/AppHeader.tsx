@@ -23,7 +23,9 @@ import { useSetPageActionsSlot, useSetPageBackSlot } from './page-actions'
  *   « ‹ Comptes ») takes its place on phones and follows it from `md` up.
  * - Phones: the page's other actions (`PageHeader`; its main action stays
  *   beside the title). From `md` up: a search box opening Opérations on
- *   every date (an icon below `lg`) and « + Opération » (the quick entry).
+ *   every date (an icon below `lg`) and « + Ajouter une dépense » (the
+ *   quick entry, on an expense: its usual use; the kind can be changed in
+ *   it). « Opération » alone did not say what it added (the owner, #386).
  * - The avatar: the account menu (`AccountMenu`).
  *
  * `h-12` on every width: sticky elements below it use `top-(--app-top-bar)`
@@ -105,18 +107,23 @@ export function AppHeader({ user }: { user: UserDto }) {
           variant="primary"
           className="max-md:hidden"
           iconStart={<PlusIcon />}
-          aria-label="Ajouter une opération"
+          // An icon alone below lg: the name stays for screen readers.
+          title="Ajouter une dépense"
           onClick={() => {
             setAddMounted(true)
             setAddOpen(true)
           }}
         >
-          <span className="max-lg:sr-only">Opération</span>
+          <span className="max-lg:sr-only">Ajouter une dépense</span>
         </Button>
         <AccountMenu user={user} />
       </div>
       {addMounted && (
-        <ManualTransactionSheet open={addOpen} onOpenChange={setAddOpen} />
+        <ManualTransactionSheet
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          initialKind="expense"
+        />
       )}
     </header>
   )

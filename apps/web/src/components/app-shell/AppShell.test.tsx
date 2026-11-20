@@ -131,7 +131,7 @@ describe('App shell sidebar (≥ md)', () => {
       }),
     ).toBeInTheDocument()
     expect(
-      within(header()).getByRole('button', { name: 'Ajouter une opération' }),
+      within(header()).getByRole('button', { name: 'Ajouter une dépense' }),
     ).toBeInTheDocument()
     expect(
       within(header()).getByRole('button', { name: 'Compte, Owner Test' }),
