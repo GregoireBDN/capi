@@ -10,9 +10,9 @@ const TONES = {
 } as const
 
 /**
- * One row of the dashboard's main card (#405): an icon badge, the title and
- * its figure on one line (the figure never cut), a second line under them,
- * then the chevron; the whole row is the link given as its child.
+ * One row of the dashboard's main card (#405): an icon badge, the title over
+ * its second line, then the figure (never cut) and the chevron, both centred
+ * on the row; the whole row is the link given as its child.
  */
 export function GlanceRow({
   icon,
@@ -53,20 +53,22 @@ export function GlanceRow({
         {icon}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="flex items-baseline justify-between gap-2">
-          <span className="min-w-0 truncate font-medium">{title}</span>
-          <span className="font-semibold whitespace-nowrap tabular-nums">
-            {value}
-          </span>
-        </span>
+        <span className="block truncate font-medium">{title}</span>
         {detail && (
           <span className="text-muted-foreground block text-xs">{detail}</span>
         )}
       </span>
-      <ChevronRightIcon
-        aria-hidden
-        className="text-muted-foreground size-4 shrink-0"
-      />
+      {/* The figure and the chevron both centred on the row, side by side
+          (the owner). */}
+      <span className="flex shrink-0 items-center gap-2">
+        <span className="font-semibold whitespace-nowrap tabular-nums">
+          {value}
+        </span>
+        <ChevronRightIcon
+          aria-hidden
+          className="text-muted-foreground size-4 shrink-0"
+        />
+      </span>
     </Slot.Root>
   )
 }
