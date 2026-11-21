@@ -5,7 +5,6 @@ import {
   CardTitle,
   formatWholeEuros,
 } from '@finances/ui'
-import type { ReactNode } from 'react'
 import type { SavingsOverviewDto } from '#/api/types.gen'
 import { formatMonth } from '#/lib/calendar'
 import {
@@ -15,6 +14,7 @@ import {
   signedWholeEuros,
   SplitBar,
   StatusChip,
+  STRIP,
 } from './figures'
 
 interface Moved {
@@ -53,57 +53,64 @@ function MovedCard({
         <CardTitle>Mis de côté</CardTitle>
         <StatusChip tone="neutral">{period}</StatusChip>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-2xl font-semibold tracking-tight whitespace-nowrap tabular-nums">
-          {formatWholeEuros(total)}
-        </p>
-        {saved && (
-          <Section>
-            <FigureRow
-              label="Épargné"
-              value={formatWholeEuros(moved.savedCents)}
-            />
+      <CardContent className="@container space-y-4">
+        {/* A computer: the figure beside its bars, then the lines abreast. */}
+        <div className={STRIP}>
+          <p className="text-2xl font-semibold tracking-tight whitespace-nowrap tabular-nums">
+            {formatWholeEuros(total)}
+          </p>
+          <div className="space-y-2">
+            {saved && (
+              <>
+                <FigureRow
+                  label="Épargné"
+                  value={formatWholeEuros(moved.savedCents)}
+                />
+                <SplitBar
+                  max={max}
+                  parts={[
+                    { cents: moved.savedCents, color: 'bg-chart-savings' },
+                  ]}
+                />
+              </>
+            )}
             <SplitBar
               max={max}
-              parts={[{ cents: moved.savedCents, color: 'bg-chart-savings' }]}
+              className={saved ? 'mt-4' : undefined}
+              parts={[
+                { cents: moved.toSavingsCents, color: SAVINGS_COLOR },
+                { cents: moved.toInvestmentsCents, color: INVESTMENTS_COLOR },
+              ]}
             />
-          </Section>
-        )}
-        <Section>
-          <SplitBar
-            max={max}
-            parts={[
-              { cents: moved.toSavingsCents, color: SAVINGS_COLOR },
-              { cents: moved.toInvestmentsCents, color: INVESTMENTS_COLOR },
-            ]}
-          />
+          </div>
+        </div>
+        <div className="space-y-2 @[32rem]:ml-[15rem] @[32rem]:flex @[32rem]:flex-wrap @[32rem]:gap-x-10 @[32rem]:gap-y-2 @[32rem]:space-y-0">
           <FigureRow
             label="Livrets"
             value={signedWholeEuros(moved.toSavingsCents)}
             dot={SAVINGS_COLOR}
+            stackWhenWide
           />
           <FigureRow
             label="Placements"
             value={signedWholeEuros(moved.toInvestmentsCents)}
             dot={INVESTMENTS_COLOR}
+            stackWhenWide
           />
-        </Section>
-        {checking && (
-          <div className="border-t pt-3">
-            <FigureRow
-              label="Compte courant"
-              value={signedWholeEuros(rest)}
-              tone={rest < 0 ? 'bad' : 'neutral'}
-            />
-          </div>
-        )}
+          {checking && (
+            <div className="mt-3 border-t pt-3 @[32rem]:mt-0 @[32rem]:border-t-0 @[32rem]:pt-0">
+              <FigureRow
+                label="Compte courant"
+                value={signedWholeEuros(rest)}
+                tone={rest < 0 ? 'bad' : 'neutral'}
+                stackWhenWide
+              />
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   )
-}
-
-function Section({ children }: { children: ReactNode }) {
-  return <div className="space-y-2">{children}</div>
 }
 
 /** The page month: saved, put aside, and the checking account once it ends. */

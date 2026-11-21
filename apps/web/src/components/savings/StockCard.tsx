@@ -18,6 +18,7 @@ import {
   SAVINGS_COLOR,
   signedWholeEuros,
   SplitBar,
+  STRIP,
 } from './figures'
 
 /** Accounts listed on Épargne; the others are one tap away on Comptes. */
@@ -45,46 +46,53 @@ export function StockCard({ stock }: { stock: SavingsStockDto }) {
       <CardHeader>
         <CardTitle>Livrets et placements</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-0.5">
-          <p className="text-3xl font-semibold tracking-tight whitespace-nowrap tabular-nums">
-            {formatWholeEuros(stock.totalCents)}
-          </p>
-          {stock.gainCents !== null && (
-            <p
-              className={cn(
-                'text-sm font-medium tabular-nums',
-                stock.gainCents >= 0
-                  ? 'text-chart-delta-good'
-                  : 'text-chart-delta-bad',
-              )}
-            >
-              {signedWholeEuros(stock.gainCents)}{' '}
-              <span className="text-muted-foreground font-normal">
-                de résultat
-              </span>
+      <CardContent className="@container space-y-4">
+        {/* A computer: the total beside its split, the two lines abreast. */}
+        <div className={STRIP}>
+          <div className="space-y-0.5">
+            <p className="text-3xl font-semibold tracking-tight whitespace-nowrap tabular-nums">
+              {formatWholeEuros(stock.totalCents)}
             </p>
-          )}
-        </div>
-        <div className="space-y-2">
-          <SplitBar
-            className="h-3"
-            max={stock.totalCents}
-            parts={[
-              { cents: cash.totalCents, color: SAVINGS_COLOR },
-              { cents: investmentsCents, color: INVESTMENTS_COLOR },
-            ]}
-          />
-          <FigureRow
-            label="Livrets"
-            value={formatWholeEuros(cash.totalCents)}
-            dot={SAVINGS_COLOR}
-          />
-          <FigureRow
-            label="Placements"
-            value={formatWholeEuros(investmentsCents)}
-            dot={INVESTMENTS_COLOR}
-          />
+            {stock.gainCents !== null && (
+              <p
+                className={cn(
+                  'text-sm font-medium tabular-nums',
+                  stock.gainCents >= 0
+                    ? 'text-chart-delta-good'
+                    : 'text-chart-delta-bad',
+                )}
+              >
+                {signedWholeEuros(stock.gainCents)}{' '}
+                <span className="text-muted-foreground font-normal">
+                  de résultat
+                </span>
+              </p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <SplitBar
+              className="h-3"
+              max={stock.totalCents}
+              parts={[
+                { cents: cash.totalCents, color: SAVINGS_COLOR },
+                { cents: investmentsCents, color: INVESTMENTS_COLOR },
+              ]}
+            />
+            <div className="space-y-2 @[32rem]:flex @[32rem]:flex-wrap @[32rem]:gap-x-10 @[32rem]:gap-y-2 @[32rem]:space-y-0">
+              <FigureRow
+                label="Livrets"
+                value={formatWholeEuros(cash.totalCents)}
+                dot={SAVINGS_COLOR}
+                stackWhenWide
+              />
+              <FigureRow
+                label="Placements"
+                value={formatWholeEuros(investmentsCents)}
+                dot={INVESTMENTS_COLOR}
+                stackWhenWide
+              />
+            </div>
+          </div>
         </div>
         <div className="space-y-1 border-t pt-2">
           <AccountList

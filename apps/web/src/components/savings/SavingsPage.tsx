@@ -27,12 +27,15 @@ import { MonthMovedCard, YearMovedCard } from './MovedCard'
 import { StockCard } from './StockCard'
 import { savingsOverviewQuery } from './queries'
 
-/** Two columns from this page width (a computer), one card per row below. */
-const COLUMNS = 'grid items-start gap-4 @[38rem]:grid-cols-2'
+/**
+ * One card per row at every width (the owner, #407: two columns of cards
+ * read worse on a computer); each card spreads across its width there.
+ */
+const COLUMN = 'space-y-4'
 
 function OverviewSkeleton() {
   return (
-    <div className={COLUMNS} aria-busy="true" aria-label="Chargement">
+    <div className={COLUMN} aria-busy="true" aria-label="Chargement">
       <Skeleton className="h-80 rounded-xl" />
       <Skeleton className="h-72 rounded-xl" />
     </div>
@@ -139,7 +142,7 @@ export function SavingsPage({
 
       {data && !isEmpty && (
         <>
-          <div className={COLUMNS}>
+          <div className={COLUMN}>
             <MonthCard overview={data} onMonthChange={go} />
             <MonthMovedCard overview={data} />
           </div>
@@ -150,14 +153,12 @@ export function SavingsPage({
             >
               Ce que vous avez
             </h2>
-            <div className={COLUMNS}>
+            <div className={COLUMN}>
               <StockCard stock={data.stock} />
-              <div className="min-w-0 space-y-4">
-                <GoalsSection
-                  projectionAverageCents={data.projectionAverageCents}
-                />
-                <YearMovedCard overview={data} />
-              </div>
+              <GoalsSection
+                projectionAverageCents={data.projectionAverageCents}
+              />
+              <YearMovedCard overview={data} />
             </div>
           </section>
         </>

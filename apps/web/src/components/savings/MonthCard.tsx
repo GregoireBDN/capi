@@ -23,6 +23,7 @@ import { comparisonLabel, formatShortDay } from '#/lib/period'
 import {
   FigureRow,
   signedWholeEuros,
+  STRIP,
   SplitBar,
   Stat,
   StatusChip,
@@ -99,7 +100,7 @@ export function MonthCard({
         </CardTitle>
         {period.status !== 'empty' && <MonthStatusChip overview={overview} />}
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="@container space-y-4">
         {editing ? (
           <TargetForm target={target} onDone={() => setEditing(false)} />
         ) : period.status === 'empty' ? (
@@ -169,87 +170,99 @@ function MonthFigures({ overview }: { overview: SavingsOverviewDto }) {
 
   return (
     <>
-      <p
-        className={cn(
-          'text-[2.6rem] leading-none font-semibold tracking-tight whitespace-nowrap tabular-nums',
-          net < 0 && 'text-chart-delta-bad',
-        )}
-      >
-        {formatWholeEuros(net)}
-      </p>
-      <Gauge
-        net={net}
-        reference={target ?? average}
-        referenceLabel={target === null ? 'Moyenne' : 'Cible'}
-        tone={status?.tone ?? 'neutral'}
-        partial={partial}
-      />
-      <div className="grid grid-cols-2 gap-2">
-        {partial ? (
-          <>
-            <Stat
-              value={signedWholeEuros(net - previous.netCents)}
-              label={comparisonLabel(period, 'vs mois précédent')}
-              tone={net >= previous.netCents ? 'good' : 'bad'}
-            />
-            {lastFull && (
-              <Stat
-                value={
-                  <span className="inline-flex items-center gap-1">
-                    {formatWholeEuros(lastFull.netCents)}
-                    {target !== null && lastFull.netCents >= target && (
-                      <CheckIcon
-                        aria-label="cible atteinte"
-                        className="text-chart-delta-good size-[1em]"
-                      />
-                    )}
-                  </span>
-                }
-                label={monthName(lastFull.month)}
-              />
-            )}
-          </>
-        ) : (
-          <>
-            {(target ?? average) !== null && (
-              <Stat
-                value={signedWholeEuros(net - (target ?? average ?? 0))}
-                label={target === null ? 'vs moyenne' : 'vs cible'}
-                tone={target === null ? 'neutral' : (status?.tone ?? 'neutral')}
-              />
-            )}
-            <Stat
-              value={
-                current.savingsRate === null
-                  ? '—'
-                  : formatPercent(current.savingsRate)
-              }
-              label={
-                current.savingsRate === null ? 'sans revenus' : 'des revenus'
-              }
-            />
-          </>
-        )}
-      </div>
-      {oneOff !== 0 && (
-        <FigureRow
-          label="Sans le ponctuel"
-          value={formatWholeEuros(net - oneOff)}
+      {/* A computer: the figure beside its gauge, then the figures beside
+          the dots and the average. */}
+      <div className={STRIP}>
+        <p
+          className={cn(
+            'text-[2.6rem] leading-none font-semibold tracking-tight whitespace-nowrap tabular-nums',
+            net < 0 && 'text-chart-delta-bad',
+          )}
+        >
+          {formatWholeEuros(net)}
+        </p>
+        <Gauge
+          net={net}
+          reference={target ?? average}
+          referenceLabel={target === null ? 'Moyenne' : 'Cible'}
+          tone={status?.tone ?? 'neutral'}
+          partial={partial}
         />
-      )}
-      {(recent.length > 0 || average !== null) && (
-        <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t pt-3 text-xs">
-          {target !== null && <ReachedDots months={recent} target={target} />}
-          {average !== null && (
-            <span className="ml-auto">
-              Moyenne{' '}
-              <span className="text-foreground font-medium tabular-nums">
-                {formatWholeEuros(average)}
-              </span>
-            </span>
+      </div>
+      <div className="space-y-4 @[32rem]:grid @[32rem]:grid-cols-[minmax(0,26rem)_1fr] @[32rem]:items-center @[32rem]:gap-x-8 @[32rem]:space-y-0">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            {partial ? (
+              <>
+                <Stat
+                  value={signedWholeEuros(net - previous.netCents)}
+                  label={comparisonLabel(period, 'vs mois précédent')}
+                  tone={net >= previous.netCents ? 'good' : 'bad'}
+                />
+                {lastFull && (
+                  <Stat
+                    value={
+                      <span className="inline-flex items-center gap-1">
+                        {formatWholeEuros(lastFull.netCents)}
+                        {target !== null && lastFull.netCents >= target && (
+                          <CheckIcon
+                            aria-label="cible atteinte"
+                            className="text-chart-delta-good size-[1em]"
+                          />
+                        )}
+                      </span>
+                    }
+                    label={monthName(lastFull.month)}
+                  />
+                )}
+              </>
+            ) : (
+              <>
+                {(target ?? average) !== null && (
+                  <Stat
+                    value={signedWholeEuros(net - (target ?? average ?? 0))}
+                    label={target === null ? 'vs moyenne' : 'vs cible'}
+                    tone={
+                      target === null ? 'neutral' : (status?.tone ?? 'neutral')
+                    }
+                  />
+                )}
+                <Stat
+                  value={
+                    current.savingsRate === null
+                      ? '—'
+                      : formatPercent(current.savingsRate)
+                  }
+                  label={
+                    current.savingsRate === null
+                      ? 'sans revenus'
+                      : 'des revenus'
+                  }
+                />
+              </>
+            )}
+          </div>
+          {oneOff !== 0 && (
+            <FigureRow
+              label="Sans le ponctuel"
+              value={formatWholeEuros(net - oneOff)}
+            />
           )}
         </div>
-      )}
+        {(recent.length > 0 || average !== null) && (
+          <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t pt-3 text-xs @[32rem]:flex-col @[32rem]:items-end @[32rem]:border-t-0 @[32rem]:pt-0 @[32rem]:text-sm">
+            {target !== null && <ReachedDots months={recent} target={target} />}
+            {average !== null && (
+              <span className="ml-auto">
+                Moyenne{' '}
+                <span className="text-foreground font-medium tabular-nums">
+                  {formatWholeEuros(average)}
+                </span>
+              </span>
+            )}
+          </div>
+        )}
+      </div>
     </>
   )
 }

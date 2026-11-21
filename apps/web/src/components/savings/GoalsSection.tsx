@@ -232,9 +232,9 @@ export function GoalsSection({
           </CardAction>
         )}
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="@container space-y-3">
         {need !== null && (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2 @[32rem]:max-w-[26rem]">
             <Stat value={formatWholeEuros(need)} label="par mois" />
             {projectionAverageCents !== null && (
               <Stat
