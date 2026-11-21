@@ -221,7 +221,7 @@ export function DayStrip({
               <ChevronRightIcon />
             </Button>
             <p
-              className="min-w-0 flex-1 truncate px-2 text-[22px] font-semibold first-letter:uppercase"
+              className="min-w-0 flex-1 truncate px-2 text-[19px] font-semibold first-letter:uppercase"
               aria-live="polite"
             >
               {MONTH_YEAR.format(shownMonth)}

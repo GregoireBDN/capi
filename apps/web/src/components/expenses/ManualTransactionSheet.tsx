@@ -116,7 +116,7 @@ import {
   typedAmount,
 } from './amount-entry'
 import type { AmountKey } from './amount-entry'
-import { addDays, DayStrip } from './DayStrip'
+import { addDays, DayStrip } from '#/components/dates/DayStrip'
 import { AccountRows, VoucherDayGauge } from './manual-fields'
 
 const LABEL_MAX = 255

@@ -1,5 +1,4 @@
-import { OptionRow, ToggleGroup, ToggleGroupItem, cn } from '@finances/ui'
-import { CalendarIcon } from 'lucide-react'
+import { OptionRow, cn } from '@finances/ui'
 import type { ReactNode } from 'react'
 import type { AccountDto } from '#/api/types.gen'
 import { ACCOUNT_TYPE_ICONS } from '#/components/accounts/labels'
@@ -33,93 +32,6 @@ export function previousDay(day: string): string {
   return new Date(Date.UTC(year, month - 1, date - 1))
     .toISOString()
     .slice(0, 10)
-}
-
-const shortDay = new Intl.DateTimeFormat('fr-FR', {
-  weekday: 'short',
-  day: 'numeric',
-  month: 'short',
-  timeZone: 'UTC',
-})
-
-/** `2026-11-08` → "dim. 8 nov." */
-function formatShortDay(day: string): string {
-  const [year, month, date] = day.split('-').map(Number)
-  return shortDay.format(new Date(Date.UTC(year, month - 1, date)))
-}
-
-/**
- * "Aujourd'hui", "Hier", then a chip that opens the native date picker (a
- * transparent date input laid over it) and shows the day picked there.
- */
-export function DateChips({
-  value,
-  today,
-  invalid,
-  onChange,
-}: {
-  value: string
-  today: string
-  invalid: boolean
-  onChange: (day: string) => void
-}) {
-  const yesterday = previousDay(today)
-  const quick =
-    value === today ? 'today' : value === yesterday ? 'yesterday' : ''
-  const other = value !== '' && quick === ''
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      <ToggleGroup
-        type="single"
-        spacing={1.5}
-        aria-label="Jour"
-        className="flex-wrap"
-        value={quick}
-        onValueChange={(next) => {
-          if (next === 'today') onChange(today)
-          else if (next === 'yesterday') onChange(yesterday)
-        }}
-      >
-        <ToggleGroupItem value="today" className={cn(CHIP_CLASS, CHIP_ON)}>
-          Aujourd’hui
-        </ToggleGroupItem>
-        <ToggleGroupItem value="yesterday" className={cn(CHIP_CLASS, CHIP_ON)}>
-          Hier
-        </ToggleGroupItem>
-      </ToggleGroup>
-      <div
-        data-state={other ? 'on' : 'off'}
-        className={cn(
-          CHIP_CLASS,
-          CHIP_ON,
-          'relative inline-flex items-center gap-1.5',
-          'has-[input:focus-visible]:border-ring has-[input:focus-visible]:ring-3 has-[input:focus-visible]:ring-ring/50',
-          invalid && 'border-destructive text-destructive',
-        )}
-      >
-        <CalendarIcon aria-hidden className="size-4" />
-        <span>{other ? formatShortDay(value) : 'Autre'}</span>
-        <input
-          type="date"
-          aria-label="Date"
-          aria-invalid={invalid}
-          max={today}
-          value={value}
-          // Transparent over the chip: a tap opens the native picker (iOS,
-          // Android); desktop browsers need showPicker().
-          className="absolute inset-0 size-full cursor-pointer appearance-none text-base opacity-0"
-          onClick={(event) => {
-            try {
-              event.currentTarget.showPicker()
-            } catch {
-              // Not supported or not allowed: the input still takes typing.
-            }
-          }}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      </div>
-    </div>
-  )
 }
 
 /**

@@ -34,11 +34,8 @@ import { categoryErrorMessage } from '#/components/categories/errors'
 import { DEFAULT_CATEGORY_COLOR } from '#/components/categories/palette'
 import { createCategory } from '#/components/categories/queries'
 import { typedAmount } from '#/components/expenses/amount-entry'
-import {
-  CHIP_CLASS,
-  CHIP_ON,
-  DateChips,
-} from '#/components/expenses/manual-fields'
+import { CHIP_CLASS, CHIP_ON } from '#/components/expenses/manual-fields'
+import { DayStrip } from '#/components/dates/DayStrip'
 import {
   EDITOR_STEADY_HEIGHT,
   editorSide,
@@ -182,6 +179,8 @@ function PaidForMeForm({
   /** How many shared the bill, me included; null once I typed my part. */
   const [people, setPeople] = useState<number | null>(2)
   const [typed, setTyped] = useState('')
+  /** The day strip's month is open: the step is all of it. */
+  const [pickingDay, setPickingDay] = useState(false)
 
   const billCents = parseEurosToCents(bill) ?? 0
   const dateOk = date !== '' && date <= today
@@ -193,6 +192,8 @@ function PaidForMeForm({
   const [step, setStep] = useState<PaidForMeStep>(() =>
     firstPaidForMeStep(filled),
   )
+  // The strip closes its month when the step changes.
+  useEffect(() => setPickingDay(false), [step])
   const stepIndex = PAID_FOR_ME_STEPS.indexOf(step)
 
   const mine = myPartCents(billCents, people, typed)
@@ -429,9 +430,9 @@ function PaidForMeForm({
       )}
 
       {step === 'bill' && (
-        <FormSheetBody>
-          {recap}
-          <Field>
+        <FormSheetBody className={cn(pickingDay && 'flex flex-col')}>
+          {!pickingDay && recap}
+          <Field hidden={pickingDay}>
             <FieldLabel htmlFor={`${id}-bill`}>
               Addition payée par {name}
             </FieldLabel>
@@ -443,15 +444,16 @@ function PaidForMeForm({
               onValueChange={setBill}
             />
           </Field>
-          <Field>
-            <DateChips
-              value={date}
-              today={today}
-              invalid={!dateOk}
-              onChange={setDate}
-            />
-          </Field>
-          <Field>
+          {/* The day as in the quick entry (#398): the same strip, its
+              month in place of the rest while open. */}
+          <DayStrip
+            value={date}
+            onChange={setDate}
+            today={today}
+            invalid={!dateOk}
+            onPickingChange={setPickingDay}
+          />
+          <Field hidden={pickingDay}>
             <FieldLabel htmlFor={`${id}-label`}>Libellé</FieldLabel>
             <Input
               id={`${id}-label`}
