@@ -18,6 +18,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import {
   ArrowLeftRightIcon,
+  ArrowRightLeftIcon,
+  BanknoteIcon,
   ChartPieIcon,
   ReceiptEuroIcon,
   UploadIcon,
@@ -36,7 +38,7 @@ import { CategoryRanking } from './CategoryRanking'
 import { monthName, seriesLabel } from './labels'
 import { spendingByCategoryQuery, spendingTrendQuery } from './queries'
 import type { ByCategoryFilters, TrendFilters } from './queries'
-import type { SpendingTrendSeriesDto } from '#/api/types.gen'
+import type { SpendingTrendSeriesDto, TransactionKind } from '#/api/types.gen'
 import { comparedWithText, comparisonCaption } from './rows'
 import type { Comparison } from './rows'
 import { compactSearch, DEFAULT_AVERAGE_PERIOD, UNCATEGORIZED } from './search'
@@ -156,7 +158,8 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
     return chips
   }, [totals.data, trend.data, search.trend])
 
-  const [adding, setAdding] = useState(false)
+  // The kind is chosen before adding (#398).
+  const [adding, setAdding] = useState<TransactionKind | null>(null)
   const navigate = useNavigate()
   // The transactions to review, on « Voir les opérations » and its « ⋮ »
   // (#393): the menu is the way to Opérations from here.
@@ -186,7 +189,17 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
             label: 'Ajouter une dépense',
             icon: <ReceiptEuroIcon />,
             primary: true,
-            onSelect: () => setAdding(true),
+            onSelect: () => setAdding('expense'),
+          },
+          {
+            label: 'Ajouter un revenu',
+            icon: <BanknoteIcon />,
+            onSelect: () => setAdding('income'),
+          },
+          {
+            label: 'Ajouter un virement',
+            icon: <ArrowRightLeftIcon />,
+            onSelect: () => setAdding('transfer'),
           },
           {
             label: 'Voir les opérations',
@@ -210,9 +223,11 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
         ]}
       />
       <ManualTransactionSheet
-        open={adding}
-        onOpenChange={setAdding}
-        initialKind="expense"
+        open={adding !== null}
+        onOpenChange={(open) => {
+          if (!open) setAdding(null)
+        }}
+        initialKind={adding ?? 'expense'}
       />
 
       <SpendingFilters
