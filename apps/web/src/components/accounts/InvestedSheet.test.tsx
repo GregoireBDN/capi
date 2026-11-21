@@ -65,6 +65,11 @@ function renderSheet(props: {
         performance={{
           contributionsCents: props.contributionsCents ?? null,
           valueDate: '2026-10-31',
+          contributionsDate: null,
+          contributionsSource: null,
+          investedBase: null,
+          linkedTransfersCount: 0,
+          unknownCostCount: 0,
         }}
       />
     </QueryClientProvider>,

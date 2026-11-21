@@ -327,7 +327,8 @@ describe('AccountDetailPage', () => {
     const summary = screen.getByRole('region', { name: 'Valeur' })
     const content = text(summary.textContent)
     expect(content).toContain(
-      'Valeur12 500,00 €Au 30 sept. 2026, il y a 37 jours+500,00 € depuis le 30 juin',
+      // The day in the title, no caption (#413).
+      'Valeur au 30 sept.12 500,00 €+500,00 € depuis le 30 juin',
     )
     expect(content).toContain('Investi10 200 €')
     expect(
@@ -339,7 +340,14 @@ describe('AccountDetailPage', () => {
     ).toBeInTheDocument()
     expect(content).toContain('Résultat+2 300 €+22,5 %')
     expect(content).toContain('Sur 1 an+2 500 €+25 %')
-    expect(content).toContain('Saisi sur la valeur du 30 sept. 2026')
+    // Where the invested amount comes from is said in its editor (#413),
+    // the pencil sits in the « Investi » block.
+    expect(content).not.toContain('Saisi sur la valeur')
+    expect(
+      within(summary).getByRole('button', {
+        name: 'Modifier le montant investi',
+      }),
+    ).toBeInTheDocument()
     // One word for the money put in, and no dashes.
     expect(content).not.toMatch(/Versements|Plus-value|—/)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -368,27 +376,31 @@ describe('AccountDetailPage', () => {
     const row = within(lines).getByRole('button', {
       name: /^ETF Monde \(test\)/,
     })
-    expect(text(row.textContent)).toContain('20 parts · 80 %')
-    expect(text(row.textContent)).toContain('10 000,00 €+25 %')
+    // Two lines: the name and the value, the parts and the result.
+    expect(text(row.textContent)).toContain('ETF Monde10 000 €20 parts+25 %')
     expect(text(row.getAttribute('aria-label'))).toBe(
       'ETF Monde (test), 10 000,00 €, 20 parts, résultat +25 %',
     )
     await user.click(row)
     const details = text(lines.textContent)
     expect(details).toContain('ISIN ZZ00MSCIWD03')
-    expect(details).toContain('Investi8 000,00 €PRU 400,00 €')
+    expect(details).toContain('Investi8 000,00 €')
     expect(details).toContain('Résultat+2 000,00 €+25 %')
-    expect(details).toContain('Cours500,00 €relevé, 30 sept.')
+    expect(details).toContain('Cours500,00 €30 sept.')
+    expect(details).toContain('PRU400,00 €')
+    expect(details).toContain('Part80 %')
+    expect(details).toContain('Quantité20')
     expect(details).toContain('Liquidités')
     expect(details).toContain(
-      'Prix de revient des lignes 8 000 € · résultat +2 000 € · hors 1 ligne sans PRU',
+      'Total10 000,00 €acheté 8 000 € · hors 1 sans PRU+2 000 €',
     )
 
     const summary = screen.getByRole('region', { name: 'Valeur' })
     const content = text(summary.textContent)
-    expect(content).toContain('Plafond10 200 € investis sur 150 000 €')
+    expect(content).toContain('Plafond 150 000 €10 200 €')
     expect(content).toContain('Encore 139 800 € possibles')
-    expect(content).toContain('5 ans le 12 mars 2027')
+    expect(content).toContain('5 ans12 mars 2027Encore 4 mois')
+    expect(content).not.toContain('Ouvert le')
     expect(content).not.toMatch(/Versements|Plus-value|—/)
   })
 
@@ -450,8 +462,14 @@ describe('AccountDetailPage', () => {
     expect(text(alert.textContent)).toContain(
       'Valeur du 6 août 2026, il y a 92 jours',
     )
+    // Said in the invested amount's editor (#413), not under the summary.
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Modifier le montant investi' }),
+    )
     expect(
-      screen.getByText('Saisi sur la valeur du 31 déc. 2025'),
+      await screen.findByText(
+        'Aujourd’hui : saisi sur la valeur du 31 déc. 2025',
+      ),
     ).toBeInTheDocument()
   })
 

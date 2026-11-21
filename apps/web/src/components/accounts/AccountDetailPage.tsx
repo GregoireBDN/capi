@@ -46,7 +46,7 @@ import {
   WalletAccount,
 } from '#/components/crypto/WalletAccount'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
-import { formatCalendarDate } from '#/lib/money'
+import { formatShortDay } from '#/lib/period'
 import { ApiRequestError } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import { accountBackLink } from './account-origin'
@@ -57,12 +57,7 @@ import { todayInParis } from './dates'
 import { InvestedSheet } from './InvestedSheet'
 import { InvestmentSummary } from './InvestmentSummary'
 import { historyPoints } from './history'
-import {
-  accountKindLabel,
-  formatAge,
-  isInvestmentType,
-  valueAgeText,
-} from './labels'
+import { accountKindLabel, isInvestmentType, valueAgeText } from './labels'
 import { LinkedTransfers } from './LinkedTransfers'
 import { MealVoucherAccount } from './MealVoucherAccount'
 import { MovementsCard } from './Movements'
@@ -256,8 +251,6 @@ export function AccountDetailPage({
     primary,
     onSelect: () => setLineEditor({ open: true }),
   })
-  const latest = data.snapshots.at(-1)
-  const fromLines = pea && latest?.source === 'computed'
   const paste = (label: string): PageAction => ({
     label,
     icon: <ClipboardPasteIcon />,
@@ -366,13 +359,11 @@ export function AccountDetailPage({
           account={current}
           performance={data}
           writable={writable}
-          caption={
+          // The day in the title, nothing under it (#413, the owner: less
+          // text); an old value has its own warning above.
+          asOf={
             !crypto && data.valueDate
-              ? fromLines
-                ? `Au ${formatCalendarDate(data.valueDate)} · d’après vos lignes`
-                : data.stale || data.daysSinceLatest === null
-                  ? `Au ${formatCalendarDate(data.valueDate)}`
-                  : `Au ${formatCalendarDate(data.valueDate)}, ${formatAge(data.daysSinceLatest)}`
+              ? `au ${formatShortDay(data.valueDate, today.slice(0, 4))}`
               : undefined
           }
           onEditInvested={crypto ? undefined : () => setInvestedOpen(true)}

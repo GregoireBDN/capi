@@ -22,6 +22,7 @@ import { useId, useState } from 'react'
 import { toast } from 'sonner'
 import type { PositionLineDto, PositionsDto } from '#/api/types.gen'
 import { formatPrice, formatQuantity } from '#/components/crypto/format'
+import { rowAmount } from '#/components/crypto/HoldingsPanel'
 import { DashboardCardHeader } from '#/components/dashboard/DashboardCardHeader'
 import { formatCalendarDate, formatCents, formatWholeEuros } from '#/lib/money'
 import { formatShortDay } from '#/lib/period'
@@ -54,7 +55,7 @@ function LineBadge({ line, index }: { line: PositionLineDto; index: number }) {
   )
 }
 
-/** A figure in the unfolded line: a row on a phone, a tile from 560px. */
+/** A figure of the unfolded line: a tile, its figure sized on its width. */
 function Fact({
   label,
   children,
@@ -67,19 +68,19 @@ function Fact({
   toneClass?: string
 }) {
   return (
-    <div className="bg-muted/50 flex min-w-0 items-center justify-between gap-2 rounded-lg px-3 py-2 @min-[560px]:block">
-      <p className="text-muted-foreground min-w-0 truncate">{label}</p>
-      <div className="shrink-0 text-right @min-[560px]:text-left">
-        <p
-          className={cn(
-            'text-sm font-semibold whitespace-nowrap tabular-nums',
-            toneClass,
-          )}
-        >
-          {children}
-        </p>
-        {note && <p className="text-muted-foreground tabular-nums">{note}</p>}
-      </div>
+    <div className="bg-muted/50 @container min-w-0 rounded-lg px-3 py-2">
+      <p className="text-muted-foreground truncate">{label}</p>
+      <p
+        className={cn(
+          'text-[clamp(0.7rem,11cqi,0.95rem)] font-semibold whitespace-nowrap tabular-nums',
+          toneClass,
+        )}
+      >
+        {children}
+      </p>
+      {note && (
+        <p className="text-muted-foreground truncate tabular-nums">{note}</p>
+      )}
     </div>
   )
 }
@@ -111,13 +112,14 @@ function LineRow({
       : null
   const share =
     line.valueCents !== null ? lineShare(line.valueCents, totalCents) : null
+  // From 1 000 € without cents, like the crypto lines: room for the name.
   const value =
     line.valueCents === null ? (
       <Badge variant="warning" outline>
         Sans cours
       </Badge>
     ) : (
-      formatCents(line.valueCents)
+      rowAmount(line.valueCents)
     )
   const rateText = rate !== null && line.gainCents !== null && (
     <span
@@ -148,27 +150,19 @@ function LineRow({
         )}
       >
         <LineBadge line={line} index={index} />
-        {/* A phone (#344's « Nom puis chiffres »): the name alone, then the
-            value and result, then the parts and share; from 24rem of card,
-            the value and result on the right like the crypto assets. */}
-        <span className="grid min-w-0 flex-1 grid-cols-1 items-baseline gap-x-3 gap-y-0.5 @min-[24rem]:grid-cols-[1fr_auto]">
-          <span className="min-w-0 font-medium break-normal">
+        {/* Two lines on every width (#413, the owner): the name and the
+            value, then the parts and the result; the rest unfolds. */}
+        <span className="grid min-w-0 flex-1 grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-0.5">
+          <span className="min-w-0 truncate font-medium">
             {shortName(line.name)}
           </span>
-          <span className="hidden text-right font-medium whitespace-nowrap tabular-nums @min-[24rem]:block">
+          <span className="text-right font-medium whitespace-nowrap tabular-nums">
             {value}
           </span>
-          <span className="whitespace-nowrap tabular-nums @min-[24rem]:hidden">
-            <span className="font-medium">{value}</span>
-            {rateText}
+          <span className="text-muted-foreground min-w-0 truncate text-xs tabular-nums">
+            {formatQuantity(line.quantity)} parts
           </span>
-          <span className="text-muted-foreground min-w-0 text-xs break-normal tabular-nums">
-            <span className="whitespace-nowrap">
-              {formatQuantity(line.quantity)} parts
-            </span>
-            {share && <span className="whitespace-nowrap"> · {share}</span>}
-          </span>
-          <span className="hidden text-right text-xs whitespace-nowrap tabular-nums @min-[24rem]:block">
+          <span className="text-right text-xs whitespace-nowrap tabular-nums">
             {rateText}
           </span>
         </span>
@@ -188,41 +182,44 @@ function LineRow({
         <p className="text-muted-foreground">
           ISIN <span className="text-foreground font-mono">{line.isin}</span>
         </p>
-        <div className="grid grid-cols-1 gap-1.5 @min-[560px]:grid-cols-3 @min-[560px]:gap-2">
-          {line.costCents !== null && line.unitCostEur !== null ? (
-            <Fact label="Investi" note={`PRU ${formatPrice(line.unitCostEur)}`}>
-              {formatCents(line.costCents)}
-            </Fact>
-          ) : (
-            <p className="text-muted-foreground self-center">
-              PRU non renseigné
-            </p>
-          )}
-          {line.gainCents !== null && (
-            <Fact
-              label="Résultat"
-              toneClass={tone(line.gainCents)}
-              note={
-                rate !== null && (
-                  <span className={tone(line.gainCents)}>
-                    {formatSignedPercent(rate)}
-                  </span>
-                )
-              }
-            >
-              {signed(line.gainCents)}
-            </Fact>
-          )}
+        {/* More figures once unfolded (#413, the owner): two tiles a row
+            on a phone, three from 560px of card. */}
+        <div className="grid grid-cols-2 gap-1.5 @min-[560px]:grid-cols-3 @min-[560px]:gap-2">
+          <Fact label="Investi">
+            {line.costCents === null ? '—' : formatCents(line.costCents)}
+          </Fact>
+          <Fact
+            label="Résultat"
+            toneClass={
+              line.gainCents === null ? undefined : tone(line.gainCents)
+            }
+            note={
+              rate !== null &&
+              line.gainCents !== null && (
+                <span className={tone(line.gainCents)}>
+                  {formatSignedPercent(rate)}
+                </span>
+              )
+            }
+          >
+            {line.gainCents === null ? '—' : signed(line.gainCents)}
+          </Fact>
           <Fact
             label="Cours"
+            // Its day only; « manuel » when typed by hand.
             note={
               line.priceDay
-                ? `${line.priceSource === 'manual' ? 'manuel' : 'relevé'}, ${formatShortDay(line.priceDay, year)}`
-                : 'pas encore saisi'
+                ? `${formatShortDay(line.priceDay, year)}${line.priceSource === 'manual' ? ' · manuel' : ''}`
+                : 'à saisir'
             }
           >
             {line.priceEur ? formatPrice(line.priceEur) : '—'}
           </Fact>
+          <Fact label="PRU">
+            {line.unitCostEur ? formatPrice(line.unitCostEur) : '—'}
+          </Fact>
+          <Fact label="Part">{share ?? '—'}</Fact>
+          <Fact label="Quantité">{formatQuantity(line.quantity)}</Fact>
         </div>
         {line.priceOlderThanStatement && (
           <p className="text-muted-foreground">
@@ -355,7 +352,7 @@ function Statements({
         }
         onClick={() => setOpen(!open)}
       >
-        Relevés de portefeuille ({data.statements.length})
+        Historique ({data.statements.length})
       </Button>
       <ul id={id} hidden={!open} className="divide-y">
         {data.statements.map((statement) => (
@@ -484,14 +481,15 @@ export function LinesCard({
                   >
                     <BanknoteIcon className="size-4" />
                   </span>
-                  {/* Like a line: the amount under the word on a phone. */}
-                  <span className="grid min-w-0 flex-1 grid-cols-1 items-baseline gap-x-3 gap-y-0.5 @min-[24rem]:grid-cols-[1fr_auto]">
-                    <span className="font-medium">Liquidités</span>
-                    <span className="font-medium whitespace-nowrap tabular-nums @min-[24rem]:row-span-2 @min-[24rem]:self-center @min-[24rem]:text-right">
-                      {formatCents(data.cashCents)}
+                  {/* Two lines like an ETF: the word and the amount, then
+                      its share. */}
+                  <span className="grid min-w-0 flex-1 grid-cols-[auto_1fr] items-baseline gap-x-3 gap-y-0.5">
+                    <span className="font-medium break-normal">Liquidités</span>
+                    <span className="text-right font-medium whitespace-nowrap tabular-nums">
+                      {rowAmount(data.cashCents)}
                     </span>
                     {total > 0 && (
-                      <span className="text-muted-foreground text-xs tabular-nums">
+                      <span className="text-muted-foreground col-span-2 text-xs tabular-nums">
                         {lineShare(data.cashCents, total)}
                       </span>
                     )}
@@ -507,17 +505,35 @@ export function LinesCard({
                 </button>
               </li>
             </ul>
+            {/* What the lines are worth, what they cost and the difference
+                (#413, the owner: « prix de revient » said plainly). */}
             {data.totals.costCents > 0 && (
-              <p className="text-muted-foreground border-t pt-3 text-xs tabular-nums">
-                Prix de revient des lignes{' '}
-                {formatWholeEuros(data.totals.costCents)} · résultat{' '}
-                <span className={tone(data.totals.gainCents)}>
+              <div className="grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-0.5 border-t px-2 pt-3 text-sm">
+                <span className="min-w-0 truncate font-medium">Total</span>
+                <span className="text-right font-medium whitespace-nowrap tabular-nums">
+                  {formatCents(data.totals.costCents + data.totals.gainCents)}
+                </span>
+                <span className="text-muted-foreground min-w-0 text-xs break-normal tabular-nums">
+                  <span className="whitespace-nowrap">
+                    acheté {formatWholeEuros(data.totals.costCents)}
+                  </span>
+                  {data.totals.withoutCostCount > 0 && (
+                    <span className="whitespace-nowrap">
+                      {' '}
+                      · hors {data.totals.withoutCostCount} sans PRU
+                    </span>
+                  )}
+                </span>
+                <span
+                  className={cn(
+                    'text-right text-xs whitespace-nowrap tabular-nums',
+                    tone(data.totals.gainCents),
+                  )}
+                >
                   {data.totals.gainCents > 0 ? '+' : ''}
                   {formatWholeEuros(data.totals.gainCents)}
                 </span>
-                {data.totals.withoutCostCount > 0 &&
-                  ` · hors ${data.totals.withoutCostCount} ligne${data.totals.withoutCostCount > 1 ? 's' : ''} sans PRU`}
-              </p>
+              </div>
             )}
           </>
         )}

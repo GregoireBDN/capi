@@ -11,7 +11,7 @@ import {
   useIsMobile,
 } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarClockIcon, PencilIcon } from 'lucide-react'
+
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import type { AccountDto } from '#/api/types.gen'
@@ -38,6 +38,44 @@ export function fiveYearsOn(openedOn: string): string {
   return addMonths(openedOn, 60)
 }
 
+const dayNumber = (date: string) =>
+  Date.UTC(
+    Number(date.slice(0, 4)),
+    Number(date.slice(5, 7)) - 1,
+    Number(date.slice(8, 10)),
+  ) / 86_400_000
+
+/** The share of the 5 years gone on `today`, 0 to 1. */
+export function timeElapsed(opened: string, mark: string, today: string) {
+  const total = dayNumber(mark) - dayNumber(opened)
+  if (total <= 0) return 1
+  return Math.min(
+    1,
+    Math.max(0, (dayNumber(today) - dayNumber(opened)) / total),
+  )
+}
+
+/** « Encore 1 an et 4 mois », « Encore 12 jours », « Atteints ». */
+export function timeLeftText(today: string, mark: string): string {
+  if (mark <= today) return 'Atteints'
+  let months =
+    (Number(mark.slice(0, 4)) - Number(today.slice(0, 4))) * 12 +
+    Number(mark.slice(5, 7)) -
+    Number(today.slice(5, 7))
+  if (Number(mark.slice(8, 10)) < Number(today.slice(8, 10))) months -= 1
+  if (months <= 0) {
+    const days = dayNumber(mark) - dayNumber(today)
+    return `Encore ${days} jour${days > 1 ? 's' : ''}`
+  }
+  const years = Math.floor(months / 12)
+  const rest = months % 12
+  const parts = [
+    years > 0 && `${years} an${years > 1 ? 's' : ''}`,
+    rest > 0 && `${rest} mois`,
+  ].filter(Boolean)
+  return `Encore ${parts.join(' et ')}`
+}
+
 /**
  * A PEA's own facts (ADR 0006 § 7), at the end of its summary (#413, A):
  * what was invested (its invested amount, #370) against the ceiling, and the
@@ -58,6 +96,8 @@ export function PeaFacts({
   const [editing, setEditing] = useState(false)
   const opened = account.openedOn
   const mark = opened ? fiveYearsOn(opened) : null
+  const elapsed = opened && mark ? timeElapsed(opened, mark, today) : 0
+  const remaining = mark ? timeLeftText(today, mark) : null
   const share =
     investedCents === null
       ? 0
@@ -66,16 +106,13 @@ export function PeaFacts({
     <div className="space-y-3 border-t pt-4">
       {investedCents !== null && (
         <div className="space-y-1.5">
-          <p className="flex flex-wrap items-baseline gap-x-3 text-sm">
-            <span className="text-muted-foreground">Plafond</span>
-            <span className="ml-auto tabular-nums">
-              <span className="font-semibold">
-                {formatWholeEuros(investedCents)}
-              </span>
-              <span className="text-muted-foreground">
-                {' '}
-                investis sur {formatWholeEuros(PEA_CEILING_CENTS)}
-              </span>
+          {/* « Plafond 150 000 € » and what is in it, on one line at 320px. */}
+          <p className="flex items-baseline gap-x-3 text-sm">
+            <span className="text-muted-foreground min-w-0 break-normal">
+              Plafond {formatWholeEuros(PEA_CEILING_CENTS)}
+            </span>
+            <span className="ml-auto shrink-0 font-semibold whitespace-nowrap tabular-nums">
+              {formatWholeEuros(investedCents)}
             </span>
           </p>
           <div
@@ -95,56 +132,48 @@ export function PeaFacts({
           </p>
         </div>
       )}
-      <div className="flex min-h-11 items-center gap-3 text-sm">
-        <CalendarClockIcon
-          aria-hidden
-          className="text-muted-foreground size-4 shrink-0"
-        />
-        <span className="min-w-0 flex-1">
-          {mark ? (
-            <>
-              {mark <= today ? '5 ans depuis le ' : '5 ans le '}
-              <span className="font-medium whitespace-nowrap">
-                {formatCalendarDate(mark)}
+      {/* Shaped like the ceiling (#413, the owner): the date, a bar of the
+          time gone, what is left; the whole block opens the opening date. */}
+      <button
+        type="button"
+        disabled={!writable}
+        onClick={() => setEditing(true)}
+        aria-label={
+          mark
+            ? `5 ans le ${formatCalendarDate(mark)}, ${remaining!.toLowerCase()} : modifier la date d’ouverture`
+            : 'Renseigner la date d’ouverture du PEA'
+        }
+        className="hover:bg-muted/60 focus-visible:ring-ring -mx-2 block min-h-11 w-[calc(100%+1rem)] space-y-1.5 rounded-lg px-2 py-1.5 text-left outline-none focus-visible:ring-2 disabled:hover:bg-transparent"
+      >
+        <span className="flex flex-wrap items-baseline gap-x-3 text-sm">
+          <span className="text-muted-foreground">5 ans</span>
+          <span className="ml-auto font-semibold whitespace-nowrap">
+            {mark ? (
+              formatCalendarDate(mark)
+            ) : (
+              <span className="text-muted-foreground font-normal">
+                Date d’ouverture ›
               </span>
-              <span className="text-muted-foreground block text-xs">
-                Ouvert le {formatCalendarDate(opened!)} · retraits sans clôture{' '}
-                {mark <= today ? 'possibles' : 'ensuite'}
-              </span>
-            </>
-          ) : (
-            <span className="text-muted-foreground">
-              Date d’ouverture non renseignée : elle donne les 5 ans du PEA.
-            </span>
-          )}
+            )}
+          </span>
         </span>
-        {writable &&
-          (opened ? (
-            <Button
-              size="sm"
-              ghost
-              variant="secondary"
-              iconOnly
-              className="shrink-0"
-              aria-label="Modifier la date d’ouverture"
-              onClick={() => setEditing(true)}
+        {mark && (
+          <>
+            <span
+              aria-hidden
+              className="bg-muted block h-2 overflow-hidden rounded-full"
             >
-              <PencilIcon />
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              ghost
-              variant="secondary"
-              iconStart={<PencilIcon />}
-              className="shrink-0"
-              aria-label="Renseigner la date d’ouverture"
-              onClick={() => setEditing(true)}
-            >
-              Renseigner
-            </Button>
-          ))}
-      </div>
+              <span
+                className="bg-primary block h-full rounded-full"
+                style={{ width: `${elapsed * 100}%` }}
+              />
+            </span>
+            <span className="text-muted-foreground block text-xs tabular-nums">
+              {remaining}
+            </span>
+          </>
+        )}
+      </button>
       <OpeningDateSheet
         open={editing}
         onOpenChange={setEditing}
