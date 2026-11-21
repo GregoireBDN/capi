@@ -36,6 +36,18 @@ export function formatWholeEuros(cents: number): string {
   return formatUnsignedZero(wholeEuros, Math.round(cents / 100))
 }
 
+const signedWholeEuros = new Intl.NumberFormat('fr-FR', {
+  style: 'currency',
+  currency: 'EUR',
+  maximumFractionDigits: 0,
+  signDisplay: 'exceptZero',
+})
+
+/** A change in whole euros: `+1 120 €`, `−60 €`, `0 €`. */
+export function formatSignedWholeEuros(cents: number): string {
+  return signedWholeEuros.format(cents / 100)
+}
+
 const calendarDate = new Intl.DateTimeFormat('fr-FR', {
   day: 'numeric',
   month: 'short',

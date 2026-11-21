@@ -2,32 +2,26 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
-import {
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
+  CoverageDto,
   DashboardAccountDto,
-  DashboardHistoryDto,
   DashboardOverviewDto,
   MonthReviewDto,
+  RecurringItemDto,
 } from '#/api/types.gen'
 import { forecast } from '#/components/forecast/test-fixtures'
-import { formatCents } from '#/lib/money'
+import { formatWholeEuros } from '#/lib/money'
 import { DashboardPage } from './DashboardPage'
 
 const api = vi.hoisted(() => ({
   dashboardControllerOverview: vi.fn(),
-  dashboardControllerHistory: vi.fn(),
   dashboardControllerReview: vi.fn(),
   forecastControllerForecast: vi.fn(),
-  accountSnapshotsControllerUpsert: vi.fn(),
   budgetsControllerEnvelopes: vi.fn(),
+  coverageControllerCoverage: vi.fn(),
+  receivablesControllerSuggestions: vi.fn(),
+  recurringControllerList: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), {
@@ -50,24 +44,20 @@ vi.mock('@tanstack/react-router', () => ({
   }: {
     to: string
     params?: Record<string, string>
-    search?:
-      | Record<string, string>
-      | ((current: Record<string, unknown>) => Record<string, string>)
+    search?: Record<string, string | boolean>
     children: ReactNode
   }) => {
-    // A function resolves against the page's search (none here).
-    if (typeof search === 'function') search = search({})
     const path = Object.entries(params ?? {}).reduce(
       (url, [key, value]) => url.replace(`$${key}`, value),
       to,
     )
+    const query = search
+      ? new URLSearchParams(
+          Object.entries(search).map(([key, value]) => [key, String(value)]),
+        ).toString()
+      : ''
     return (
-      <a
-        href={
-          search ? `${path}?${new URLSearchParams(search).toString()}` : path
-        }
-        {...props}
-      >
+      <a href={query ? `${path}?${query}` : path} {...props}>
         {children}
       </a>
     )
@@ -75,8 +65,7 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 /** Testing Library collapses the narrow no-break spaces `Intl` emits. */
-const euros = (cents: number) => formatCents(cents).replace(/\s/g, ' ')
-const text = (value: string) => value.replace(/\s/g, ' ')
+const euros = (cents: number) => formatWholeEuros(cents).replace(/\s/g, ' ')
 
 /** Synthetic data only. */
 const checking: DashboardAccountDto = {
@@ -86,19 +75,8 @@ const checking: DashboardAccountDto = {
   institution: 'Banque test',
   group: 'cash',
   balanceCents: 123_456,
-  balanceDate: '2026-11-03',
-  dataUntil: '2026-11-03',
-  stale: false,
-}
-const savings: DashboardAccountDto = {
-  id: '10000000-0000-4000-8000-000000000002',
-  name: 'Livret test',
-  type: 'savings',
-  institution: null,
-  group: 'cash',
-  balanceCents: 500_000,
-  balanceDate: '2026-10-31',
-  dataUntil: '2026-10-31',
+  balanceDate: '2026-11-19',
+  dataUntil: '2026-11-19',
   stale: false,
 }
 const pea: DashboardAccountDto = {
@@ -112,16 +90,26 @@ const pea: DashboardAccountDto = {
   dataUntil: '2026-10-31',
   stale: false,
 }
-const crypto: DashboardAccountDto = {
-  id: '10000000-0000-4000-8000-000000000004',
-  name: 'Crypto test',
-  type: 'crypto',
-  institution: null,
-  group: 'investments',
-  balanceCents: null,
-  balanceDate: null,
-  dataUntil: null,
-  stale: false,
+
+const period = {
+  month: '2026-11',
+  dataUntil: '2026-11-19',
+  status: 'partial' as const,
+  throughDay: 19,
+  previousMonth: '2026-10',
+  previousUntil: '2026-10-19',
+  defaultMonth: '2026-11',
+}
+
+const flow = {
+  month: '2026-11',
+  until: '2026-11-19',
+  incomeCents: 0,
+  expenseCents: -100_000,
+  netCents: -100_000,
+  oneOffIncomeCents: 0,
+  oneOffExpenseCents: 0,
+  savingsRate: null,
 }
 
 const overview: DashboardOverviewDto = {
@@ -130,139 +118,84 @@ const overview: DashboardOverviewDto = {
     cashCents: 623_456,
     investmentsCents: 1_000_000,
     previousMonthEnd: '2026-10-31',
-    previousMonthEndCents: 1_600_000,
-    unknownBalanceCount: 1,
+    previousMonthEndCents: 1_500_000,
+    unknownBalanceCount: 0,
   },
-  accounts: [checking, savings, pea, crypto],
-  period: {
-    month: '2026-11',
-    dataUntil: '2026-11-30',
-    status: 'complete',
-    throughDay: null,
-    previousMonth: '2026-10',
-    previousUntil: '2026-10-31',
-    defaultMonth: '2026-11',
-  },
-  current: {
-    month: '2026-11',
-    until: '2026-11-30',
-    incomeCents: 300_000,
-    expenseCents: -240_000,
-    netCents: 60_000,
-    oneOffIncomeCents: 0,
-    oneOffExpenseCents: -40_000,
-    savingsRate: 0.2,
-  },
-  previous: {
-    month: '2026-10',
-    until: '2026-10-31',
-    incomeCents: 300_000,
-    expenseCents: -200_000,
-    netCents: 100_000,
-    oneOffIncomeCents: 0,
-    oneOffExpenseCents: 0,
-    savingsRate: 100_000 / 300_000,
-  },
-  reviewCount: 3,
+  accounts: [checking, pea],
+  period,
+  current: flow,
+  previous: flow,
+  reviewCount: 0,
 }
 
-const history: DashboardHistoryDto = {
-  months: [
-    {
-      month: '2026-09',
-      incomeCents: 0,
-      expenseCents: 0,
-      netCents: 0,
-      netWorthCents: null,
-      accounts: [],
-    },
-    {
-      month: '2026-10',
-      incomeCents: 300_000,
-      expenseCents: -200_000,
-      netCents: 100_000,
-      netWorthCents: 1_600_000,
-      accounts: [],
-    },
-    {
-      month: '2026-11',
-      incomeCents: 300_000,
-      expenseCents: -240_000,
-      netCents: 60_000,
-      netWorthCents: 1_623_456,
-      accounts: [],
-    },
-  ],
-}
-
-const review: MonthReviewDto = {
-  month: '2026-10',
-  defaultMonth: '2026-10',
-  current: false,
-  nextMonth: '2026-11',
-  period: {
-    month: '2026-10',
-    dataUntil: '2026-11-03',
-    status: 'complete',
-    throughDay: null,
-    previousMonth: '2026-09',
-    previousUntil: '2026-09-30',
-    defaultMonth: '2026-11',
-  },
-  closed: true,
+/** The current month: 2 000 € budgeted, 1 000 € spent by the 19th. */
+const current: MonthReviewDto = {
+  month: '2026-11',
+  defaultMonth: '2026-11',
+  current: true,
+  nextMonth: '2026-12',
+  period,
+  closed: false,
   closedAt: null,
-  nextMonthBudgeted: true,
+  nextMonthBudgeted: false,
   netWorth: {
-    date: '2026-10-31',
-    endCents: 4_823_000,
-    previousDate: '2026-09-30',
-    previousEndCents: 4_711_000,
-    changeCents: 112_000,
-    savedCents: 65_500,
-    otherCents: 46_500,
+    date: '2026-11-21',
+    endCents: 1_623_456,
+    previousDate: '2026-10-31',
+    previousEndCents: 1_500_000,
+    changeCents: 123_456,
+    savedCents: -100_000,
+    otherCents: 223_456,
   },
-  flow: {
-    month: '2026-10',
-    until: '2026-10-31',
-    incomeCents: 250_000,
-    expenseCents: -184_500,
-    netCents: 65_500,
-    oneOffIncomeCents: 0,
-    oneOffExpenseCents: 0,
-    savingsRate: 0.262,
-  },
+  flow,
   budget: {
     budgetCount: 4,
     targetCents: 200_000,
-    spentCents: 184_500,
-    remainingCents: 15_500,
-    unbudgetedCents: 0,
-    over: [
-      {
-        categoryId: 'c0000000-0000-4000-8000-000000000001',
-        slug: 'restaurants',
-        name: 'Restaurants',
-        color: '#dc2626',
-        icon: null,
-        targetCents: 15_000,
-        spentCents: 27_000,
-        gapCents: 12_000,
-      },
-    ],
-    under: [
-      {
-        categoryId: 'c0000000-0000-4000-8000-000000000002',
-        slug: 'groceries',
-        name: 'Courses',
-        color: '#d97706',
-        icon: null,
-        targetCents: 40_000,
-        spentCents: 34_000,
-        gapCents: -6_000,
-      },
-    ],
+    spentCents: 100_000,
+    remainingCents: 100_000,
+    unbudgetedCents: 8_800,
+    over: [],
+    under: [],
   },
   missing: [],
+}
+
+/** Last month, closed, with the current month budgeted. */
+const previous: MonthReviewDto = {
+  ...current,
+  month: '2026-10',
+  current: false,
+  nextMonth: '2026-11',
+  period: { ...period, month: '2026-10', status: 'complete', throughDay: null },
+  closed: true,
+  closedAt: '2026-11-02T09:00:00.000Z',
+  nextMonthBudgeted: true,
+}
+
+const coverage: CoverageDto = {
+  dataUntil: '2026-11-19',
+  currentMonth: '2026-11',
+  defaultMonth: '2026-11',
+  months: ['2026-09', '2026-10', '2026-11'],
+}
+
+function recurring(overrides: Partial<RecurringItemDto>): RecurringItemDto {
+  return {
+    id: '30000000-0000-4000-8000-000000000001',
+    name: 'Abonnement test',
+    status: 'confirmed',
+    direction: 'debit',
+    renewalReminder: false,
+    renewalDate: null,
+    ended: false,
+    isSubscription: true,
+    isFixedCost: false,
+    confidence: 0.9,
+    active: true,
+    monthlyEquivalentCents: 1_000,
+    endedOn: null,
+    ...overrides,
+  } as RecurringItemDto
 }
 
 function ok<T>(data: T) {
@@ -275,71 +208,46 @@ function failure() {
   })
 }
 
-function renderPage(
-  banner?: ReactNode,
-  {
-    month,
-    onMonthChange,
-  }: {
-    month?: string
-    onMonthChange?: (month: string | undefined) => void
-  } = {},
-) {
+function renderPage(banner?: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <DashboardPage
-        banner={banner}
-        month={month}
-        onMonthChange={onMonthChange}
-      />
+      <DashboardPage banner={banner} />
     </QueryClientProvider>,
   )
 }
 
-beforeAll(() => {
-  // Recharts measures its container; jsdom has no ResizeObserver.
-  globalThis.ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  }
-})
+function mockReviews(
+  currentReview: MonthReviewDto = current,
+  previousReview: MonthReviewDto = previous,
+) {
+  api.dashboardControllerReview.mockImplementation(
+    (options?: { query?: { month?: string } }) =>
+      ok(options?.query?.month === '2026-10' ? previousReview : currentReview),
+  )
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
   vi.useFakeTimers({ toFake: ['Date'] })
-  vi.setSystemTime(new Date('2026-11-05T10:00:00Z'))
-  api.dashboardControllerReview.mockImplementation(
-    (options?: { query?: { month?: string } }) => {
-      const month = options?.query?.month ?? review.defaultMonth
-      return ok(
-        month === review.month
-          ? review
-          : {
-              ...review,
-              month,
-              current: month === '2026-11',
-              period: { ...review.period, month },
-            },
-      )
-    },
-  )
+  vi.setSystemTime(new Date('2026-11-21T10:00:00Z'))
+  mockReviews()
   api.dashboardControllerOverview.mockImplementation(() => ok(overview))
-  api.dashboardControllerHistory.mockImplementation(() => ok(history))
+  api.coverageControllerCoverage.mockImplementation(() => ok(coverage))
+  api.receivablesControllerSuggestions.mockImplementation(() => ok([]))
+  api.recurringControllerList.mockImplementation(() => ok([]))
   api.forecastControllerForecast.mockImplementation(() => ok(forecast()))
-  api.budgetsControllerEnvelopes.mockImplementation(
-    (options?: { query?: { month?: string } }) =>
-      ok({
-        month: options?.query?.month ?? '2026-11',
-        current: options?.query?.month === undefined,
-        today: '2026-11-05',
-        dayOfMonth: options?.query?.month ? 31 : 5,
-        daysInMonth: 30,
-        items: [],
-      }),
+  api.budgetsControllerEnvelopes.mockImplementation(() =>
+    ok({
+      month: '2026-11',
+      current: true,
+      today: '2026-11-21',
+      dayOfMonth: 21,
+      daysInMonth: 30,
+      items: [],
+    }),
   )
 })
 
@@ -348,472 +256,81 @@ afterEach(() => {
 })
 
 describe('DashboardPage', () => {
-  /** How many times `needle` appears in the element's text. */
-  const count = (element: HTMLElement, needle: string) =>
-    text(element.textContent).split(text(needle)).length - 1
-
-  it('reviews the last month: flow, net worth at its end, budget', async () => {
+  it('follows today: the date under the title, no month to move between', async () => {
     renderPage()
+    expect(await screen.findByText('Samedi 21 novembre')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /Mois précédent/ }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('region', { name: 'Bilan du mois' }),
+    ).not.toBeInTheDocument()
+  })
 
-    const card = await screen.findByRole('region', { name: 'Bilan du mois' })
-    expect(api.dashboardControllerReview).toHaveBeenCalledWith({
-      throwOnError: false,
+  it('shows what is left to spend against the pace of the days known', async () => {
+    renderPage()
+    const card = await screen.findByRole('region', {
+      name: 'Reste à dépenser',
     })
-    // Not closed in « Revue du mois » yet.
-    expect(within(card).getByText('À clôturer')).toBeInTheDocument()
-    // The month is named once, by the navigator (the app header's, #401).
-    expect(card.textContent).not.toMatch(/octobre/i)
-    expect(
-      screen.getByRole('button', { name: 'Octobre 2026, choisir un mois' }),
-    ).toBeInTheDocument()
-
-    const flow = within(card).getByLabelText('Flux du mois')
-    expect(flow).toHaveTextContent(text('Revenus2 500 €'))
-    expect(flow).toHaveTextContent(text('Dépenses1 845 €'))
-    expect(flow).toHaveTextContent(text('Épargné+655 €26,2 %'))
-
-    // Investments moved the net worth: its change, split once.
-    const netWorth = within(card).getByRole('region', { name: 'Patrimoine' })
-    expect(netWorth).toHaveTextContent(
-      text(
-        'Patrimoine au 31 oct.48 230 €+1 120 € sur le mois, dont +465 € de placements et autres',
-      ),
+    const link = within(card).getByRole('link', { name: /Reste à dépenser/ })
+    expect(link).toHaveAttribute('href', '/budget')
+    expect(screen.getByTestId('left-to-spend')).toHaveTextContent(
+      euros(100_000),
     )
-    // Every amount once.
-    for (const amount of ['+655 €', '1 845 €', '2 500 €', '+1 120 €']) {
-      expect(count(card, amount)).toBe(1)
-    }
-
-    expect(within(card).getByRole('meter', { name: 'Budget' })).toHaveAttribute(
-      'aria-valuenow',
-      '184500',
-    )
-    expect(card).toHaveTextContent(text('Reste155 €'))
-    // No per-category gaps in the review (owner: unclear; the envelopes
-    // of « Ce mois-ci » show each category against its budget).
-    expect(
-      within(card).queryByRole('list', { name: 'Écarts au budget' }),
-    ).not.toBeInTheDocument()
-
-    // One action, from the month's state: close it.
-    expect(
-      within(card).getByRole('link', { name: 'Revue et clôture' }),
-    ).toHaveAttribute('href', '/month-review?month=2026-10')
-    expect(
-      within(card).queryByRole('link', { name: /Préparer le budget/ }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('follows the review’s month with its budget, read only for a past month', async () => {
-    renderPage()
-
-    const card = await screen.findByRole('region', { name: 'Budget' })
-    expect(
-      await within(card).findByText('Aucune enveloppe suivie ce mois-là'),
-    ).toBeInTheDocument()
-    expect(api.budgetsControllerEnvelopes).toHaveBeenCalledWith({
-      query: { month: '2026-10' },
-      throwOnError: false,
-    })
-    expect(within(card).getByRole('link', { name: 'Détail' })).toHaveAttribute(
-      'href',
-      '/budget?month=2026-10',
-    )
-    // A month that is over: no expense noted from it.
-    expect(
-      within(card).queryByRole('button', { name: 'Ajouter une dépense' }),
-    ).not.toBeInTheDocument()
-    const reviewCard = screen.getByRole('region', { name: 'Bilan du mois' })
-    expect(
-      reviewCard.compareDocumentPosition(card) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
-    // The forecast is for the current month only.
-    expect(
-      screen.queryByRole('link', { name: /Fin de mois/ }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('reads the current month so far: en cours, its forecast, no close', async () => {
-    renderPage(undefined, { month: '2026-11' })
-
-    const reviewCard = await screen.findByRole('region', {
-      name: 'Bilan du mois',
-    })
-    expect(within(reviewCard).getByText('En cours')).toBeInTheDocument()
-    expect(
-      within(reviewCard).queryByRole('link', { name: 'Revue et clôture' }),
-    ).not.toBeInTheDocument()
-    // Nothing is late before the month end.
-    expect(
-      within(reviewCard).queryByRole('region', {
-        name: 'Comptes à mettre à jour',
-      }),
-    ).not.toBeInTheDocument()
-    // How it will end, in place of a second « à ce jour » net worth.
-    expect(
-      await within(reviewCard).findByRole('link', { name: /Fin de mois/ }),
-    ).toHaveAttribute('href', '/forecast')
-    expect(
-      within(reviewCard).queryByRole('region', { name: 'Patrimoine' }),
-    ).not.toBeInTheDocument()
-    expect(count(document.body, 'Patrimoine à ce jour')).toBe(1)
-
-    const card = screen.getByRole('region', { name: 'Budget' })
-    expect(
-      await within(card).findByRole('link', {
-        name: 'Choisir les enveloppes',
-      }),
-    ).toHaveAttribute('href', '/budget')
-    expect(api.budgetsControllerEnvelopes).toHaveBeenCalledWith({
-      throwOnError: false,
-    })
-    expect(within(card).getByRole('link', { name: 'Détail' })).toHaveAttribute(
-      'href',
-      '/budget?',
-    )
-    expect(
-      within(card).getByRole('button', { name: 'Ajouter une dépense' }),
-    ).toBeInTheDocument()
-  })
-
-  it('shows the change of net worth only when investments moved it', async () => {
-    api.dashboardControllerReview.mockImplementation(() =>
-      ok({
-        ...review,
-        netWorth: {
-          ...review.netWorth,
-          changeCents: 65_520,
-          savedCents: 65_500,
-          otherCents: 20,
-        },
-      }),
-    )
-    renderPage()
-
-    const card = await screen.findByRole('region', { name: 'Bilan du mois' })
-    // The change is what was saved: said once, under « Épargné ».
-    expect(card).not.toHaveTextContent('sur le mois')
-    expect(card).not.toHaveTextContent('placements')
-    expect(count(card, '+655 €')).toBe(1)
-  })
-
-  it('offers to prepare the next budget once the month is closed', async () => {
-    api.dashboardControllerReview.mockImplementation(() =>
-      ok({
-        ...review,
-        closedAt: '2026-11-03T09:00:00.000Z',
-        nextMonthBudgeted: false,
-      }),
-    )
-    renderPage()
-
-    const card = await screen.findByRole('region', { name: 'Bilan du mois' })
-    expect(within(card).getByText('Clôturé')).toBeInTheDocument()
-    expect(
-      within(card).getByRole('link', {
-        name: 'Préparer le budget du mois suivant',
-      }),
-    ).toHaveAttribute('href', '/budget?month=2026-11')
-    expect(
-      within(card).queryByRole('link', { name: 'Revue et clôture' }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('only links back to the review of a closed month whose next one has a budget', async () => {
-    api.dashboardControllerReview.mockImplementation(() =>
-      ok({ ...review, closedAt: '2026-11-03T09:00:00.000Z' }),
-    )
-    renderPage()
-
-    const card = await screen.findByRole('region', { name: 'Bilan du mois' })
-    expect(
-      within(card).getByRole('link', { name: 'Revoir le mois' }),
-    ).toHaveAttribute('href', '/month-review?month=2026-10')
-    expect(
-      within(card).queryByRole('link', { name: /Préparer|clôture/ }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('says which accounts to update, one target each', async () => {
-    api.dashboardControllerReview.mockImplementation(() =>
-      ok({
-        ...review,
-        closed: false,
-        period: { ...review.period, status: 'partial', throughDay: 20 },
-        missing: [
-          {
-            id: checking.id,
-            name: 'Compte test',
-            type: 'checking',
-            group: 'cash',
-            lastDate: '2026-10-20',
-          },
-          {
-            id: pea.id,
-            name: 'PEA test',
-            type: 'brokerage',
-            group: 'investments',
-            lastDate: null,
-          },
-        ],
-      }),
-    )
-    renderPage()
-
-    const card = await screen.findByRole('region', { name: 'Bilan du mois' })
-    const missing = within(card).getByRole('region', {
-      name: 'Comptes à mettre à jour',
-    })
-    const cash = within(missing).getByRole('link', { name: /Compte test/ })
-    expect(cash).toHaveAttribute('href', '/import')
-    expect(cash).toHaveTextContent('Au 20 oct. · importer')
-    const value = within(missing).getByRole('link', { name: /PEA test/ })
-    expect(value).toHaveAttribute('href', `/accounts/${pea.id}?from=dashboard`)
-    expect(value).toHaveTextContent('Aucune donnée · mettre à jour')
-    expect(within(missing).queryByRole('button')).not.toBeInTheDocument()
-  })
-
-  it('splits the month’s expenses into with and without a budget on one bar', async () => {
-    api.dashboardControllerReview.mockImplementation(() =>
-      ok({
-        ...review,
-        budget: {
-          ...review.budget,
-          spentCents: 154_500,
-          remainingCents: 45_500,
-          unbudgetedCents: 30_000,
-        },
-      }),
-    )
-    renderPage()
-
-    const card = await screen.findByRole('region', { name: 'Bilan du mois' })
-    const legend = within(card).getByRole('list', { name: 'Légende' })
-    expect(legend).toHaveTextContent(text('Avec budget1 545 €'))
-    expect(legend).toHaveTextContent(text('Sans budget300 €'))
-    expect(legend).toHaveTextContent(text('Budget2 000 €'))
-    expect(legend).toHaveTextContent(text('Reste455 €'))
-    for (const amount of ['1 845 €', '1 545 €', '300 €', '2 000 €']) {
-      expect(count(card, amount)).toBe(1)
-    }
-  })
-
-  it('says when no budget is set, the expenses staying in the flow', async () => {
-    api.dashboardControllerReview.mockImplementation(() =>
-      ok({
-        ...review,
-        budget: {
-          ...review.budget,
-          budgetCount: 0,
-          targetCents: 0,
-          spentCents: 0,
-          remainingCents: 0,
-          over: [],
-          under: [],
-        },
-      }),
-    )
-    renderPage()
-
-    const card = await screen.findByRole('region', { name: 'Bilan du mois' })
-    expect(within(card).queryByRole('meter')).not.toBeInTheDocument()
-    expect(card).toHaveTextContent('Pas de budget fixé pour ce mois.')
-    expect(count(card, '1 845 €')).toBe(1)
-  })
-
-  it('moves up to the current month, the default kept out of the URL', async () => {
-    const user = userEvent.setup()
-    const onMonthChange = vi.fn()
-    renderPage(undefined, { month: '2026-09', onMonthChange })
-    await screen.findByRole('region', { name: 'Bilan du mois' })
-    expect(api.dashboardControllerReview).toHaveBeenCalledWith({
-      query: { month: '2026-09' },
-      throwOnError: false,
-    })
-
-    // October is the default month: back to the bare URL.
-    await user.click(screen.getByRole('button', { name: 'Mois suivant' }))
-    expect(onMonthChange).toHaveBeenLastCalledWith(undefined)
-    await user.click(screen.getByRole('button', { name: 'Mois précédent' }))
-    expect(onMonthChange).toHaveBeenLastCalledWith('2026-08')
-  })
-
-  it('reaches the current month, and stops there', async () => {
-    const user = userEvent.setup()
-    const onMonthChange = vi.fn()
-    const { unmount } = renderPage(undefined, { onMonthChange })
-    await screen.findByRole('region', { name: 'Bilan du mois' })
-    await user.click(screen.getByRole('button', { name: 'Mois suivant' }))
-    expect(onMonthChange).toHaveBeenLastCalledWith('2026-11')
-    unmount()
-
-    renderPage(undefined, { month: '2026-11', onMonthChange })
-    await screen.findByText('En cours')
-    expect(screen.getByRole('button', { name: 'Mois suivant' })).toBeDisabled()
-  })
-
-  it('lists the accounts by group with their balance and date', async () => {
-    renderPage()
-
-    const cash = await screen.findByRole('region', { name: 'Liquidités' })
-    // The group's total is a tile above the list, said once.
-    const card = cash.closest('[data-slot="card"]') as HTMLElement
-    expect(card).toHaveTextContent(`Liquidités${euros(623_456)}`)
-    expect(cash).not.toHaveTextContent(euros(623_456))
-    const link = within(cash).getByRole('link', { name: /Compte test/ })
-    expect(link).toHaveAttribute('href', `/transactions?account=${checking.id}`)
-    expect(link).toHaveTextContent(euros(123_456))
-    // Left: type (the name doesn't say it) · institution · date this year.
-    expect(link).toHaveTextContent('Compte courant · Banque test · au 3 nov.')
-    // The name already says it is a livret: no type repeated.
-    expect(
-      within(cash).getByRole('link', { name: /Livret test/ }),
-    ).toHaveTextContent(/^Livret testau 31 oct\./)
-
-    const investments = screen.getByRole('region', { name: 'Investissements' })
-    expect(investments).toHaveTextContent(euros(1_000_000))
-    // Investment accounts open their valuation page.
-    expect(
-      within(investments).getByRole('link', { name: /PEA test/ }),
-    ).toHaveAttribute('href', `/accounts/${pea.id}?from=dashboard`)
-    expect(investments).not.toHaveTextContent('PEA / compte-titres')
-    expect(
-      within(investments).getByRole('link', { name: /Crypto test/ }),
-    ).toHaveTextContent('aucune valeur')
-    // One target per row: no edit button in the list.
-    expect(within(cash).queryByRole('button')).not.toBeInTheDocument()
-    expect(within(investments).queryByRole('button')).not.toBeInTheDocument()
-  })
-
-  it('shows today’s net worth once, in the accounts card, with the way to its page', async () => {
-    renderPage()
-
-    const card = (await screen.findByText('Comptes')).closest(
-      '[data-slot="card"]',
-    ) as HTMLElement
-    // With its change since the last month end, the review's figure.
+    // Read to the 19th, the day the data goes to: 2 000 € × 19 / 30.
+    expect(card).toHaveTextContent(`${euros(26_667)} sous le rythme`)
     expect(card).toHaveTextContent(
-      text(`Patrimoine à ce jour${euros(1_623_456)}+235 € depuis le 31 oct.`),
+      `${euros(100_000)} sur ${euros(200_000)} · ${euros(8_800)} hors budget`,
     )
+    expect(card).toHaveTextContent('À jour au 19 nov.')
     expect(
-      within(card).getByRole('link', { name: 'Évolution' }),
-    ).toHaveAttribute('href', '/net-worth')
-    // No second « Patrimoine net » (chart or row) on the dashboard.
-    expect(screen.queryByText('Patrimoine net')).not.toBeInTheDocument()
+      within(card).getByRole('meter', { name: 'Budget du mois' }),
+    ).toHaveAttribute('aria-valuenow', '100000')
   })
 
-  it('flags an investment value older than a month', async () => {
-    api.dashboardControllerOverview.mockImplementation(() =>
-      ok({
-        ...overview,
-        accounts: overview.accounts.map((account) =>
-          account.id === pea.id
-            ? { ...account, balanceDate: '2026-09-30', stale: true }
-            : account,
-        ),
-      }),
-    )
-    renderPage()
-
-    const investments = await screen.findByRole('region', {
-      name: 'Investissements',
+  it('says when the budget is spent past its target', async () => {
+    mockReviews({
+      ...current,
+      budget: {
+        ...current.budget,
+        spentCents: 212_000,
+        remainingCents: -12_000,
+      },
     })
-    const peaRow = within(investments).getByRole('link', { name: /PEA test/ })
-    // Wide rows: the date on the left, « à mettre à jour » on the right.
-    expect(peaRow).toHaveTextContent(`${euros(1_000_000)}à mettre à jour`)
-    expect(peaRow).toHaveTextContent(/^PEA testau 30 sept\./)
-    // Phones (#344): the value, then the stale value's date.
-    expect(peaRow).toHaveTextContent(
-      `${euros(1_000_000)}À mettre à jour, valeur 30 sept.`,
-    )
-    expect(
-      within(screen.getByRole('region', { name: 'Liquidités' })).queryByText(
-        /à mettre à jour/,
-      ),
-    ).not.toBeInTheDocument()
+    renderPage()
+    const amount = await screen.findByTestId('left-to-spend')
+    expect(amount).toHaveTextContent(euros(12_000))
+    expect(screen.getByText(/Budget dépassé en novembre/)).toBeInTheDocument()
+    expect(screen.getByText('Jour 19 sur 30')).toBeInTheDocument()
   })
 
-  it('opens the add-an-investment flow from the accounts card', async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-    renderPage()
-
-    await screen.findByRole('region', { name: 'Investissements' })
-    // « Ajouter un compte » is the usual action here, first and solid.
-    const [first, second] = screen.getAllByRole('button', {
-      name: /^Ajouter un (compte|placement)$/,
+  it('offers to set a budget when the month has none', async () => {
+    mockReviews({
+      ...current,
+      budget: { ...current.budget, budgetCount: 0, targetCents: 0 },
     })
-    expect(first).toHaveAccessibleName('Ajouter un compte')
-    expect(second).toHaveAccessibleName('Ajouter un placement')
-    await user.click(
-      screen.getByRole('button', { name: 'Ajouter un placement' }),
-    )
+    renderPage()
     expect(
-      await screen.findByRole('dialog', { name: 'Ajouter un placement' }),
+      await screen.findByText('Pas de budget pour novembre.'),
     ).toBeInTheDocument()
-  })
-
-  it('points to « À revoir » in Opérations, without an import button beside the title', async () => {
-    renderPage()
-
-    expect(await screen.findByText('3 opérations à revoir')).toBeInTheDocument()
     expect(
-      screen.getByRole('link', { name: /3 opérations à revoir/ }),
-    ).toHaveAttribute('href', '/transactions?review=true&month=all')
-    // The accounts not updated link to the import (and so do the navigation
-    // and the month review): no page action on the dashboard (#246).
-    expect(
-      screen.queryByRole('link', { name: 'Importer' }),
-    ).not.toBeInTheDocument()
+      screen.getByRole('link', { name: /Fixer un budget/ }),
+    ).toHaveAttribute('href', '/budget')
   })
 
-  it('hides the review callout when nothing waits', async () => {
-    api.dashboardControllerOverview.mockImplementation(() =>
-      ok({ ...overview, reviewCount: 0 }),
-    )
+  it('sums up the end of the month and opens the forecast', async () => {
     renderPage()
-
-    await screen.findByRole('region', { name: 'Bilan du mois' })
-    expect(screen.queryByText(/à revoir/)).not.toBeInTheDocument()
-  })
-
-  it('draws the income and expenses chart with French month names', async () => {
-    renderPage()
-
-    // Each chart has a data-table twin captioned with its summary.
-    const cashFlow = await screen.findByRole('table', {
-      name: /Revenus, dépenses et épargne nette par mois, de septembre 2026 à novembre 2026/,
-      hidden: true,
-    })
-    const october = within(cashFlow).getByRole('row', {
-      name: /octobre 2026/,
-      hidden: true,
-    })
-    // Expenses are drawn as positive amounts next to income.
-    expect(october).toHaveTextContent(
-      [euros(300_000), euros(200_000), euros(100_000)].join(''),
-    )
-    expect(api.dashboardControllerHistory).toHaveBeenCalledWith(
-      expect.objectContaining({ query: { months: 12 } }),
-    )
-  })
-
-  it('sums up the end-of-month forecast in the current month’s review', async () => {
-    renderPage(undefined, { month: '2026-11' })
-    // The review loads first, then the forecast it holds.
-    await screen.findByText('En cours')
     const row = await screen.findByRole(
       'link',
       { name: /Fin de mois/ },
       { timeout: 3_000 },
     )
-    expect(
-      screen.getByRole('region', { name: 'Bilan du mois' }),
-    ).toContainElement(row)
     expect(row).toHaveAttribute('href', '/forecast')
     expect(row).toHaveTextContent(euros(267_000))
     expect(row).toHaveTextContent(`Point bas ${euros(18_000)} le 29 nov.`)
+  })
 
+  it('warns when the balance goes under the threshold', async () => {
     api.forecastControllerForecast.mockImplementation(() =>
       ok(
         forecast({
@@ -822,10 +339,141 @@ describe('DashboardPage', () => {
         }),
       ),
     )
-    renderPage(undefined, { month: '2026-11' })
+    renderPage()
     expect(
-      await screen.findByText(`Sous ${euros(50_000)} le dim. 29 nov.`),
+      await screen.findByText(`Sous ${euros(50_000)} le 29 nov.`),
     ).toBeInTheDocument()
+  })
+
+  it('shows today’s net worth with its change, opening the accounts', async () => {
+    renderPage()
+    const row = await screen.findByRole('link', { name: /Patrimoine/ })
+    expect(row).toHaveAttribute('href', '/accounts')
+    expect(row).toHaveTextContent(euros(1_623_456))
+    expect(row).toHaveTextContent(`+${euros(123_456)} depuis le 31 oct.`)
+    // The accounts themselves are on Comptes.
+    expect(screen.queryByText('PEA test')).not.toBeInTheDocument()
+  })
+
+  it('has nothing to do when everything is up to date', async () => {
+    renderPage()
+    await screen.findByTestId('left-to-spend')
+    expect(
+      screen.queryByRole('region', { name: 'À faire' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('lists what is waiting, most pressing first, three then the rest', async () => {
+    api.coverageControllerCoverage.mockImplementation(() =>
+      ok({ ...coverage, dataUntil: '2026-11-11' }),
+    )
+    mockReviews(current, {
+      ...previous,
+      closed: false,
+      closedAt: null,
+      missing: [
+        {
+          id: pea.id,
+          name: pea.name,
+          type: pea.type,
+          group: 'investments',
+          lastDate: '2026-09-30',
+        },
+      ],
+    })
+    api.dashboardControllerOverview.mockImplementation(() =>
+      ok({
+        ...overview,
+        reviewCount: 7,
+        accounts: [checking, { ...pea, stale: true }],
+      }),
+    )
+    api.receivablesControllerSuggestions.mockImplementation(() =>
+      ok([
+        {
+          transactionId: '40000000-0000-4000-8000-000000000001',
+          bookingDate: '2026-11-18',
+          label: 'VIR TEST',
+          amountCents: 2_400,
+          direction: 'owed_to_me',
+          contactId: '50000000-0000-4000-8000-000000000001',
+          contactName: 'Camille',
+          links: [],
+        },
+      ]),
+    )
+    api.recurringControllerList.mockImplementation(() =>
+      ok([
+        recurring({
+          id: '30000000-0000-4000-8000-000000000002',
+          name: 'Antivirus test',
+          renewalReminder: true,
+          renewalDate: '2026-12-02',
+        }),
+        recurring({
+          id: '30000000-0000-4000-8000-000000000003',
+          status: 'suggested',
+        }),
+      ]),
+    )
+    renderPage()
+
+    const todos = await screen.findByRole('region', { name: 'À faire' })
+    const links = () => within(todos).getAllByRole('link')
+    await vi.waitFor(() => expect(links()).toHaveLength(3))
+    expect(links()[0]).toHaveAttribute('href', '/import')
+    expect(links()[0]).toHaveTextContent('Importer un relevé')
+    expect(links()[0]).toHaveTextContent('Dernier relevé au 11 nov.')
+    expect(links()[1]).toHaveAttribute('href', '/month-review?month=2026-10')
+    expect(links()[1]).toHaveTextContent('Clôturer octobre')
+    expect(links()[1]).toHaveTextContent('1 compte à mettre à jour avant')
+    expect(links()[2]).toHaveTextContent('7 opérations à revoir')
+    expect(links()[2]).toHaveAttribute(
+      'href',
+      '/transactions?review=true&month=all',
+    )
+
+    await userEvent.click(
+      within(todos).getByRole('button', { name: /4 autres/ }),
+    )
+    expect(links().map((link) => link.textContent.replace(/\s/g, ' '))).toEqual(
+      [
+        expect.stringContaining('Importer un relevé'),
+        expect.stringContaining('Clôturer octobre'),
+        expect.stringContaining('7 opérations à revoir'),
+        expect.stringContaining(`Camille t’a versé ${euros(2_400)}`),
+        expect.stringContaining('Antivirus test'),
+        expect.stringContaining('Un abonnement détecté'),
+        expect.stringContaining('Un placement à mettre à jour'),
+      ],
+    )
+    expect(links()[5]).toHaveAttribute('href', '/subscriptions')
+    expect(links()[6]).toHaveAttribute('href', '/accounts')
+    // The figures say how old they are.
+    expect(screen.getByText(/Chiffres au/)).toHaveTextContent(
+      'Chiffres au 11 nov.',
+    )
+  })
+
+  it('asks for the month’s budget once last month is closed', async () => {
+    mockReviews(current, { ...previous, nextMonthBudgeted: false })
+    renderPage()
+    const todos = await screen.findByRole('region', { name: 'À faire' })
+    expect(
+      await within(todos).findByRole('link', {
+        name: /Préparer le budget de novembre/,
+      }),
+    ).toHaveAttribute('href', '/budget')
+  })
+
+  it('never asks to close a month without data', async () => {
+    api.coverageControllerCoverage.mockImplementation(() =>
+      ok({ ...coverage, months: ['2026-11'] }),
+    )
+    mockReviews(current, { ...previous, closed: false, closedAt: null })
+    renderPage()
+    await screen.findByTestId('left-to-spend')
+    expect(screen.queryByText(/Clôturer/)).not.toBeInTheDocument()
   })
 
   it('shows skeletons while loading', () => {
@@ -841,19 +489,7 @@ describe('DashboardPage', () => {
 
   it('invites a fresh install to import a statement', async () => {
     api.dashboardControllerOverview.mockImplementation(() =>
-      ok({
-        ...overview,
-        accounts: [],
-        netWorth: {
-          totalCents: 0,
-          cashCents: 0,
-          investmentsCents: 0,
-          previousMonthEnd: '2026-10-31',
-          previousMonthEndCents: null,
-          unknownBalanceCount: 0,
-        },
-        reviewCount: 0,
-      }),
+      ok({ ...overview, accounts: [], reviewCount: 0 }),
     )
     renderPage()
 
@@ -863,9 +499,7 @@ describe('DashboardPage', () => {
     expect(
       screen.getByRole('link', { name: /Importer un relevé/ }),
     ).toHaveAttribute('href', '/import')
-    expect(
-      screen.queryByRole('region', { name: /Bilan/ }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByTestId('left-to-spend')).not.toBeInTheDocument()
   })
 
   it('keeps the banner and offers a retry when loading fails', async () => {
@@ -878,8 +512,6 @@ describe('DashboardPage', () => {
     expect(screen.getByText('Bannière de test')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Réessayer' }))
-    expect(
-      await screen.findByRole('region', { name: 'Bilan du mois' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByTestId('left-to-spend')).toBeInTheDocument()
   })
 })

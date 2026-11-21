@@ -7,9 +7,11 @@ import {
   Skeleton,
 } from '@finances/ui'
 import type { ChartConfig } from '@finances/ui'
+import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import type { HistoryMonthDto } from '#/api/types.gen'
-import { DashboardCardHeader } from './DashboardCardHeader'
+import { dashboardHistoryQuery } from '#/components/dashboard/queries'
+import { DashboardCardHeader } from '#/components/dashboard/DashboardCardHeader'
 
 const CHART_HEIGHT = 240
 
@@ -84,4 +86,17 @@ export function ChartCardSkeleton() {
       />
     </ChartCard>
   )
+}
+
+/**
+ * « Revenus et dépenses » over the last 12 months, on Épargne since #405
+ * (it left the dashboard, read every day, for the page of the year's
+ * trend). Hidden when its history fails to load: the page does not depend
+ * on it.
+ */
+export function CashFlowSection() {
+  const history = useQuery(dashboardHistoryQuery())
+  if (history.data) return <CashFlowChart months={history.data.months} />
+  if (history.isError) return null
+  return <ChartCardSkeleton />
 }
