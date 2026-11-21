@@ -1,17 +1,18 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { SegmentedControl, SegmentedControlItem, cn } from '@finances/ui'
+import { cn } from '@finances/ui'
 import {
   BitcoinIcon,
   BriefcaseIcon,
   CalendarCheckIcon,
+  CalendarClockIcon,
   CalendarIcon,
+  CalendarXIcon,
   ChartLineIcon,
   ChartPieIcon,
   CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   EllipsisVerticalIcon,
-  FlagIcon,
   HandCoinsIcon,
   LandmarkIcon,
   LayoutDashboardIcon,
@@ -27,30 +28,24 @@ import type { LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 
 /**
- * Prototypes of the Épargne page (#407): a page that says at a glance where
- * the owner stands. Clickable mockups with synthetic figures, not app code.
+ * Prototype of the Épargne page (#407): direction « A. Jauge », chosen by
+ * the owner on 21 Nov over « B. Deux côtés » and « C. En clair », then
+ * reworked at his request: far less text. Every sentence became a figure
+ * with a short label, or is left out on a phone. Clickable mockup with
+ * synthetic figures, not app code.
  *
- * Words (one per idea, proposed in #407, to validate):
- * - « Épargné »: the month's flow, income − expenses (transfers between own
- *   accounts excluded), with « Taux d’épargne » its share of the income and
- *   « Cible » the monthly target.
- * - « Mis de côté »: what was moved out of the checking account to the
- *   savings accounts and investments (the transfers).
- * - « Livrets et placements »: what is held there, the stock.
+ * Words (one per idea): « Épargné » (income − expenses, transfers between
+ * own accounts excluded) with « Cible » and the share of the income;
+ * « Mis de côté » (what left the checking account for the savings accounts
+ * and investments); « Livrets et placements » (what is held there).
  *
- * A. Jauge: the month's verdict on top (figure, gauge against the target,
- *   the gap and the rate), the months as bars coloured by the target, then
- *   « Mis de côté », then « Ce que vous avez » (stock, goals).
- * B. Deux côtés: « Chaque mois » / « Ce que j’ai » as two tabs on a phone,
- *   two columns on a computer; the month as a ring around its target.
- * C. En clair: the month told in three sentences with its figures, the
- *   12 months as tiles, every card opening with one sentence.
- *
- * Common: one average (6 full months, one-offs excluded, the one the goals
- * use), the stock total once, the accounts list short with « Voir les
- * comptes », each goal with what it needs per month. A partial month is
- * compared with the same days of the month before and gets no verdict
- * until it ends.
+ * Top to bottom: the month (figure, gauge with the target as a mark, gap,
+ * rate, the last 6 months as dots, the average), the months as bars green
+ * when the target is reached, « Mis de côté » this month, the goals (what
+ * they need per month, the margin, when each one is reached at this pace),
+ * then « Ce que vous avez »: the stock and where the money went over 12
+ * months. A month in progress gets no verdict, only the same day of the
+ * month before and last month's result.
  */
 const meta: Meta<FrameArgs> = {
   title: 'Prototypes/Épargne (#407)',
@@ -60,7 +55,6 @@ const meta: Meta<FrameArgs> = {
   },
   tags: ['!autodocs'],
   argTypes: {
-    direction: { control: 'inline-radio', options: ['A', 'B', 'C'] },
     scenario: {
       control: 'inline-radio',
       options: ['above', 'below', 'partial', 'noTarget'],
@@ -72,27 +66,12 @@ const meta: Meta<FrameArgs> = {
       },
     },
     width: { control: 'inline-radio', options: [320, 390, 1280] },
-    tab: {
-      control: 'inline-radio',
-      options: ['flow', 'stock'],
-      labels: { flow: 'Chaque mois', stock: 'Ce que j’ai' },
-      description: 'B on a phone only',
-    },
   },
 }
 
 export default meta
 
-type Direction = 'A' | 'B' | 'C'
 type Scenario = 'above' | 'below' | 'partial' | 'noTarget'
-type Tab = 'flow' | 'stock'
-
-interface FrameArgs {
-  direction: Direction
-  scenario: Scenario
-  width: number
-  tab: Tab
-}
 
 /* ---------------------------------------------------------------------------
  * Synthetic figures (cents)
@@ -230,7 +209,6 @@ const SAVINGS_TOTAL = sum(SAVINGS_ACCOUNTS.map((a) => a.value))
 const INVESTMENTS_TOTAL = sum(INVESTMENTS.map((a) => a.value))
 const STOCK_TOTAL = SAVINGS_TOTAL + INVESTMENTS_TOTAL
 const RESULT = 391026
-const INVESTED = INVESTMENTS_TOTAL - RESULT
 
 /** Where the money went over the last 12 months. */
 const MOVED_12 = [
@@ -287,6 +265,8 @@ const GOALS: Goal[] = [
  * Figures of a month
  * ------------------------------------------------------------------------- */
 
+type Tone = 'good' | 'bad' | 'neutral'
+
 interface MonthFigures {
   month: Month
   index: number
@@ -295,24 +275,13 @@ interface MonthFigures {
   rate: number | null
   /** 6 full months before, one-offs excluded. */
   average: number
-  averageFrom: string
-  averageTo: string
   /** The month before (its same first days while in progress). */
   previousNet: number
   /** The last full month, for a partial month's reminder. */
   lastFull: Month
   /** Last 6 full months (before and including this one when full). */
   recent: Month[]
-  moved: number
-  verdict: Verdict
-}
-
-type Tone = 'good' | 'bad' | 'neutral'
-interface Verdict {
-  label: string
-  tone: Tone
-  /** « +254 € au-dessus de la cible », « −322 € sous la cible »… */
-  gap: string | null
+  status: { label: string; tone: Tone }
 }
 
 function figures(index: number, target: number | null): MonthFigures {
@@ -323,58 +292,30 @@ function figures(index: number, target: number | null): MonthFigures {
   const average = Math.round(
     sum(window.map((x) => x.net - x.oneOff)) / Math.max(window.length, 1),
   )
-  const previousNet = partial
-    ? OCTOBER_SO_FAR.net
-    : (MONTHS[index - 1]?.net ?? 0)
-  const lastFull = full[full.length - 1] ?? month
-  const recent = MONTHS.slice(0, index + (partial ? 0 : 1))
-    .filter((x) => x.complete)
-    .slice(-6)
-  const rate = month.income > 0 ? month.net / month.income : null
+  const reference = target ?? average
   return {
     month,
     index,
     target,
     partial,
-    rate: partial ? null : rate,
+    rate: partial || month.income <= 0 ? null : month.net / month.income,
     average,
-    averageFrom: window[0]?.month ?? month.month,
-    averageTo: window[window.length - 1]?.month ?? month.month,
-    previousNet,
-    lastFull,
-    recent,
-    moved: month.movedSavings + month.movedInvestments,
-    verdict: verdictOf(month.net, target, partial, average),
+    previousNet: partial ? OCTOBER_SO_FAR.net : (MONTHS[index - 1]?.net ?? 0),
+    lastFull: full[full.length - 1] ?? month,
+    recent: MONTHS.slice(0, index + (partial ? 0 : 1))
+      .filter((x) => x.complete)
+      .slice(-6),
+    status: partial
+      ? { label: 'En cours', tone: 'neutral' }
+      : target === null
+        ? {
+            label: month.net >= reference ? 'Au-dessus' : 'En dessous',
+            tone: 'neutral',
+          }
+        : month.net >= target
+          ? { label: 'Cible atteinte', tone: 'good' }
+          : { label: 'Sous la cible', tone: 'bad' },
   }
-}
-
-function verdictOf(
-  net: number,
-  target: number | null,
-  partial: boolean,
-  average: number,
-): Verdict {
-  if (partial) return { label: 'En cours', tone: 'neutral', gap: null }
-  if (target === null) {
-    const gap = net - average
-    return {
-      label: gap >= 0 ? 'Au-dessus de la moyenne' : 'Sous la moyenne',
-      tone: 'neutral',
-      gap: `${signed0(gap)} ${gap >= 0 ? 'au-dessus de' : 'sous'} votre moyenne`,
-    }
-  }
-  const gap = net - target
-  return gap >= 0
-    ? {
-        label: 'Cible atteinte',
-        tone: 'good',
-        gap: `${signed0(gap)} au-dessus de la cible`,
-      }
-    : {
-        label: 'Sous la cible',
-        tone: 'bad',
-        gap: `${signed0(gap)} sous la cible`,
-      }
 }
 
 /* ---------------------------------------------------------------------------
@@ -418,16 +359,16 @@ const capitalize = (text: string) =>
 const monthLong = (month: string) => capitalize(long.format(asDate(month)))
 const monthShort = (month: string) => short.format(asDate(month))
 const monthName = (month: string) => name.format(asDate(month))
-const monthAbbr = (month: string) => abbr.format(asDate(month)).replace('.', '')
+const monthAbbr = (month: string) => abbr.format(asDate(month))
 
 const TONE_TEXT: Record<Tone, string> = {
   good: 'text-chart-delta-good',
   bad: 'text-chart-delta-bad',
-  neutral: 'text-muted-foreground',
+  neutral: 'text-foreground',
 }
 
 /* ---------------------------------------------------------------------------
- * Shared pieces
+ * Small pieces
  * ------------------------------------------------------------------------- */
 
 /** The app's 22px root, so rem-sized mockups look like the app. */
@@ -453,7 +394,7 @@ function Card({
   return (
     <section
       className={cn(
-        'bg-card text-card-foreground min-w-0 space-y-3 rounded-xl border p-4 shadow-xs',
+        'bg-card text-card-foreground min-w-0 space-y-4 rounded-xl border p-4 shadow-xs',
         className,
       )}
     >
@@ -462,41 +403,18 @@ function Card({
   )
 }
 
+/** A card's title, and at its end a figure or a status. */
 function CardTitle({
   children,
   end,
-  description,
 }: {
   children: ReactNode
   end?: ReactNode
-  description?: ReactNode
 }) {
   return (
-    <header className="space-y-0.5">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <h2 className="font-semibold">{children}</h2>
-        {end}
-      </div>
-      {description && (
-        <p className="text-muted-foreground text-sm">{description}</p>
-      )}
-    </header>
-  )
-}
-
-function SectionTitle({
-  children,
-  description,
-}: {
-  children: ReactNode
-  description?: ReactNode
-}) {
-  return (
-    <header className="space-y-0.5 px-1 pt-2">
-      <h2 className="text-lg font-semibold tracking-tight">{children}</h2>
-      {description && (
-        <p className="text-muted-foreground text-sm">{description}</p>
-      )}
+    <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <h2 className="font-semibold">{children}</h2>
+      {end}
     </header>
   )
 }
@@ -517,6 +435,89 @@ function Chip({ tone, children }: { tone: Tone; children: ReactNode }) {
   )
 }
 
+/** A figure over a two-word label: « +254 € » / « vs cible ». */
+function Stat({
+  value,
+  label,
+  tone = 'neutral',
+}: {
+  value: ReactNode
+  label: ReactNode
+  tone?: Tone
+}) {
+  return (
+    <div className="bg-muted/50 min-w-0 rounded-lg px-3 py-2">
+      <p
+        className={cn(
+          'text-base font-semibold whitespace-nowrap tabular-nums',
+          TONE_TEXT[tone],
+        )}
+      >
+        {value}
+      </p>
+      <p className="text-muted-foreground text-xs">{label}</p>
+    </div>
+  )
+}
+
+/** A label and its figure on one line, the figure never cut. */
+function Row({
+  label,
+  value,
+  tone = 'neutral',
+  dot,
+}: {
+  label: ReactNode
+  value: ReactNode
+  tone?: Tone
+  dot?: string
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 text-sm">
+      <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 break-normal">
+        {dot && <span className={cn('size-2 shrink-0 rounded-full', dot)} />}
+        {label}
+      </span>
+      <span
+        className={cn(
+          'font-medium whitespace-nowrap tabular-nums',
+          TONE_TEXT[tone],
+        )}
+      >
+        {value}
+      </span>
+    </div>
+  )
+}
+
+/** A bar of parts, each its share of `max`. */
+function Bar({
+  parts,
+  max,
+  className,
+}: {
+  parts: { cents: number; color: string }[]
+  max: number
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        'bg-muted flex h-2.5 overflow-hidden rounded-full',
+        className,
+      )}
+    >
+      {parts.map((p, i) => (
+        <span
+          key={i}
+          className={cn('h-full', p.color)}
+          style={{ width: `${(Math.max(p.cents, 0) / max) * 100}%` }}
+        />
+      ))}
+    </div>
+  )
+}
+
 function LinkRow({ children }: { children: ReactNode }) {
   return (
     <button
@@ -529,35 +530,24 @@ function LinkRow({ children }: { children: ReactNode }) {
   )
 }
 
-function OutlineButton({ children }: { children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      className="hover:bg-muted/60 inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm font-medium"
-    >
-      {children}
-    </button>
-  )
-}
+/* ---------------------------------------------------------------------------
+ * The month
+ * ------------------------------------------------------------------------- */
 
-/** « Moyenne 944 € par mois, de mai à oct., hors ponctuels » */
-function averageText(f: MonthFigures) {
-  return `${fmt0(f.average)} par mois en moyenne (${monthAbbr(f.averageFrom)} – ${monthAbbr(f.averageTo)}, hors ponctuels)`
-}
-
-/** Six dots, reached or not, and « Cible atteinte 5 mois sur 6 ». */
+/** Six dots, reached or not, then « 5/6 ». */
 function ReachedDots({ f }: { f: MonthFigures }) {
   if (f.target === null || f.recent.length === 0) return null
   const target = f.target
   const reached = f.recent.filter((x) => x.net >= target).length
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-      <ol
-        aria-label="Derniers mois complets"
-        className="flex items-center gap-1"
-      >
+    <span
+      className="flex items-center gap-2 text-xs"
+      aria-label={`Cible atteinte ${reached} mois sur ${f.recent.length}`}
+      title="Cible atteinte sur les 6 derniers mois"
+    >
+      <span className="flex items-center gap-1">
         {f.recent.map((x) => (
-          <li
+          <span
             key={x.month}
             title={monthLong(x.month)}
             className={cn(
@@ -568,100 +558,156 @@ function ReachedDots({ f }: { f: MonthFigures }) {
             )}
           />
         ))}
-      </ol>
-      <span className="text-muted-foreground">
-        Cible atteinte{' '}
-        <span className="text-foreground font-medium">
-          {reached} mois sur {f.recent.length}
-        </span>
       </span>
-    </div>
-  )
-}
-
-/** One-off line of a month that has one. */
-function OneOffNote({ f }: { f: MonthFigures }) {
-  const { oneOff, oneOffLabel, net } = f.month
-  if (oneOff === 0) return null
-  return (
-    <p className="text-muted-foreground text-xs">
-      {oneOff < 0 ? 'Dont une dépense ponctuelle' : 'Dont un revenu ponctuel'} (
-      {oneOffLabel}, {fmt0(oneOff)}) : {fmt0(net - oneOff)} sans elle.
-    </p>
-  )
-}
-
-/** The partial month: the same days of the month before, and the last verdict. */
-function PartialNote({ f }: { f: MonthFigures }) {
-  const ahead = f.month.net - f.previousNet
-  const last = f.lastFull
-  const reached = f.target !== null && last.net >= f.target
-  return (
-    <div className="text-muted-foreground space-y-1 text-sm">
-      <p>
-        Au {TODAY_DAY} {monthAbbr(last.month)}., vous en étiez à{' '}
-        <span className="text-foreground font-medium">
-          {fmt0(f.previousNet)}
-        </span>{' '}
-        :{' '}
-        <span
-          className={cn(
-            'font-medium',
-            ahead >= 0 ? TONE_TEXT.good : TONE_TEXT.bad,
-          )}
-        >
-          {signed0(ahead)} {ahead >= 0 ? 'd’avance' : 'de retard'}
-        </span>
-        .
-      </p>
-      <p className="text-xs">
-        Le verdict à la fin du mois. {capitalize(monthName(last.month))} :{' '}
-        {fmt0(last.net)}
-        {f.target !== null &&
-          (reached ? ', cible atteinte.' : ', sous la cible.')}
-      </p>
-    </div>
+      <span className="font-medium tabular-nums">
+        {reached}/{f.recent.length}
+      </span>
+    </span>
   )
 }
 
 /**
- * The months as bars: green when the target is reached, grey below it, the
- * month shown outlined, the month in progress hatched; the target as a
- * dashed line. Tapping a bar would show it.
+ * The month: « Épargné » and its status, the figure, the gauge with the
+ * target as a mark, then two or three figures: the gap and the rate (a
+ * month in progress: the same day of the month before and last month).
+ */
+function MonthHero({ f }: { f: MonthFigures }) {
+  const { net } = f.month
+  const reference = f.target ?? f.average
+  const scale = Math.max(reference * 1.6, net * 1.1, 1)
+  const mark = reference / scale
+  const tone = f.status.tone
+  const last = f.lastFull
+  const lastReached = f.target !== null && last.net >= f.target
+  return (
+    <Card>
+      <CardTitle end={<Chip tone={tone}>{f.status.label}</Chip>}>
+        {f.partial ? 'Épargné à ce jour' : 'Épargné'}
+      </CardTitle>
+      <p
+        className={cn(
+          '-mt-1 text-[2.6rem] leading-none font-semibold tracking-tight tabular-nums',
+          net < 0 && 'text-chart-delta-bad',
+        )}
+      >
+        {fmt0(net)}
+      </p>
+      {/* The gauge: the month against its target (or the average). */}
+      <div className="relative pt-5">
+        <Bar
+          className="h-3.5"
+          max={scale}
+          parts={[
+            {
+              cents: net,
+              color: f.partial
+                ? 'bg-primary/60'
+                : tone === 'good'
+                  ? 'bg-chart-delta-good'
+                  : tone === 'bad'
+                    ? 'bg-chart-delta-bad'
+                    : 'bg-chart-savings',
+            },
+          ]}
+        />
+        <span
+          aria-hidden
+          className="bg-foreground absolute bottom-[-0.35rem] h-[1.5rem] w-0.5 rounded-full"
+          style={{ left: `${mark * 100}%` }}
+        />
+        <span
+          className="text-muted-foreground absolute top-0 -translate-x-1/2 text-[11px] whitespace-nowrap"
+          style={{ left: `${mark * 100}%` }}
+        >
+          {f.target === null ? 'Moyenne' : 'Cible'} {fmt0(reference)}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {f.partial ? (
+          <>
+            <Stat
+              value={signed0(net - f.previousNet)}
+              label={`vs ${TODAY_DAY} ${monthAbbr(last.month)}`}
+              tone={net >= f.previousNet ? 'good' : 'bad'}
+            />
+            <Stat
+              value={
+                <span className="flex items-center gap-1">
+                  {fmt0(last.net)}
+                  {lastReached && (
+                    <CheckIcon
+                      aria-label="cible atteinte"
+                      className="text-chart-delta-good size-4"
+                    />
+                  )}
+                </span>
+              }
+              label={capitalize(monthName(last.month))}
+            />
+          </>
+        ) : (
+          <>
+            <Stat
+              value={signed0(net - reference)}
+              label={f.target === null ? 'vs moyenne' : 'vs cible'}
+              tone={f.target === null ? 'neutral' : tone}
+            />
+            {f.rate !== null && (
+              <Stat value={pct(f.rate)} label="des revenus" />
+            )}
+          </>
+        )}
+      </div>
+      {!f.partial && f.month.oneOff !== 0 && (
+        <Row label="Sans le ponctuel" value={fmt0(net - f.month.oneOff)} />
+      )}
+      <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t pt-3 text-xs">
+        <ReachedDots f={f} />
+        <span>
+          Moyenne{' '}
+          <span className="text-foreground font-medium tabular-nums">
+            {fmt0(f.average)}
+          </span>
+        </span>
+      </div>
+      {f.target === null && (
+        <button
+          type="button"
+          className="hover:bg-muted/60 inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm font-medium"
+        >
+          <TargetIcon aria-hidden className="size-4" /> Fixer une cible
+        </button>
+      )}
+    </Card>
+  )
+}
+
+/**
+ * The months as bars: green when the target is reached, grey below it, red
+ * below zero, the month shown outlined, the month in progress hatched; the
+ * target as a dashed line.
  */
 function MonthBars({
   f,
   onSelect,
-  height = 120,
 }: {
   f: MonthFigures
   onSelect: (index: number) => void
-  height?: number
 }) {
+  const height = 120
   const values = MONTHS.map((x) => x.net)
-  const max = Math.max(...values, f.target ?? 0, f.average)
-  const min = Math.min(0, ...values)
-  const span = max - min
-  const y = (v: number) => ((max - v) / span) * height
-  const zero = y(0)
   const reference = f.target ?? f.average
+  const max = Math.max(...values, reference)
+  const min = Math.min(0, ...values)
+  const y = (v: number) => ((max - v) / (max - min)) * height
   return (
     <div className="@container space-y-1">
       <div className="relative" style={{ height }}>
         <div
           aria-hidden
           className="bg-border absolute inset-x-0 h-px"
-          style={{ top: zero }}
+          style={{ top: y(0) }}
         />
-        <div
-          aria-hidden
-          className="border-foreground/60 absolute inset-x-0 z-10 border-t border-dashed"
-          style={{ top: y(reference) }}
-        >
-          <span className="bg-card text-muted-foreground absolute -top-[1.1rem] left-0 z-10 rounded px-1 text-[11px] leading-4">
-            {f.target === null ? 'Moyenne' : 'Cible'} {fmt0(reference)}
-          </span>
-        </div>
         <div className="absolute inset-0 flex items-stretch gap-[3px]">
           {MONTHS.map((x, i) => {
             const top = y(Math.max(x.net, 0))
@@ -696,6 +742,11 @@ function MonthBars({
             )
           })}
         </div>
+        <div
+          aria-hidden
+          className="border-foreground/60 pointer-events-none absolute inset-x-0 border-t border-dashed"
+          style={{ top: y(reference) }}
+        />
       </div>
       <div className="text-muted-foreground flex gap-[3px] text-[10px] leading-4">
         {MONTHS.map((x, i) => (
@@ -704,11 +755,10 @@ function MonthBars({
             className={cn(
               'flex-1 text-center',
               i === f.index && 'text-foreground font-semibold',
-              // Every other label on a narrow card.
               i % 2 === 1 && i !== f.index && '@max-[20rem]:invisible',
             )}
           >
-            {monthAbbr(x.month)}
+            {monthAbbr(x.month).replace('.', '')}
           </span>
         ))}
       </div>
@@ -716,301 +766,115 @@ function MonthBars({
   )
 }
 
-/** « Mis de côté » this month: saved → put aside, and what stayed or was taken. */
-function MovedThisMonth({
-  f,
-  compact,
-}: {
-  f: MonthFigures
-  compact?: boolean
-}) {
+/**
+ * « Mis de côté » this month: saved and put aside as two bars, the split,
+ * and what it did to the checking account as one figure.
+ */
+function MovedThisMonth({ f }: { f: MonthFigures }) {
   const { net, movedSavings, movedInvestments } = f.month
   const moved = movedSavings + movedInvestments
   const rest = net - moved
   const max = Math.max(net, moved, 1)
   return (
-    <div className="space-y-3">
+    <Card>
+      <CardTitle
+        end={<Chip tone="neutral">{capitalize(monthName(f.month.month))}</Chip>}
+      >
+        Mis de côté
+      </CardTitle>
+      <p className="-mt-1 text-2xl font-semibold tracking-tight tabular-nums">
+        {fmt0(moved)}
+      </p>
       <div className="space-y-2">
-        <BarLine
-          label="Épargné"
-          cents={net}
-          ratio={Math.max(net, 0) / max}
-          color="bg-chart-savings"
-        />
-        <BarLine
-          label="Mis de côté"
-          cents={moved}
-          ratio={moved / max}
+        <Row label="Épargné" value={fmt0(net)} />
+        <Bar max={max} parts={[{ cents: net, color: 'bg-chart-savings' }]} />
+      </div>
+      <div className="space-y-2">
+        <Bar
+          max={max}
           parts={[
-            { ratio: movedSavings / max, color: 'bg-emerald-500' },
-            { ratio: movedInvestments / max, color: 'bg-violet-500' },
+            { cents: movedSavings, color: 'bg-emerald-500' },
+            { cents: movedInvestments, color: 'bg-violet-500' },
           ]}
         />
+        <Row label="Livret A" value={fmt0(movedSavings)} dot="bg-emerald-500" />
+        <Row
+          label="Placements"
+          value={fmt0(movedInvestments)}
+          dot="bg-violet-500"
+        />
       </div>
-      {!compact && (
-        <ul className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs">
-          <li className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-emerald-500" /> Livret A{' '}
-            <span className="text-foreground font-medium">
-              {fmt0(movedSavings)}
-            </span>
-          </li>
-          <li className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-violet-500" /> Placements{' '}
-            <span className="text-foreground font-medium">
-              {fmt0(movedInvestments)}
-            </span>
-          </li>
-        </ul>
-      )}
-      <p className="text-sm">
-        {f.partial
-          ? `${fmt0(moved)} mis de côté à ce jour.`
-          : rest >= 0
-            ? `${fmt0(rest)} sont restés sur le compte courant.`
-            : `${fmt0(-rest)} ont été pris sur le compte courant.`}
-      </p>
-    </div>
-  )
-}
-
-function BarLine({
-  label,
-  cents,
-  ratio,
-  color,
-  parts,
-}: {
-  label: string
-  cents: number
-  ratio: number
-  color?: string
-  parts?: { ratio: number; color: string }[]
-}) {
-  return (
-    <div className="space-y-1">
-      <div className="flex items-baseline justify-between gap-3 text-sm">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-medium whitespace-nowrap tabular-nums">
-          {fmt0(cents)}
-        </span>
-      </div>
-      <div className="bg-muted flex h-2.5 overflow-hidden rounded-full">
-        {parts ? (
-          parts.map((p, i) => (
-            <span
-              key={i}
-              className={cn('h-full', p.color)}
-              style={{ width: `${p.ratio * 100}%` }}
-            />
-          ))
-        ) : (
-          <span
-            className={cn('h-full rounded-full', color)}
-            style={{ width: `${ratio * 100}%` }}
-          />
-        )}
-      </div>
-    </div>
-  )
-}
-
-/** The stock: total once, its split, invested and result, a short list. */
-function StockSummary({ sentence }: { sentence?: boolean }) {
-  const savingsRatio = SAVINGS_TOTAL / STOCK_TOTAL
-  return (
-    <div className="space-y-3">
-      {sentence ? (
-        <p className="text-base leading-relaxed">
-          Vous avez <strong className="text-lg">{fmt0(STOCK_TOTAL)}</strong> sur
-          vos livrets et placements, dont{' '}
-          <strong className="text-chart-delta-good">{signed0(RESULT)}</strong>{' '}
-          de résultat sur ce que vous y avez investi.
-        </p>
-      ) : (
-        <div className="space-y-0.5">
-          <p className="text-3xl font-semibold tracking-tight tabular-nums">
-            {fmt0(STOCK_TOTAL)}
-          </p>
-          <p className="text-sm">
-            <span className="text-chart-delta-good font-medium">
-              résultat {signed0(RESULT)}
-            </span>{' '}
-            <span className="text-muted-foreground">
-              · investi {fmt0(INVESTED)}
-            </span>
-          </p>
-        </div>
-      )}
-      <div className="space-y-1.5">
-        <div className="flex h-3 overflow-hidden rounded-full">
-          <span
-            className="h-full bg-emerald-500"
-            style={{ width: `${savingsRatio * 100}%` }}
-          />
-          <span
-            className="h-full bg-violet-500"
-            style={{ width: `${(1 - savingsRatio) * 100}%` }}
+      {!f.partial && (
+        <div className="border-t pt-3">
+          <Row
+            label="Compte courant"
+            value={signed0(rest)}
+            tone={rest < 0 ? 'bad' : 'neutral'}
           />
         </div>
-        <ul className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs">
-          <li className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-emerald-500" />
-            <span className="text-muted-foreground">Livrets</span>
-            <span className="font-medium">{fmt0(SAVINGS_TOTAL)}</span>
-          </li>
-          <li className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-violet-500" />
-            <span className="text-muted-foreground">Placements</span>
-            <span className="font-medium">{fmt0(INVESTMENTS_TOTAL)}</span>
-          </li>
-        </ul>
-      </div>
-    </div>
+      )}
+    </Card>
   )
 }
 
-function AccountRows({ limit = 3 }: { limit?: number }) {
-  const all = [...SAVINGS_ACCOUNTS, ...INVESTMENTS].sort(
-    (a, b) => b.value - a.value,
-  )
-  return (
-    <div>
-      <ul className="-mx-2">
-        {all.slice(0, limit).map((a) => (
-          <li key={a.name}>
-            <button
-              type="button"
-              className="hover:bg-muted/60 flex min-h-11 w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm"
-            >
-              <span
-                className={cn(
-                  'flex size-8 shrink-0 items-center justify-center rounded-full',
-                  a.tint,
-                )}
-              >
-                <a.icon aria-hidden className="size-4" />
-              </span>
-              {/* The figures go under the name when both don't fit. */}
-              <span className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-3">
-                <span className="font-medium break-normal">{a.name}</span>
-                <span className="ml-auto whitespace-nowrap tabular-nums">
-                  {fmt0(a.value)}
-                  {a.gainRate !== undefined && (
-                    <span className="text-chart-delta-good ml-1.5 text-xs">
-                      +{(a.gainRate * 100).toFixed(1).replace('.', ',')} %
-                    </span>
-                  )}
-                </span>
-              </span>
-              <ChevronRightIcon
-                aria-hidden
-                className="text-muted-foreground size-4 shrink-0"
-              />
-            </button>
-          </li>
-        ))}
-      </ul>
-      <LinkRow>Voir les {all.length} comptes</LinkRow>
-    </div>
-  )
-}
-
-/** Where the money went over 12 months, one bar split by account. */
-function Moved12() {
-  const total = sum(MOVED_12.map((x) => x.cents))
-  const saved = sum(MONTHS.filter((x) => x.complete).map((x) => x.net))
-  return (
-    <div className="space-y-2.5">
-      <div className="flex items-baseline justify-between gap-3 text-sm">
-        <span className="text-muted-foreground">Mis de côté sur 12 mois</span>
-        <span className="font-medium whitespace-nowrap">{fmt0(total)}</span>
-      </div>
-      <div className="flex h-3 gap-0.5 overflow-hidden rounded-full">
-        {MOVED_12.map((x) => (
-          <span
-            key={x.name}
-            className={cn('h-full', x.color)}
-            style={{ width: `${(x.cents / total) * 100}%` }}
-          />
-        ))}
-      </div>
-      <ul className="space-y-1 text-sm">
-        {MOVED_12.map((x) => (
-          <li key={x.name} className="flex items-center gap-2">
-            <span className={cn('size-2 rounded-full', x.color)} />
-            <span className="flex-1">{x.name}</span>
-            <span className="tabular-nums">{signed0(x.cents)}</span>
-          </li>
-        ))}
-      </ul>
-      <p className="text-muted-foreground text-xs">
-        Sur la même période, vous avez épargné {fmt0(saved)} :{' '}
-        {saved >= total
-          ? `${fmt0(saved - total)} sont restés sur le compte courant.`
-          : `${fmt0(total - saved)} ont été pris sur le compte courant.`}
-      </p>
-    </div>
-  )
-}
-
-/** One goal: name and status, bar, what it needs per month and when. */
-function GoalRow({ goal, sentence }: { goal: Goal; sentence?: boolean }) {
+/** One goal: name and monthly need, bar, amount and when it is reached. */
+function GoalRow({ goal }: { goal: Goal }) {
   const reached = goal.current >= goal.target
-  const ratio = Math.min(goal.current / goal.target, 1)
   const late =
     goal.deadline !== null &&
     goal.projected !== null &&
     goal.projected > goal.deadline
+  const When = late ? CalendarXIcon : CalendarCheckIcon
   return (
     <li>
       <button
         type="button"
+        aria-label={
+          reached
+            ? `${goal.name} : atteint`
+            : `${goal.name} : ${fmt0(goal.needed ?? 0)} par mois pour ${monthShort(goal.deadline!)}, atteint en ${monthShort(goal.projected!)} à ce rythme`
+        }
         className="hover:bg-muted/60 -mx-2 block w-[calc(100%+1rem)] space-y-1.5 rounded-lg px-2 py-2 text-left text-sm"
       >
         <span className="flex flex-wrap items-baseline justify-between gap-x-3">
-          <span className="font-medium">{goal.name}</span>
-          <span className="text-muted-foreground text-xs tabular-nums">
-            {reached
-              ? `${fmt0(goal.current)}`
-              : `${fmt0(goal.current)} sur ${fmt0(goal.target)}`}
-          </span>
-        </span>
-        <span className="bg-muted block h-2 overflow-hidden rounded-full">
-          <span
-            className={cn(
-              'block h-full rounded-full',
-              reached ? 'bg-chart-delta-good' : 'bg-primary',
-            )}
-            style={{ width: `${ratio * 100}%` }}
-          />
-        </span>
-        {reached ? (
-          <span className="text-chart-delta-good flex items-center gap-1 text-xs font-medium">
-            <CheckIcon aria-hidden className="size-3" /> Atteint
-          </span>
-        ) : sentence ? (
-          <span className="text-muted-foreground block text-xs">
-            Il faut{' '}
-            <strong className="text-foreground">
-              {fmt0(goal.needed ?? 0)} par mois
-            </strong>{' '}
-            pour {monthShort(goal.deadline!)} ; à votre rythme, atteint en{' '}
-            <strong className={late ? TONE_TEXT.bad : 'text-foreground'}>
-              {monthShort(goal.projected!)}
-            </strong>
-            .
-          </span>
-        ) : (
-          <span className="text-muted-foreground flex flex-wrap justify-between gap-x-3 text-xs">
-            <span>
-              <strong className="text-foreground">
-                {fmt0(goal.needed ?? 0)}/mois
-              </strong>{' '}
-              pour {monthShort(goal.deadline!)}
+          <span className="font-medium break-normal">{goal.name}</span>
+          {reached ? (
+            <span className="text-chart-delta-good flex items-center gap-1 text-xs font-medium">
+              <CheckIcon aria-hidden className="size-3" /> Atteint
             </span>
-            <span className={late ? TONE_TEXT.bad : TONE_TEXT.good}>
-              à ce rythme : {monthShort(goal.projected!)}
+          ) : (
+            <span className="font-semibold whitespace-nowrap tabular-nums">
+              {fmt0(goal.needed ?? 0)}
+              <span className="text-muted-foreground text-xs font-normal">
+                /mois
+              </span>
+            </span>
+          )}
+        </span>
+        <Bar
+          className="h-2"
+          max={goal.target}
+          parts={[
+            {
+              cents: Math.min(goal.current, goal.target),
+              color: reached ? 'bg-chart-delta-good' : 'bg-primary',
+            },
+          ]}
+        />
+        {!reached && (
+          <span className="text-muted-foreground flex flex-wrap justify-between gap-x-3 text-xs tabular-nums">
+            <span className="whitespace-nowrap">
+              {fmt0(goal.current)} / {fmt0(goal.target)}
+            </span>
+            <span
+              className={cn(
+                'flex items-center gap-1 font-medium whitespace-nowrap',
+                late ? TONE_TEXT.bad : TONE_TEXT.good,
+              )}
+              title={`Échéance ${monthShort(goal.deadline!)}`}
+            >
+              <When aria-hidden className="size-3.5" />
+              {monthShort(goal.projected!)}
             </span>
           </span>
         )}
@@ -1019,561 +883,182 @@ function GoalRow({ goal, sentence }: { goal: Goal; sentence?: boolean }) {
   )
 }
 
-/** Goals, opening with what they need together against the average. */
-function GoalsCard({ f, sentence }: { f: MonthFigures; sentence?: boolean }) {
+/** The goals: what they need per month together, the margin, each goal. */
+function Goals({ f }: { f: MonthFigures }) {
   const needed = sum(
     GOALS.map((g) => (g.current >= g.target ? 0 : (g.needed ?? 0))),
   )
   const margin = f.average - needed
   return (
     <Card>
-      <CardTitle
-        end={
-          <span className="text-muted-foreground flex items-center gap-1 text-xs">
-            <FlagIcon aria-hidden className="size-3" /> 3 objectifs
-          </span>
-        }
-      >
-        Objectifs
-      </CardTitle>
-      <p className="text-sm">
-        Ensemble, ils demandent <strong>{fmt0(needed)} par mois</strong>. Vous
-        épargnez <strong>{fmt0(f.average)}</strong> en moyenne :{' '}
-        <span
-          className={cn(
-            'font-medium',
-            margin >= 0 ? TONE_TEXT.good : TONE_TEXT.bad,
-          )}
-        >
-          {margin >= 0
-            ? `${fmt0(margin)} de marge`
-            : `il manque ${fmt0(-margin)}`}
-        </span>
-        .
-      </p>
+      <CardTitle>Objectifs</CardTitle>
+      <div className="grid grid-cols-2 gap-2">
+        <Stat value={fmt0(needed)} label="par mois" />
+        <Stat
+          value={signed0(margin)}
+          label="de marge"
+          tone={margin >= 0 ? 'good' : 'bad'}
+        />
+      </div>
       <ul className="space-y-1">
         {GOALS.map((g) => (
-          <GoalRow key={g.name} goal={g} sentence={sentence} />
+          <GoalRow key={g.name} goal={g} />
         ))}
       </ul>
     </Card>
   )
 }
 
-/** « Fixer une cible » for a month without a target. */
-function NoTargetAction() {
-  return (
-    <OutlineButton>
-      <TargetIcon aria-hidden className="size-4" /> Fixer une cible
-    </OutlineButton>
-  )
-}
-
 /* ---------------------------------------------------------------------------
- * A. Jauge
+ * What is held
  * ------------------------------------------------------------------------- */
 
-/**
- * The verdict: « Épargné en octobre » 854 €, its status, a gauge with the
- * target as a mark, the gap and the rate; then the average and the dots.
- */
-function GaugeHero({ f }: { f: MonthFigures }) {
-  const { net } = f.month
-  const reference = f.target ?? f.average
-  const scale = Math.max(reference * 1.6, net * 1.1, 1)
-  const fill = Math.max(net, 0) / scale
-  const mark = reference / scale
-  const tone = f.verdict.tone
-  return (
-    <Card className="space-y-4">
-      <header className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-muted-foreground text-sm font-medium">
-          {f.partial
-            ? `Épargné à ce jour · au ${TODAY_DAY} ${monthAbbr(f.month.month)}.`
-            : `Épargné en ${monthName(f.month.month)}`}
-        </h2>
-        <Chip tone={tone}>{f.verdict.label}</Chip>
-      </header>
-      <div className="space-y-1">
-        <p
-          className={cn(
-            'text-[2.6rem] leading-none font-semibold tracking-tight tabular-nums',
-            net < 0 && 'text-chart-delta-bad',
-          )}
-        >
-          {fmt0(net)}
-        </p>
-        {!f.partial && (
-          <p className="text-sm">
-            {f.verdict.gap && (
-              <span
-                className={cn(
-                  'font-medium',
-                  TONE_TEXT[tone === 'neutral' ? 'neutral' : tone],
-                )}
-              >
-                {f.verdict.gap}
-              </span>
-            )}
-            {f.rate !== null && (
-              <span className="text-muted-foreground">
-                {' '}
-                · {pct(f.rate)} de vos revenus
-              </span>
-            )}
-          </p>
-        )}
-      </div>
-      {/* The gauge: the month's savings against its target. */}
-      <div className="space-y-1 pt-3">
-        <div className="relative">
-          <div className="bg-muted h-3.5 overflow-hidden rounded-full">
-            <div
-              className={cn(
-                'h-full rounded-full',
-                f.partial
-                  ? 'bg-primary/60'
-                  : tone === 'good'
-                    ? 'bg-chart-delta-good'
-                    : tone === 'bad'
-                      ? 'bg-chart-delta-bad'
-                      : 'bg-chart-savings',
-              )}
-              style={{ width: `${Math.min(fill, 1) * 100}%` }}
-            />
-          </div>
-          <div
-            aria-hidden
-            className="bg-foreground absolute -top-1.5 h-[calc(100%+0.75rem)] w-0.5 rounded-full"
-            style={{ left: `${mark * 100}%` }}
-          />
-          <span
-            className="text-muted-foreground absolute -top-5 -translate-x-1/2 text-[11px] whitespace-nowrap"
-            style={{ left: `${mark * 100}%` }}
-          >
-            {f.target === null ? 'Moyenne' : 'Cible'} {fmt0(reference)}
-          </span>
-        </div>
-      </div>
-      {f.partial ? <PartialNote f={f} /> : <OneOffNote f={f} />}
-      <div className="space-y-1.5 border-t pt-3">
-        {f.target !== null && <ReachedDots f={f} />}
-        <p className="text-muted-foreground text-xs">{averageText(f)}</p>
-      </div>
-      {f.target === null && <NoTargetAction />}
-    </Card>
+/** The stock: total once, the result, the split, a short list. */
+function Stock() {
+  const all = [...SAVINGS_ACCOUNTS, ...INVESTMENTS].sort(
+    (a, b) => b.value - a.value,
   )
-}
-
-function DirectionA({ f, select, wide }: Body) {
-  return (
-    <div className="space-y-4">
-      <div className={cn('grid items-start gap-4', wide && 'grid-cols-2')}>
-        <GaugeHero f={f} />
-        <Card>
-          <CardTitle description="Revenus moins dépenses, virements entre vos comptes exclus.">
-            Épargné par mois
-          </CardTitle>
-          <MonthBars f={f} onSelect={select} />
-        </Card>
-      </div>
-      <div className={cn('grid items-start gap-4', wide && 'grid-cols-2')}>
-        <Card>
-          <CardTitle
-            description={`Ce qui a quitté le compte courant pour vos livrets et placements en ${monthName(f.month.month)}.`}
-          >
-            Mis de côté
-          </CardTitle>
-          <MovedThisMonth f={f} />
-        </Card>
-        <GoalsCard f={f} />
-      </div>
-      <SectionTitle description="Aujourd’hui, sur vos livrets et placements.">
-        Ce que vous avez
-      </SectionTitle>
-      <div className={cn('grid items-start gap-4', wide && 'grid-cols-2')}>
-        <Card>
-          <CardTitle>Livrets et placements</CardTitle>
-          <StockSummary />
-          <AccountRows />
-        </Card>
-        <Card>
-          <CardTitle description="Les virements vers vos livrets et placements.">
-            Où va l’argent mis de côté
-          </CardTitle>
-          <Moved12 />
-        </Card>
-      </div>
-    </div>
-  )
-}
-
-/* ---------------------------------------------------------------------------
- * B. Deux côtés
- * ------------------------------------------------------------------------- */
-
-/** The month as a ring around its target, the figure inside it. */
-function Ring({ f }: { f: MonthFigures }) {
-  const { net } = f.month
-  const reference = f.target ?? f.average
-  const ratio = Math.max(net, 0) / reference
-  const r = 52
-  const c = 2 * Math.PI * r
-  const tone = f.verdict.tone
-  const stroke = f.partial
-    ? 'stroke-primary/60'
-    : tone === 'good'
-      ? 'stroke-chart-delta-good'
-      : tone === 'bad'
-        ? 'stroke-chart-delta-bad'
-        : 'stroke-chart-savings'
-  return (
-    <div className="relative size-[7.5rem] shrink-0">
-      <svg viewBox="0 0 120 120" className="size-full -rotate-90">
-        <circle
-          cx="60"
-          cy="60"
-          r={r}
-          className="stroke-muted fill-none"
-          strokeWidth="11"
-        />
-        <circle
-          cx="60"
-          cy="60"
-          r={r}
-          className={cn('fill-none', stroke)}
-          strokeWidth="11"
-          strokeLinecap="round"
-          strokeDasharray={`${Math.min(ratio, 1) * c} ${c}`}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span
-          className={cn(
-            'text-xl leading-tight font-semibold tabular-nums',
-            net < 0 && 'text-chart-delta-bad',
-          )}
-        >
-          {fmt0(net)}
-        </span>
-        <span className="text-muted-foreground text-[11px] leading-tight">
-          sur {fmt0(reference)}
-        </span>
-      </div>
-    </div>
-  )
-}
-
-function RingHero({ f }: { f: MonthFigures }) {
-  return (
-    <Card className="space-y-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <Ring f={f} />
-        <div className="min-w-[9rem] flex-1 space-y-1.5">
-          <p className="text-muted-foreground text-sm">
-            {f.partial
-              ? `Épargné au ${TODAY_DAY} ${monthAbbr(f.month.month)}.`
-              : `Épargné en ${monthName(f.month.month)}`}
-          </p>
-          <Chip tone={f.verdict.tone}>{f.verdict.label}</Chip>
-          {!f.partial && f.verdict.gap && (
-            <p className={cn('text-sm font-medium', TONE_TEXT[f.verdict.tone])}>
-              {f.verdict.gap}
-            </p>
-          )}
-          {f.rate !== null && (
-            <p className="text-sm">
-              <span className="font-semibold">{pct(f.rate)}</span>{' '}
-              <span className="text-muted-foreground">de vos revenus</span>
-            </p>
-          )}
-        </div>
-      </div>
-      {f.partial ? <PartialNote f={f} /> : <OneOffNote f={f} />}
-      {f.target === null && <NoTargetAction />}
-    </Card>
-  )
-}
-
-/** The last 12 months as a row of small tiles. */
-function MonthStrip({
-  f,
-  onSelect,
-}: {
-  f: MonthFigures
-  onSelect: (i: number) => void
-}) {
   return (
     <Card>
-      <CardTitle description={averageText(f)}>12 derniers mois</CardTitle>
-      <MonthBars f={f} onSelect={onSelect} height={96} />
-      <ReachedDots f={f} />
+      <CardTitle>Livrets et placements</CardTitle>
+      <div className="-mt-1 space-y-0.5">
+        <p className="text-3xl font-semibold tracking-tight tabular-nums">
+          {fmt0(STOCK_TOTAL)}
+        </p>
+        <p className="text-chart-delta-good text-sm font-medium">
+          {signed0(RESULT)}{' '}
+          <span className="text-muted-foreground font-normal">de résultat</span>
+        </p>
+      </div>
+      <div className="space-y-2">
+        <Bar
+          className="h-3"
+          max={STOCK_TOTAL}
+          parts={[
+            { cents: SAVINGS_TOTAL, color: 'bg-emerald-500' },
+            { cents: INVESTMENTS_TOTAL, color: 'bg-violet-500' },
+          ]}
+        />
+        <Row label="Livrets" value={fmt0(SAVINGS_TOTAL)} dot="bg-emerald-500" />
+        <Row
+          label="Placements"
+          value={fmt0(INVESTMENTS_TOTAL)}
+          dot="bg-violet-500"
+        />
+      </div>
+      <div className="border-t pt-1">
+        <ul className="-mx-2">
+          {all.slice(0, 3).map((a) => (
+            <li key={a.name}>
+              <button
+                type="button"
+                className="hover:bg-muted/60 flex min-h-11 w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm"
+              >
+                <span
+                  className={cn(
+                    'flex size-8 shrink-0 items-center justify-center rounded-full',
+                    a.tint,
+                  )}
+                >
+                  <a.icon aria-hidden className="size-4" />
+                </span>
+                <span className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-3">
+                  <span className="font-medium break-normal">{a.name}</span>
+                  <span className="ml-auto whitespace-nowrap tabular-nums">
+                    {fmt0(a.value)}
+                    {a.gainRate !== undefined && (
+                      <span className="text-chart-delta-good ml-1.5 text-xs">
+                        +{(a.gainRate * 100).toFixed(1).replace('.', ',')} %
+                      </span>
+                    )}
+                  </span>
+                </span>
+                <ChevronRightIcon
+                  aria-hidden
+                  className="text-muted-foreground size-4 shrink-0"
+                />
+              </button>
+            </li>
+          ))}
+        </ul>
+        <LinkRow>Voir les {all.length} comptes</LinkRow>
+      </div>
     </Card>
   )
 }
 
-function FlowSide({ f, select }: Body) {
+/** Where the money went over 12 months: one bar, one row per account. */
+function Moved12() {
+  const total = sum(MOVED_12.map((x) => x.cents))
+  const saved = sum(MONTHS.filter((x) => x.complete).map((x) => x.net))
   return (
-    <div className="space-y-4">
-      <RingHero f={f} />
-      <MonthStrip f={f} onSelect={select} />
-      <Card>
-        <CardTitle>Mis de côté en {monthName(f.month.month)}</CardTitle>
-        <MovedThisMonth f={f} />
-      </Card>
-      <GoalsCard f={f} />
-    </div>
-  )
-}
-
-function StockSide() {
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardTitle>Livrets et placements</CardTitle>
-        <StockSummary />
-        <AccountRows limit={6} />
-      </Card>
-      <Card>
-        <CardTitle description="Les virements vers vos livrets et placements.">
-          Où va l’argent mis de côté
-        </CardTitle>
-        <Moved12 />
-      </Card>
-    </div>
-  )
-}
-
-function DirectionB(props: Body & { tab: Tab; setTab: (tab: Tab) => void }) {
-  const { wide, tab, setTab } = props
-  if (wide) {
-    return (
-      <div className="grid grid-cols-2 items-start gap-6">
-        <div className="space-y-3">
-          <SectionTitle>Chaque mois</SectionTitle>
-          <FlowSide {...props} />
-        </div>
-        <div className="space-y-3">
-          <SectionTitle>Ce que j’ai</SectionTitle>
-          <StockSide />
-        </div>
+    <Card>
+      <CardTitle end={<Chip tone="neutral">12 mois</Chip>}>
+        Mis de côté
+      </CardTitle>
+      <p className="-mt-1 text-2xl font-semibold tracking-tight tabular-nums">
+        {fmt0(total)}
+      </p>
+      <div className="space-y-2">
+        <Bar
+          className="h-3 gap-0.5"
+          max={total}
+          parts={MOVED_12.map((x) => ({ cents: x.cents, color: x.color }))}
+        />
+        {MOVED_12.map((x) => (
+          <Row
+            key={x.name}
+            label={x.name}
+            value={signed0(x.cents)}
+            dot={x.color}
+          />
+        ))}
       </div>
-    )
-  }
-  return (
-    <div className="space-y-4">
-      <SegmentedControl
-        value={tab}
-        onValueChange={setTab}
-        fullWidth
-        aria-label="Vue"
-      >
-        <SegmentedControlItem value="flow">Chaque mois</SegmentedControlItem>
-        <SegmentedControlItem value="stock">Ce que j’ai</SegmentedControlItem>
-      </SegmentedControl>
-      {tab === 'flow' ? <FlowSide {...props} /> : <StockSide />}
-    </div>
+      <div className="border-t pt-3">
+        <Row
+          label="Compte courant"
+          value={signed0(saved - total)}
+          tone={saved < total ? 'bad' : 'neutral'}
+        />
+      </div>
+    </Card>
   )
 }
 
 /* ---------------------------------------------------------------------------
- * C. En clair
+ * The page
  * ------------------------------------------------------------------------- */
 
-function Strong({ tone, children }: { tone?: Tone; children: ReactNode }) {
-  return (
-    <strong
-      className={cn(
-        'font-semibold whitespace-nowrap',
-        tone && tone !== 'neutral' && TONE_TEXT[tone],
-      )}
-    >
-      {children}
-    </strong>
-  )
-}
-
-/** The month in three sentences. */
-function StoryHero({ f }: { f: MonthFigures }) {
-  const { net, movedSavings, movedInvestments } = f.month
-  const moved = movedSavings + movedInvestments
-  const name = monthName(f.month.month)
-  const tone = f.verdict.tone
-  return (
-    <Card className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-muted-foreground text-sm font-medium">
-          {f.partial
-            ? `${capitalize(name)}, au ${TODAY_DAY}`
-            : capitalize(name)}
-        </h2>
-        <Chip tone={tone}>{f.verdict.label}</Chip>
-      </div>
-      <div className="space-y-2.5 text-[1.05rem] leading-relaxed">
-        {f.partial ? (
-          <>
-            <p>
-              {net < 0 ? (
-                <>
-                  À ce jour, vos dépenses dépassent vos revenus de{' '}
-                  <Strong tone="bad">{fmt0(-net)}</Strong>.
-                </>
-              ) : (
-                <>
-                  À ce jour, vous avez épargné <Strong>{fmt0(net)}</Strong>.
-                </>
-              )}{' '}
-              Au même jour en {monthName(f.lastFull.month)}, vous étiez à{' '}
-              <Strong>{fmt0(f.previousNet)}</Strong> : vous avez{' '}
-              <Strong tone="good">{fmt0(net - f.previousNet)} d’avance</Strong>.
-            </p>
-            <p className="text-muted-foreground text-sm">
-              Le verdict à la fin du mois. En {monthName(f.lastFull.month)},
-              vous aviez épargné {fmt0(f.lastFull.net)}
-              {f.target !== null && f.lastFull.net >= f.target
-                ? ', cible atteinte.'
-                : '.'}
-            </p>
-          </>
-        ) : (
-          <>
-            <p>
-              Vous avez épargné{' '}
-              <Strong tone={tone === 'neutral' ? undefined : tone}>
-                {fmt0(net)}
-              </Strong>
-              {f.rate !== null && (
-                <>
-                  , soit <Strong>{pct(f.rate)}</Strong> de vos revenus
-                </>
-              )}
-              .
-            </p>
-            <p>
-              {f.target === null ? (
-                <>
-                  C’est <Strong>{fmt0(Math.abs(net - f.average))}</Strong>{' '}
-                  {net >= f.average ? 'de plus' : 'de moins'} que votre moyenne
-                  ({fmt0(f.average)}).
-                </>
-              ) : net >= f.target ? (
-                <>
-                  C’est{' '}
-                  <Strong tone="good">{fmt0(net - f.target)} de plus</Strong>{' '}
-                  que votre cible de {fmt0(f.target)}.
-                </>
-              ) : (
-                <>
-                  Il manque <Strong tone="bad">{fmt0(f.target - net)}</Strong>{' '}
-                  pour atteindre votre cible de {fmt0(f.target)}
-                  {f.month.oneOff < 0 && (
-                    <>
-                      , à cause d’une dépense ponctuelle ({f.month.oneOffLabel},{' '}
-                      {fmt0(-f.month.oneOff)})
-                    </>
-                  )}
-                  .
-                </>
-              )}
-            </p>
-            <p>
-              Vous en avez mis <Strong>{fmt0(moved)}</Strong> de côté
-              {net - moved >= 0 ? (
-                <>
-                  {' '}
-                  ; <Strong>{fmt0(net - moved)}</Strong> sont restés sur le
-                  compte courant.
-                </>
-              ) : (
-                <>
-                  , dont <Strong tone="bad">{fmt0(moved - net)}</Strong> pris
-                  sur le compte courant.
-                </>
-              )}
-            </p>
-          </>
-        )}
-      </div>
-      {f.target === null && <NoTargetAction />}
-    </Card>
-  )
-}
-
-/** The 12 months as tiles: each one's figure in the colour of its verdict. */
-function MonthTiles({
+function SavingsBody({
   f,
-  onSelect,
+  select,
   wide,
 }: {
   f: MonthFigures
-  onSelect: (i: number) => void
+  select: (index: number) => void
   wide: boolean
 }) {
-  return (
-    <Card>
-      <CardTitle description={averageText(f)}>Mois par mois</CardTitle>
-      <ol className={cn('grid gap-1.5', wide ? 'grid-cols-6' : 'grid-cols-3')}>
-        {MONTHS.map((x, i) => {
-          const good = f.target !== null && x.complete && x.net >= f.target
-          const bad =
-            x.complete && (f.target === null ? x.net < 0 : x.net < f.target)
-          return (
-            <li key={x.month}>
-              <button
-                type="button"
-                onClick={() => onSelect(i)}
-                className={cn(
-                  'flex min-h-11 w-full flex-col items-start rounded-lg px-2 py-1.5 text-left',
-                  good && 'bg-chart-delta-good/12',
-                  bad && 'bg-chart-delta-bad/10',
-                  !good && !bad && 'bg-muted',
-                  i === f.index && 'ring-foreground ring-2',
-                )}
-              >
-                <span className="text-muted-foreground text-[11px] leading-4">
-                  {capitalize(monthAbbr(x.month))}
-                  {!x.complete && ' · en cours'}
-                </span>
-                <span
-                  className={cn(
-                    'text-sm font-semibold tabular-nums',
-                    good && 'text-chart-delta-good',
-                    bad && 'text-chart-delta-bad',
-                  )}
-                >
-                  {fmt0(x.net)}
-                </span>
-              </button>
-            </li>
-          )
-        })}
-      </ol>
-      <ReachedDots f={f} />
-    </Card>
-  )
-}
-
-function DirectionC({ f, select, wide }: Body) {
+  const grid = cn('grid items-start gap-4', wide && 'grid-cols-2')
   return (
     <div className="space-y-4">
-      <div className={cn('grid items-start gap-4', wide && 'grid-cols-2')}>
-        <StoryHero f={f} />
-        <MonthTiles f={f} onSelect={select} wide={wide} />
-      </div>
-      <div className={cn('grid items-start gap-4', wide && 'grid-cols-2')}>
+      <div className={grid}>
+        <MonthHero f={f} />
         <Card>
-          <CardTitle>Livrets et placements</CardTitle>
-          <StockSummary sentence />
-          <AccountRows />
+          <CardTitle>Épargné par mois</CardTitle>
+          <MonthBars f={f} onSelect={select} />
         </Card>
-        <GoalsCard f={f} sentence />
       </div>
-      <Card>
-        <CardTitle description="Les virements vers vos livrets et placements.">
-          Où va l’argent mis de côté
-        </CardTitle>
+      <div className={grid}>
+        <MovedThisMonth f={f} />
+        <Goals f={f} />
+      </div>
+      <h2 className="px-1 pt-2 text-lg font-semibold tracking-tight">
+        Ce que vous avez
+      </h2>
+      <div className={grid}>
+        <Stock />
         <Moved12 />
-      </Card>
+      </div>
     </div>
   )
 }
@@ -1582,10 +1067,9 @@ function DirectionC({ f, select, wide }: Body) {
  * Frame
  * ------------------------------------------------------------------------- */
 
-interface Body {
-  f: MonthFigures
-  select: (index: number) => void
-  wide: boolean
+interface FrameArgs {
+  scenario: Scenario
+  width: number
 }
 
 const NAV: { title: string; items: [string, LucideIcon][] }[] = [
@@ -1617,7 +1101,7 @@ const NAV: { title: string; items: [string, LucideIcon][] }[] = [
 ]
 
 const ICON_BUTTON =
-  'relative flex size-8 shrink-0 items-center justify-center rounded-lg hover:bg-muted/70 disabled:opacity-35 [&_svg]:size-[1.1rem]'
+  'relative flex size-8 shrink-0 items-center justify-center rounded-lg hover:bg-muted/70 [&_svg]:size-[1.1rem]'
 
 function Header({ phone }: { phone: boolean }) {
   return (
@@ -1723,14 +1207,6 @@ function Sidebar() {
   )
 }
 
-/** The period note under the title, as `PeriodNote` says it. */
-function periodNote(f: MonthFigures): string {
-  if (f.partial) {
-    return `Mois en cours : données jusqu’au ${TODAY_DAY} nov., comparées au 1–${TODAY_DAY} oct.`
-  }
-  return 'Mois complet.'
-}
-
 function Frame(args: FrameArgs) {
   const width = Number(args.width)
   const phone = width < 768
@@ -1739,11 +1215,8 @@ function Frame(args: FrameArgs) {
     (x) => x.month === SCENARIO_MONTH[args.scenario],
   )
   const [index, setIndex] = useState(start)
-  const [tab, setTab] = useState<Tab>(args.tab)
   useEffect(() => setIndex(start), [start])
-  useEffect(() => setTab(args.tab), [args.tab])
   const f = figures(index, target)
-  const body: Body = { f, select: setIndex, wide: !phone }
 
   return (
     <div
@@ -1781,16 +1254,18 @@ function Frame(args: FrameArgs) {
               >
                 Épargne
               </h1>
-              <p className="text-muted-foreground flex items-start gap-1.5 text-xs">
-                <CalendarIcon aria-hidden className="mt-px size-3.5 shrink-0" />
-                {periodNote(f)} Virements entre vos comptes exclus.
-              </p>
+              {/* The app's `PeriodNote`, only while the month runs. */}
+              {f.partial && (
+                <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                  <CalendarClockIcon
+                    aria-hidden
+                    className="size-3.5 shrink-0"
+                  />
+                  Au {TODAY_DAY} nov., comparé au 1–{TODAY_DAY} oct.
+                </p>
+              )}
             </header>
-            {args.direction === 'A' && <DirectionA {...body} />}
-            {args.direction === 'B' && (
-              <DirectionB {...body} tab={tab} setTab={setTab} />
-            )}
-            {args.direction === 'C' && <DirectionC {...body} />}
+            <SavingsBody f={f} select={setIndex} wide={!phone} />
           </div>
         </main>
       </div>
@@ -1802,15 +1277,9 @@ function Frame(args: FrameArgs) {
  * Stories
  * ------------------------------------------------------------------------- */
 
-const LABELS: Record<Direction, string> = {
-  A: 'A. Jauge',
-  B: 'B. Deux côtés',
-  C: 'C. En clair',
-}
-
 export const Prototype: StoryObj<FrameArgs> = {
   name: 'Une page',
-  args: { direction: 'A', scenario: 'above', width: 390, tab: 'flow' },
+  args: { scenario: 'above', width: 390 },
   render: (args) => (
     <AppScale>
       <div className="bg-muted/30 min-h-screen p-4">
@@ -1820,21 +1289,32 @@ export const Prototype: StoryObj<FrameArgs> = {
   ),
 }
 
-/** A, B and C side by side, on one scenario and one width. */
-export const SideBySide: StoryObj<FrameArgs> = {
-  name: 'Côte à côte',
-  args: { direction: 'A', scenario: 'above', width: 390, tab: 'flow' },
-  argTypes: { direction: { table: { disable: true } } },
+/** The four scenarios side by side, at one width. */
+export const Scenarios: StoryObj<FrameArgs> = {
+  name: 'Les quatre cas',
+  args: { scenario: 'above', width: 390 },
+  argTypes: { scenario: { table: { disable: true } } },
   render: (args) => (
     <AppScale>
       <div className="bg-muted/30 flex min-h-screen flex-wrap gap-4 p-4">
-        {(['A', 'B', 'C'] as const).map((direction) => (
-          <div key={direction} className="space-y-1.5">
-            <p className="text-sm font-semibold">{LABELS[direction]}</p>
-            <Frame {...args} direction={direction} />
-          </div>
-        ))}
+        {(['above', 'below', 'partial', 'noTarget'] as const).map(
+          (scenario) => (
+            <div key={scenario} className="space-y-1.5">
+              <p className="text-sm font-semibold">
+                {SCENARIO_LABELS[scenario]}
+              </p>
+              <Frame {...args} scenario={scenario} />
+            </div>
+          ),
+        )}
       </div>
     </AppScale>
   ),
+}
+
+const SCENARIO_LABELS: Record<Scenario, string> = {
+  above: 'Au-dessus de la cible',
+  below: 'Sous la cible',
+  partial: 'Mois en cours',
+  noTarget: 'Sans cible',
 }
