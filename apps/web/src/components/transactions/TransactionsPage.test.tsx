@@ -488,7 +488,7 @@ describe('TransactionsPage', () => {
     expect(screen.getByLabelText('Rechercher une opération')).toHaveValue(
       'fake',
     )
-    // Every filter shows its value on its chip.
+    // Every filter shows its value on its control.
     expect(
       screen.getByRole('button', { name: 'Compte : Compte test, changer' }),
     ).toBeInTheDocument()
@@ -507,8 +507,9 @@ describe('TransactionsPage', () => {
     expect(
       screen.getByRole('button', { name: 'Exceptionnelles' }),
     ).toHaveAttribute('aria-pressed', 'true')
+    // « À revoir » is not one of the filters (#406): four on « Filtres ».
     expect(
-      screen.getByRole('button', { name: 'Filtres, 5 actifs' }),
+      screen.getByRole('button', { name: 'Filtres, 4 actifs' }),
     ).toBeInTheDocument()
     expect(screen.getByLabelText('Tri')).toHaveValue('amount_asc')
     // Sorted by amount: a flat list, dates in the rows.
@@ -516,42 +517,40 @@ describe('TransactionsPage', () => {
     expect(screen.getByRole('list', { name: 'Opérations' })).toBeInTheDocument()
   })
 
-  it('writes the chips to the URL and refetches', async () => {
+  it('writes the filters to the URL and refetches', async () => {
     const { user, onChange } = setup()
     await waitForRows()
     const bar = monthBar()
 
-    // No filter on: nothing to clear.
-    expect(
-      bar.queryByRole('button', { name: 'Effacer' }),
-    ).not.toBeInTheDocument()
+    // No filter on: « Effacer » stays in place, greyed out (#406).
+    expect(bar.getByRole('button', { name: 'Effacer' })).toBeDisabled()
 
     // Only transactional accounts are offered.
     await user.click(bar.getByRole('button', { name: 'Compte, tous' }))
     const accountPicker = await picker('Compte')
     expect(
-      accountPicker.queryByRole('button', { name: 'PEA test' }),
+      accountPicker.queryByRole('radio', { name: 'PEA test' }),
     ).not.toBeInTheDocument()
-    await user.click(accountPicker.getByRole('button', { name: 'Compte test' }))
+    await user.click(accountPicker.getByRole('radio', { name: 'Compte test' }))
     expect(onChange).toHaveBeenLastCalledWith(
       { account: ACCOUNT_ID },
       undefined,
     )
 
     // Categories can be searched.
-    await user.click(bar.getByRole('button', { name: 'Catégorie, tous' }))
+    await user.click(bar.getByRole('button', { name: 'Catégorie, toutes' }))
     const categoryPicker = await picker('Catégorie')
     await user.type(
-      categoryPicker.getByLabelText('Rechercher catégorie'),
+      categoryPicker.getByLabelText('Rechercher une catégorie'),
       'sans',
     )
     await user.click(
-      categoryPicker.getByRole('button', { name: 'Sans catégorie' }),
+      categoryPicker.getByRole('radio', { name: 'Sans catégorie' }),
     )
 
     await user.click(bar.getByRole('button', { name: 'Type, tous' }))
     await user.click(
-      (await picker('Type')).getByRole('button', {
+      (await picker('Type')).getByRole('radio', {
         name: 'Mouvements internes',
       }),
     )
@@ -575,8 +574,9 @@ describe('TransactionsPage', () => {
       }),
     )
 
-    // « À revoir » opens the queue over every date, like its count (#393).
-    await user.click(bar.getByRole('button', { name: 'À revoir' }))
+    // « À revoir » (at the end of the title, #406) opens the queue over
+    // every date, like its count (#393).
+    await user.click(screen.getByRole('button', { name: 'À revoir' }))
     expect(onChange).toHaveBeenLastCalledWith(
       {
         account: ACCOUNT_ID,
@@ -668,10 +668,11 @@ describe('TransactionsPage', () => {
     )
   })
 
-  it('clears one filter with ×, all of them with « Effacer », the period kept', async () => {
+  it('clears one filter with ×, all of them with « Effacer », the period and « À revoir » kept', async () => {
     const { user, onChange } = setup({
       month: 'all',
       kind: 'transfer',
+      oneOff: true,
       review: true,
     })
     await waitForRows()
@@ -681,14 +682,102 @@ describe('TransactionsPage', () => {
       bar.getByRole('button', { name: 'Retirer le filtre Type' }),
     )
     expect(onChange).toHaveBeenLastCalledWith(
+      { month: 'all', oneOff: true, review: true },
+      undefined,
+    )
+    // « À revoir » is not one of the filters (#406): « Effacer » keeps it.
+    await user.click(bar.getByRole('button', { name: 'Effacer' }))
+    expect(onChange).toHaveBeenLastCalledWith(
       { month: 'all', review: true },
       undefined,
     )
-    await user.click(bar.getByRole('button', { name: 'Effacer' }))
-    expect(onChange).toHaveBeenLastCalledWith({ month: 'all' }, undefined)
     await waitFor(() =>
-      expect(lastQuery(api.transactionsControllerSummary)).toEqual({}),
+      expect(lastQuery(api.transactionsControllerSummary)).toEqual({
+        needsReview: true,
+      }),
     )
+  })
+
+  describe('on a phone (#406)', () => {
+    let rect: ReturnType<typeof vi.spyOn>
+    beforeEach(() => {
+      // A narrow toolbar (a phone): the filters set show a row each.
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        },
+      )
+      rect = vi
+        .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+        .mockReturnValue({ width: 350 } as DOMRect)
+    })
+    afterEach(() => {
+      rect.mockRestore()
+      vi.unstubAllGlobals()
+    })
+
+    it('shows each filter set on a row of its own, × clearing it, a tap opening its list', async () => {
+      const { user, onChange } = setup({
+        account: ACCOUNT_ID,
+        category: groceries.id,
+      })
+      await waitForRows()
+
+      const set = await waitFor(() => {
+        const found = document.querySelector<HTMLElement>(
+          '[data-slot=filters-set]',
+        )
+        if (!found) throw new Error('No filters set')
+        return within(found)
+      })
+      expect(
+        set.getByRole('button', { name: 'Compte : Compte test, changer' }),
+      ).toBeInTheDocument()
+      expect(
+        set.getByRole('button', { name: 'Catégorie : Courses, changer' }),
+      ).toBeInTheDocument()
+
+      // A tap opens its list on the « Filtres » page.
+      await user.click(
+        set.getByRole('button', { name: 'Catégorie : Courses, changer' }),
+      )
+      expect(
+        await screen.findByRole('dialog', { name: 'Catégorie' }),
+      ).toBeInTheDocument()
+      await user.keyboard('{Escape}')
+
+      await user.click(
+        set.getByRole('button', { name: 'Retirer le filtre Compte' }),
+      )
+      expect(onChange).toHaveBeenLastCalledWith(
+        { category: groceries.id },
+        undefined,
+      )
+    })
+
+    it('sets a filter from the « Filtres » page, opened inside the search', async () => {
+      const { user, onChange } = setup()
+      await waitForRows()
+
+      await user.click(monthBar().getByRole('button', { name: 'Filtres' }))
+      const sheet = await screen.findByRole('dialog', { name: 'Filtres' })
+      await user.click(within(sheet).getByRole('button', { name: /Compte/ }))
+      const list = await screen.findByRole('dialog', { name: 'Compte' })
+      await user.click(within(list).getByRole('radio', { name: 'Compte test' }))
+      expect(onChange).toHaveBeenLastCalledWith(
+        { account: ACCOUNT_ID },
+        undefined,
+      )
+      // Back on the filters, the account shows with its value.
+      expect(
+        await within(
+          await screen.findByRole('dialog', { name: 'Filtres' }),
+        ).findByText('Compte test'),
+      ).toBeInTheDocument()
+    })
   })
 
   it('debounces the search box into the URL (history replaced)', async () => {

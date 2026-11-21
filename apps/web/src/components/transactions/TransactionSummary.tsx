@@ -1,4 +1,5 @@
 import { cn, Skeleton } from '@finances/ui'
+import { ArrowLeftRightIcon } from 'lucide-react'
 import type { TransactionSummaryDto } from '#/api/types.gen'
 import { formatCents } from '#/lib/money'
 import { plural } from '#/lib/plural'
@@ -11,25 +12,24 @@ interface FigureProps {
 }
 
 /**
- * One figure of the strip, laid out by its own width: a column (label
- * above, value sized on the column with `cqi`, never wrapped) beside the
- * others, or a compact row (label left, value right) when they stack.
+ * One figure of the strip: its label above it, both on the same edge
+ * (#406), the value sized on its column (`cqi`) and never wrapped. Under
+ * 330px of strip (a 320px phone) the figures stack, each a row with its
+ * label on the left and its value on the right.
  */
 function Figure({ label, cents, toned = false }: FigureProps) {
   return (
-    <div className="@container min-w-0">
-      <div className="px-3 py-2 @[240px]:flex @[240px]:items-baseline @[240px]:justify-between @[240px]:gap-3 @[240px]:py-1.5">
-        <dt className="text-muted-foreground text-xs">{label}</dt>
-        <dd
-          className={cn(
-            'text-[clamp(0.8rem,11cqi,1.25rem)] font-semibold whitespace-nowrap tabular-nums @[240px]:text-base',
-            toned && cents > 0 && 'text-chart-delta-good',
-            toned && cents < 0 && 'text-chart-delta-bad',
-          )}
-        >
-          {formatCents(cents)}
-        </dd>
-      </div>
+    <div className="@container flex min-w-0 items-baseline justify-between gap-3 px-3 py-1.5 @[330px]/strip:block @[330px]/strip:px-2.5 @[330px]/strip:py-2">
+      <dt className="text-muted-foreground text-[13px]">{label}</dt>
+      <dd
+        className={cn(
+          'text-[15px] font-semibold whitespace-nowrap tabular-nums @[330px]/strip:text-[clamp(13px,13cqi,19px)]',
+          toned && cents > 0 && 'text-chart-delta-good',
+          toned && cents < 0 && 'text-chart-delta-bad',
+        )}
+      >
+        {formatCents(cents)}
+      </dd>
     </div>
   )
 }
@@ -62,7 +62,8 @@ export function summaryNote(summary: TransactionSummaryDto): string {
  * Totals of the filtered transactions in one strip: income, expenses and
  * their net (« Net », not a balance). Transfers between the user's own
  * accounts are never income or expense; the note line says how many were
- * left out and the one-off share. The count is in the list header.
+ * left out and the one-off share, as the card's last row (#406). The
+ * count is in the list header.
  */
 export function TransactionSummary({
   summary,
@@ -80,13 +81,18 @@ export function TransactionSummary({
   }
 
   return (
-    <section aria-label="Résumé" className="space-y-1.5">
-      <dl className="bg-card grid grid-cols-1 divide-y rounded-xl border @[480px]:grid-cols-3 @[480px]:divide-x @[480px]:divide-y-0">
+    <section
+      aria-label="Résumé"
+      className="bg-card @container/strip overflow-hidden rounded-xl border"
+    >
+      <dl className="grid grid-cols-1 divide-y @[330px]/strip:grid-cols-3 @[330px]/strip:divide-x @[330px]/strip:divide-y-0">
         <Figure label="Revenus" cents={summary.incomeCents} />
         <Figure label="Dépenses" cents={summary.expenseCents} />
         <Figure label="Net" cents={summary.netCents} toned />
       </dl>
-      <p className="text-muted-foreground px-1 text-xs">
+      {/* Part of the totals: what they leave out, their last row. */}
+      <p className="text-muted-foreground flex items-center gap-1.5 border-t px-3 py-1.5 text-[13px]">
+        <ArrowLeftRightIcon aria-hidden className="size-[14px] shrink-0" />
         {summaryNote(summary)}
       </p>
     </section>

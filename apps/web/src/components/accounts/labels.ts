@@ -38,26 +38,47 @@ export function valueAgeText(date: string, days: number): string {
  */
 export const ACCOUNT_TYPE_ICONS: Record<
   AccountType,
-  { icon: LucideIcon; className: string }
+  {
+    icon: LucideIcon
+    className: string
+    /** The same colour as a CSS value (a filter set on it is tinted, #406). */
+    color: string
+  }
 > = {
-  checking: { icon: WalletIcon, className: 'bg-chart-1/15 text-chart-1' },
-  savings: { icon: PiggyBankIcon, className: 'bg-chart-3/15 text-chart-3' },
+  checking: {
+    icon: WalletIcon,
+    className: 'bg-chart-1/15 text-chart-1',
+    color: 'var(--chart-1)',
+  },
+  savings: {
+    icon: PiggyBankIcon,
+    className: 'bg-chart-3/15 text-chart-3',
+    color: 'var(--chart-3)',
+  },
   brokerage: {
     icon: ChartCandlestickIcon,
     className: 'bg-chart-7/15 text-chart-7',
+    color: 'var(--chart-7)',
   },
   life_insurance: {
     icon: UmbrellaIcon,
     className: 'bg-chart-5/15 text-chart-5',
+    color: 'var(--chart-5)',
   },
   employee_savings: {
     icon: BriefcaseIcon,
     className: 'bg-chart-4/15 text-chart-4',
+    color: 'var(--chart-4)',
   },
-  crypto: { icon: BitcoinIcon, className: 'bg-chart-2/15 text-chart-2' },
+  crypto: {
+    icon: BitcoinIcon,
+    className: 'bg-chart-2/15 text-chart-2',
+    color: 'var(--chart-2)',
+  },
   meal_voucher: {
     icon: UtensilsIcon,
     className: 'bg-chart-6/15 text-chart-6',
+    color: 'var(--chart-6)',
   },
 }
 
