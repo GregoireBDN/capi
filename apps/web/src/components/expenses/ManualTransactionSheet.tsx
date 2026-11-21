@@ -33,6 +33,7 @@ import {
   ChevronRightIcon,
   EuroIcon,
   FlagIcon,
+  LockIcon,
   SlidersHorizontalIcon,
   SparkleIcon,
   SplitIcon,
@@ -899,7 +900,13 @@ export function ManualTransactionSheet({
   const amountText = transferAdd
     ? `${amount || '0'} €`
     : `${sign} ${amount || '0'} €`
-  const stepIndex = STEPS.indexOf(step)
+  /**
+   * The steps shown: all four, but a bank row's amount and day are the
+   * bank's (#398), so it has only « Catégorie » and « Options »: nothing
+   * greyed out on the line that would look like a step to open.
+   */
+  const shownSteps: readonly Step[] = bank ? ['category', 'options'] : STEPS
+  const stepIndex = shownSteps.indexOf(step)
   const categoryChosen = Boolean(categoryId) || allowNoCategory
 
   // Each step starts on its heading (read out by screen readers), the
@@ -1053,14 +1060,13 @@ export function ManualTransactionSheet({
           key: 'amount',
           label: STEP_NAMES.amount,
           icon: <EuroIcon aria-hidden />,
-          // A bank row keeps the bank's amount and day (#398).
-          disabled: !categoryChosen || bank,
+          disabled: !categoryChosen,
         },
         {
           key: 'details',
           label: STEP_NAMES.details,
           icon: <CalendarDaysIcon aria-hidden />,
-          disabled: !categoryChosen || amountError !== null || bank,
+          disabled: !categoryChosen || amountError !== null,
         },
         {
           key: 'options',
@@ -1068,7 +1074,7 @@ export function ManualTransactionSheet({
           icon: <SlidersHorizontalIcon aria-hidden />,
           disabled: !categoryChosen || amountError !== null,
         },
-      ]}
+      ].filter((shown) => shownSteps.includes(shown.key as Step))}
     />
   )
 
@@ -1089,11 +1095,11 @@ export function ManualTransactionSheet({
     <SheetBar
       titleRef={stepRef}
       title={title}
-      description={`Étape ${stepIndex + 1} sur ${STEPS.length} : ${STEP_NAMES[step]}`}
+      description={`Étape ${stepIndex + 1} sur ${shownSteps.length} : ${STEP_NAMES[step]}`}
       steps={steps}
       onBack={
         !editing && stepIndex > 0
-          ? () => setStep(STEPS[stepIndex - 1])
+          ? () => setStep(shownSteps[stepIndex - 1])
           : undefined
       }
       action={
@@ -1550,6 +1556,13 @@ export function ManualTransactionSheet({
           className="min-h-0 flex-1 space-y-5 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pt-4 pb-6"
         >
           {recapBlock(true)}
+          {bank && !legacyCorrected && (
+            // Said once, where an imported row's edit opens (#398).
+            <p className="text-muted-foreground -mt-3 flex items-center justify-center gap-1.5 text-center text-xs">
+              <LockIcon aria-hidden className="size-[14px] shrink-0" />
+              Montant et jour de la banque : ils ne se modifient pas.
+            </p>
+          )}
 
           <div className="space-y-2">
             <label

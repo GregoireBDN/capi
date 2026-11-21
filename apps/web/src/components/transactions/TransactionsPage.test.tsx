@@ -863,7 +863,7 @@ describe('TransactionsPage', () => {
       within(editor).queryByRole('button', { name: /^Type/ }),
     ).not.toBeInTheDocument()
     await user.click(
-      within(editor).getByRole('button', { name: /^4\. Options/ }),
+      within(editor).getByRole('button', { name: /^\d\. Options/ }),
     )
     expect(
       within(editor).getByRole('button', { name: 'Enregistrer' }),
@@ -993,7 +993,7 @@ describe('TransactionsPage', () => {
     const editor = await screen.findByRole('dialog')
     // A row without a category opens on its categories (#398).
     await user.click(
-      within(editor).getByRole('button', { name: /^4\. Options/ }),
+      within(editor).getByRole('button', { name: /^\d\. Options/ }),
     )
     await user.click(within(editor).getByRole('switch', { name: /Ponctuelle/ }))
     await user.click(
@@ -1021,7 +1021,7 @@ describe('TransactionsPage', () => {
     const editor = await screen.findByRole('dialog')
     // A row without a category opens on its categories (#398).
     await user.click(
-      within(editor).getByRole('button', { name: /^4\. Options/ }),
+      within(editor).getByRole('button', { name: /^\d\. Options/ }),
     )
     await user.click(within(editor).getByRole('switch', { name: /À revoir/ }))
     await user.type(within(editor).getByLabelText('Note'), 'Cadeau')
@@ -1562,7 +1562,7 @@ describe('TransactionsPage', () => {
       const editor = await screen.findByRole('dialog')
       // A row without a category opens on its categories (#398).
       await user.click(
-        within(editor).getByRole('button', { name: /^4\. Options/ }),
+        within(editor).getByRole('button', { name: /^\d\. Options/ }),
       )
       await user.click(
         within(editor).getByRole('button', { name: /^Répartir/ }),
@@ -1655,7 +1655,7 @@ describe('TransactionsPage', () => {
       const editor = await screen.findByRole('dialog')
       // A row without a category opens on its categories (#398).
       await user.click(
-        within(editor).getByRole('button', { name: /^4\. Options/ }),
+        within(editor).getByRole('button', { name: /^\d\. Options/ }),
       )
       await user.click(
         within(editor).getByRole('button', { name: /^Répartir/ }),
@@ -1692,13 +1692,20 @@ describe('TransactionsPage', () => {
         screen.getByRole('button', { name: 'Modifier Fakemart' }),
       )
       const editor = await screen.findByRole('dialog')
-      // Only its category and its options: amount and day are the bank's.
+      // Only its category and its options: amount and day are the bank's,
+      // said once, no step for them on the line.
       expect(
-        within(editor).getByRole('button', { name: /^2\. Montant/ }),
-      ).toBeDisabled()
+        within(editor).queryByRole('button', { name: /Montant/ }),
+      ).not.toBeInTheDocument()
       expect(
-        within(editor).getByRole('button', { name: /^3\. Détails/ }),
-      ).toBeDisabled()
+        within(editor).queryByRole('button', { name: /Détails/ }),
+      ).not.toBeInTheDocument()
+      await user.click(
+        within(editor).getByRole('button', { name: /^2\. Options/ }),
+      )
+      expect(editor).toHaveTextContent(
+        'Montant et jour de la banque : ils ne se modifient pas.',
+      )
     })
 
     it('puts the bank values back on a row corrected before (#398)', async () => {
@@ -1771,7 +1778,7 @@ describe('TransactionsPage', () => {
       await user.click(within(sheet).getByRole('button', { name: 'Suivant' }))
       // The label and the rest in « Options » (#398).
       await user.click(
-        within(sheet).getByRole('button', { name: /^4\. Options/ }),
+        within(sheet).getByRole('button', { name: /^\d\. Options/ }),
       )
       await user.type(within(sheet).getByLabelText('Libellé'), 'Prime')
       await user.click(

@@ -158,7 +158,7 @@ export function EditOptionRows({
       <SettingRow
         key="repaid"
         icon={HandCoinsIcon}
-        label="Quelqu’un me rembourse"
+        label="On me rembourse"
         value={repaidNames || 'Non'}
         onClick={() => onOpen('repayment')}
       />
@@ -167,7 +167,7 @@ export function EditOptionRows({
       <SettingRow
         key="repay"
         icon={HandCoinsIcon}
-        label="Je rembourse quelqu’un"
+        label="Je rembourse"
         value={repaidNames || 'Non'}
         onClick={() => onOpen('repayment')}
       />
