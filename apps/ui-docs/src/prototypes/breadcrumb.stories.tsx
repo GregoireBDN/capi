@@ -480,7 +480,10 @@ function Rows({ count = 5 }: { count?: number }) {
   return (
     <ul className="divide-y">
       {ROWS.slice(0, count).map(([label, category, amount, Icon, color]) => (
-        <li key={label} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+        <li
+          key={label}
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5"
+        >
           <span
             className="flex size-8 shrink-0 items-center justify-center rounded-lg"
             style={{ background: `${color}24`, color }}
@@ -545,9 +548,7 @@ function Body({ page }: { page: PageKey }) {
           ].map(([label, value]) => (
             <Card key={label} className="px-2 py-2">
               <p className="text-muted-foreground text-xs">{label}</p>
-              <p className="text-sm font-semibold whitespace-nowrap">
-                {value}
-              </p>
+              <p className="text-sm font-semibold whitespace-nowrap">{value}</p>
             </Card>
           ))}
         </div>
