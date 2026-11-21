@@ -70,7 +70,7 @@ export function shareOf(
 
 export const shareExpenseTool = defineTool({
   name: 'share_expense',
-  title: 'Partager une dépense',
+  title: 'J’ai payé pour quelqu’un',
   description:
     'Say who owes the owner what on an expense he paid (a restaurant, a rent, tickets): « moitié » with one person, « parts égales » between the people and the owner (rounded half to even, the remainder on the owner), or an amount each as text. The owner’s spending then counts only his part, in the expense’s category and month, and each person’s share shows in owed_to_me until it is repaid (link_repayment) or let go (in the app). Without confirm: preview (each share, the owner’s part, the category affected, what each person owes before → after). With confirm: true the shares are saved; people who already have that share are left as they are, so a repeated call changes nothing. New names become contacts. Changing or removing a share is done in the app.',
   write: { idempotent: true },
@@ -133,7 +133,7 @@ export const shareExpenseTool = defineTool({
     for (const person of people) {
       if (person.existing && person.existing.amountCents !== each) {
         throw new ToolInputError(
-          `${person.name} a déjà une part de ${euros(person.existing.amountCents)} sur cette dépense : modifiez-la dans l’application (« Partager »). Rien n’a été modifié.`,
+          `${person.name} a déjà une part de ${euros(person.existing.amountCents)} sur cette dépense : modifiez-la dans l’application (« J’ai payé pour quelqu’un »). Rien n’a été modifié.`,
         )
       }
     }
@@ -189,7 +189,7 @@ export const shareExpenseTool = defineTool({
         .map((s) => `- ${s.contactName} vous doit ${euros(s.amountCents)}`),
       `Ma part : ${euros(ownAfter)}.`,
       '',
-      'Pour annuler : « Partager » sur l’opération dans l’application.',
+      'Pour annuler : « J’ai payé pour quelqu’un » sur l’opération dans l’application.',
     ].join('\n')
   },
 })
@@ -364,7 +364,7 @@ export const linkRepaymentTool = defineTool({
       `Reste dans sa catégorie : ${euros(result.restCents ?? rest)}.`,
       balance,
       '',
-      'Pour annuler : délier le remboursement dans l’application (page de la personne, « Entre proches »).',
+      'Pour annuler : délier le remboursement dans l’application (page de la personne, « Dépenses partagées »).',
     ].join('\n')
   },
 })

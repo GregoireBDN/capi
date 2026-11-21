@@ -26,7 +26,7 @@ import { defineTool } from './tool.js'
 function budgetLine(line: BudgetLineDto): string {
   const oneOffs =
     line.spentExcludingOneOffsCents !== line.spentCents
-      ? ` (hors ponctuel ${euros(line.spentExcludingOneOffsCents)})`
+      ? ` (hors exceptionnel ${euros(line.spentExcludingOneOffsCents)})`
       : ''
   const tracked = line.tracked ? ' · suivi pendant le mois' : ''
   const note = line.note ? ` · note : ${line.note}` : ''

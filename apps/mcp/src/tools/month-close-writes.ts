@@ -20,7 +20,7 @@ import { confirmSchema, PREVIEW_FOOTER, PREVIEW_HEADER } from './write.js'
 export const MAX_MONTHS_PER_CALL = 24
 
 const REOPEN_HINT =
-  "Pour rouvrir un mois : dans l'application, Revue du mois › Rouvrir (aucun outil MCP ne rouvre un mois)."
+  "Pour rouvrir un mois : dans l'application, Bilan du mois › Rouvrir (aucun outil MCP ne rouvre un mois)."
 
 /** `from` … `to` included, as `YYYY-MM` (empty when `from` is after `to`). */
 function monthsBetween(from: string, to: string): string[] {
@@ -74,7 +74,7 @@ export const closeMonthsTool = defineTool({
   name: 'close_months',
   title: 'Clôturer des mois',
   description:
-    'Close months of the guided month-end review ("Revue du mois"): freezes each month’s report (totals per category, income, expenses, savings, net worth) as the data stands now. Only months before the current one (Europe/Paris) can be closed. `month` closes one month; `allBefore: true` closes every past month left open since the first month ever closed, up to the previous month (with `from` when no month was ever closed). Steps still open do not prevent a close: the preview lists them. Without confirm: preview per month (already closed / to close, what is still open). With confirm: true closes the months still open, oldest first; already closed months are skipped. Reopening is done in the app.',
+    'Close months of the guided month-end review ("Bilan du mois"): freezes each month’s report (totals per category, income, expenses, savings, net worth) as the data stands now. Only months before the current one (Europe/Paris) can be closed. `month` closes one month; `allBefore: true` closes every past month left open since the first month ever closed, up to the previous month (with `from` when no month was ever closed). Steps still open do not prevent a close: the preview lists them. Without confirm: preview per month (already closed / to close, what is still open). With confirm: true closes the months still open, oldest first; already closed months are skipped. Reopening is done in the app.',
   write: { idempotent: true },
   inputSchema: {
     month: z

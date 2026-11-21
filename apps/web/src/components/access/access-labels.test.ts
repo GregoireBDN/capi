@@ -40,7 +40,7 @@ describe('describeCall', () => {
   it('tells reads and writes in plain words', () => {
     expect(describeCall('GET', '/api/transactions')).toBe('a lu les opérations')
     expect(describeCall('GET', '/api/dashboard/review')).toBe(
-      'a lu la revue du mois',
+      'a lu le bilan du mois',
     )
     expect(describeCall('PATCH', '/api/transactions/:id')).toBe(
       'a modifié une opération',

@@ -32,7 +32,7 @@ export const transactionsTable = pgTable(
     ...coreColumns,
     /**
      * The owner's account it was paid from or into; null only for an expense
-     * a contact paid for the owner (`paidByContactId`, « Payé pour moi »),
+     * a contact paid for the owner (`paidByContactId`, « Quelqu’un a payé pour moi »),
      * which no account of his saw.
      */
     accountId: uuid('account_id').references(() => accountsTable.id, {
@@ -96,7 +96,7 @@ export const transactionsTable = pgTable(
       { onDelete: 'set null' },
     ),
     /**
-     * Contact who paid this expense for the owner (#359, « Payé pour moi »):
+     * Contact who paid this expense for the owner (#359, « Quelqu’un a payé pour moi »):
      * a manual expense holding his part, without an account, with the
      * `i_owe` receivable of that part.
      */
@@ -192,12 +192,12 @@ export const transactionsTable = pgTable(
       sql`${t.absorbedManual} is null or not ${t.manual}`,
     ),
     index().on(t.paidByContactId),
-    // An account, or else a contact who paid it (« Payé pour moi »).
+    // An account, or else a contact who paid it (« Quelqu’un a payé pour moi »).
     check(
       'transactions_account_or_paid_by',
       sql`(${t.accountId} is null) = (${t.paidByContactId} is not null)`,
     ),
-    // « Payé pour moi » is an expense entered by hand (#359).
+    // « Quelqu’un a payé pour moi » is an expense entered by hand (#359).
     check(
       'transactions_paid_by_manual_expense',
       sql`${t.paidByContactId} is null or (${t.manual} and ${t.kind} = 'expense')`,
@@ -262,7 +262,7 @@ export const transactionSplitsTable = pgTable(
  * Money owed (#359, ADR 0005 R8): `amountCents` is the owner's part. An
  * expense line counts minus what contacts owe on it (`owed_to_me`
  * receivables, open or repaid; once let go, only what they did repay), a
- * line « Payé pour moi » minus what the contact let go (`i_owe` forgiven),
+ * line « Quelqu’un a payé pour moi » minus what the contact let go (`i_owe` forgiven),
  * and the part of a transfer linked as a repayment is dropped from its line
  * (a settlement, neither income nor spending). `grossAmountCents` keeps the
  * line's own amount. Unshared lines count exactly as before.
@@ -270,7 +270,7 @@ export const transactionSplitsTable = pgTable(
 export const transactionLinesView = pgView('transaction_lines', {
   id: uuid('id').notNull(),
   splitId: uuid('split_id'),
-  /** Null for an expense paid by a contact (« Payé pour moi »). */
+  /** Null for an expense paid by a contact (« Quelqu’un a payé pour moi »). */
   accountId: uuid('account_id'),
   importId: uuid('import_id'),
   bookingDate: date('booking_date', { mode: 'string' }).notNull(),

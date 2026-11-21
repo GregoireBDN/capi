@@ -29,7 +29,7 @@ const WITH_MOVED_CONFIG = {
 } satisfies ChartConfig
 
 /** Shown in the tooltip and the data table, not drawn. */
-const ONE_OFF_DETAILS = { oneOff: 'Dont ponctuel' } as const
+const ONE_OFF_DETAILS = { oneOff: 'Dont exceptionnel' } as const
 
 function range(months: SavingsMonthDto[]): string {
   if (months.length === 0) return ''
@@ -109,8 +109,8 @@ export function SavingsChart({
             {oneOffCount === 1
               ? '1 mois compte'
               : `${oneOffCount} mois comptent`}{' '}
-            des revenus ou dépenses ponctuels : touchez un mois ou ouvrez les
-            données pour voir leur montant.
+            des revenus ou dépenses exceptionnels : touchez un mois ou ouvrez
+            les données pour voir leur montant.
           </p>
         )}
       </CardContent>

@@ -145,7 +145,7 @@ export class OwedController {
   @ApiOperation({
     summary: 'Money owed, both ways',
     description:
-      '« Entre proches »: « On me doit » and « Je dois » as two lists, never netted, one row per person (the oldest open item’s age), the people all settled apart, and this month’s repayments expected from shared recurring items. Outside the net worth.',
+      '« Dépenses partagées »: « On me doit » and « Je dois » as two lists, never netted, one row per person (the oldest open item’s age), the people all settled apart, and this month’s repayments expected from shared recurring items. Outside the net worth.',
   })
   @ApiOkResponse({ type: OwedSummaryDto })
   summary(): Promise<OwedSummaryDto> {
@@ -187,7 +187,7 @@ export class ReceivablesController {
   @ApiOperation({
     summary: 'Note an expense someone paid for the owner',
     description:
-      '« Payé pour moi »: a manual expense without an account holding the owner’s part (his spending, in its category, on its day) and what he owes the contact (`i_owe`), the bill kept beside. Open to write tokens.',
+      '« Quelqu’un a payé pour moi »: a manual expense without an account holding the owner’s part (his spending, in its category, on its day) and what he owes the contact (`i_owe`), the bill kept beside. Open to write tokens.',
   })
   @ApiBody({ type: CreateDebtDto })
   @ApiOkResponse({ type: TransactionDto })
@@ -294,7 +294,7 @@ export class ReceivablesController {
   @ApiOperation({
     summary: 'Delete an item',
     description:
-      'A share goes, its expense stays; what the owner owes goes with its expense « Payé pour moi ». Session only.',
+      'A share goes, its expense stays; what the owner owes goes with its expense « Quelqu’un a payé pour moi ». Session only.',
   })
   @ApiParam(ID_PARAM)
   @ApiNoContentResponse()
@@ -348,7 +348,7 @@ export class OwedLinksController {
   @ApiOperation({
     summary: 'Set who an expense is shared with',
     description:
-      '« Partager »: everyone listed gets or keeps a share of that amount, the others lose theirs (refused once partly repaid or let go). An empty list stops sharing it. Session only.',
+      '« J’ai payé pour quelqu’un »: everyone listed gets or keeps a share of that amount, the others lose theirs (refused once partly repaid or let go). An empty list stops sharing it. Session only.',
   })
   @ApiParam(ID_PARAM)
   @ApiBody({ type: ReplaceSharesDto })

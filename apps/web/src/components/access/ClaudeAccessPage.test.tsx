@@ -361,7 +361,7 @@ describe('ClaudeAccessPage', () => {
     const lines = within(calls).getAllByRole('listitem')
     expect(lines.map((line) => line.textContent)).toEqual([
       expect.stringContaining('a modifié 3 opérations'),
-      expect.stringContaining('a lu la revue du mois'),
+      expect.stringContaining('a lu le bilan du mois'),
       expect.stringMatching(/a voulu faire une modification.*Refusé/),
     ])
     expect(calls).not.toHaveTextContent('/api/')

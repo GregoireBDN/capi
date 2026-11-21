@@ -1,14 +1,15 @@
 import { Button, cn } from '@finances/ui'
 import {
+  CalendarClockIcon,
   CheckIcon,
   HandCoinsIcon,
   HandIcon,
+  HandshakeIcon,
   PencilLineIcon,
-  SparkleIcon,
-  CalendarClockIcon,
+  ReceiptTextIcon,
   StickyNoteIcon,
   TagIcon,
-  UsersIcon,
+  ZapIcon,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -83,7 +84,7 @@ function Flags({ item }: { item: TransactionDto }) {
   const corrected =
     item.originalAmountCents !== null || item.originalBookingDate !== null
   const flags: { on: boolean; icon: LucideIcon; label: string }[] = [
-    { on: item.isOneOff, icon: SparkleIcon, label: 'Ponctuelle' },
+    { on: item.isOneOff, icon: ZapIcon, label: 'Exceptionnelle' },
     {
       on: item.prepaidItemId !== null,
       icon: CalendarClockIcon,
@@ -100,12 +101,15 @@ function Flags({ item }: { item: TransactionDto }) {
     // Money owed (#359): who owes what on it, what it repays.
     {
       on: item.shares.length > 0,
-      icon: UsersIcon,
+      // Someone paid it for me (« Je dois à … ») or I paid for others.
+      icon: item.shares.some((s) => s.direction === 'i_owe')
+        ? ReceiptTextIcon
+        : HandCoinsIcon,
       label: owedLabel(item),
     },
     {
       on: item.repayments.length > 0,
-      icon: HandCoinsIcon,
+      icon: HandshakeIcon,
       label: `Remboursement : ${item.repayments
         .map((r) => `${formatCents(r.amountCents)} ${r.contactName}`)
         .join(', ')}`,

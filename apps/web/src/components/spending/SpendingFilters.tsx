@@ -94,12 +94,12 @@ function SpendingFilterControls({
       >
         <Switch
           id={switchId}
-          aria-label="Inclure les dépenses ponctuelles"
+          aria-label="Inclure les dépenses exceptionnelles"
           checked={search.oneOffs === true}
           onCheckedChange={(on) => set('oneOffs', on ? true : undefined)}
         />
         <Label htmlFor={switchId} className="text-sm font-normal">
-          {inline ? 'Ponctuelles' : 'Inclure les dépenses ponctuelles'}
+          {inline ? 'Exceptionnelles' : 'Inclure les dépenses exceptionnelles'}
         </Label>
       </div>
     </div>

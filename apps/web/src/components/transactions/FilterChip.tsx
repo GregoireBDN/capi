@@ -216,7 +216,7 @@ function OptionButton({
   )
 }
 
-/** An on / off chip (« À revoir », « Ponctuelles »). */
+/** An on / off chip (« À revoir », « Exceptionnelles »). */
 export function ToggleChip({
   label,
   pressed,

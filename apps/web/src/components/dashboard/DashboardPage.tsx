@@ -13,7 +13,7 @@ import {
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { LayoutDashboardIcon, UploadIcon } from 'lucide-react'
+import { FileUpIcon, LayoutDashboardIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { NewAccountButton } from '#/components/accounts/AccountEditor'
 import { PageHeader } from '#/components/app-shell/PageHeader'
@@ -57,12 +57,12 @@ function DashboardSkeleton() {
 /**
  * The dashboard, read in a few seconds each time the app opens (#405, the
  * owner's direction « A. À faire, puis un chiffre »). It follows today, not
- * a month (past months are read in « Revue du mois »): what is waiting
+ * a month (past months are read in « Bilan du mois »): what is waiting
  * first (`DashboardTodos`, hidden when all is done), then one card with what
  * is left to spend this month against the pace, the end of the month and
  * today's net worth (`GlanceCard`), then the envelopes, where an expense is
  * noted in one tap. Everything else is one tap away on its page: the
- * accounts on Comptes, the month's figures on Revue du mois, the year's
+ * accounts on Comptes, the month's figures on Bilan du mois, the year's
  * income and expenses on Épargne.
  */
 export function DashboardPage({ banner }: { banner?: ReactNode }) {
@@ -168,7 +168,7 @@ export function DashboardPage({ banner }: { banner?: ReactNode }) {
           <EmptyContent className="flex-row flex-wrap justify-center">
             <Button asChild>
               <Link to={ROUTES.import}>
-                <UploadIcon aria-hidden />
+                <FileUpIcon aria-hidden />
                 Importer un relevé
               </Link>
             </Button>

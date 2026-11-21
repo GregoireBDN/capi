@@ -21,9 +21,7 @@ import {
 export function repaymentTitle(item: TransactionDto): string {
   // Money in: someone pays the owner back; money out: he pays someone
   // back (#398: one name per direction).
-  return item.amountCents > 0
-    ? 'On me rembourse'
-    : 'Je rembourse'
+  return item.amountCents > 0 ? 'On me rembourse' : 'Je rembourse'
 }
 
 /**
@@ -188,8 +186,8 @@ function RepaymentForm({
       {options.contacts.length === 0 ? (
         <p className="text-muted-foreground text-sm">
           {owedToMe
-            ? 'Personne ne vous doit rien pour le moment : partagez d’abord une dépense (« Partager »).'
-            : 'Vous ne devez rien pour le moment : notez d’abord ce qu’on a payé pour vous (« Payé pour moi »).'}
+            ? 'Personne ne vous doit rien pour le moment : partagez d’abord une dépense (« J’ai payé pour quelqu’un »).'
+            : 'Vous ne devez rien pour le moment : notez d’abord ce qu’on a payé pour vous (« Quelqu’un a payé pour moi »).'}
         </p>
       ) : (
         <>

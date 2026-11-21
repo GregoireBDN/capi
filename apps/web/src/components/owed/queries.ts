@@ -31,7 +31,7 @@ import { ApiRequestError, unwrap } from '#/lib/queries'
 
 /**
  * Money owed between the owner and the people around him (#359): the
- * « Entre proches » lists, contacts, shares, repayments and debts.
+ * « Dépenses partagées » lists, contacts, shares, repayments and debts.
  */
 
 export const UNDO_TOAST_MS = 8_000

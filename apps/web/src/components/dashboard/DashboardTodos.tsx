@@ -2,14 +2,14 @@ import { Card, ItemList, ItemListRow } from '@finances/ui'
 import { Link } from '@tanstack/react-router'
 import {
   ChevronDownIcon,
-  HandCoinsIcon,
+  FileUpIcon,
+  HandshakeIcon,
   InboxIcon,
   LineChartIcon,
-  ListChecksIcon,
+  NotebookPenIcon,
   RefreshCwIcon,
   RepeatIcon,
   TargetIcon,
-  UploadIcon,
 } from 'lucide-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
@@ -53,7 +53,7 @@ function view(todo: Todo, today: string): TodoView {
     case 'import':
       return {
         key: 'import',
-        icon: <UploadIcon />,
+        icon: <FileUpIcon />,
         tone: 'warning',
         title: 'Importer un relevé',
         subtitle:
@@ -65,13 +65,13 @@ function view(todo: Todo, today: string): TodoView {
     case 'close':
       return {
         key: 'close',
-        icon: <ListChecksIcon />,
+        icon: <NotebookPenIcon />,
         tone: 'warning',
         title: `Clôturer ${formatMonthName(todo.month)}`,
         subtitle:
           todo.missing > 0
             ? `${plural(todo.missing, 'compte')} à mettre à jour avant`
-            : 'Revue et clôture du mois',
+            : 'Bilan et clôture du mois',
         link: <Link to={ROUTES.monthReview} search={{ month: todo.month }} />,
       }
     case 'budget':
@@ -94,7 +94,7 @@ function view(todo: Todo, today: string): TodoView {
     case 'repayment':
       return {
         key: 'repayment',
-        icon: <HandCoinsIcon />,
+        icon: <HandshakeIcon />,
         tone: 'info',
         title:
           todo.count > 1

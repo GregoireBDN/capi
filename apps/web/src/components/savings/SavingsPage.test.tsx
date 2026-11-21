@@ -388,7 +388,7 @@ describe('SavingsPage', () => {
       'Par mois, de sept. à oct. (2 mois complets)',
     )
     const kpis = screen.getByRole('region', { name: 'Chiffres clés' })
-    expect(kpis).not.toHaveTextContent(/Moy\. 6 mois|ponctuel/)
+    expect(kpis).not.toHaveTextContent(/Moy\. 6 mois|exceptionnel/)
 
     // Target vs actual, one row like a goal: 400 € saved so far, 460 € to
     // go; the last full months as dots.
@@ -458,14 +458,14 @@ describe('SavingsPage', () => {
       text('La ligne pointillée marque votre épargne cible (860 € par mois).'),
     )
     // One-offs: a column of the data table, not a run-on sentence.
-    expect(chart).not.toHaveTextContent('Dont ponctuel :')
+    expect(chart).not.toHaveTextContent('Dont exceptionnel :')
     expect(chart).toHaveTextContent(
-      '1 mois compte des revenus ou dépenses ponctuels',
+      '1 mois compte des revenus ou dépenses exceptionnels',
     )
     const table = within(chart).getByRole('table', { hidden: true })
     expect(
       within(table).getByRole('columnheader', {
-        name: 'Dont ponctuel',
+        name: 'Dont exceptionnel',
         hidden: true,
       }),
     ).toBeInTheDocument()

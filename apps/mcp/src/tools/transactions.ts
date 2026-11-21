@@ -21,7 +21,7 @@ import { defineTool, ToolInputError } from './tool.js'
 export function transactionLine(t: TransactionDto): string {
   const flags = [
     t.kind === 'transfer' ? 'virement interne' : null,
-    t.isOneOff ? 'ponctuel' : null,
+    t.isOneOff ? 'exceptionnel' : null,
     t.needsReview ? 'à revoir' : null,
     t.manual ? 'saisie manuelle' : null,
   ].filter(Boolean)
@@ -178,7 +178,7 @@ export const searchTransactionsTool = defineTool({
     ]
     if (summary.oneOffExpenseCents !== 0 || summary.oneOffIncomeCents !== 0) {
       lines.push(
-        `Dont ponctuel : revenus ${euros(summary.oneOffIncomeCents)}, dépenses ${euros(summary.oneOffExpenseCents)}.`,
+        `Dont exceptionnel : revenus ${euros(summary.oneOffIncomeCents)}, dépenses ${euros(summary.oneOffExpenseCents)}.`,
       )
     }
     if (summary.transferCount > 0) {

@@ -35,9 +35,9 @@ describe('carriedMonth', () => {
 })
 
 describe('isNavEntryActive', () => {
-  const spending = NAV_ITEMS.find((item) => item.label === 'Dépenses')!
+  const spending = NAV_ITEMS.find((item) => item.label === 'Mouvements')!
 
-  it('makes « Dépenses » the entry of Opérations, its sub-page (#393)', () => {
+  it('makes « Mouvements » the entry of Opérations, its sub-page (#393)', () => {
     expect(isNavEntryActive('/spending', spending)).toBe(true)
     expect(isNavEntryActive('/transactions', spending)).toBe(true)
     expect(isNavEntryActive('/transactions/42', spending)).toBe(true)
@@ -45,7 +45,7 @@ describe('isNavEntryActive', () => {
     expect(isNavEntryActive('/budget', spending)).toBe(false)
   })
 
-  it('leaves Opérations out of the sidebar, its count on « Dépenses »', () => {
+  it('leaves Opérations out of the sidebar, its count on « Mouvements »', () => {
     expect(NAV_ITEMS.map((item) => item.to)).not.toContain('/transactions')
     expect(spending.badge).toBe('reviewCount')
   })

@@ -12,9 +12,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   CalendarClockIcon,
+  FileUpIcon,
   RepeatIcon,
   ScanSearchIcon,
-  UploadIcon,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -163,7 +163,7 @@ export function SubscriptionsPage() {
               <>
                 <Button asChild>
                   <Link to={ROUTES.import}>
-                    <UploadIcon aria-hidden />
+                    <FileUpIcon aria-hidden />
                     Importer un relevé
                   </Link>
                 </Button>

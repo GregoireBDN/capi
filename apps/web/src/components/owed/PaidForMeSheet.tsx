@@ -118,7 +118,7 @@ export function nextPaidForMeStep(step: PaidForMeStep): PaidForMeStep {
 }
 
 /**
- * « Payé pour moi » (#359, owner's « B. L'addition puis ma part »; in steps
+ * « Quelqu’un a payé pour moi » (#359, owner's « B. L'addition puis ma part »; in steps
  * since #394): who paid (a tap moves on), the category (the picker of #396,
  * « Nouvelle catégorie » when it is missing), the bill with its day and
  * label, then my part: « Moitié », « Parts égales » between n (me included,
@@ -148,7 +148,9 @@ export function PaidForMeSheet({
         // Each step focuses its own heading (or the bill's field).
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
-        {!open && <SheetTitle className="sr-only">Payé pour moi</SheetTitle>}
+        {!open && (
+          <SheetTitle className="sr-only">Quelqu’un a payé pour moi</SheetTitle>
+        )}
         {open && (
           <PaidForMeForm initial={initial} onDone={() => onOpenChange(false)} />
         )}
@@ -332,7 +334,7 @@ function PaidForMeForm({
     >
       <SheetBar
         titleRef={headingRef}
-        title="Payé pour moi"
+        title="Quelqu’un a payé pour moi"
         description={`Étape ${stepIndex + 1} sur ${PAID_FOR_ME_STEPS.length} : ${STEP_NAMES[step]}`}
         steps={
           <SheetSteps
@@ -495,7 +497,7 @@ function PaidForMeForm({
  * « Ma part » of an expense someone else paid (#394, the owner's « A »):
  * how many we were (2 · 3 · 4 · 5 · 6+, « 6+ » showing − / + up to 20),
  * my part large below, typed over for an amount of my own (« Autre
- * montant »). Controlled: « Payé pour moi » and the quick entry (#398) keep
+ * montant »). Controlled: « Quelqu’un a payé pour moi » and the quick entry (#398) keep
  * `people` (null once a part is typed) and the text typed.
  */
 export function MyPartFields({
