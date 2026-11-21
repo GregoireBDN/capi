@@ -40,7 +40,11 @@ const ORIGINS: Record<
   savings: { label: 'Épargne', to: ROUTES.savings, hasMonth: true },
   crypto: { label: 'Crypto', to: ROUTES.crypto, hasMonth: false },
   'net-worth': { label: 'Patrimoine', to: ROUTES.netWorth, hasMonth: false },
-  dashboard: { label: 'Tableau de bord', to: ROUTES.dashboard, hasMonth: false },
+  dashboard: {
+    label: 'Tableau de bord',
+    to: ROUTES.dashboard,
+    hasMonth: false,
+  },
   'month-review': {
     label: 'Bilan du mois',
     to: ROUTES.monthReview,

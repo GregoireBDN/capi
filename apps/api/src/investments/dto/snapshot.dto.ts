@@ -8,14 +8,10 @@ import {
   IsInt,
   IsOptional,
   IsString,
-  Matches,
   Max,
   MaxLength,
   Min,
-  Validate,
   ValidateNested,
-  type ValidatorConstraintInterface,
-  ValidatorConstraint,
 } from 'class-validator'
 import {
   ACCOUNT_TYPES,
@@ -24,28 +20,11 @@ import {
   type SnapshotSource,
 } from '#/database/schema/domain-enums'
 import { RealisedGainsDto, UnknownCostDto } from '#/crypto/dto/crypto.dto'
-import { isCalendarDate } from '../calendar-date'
+import { CalendarDate } from '../calendar-date'
 
 /** Most snapshots one bulk upsert may write. */
 export const BULK_SNAPSHOTS_MAX = 500
 const NOTE_MAX = 500
-
-@ValidatorConstraint({ name: 'calendarDate' })
-class CalendarDateConstraint implements ValidatorConstraintInterface {
-  validate(value: unknown) {
-    return typeof value === 'string' && isCalendarDate(value)
-  }
-  defaultMessage() {
-    return '$property must be an existing YYYY-MM-DD date'
-  }
-}
-
-const CalendarDate = () =>
-  applyDecorators(
-    IsString(),
-    Matches(/^\d{4}-\d{2}-\d{2}$/, { message: '$property must be YYYY-MM-DD' }),
-    Validate(CalendarDateConstraint),
-  )
 
 const Cents = (minimum?: number) =>
   applyDecorators(
@@ -244,13 +223,13 @@ class PerformanceFiguresDto {
   contributionsDate!: string | null
 
   @ApiProperty({
-    enum: ['links', 'typed', 'base', 'coins'],
+    enum: ['links', 'typed', 'base', 'coins', 'lines'],
     enumName: 'ContributionsSource',
     nullable: true,
     description:
-      "`base`: the account's invested base (#360) plus the transfers linked after its day; `typed`: the contributions typed on a value plus the transfers linked after it; `links`: the transfers linked to the account alone (#296); `coins`: a crypto account's coins at their cost, carried across transfers between the owner's accounts (#373).",
+      "`base`: the account's invested base (#360) plus the transfers linked after its day; `typed`: the contributions typed on a value plus the transfers linked after it; `links`: the transfers linked to the account alone (#296); `coins`: a crypto account's coins at their cost, carried across transfers between the owner's accounts (#373); `lines`: a PEA's lines at their PRU plus its cash, when nothing else is known (ADR 0006).",
   })
-  contributionsSource!: 'links' | 'typed' | 'base' | 'coins' | null
+  contributionsSource!: 'links' | 'typed' | 'base' | 'coins' | 'lines' | null
 
   @ApiProperty({
     type: 'integer',
@@ -379,11 +358,11 @@ export class InvestedFiguresDto {
   contributionsCents!: number | null
 
   @ApiProperty({
-    enum: ['links', 'typed', 'base', 'coins'],
+    enum: ['links', 'typed', 'base', 'coins', 'lines'],
     enumName: 'ContributionsSource',
     nullable: true,
   })
-  contributionsSource!: 'links' | 'typed' | 'base' | 'coins' | null
+  contributionsSource!: 'links' | 'typed' | 'base' | 'coins' | 'lines' | null
 
   @ApiProperty({ type: 'integer', nullable: true })
   gainCents!: number | null

@@ -34,6 +34,7 @@ function account(overrides: Partial<AccountDto> = {}): AccountDto {
     cryptoSyncedAt: null,
     investedBaseCents: null,
     investedBaseOn: null,
+    openedOn: null,
     createdAt: '2026-11-06T10:00:00.000Z',
     updatedAt: '2026-11-06T10:00:00.000Z',
     ...overrides,
@@ -64,6 +65,11 @@ function renderSheet(props: {
         performance={{
           contributionsCents: props.contributionsCents ?? null,
           valueDate: '2026-10-31',
+          contributionsDate: null,
+          contributionsSource: null,
+          investedBase: null,
+          linkedTransfersCount: 0,
+          unknownCostCount: 0,
         }}
       />
     </QueryClientProvider>,
@@ -156,6 +162,7 @@ describe('InvestedSheet', () => {
         type: 'life_insurance',
         investedBaseCents: 500_000,
         investedBaseOn: '2026-06-30',
+        openedOn: null,
       }),
       contributionsCents: 520_000,
     })

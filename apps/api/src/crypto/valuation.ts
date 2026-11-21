@@ -1,6 +1,6 @@
 import type { CryptoPriceSource } from '#/database/schema/domain-enums'
 import { isContractAssetId } from './contract-assets'
-import { valueInCents } from './decimal'
+import { valueInCents } from '#/common/decimal'
 
 /** Last known EUR price of an asset. */
 export interface Quote {

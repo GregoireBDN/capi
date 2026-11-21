@@ -39,7 +39,7 @@ import { formatShortDay } from '#/lib/period'
 import { centsToInput, parseAmountToCents } from './amount'
 import { todayInParis } from './dates'
 import { accountErrorMessage } from './errors'
-import { investedBaseOf } from './invested'
+import { investedBaseOf, investedSourceText } from './invested'
 import { clearInvestedBase, setInvestedBase } from './queries'
 
 type Step = 'amount' | 'day'
@@ -66,13 +66,23 @@ export function InvestedSheet({
   open: boolean
   onOpenChange: (open: boolean) => void
   account: AccountDto
-  performance: Pick<AccountPerformanceDto, 'contributionsCents' | 'valueDate'>
+  performance: Pick<
+    AccountPerformanceDto,
+    | 'contributionsCents'
+    | 'contributionsDate'
+    | 'contributionsSource'
+    | 'investedBase'
+    | 'linkedTransfersCount'
+    | 'unknownCostCount'
+    | 'valueDate'
+  >
 }) {
   const isMobile = useIsMobile()
   const id = useId()
   const queryClient = useQueryClient()
   const today = todayInParis()
   const current = investedBaseOf(account)
+  const source = investedSourceText(account, performance)
   // The latest value's day, when it is not today: the day a statement gives.
   const valueDay =
     performance.valueDate && performance.valueDate < today
@@ -224,6 +234,12 @@ export function InvestedSheet({
           />
 
           <FormSheetBody ref={fieldRef}>
+            {step === 'amount' && source && (
+              // What the summary no longer says (#413): where it comes from now.
+              <p className="text-muted-foreground text-sm">
+                Aujourd’hui : {source.charAt(0).toLowerCase() + source.slice(1)}
+              </p>
+            )}
             {step === 'amount' ? (
               <Field
                 data-invalid={amountError !== null && amountError !== 'empty'}

@@ -9,6 +9,7 @@ import {
   syncCryptoHoldingsTool,
 } from './investment-writes.js'
 import { listInvestmentAccountsTool } from './investments.js'
+import { syncSecurityPositionsTool } from './position-writes.js'
 import { monthEndForecastTool } from './forecast.js'
 import {
   commitBankImportTool,
@@ -77,6 +78,7 @@ export const writeTools = [
   // #104
   addInvestmentSnapshotsTool,
   syncCryptoHoldingsTool,
+  syncSecurityPositionsTool,
   setInvestedAmountTool,
   // #342: close past months (reopening stays in the app).
   closeMonthsTool,

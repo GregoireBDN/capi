@@ -31,7 +31,7 @@ import {
   type LoadedCostBasis,
 } from './cost-basis.service'
 import { CryptoPricesService, type RefreshMode } from './crypto-prices.service'
-import { divideHalfEven, formatDecimal, parseDecimal } from './decimal'
+import { divideHalfEven, formatDecimal, parseDecimal } from '#/common/decimal'
 import type {
   AccountHoldingsDto,
   AssetCostDto,

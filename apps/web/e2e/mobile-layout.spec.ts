@@ -270,6 +270,18 @@ const SCENARIOS: Array<Scenario> = [
       account: type,
     }),
   ),
+  {
+    // A PEA's lines, every one unfolded (#413).
+    name: 'account-brokerage-lines',
+    path: '/accounts',
+    account: 'brokerage',
+    step: async (page) => {
+      const folded = page
+        .getByRole('region', { name: 'Lignes' })
+        .locator('button[aria-expanded="false"]')
+      while ((await folded.count()) > 0) await folded.first().click()
+    },
+  },
   // A wallet crypto account has its own page body (#269, #294).
   { name: 'account-wallet', path: '/accounts', account: 'wallet' },
   {

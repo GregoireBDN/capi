@@ -11,3 +11,4 @@ Each ADR states its **status** (Proposed, Accepted, Superseded by NNNN), the **c
 | [0003](0003-remote-mcp-oauth.md)                 | Remote MCP access with OAuth                                | Accepted |
 | [0004](0004-transfer-links-and-contributions.md) | Linking transfers to accounts, contributions from the links | Accepted |
 | [0005](0005-data-model-consolidation.md)         | Consolidating the data model before shared costs            | Proposed |
+| [0006](0006-security-positions.md)               | Security positions: lines, prices and value of an account   | Accepted |

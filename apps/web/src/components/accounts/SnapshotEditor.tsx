@@ -174,6 +174,9 @@ export function SnapshotEditor({
   }
 
   const shown = submitted ? errors : {}
+  // A PEA's value from its lines (#413): typing one replaces it for the day,
+  // it is never deleted.
+  const computed = snapshot?.source === 'computed'
   const title = snapshot
     ? `Valeur du ${formatCalendarDate(snapshot.date)}`
     : accountName
@@ -197,7 +200,11 @@ export function SnapshotEditor({
         >
           <SheetBar
             title={title}
-            description={DESCRIPTION}
+            description={
+              computed
+                ? 'Calculée d’après vos lignes : en saisir une autre la remplace pour ce jour.'
+                : DESCRIPTION
+            }
             action={
               <SheetBarAction
                 type="submit"
@@ -292,7 +299,7 @@ export function SnapshotEditor({
                   </FieldDescription>
                 </Field>
               )}
-              {snapshot && (
+              {snapshot && !computed && (
                 <FormSheetMoreActions>
                   <Button
                     type="button"

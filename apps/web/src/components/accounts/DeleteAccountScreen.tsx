@@ -43,6 +43,7 @@ export function deletionLines(
       ? [preview.snapshots, 'valeur', 'valeurs']
       : [preview.snapshots, 'solde enregistré', 'soldes enregistrés'],
     [preview.cryptoHoldings, 'avoir crypto', 'avoirs crypto'],
+    [preview.positionStatements, 'relevé de lignes', 'relevés de lignes'],
     [preview.walletKeys, 'clé ou jeton de wallet', 'clés ou jetons de wallet'],
     [preview.recurringItems, 'abonnement détecté', 'abonnements détectés'],
     [

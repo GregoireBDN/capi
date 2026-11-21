@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
+  PositionsDto,
   AccountDto,
   AccountMonthFlowsDto,
   AccountPerformanceDto,
@@ -46,6 +47,9 @@ const api = vi.hoisted(() => ({
   categoriesControllerList: vi.fn(),
   importsControllerList: vi.fn(),
   recurringControllerList: vi.fn(),
+  positionsControllerGet: vi.fn(),
+  positionsControllerUpsertLine: vi.fn(),
+  securitiesControllerList: vi.fn(),
 }))
 const navigate = vi.hoisted(() => vi.fn())
 const toast = vi.hoisted(() =>
@@ -102,6 +106,7 @@ function account(overrides: Partial<AccountDto> = {}): AccountDto {
     cryptoSyncedAt: null,
     investedBaseCents: null,
     investedBaseOn: null,
+    openedOn: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
@@ -180,6 +185,72 @@ function ok<T>(data: T, status = 200) {
   return Promise.resolve({ data, response: new Response(null, { status }) })
 }
 
+const emptyPositions: PositionsDto = {
+  accountId: ACCOUNT_ID,
+  asOf: null,
+  cashCents: 0,
+  lines: [],
+  totals: {
+    valueCents: null,
+    pricedValueCents: 0,
+    costCents: 0,
+    gainCents: 0,
+    withoutPriceCount: 0,
+    withoutCostCount: 0,
+  },
+  statements: [],
+}
+
+/** A PEA's lines (#413): synthetic ETFs with `ZZ…` ISINs. */
+const positions: PositionsDto = {
+  accountId: ACCOUNT_ID,
+  asOf: '2026-09-30',
+  cashCents: 50_000,
+  lines: [
+    {
+      securityId: 'b0000000-0000-4000-8000-000000000001',
+      isin: 'ZZ00MSCIWD03',
+      name: 'ETF Monde (test)',
+      ticker: 'MOND',
+      quantity: '20',
+      unitCostEur: '400',
+      costCents: 800_000,
+      priceEur: '500',
+      priceDay: '2026-09-30',
+      priceSource: 'statement',
+      valueCents: 1_000_000,
+      gainCents: 200_000,
+      priceOlderThanStatement: false,
+    },
+    {
+      securityId: 'b0000000-0000-4000-8000-000000000002',
+      isin: 'ZZ00EMMKT008',
+      name: 'ETF Émergents (test)',
+      ticker: null,
+      quantity: '80',
+      unitCostEur: null,
+      costCents: null,
+      priceEur: '25',
+      priceDay: '2026-09-30',
+      priceSource: 'manual',
+      valueCents: 200_000,
+      gainCents: null,
+      priceOlderThanStatement: false,
+    },
+  ],
+  totals: {
+    valueCents: 1_250_000,
+    pricedValueCents: 1_250_000,
+    costCents: 800_000,
+    gainCents: 200_000,
+    withoutPriceCount: 0,
+    withoutCostCount: 1,
+  },
+  statements: [
+    { asOf: '2026-09-30', source: 'mcp', lineCount: 2, cashCents: 50_000 },
+  ],
+}
+
 function renderPage(origin?: AccountSearch) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -198,6 +269,8 @@ describe('AccountDetailPage', () => {
     for (const fn of Object.values(api)) fn.mockReset()
     navigate.mockReset()
     api.accountsControllerFindOne.mockImplementation(() => ok(account()))
+    api.positionsControllerGet.mockImplementation(() => ok(emptyPositions))
+    api.securitiesControllerList.mockImplementation(() => ok([]))
     api.accountSnapshotsControllerPerformance.mockImplementation(() =>
       ok(performance()),
     )
@@ -254,7 +327,8 @@ describe('AccountDetailPage', () => {
     const summary = screen.getByRole('region', { name: 'Valeur' })
     const content = text(summary.textContent)
     expect(content).toContain(
-      'Valeur12 500,00 €Au 30 sept. 2026, il y a 37 jours+500,00 € depuis le 30 juin',
+      // The day in the title, no caption (#413).
+      'Valeur au 30 sept.12 500,00 €+500,00 € depuis le 30 juin',
     )
     expect(content).toContain('Investi10 200 €')
     expect(
@@ -266,7 +340,14 @@ describe('AccountDetailPage', () => {
     ).toBeInTheDocument()
     expect(content).toContain('Résultat+2 300 €+22,5 %')
     expect(content).toContain('Sur 1 an+2 500 €+25 %')
-    expect(content).toContain('Saisi sur la valeur du 30 sept. 2026')
+    // Where the invested amount comes from is said in its editor (#413),
+    // the pencil sits in the « Investi » block.
+    expect(content).not.toContain('Saisi sur la valeur')
+    expect(
+      within(summary).getByRole('button', {
+        name: 'Modifier le montant investi',
+      }),
+    ).toBeInTheDocument()
     // One word for the money put in, and no dashes.
     expect(content).not.toMatch(/Versements|Plus-value|—/)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -280,6 +361,86 @@ describe('AccountDetailPage', () => {
     expect(
       screen.getByRole('img', { name: /Valeur et montant investi/ }),
     ).toBeInTheDocument()
+  })
+
+  it('lists a PEA’s lines, its ceiling and its 5 years (#413)', async () => {
+    api.accountsControllerFindOne.mockImplementation(() =>
+      ok(account({ openedOn: '2022-03-12' })),
+    )
+    api.positionsControllerGet.mockImplementation(() => ok(positions))
+    const user = userEvent.setup()
+    renderPage()
+
+    const lines = await screen.findByRole('region', { name: 'Lignes' })
+    expect(text(lines.textContent)).toContain('2 lignes · au 30 sept.')
+    const row = within(lines).getByRole('button', {
+      name: /^ETF Monde \(test\)/,
+    })
+    // Two lines: the name and the value, the parts and the result.
+    expect(text(row.textContent)).toContain('ETF Monde10 000 €20 parts+25 %')
+    expect(text(row.getAttribute('aria-label'))).toBe(
+      'ETF Monde (test), 10 000,00 €, 20 parts, résultat +25 %',
+    )
+    await user.click(row)
+    const details = text(lines.textContent)
+    expect(details).toContain('ISIN ZZ00MSCIWD03')
+    expect(details).toContain('Investi8 000,00 €')
+    expect(details).toContain('Résultat+2 000,00 €+25 %')
+    expect(details).toContain('Cours500,00 €30 sept.')
+    expect(details).toContain('PRU400,00 €')
+    expect(details).toContain('Part80 %')
+    expect(details).toContain('Quantité20')
+    expect(details).toContain('Liquidités')
+    expect(details).toContain(
+      'Total10 000,00 €acheté 8 000 € · hors 1 sans PRU+2 000 €',
+    )
+
+    const summary = screen.getByRole('region', { name: 'Valeur' })
+    const content = text(summary.textContent)
+    expect(content).toContain('Plafond 150 000 €10 200 €')
+    expect(content).toContain('Encore 139 800 € possibles')
+    expect(content).toContain('5 ans12 mars 2027Encore 4 mois')
+    expect(content).not.toContain('Ouvert le')
+    expect(content).not.toMatch(/Versements|Plus-value|—/)
+  })
+
+  it('adds a line, checking its ISIN (#413)', async () => {
+    api.positionsControllerUpsertLine.mockImplementation(() => ok(positions))
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Ajouter une ligne' }),
+    )
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Ajouter une ligne',
+    })
+    const add = within(dialog).getByRole('button', { name: 'Ajouter' })
+    await user.type(within(dialog).getByLabelText('ISIN'), 'ZZ00MSCIWD04')
+    expect(
+      within(dialog).getByText(
+        'ISIN invalide : 12 caractères, dont la clé à la fin',
+      ),
+    ).toBeInTheDocument()
+    expect(add).toBeDisabled()
+    await user.clear(within(dialog).getByLabelText('ISIN'))
+    await user.type(within(dialog).getByLabelText('ISIN'), 'zz00 msciwd03')
+    await user.type(within(dialog).getByLabelText('Nom'), 'ETF Monde (test)')
+    await user.type(within(dialog).getByLabelText('Quantité'), '12,5')
+    await user.type(within(dialog).getByLabelText('PRU'), '401,125')
+    await user.click(add)
+    await waitFor(() =>
+      expect(api.positionsControllerUpsertLine).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { id: ACCOUNT_ID, isin: 'ZZ00MSCIWD03' },
+          body: {
+            name: 'ETF Monde (test)',
+            quantity: '12.5',
+            unitCostEur: '401.125',
+          },
+        }),
+      ),
+    )
   })
 
   it('warns about an old value and says where the contributions come from', async () => {
@@ -301,8 +462,14 @@ describe('AccountDetailPage', () => {
     expect(text(alert.textContent)).toContain(
       'Valeur du 6 août 2026, il y a 92 jours',
     )
+    // Said in the invested amount's editor (#413), not under the summary.
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Modifier le montant investi' }),
+    )
     expect(
-      screen.getByText('Saisi sur la valeur du 31 déc. 2025'),
+      await screen.findByText(
+        'Aujourd’hui : saisi sur la valeur du 31 déc. 2025',
+      ),
     ).toBeInTheDocument()
   })
 

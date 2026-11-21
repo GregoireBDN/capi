@@ -28,6 +28,13 @@ import {
   transactionsTable,
 } from '#/database/schema'
 import type { AccountType } from '#/database/schema/domain-enums'
+import {
+  loadStatements,
+  revalue,
+  type StoredStatement,
+} from '#/positions/positions.repository'
+import { takesPositions } from '#/positions/positions.service'
+import { linesInvestedOn, type Statement } from '#/positions/valuation'
 import { parisToday } from './days'
 import type {
   AccountPerformanceDto,
@@ -48,6 +55,7 @@ import {
   type InvestedOn,
   investedOn,
   type LinkedFlow,
+  orElse,
   type Performance,
   simpleReturn,
   takesInvestedBase,
@@ -89,6 +97,10 @@ function toDto(
 /** A crypto account's value is computed from its holdings, never typed (#366). */
 export const COMPUTED_VALUE_MESSAGE =
   'A crypto account’s values are computed from its holdings and prices'
+
+/** A PEA's value computed from its lines is replaced, never deleted (ADR 0006). */
+export const LINES_VALUE_MESSAGE =
+  'This value is computed from the account’s lines: type a value of that day to replace it'
 
 /**
  * Dated value snapshots of an account (statements of investment accounts,
@@ -144,34 +156,47 @@ export class InvestmentsService {
       .values({ accountId, date, ...values })
       .onConflictDoUpdate({
         target: [s.accountId, s.date],
+        // A typed value wins its day over a PEA's computed one (ADR 0006);
+        // crypto accounts were refused above.
         set: { ...values, source: 'typed', updatedAt: now },
-        // A computed point is never replaced by hand.
-        setWhere: eq(s.source, 'typed'),
       })
       .returning(SNAPSHOT_COLUMNS)
-    if (!snapshot) throw new BadRequestException(COMPUTED_VALUE_MESSAGE)
     return toDto(snapshot)
   }
 
-  async remove(accountId: string, date: string): Promise<void> {
-    await this.writableAccount(accountId)
+  async remove(
+    accountId: string,
+    date: string,
+    now: Date = new Date(),
+  ): Promise<void> {
+    const account = await this.writableAccount(accountId)
     const [existing] = await this.db
       .select({ source: s.source })
       .from(s)
       .where(and(eq(s.accountId, accountId), eq(s.date, date)))
     if (!existing) throw new NotFoundException('No snapshot on that date')
     if (existing.source === 'computed') {
-      throw new BadRequestException(COMPUTED_VALUE_MESSAGE)
-    }
-    await this.db
-      .delete(s)
-      .where(
-        and(
-          eq(s.accountId, accountId),
-          eq(s.date, date),
-          eq(s.source, 'typed'),
-        ),
+      throw new BadRequestException(
+        account.type === 'crypto'
+          ? COMPUTED_VALUE_MESSAGE
+          : LINES_VALUE_MESSAGE,
       )
+    }
+    await this.db.transaction(async (tx) => {
+      await tx
+        .delete(s)
+        .where(
+          and(
+            eq(s.accountId, accountId),
+            eq(s.date, date),
+            eq(s.source, 'typed'),
+          ),
+        )
+      // The lines value the day again once the typed value is gone.
+      if (takesPositions(account)) {
+        await revalue(tx, accountId, date, parisToday(now))
+      }
+    })
   }
 
   /**
@@ -205,12 +230,13 @@ export class InvestmentsService {
         )
         .onConflictDoUpdate({
           target: [s.accountId, s.date],
+          // A typed value wins its day over a PEA's computed one (ADR 0006).
           set: {
             valueCents: sql`excluded.value_cents`,
             contributionsCents: sql`coalesce(excluded.contributions_cents, ${s.contributionsCents})`,
+            source: 'typed',
             updatedAt: now,
           },
-          setWhere: eq(s.source, 'typed'),
         })
         // `xmax` is 0 on a freshly inserted row version.
         .returning({ inserted: sql<boolean>`(xmax = 0)` })
@@ -225,13 +251,16 @@ export class InvestmentsService {
   ): Promise<AccountPerformanceDto> {
     const account = await this.accounts.findOne(accountId, this.db)
     const crypto = account.type === 'crypto'
-    const [stored, flows, live, basis] = await Promise.all([
+    const [stored, flows, live, basis, statements] = await Promise.all([
       this.snapshotsOf(this.db, accountId),
       this.linkedFlows(this.db, [account]),
       crypto && this.crypto
         ? this.crypto.live([accountId], now)
         : Promise.resolve(new Map<string, AccountHoldingsDto>()),
       crypto ? this.costBasis.load() : Promise.resolve(null),
+      takesPositions(account)
+        ? loadStatements(this.db, [accountId])
+        : Promise.resolve(new Map<string, StoredStatement[]>()),
     ])
     const holdings = live.get(accountId) ?? null
     const today = parisToday(now)
@@ -246,7 +275,13 @@ export class InvestmentsService {
       : snapshots
     const accountFlows = flows.get(accountId) ?? []
     const base = investedBaseOf(account)
-    const invested = this.investedRule(account, stored, accountFlows, basis)
+    const invested = this.investedRule(
+      account,
+      stored,
+      accountFlows,
+      basis,
+      statements.get(accountId),
+    )
     const figures = this.figures(
       account,
       series,
@@ -286,6 +321,7 @@ export class InvestmentsService {
     stored: readonly SnapshotDto[],
     flows: readonly LinkedFlow[],
     basis: LoadedCostBasis | null,
+    statements?: readonly Statement[],
   ): InvestedOn {
     if (account.type === 'crypto') {
       const linked = basis
@@ -308,7 +344,11 @@ export class InvestmentsService {
     }
     // Only typed figures: a value's contributions are never computed.
     const typed = stored.filter((snapshot) => snapshot.source === 'typed')
-    return investedOn(typed, investedBaseOf(account), flows)
+    const rule = investedOn(typed, investedBaseOf(account), flows)
+    // A PEA with no invested amount at all takes its lines' cost (ADR 0006).
+    return statements && statements.length > 0
+      ? orElse(rule, (day) => linesInvestedOn(statements, day))
+      : rule
   }
 
   /**
@@ -492,11 +532,15 @@ export class InvestmentsService {
       .map((account) => account.id)
     // Crypto accounts read like their page: today's live value at the stored
     // prices and the replay of their coins (#366, #373).
-    const [live, basis] = await Promise.all([
+    const [live, basis, statements] = await Promise.all([
       this.crypto
         ? this.crypto.live(cryptoIds, now)
         : Promise.resolve(new Map<string, AccountHoldingsDto>()),
       cryptoIds.length > 0 ? this.costBasis.load() : Promise.resolve(null),
+      loadStatements(
+        this.db,
+        accounts.filter(takesPositions).map((account) => account.id),
+      ),
     ])
     const byAccount = new Map<string, typeof snapshots>()
     for (const snapshot of snapshots) {
@@ -526,7 +570,13 @@ export class InvestmentsService {
         account,
         series,
         today,
-        this.investedRule(account, stored, accountFlows, basis),
+        this.investedRule(
+          account,
+          stored,
+          accountFlows,
+          basis,
+          statements.get(account.id),
+        ),
         accountFlows,
         holdings,
         basis,

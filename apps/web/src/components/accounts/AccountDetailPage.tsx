@@ -18,6 +18,7 @@ import {
   ClipboardPasteIcon,
   ClockAlertIcon,
   FileUpIcon,
+  ListPlusIcon,
   PencilIcon,
   PencilLineIcon,
   PlusIcon,
@@ -26,7 +27,12 @@ import {
   ArrowDownUpIcon,
 } from 'lucide-react'
 import { useState } from 'react'
-import type { AccountDto, SnapshotDto, TransactionKind } from '#/api/types.gen'
+import type {
+  AccountDto,
+  PositionLineDto,
+  SnapshotDto,
+  TransactionKind,
+} from '#/api/types.gen'
 import { PageBack } from '#/components/app-shell/PageBack'
 import type { PageBackLink } from '#/components/app-shell/PageBack'
 import { PageHeader } from '#/components/app-shell/PageHeader'
@@ -40,7 +46,7 @@ import {
   WalletAccount,
 } from '#/components/crypto/WalletAccount'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
-import { formatCalendarDate } from '#/lib/money'
+import { formatShortDay } from '#/lib/period'
 import { ApiRequestError } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import { accountBackLink } from './account-origin'
@@ -51,18 +57,21 @@ import { todayInParis } from './dates'
 import { InvestedSheet } from './InvestedSheet'
 import { InvestmentSummary } from './InvestmentSummary'
 import { historyPoints } from './history'
-import {
-  accountKindLabel,
-  formatAge,
-  isInvestmentType,
-  valueAgeText,
-} from './labels'
+import { accountKindLabel, isInvestmentType, valueAgeText } from './labels'
 import { LinkedTransfers } from './LinkedTransfers'
 import { MealVoucherAccount } from './MealVoucherAccount'
 import { MovementsCard } from './Movements'
 import { PasteHistorySheet } from './PasteHistorySheet'
 import { accountQuery, performanceQuery } from './queries'
 import { SnapshotEditor } from './SnapshotEditor'
+import { LineEditor } from '#/components/positions/LineEditor'
+import { LinesCard } from '#/components/positions/LinesCard'
+import { PeaFacts } from '#/components/positions/PeaFacts'
+import {
+  CashSheet,
+  PriceSheet,
+} from '#/components/positions/PriceAndCashSheets'
+import { positionsQuery } from '#/components/positions/queries'
 import { SnapshotList } from './SnapshotList'
 import { ValueChart } from './ValueChart'
 
@@ -149,6 +158,15 @@ export function AccountDetailPage({
   // The kind is chosen before adding (#398).
   const [addKind, setAddKind] = useState<TransactionKind | null>(null)
   const [investedOpen, setInvestedOpen] = useState(false)
+  // A PEA's lines (#413): the line, price and cash editors.
+  const [lineEditor, setLineEditor] = useState<{
+    open: boolean
+    line?: PositionLineDto
+  }>({ open: false })
+  const [priceLine, setPriceLine] = useState<PositionLineDto | null>(null)
+  const [cashOpen, setCashOpen] = useState(false)
+  const pea = account.data?.type === 'brokerage'
+  const positions = useQuery({ ...positionsQuery(accountId), enabled: pea })
   const navigate = useNavigate()
   const today = todayInParis()
   const walletRefresh = useWalletRefresh(accountId)
@@ -224,6 +242,15 @@ export function AccountDetailPage({
   }))
   const openImport = () =>
     void navigate({ to: ROUTES.import, search: { account: current.id } })
+  const withLines =
+    (positions.data?.lines.length ?? 0) > 0 ||
+    (positions.data?.cashCents ?? 0) > 0
+  const addLineAction = (primary: boolean): PageAction => ({
+    label: 'Ajouter une ligne',
+    icon: <ListPlusIcon />,
+    primary,
+    onSelect: () => setLineEditor({ open: true }),
+  })
   const paste = (label: string): PageAction => ({
     label,
     icon: <ClipboardPasteIcon />,
@@ -251,14 +278,18 @@ export function AccountDetailPage({
             []
           : investment
             ? [
+                // A PEA with lines (#413): its value follows them, so adding a
+                // line comes first.
+                ...(pea && withLines ? [addLineAction(true)] : []),
                 // PEA, life insurance, employee savings: the value is typed by
                 // hand from each statement, so updating it is the main action.
                 {
                   label: 'Mettre à jour la valeur',
                   icon: <PencilLineIcon />,
-                  primary: true,
+                  primary: !(pea && withLines),
                   onSelect: openAdd,
                 },
+                ...(pea && !withLines ? [addLineAction(false)] : []),
                 paste('Coller un historique'),
               ]
             : [
@@ -328,14 +359,36 @@ export function AccountDetailPage({
           account={current}
           performance={data}
           writable={writable}
-          caption={
+          // The day in the title, nothing under it (#413, the owner: less
+          // text); an old value has its own warning above.
+          asOf={
             !crypto && data.valueDate
-              ? data.stale || data.daysSinceLatest === null
-                ? `Au ${formatCalendarDate(data.valueDate)}`
-                : `Au ${formatCalendarDate(data.valueDate)}, ${formatAge(data.daysSinceLatest)}`
+              ? `au ${formatShortDay(data.valueDate, today.slice(0, 4))}`
               : undefined
           }
           onEditInvested={crypto ? undefined : () => setInvestedOpen(true)}
+          footer={
+            pea && (
+              <PeaFacts
+                account={current}
+                investedCents={data.contributionsCents}
+                today={today}
+                writable={writable}
+              />
+            )
+          }
+        />
+      )}
+
+      {/* A PEA's lines (#413, the owner's « A. Comme le Crypto »). */}
+      {pea && (
+        <LinesCard
+          accountId={current.id}
+          writable={writable}
+          onAddLine={() => setLineEditor({ open: true })}
+          onEditLine={(line) => setLineEditor({ open: true, line })}
+          onEditPrice={setPriceLine}
+          onEditCash={() => setCashOpen(true)}
         />
       )}
 
@@ -450,6 +503,28 @@ export function AccountDetailPage({
                   : data.contributionsCents
               }
             />
+          )}
+          {pea && (
+            <>
+              <LineEditor
+                open={lineEditor.open}
+                onOpenChange={(open) => !open && setLineEditor({ open: false })}
+                accountId={current.id}
+                line={lineEditor.open ? lineEditor.line : undefined}
+              />
+              <PriceSheet
+                open={priceLine !== null}
+                onOpenChange={(open) => !open && setPriceLine(null)}
+                line={priceLine}
+                today={today}
+              />
+              <CashSheet
+                open={cashOpen}
+                onOpenChange={setCashOpen}
+                accountId={current.id}
+                cashCents={positions.data?.cashCents ?? 0}
+              />
+            </>
           )}
           {/* A crypto account's cost follows its coins (#373). */}
           {investment && !crypto && (

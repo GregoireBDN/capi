@@ -73,9 +73,11 @@ export function investedBaseOf(account: {
  * Where an invested amount comes from: `base`, the account's invested base
  * plus the transfers linked after it; `typed`, the contributions typed on a
  * value plus the transfers linked after it; `links`, the transfers linked to
- * it alone; `coins`, a crypto account's coins at their cost (#373).
+ * it alone; `coins`, a crypto account's coins at their cost (#373); `lines`,
+ * a PEA's lines at their PRU plus its cash, when nothing else is known (ADR
+ * 0006 § 6).
  */
-export type ContributionsSource = 'links' | 'typed' | 'base' | 'coins'
+export type ContributionsSource = 'links' | 'typed' | 'base' | 'coins' | 'lines'
 
 /** What an account had invested at the end of a day. */
 export interface InvestedAt {
@@ -222,6 +224,30 @@ export function investedOn(
 ): InvestedOn {
   const ordered = [...flows].sort((a, b) => a.date.localeCompare(b.date))
   return (day) => investedAt(typed, base, ordered, day)
+}
+
+/**
+ * `rule`, or when it knows nothing on a day, `fallback` (ADR 0006 § 6: a PEA
+ * with no invested amount at all takes its lines' cost plus its cash).
+ */
+export function orElse(
+  rule: InvestedOn,
+  fallback: (day: string) => { investedCents: number; since: string } | null,
+): InvestedOn {
+  return (day) => {
+    const known = rule(day)
+    if (known) return known
+    const lines = fallback(day)
+    return (
+      lines && {
+        investedCents: lines.investedCents,
+        source: 'lines',
+        since: lines.since,
+        linkedCount: 0,
+        unknownCostCount: 0,
+      }
+    )
+  }
 }
 
 /** Each value with what was invested on its day. */

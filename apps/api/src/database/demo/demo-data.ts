@@ -26,10 +26,14 @@ import {
   cryptoPriceHistoryTable,
   cryptoPricesTable,
   importsTable,
+  positionLinesTable,
+  positionStatementsTable,
   receivablesTable,
   recurringItemsTable,
   savingsGoalAccountsTable,
   savingsGoalsTable,
+  securitiesTable,
+  securityPricesTable,
   type SelectCategorizationRule,
   type SelectCategory,
   transactionSplitsTable,
@@ -58,6 +62,7 @@ import { TransactionsService } from '#/transactions/transactions.service'
 import { MEAL_VOUCHER_DAILY_CAP_CENTS } from '#/transactions/manual-transactions.service'
 import { MONTHLY_TARGET_KEY } from '#/savings/savings.service'
 import { linkMatchingTransfers } from '#/transactions/transfer-links/link-transfers'
+import { revalue } from '#/positions/positions.repository'
 
 /**
  * Synthetic data for local manual testing (`pnpm db:demo`, #219): a verified
@@ -138,6 +143,8 @@ export interface DemoCounts {
   budgets: number
   savingsGoals: number
   cryptoHoldings: number
+  /** A PEA's position statements (#413). */
+  positionStatements: number
   recurringItems: number
   /** Money owed (#359). */
   contacts: number
@@ -805,6 +812,8 @@ export async function generateDemoData(
         type: 'brokerage',
         institution: 'Courtier Démo',
         position: 2,
+        // Its 5 years fall within the next year or so (#413).
+        openedOn: `${Number(today.slice(0, 4)) - 4}-03-12`,
       },
       {
         name: 'Assurance vie',
@@ -1077,6 +1086,13 @@ export async function generateDemoData(
       drift: [-0.02, 0.03],
     },
   ] as const
+  // The PEA's last months come from its lines (#413, ADR 0006): monthly
+  // statements of three synthetic ETFs, its values computed from them.
+  const statementDays = monthList
+    .map(lastDayOf)
+    .filter((day) => day <= dataUntil)
+    .slice(-PEA_STATEMENT_MONTHS)
+  let peaValueAtFirstStatement = 0
   for (const investment of investments) {
     let value: number = investment.value
     let contributions: number = investment.contributions
@@ -1098,6 +1114,10 @@ export async function generateDemoData(
         Math.round(value * (1 + low + (high - low) * random.next())) +
         investment.monthly
       contributions += investment.monthly
+      if (investment.account.id === pea.id && date >= statementDays[0]) {
+        if (date === statementDays[0]) peaValueAtFirstStatement = value
+        continue
+      }
       snapshots.push({
         accountId: investment.account.id,
         date,
@@ -1108,6 +1128,15 @@ export async function generateDemoData(
     await db.insert(balanceSnapshotsTable).values(snapshots)
     snapshotCount += snapshots.length
   }
+  const peaLines = await seedPeaPositions(db, {
+    accountId: pea.id,
+    days: statementDays,
+    startValueCents: peaValueAtFirstStatement,
+    monthlyCents: 20_000,
+    today,
+    random,
+  })
+  snapshotCount += peaLines.values
 
   // Crypto (#296, #373): the euros sent to Binance buy BTC and ETH there;
   // every fourth month the coins go to the Ledger (a manual account whose
@@ -1613,6 +1642,7 @@ export async function generateDemoData(
       budgets: budgetValues.length,
       savingsGoals: goals.length,
       cryptoHoldings: holdings.length,
+      positionStatements: peaLines.statements,
       recurringItems,
       ...owedCounts,
     },
@@ -1717,4 +1747,154 @@ async function seedMoneyOwed(
     .select({ receivables: sql<number>`count(*)::int` })
     .from(receivablesTable)
   return { contacts, receivables }
+}
+
+/** Months of the demo PEA given by its lines (#413). */
+const PEA_STATEMENT_MONTHS = 6
+
+/** Synthetic ETFs: `ZZ…` ISINs (valid check digits, never a real one). */
+const DEMO_SECURITIES = [
+  {
+    isin: 'ZZ00MSCIWD03',
+    name: 'ETF Monde (démo)',
+    ticker: 'MOND',
+    share: 0.7,
+    priceCents: 49_832,
+    costRatio: 0.83,
+    drift: [-0.03, 0.045],
+  },
+  {
+    isin: 'ZZ00EMMKT008',
+    name: 'ETF Émergents (démo)',
+    ticker: 'EMER',
+    share: 0.18,
+    priceCents: 2_607,
+    costRatio: 0.93,
+    drift: [-0.05, 0.05],
+  },
+  {
+    isin: 'ZZ00STOXX608',
+    name: 'ETF Europe 600 (démo)',
+    ticker: 'EURO',
+    share: 0.11,
+    priceCents: 11_246,
+    costRatio: 1.06,
+    drift: [-0.04, 0.035],
+  },
+] as const
+
+/** Integer cents as an exact euro decimal string (`49832` → `"498.32"`). */
+function centsText(cents: number): string {
+  return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`
+}
+
+/**
+ * The demo PEA's lines (#413): one statement per month end, its ETFs at that
+ * day's price, the monthly transfer buying more of the first one, the PRU as
+ * a weighted average; then its values computed from them (`revalue`).
+ */
+async function seedPeaPositions(
+  db: DemoDb,
+  options: {
+    accountId: string
+    days: readonly string[]
+    startValueCents: number
+    monthlyCents: number
+    today: string
+    random: { next(): number }
+  },
+): Promise<{ statements: number; values: number }> {
+  if (options.days.length === 0) return { statements: 0, values: 0 }
+  await db
+    .insert(securitiesTable)
+    .values(
+      DEMO_SECURITIES.map(({ isin, name, ticker }) => ({ isin, name, ticker })),
+    )
+    .onConflictDoNothing({ target: securitiesTable.isin })
+  const securities = await db
+    .select({ id: securitiesTable.id, isin: securitiesTable.isin })
+    .from(securitiesTable)
+    .where(
+      inArray(
+        securitiesTable.isin,
+        DEMO_SECURITIES.map((security) => security.isin),
+      ),
+    )
+  const idOf = new Map(securities.map((row) => [row.isin, row.id]))
+  const held = DEMO_SECURITIES.map((security) => {
+    const budget = Math.round(options.startValueCents * security.share)
+    const quantity = Math.max(1, Math.floor(budget / security.priceCents))
+    return {
+      isin: security.isin,
+      drift: security.drift,
+      price: security.priceCents as number,
+      quantity,
+      costCents: Math.round(
+        quantity * security.priceCents * security.costRatio,
+      ),
+    }
+  })
+  let cash = Math.max(
+    0,
+    options.startValueCents -
+      held.reduce((sum, line) => sum + line.quantity * line.price, 0),
+  )
+  for (const [i, day] of options.days.entries()) {
+    if (i > 0) {
+      for (const line of held) {
+        const [low, high] = line.drift
+        line.price = Math.max(
+          100,
+          Math.round(
+            line.price * (1 + low + (high - low) * options.random.next()),
+          ),
+        )
+      }
+      // The month's transfer buys whole units of the first ETF.
+      cash += options.monthlyCents
+      const first = held[0]
+      const bought = Math.floor(cash / first.price)
+      first.quantity += bought
+      first.costCents += bought * first.price
+      cash -= bought * first.price
+    }
+    const [statement] = await db
+      .insert(positionStatementsTable)
+      .values({
+        accountId: options.accountId,
+        asOf: day,
+        cashCents: cash,
+        source: i === options.days.length - 1 ? 'mcp' : 'typed',
+      })
+      .returning({ id: positionStatementsTable.id })
+    await db.insert(positionLinesTable).values(
+      held.map((line) => ({
+        statementId: statement.id,
+        securityId: idOf.get(line.isin)!,
+        quantity: String(line.quantity),
+        // PRU to the 1/10 000 of a euro, as statements print it.
+        unitCostEur: (() => {
+          const tenThousandths = Math.round(
+            (line.costCents * 100) / line.quantity,
+          )
+          return `${Math.floor(tenThousandths / 10_000)}.${String(tenThousandths % 10_000).padStart(4, '0')}`
+        })(),
+      })),
+    )
+    await db.insert(securityPricesTable).values(
+      held.map((line) => ({
+        securityId: idOf.get(line.isin)!,
+        day,
+        priceEur: centsText(line.price),
+        source: 'statement' as const,
+      })),
+    )
+  }
+  const values = await revalue(
+    db,
+    options.accountId,
+    options.days[0],
+    options.today,
+  )
+  return { statements: options.days.length, values }
 }

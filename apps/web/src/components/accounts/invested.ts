@@ -105,6 +105,9 @@ export function investedSourceText(
   if (contributionsSource === 'base' && investedBase) {
     return `Saisi au ${dayText(investedBase.on)}${linked}${unknown}`
   }
+  if (contributionsSource === 'lines') {
+    return 'D’après le prix de revient de vos lignes'
+  }
   if (contributionsSource === 'links') {
     return `D’après ${plural(linkedTransfersCount, 'virement lié', 'virements liés')}${unknown}`
   }

@@ -1,4 +1,15 @@
-import { BadRequestException, type PipeTransform } from '@nestjs/common'
+import {
+  applyDecorators,
+  BadRequestException,
+  type PipeTransform,
+} from '@nestjs/common'
+import {
+  IsString,
+  Matches,
+  Validate,
+  ValidatorConstraint,
+  type ValidatorConstraintInterface,
+} from 'class-validator'
 
 const DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
 
@@ -24,3 +35,21 @@ export class ParseCalendarDatePipe implements PipeTransform<string, string> {
     return value
   }
 }
+
+@ValidatorConstraint({ name: 'calendarDate' })
+class CalendarDateConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown) {
+    return typeof value === 'string' && isCalendarDate(value)
+  }
+  defaultMessage() {
+    return '$property must be an existing YYYY-MM-DD date'
+  }
+}
+
+/** DTO field: an existing `YYYY-MM-DD` day. */
+export const CalendarDate = () =>
+  applyDecorators(
+    IsString(),
+    Matches(/^\d{4}-\d{2}-\d{2}$/, { message: '$property must be YYYY-MM-DD' }),
+    Validate(CalendarDateConstraint),
+  )

@@ -323,6 +323,13 @@
       "when": 1795242696819,
       "tag": "0045_bank_values_kept",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1795248141162,
+      "tag": "0046_security_positions",
+      "breakpoints": true
     }
   ]
 }

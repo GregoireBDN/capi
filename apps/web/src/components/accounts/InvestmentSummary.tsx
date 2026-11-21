@@ -35,6 +35,61 @@ function tone(cents: number) {
   )
 }
 
+/**
+ * « en un mois » between two month ends, « depuis hier » the day after,
+ * « depuis le 30 sept. » otherwise: as short as it can say it (#413).
+ */
+export function changePeriodText(
+  fromDate: string,
+  toDate: string | null,
+  year: string,
+): string {
+  if (toDate) {
+    const days = daysBetween(fromDate, toDate)
+    if (days === 1) return 'depuis hier'
+    if (
+      isMonthEnd(fromDate) &&
+      isMonthEnd(toDate) &&
+      monthsBetween(fromDate, toDate) === 1
+    ) {
+      return 'en un mois'
+    }
+  }
+  return `depuis le ${formatShortDay(fromDate, year)}`
+}
+
+const dayNumber = (date: string) =>
+  Date.UTC(
+    Number(date.slice(0, 4)),
+    Number(date.slice(5, 7)) - 1,
+    Number(date.slice(8, 10)),
+  ) / 86_400_000
+
+function daysBetween(from: string, to: string): number {
+  return dayNumber(to) - dayNumber(from)
+}
+
+function isMonthEnd(date: string): boolean {
+  return dayNumber(date) + 1 === dayNumber(nextDayMonthStart(date))
+}
+
+/** The first day of the month after `date`'s. */
+function nextDayMonthStart(date: string): string {
+  const year = Number(date.slice(0, 4))
+  const month = Number(date.slice(5, 7))
+  return month === 12
+    ? `${year + 1}-01-01`
+    : `${year}-${String(month + 1).padStart(2, '0')}-01`
+}
+
+function monthsBetween(from: string, to: string): number {
+  return (
+    (Number(to.slice(0, 4)) - Number(from.slice(0, 4))) * 12 +
+    Number(to.slice(5, 7)) -
+    Number(from.slice(5, 7))
+  )
+}
+
 /** A figure with its rate under it: Résultat, Sur 1 an. */
 export function Tile({
   label,
@@ -87,9 +142,12 @@ export function Tile({
 export function InvestedBar({
   valueCents,
   investedCents,
+  onEdit,
 }: {
   valueCents: number
   investedCents: number
+  /** A pencil beside the amount, for the accounts where it is typed. */
+  onEdit?: () => void
 }) {
   const gain = valueCents - investedCents
   const total = Math.max(valueCents, investedCents)
@@ -98,12 +156,27 @@ export function InvestedBar({
     total > 0 ? `${(cents / total) * 100}%` : '0%'
   return (
     <div className="bg-muted/50 space-y-2 rounded-lg px-3 py-2.5">
-      <p className="flex items-baseline gap-3">
-        <span className="text-muted-foreground text-sm">Investi</span>
+      <div className="flex items-center gap-3">
+        <span className="text-muted-foreground shrink-0 text-sm break-normal">
+          Investi
+        </span>
         <span className="ml-auto text-base font-semibold whitespace-nowrap tabular-nums">
           {formatWholeEuros(investedCents)}
         </span>
-      </p>
+        {onEdit && (
+          <Button
+            size="sm"
+            variant="secondary"
+            ghost
+            iconOnly
+            className="-my-1.5 -mr-1.5 shrink-0"
+            aria-label="Modifier le montant investi"
+            onClick={onEdit}
+          >
+            <PencilIcon />
+          </Button>
+        )}
+      </div>
       <div
         role="img"
         aria-label={
@@ -146,8 +219,10 @@ export function InvestmentSummary({
   valueCents = performance.valueCents,
   label = 'Valeur',
   caption,
+  asOf,
   status,
   onEditInvested,
+  footer,
 }: {
   account: Pick<AccountDto, 'type' | 'cryptoSource' | 'archivedAt'>
   performance: AccountPerformanceDto
@@ -158,10 +233,14 @@ export function InvestmentSummary({
   label?: string
   /** Under the value's label: its date and age. */
   caption?: ReactNode
+  /** After the label, on its line: « au 31 oct. » (#413). */
+  asOf?: string
   /** Under the change: how fresh the figures are (a wallet's chains). */
   status?: ReactNode
   /** Opens the invested amount's editor (accounts that take one). */
   onEditInvested?: () => void
+  /** At the end of the card: a PEA's own facts (#413). */
+  footer?: ReactNode
 }) {
   const id = useId()
   const {
@@ -185,8 +264,9 @@ export function InvestmentSummary({
     <Card role="region" aria-labelledby={id} className="min-w-0">
       <CardContent className="@container space-y-4 pt-5">
         <div className="space-y-1">
-          <h2 id={id} className="text-muted-foreground text-sm">
-            {label}
+          <h2 className="text-muted-foreground text-sm">
+            <span id={id}>{label}</span>
+            {asOf && ` ${asOf}`}
           </h2>
           <p className="text-[clamp(1.5rem,12cqi,2.25rem)] leading-tight font-semibold whitespace-nowrap tabular-nums">
             {valueCents === null ? '—' : formatCents(valueCents)}
@@ -201,7 +281,11 @@ export function InvestmentSummary({
                 {formatCents(sincePrevious.changeCents)}
               </span>{' '}
               <span className="text-muted-foreground">
-                depuis le {formatShortDay(sincePrevious.fromDate, year)}
+                {changePeriodText(
+                  sincePrevious.fromDate,
+                  performance.valueDate,
+                  year,
+                )}
               </span>
             </p>
           )}
@@ -214,6 +298,9 @@ export function InvestmentSummary({
               // Coins of unknown cost are out of the bar and the result (#373).
               valueCents={contributionsCents + gainCents}
               investedCents={contributionsCents}
+              // Where it is typed, the pencil sits in the block (#413, the
+              // owner: no sentence and button under it).
+              onEdit={editable ? onEditInvested : undefined}
             />
           ) : (
             <div className="space-y-2">
@@ -279,27 +366,11 @@ export function InvestmentSummary({
           </div>
         )}
 
-        {known && (source || editable) && (
-          <div className="flex flex-wrap items-center gap-x-2">
-            {source && (
-              <p className="text-muted-foreground min-w-[9rem] flex-1 text-xs">
-                {source}
-              </p>
-            )}
-            {editable && (
-              <Button
-                size="sm"
-                variant="secondary"
-                ghost
-                iconStart={<PencilIcon />}
-                className="ml-auto shrink-0"
-                aria-label="Modifier le montant investi"
-                onClick={onEditInvested}
-              >
-                Modifier
-              </Button>
-            )}
-          </div>
+        {/* Where the invested amount comes from: said in its editor where
+            the owner types it (#413), here otherwise (a crypto account's
+            coins of unknown cost). */}
+        {known && source && !editable && (
+          <p className="text-muted-foreground text-xs">{source}</p>
         )}
         {known && linkedAfterValueCents !== 0 && (
           <p className="text-muted-foreground -mt-2 text-xs">
@@ -308,6 +379,7 @@ export function InvestmentSummary({
             dernière valeur : ils compteront avec la prochaine.
           </p>
         )}
+        {footer}
       </CardContent>
     </Card>
   )

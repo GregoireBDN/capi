@@ -78,6 +78,11 @@ export const accountsTable = pgTable(
      */
     investedBaseCents: bigint('invested_base_cents', { mode: 'number' }),
     investedBaseOn: date('invested_base_on', { mode: 'string' }),
+    /**
+     * The day the account was opened (ADR 0006): a PEA's 5-year mark is
+     * counted from it. Investment accounts that take an invested base only.
+     */
+    openedOn: date('opened_on', { mode: 'string' }),
   },
   (t) => [
     check(
@@ -104,6 +109,10 @@ export const accountsTable = pgTable(
     check(
       'accounts_invested_base_type',
       sql`${t.investedBaseCents} IS NULL OR (${t.investedBaseCents} >= 0 AND ${t.type} IN ('brokerage', 'life_insurance', 'employee_savings'))`,
+    ),
+    check(
+      'accounts_opened_on_type',
+      sql`${t.openedOn} IS NULL OR ${t.type} IN ('brokerage', 'life_insurance', 'employee_savings')`,
     ),
   ],
 )

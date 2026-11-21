@@ -1,4 +1,4 @@
-import { decimalFromJsonNumber, divideHalfEven } from '#/crypto/decimal'
+import { decimalFromJsonNumber, divideHalfEven } from '#/common/decimal'
 
 /**
  * Signed crypto quantities as exact `bigint`s at 18 decimals, the scale of

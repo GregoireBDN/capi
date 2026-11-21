@@ -1,7 +1,7 @@
 import type { CryptoPriceSource } from '#/database/schema/domain-enums'
 import { FIAT_TICKERS } from '#/imports/crypto/assets'
 import { isContractAssetId } from './contract-assets'
-import { divideHalfEven, formatDecimal, parseDecimal, rescale } from './decimal'
+import { divideHalfEven, formatDecimal, parseDecimal, rescale } from '#/common/decimal'
 
 /*
  * The Crypto page as a portfolio (#295): every open crypto account's valued

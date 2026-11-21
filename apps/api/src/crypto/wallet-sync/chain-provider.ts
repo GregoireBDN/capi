@@ -1,5 +1,5 @@
 import type { CryptoChain } from '#/database/schema/domain-enums'
-import { JSON_NUMBER_MARK, quoteJsonNumbers } from '../decimal'
+import { JSON_NUMBER_MARK, quoteJsonNumbers } from '#/common/decimal'
 
 /**
  * Read-only sources of on-chain balances, behind interfaces so the endpoints
