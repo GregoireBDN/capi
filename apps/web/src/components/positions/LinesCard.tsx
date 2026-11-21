@@ -54,7 +54,7 @@ function LineBadge({ line, index }: { line: PositionLineDto; index: number }) {
   )
 }
 
-/** A figure in the unfolded line: a row on a phone, a tile from 400px. */
+/** A figure in the unfolded line: a row on a phone, a tile from 560px. */
 function Fact({
   label,
   children,
@@ -67,9 +67,9 @@ function Fact({
   toneClass?: string
 }) {
   return (
-    <div className="bg-muted/50 flex min-w-0 items-center justify-between gap-3 rounded-lg px-3 py-2 @min-[400px]:block">
-      <p className="text-muted-foreground shrink-0 break-normal">{label}</p>
-      <div className="min-w-0 text-right @min-[400px]:text-left">
+    <div className="bg-muted/50 flex min-w-0 items-center justify-between gap-2 rounded-lg px-3 py-2 @min-[560px]:block">
+      <p className="text-muted-foreground min-w-0 truncate">{label}</p>
+      <div className="shrink-0 text-right @min-[560px]:text-left">
         <p
           className={cn(
             'text-sm font-semibold whitespace-nowrap tabular-nums',
@@ -188,7 +188,7 @@ function LineRow({
         <p className="text-muted-foreground">
           ISIN <span className="text-foreground font-mono">{line.isin}</span>
         </p>
-        <div className="grid grid-cols-1 gap-1.5 @min-[400px]:grid-cols-3 @min-[400px]:gap-2">
+        <div className="grid grid-cols-1 gap-1.5 @min-[560px]:grid-cols-3 @min-[560px]:gap-2">
           {line.costCents !== null && line.unitCostEur !== null ? (
             <Fact label="Investi" note={`PRU ${formatPrice(line.unitCostEur)}`}>
               {formatCents(line.costCents)}
@@ -484,18 +484,17 @@ export function LinesCard({
                   >
                     <BanknoteIcon className="size-4" />
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-medium break-normal">
-                      Liquidités
+                  {/* Like a line: the amount under the word on a phone. */}
+                  <span className="grid min-w-0 flex-1 grid-cols-1 items-baseline gap-x-3 gap-y-0.5 @min-[24rem]:grid-cols-[1fr_auto]">
+                    <span className="font-medium">Liquidités</span>
+                    <span className="font-medium whitespace-nowrap tabular-nums @min-[24rem]:row-span-2 @min-[24rem]:self-center @min-[24rem]:text-right">
+                      {formatCents(data.cashCents)}
                     </span>
                     {total > 0 && (
-                      <span className="text-muted-foreground block text-xs tabular-nums">
+                      <span className="text-muted-foreground text-xs tabular-nums">
                         {lineShare(data.cashCents, total)}
                       </span>
                     )}
-                  </span>
-                  <span className="shrink-0 font-medium tabular-nums">
-                    {formatCents(data.cashCents)}
                   </span>
                   {writable ? (
                     <PencilIcon
