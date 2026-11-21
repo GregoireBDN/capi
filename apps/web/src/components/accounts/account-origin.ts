@@ -42,7 +42,7 @@ const ORIGINS: Record<
   'net-worth': { label: 'Patrimoine', to: ROUTES.netWorth, hasMonth: false },
   dashboard: { label: 'Tableau de bord', to: ROUTES.dashboard, hasMonth: false },
   'month-review': {
-    label: 'Revue du mois',
+    label: 'Bilan du mois',
     to: ROUTES.monthReview,
     hasMonth: true,
   },

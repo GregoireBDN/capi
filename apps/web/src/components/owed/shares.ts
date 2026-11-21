@@ -30,7 +30,7 @@ export function partOf(
     : divideHalfEven(totalCents, people + 1)
 }
 
-/** « Payé pour moi »: my part of the bill. */
+/** « Quelqu’un a payé pour moi »: my part of the bill. */
 export function myPartOf(
   mode: ShareMode,
   billCents: number,

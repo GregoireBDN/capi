@@ -32,9 +32,9 @@ export const STEP_LABELS: Record<MonthCloseStep, string> = {
 
 export const monthCloseStatusTool = defineTool({
   name: 'month_close_status',
-  title: 'Revue du mois : étapes',
+  title: 'Bilan du mois : étapes',
   description:
-    'Steps of the guided month-end review ("Revue du mois", default: the previous calendar month) and what is left in each: accounts whose statement is not imported up to the month end or with running-balance gaps, transactions of the month in review, recurring items to confirm and price changes, budget, savings target and goals, investment values missing at the month end, and whether the month is closed. Ticking steps is done in the app; close_months closes the month.',
+    'Steps of the guided month-end review ("Bilan du mois", default: the previous calendar month) and what is left in each: accounts whose statement is not imported up to the month end or with running-balance gaps, transactions of the month in review, recurring items to confirm and price changes, budget, savings target and goals, investment values missing at the month end, and whether the month is closed. Ticking steps is done in the app; close_months closes the month.',
   inputSchema: {
     month: z
       .string()
@@ -49,7 +49,7 @@ export const monthCloseStatusTool = defineTool({
     const mark = (key: MonthCloseStep) =>
       `${done.get(key) ? '✓' : '✗'} ${STEP_LABELS[key]}`
     const lines = [
-      `Revue ${ofMonth(close.month)} : ${close.status === 'closed' ? `clôturée le ${frenchDate(close.closedAt)}` : 'ouverte'}${close.status === 'open' && !close.closable ? ' (pas encore clôturable : le mois n’est pas fini)' : ''}.`,
+      `Bilan ${ofMonth(close.month)} : ${close.status === 'closed' ? `clôturé le ${frenchDate(close.closedAt)}` : 'ouvert'}${close.status === 'open' && !close.closable ? ' (pas encore clôturable : le mois n’est pas fini)' : ''}.`,
       periodNote(close.period),
       `Étapes faites : ${close.steps.filter((s) => s.done).length}/${close.steps.length}.`,
       '',
@@ -188,7 +188,7 @@ export const budgetSuggestionsTool = defineTool({
     const first = data.months[0]
     const last = data.months[data.months.length - 1]
     return [
-      `Cibles suggérées pour ${frenchMonth(data.month)} (moyenne de ${first ? frenchMonth(first) : ''} à ${last ? frenchMonth(last) : ''}, ${data.monthsWithData} mois avec des données, hors ponctuel) :`,
+      `Cibles suggérées pour ${frenchMonth(data.month)} (moyenne de ${first ? frenchMonth(first) : ''} à ${last ? frenchMonth(last) : ''}, ${data.monthsWithData} mois avec des données, hors exceptionnel) :`,
       ...data.items.map(
         (i) =>
           `- ${i.name} (${i.slug}) : ${euros(i.suggestedCents)} (moyenne ${euros(i.averageCents)}) · cible actuelle ${i.currentTargetCents === null ? 'aucune' : euros(i.currentTargetCents)}`,

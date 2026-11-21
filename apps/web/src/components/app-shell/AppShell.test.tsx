@@ -114,12 +114,12 @@ async function renderShell(defaultOpen: boolean, actions: PageAction[] = []) {
   return router
 }
 
-/** A month page: its month and filters, as Dépenses lays them out. */
+/** A month page: its month and filters, as Mouvements lays them out. */
 function SpendingLike() {
   const [month, setMonth] = useState('2026-11')
   return (
     <>
-      <PageHeader title="Dépenses" />
+      <PageHeader title="Mouvements" />
       <MonthToolbar
         navigator={<MonthNavigator month={month} onMonthChange={setMonth} />}
         filters={() => <select aria-label="Compte" />}
@@ -192,14 +192,14 @@ describe('App shell sidebar (≥ md)', () => {
     expect(document.getElementById('main-content')?.tagName).toBe('MAIN')
   })
 
-  it('keeps a dot on Dépenses for the transactions to review while folded (#393)', async () => {
+  it('keeps a dot on Mouvements for the transactions to review while folded (#393)', async () => {
     reviewQueue(4)
     await renderShell(false)
 
     const dot = await screen.findByTestId('nav-review-dot')
     expect(dot).toHaveClass('group-data-[collapsible=icon]:block')
     expect(dot.closest('li')).toContainElement(
-      screen.getByRole('link', { name: 'Dépenses' }),
+      screen.getByRole('link', { name: 'Mouvements' }),
     )
   })
 
@@ -213,7 +213,7 @@ describe('App shell sidebar (≥ md)', () => {
     // After the pages, and the only link to the settings.
     expect(
       screen
-        .getByRole('link', { name: 'Import' })
+        .getByRole('link', { name: 'Relevés' })
         .compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
     expect(document.querySelectorAll('a[href="/settings"]')).toHaveLength(1)
@@ -362,7 +362,7 @@ describe('App shell sidebar (< md)', () => {
     ).not.toBeInTheDocument()
 
     await act(() => router.navigate({ to: '/spending' }))
-    await screen.findByRole('heading', { name: 'Dépenses' })
+    await screen.findByRole('heading', { name: 'Mouvements' })
     const month = document.querySelector<HTMLElement>('[data-page-month]')!
     expect(header()).not.toContainElement(month)
     await ue.click(

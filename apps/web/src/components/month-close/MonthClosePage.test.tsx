@@ -576,7 +576,7 @@ describe('report CSV', () => {
     )
     expect(lines).toContain('Total;Dépenses;-400,00;;')
     expect(lines).toContain('Dépense;Courses test;400,00;300,00;350,00')
-    expect(lines).toContain('Ponctuel;2026-10-18 MAGASIN TEST;-600,00;;')
+    expect(lines).toContain('Exceptionnel;2026-10-18 MAGASIN TEST;-600,00;;')
     expect(lines).toContain('Notes;"Note; avec ""guillemets""";;;')
     // No plan in a report frozen before planned income.
     expect(csv).not.toContain('Revenus prévus')
@@ -617,7 +617,7 @@ describe('report CSV', () => {
     )
     expect(lines).toContain(`Dépense;"'@Courses";400,00;300,00;350,00`)
     expect(lines).toContain(
-      'Ponctuel;"2026-10-18 =HYPERLINK(""https://exemple.test"")";-600,00;;',
+      'Exceptionnel;"2026-10-18 =HYPERLINK(""https://exemple.test"")";-600,00;;',
     )
   })
 })

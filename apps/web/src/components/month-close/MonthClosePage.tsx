@@ -51,7 +51,7 @@ const cleanNotes = (notes: string) =>
   notes.trim() === '' ? null : notes.trim()
 
 /**
- * Guided month-end review ("Revue du mois"): the steps of the monthly
+ * Guided month-end review ("Bilan du mois"): the steps of the monthly
  * routine, each green when done with a link to where it is fixed, the
  * progress, the month's report and "Clôturer le mois" (or "Rouvrir").
  */
@@ -112,7 +112,7 @@ export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
   return (
     <div className="@container space-y-6 pb-4">
       <PageHeader
-        title="Revue du mois"
+        title="Bilan du mois"
         description="Les étapes pour boucler le mois, puis sa clôture."
       />
 
@@ -127,7 +127,7 @@ export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
 
       {review.isError && (
         <Alert variant="destructive">
-          <AlertTitle>Impossible de charger la revue du mois.</AlertTitle>
+          <AlertTitle>Impossible de charger le bilan du mois.</AlertTitle>
           <AlertDescription>
             <Button size="sm" outline onClick={() => void review.refetch()}>
               Réessayer
@@ -151,7 +151,7 @@ export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
             </div>
             <Progress
               value={stepCount === 0 ? 0 : (doneCount / stepCount) * 100}
-              aria-label="Progression de la revue"
+              aria-label="Progression du bilan"
             />
           </section>
 

@@ -1,17 +1,17 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import {
+  ActivityIcon,
+  FileUpIcon,
   HomeIcon,
   InboxIcon,
   LandmarkIcon,
   LayoutDashboardIcon,
   ListIcon,
-  PieChartIcon,
   PiggyBankIcon,
   RepeatIcon,
   SearchIcon,
   SettingsIcon,
   TargetIcon,
-  UploadIcon,
 } from 'lucide-react'
 import type * as React from 'react'
 import { expect, userEvent, waitFor } from 'storybook/test'
@@ -116,21 +116,21 @@ export const Basic: Story = {
 
 const appItems = [
   { title: 'Tableau de bord', icon: LayoutDashboardIcon },
-  { title: 'Dépenses', icon: PieChartIcon },
+  { title: 'Mouvements', icon: ActivityIcon },
   { title: 'Opérations', icon: ListIcon },
   { title: 'À revoir', icon: InboxIcon },
   { title: 'Budget', icon: TargetIcon },
   { title: 'Abonnements', icon: RepeatIcon },
   { title: 'Épargne', icon: PiggyBankIcon },
   { title: 'Comptes', icon: LandmarkIcon },
-  { title: 'Import', icon: UploadIcon },
+  { title: 'Relevés', icon: FileUpIcon },
 ]
 
 function AppLikeSidebar({ defaultOpen = true }: { defaultOpen?: boolean }) {
   return (
     <SidebarProvider
       defaultOpen={defaultOpen}
-      style={{ '--sidebar-width': 'min(16rem, 32vw)' } as React.CSSProperties}
+      style={{ '--sidebar-width': 'min(16rem, 34vw)' } as React.CSSProperties}
     >
       <Sidebar>
         <SidebarHeader>
@@ -219,7 +219,7 @@ export const PhoneLandscape: Story = {
     })
 
     await step('the last entry can be scrolled into view', async () => {
-      const last = canvas.getByRole('button', { name: 'Import' })
+      const last = canvas.getByRole('button', { name: 'Relevés' })
       content.scrollTop = content.scrollHeight
       await waitFor(() =>
         expect(content).toHaveAttribute('data-overflow-top', 'true'),

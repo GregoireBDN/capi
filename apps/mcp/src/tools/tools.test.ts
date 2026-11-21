@@ -1054,7 +1054,7 @@ describe('savings_and_goals', () => {
     expect(text).toContain('Cible : 600,00 € par mois')
     expect(text).toContain('Livrets et placements : 5 000,00 €.')
     expect(text).toContain(
-      'Objectifs : ensemble, 257,15 € par mois ; épargné en moyenne 700,00 € (6 mois complets, hors ponctuel) : marge +442,85 €.',
+      'Objectifs : ensemble, 257,15 € par mois ; épargné en moyenne 700,00 € (6 mois complets, hors exceptionnel) : marge +442,85 €.',
     )
     expect(text).toContain(
       '- Plateforme → Ledger : 2 mouvement(s), coût 800,00 €',

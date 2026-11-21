@@ -4,9 +4,9 @@ import {
   ArrowRightIcon,
   FlagIcon,
   PencilIcon,
-  SparkleIcon,
   StickyNoteIcon,
   TagIcon,
+  ZapIcon,
 } from 'lucide-react'
 import { useLayoutEffect, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -58,8 +58,8 @@ function Switches() {
   return (
     <>
       <SettingSwitchRow
-        icon={SparkleIcon}
-        label="Ponctuelle"
+        icon={ZapIcon}
+        label="Exceptionnelle"
         checked={oneOff}
         onCheckedChange={setOneOff}
       />

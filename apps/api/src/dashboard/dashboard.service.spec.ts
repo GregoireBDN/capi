@@ -776,7 +776,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             month: '2026-10',
             nextMonth: '2026-11',
             closed: true,
-            // Not closed in « Revue du mois »; the budget carries over.
+            // Not closed in « Bilan du mois »; the budget carries over.
             closedAt: null,
             nextMonthBudgeted: true,
             missing: [],

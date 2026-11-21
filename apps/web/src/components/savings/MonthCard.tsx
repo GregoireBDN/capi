@@ -252,7 +252,7 @@ function MonthFigures({ overview }: { overview: SavingsOverviewDto }) {
           </div>
           {oneOff !== 0 && (
             <FigureRow
-              label="Sans le ponctuel"
+              label="Hors exceptionnel"
               value={formatWholeEuros(net - oneOff)}
             />
           )}
@@ -384,7 +384,7 @@ function MonthRow({ overview }: { overview: SavingsOverviewDto }) {
               )}
               {oneOff !== 0 && (
                 <span className="block">
-                  Sans le ponctuel {formatWholeEuros(net - oneOff)}
+                  Hors exceptionnel {formatWholeEuros(net - oneOff)}
                 </span>
               )}
             </span>

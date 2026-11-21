@@ -334,7 +334,9 @@ describe('mark_one_off and set_transaction_note', () => {
   it('marks only what is not one-off yet, and previews first', async () => {
     const { call, writes } = await connect(routes)
     const preview = await call('mark_one_off', { ids: [ID_1, ID_2] })
-    expect(preview.text).toContain('1 opération(s) deviendraient ponctuelle(s)')
+    expect(preview.text).toContain(
+      '1 opération(s) deviendraient exceptionnelle(s)',
+    )
     expect(writes()).toHaveLength(0)
 
     const done = await call('mark_one_off', {
@@ -779,12 +781,12 @@ describe('month-end review', () => {
     const { prompts } = await client.listPrompts()
     expect(prompts.map((p) => p.name)).toContain('revue_du_mois')
     expect(prompts.find((p) => p.name === 'revue_du_mois')?.title).toBe(
-      'Revue du mois',
+      'Bilan du mois',
     )
 
     const result = await client.getPrompt({ name: 'revue_du_mois' })
     const text = (result.messages[0]?.content as { text: string }).text
-    expect(text).toContain("revue du mois d'octobre 2026 (2026-10)")
+    expect(text).toContain("bilan du mois d'octobre 2026 (2026-10)")
     expect(text).toContain('month_close_status (month 2026-10)')
     expect(text).toContain('set_budget_targets (month 2026-11)')
     expect(text).toContain('confirm: true')

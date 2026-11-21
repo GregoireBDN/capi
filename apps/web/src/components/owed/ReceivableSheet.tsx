@@ -13,8 +13,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   BanknoteIcon,
-  HandCoinsIcon,
   HandHeartIcon,
+  HandshakeIcon,
   Undo2Icon,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -281,7 +281,7 @@ function ReceivableContent({
             <Button
               type="button"
               className="w-full"
-              iconStart={<HandCoinsIcon />}
+              iconStart={<HandshakeIcon />}
               onClick={() => setScreen('link')}
             >
               Lier un remboursement

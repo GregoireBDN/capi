@@ -17,12 +17,12 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import {
+  ArrowDownUpIcon,
   ArrowLeftRightIcon,
   BanknoteIcon,
   ChartPieIcon,
+  FileUpIcon,
   ReceiptEuroIcon,
-  UploadIcon,
-  ArrowDownUpIcon,
 } from 'lucide-react'
 import { NearestMonthButton } from '#/components/month/NearestMonthButton'
 import { useMemo, useState } from 'react'
@@ -180,8 +180,8 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
   return (
     <div className="@container space-y-6">
       <PageHeader
-        title="Dépenses"
-        description="Où part votre argent, catégorie par catégorie."
+        title="Mouvements"
+        description="Vos dépenses du mois, catégorie par catégorie."
         // The page's « ⋮ » (#386): add an expense here, where they are read,
         // and Opérations, its sub-page (#393), on the month shown.
         actions={[
@@ -270,7 +270,7 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
           title={`Aucune dépense en ${formatMonth(month).toLowerCase()}`}
           description={
             data.oneOffCents > 0 && !includeOneOffs
-              ? `Seules des dépenses ponctuelles (${formatEuros(data.oneOffCents)}) ont été faites ce mois-ci.`
+              ? `Seules des dépenses exceptionnelles (${formatEuros(data.oneOffCents)}) ont été faites ce mois-ci.`
               : stopsBefore
                 ? `Vos données s’arrêtent au ${formatShortDay(stopsBefore, today.slice(0, 4))} : importez un relevé plus récent ou changez de mois.`
                 : 'Importez un relevé de compte ou changez de mois.'
@@ -282,7 +282,7 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
                 variant="secondary"
                 onClick={() => set({ oneOffs: true })}
               >
-                Inclure les dépenses ponctuelles
+                Inclure les dépenses exceptionnelles
               </Button>
             ) : (
               <>
@@ -299,7 +299,7 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
                 />
                 <Button asChild outline variant="secondary">
                   <Link to={ROUTES.import}>
-                    <UploadIcon aria-hidden />
+                    <FileUpIcon aria-hidden />
                     Importer un relevé
                   </Link>
                 </Button>
@@ -317,8 +317,8 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
               Virements entre vos comptes exclus.{' '}
               {data.oneOffCents > 0 &&
                 (includeOneOffs
-                  ? `Dont ${formatEuros(data.oneOffCents)} de dépenses ponctuelles.`
-                  : `Dépenses ponctuelles exclues : ${formatEuros(data.oneOffCents)}.`)}
+                  ? `Dont ${formatEuros(data.oneOffCents)} de dépenses exceptionnelles.`
+                  : `Dépenses exceptionnelles exclues : ${formatEuros(data.oneOffCents)}.`)}
               {data.expectedCents > 0 &&
                 ` Abonnements et charges fixes attendus d’ici la fin du mois : ${formatEuros(data.expectedCents)}, non comptés.`}
             </p>

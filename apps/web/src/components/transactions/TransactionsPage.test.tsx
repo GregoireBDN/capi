@@ -376,7 +376,7 @@ describe('TransactionsPage', () => {
     ).not.toHaveClass('text-chart-delta-bad')
     expect(within(totals).queryByText('Solde')).not.toBeInTheDocument()
     expect(totals).toHaveTextContent(
-      `Dont ponctuelles ${euros(-1_000)} · 1 virement interne exclu`,
+      `Dont exceptionnelles ${euros(-1_000)} · 1 virement interne exclu`,
     )
     // The count heads the list.
     expect(screen.getByText('3 opérations')).toBeInTheDocument()
@@ -437,7 +437,7 @@ describe('TransactionsPage', () => {
       name: transferRow.rawLabel,
     })
     expect(transfer).toHaveTextContent('Épargne')
-    expect(transfer).toHaveTextContent('Ponctuelle')
+    expect(transfer).toHaveTextContent('Exceptionnelle')
     expect(transfer).toHaveTextContent('Note : Épargne de précaution')
     // The kind once (#266): no « Interne » badge, a ⇄ before the amount.
     expect(transfer).not.toHaveTextContent('Interne')
@@ -504,10 +504,9 @@ describe('TransactionsPage', () => {
       'aria-pressed',
       'true',
     )
-    expect(screen.getByRole('button', { name: 'Ponctuelles' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    expect(
+      screen.getByRole('button', { name: 'Exceptionnelles' }),
+    ).toHaveAttribute('aria-pressed', 'true')
     expect(
       screen.getByRole('button', { name: 'Filtres, 5 actifs' }),
     ).toBeInTheDocument()
@@ -621,10 +620,10 @@ describe('TransactionsPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('goes back to Dépenses, its parent page, on the month shown (#393)', async () => {
+  it('goes back to Mouvements, its parent page, on the month shown (#393)', async () => {
     setup({ month: '2026-10', review: true })
     await waitForRows()
-    expect(screen.getByRole('link', { name: 'Dépenses' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Mouvements' })).toHaveAttribute(
       'href',
       '/spending?month=2026-10',
     )
@@ -633,10 +632,10 @@ describe('TransactionsPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('goes back to Dépenses on its default month from every date (#393)', async () => {
+  it('goes back to Mouvements on its default month from every date (#393)', async () => {
     setup({ month: 'all' })
     await waitForRows()
-    expect(screen.getByRole('link', { name: 'Dépenses' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Mouvements' })).toHaveAttribute(
       'href',
       '/spending',
     )
@@ -995,7 +994,9 @@ describe('TransactionsPage', () => {
     await user.click(
       within(editor).getByRole('button', { name: /^\d\. Options/ }),
     )
-    await user.click(within(editor).getByRole('switch', { name: /Ponctuelle/ }))
+    await user.click(
+      within(editor).getByRole('switch', { name: /Exceptionnelle/ }),
+    )
     await user.click(
       within(editor).getByRole('button', { name: 'Enregistrer' }),
     )
@@ -1007,7 +1008,7 @@ describe('TransactionsPage', () => {
     )
     expect(
       screen.getByRole('listitem', { name: 'Fakemart' }),
-    ).not.toHaveTextContent('Ponctuelle')
+    ).not.toHaveTextContent('Exceptionnelle')
   })
 
   it('saves a note and marks a row reviewed from the editor', async () => {
@@ -1782,7 +1783,7 @@ describe('TransactionsPage', () => {
       )
       await user.type(within(sheet).getByLabelText('Libellé'), 'Prime')
       await user.click(
-        within(sheet).getByRole('switch', { name: /Ponctuelle/ }),
+        within(sheet).getByRole('switch', { name: /Exceptionnelle/ }),
       )
       await user.click(within(sheet).getByRole('button', { name: 'Ajouter' }))
 

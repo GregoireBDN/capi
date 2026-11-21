@@ -68,7 +68,7 @@ export const monthReviewTool = defineTool({
       review.flow.oneOffIncomeCents !== 0
     ) {
       lines.push(
-        `Dont ponctuel : revenus ${euros(review.flow.oneOffIncomeCents)}, dépenses ${euros(review.flow.oneOffExpenseCents)}.`,
+        `Dont exceptionnel : revenus ${euros(review.flow.oneOffIncomeCents)}, dépenses ${euros(review.flow.oneOffExpenseCents)}.`,
       )
     }
     lines.push('')

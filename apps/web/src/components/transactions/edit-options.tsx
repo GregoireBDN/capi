@@ -13,8 +13,9 @@ import {
   CheckIcon,
   ChevronRightIcon,
   HandCoinsIcon,
+  HandshakeIcon,
+  ReceiptTextIcon,
   SplitIcon,
-  UsersIcon,
 } from 'lucide-react'
 import type {
   AccountDto,
@@ -70,7 +71,7 @@ export function detourTitle(detour: EditDetour, item: TransactionDto): string {
     case 'counterpart':
       return counterpartLabel(item)
     case 'share':
-      return 'Partager'
+      return 'J’ai payé pour quelqu’un'
     case 'repayment':
       return repaymentTitle(item)
     case 'split':
@@ -115,12 +116,13 @@ export function EditOptionRows({
     shareable && (
       <SettingRow
         key="share"
-        icon={UsersIcon}
-        label="Partager"
+        icon={HandCoinsIcon}
+        label="J’ai payé pour quelqu’un"
+        // No « Non »: beside the long label it would be cut (#409).
         value={
           owedShares.length > 0
             ? owedShares.map((s) => s.contactName).join(', ')
-            : 'Non'
+            : undefined
         }
         onClick={() => onOpen('share')}
       />
@@ -132,7 +134,7 @@ export function EditOptionRows({
         params={{ contactId: debt.contactId }}
         className={SETTING_ROW_CLASS}
       >
-        <HandCoinsIcon
+        <ReceiptTextIcon
           className="text-muted-foreground size-[0.8rem] shrink-0"
           aria-hidden="true"
         />
@@ -157,7 +159,7 @@ export function EditOptionRows({
     onAccount && !out && (item.repayments.length > 0 || owedToMeCents > 0) && (
       <SettingRow
         key="repaid"
-        icon={HandCoinsIcon}
+        icon={HandshakeIcon}
         label="On me rembourse"
         value={repaidNames || 'Non'}
         onClick={() => onOpen('repayment')}
@@ -166,7 +168,7 @@ export function EditOptionRows({
     onAccount && out && (item.repayments.length > 0 || iOweCents > 0) && (
       <SettingRow
         key="repay"
-        icon={HandCoinsIcon}
+        icon={HandshakeIcon}
         label="Je rembourse"
         value={repaidNames || 'Non'}
         onClick={() => onOpen('repayment')}

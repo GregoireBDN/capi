@@ -325,7 +325,7 @@ type ChartTooltipContentProps = Partial<
   total?: number
   /**
    * Extra fields of the hovered row (field → label), listed after the series
-   * when not zero, without a colour key (e.g. `Dont ponctuel`).
+   * when not zero, without a colour key (e.g. `Dont exceptionnel`).
    */
   details?: Readonly<Record<string, string>>
 }

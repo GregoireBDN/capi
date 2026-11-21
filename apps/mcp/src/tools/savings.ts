@@ -203,7 +203,7 @@ export const savingsTool = defineTool({
         'Moyennes par mois (mois complets) :',
         ...windows.map(
           (a) =>
-            `- ${a.monthCount} mois${a.from && a.to ? ` (${shortMonth(a.from)} à ${shortMonth(a.to)})` : ''} : revenus ${eurosOrUnknown(a.incomeCents)}, dépenses ${eurosOrUnknown(a.expenseCents)}, épargné ${eurosOrUnknown(a.netCents)} (hors ponctuel ${eurosOrUnknown(a.netExcludingOneOffsCents)}), mis de côté ${eurosOrUnknown(a.movedCents)}, taux ${percent(a.savingsRate)}`,
+            `- ${a.monthCount} mois${a.from && a.to ? ` (${shortMonth(a.from)} à ${shortMonth(a.to)})` : ''} : revenus ${eurosOrUnknown(a.incomeCents)}, dépenses ${eurosOrUnknown(a.expenseCents)}, épargné ${eurosOrUnknown(a.netCents)} (hors exceptionnel ${eurosOrUnknown(a.netExcludingOneOffsCents)}), mis de côté ${eurosOrUnknown(a.movedCents)}, taux ${percent(a.savingsRate)}`,
         ),
       )
     }
@@ -242,7 +242,7 @@ export const savingsTool = defineTool({
       '',
       needs.length === 0
         ? 'Objectifs :'
-        : `Objectifs : ensemble, ${euros(need)} par mois${overview.projectionAverageCents === null ? '' : ` ; épargné en moyenne ${euros(overview.projectionAverageCents)} (6 mois complets, hors ponctuel) : marge ${signedEuros(overview.projectionAverageCents - need)}`}.`,
+        : `Objectifs : ensemble, ${euros(need)} par mois${overview.projectionAverageCents === null ? '' : ` ; épargné en moyenne ${euros(overview.projectionAverageCents)} (6 mois complets, hors exceptionnel) : marge ${signedEuros(overview.projectionAverageCents - need)}`}.`,
       ...(active.length > 0 ? active.map(goalLine) : ['- aucun']),
     )
     return lines.join('\n')

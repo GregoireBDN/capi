@@ -393,7 +393,7 @@ describe('BudgetPage', () => {
     expect(rows[0]).toHaveAttribute('data-status', 'over')
     expect(within(rows[0]).getByText('Loisirs')).toBeInTheDocument()
     expect(text(rows[0].textContent)).toContain('Dépassement de 50 €')
-    expect(text(rows[0].textContent)).toContain('dont ponctuel 100,00 €')
+    expect(text(rows[0].textContent)).toContain('dont exceptionnel 100,00 €')
     expect(rows[1]).toHaveAttribute('data-status', 'ok')
     expect(text(rows[1].textContent)).toContain('Reste 200 €')
     // Each budget heads its row with its category icon (#287).

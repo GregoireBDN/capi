@@ -24,7 +24,7 @@ import { applyRecurringShares } from './recurring-shares'
 /**
  * Money owed (#359) against the migrated test database: the counting rule
  * read through `transaction_lines`, repayments, letting a debt go, shared
- * recurring items and « Payé pour moi ». Every test runs in a transaction
+ * recurring items and « Quelqu’un a payé pour moi ». Every test runs in a transaction
  * that is rolled back. Synthetic names, labels and amounts only.
  */
 
@@ -403,7 +403,7 @@ describe.skipIf(!process.env.DATABASE_URL)('OwedService (database)', () => {
     })
   })
 
-  it('« Payé pour moi »: the owner’s part is his spending on the day, his repayment neither spending nor income, and a debt let go leaves his spending', async () => {
+  it('« Quelqu’un a payé pour moi »: the owner’s part is his spending on the day, his repayment neither spending nor income, and a debt let go leaves his spending', async () => {
     await withFixture(
       async ({ owed, row, spent, income, restaurants, misc }) => {
         const debt = await owed.createDebt(
@@ -460,7 +460,7 @@ describe.skipIf(!process.env.DATABASE_URL)('OwedService (database)', () => {
     )
   })
 
-  it('computes the parts of « Payé pour moi » and refuses a part above the bill', async () => {
+  it('computes the parts of « Quelqu’un a payé pour moi » and refuses a part above the bill', async () => {
     await withFixture(async ({ owed, restaurants }) => {
       await expect(
         owed.createDebt(
@@ -650,7 +650,7 @@ describe.skipIf(!process.env.DATABASE_URL)('OwedService (database)', () => {
             { categoryId: misc, amountCents: -3_000 },
           ]),
         ).rejects.toThrow('shared')
-        // « Partager » with nobody stops sharing it.
+        // « J’ai payé pour quelqu’un » with nobody stops sharing it.
         const after = await owed.replaceShares(dinner, { shares: [] })
         expect(after.shares).toEqual([])
         expect(await spent(restaurants)).toBe(9_000)

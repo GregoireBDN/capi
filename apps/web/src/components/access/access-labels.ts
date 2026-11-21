@@ -102,7 +102,7 @@ const SENTENCES: Partial<Record<string, Sentence>> = {
   'GET /api/budgets/history': 'a lu l’historique du budget',
   'GET /api/dashboard/overview': 'a lu le tableau de bord',
   'GET /api/dashboard/history': 'a lu l’évolution du patrimoine',
-  'GET /api/dashboard/review': 'a lu la revue du mois',
+  'GET /api/dashboard/review': 'a lu le bilan du mois',
   'GET /api/spending/by-category': 'a lu les dépenses',
   'GET /api/spending/trend': 'a lu l’évolution des dépenses',
   'GET /api/investments/summary': 'a lu les investissements',

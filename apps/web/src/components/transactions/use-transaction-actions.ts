@@ -72,8 +72,8 @@ function describeChange(
   if (changes.kind) return `Type : ${KIND_LABELS[changes.kind]}`
   if (changes.isOneOff !== undefined) {
     return changes.isOneOff
-      ? 'Marquée comme ponctuelle'
-      : 'N’est plus ponctuelle'
+      ? 'Marquée comme exceptionnelle'
+      : 'N’est plus exceptionnelle'
   }
   if (changes.needsReview !== undefined) {
     return changes.needsReview ? 'Remise à revoir' : 'Opération validée'
@@ -93,8 +93,8 @@ function describeBulkChange(
     return `Type « ${KIND_LABELS[changes.kind]} » appliqué à ${n}`
   if (changes.isOneOff !== undefined) {
     return changes.isOneOff
-      ? `${n} ${count > 1 ? 'marquées ponctuelles' : 'marquée ponctuelle'}`
-      : `${n} ${count > 1 ? 'ne sont plus ponctuelles' : 'n’est plus ponctuelle'}`
+      ? `${n} ${count > 1 ? 'marquées exceptionnelles' : 'marquée exceptionnelle'}`
+      : `${n} ${count > 1 ? 'ne sont plus exceptionnelles' : 'n’est plus exceptionnelle'}`
   }
   return changes.needsReview
     ? `${n} ${count > 1 ? 'remises' : 'remise'} à revoir`

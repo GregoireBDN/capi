@@ -14,7 +14,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useRef } from 'react'
 import { Link } from '@tanstack/react-router'
-import { PiggyBankIcon, UploadIcon } from 'lucide-react'
+import { FileUpIcon, PiggyBankIcon } from 'lucide-react'
 import { AddInvestmentButton } from '#/components/accounts/AddInvestmentSheet'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import type { SavingsOverviewDto } from '#/api/types.gen'
@@ -137,7 +137,7 @@ export function SavingsPage({
           <EmptyContent className="flex-row flex-wrap justify-center">
             <Button asChild>
               <Link to={ROUTES.import}>
-                <UploadIcon aria-hidden />
+                <FileUpIcon aria-hidden />
                 Importer un relevé
               </Link>
             </Button>

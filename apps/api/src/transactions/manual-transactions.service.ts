@@ -380,7 +380,7 @@ export class ManualTransactionsService {
   }
 
   /**
-   * An expense a contact paid for the owner (« Payé pour moi », #359) stays
+   * An expense a contact paid for the owner (« Quelqu’un a payé pour moi », #359) stays
    * an expense without an account; its amount is the owner's part, so the
    * `i_owe` receivable follows it (never below what was repaid, never above
    * the bill).

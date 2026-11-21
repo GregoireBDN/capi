@@ -72,7 +72,8 @@ export function BudgetList({ month, items, onEdit }: BudgetListProps) {
                     {[
                       item.tracked && 'Suivi pendant le mois',
                       ...prepaid,
-                      oneOffs !== 0 && `dont ponctuel ${formatCents(oneOffs)}`,
+                      oneOffs !== 0 &&
+                        `dont exceptionnel ${formatCents(oneOffs)}`,
                       item.note,
                     ]
                       .filter(Boolean)

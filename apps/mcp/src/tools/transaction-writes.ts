@@ -180,7 +180,7 @@ export const addTransactionTool = defineTool({
       `- Compte : ${account.name}`,
       `- Type : ${KIND_LABELS[kind]}${kind === 'transfer' ? ' (jamais compté comme revenu ou dépense)' : ''}`,
       `- Catégorie : ${category ? category.name : 'aucune (à revoir dans Opérations)'}`,
-      args.oneOff ? '- Ponctuelle (hors moyennes)' : null,
+      args.oneOff ? '- Exceptionnelle (hors moyennes)' : null,
       args.note ? `- Note : ${args.note}` : null,
     ].filter((line): line is string => line !== null)
     const duplicateLines = duplicates.map(
@@ -359,7 +359,7 @@ export const categorizeTransactionsTool = defineTool({
 
 export const markOneOffTool = defineTool({
   name: 'mark_one_off',
-  title: 'Marquer comme ponctuel',
+  title: 'Marquer comme exceptionnel',
   description:
     'Mark one or several transactions (by id) as one-off (exceptional, left out of averages and recurring detection), or back to regular with oneOff: false. Without confirm: preview; with confirm: true applies only to those not already in that state.',
   write: { idempotent: true },
@@ -375,7 +375,7 @@ export const markOneOffTool = defineTool({
     const value = args.oneOff ?? true
     const transactions = await loadTransactions(api, args.ids)
     const changing = transactions.filter((t) => t.isOneOff !== value)
-    const state = value ? 'ponctuelle(s)' : 'régulière(s)'
+    const state = value ? 'exceptionnelle(s)' : 'régulière(s)'
     const skipped = transactions.length - changing.length
     const skippedLine =
       skipped > 0 ? [`Déjà ${state}, rien à faire : ${skipped}.`] : []

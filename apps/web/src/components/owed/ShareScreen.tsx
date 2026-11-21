@@ -88,7 +88,7 @@ export function partsOf(
 }
 
 /**
- * « Partager › » of an expense the owner paid (#359, owner's « A. Un mode
+ * « J’ai payé pour quelqu’un › » of an expense the owner paid (#359, owner's « A. Un mode
  * pour tous »): who (contact chips, or a typed name), one choice for
  * everyone (« Moitié » with one person, « Parts égales » with several, or
  * « Montants » typed for each; switching keeps the figures), each person

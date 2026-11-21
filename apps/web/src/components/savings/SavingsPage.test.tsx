@@ -391,7 +391,7 @@ describe('SavingsPage', () => {
     expect(within(shown).getByText('Sous la cible')).toBeInTheDocument()
     expect(shown).toHaveTextContent(text('-460 €vs cible'))
     expect(shown).toHaveTextContent(text('13,3 %des revenus'))
-    expect(shown).toHaveTextContent(text('Sans le ponctuel1 900 €'))
+    expect(shown).toHaveTextContent(text('Hors exceptionnel1 900 €'))
   })
 
   it('compares the month in progress with the same days of the previous one', async () => {

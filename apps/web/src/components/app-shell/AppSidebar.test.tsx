@@ -97,26 +97,24 @@ describe('AppSidebar', () => {
         .getAllByRole('link')
         .map((link) => [link.textContent, link.getAttribute('href')])
 
-    expect(group('Suivi')).toEqual([
+    expect(group('Au quotidien')).toEqual([
       ['Tableau de bord', '/dashboard'],
-      ['Dépenses', '/spending'],
+      ['Mouvements', '/spending'],
       ['Budget', '/budget'],
-      ['Revue du mois', '/month-review'],
+      ['Bilan du mois', '/month-review'],
+      ['Abonnements', '/subscriptions'],
     ])
     expect(group('Patrimoine')).toEqual([
       ['Comptes', '/accounts'],
       ['Épargne', '/savings'],
       ['Crypto', '/crypto'],
-      ['Entre proches', '/owed'],
+      ['Dépenses partagées', '/owed'],
     ])
-    expect(group('Outils')).toEqual([
-      ['Abonnements', '/subscriptions'],
-      ['Import', '/import'],
-    ])
+    expect(group('Outils')).toEqual([['Relevés', '/import']])
     expect(nav.getAllByRole('link')).toHaveLength(
       NAV_GROUPS.flatMap((g) => g.items).length,
     )
-    // Opérations is a sub-page of Dépenses, out of the sidebar (#393).
+    // Opérations is a sub-page of Mouvements, out of the sidebar (#393).
     expect(nav.queryByRole('link', { name: 'Opérations' })).toBeNull()
     // A rule between groups, shown while folded in place of their titles.
     expect(nav.getAllByTestId('nav-group-divider')).toHaveLength(
@@ -166,9 +164,9 @@ describe('AppSidebar', () => {
     }
   })
 
-  it('highlights "Dépenses" on the spending page', async () => {
+  it('highlights "Mouvements" on the spending page', async () => {
     const nav = await renderAt('/spending')
-    expect(nav.getByRole('link', { name: 'Dépenses' })).toHaveAttribute(
+    expect(nav.getByRole('link', { name: 'Mouvements' })).toHaveAttribute(
       'aria-current',
       'page',
     )
@@ -186,25 +184,25 @@ describe('AppSidebar', () => {
   })
 
   it.each(['/transactions', '/transactions/42'])(
-    'highlights "Dépenses" alone on Opérations, its sub-page (%s, #393)',
+    'highlights "Mouvements" alone on Opérations, its sub-page (%s, #393)',
     async (path) => {
       const nav = await renderAt(path)
       const current = nav
         .getAllByRole('link')
         .filter((link) => link.getAttribute('aria-current') === 'page')
-      expect(current).toEqual([nav.getByRole('link', { name: 'Dépenses' })])
+      expect(current).toEqual([nav.getByRole('link', { name: 'Mouvements' })])
     },
   )
 
-  it('carries the month from Opérations back to Dépenses (#393)', async () => {
+  it('carries the month from Opérations back to Mouvements (#393)', async () => {
     const nav = await renderAt('/transactions?month=2026-09')
-    expect(nav.getByRole('link', { name: 'Dépenses' })).toHaveAttribute(
+    expect(nav.getByRole('link', { name: 'Mouvements' })).toHaveAttribute(
       'href',
       '/spending?month=2026-09',
     )
   })
 
-  it('shows the number to review on « Dépenses », opening the filter (#322, #393)', async () => {
+  it('shows the number to review on « Mouvements », opening the filter (#322, #393)', async () => {
     reviewCountIs(7)
     const { nav, router } = await renderAtWithRouter('/dashboard')
 
@@ -215,7 +213,7 @@ describe('AppSidebar', () => {
     expect(
       nav.queryByRole('link', { name: 'À revoir' }),
     ).not.toBeInTheDocument()
-    expect(nav.getByRole('link', { name: 'Dépenses' })).toHaveAttribute(
+    expect(nav.getByRole('link', { name: 'Mouvements' })).toHaveAttribute(
       'href',
       '/spending',
     )

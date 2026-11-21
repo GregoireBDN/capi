@@ -217,7 +217,7 @@ export class MonthReviewDto {
     format: 'date-time',
     nullable: true,
     description:
-      'When the month was closed in « Revue du mois » (`POST /month-close/:month/close`); null while it is open.',
+      'When the month was closed in « Bilan du mois » (`POST /month-close/:month/close`); null while it is open.',
   })
   closedAt!: string | null
 

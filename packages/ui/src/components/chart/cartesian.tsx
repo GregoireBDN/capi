@@ -105,7 +105,7 @@ type CartesianChartProps<TDatum extends ChartDatum> = {
   referenceLines?: ReadonlyArray<ChartReferenceLine>
   /**
    * Extra values of each row, not drawn: field → label (e.g.
-   * `{ oneOff: 'Dont ponctuel' }`). Listed under the series in the tooltip
+   * `{ oneOff: 'Dont exceptionnel' }`). Listed under the series in the tooltip
    * when not zero, and as columns of the data table.
    */
   details?: Readonly<Record<string, string>>
