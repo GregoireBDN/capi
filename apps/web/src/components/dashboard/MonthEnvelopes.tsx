@@ -209,11 +209,13 @@ function EnvelopeRow({
             )}
           </span>
         </span>
+        {/* Quiet (the owner, #405): a light tint like the icon badges, the
+            whole line being the button anyway. */}
         <span
           aria-hidden
-          className="bg-primary text-primary-foreground flex size-[40px] shrink-0 items-center justify-center rounded-full"
+          className="bg-primary/10 text-primary flex size-[32px] shrink-0 items-center justify-center rounded-full"
         >
-          <PlusIcon className="size-[20px]" strokeWidth={2.5} />
+          <PlusIcon className="size-[18px]" strokeWidth={2.5} />
         </span>
       </button>
     </li>
