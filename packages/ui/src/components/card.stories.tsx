@@ -126,7 +126,7 @@ export const ActionOnWideCard: Story = {
         <CardTitle>Objectifs</CardTitle>
         <CardDescription>
           Projetés à 725,54 € par mois : votre épargne moyenne des 6 derniers
-          mois complets, sans les revenus et dépenses ponctuels.
+          mois complets, sans les revenus et dépenses exceptionnels.
         </CardDescription>
         <CardAction>
           <Button size="sm">Ajouter</Button>

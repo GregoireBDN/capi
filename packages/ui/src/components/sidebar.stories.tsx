@@ -116,14 +116,14 @@ export const Basic: Story = {
 
 const appItems = [
   { title: 'Tableau de bord', icon: LayoutDashboardIcon },
-  { title: 'Dépenses', icon: PieChartIcon },
+  { title: 'Mouvements', icon: PieChartIcon },
   { title: 'Opérations', icon: ListIcon },
   { title: 'À revoir', icon: InboxIcon },
   { title: 'Budget', icon: TargetIcon },
   { title: 'Abonnements', icon: RepeatIcon },
   { title: 'Épargne', icon: PiggyBankIcon },
   { title: 'Comptes', icon: LandmarkIcon },
-  { title: 'Import', icon: UploadIcon },
+  { title: 'Relevés', icon: UploadIcon },
 ]
 
 function AppLikeSidebar({ defaultOpen = true }: { defaultOpen?: boolean }) {
@@ -219,7 +219,7 @@ export const PhoneLandscape: Story = {
     })
 
     await step('the last entry can be scrolled into view', async () => {
-      const last = canvas.getByRole('button', { name: 'Import' })
+      const last = canvas.getByRole('button', { name: 'Relevés' })
       content.scrollTop = content.scrollHeight
       await waitFor(() =>
         expect(content).toHaveAttribute('data-overflow-top', 'true'),

@@ -225,20 +225,23 @@ export const WithDetails: Story = {
   args: {
     data: savingsWithOneOffs,
     config: savingsConfig,
-    label: 'Épargne mensuelle en 2026, dont ponctuel',
-    details: { oneOff: 'Dont ponctuel' },
+    label: 'Épargne mensuelle en 2026, dont exceptionnel',
+    details: { oneOff: 'Dont exceptionnel' },
     dataTable: 'details',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const graphic = await findChartGraphic(canvasElement, /dont ponctuel/)
+    const graphic = await findChartGraphic(canvasElement, /dont exceptionnel/)
     await expectKeyboardTooltip(canvasElement, graphic, [
       'février 2026',
-      'Dont ponctuel',
+      'Dont exceptionnel',
       formatEuros(-64900),
     ])
     await expect(
-      canvas.getByRole('columnheader', { name: 'Dont ponctuel', hidden: true }),
+      canvas.getByRole('columnheader', {
+        name: 'Dont exceptionnel',
+        hidden: true,
+      }),
     ).toBeInTheDocument()
     // Not a series: no bar, no legend entry.
     await expect(canvasElement.querySelectorAll('.recharts-bar')).toHaveLength(

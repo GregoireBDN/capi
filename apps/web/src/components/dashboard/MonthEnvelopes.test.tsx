@@ -696,8 +696,8 @@ describe('MonthEnvelopes', () => {
     await user.click(
       within(dialog).getByRole('button', { name: /^4\. Options/ }),
     )
-    // « Partager › » opens in the same frame, ‹ back to the options.
-    await user.click(within(dialog).getByRole('button', { name: /^Partager/ }))
+    // « J’ai payé pour quelqu’un › » opens in the same frame, ‹ back to the options.
+    await user.click(within(dialog).getByRole('button', { name: /^J’ai payé pour quelqu’un/ }))
     await user.click(
       await within(dialog).findByRole('button', { name: /Camille/ }),
     )
@@ -708,7 +708,7 @@ describe('MonthEnvelopes', () => {
       within(dialog).getByRole('button', { name: 'Retour aux options' }),
     )
     expect(
-      within(dialog).getByRole('button', { name: /^Partager/ }),
+      within(dialog).getByRole('button', { name: /^J’ai payé pour quelqu’un/ }),
     ).toHaveTextContent('Camille')
     // Nothing is sent before « Ajouter », then the expense and its share.
     expect(api.owedLinksControllerReplaceShares).not.toHaveBeenCalled()

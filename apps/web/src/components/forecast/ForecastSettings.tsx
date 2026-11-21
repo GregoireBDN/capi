@@ -152,7 +152,7 @@ export function ForecastSettings({
             </Label>
             <p className="text-muted-foreground text-xs">
               Moyenne quotidienne des 3 derniers mois, hors abonnements,
-              virements et dépenses ponctuelles.
+              virements et dépenses exceptionnelles.
             </p>
           </div>
         </div>

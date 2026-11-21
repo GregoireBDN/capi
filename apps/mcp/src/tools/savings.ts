@@ -202,7 +202,7 @@ export const savingsTool = defineTool({
         'Moyennes par mois (mois complets) :',
         ...windows.map(
           (a) =>
-            `- ${a.monthCount} mois${a.from && a.to ? ` (${shortMonth(a.from)} à ${shortMonth(a.to)})` : ''} : revenus ${eurosOrUnknown(a.incomeCents)}, dépenses ${eurosOrUnknown(a.expenseCents)}, épargné ${eurosOrUnknown(a.netCents)} (hors ponctuel ${eurosOrUnknown(a.netExcludingOneOffsCents)}), versé sur l'épargne et les placements ${eurosOrUnknown(a.movedCents)}, taux ${percent(a.savingsRate)}`,
+            `- ${a.monthCount} mois${a.from && a.to ? ` (${shortMonth(a.from)} à ${shortMonth(a.to)})` : ''} : revenus ${eurosOrUnknown(a.incomeCents)}, dépenses ${eurosOrUnknown(a.expenseCents)}, épargné ${eurosOrUnknown(a.netCents)} (hors exceptionnel ${eurosOrUnknown(a.netExcludingOneOffsCents)}), versé sur l'épargne et les placements ${eurosOrUnknown(a.movedCents)}, taux ${percent(a.savingsRate)}`,
         ),
       )
     }

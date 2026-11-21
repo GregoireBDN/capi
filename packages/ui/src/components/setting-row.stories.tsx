@@ -59,7 +59,7 @@ function Switches() {
     <>
       <SettingSwitchRow
         icon={SparkleIcon}
-        label="Ponctuelle"
+        label="Exceptionnelle"
         checked={oneOff}
         onCheckedChange={setOneOff}
       />

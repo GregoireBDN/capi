@@ -23,7 +23,7 @@ Lets Claude (Claude Desktop or Claude Code, on the owner's machine) answer quest
 | `savings_and_goals`    | `GET /api/savings/overview`, `/api/savings/goals` | Saved per month and on average, savings stock (accounts, investments, gains), goals and their projection.           |
 | `month_review`         | `GET /api/dashboard/review`                       | Month-end review (default: previous month): accounts not up to date, net worth change, budget gaps.                 |
 
-Read tools added with the write tools: `month_close_status` (`GET /api/month-close/:month`: steps of the "Revue du mois" and what is left in each), `review_queue` (`GET /api/transactions?needsReview=true`, with ids), `budget_suggestions` (`POST /api/budgets/suggest`, saves nothing: average spending of past months per category). Transactions are listed with their `id`, which the write tools take.
+Read tools added with the write tools: `month_close_status` (`GET /api/month-close/:month`: steps of the "Bilan du mois" and what is left in each), `review_queue` (`GET /api/transactions?needsReview=true`, with ids), `budget_suggestions` (`POST /api/budgets/suggest`, saves nothing: average spending of past months per category). Transactions are listed with their `id`, which the write tools take.
 
 ### Write tools (write token)
 
@@ -35,7 +35,7 @@ Read tools added with the write tools: `month_close_status` (`GET /api/month-clo
 | `set_transaction_note`    | `PATCH /api/transactions/:id`                                       | The note of one transaction (replaced, or cleared with `""`).                                                                                                                                                                                                                                       |
 | `create_rule`             | `POST /api/categorization-rules` (+ `/preview`, `/apply`)           | A categorization rule ("label contains …" → category), last in order; optionally re-applies the rules to existing transactions.                                                                                                                                                                     |
 | `set_budget_targets`      | `PUT /api/budgets/:categoryId`                                      | Monthly targets of one or several expense categories from a month on, in one call (e.g. next month's budget prepared from `budget_suggestions`).                                                                                                                                                    |
-| `close_months`            | `GET /api/month-close`, `POST /api/month-close/:month/close`        | Closes past months of the « Revue du mois » (freezes their report): one `month`, or `allBefore: true` for every month left open since the first one ever closed (« clôture tous les anciens mois »; `from` when none was ever closed). Reopening stays in the app.                                  |
+| `close_months`            | `GET /api/month-close`, `POST /api/month-close/:month/close`        | Closes past months of the « Bilan du mois » (freezes their report): one `month`, or `allBefore: true` for every month left open since the first one ever closed (« clôture tous les anciens mois »; `from` when none was ever closed). Reopening stays in the app.                                  |
 | `split_transaction`       | `PUT /api/transactions/:id/splits`                                  | Splits one transaction between 2 to 20 categories (amounts in euros, without sign). Each part counts with its category's kind: an incoming part in an expense category is a refund of it (« remboursement de Restaurants »), one in an income category is income. Undoing a split stays in the app. |
 
 ### Investment tools (#104)
@@ -72,7 +72,7 @@ How they behave:
 - Committing a preview that is already committed changes nothing and says so. Rows that went to the review queue come back with their ids, for `categorize_transactions` and `create_rule`. Undoing an import is done in the app (page Import).
 - A `read` token gets "lecture seule" on both write tools. Neither the file, its path, labels nor amounts are logged.
 
-### Prompt "Revue du mois"
+### Prompt "Bilan du mois"
 
 `revue_du_mois` (optional `month`, default the previous month) starts a guided month-end review: `month_close_status` and `month_review`, statements to import (`list_imports`, then `preview_bank_import` / `commit_bank_import` with your file, or the app), the review queue (categorize, one-offs, rules), subscriptions, budget, savings, investment values, then next month's budget with `budget_suggestions` and one `set_budget_targets`. It ends with `close_months` once you approve its preview. Every change goes through a preview you approve; investment values, ticking steps and reopening a month stay in the app. In Claude Code it shows as `/mcp__finances__revue_du_mois`.
 

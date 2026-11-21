@@ -45,9 +45,9 @@ describe('toCsv', () => {
   it('joins cells with `;` and ends every line with CRLF', () => {
     expect(
       toCsv([
-        [text('Ponctuel'), text('=1+1'), amount(-60_000)],
+        [text('Exceptionnel'), text('=1+1'), amount(-60_000)],
         [text('Total'), text('Dépenses'), amount(null)],
       ]),
-    ).toBe(`Ponctuel;"'=1+1";-600,00\r\nTotal;Dépenses;\r\n`)
+    ).toBe(`Exceptionnel;"'=1+1";-600,00\r\nTotal;Dépenses;\r\n`)
   })
 })

@@ -1699,7 +1699,7 @@ async function seedMoneyOwed(
     await owed.forgive(sam.id, { note: 'Pour son anniversaire' })
   }
 
-  // « Payé pour moi »: Sam paid a concert for three.
+  // « Quelqu’un a payé pour moi »: Sam paid a concert for three.
   await owed.createDebt({
     contactName: 'Sam',
     billCents: 9_000,

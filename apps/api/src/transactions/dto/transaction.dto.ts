@@ -191,7 +191,7 @@ export class TransactionDto {
     format: 'uuid',
     nullable: true,
     description:
-      'Null only for an expense a contact paid for the owner (`paidByContactId`, « Payé pour moi »).',
+      'Null only for an expense a contact paid for the owner (`paidByContactId`, « Quelqu’un a payé pour moi »).',
   })
   accountId!: string | null
 

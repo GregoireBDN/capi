@@ -108,7 +108,7 @@ export function AppSidebar() {
           </Link>
         </SidebarMenuButton>
         {/* The badge is a link of its own: Opérations filtered on « À
-            revoir » (#322), on « Dépenses », whose sub-page it is (#393).
+            revoir » (#322), on « Mouvements », whose sub-page it is (#393).
             Hidden while the column is folded. */}
         {/* What people owe the owner (#359), hidden at 0. */}
         {badge === 'owedTotal' && queryClient && <OwedBadge to={to} />}
@@ -256,9 +256,12 @@ export function AppSidebar() {
   )
 }
 
-/** The id of a group's title, which names its list. */
+/**
+ * The id of a group's title, which names its list: no spaces (« Au
+ * quotidien », #409), since `aria-labelledby` reads a list of ids.
+ */
 function groupId(label: string): string {
-  return `nav-group-${label.toLowerCase()}`
+  return `nav-group-${label.toLowerCase().replace(/\s+/g, '-')}`
 }
 
 /**

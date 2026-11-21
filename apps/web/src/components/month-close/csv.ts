@@ -46,7 +46,7 @@ export function reportToCsv(report: MonthReportDto): string {
       amount(category.targetCents),
     ]),
     ...report.oneOffs.map((oneOff) => [
-      text('Ponctuel'),
+      text('Exceptionnel'),
       text(`${oneOff.date} ${oneOff.label}`),
       amount(oneOff.amountCents),
       empty,

@@ -90,7 +90,7 @@ export function ImportPage({ accountId }: { accountId?: string } = {}) {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Import"
+        title="Relevés"
         description="Importez l’export CSV de votre banque : les doublons sont détectés et rien n’est enregistré avant votre validation."
       />
       {main}

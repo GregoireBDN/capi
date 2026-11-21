@@ -4,7 +4,7 @@ import { validateOwedSearch } from '#/components/owed/format'
 
 export const Route = createFileRoute('/_app/owed/$contactId')({
   validateSearch: validateOwedSearch,
-  head: () => ({ meta: [{ title: 'Entre proches · Finances' }] }),
+  head: () => ({ meta: [{ title: 'Dépenses partagées · Finances' }] }),
   component: ContactRoute,
 })
 

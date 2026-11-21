@@ -39,7 +39,7 @@ export function personRef(person: Person) {
  * their name, a check once chosen), « Ajouter « Léa » » for a name nobody
  * has yet. `single`: one person, a tap picks them; otherwise a tap adds the
  * person to `chosen`, and on a chosen one takes them out (`onRemove`). The
- * same everywhere a person is chosen: « Payé pour moi », « Partager », a
+ * same everywhere a person is chosen: « Quelqu’un a payé pour moi », « J’ai payé pour quelqu’un », a
  * shared recurring item.
  */
 export function PeoplePicker({

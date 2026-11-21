@@ -68,7 +68,7 @@ export function ContactsSettings() {
         <EmptyState
           icon={<UsersIcon />}
           title="Aucun contact"
-          description="Ils s’ajoutent d’eux-mêmes quand vous partagez une dépense ou notez « Payé pour moi »."
+          description="Ils s’ajoutent d’eux-mêmes quand vous partagez une dépense ou notez « Quelqu’un a payé pour moi »."
         />
       ) : (
         <Card size="sm">

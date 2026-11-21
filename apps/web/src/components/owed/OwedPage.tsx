@@ -33,7 +33,7 @@ import { PaidForMeSheet } from './PaidForMeSheet'
 import { owedErrorMessage, owedSummaryQuery } from './queries'
 
 /**
- * « Entre proches » (#359): what people owe the owner and what he owes
+ * « Dépenses partagées » (#359): what people owe the owner and what he owes
  * them, two lists never netted (owner's « B. Deux listes »), each per
  * person (« A. Par personne »: owed now and the oldest open item's age, in
  * the warning colour after 30 days), the people all settled below, then
@@ -55,11 +55,11 @@ export function OwedPage({
   return (
     <div className="@container space-y-6">
       <PageHeader
-        title="Entre proches"
+        title="Dépenses partagées"
         description="Ce qu’on vous doit et ce que vous devez, hors patrimoine."
         actions={[
           {
-            label: 'Payé pour moi',
+            label: 'Quelqu’un a payé pour moi',
             icon: <HandCoinsIcon />,
             onSelect: () => setAdding(true),
             primary: true,
@@ -124,8 +124,8 @@ export function OwedPage({
           }
           description={
             side === 'owed'
-              ? 'Ouvrez une dépense avancée pour quelqu’un (restaurant, loyer…) et touchez « Partager ».'
-              : 'Quand quelqu’un paie pour vous, notez votre part avec « Payé pour moi ».'
+              ? 'Ouvrez une dépense avancée pour quelqu’un (restaurant, loyer…) et touchez « J’ai payé pour quelqu’un ».'
+              : 'Quand quelqu’un paie pour vous, notez votre part avec « Quelqu’un a payé pour moi ».'
           }
           actions={
             side === 'owe' ? (
@@ -134,7 +134,7 @@ export function OwedPage({
                 className="text-primary min-h-11 text-sm font-medium"
                 onClick={() => setAdding(true)}
               >
-                Payé pour moi
+                Quelqu’un a payé pour moi
               </button>
             ) : undefined
           }

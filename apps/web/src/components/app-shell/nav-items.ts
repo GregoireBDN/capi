@@ -30,18 +30,21 @@ export interface NavItem {
   icon: LucideIcon
   /**
    * Counter shown next to the label: the transactions to review, opening
-   * Opérations filtered on « À revoir » (#322, on « Dépenses » since #393),
+   * Opérations filtered on « À revoir » (#322, on « Mouvements » since #393),
    * or what people owe the owner (#359).
    */
   badge?: 'reviewCount' | 'owedTotal'
   /**
    * Sub-pages out of the sidebar whose current entry is this one (#393:
-   * Opérations, reached from Dépenses' « ⋮ », highlights « Dépenses »).
+   * Opérations, reached from Mouvements' « ⋮ », highlights « Mouvements »).
    */
   alsoActiveOn?: readonly string[]
 }
 
-/** A titled group of the sidebar (#386: « Suivi », « Patrimoine », « Outils »). */
+/**
+ * A titled group of the sidebar (#386; #409: « Au quotidien », « Patrimoine »,
+ * « Outils »).
+ */
 export interface NavGroup {
   label: string
   items: readonly NavItem[]
@@ -77,13 +80,13 @@ export function carriedMonth(
 
 /**
  * Main navigation of the authenticated app, in groups (#386, the owner's
- * direction « A »): what happens month by month, what the owner holds, then
- * the tools. Navigation only: Réglages (and Catégories, Règles, Claude et
+ * direction « A »; #409): what the owner follows day to day (« Au quotidien »,
+ * Abonnements included), what he holds, then the tools. Navigation only: Réglages (and Catégories, Règles, Claude et
  * accès inside it) is reached from the account menu, the header's avatar.
  */
 export const NAV_GROUPS: readonly NavGroup[] = [
   {
-    label: 'Suivi',
+    label: 'Au quotidien',
     items: [
       {
         label: 'Tableau de bord',
@@ -91,9 +94,9 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         icon: LayoutDashboardIcon,
       },
       // Opérations is its sub-page (#393): reached from its « ⋮ », it
-      // keeps « Dépenses » current, and the « À revoir » count sits here.
+      // keeps « Mouvements » current, and the « À revoir » count sits here.
       {
-        label: 'Dépenses',
+        label: 'Mouvements',
         to: ROUTES.spending,
         icon: ChartPieIcon,
         badge: 'reviewCount',
@@ -101,10 +104,11 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       },
       { label: 'Budget', to: ROUTES.budget, icon: TargetIcon },
       {
-        label: 'Revue du mois',
+        label: 'Bilan du mois',
         to: ROUTES.monthReview,
         icon: CalendarCheckIcon,
       },
+      { label: 'Abonnements', to: ROUTES.subscriptions, icon: RepeatIcon },
     ],
   },
   {
@@ -115,7 +119,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       { label: 'Crypto', to: ROUTES.crypto, icon: BitcoinIcon },
       // What people owe the owner, both ways on its page (#359).
       {
-        label: 'Entre proches',
+        label: 'Dépenses partagées',
         to: ROUTES.owed,
         icon: HandCoinsIcon,
         badge: 'owedTotal',
@@ -124,10 +128,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   },
   {
     label: 'Outils',
-    items: [
-      { label: 'Abonnements', to: ROUTES.subscriptions, icon: RepeatIcon },
-      { label: 'Import', to: ROUTES.import, icon: UploadIcon },
-    ],
+    items: [{ label: 'Relevés', to: ROUTES.import, icon: UploadIcon }],
   },
 ]
 

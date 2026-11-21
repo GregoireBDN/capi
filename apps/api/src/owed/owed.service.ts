@@ -130,7 +130,7 @@ export function leftCents(row: {
 /**
  * Money owed between the owner and the people around him (#359): contacts,
  * what they owe him on the expenses he advanced (`owed_to_me`), what he owes
- * them on the expenses they paid for him (`i_owe`, « Payé pour moi »), and
+ * them on the expenses they paid for him (`i_owe`, « Quelqu’un a payé pour moi »), and
  * the repayments linked to them. States are computed, nothing is deleted
  * when a debt is settled or let go. Statistics read the owner's part through
  * the `transaction_lines` view; names, labels and amounts are never logged.
@@ -265,7 +265,7 @@ export class OwedService {
   }
 
   /**
-   * Sets everyone an expense is shared with (« Partager »): listed people
+   * Sets everyone an expense is shared with (« J’ai payé pour quelqu’un »): listed people
    * get or keep a share of that amount, the others lose theirs. A share
    * cannot go below what was repaid on it, and one partly repaid or let go
    * cannot be removed (409).
@@ -340,10 +340,10 @@ export class OwedService {
     return this.transactions.findOne(transactionId)
   }
 
-  // --- I owe: « Payé pour moi » ---------------------------------------------
+  // --- I owe: « Quelqu’un a payé pour moi » ---------------------------------------------
 
   /**
-   * Notes an expense a contact paid for the owner (« Payé pour moi »): a
+   * Notes an expense a contact paid for the owner (« Quelqu’un a payé pour moi »): a
    * manual expense without an account holding his part, in its category on
    * its day, and the `i_owe` receivable of that part (the bill kept beside).
    */
@@ -429,7 +429,7 @@ export class OwedService {
           if (row.billCents !== null && dto.amountCents > row.billCents) {
             throw new BadRequestException('partCents cannot exceed billCents')
           }
-          // The owner's part is the expense « Payé pour moi » itself.
+          // The owner's part is the expense « Quelqu’un a payé pour moi » itself.
           await tx
             .update(transactionsTable)
             .set({ amountCents: -dto.amountCents })
@@ -834,7 +834,7 @@ export class OwedService {
 
   // --- Reading --------------------------------------------------------------
 
-  /** « Entre proches »: both lists, per person, and this month's expected. */
+  /** « Dépenses partagées »: both lists, per person, and this month's expected. */
   async summary(now: Date = new Date()): Promise<OwedSummaryDto> {
     const today = todayInParis(now)
     const month = today.slice(0, 7)

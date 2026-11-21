@@ -35,7 +35,7 @@ export async function bankRows<T extends InsertTransaction>(
           : { ...row, dedupeHash: `manual:${row.dedupeHash}`.slice(0, 64) }
       }
       if (row.importId) return row
-      // A bank row is always on an account (#359: only « Payé pour moi »
+      // A bank row is always on an account (#359: only « Quelqu’un a payé pour moi »
       // rows, entered by hand, have none).
       const accountId = row.accountId!
       let importId = imports.get(accountId)

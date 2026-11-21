@@ -83,7 +83,7 @@ function Flags({ item }: { item: TransactionDto }) {
   const corrected =
     item.originalAmountCents !== null || item.originalBookingDate !== null
   const flags: { on: boolean; icon: LucideIcon; label: string }[] = [
-    { on: item.isOneOff, icon: SparkleIcon, label: 'Ponctuelle' },
+    { on: item.isOneOff, icon: SparkleIcon, label: 'Exceptionnelle' },
     {
       on: item.prepaidItemId !== null,
       icon: CalendarClockIcon,

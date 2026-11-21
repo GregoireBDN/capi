@@ -5,7 +5,7 @@ import { useAuth } from '#/lib/auth-context'
 
 /**
  * The dashboard follows today (#405): no month bar and no `?month=` (an old
- * link's month is dropped); past months are read in « Revue du mois ».
+ * link's month is dropped); past months are read in « Bilan du mois ».
  */
 export const Route = createFileRoute('/_app/dashboard')({
   validateSearch: () => ({}),

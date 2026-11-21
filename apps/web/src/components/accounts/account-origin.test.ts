@@ -27,7 +27,7 @@ describe('account origin (#324)', () => {
     })
     expect(accountBackLink({ from: 'month-review', month: '2026-09' })).toEqual(
       {
-        label: 'Revue du mois',
+        label: 'Bilan du mois',
         to: '/month-review',
         search: { month: '2026-09' },
       },

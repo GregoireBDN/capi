@@ -330,10 +330,10 @@ export function TransactionsPage({
       <PageHeader
         title="Opérations"
         description="Filtrez, recherchez et corrigez vos opérations."
-        // A sub-page of Dépenses (#393), reached from its « ⋮ »: back to it
+        // A sub-page of Mouvements (#393), reached from its « ⋮ »: back to it
         // on the month shown (none for every date).
         back={{
-          label: 'Dépenses',
+          label: 'Mouvements',
           to: ROUTES.spending,
           search:
             search.month && search.month !== ALL_MONTHS

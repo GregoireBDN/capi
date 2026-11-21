@@ -202,7 +202,7 @@ function SheetFilters({
           onCheckedChange={(on) => set('oneOff', on || undefined)}
         />
         <Label htmlFor={oneOffId} className="text-sm font-normal">
-          Ponctuelles
+          Exceptionnelles
         </Label>
       </div>
       {chipFilterCount(search) > 0 && (
@@ -379,7 +379,7 @@ export function TransactionFilters({
           hideWhenUnset
         />
         <ToggleChip
-          label="Ponctuelles"
+          label="Exceptionnelles"
           pressed={search.oneOff === true}
           onPressedChange={(on) => set('oneOff', on || undefined)}
           hideWhenOff

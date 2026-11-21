@@ -70,7 +70,7 @@ export function detourTitle(detour: EditDetour, item: TransactionDto): string {
     case 'counterpart':
       return counterpartLabel(item)
     case 'share':
-      return 'Partager'
+      return 'J’ai payé pour quelqu’un'
     case 'repayment':
       return repaymentTitle(item)
     case 'split':
@@ -116,7 +116,7 @@ export function EditOptionRows({
       <SettingRow
         key="share"
         icon={UsersIcon}
-        label="Partager"
+        label="J’ai payé pour quelqu’un"
         value={
           owedShares.length > 0
             ? owedShares.map((s) => s.contactName).join(', ')

@@ -30,7 +30,7 @@ describe('divideHalfEven', () => {
 })
 
 describe('equal parts', () => {
-  it('« Payé pour moi »: 90 € between 3 is 30 €, 100 € between 3 is 33,33 €', () => {
+  it('« Quelqu’un a payé pour moi »: 90 € between 3 is 30 €, 100 € between 3 is 33,33 €', () => {
     expect(equalPart(9000, 3)).toBe(3000)
     expect(equalPart(10000, 3)).toBe(3333)
   })

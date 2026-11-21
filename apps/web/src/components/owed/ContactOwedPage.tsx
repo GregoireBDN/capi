@@ -47,7 +47,7 @@ export function ContactOwedPage({
   const [open, setOpen] = useState<ReceivableDto | null>(null)
   const [adding, setAdding] = useState(false)
   const back = {
-    label: 'Entre proches',
+    label: 'Dépenses partagées',
     to: ROUTES.owed,
     search: side === 'owe' ? { side } : {},
   } as const
@@ -102,7 +102,7 @@ export function ContactOwedPage({
         back={back}
         actions={[
           {
-            label: 'Payé pour moi',
+            label: 'Quelqu’un a payé pour moi',
             icon: <HandCoinsIcon />,
             onSelect: () => setAdding(true),
           },

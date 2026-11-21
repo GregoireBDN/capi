@@ -35,7 +35,7 @@ export function stateText(item: ReceivableDto): string {
     : 'À rembourser'
 }
 
-/** Search of the « Entre proches » pages: `?side=owe` shows « Je dois ». */
+/** Search of the « Dépenses partagées » pages: `?side=owe` shows « Je dois ». */
 export interface OwedSearch {
   side?: 'owe'
 }

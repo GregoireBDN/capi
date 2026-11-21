@@ -35,7 +35,7 @@ export const PREVIEW_FOOTER =
 
 export const PREVIEW_HEADER = 'APERÇU — rien n’a encore été modifié.'
 
-/** Its account, or who paid it for the owner (#359, « Payé pour moi »). */
+/** Its account, or who paid it for the owner (#359, « Quelqu’un a payé pour moi »). */
 export function accountOf(t: TransactionDto): string {
   return (
     t.accountName ?? `payé par ${t.paidByContactName ?? 'quelqu’un d’autre'}`

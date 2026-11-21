@@ -71,7 +71,7 @@ function view(todo: Todo, today: string): TodoView {
         subtitle:
           todo.missing > 0
             ? `${plural(todo.missing, 'compte')} à mettre à jour avant`
-            : 'Revue et clôture du mois',
+            : 'Bilan et clôture du mois',
         link: <Link to={ROUTES.monthReview} search={{ month: todo.month }} />,
       }
     case 'budget':
