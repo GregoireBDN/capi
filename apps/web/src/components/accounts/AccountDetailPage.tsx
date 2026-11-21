@@ -146,7 +146,7 @@ export function AccountDetailPage({
   if (account.isPending || performance.isPending) {
     return (
       <div>
-        <PageBack {...back} />
+        <PageBack {...back} current="…" />
         <PageSkeleton />
       </div>
     )
@@ -160,7 +160,10 @@ export function AccountDetailPage({
       (error.status === 404 || error.status === 400)
     return (
       <div>
-        <PageBack {...back} />
+        <PageBack
+          {...back}
+          current={notFound ? 'Compte introuvable' : 'Compte'}
+        />
         {notFound ? (
           <Empty className="border">
             <EmptyHeader>

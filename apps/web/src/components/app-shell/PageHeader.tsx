@@ -12,7 +12,7 @@ import {
   Spinner,
 } from '@finances/ui'
 import { EllipsisVerticalIcon } from 'lucide-react'
-import { PageBack } from './PageBack'
+import { PageBack, useDefaultPageBack } from './PageBack'
 import type { PageBackLink } from './PageBack'
 import {
   useInShell,
@@ -33,8 +33,10 @@ interface PageHeaderProps {
    */
   actions?: readonly PageAction[]
   /**
-   * The page a sub-page goes back to (an account → « Épargne »): in the
-   * header on every width (`PageBack`).
+   * The page a sub-page goes back to (an account → « Épargne »): the
+   * header's breadcrumb « Épargne › Compte courant », « ‹ Épargne » on
+   * phones (`PageBack`, #404). The settings screens get « Réglages » from
+   * their layout (`DefaultPageBack`).
    */
   back?: PageBackLink
 }
@@ -53,8 +55,10 @@ export function PageHeader({
   description,
   titleAddon,
   actions = [],
-  back,
+  back: ownBack,
 }: PageHeaderProps) {
+  const defaultBack = useDefaultPageBack()
+  const back = ownBack ?? defaultBack
   const inShell = useInShell()
   const slot = usePageActionsSlot()
   const setTitleEndSlot = useSetPageTitleEndSlot()
@@ -67,7 +71,7 @@ export function PageHeader({
 
   return (
     <header>
-      {back && <PageBack {...back} />}
+      {back && <PageBack {...back} current={title} />}
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-[min(100%,14rem)] flex-1 space-y-1">
           {/* 44px high, so what a section puts at its end (#401) moves

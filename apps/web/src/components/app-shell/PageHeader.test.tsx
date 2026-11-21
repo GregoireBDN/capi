@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { PencilIcon, PlusIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { DefaultPageBack } from './PageBack'
 import { PageHeader } from './PageHeader'
 import {
   PageActionsSlotProvider,
@@ -206,19 +207,51 @@ describe('PageHeader', () => {
     ).toBeInTheDocument()
   })
 
-  it('puts the way back in the header on every width (#293, #324, #386)', () => {
+  it('puts the way back in the header as a breadcrumb (#386, #404)', () => {
     const back = { label: 'Épargne', to: '/savings' } as const
     for (const phone of [false, true]) {
       emulatePhone(phone)
       const { unmount } = renderInShell(
         <PageHeader title="Compte courant" back={back} />,
       )
+      // One trail, the parent a link, the page as text: from `md` up
+      // « Épargne › Compte courant », « ‹ Épargne » on phones (CSS only).
+      const trail = within(topBarBack()).getByRole('navigation', {
+        name: 'Fil d’Ariane',
+      })
       expect(
-        within(topBarBack()).getByRole('link', { name: 'Épargne' }),
+        within(trail).getByRole('link', { name: 'Épargne' }),
       ).toHaveAttribute('href', '/savings')
+      expect(within(trail).getByText('Compte courant')).toHaveAttribute(
+        'aria-current',
+        'page',
+      )
+      expect(within(trail).getAllByRole('listitem')).toHaveLength(2)
+      // The title stays the page's own.
+      expect(
+        within(page()).getByRole('heading', { name: 'Compte courant' }),
+      ).toBeInTheDocument()
       expect(within(page()).queryByRole('link')).toBeNull()
       unmount()
     }
+  })
+
+  it('takes the way back of its layout when it has none (#404)', () => {
+    renderInShell(
+      <DefaultPageBack back={{ label: 'Réglages', to: '/settings' }}>
+        <PageHeader title="Sécurité" />
+      </DefaultPageBack>,
+    )
+    const trail = within(topBarBack()).getByRole('navigation', {
+      name: 'Fil d’Ariane',
+    })
+    expect(
+      within(trail).getByRole('link', { name: 'Réglages' }),
+    ).toHaveAttribute('href', '/settings')
+    expect(within(trail).getByText('Sécurité')).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
   })
 
   it('keeps the way back in the page outside the shell', () => {
