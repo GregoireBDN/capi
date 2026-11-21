@@ -6,7 +6,7 @@
  * Security first: only the static app shell is cached. `/api/*`, non-GET and
  * cross-origin requests are not intercepted, and server-rendered pages are
  * never stored (network first, offline page as the only fallback). See
- * `../routing.ts` for the decisions and CLAUDE.md ("PWA") for the overview.
+ * `../routing.ts` for the decisions and docs/domain/pwa.md for the overview.
  *
  * Must stay self-contained: the plugin fails the build if this chunk imports
  * anything (it is registered as a classic script).
