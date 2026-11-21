@@ -65,7 +65,7 @@ export const ACCOUNT_TYPE_ICONS: Record<
 const CRYPTO_KIND_LABELS = {
   exchange: 'Plateforme crypto',
   wallet: 'Wallet crypto',
-  manual: 'Cryptos saisies à la main',
+  manual: 'Compte crypto',
 } as const
 
 /**

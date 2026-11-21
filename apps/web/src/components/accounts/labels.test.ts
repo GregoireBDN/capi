@@ -19,7 +19,7 @@ describe('accountKindLabel', () => {
       'Wallet crypto',
     )
     expect(accountKindLabel({ type: 'crypto', cryptoSource: 'manual' })).toBe(
-      'Cryptos saisies à la main',
+      'Compte crypto',
     )
     expect(accountKindLabel({ type: 'crypto', cryptoSource: null })).toBe(
       'Crypto',
