@@ -51,7 +51,12 @@ import { todayInParis } from './dates'
 import { InvestedSheet } from './InvestedSheet'
 import { InvestmentSummary } from './InvestmentSummary'
 import { historyPoints } from './history'
-import { formatAge, isInvestmentType, valueAgeText } from './labels'
+import {
+  accountKindLabel,
+  formatAge,
+  isInvestmentType,
+  valueAgeText,
+} from './labels'
 import { LinkedTransfers } from './LinkedTransfers'
 import { MealVoucherAccount } from './MealVoucherAccount'
 import { MovementsCard } from './Movements'
@@ -90,6 +95,8 @@ function AccountHeader({
       <PageHeader
         back={back}
         title={account.name}
+        crumb={accountKindLabel(account)}
+        compactTitle
         titleAddon={
           account.archivedAt && (
             <Badge variant="secondary" outline>
@@ -149,7 +156,7 @@ export function AccountDetailPage({
   if (account.isPending || performance.isPending) {
     return (
       <div>
-        <PageBack {...back} />
+        <PageBack {...back} current="…" />
         <PageSkeleton />
       </div>
     )
@@ -163,7 +170,10 @@ export function AccountDetailPage({
       (error.status === 404 || error.status === 400)
     return (
       <div>
-        <PageBack {...back} />
+        <PageBack
+          {...back}
+          current={notFound ? 'Compte introuvable' : 'Compte'}
+        />
         {notFound ? (
           <Empty className="border">
             <EmptyHeader>

@@ -15,7 +15,8 @@ import { useSetPageActionsSlot, useSetPageBackSlot } from './page-actions'
  *   sidebar is on screen and folds from its own foot (`AppSidebar`), which
  *   frees the header.
  * - The logo, back to the dashboard; a sub-page's way back (`PageBack`,
- *   « ‹ Comptes ») takes its place on phones and follows it from `md` up.
+ *   #404) follows it from `md` up as a breadcrumb « Comptes › Compte
+ *   courant », and takes its place on phones as « ‹ Comptes ».
  * - The page's actions behind one « ⋮ » (`PageHeader`), on every width,
  *   only on a page that has some: the same header everywhere (the owner's
  *   choice on #386, after trying them as icons, beside the title, and a

@@ -1,6 +1,15 @@
 import { Link } from '@tanstack/react-router'
 import type { LinkProps } from '@tanstack/react-router'
-import { ChevronLeftIcon } from 'lucide-react'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@finances/ui'
+import { createContext, useContext } from 'react'
+import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { usePageBackSlot } from './page-actions'
 
@@ -14,26 +23,69 @@ export interface PageBackLink {
 }
 
 /**
- * The way back from a sub-page, the one back link of the app (the owner's
- * « A », #293, kept for every page in #324: accounts and the settings
- * screens): « ‹ Comptes » in the header (`AppHeader`, #386), in place of the
- * logo on phones and after it from `md` up. The server renders it visually
- * hidden (still reachable without JavaScript); it moves into the header once
- * hydrated, like the page actions. Render it first on the page.
+ * The way back of every page under a layout that has one (the settings
+ * screens: « Réglages »), for its `PageHeader`s without a `back` of their own.
  */
-export function PageBack({ label, to, params, search }: PageBackLink) {
+const DefaultPageBackContext = createContext<PageBackLink | undefined>(
+  undefined,
+)
+
+export function DefaultPageBack({
+  back,
+  children,
+}: {
+  back: PageBackLink | undefined
+  children: ReactNode
+}) {
+  return (
+    <DefaultPageBackContext.Provider value={back}>
+      {children}
+    </DefaultPageBackContext.Provider>
+  )
+}
+
+export function useDefaultPageBack(): PageBackLink | undefined {
+  return useContext(DefaultPageBackContext)
+}
+
+/**
+ * The way back from a sub-page, the one back link of the app (#293, #324),
+ * a breadcrumb since #404 (the owner's « A »): « Comptes › Compte courant »
+ * in the header after the logo from `md` up, the parent a link and the page
+ * as text; on phones « ‹ Comptes » in place of the logo, the page's title
+ * right below saying where you are (`Breadcrumb` `backOnPhones`). The page's
+ * title is unchanged. The server renders the link visually hidden (still
+ * reachable without JavaScript); it moves into the header once hydrated,
+ * like the page actions. Rendered first by `PageHeader`.
+ */
+export function PageBack({
+  label,
+  to,
+  params,
+  search,
+  current,
+}: PageBackLink & {
+  /** The page shown, the breadcrumb's last step (the page's title). */
+  current: string
+}) {
   const slot = usePageBackSlot()
   const link = { to, params, search } as LinkProps
 
   if (slot !== null) {
     return createPortal(
-      <Link
-        {...link}
-        className="text-primary hover:bg-muted/60 focus-visible:ring-ring/50 flex h-11 min-w-0 items-center gap-0.5 rounded-lg pr-2 pl-1 text-base font-medium outline-none focus-visible:ring-[3px]"
-      >
-        <ChevronLeftIcon aria-hidden className="size-6 shrink-0" />
-        <span className="truncate">{label}</span>
-      </Link>,
+      <Breadcrumb backOnPhones>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link {...link}>{label}</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{current}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>,
       slot,
     )
   }
