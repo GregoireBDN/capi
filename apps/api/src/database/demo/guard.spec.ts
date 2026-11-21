@@ -28,6 +28,42 @@ describe('assertDemoTarget', () => {
     )
   })
 
+  it('refuses production on the staging database unless it is named', () => {
+    expect(() =>
+      assertDemoTarget(url('finances_staging'), 'production'),
+    ).toThrow(/NODE_ENV=production/)
+    expect(() =>
+      assertDemoTarget(url('finances_staging'), 'production', 'other_staging'),
+    ).toThrow(/NODE_ENV=production/)
+  })
+
+  it('accepts production on the staging database it names', () => {
+    expect(
+      assertDemoTarget(
+        url('finances_staging'),
+        'production',
+        'finances_staging',
+      ),
+    ).toBe('finances_staging')
+  })
+
+  it('never accepts the app database, even named as staging', () => {
+    expect(() =>
+      assertDemoTarget(url('finances'), 'production', 'finances'),
+    ).toThrow(/app database/)
+    expect(() =>
+      assertDemoTarget(url('finances'), 'production', 'finances_staging'),
+    ).toThrow(/app database/)
+  })
+
+  it('only accepts a staging-looking name in production', () => {
+    for (const name of ['finances_demo', 'staging', 'Finances_staging']) {
+      expect(() => assertDemoTarget(url(name), 'production', name)).toThrow(
+        /NODE_ENV=production/,
+      )
+    }
+  })
+
   it('refuses a URL without a database name', () => {
     expect(() =>
       assertDemoTarget('postgres://user:password@localhost:5432', 'test'),

@@ -1,6 +1,6 @@
 # Runbook — releasing and deploying Finances
 
-How a version reaches the server, how to set the pipeline up once, and how to roll back. Decisions: [ADR 0001](../adr/0001-multi-app-hosting.md) §5–6. The production stack itself (`docker-compose.prod.yml`, `/srv/finances/.env`, first start) is described in the production stack runbook (#28).
+How a version reaches the server, how to set the pipeline up once, and how to roll back. Decisions: [ADR 0001](../adr/0001-multi-app-hosting.md) §5–6. The production stack itself (`docker-compose.prod.yml`, `/srv/finances/.env`, first start) is described in the production stack runbook (#28). Every merge to `main` also deploys to **staging** (demo data only, no approval, `deploy.sh --staging`): see the [staging runbook](staging.md) (#421).
 
 ## How it works
 

@@ -1,0 +1,43 @@
+# Staging (#421, runbook: docs/runbooks/staging.md): an override of
+# docker-compose.prod.yml for the `finances-staging` project, deployed from
+# every merge to main by .github/workflows/staging.yml and deploy/deploy.sh
+# --staging, in /srv/finances-staging with its own `.env` (template:
+# .env.staging.example).
+#
+#   docker compose -p finances-staging -f docker-compose.prod.yml -f docker-compose.staging.yml ...
+#
+# Same images as production (FINANCES_VERSION=sha-<commit>), own database
+# volume (finances-staging_db_data), own secrets and host name, no published
+# port. It only ever holds the demo data: each deploy wipes the database and
+# seeds it again (seed-demo.js --reset). What must never differ from that is
+# fixed here rather than in `.env`: the database name, the switches below, and
+# web's alias on the `proxy` network.
+name: finances-staging
+
+services:
+  db:
+    environment:
+      POSTGRES_DB: finances_staging
+
+  api:
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/finances_staging
+      # The one database the demo seed may wipe with NODE_ENV=production
+      # (demo/guard.ts); it still refuses `finances`.
+      DEMO_STAGING_DATABASE: finances_staging
+      # No email, no remote MCP, no call to price or chain APIs: the demo's
+      # crypto prices are seeded manual prices.
+      SMTP_HOST: ''
+      REMOTE_MCP_ENABLED: 'false'
+      PRICE_API_ENABLED: 'false'
+      WALLET_SYNC_ENABLED: 'false'
+
+  web:
+    networks:
+      default: {}
+      proxy:
+        # Replaces production's `finances-web` (a plain list would be merged
+        # with it, and Caddy would send production traffic here too).
+        # Caddy (infra repo) targets finances-staging-web:3000.
+        aliases: !override
+          - finances-staging-web
