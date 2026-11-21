@@ -687,7 +687,14 @@ type Overlay = { kind: 'list'; key: ListKey } | { kind: 'sheet' } | null
  * The totals (every direction): labels over their figures, the note inside
  * ------------------------------------------------------------------------ */
 
-function Totals({ review }: { review: boolean }) {
+function Totals({
+  review,
+  head,
+}: {
+  review: boolean
+  /** A first row (1a·A·2: the filters set, the totals being theirs). */
+  head?: React.ReactNode
+}) {
   if (review) return null
   const figures = [
     { label: 'Revenus', cents: 245_000 },
@@ -699,6 +706,7 @@ function Totals({ review }: { review: boolean }) {
       aria-label="Résumé"
       className="bg-card @container overflow-hidden rounded-xl border"
     >
+      {head}
       <dl className="grid grid-cols-3 divide-x">
         {figures.map((figure) => (
           <div key={figure.label} className="@container min-w-0 px-3 py-2">
@@ -1335,6 +1343,137 @@ function ToolOneOff({ state }: { state: FilterState }) {
   )
 }
 
+/** The filters set, each with its value's icon (and how to clear it). */
+function activeItems(state: FilterState) {
+  const items: {
+    key: string
+    icon: React.ReactNode
+    label: string
+    clear: () => void
+  }[] = []
+  for (const key of ['account', 'category', 'kind'] as const) {
+    const value = state.filters[key]
+    if (value === undefined) continue
+    const chosen = valueOf(key, value)
+    items.push({
+      key,
+      icon: chosen.icon,
+      label: chosen.label,
+      clear: () => state.setList(key, undefined),
+    })
+  }
+  if (state.filters.oneOff)
+    items.push({
+      key: 'oneOff',
+      icon: <FilterBadge icon={SparkleIcon} size="sm" />,
+      label: 'Ponctuelles',
+      clear: () => state.setToggle('oneOff', false),
+    })
+  return items
+}
+
+/** The values set, one after the other, each with its icon. */
+function ActiveValues({ state }: { state: FilterState }) {
+  return (
+    <span className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+      {activeItems(state).map((item, index) => (
+        <React.Fragment key={item.key}>
+          {index > 0 && (
+            <span aria-hidden className="text-muted-foreground">
+              ·
+            </span>
+          )}
+          {item.icon}
+          <span className="truncate font-medium">{item.label}</span>
+        </React.Fragment>
+      ))}
+    </span>
+  )
+}
+
+/** 1a·A·1: one line « [icon] Livret A · [icon] Courses   × ». */
+function ActiveLine({
+  state,
+  setOverlay,
+}: {
+  state: FilterState
+  setOverlay: (overlay: Overlay) => void
+}) {
+  return (
+    <div className="flex min-h-[44px] items-center gap-1">
+      <button
+        type="button"
+        aria-label="Filtres choisis, modifier"
+        onClick={() => setOverlay({ kind: 'sheet' })}
+        className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2 pl-1 text-left text-[15px] outline-none"
+      >
+        <ActiveValues state={state} />
+      </button>
+      <button
+        type="button"
+        aria-label="Effacer les filtres"
+        onClick={state.clearChips}
+        className="text-muted-foreground hover:bg-muted flex size-[40px] shrink-0 items-center justify-center rounded-md"
+      >
+        <XIcon aria-hidden className="size-[18px]" />
+      </button>
+    </div>
+  )
+}
+
+/** 1a·A·2: the first row of the totals, which are those of the filters. */
+function ActiveTotalsHead({ state }: { state: FilterState }) {
+  if (activeItems(state).length === 0) return null
+  return (
+    <div className="flex min-h-[44px] items-center gap-2 border-b bg-[color-mix(in_srgb,var(--primary)_6%,var(--card))] pr-1 pl-2.5 text-[15px]">
+      <span className="min-w-0 flex-1">
+        <ActiveValues state={state} />
+      </span>
+      <button
+        type="button"
+        aria-label="Effacer les filtres"
+        onClick={state.clearChips}
+        className="hover:bg-muted flex size-[40px] shrink-0 items-center justify-center rounded-md"
+      >
+        <XIcon aria-hidden className="size-[16px]" />
+      </button>
+    </div>
+  )
+}
+
+/** 1a·A·3: one row of light tokens, scrolling sideways, never wrapping. */
+function ActiveTokens({ state }: { state: FilterState }) {
+  return (
+    <div className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 [scrollbar-width:none]">
+      {activeItems(state).map((item) => (
+        <span
+          key={item.key}
+          className="bg-muted inline-flex h-[36px] shrink-0 items-center gap-1.5 rounded-lg pr-0.5 pl-2 text-[15px]"
+        >
+          {item.icon}
+          <span className="font-medium whitespace-nowrap">{item.label}</span>
+          <button
+            type="button"
+            aria-label={`Retirer ${item.label}`}
+            onClick={item.clear}
+            className="hover:bg-foreground/10 relative flex size-8 items-center justify-center rounded-md pointer-coarse:touch-hitbox"
+          >
+            <XIcon aria-hidden className="size-[14px]" />
+          </button>
+        </span>
+      ))}
+      <Button
+        variant="secondary"
+        ghost
+        className="h-[36px] shrink-0 px-2"
+        onClick={state.clearChips}
+      >
+        Effacer
+      </Button>
+    </div>
+  )
+}
+
 function Toolbar({
   state,
   phone,
@@ -1342,7 +1481,14 @@ function Toolbar({
   openCategory,
   filtersInSearch = false,
   phoneReview,
+  phoneSet = 'chips',
 }: DirectionProps & {
+  /**
+   * Phones: how the filters set show under the search: the tinted chips,
+   * one summary line, nothing (the totals say them), or one row of light
+   * tokens scrolling sideways.
+   */
+  phoneSet?: 'chips' | 'line' | 'totals' | 'scroll'
   /** Phones: the filters button inside the search field (1a·A). */
   filtersInSearch?: boolean
   /** Phones: a row of its own under the search (1a·B). */
@@ -1406,7 +1552,11 @@ function Toolbar({
           </div>
         )}
         {phoneReview}
-        {set > 0 && (
+        {set > 0 && phoneSet === 'line' && (
+          <ActiveLine state={state} setOverlay={setOverlay} />
+        )}
+        {set > 0 && phoneSet === 'scroll' && <ActiveTokens state={state} />}
+        {set > 0 && phoneSet === 'chips' && (
           <div className="flex flex-wrap items-center gap-2">
             <ToolFilter listKey="account" state={state} phone />
             <ToolFilter listKey="category" state={state} phone />
@@ -1507,6 +1657,30 @@ function Direction1aA(props: DirectionProps) {
   return {
     titleEnd: <ReviewButton state={props.state} phone={props.phone} pill />,
     body: <Toolbar {...props} filtersInSearch />,
+  }
+}
+
+function Direction1aA1(props: DirectionProps) {
+  return {
+    ...Direction1aA(props),
+    body: <Toolbar {...props} filtersInSearch phoneSet="line" />,
+  }
+}
+
+function Direction1aA2(props: DirectionProps) {
+  return {
+    ...Direction1aA(props),
+    body: <Toolbar {...props} filtersInSearch phoneSet="totals" />,
+    totalsHead: props.phone ? (
+      <ActiveTotalsHead state={props.state} />
+    ) : undefined,
+  }
+}
+
+function Direction1aA3(props: DirectionProps) {
+  return {
+    ...Direction1aA(props),
+    body: <Toolbar {...props} filtersInSearch phoneSet="scroll" />,
   }
 }
 
@@ -1657,7 +1831,16 @@ function Direction1c(props: DirectionProps) {
  * Frames and boards
  * ------------------------------------------------------------------------ */
 
-type Direction = 'A' | '1a' | '1aA' | '1aB' | '1b' | '1c'
+type Direction =
+  | 'A'
+  | '1a'
+  | '1aA'
+  | '1aA1'
+  | '1aA2'
+  | '1aA3'
+  | '1aB'
+  | '1b'
+  | '1c'
 
 interface DirectionProps {
   state: FilterState
@@ -1691,6 +1874,9 @@ function Frame({
     A: DirectionA,
     '1a': Direction1a,
     '1aA': Direction1aA,
+    '1aA1': Direction1aA1,
+    '1aA2': Direction1aA2,
+    '1aA3': Direction1aA3,
     '1aB': Direction1aB,
     '1b': Direction1b,
     '1c': Direction1c,
@@ -1730,7 +1916,10 @@ function Frame({
         titleEnd={view.titleEnd}
       >
         {view.body}
-        <Totals review={state.filters.review} />
+        <Totals
+          review={state.filters.review}
+          head={(view as { totalsHead?: React.ReactNode }).totalsHead}
+        />
         <ListPreview review={state.filters.review} />
       </Chrome>
       {screen}
@@ -1863,6 +2052,39 @@ const meta = {
 
 export default meta
 type Story = StoryObj<typeof meta>
+
+export const R1aA1_Ligne: Story = {
+  name: '1a·A·1. Filtres choisis : une ligne',
+  render: (args) => (
+    <Board
+      direction="1aA1"
+      group={toGroup((args as { group?: unknown }).group)}
+      text="1a·A·1 (téléphone). Les filtres choisis ne sont plus des badges : une seule ligne de texte sous la recherche, « [icône] Livret A · [icône] Courses », qui ouvre les filtres, et × au bout pour tout effacer."
+    />
+  ),
+}
+
+export const R1aA2_Totaux: Story = {
+  name: '1a·A·2. Filtres choisis : en tête des totaux',
+  render: (args) => (
+    <Board
+      direction="1aA2"
+      group={toGroup((args as { group?: unknown }).group)}
+      text="1a·A·2 (téléphone). Les filtres choisis ouvrent la carte des totaux, dont ils sont la source : « [icône] Livret A · [icône] Courses × » sur sa première ligne, légèrement teintée. Rien de plus sous la recherche."
+    />
+  ),
+}
+
+export const R1aA3_Defilante: Story = {
+  name: '1a·A·3. Filtres choisis : une rangée qui défile',
+  render: (args) => (
+    <Board
+      direction="1aA3"
+      group={toGroup((args as { group?: unknown }).group)}
+      text="1a·A·3 (téléphone). Des étiquettes légères, grises, sans bordure ni couleur de fond, sur une seule rangée qui défile de côté (jamais sur deux lignes), puis « Effacer »."
+    />
+  ),
+}
 
 export const R1aA_FiltresDansLaRecherche: Story = {
   name: '1a·A. Téléphone : filtres dans la recherche',
