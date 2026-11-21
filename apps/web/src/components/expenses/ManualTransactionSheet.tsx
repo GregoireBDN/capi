@@ -604,11 +604,7 @@ export function ManualTransactionSheet({
       ? 'Sans catégorie, indiquez un libellé'
       : null
 
-  // A bank row (#74): the bank's values, kept whatever is corrected.
-  const bankAmountCents = item?.originalAmountCents ?? item?.amountCents ?? 0
-  const bankDate = item?.originalBookingDate ?? item?.bookingDate ?? ''
-  const signedCents =
-    (direction === 'in' ? 1 : -1) * (parseEurosToCents(amount) ?? 0)
+  // A bank row (#398): the bank's amount and day, never changed here.
 
   function undoToast(message: string, undo: () => Promise<unknown>) {
     toast.success(message, {
@@ -812,7 +808,8 @@ export function ManualTransactionSheet({
       onOpenChange(false)
       return
     }
-    // A bank row: its category, flags and note…
+    // A bank row: its category, flags and note only; its amount and day
+    // are the bank's (#398, refused by the API and the database).
     const changes: TransactionChanges = { ...reviewChange }
     if (changed('categoryId')) {
       changes.categoryId = categoryId || null
@@ -824,19 +821,6 @@ export function ManualTransactionSheet({
     if (isOneOff !== was.isOneOff) changes.isOneOff = isOneOff
     if (note.trim() !== was.note.trim()) changes.note = note.trim()
     if (Object.keys(changes).length > 0) actions.onChange(changes)
-    // …then its amount and day, corrected (#74), or the bank's put back.
-    if (signedCents !== item.amountCents || date !== item.bookingDate) {
-      if (signedCents === bankAmountCents && date === bankDate) {
-        actions.onRestoreBank()
-      } else {
-        actions.onCorrect({
-          ...(signedCents !== item.amountCents
-            ? { amountCents: signedCents }
-            : {}),
-          ...(date !== item.bookingDate ? { bookingDate: date } : {}),
-        })
-      }
-    }
     onOpenChange(false)
   }
 
@@ -1029,42 +1013,14 @@ export function ManualTransactionSheet({
     </div>
   )
 
-  /** A line under a corrected bank value, « Rétablir » putting it back. */
-  function bankValue(what: 'amount' | 'day') {
-    if (!bank) return null
-    const corrected =
-      what === 'amount' ? signedCents !== bankAmountCents : date !== bankDate
-    const restore = () => {
-      if (what === 'day') return setDate(bankDate)
-      setAmount(centsToInput(Math.abs(bankAmountCents)))
-      setDirection(bankAmountCents > 0 ? 'in' : 'out')
-    }
-    return corrected ? (
-      <p className="text-muted-foreground flex flex-wrap items-center justify-center gap-x-2 text-xs">
-        <span>
-          Corrigé · banque :{' '}
-          {what === 'amount'
-            ? formatCents(bankAmountCents)
-            : formatCalendarDate(bankDate)}
-        </span>
-        <Button
-          type="button"
-          size="sm"
-          ghost
-          variant="primary"
-          className="px-1"
-          onClick={restore}
-        >
-          Rétablir
-        </Button>
-      </p>
-    ) : (
-      <p className="text-muted-foreground text-center text-xs">
-        {what === 'amount' ? 'Montant' : 'Jour'} de la banque. Le corriger garde
-        le sien pour le solde et les imports.
-      </p>
-    )
-  }
+  /**
+   * A bank row keeps the bank's amount and day (#398): its « Montant » and
+   * « Détails » steps are greyed out, the recap says both. One corrected
+   * before keeps « Rétablir les valeurs de la banque » in its options.
+   */
+  const legacyCorrected =
+    bank &&
+    (item.originalAmountCents !== null || item.originalBookingDate !== null)
 
   const steps = (
     <SheetSteps
@@ -1097,13 +1053,14 @@ export function ManualTransactionSheet({
           key: 'amount',
           label: STEP_NAMES.amount,
           icon: <EuroIcon aria-hidden />,
-          disabled: !categoryChosen,
+          // A bank row keeps the bank's amount and day (#398).
+          disabled: !categoryChosen || bank,
         },
         {
           key: 'details',
           label: STEP_NAMES.details,
           icon: <CalendarDaysIcon aria-hidden />,
-          disabled: !categoryChosen || amountError !== null,
+          disabled: !categoryChosen || amountError !== null || bank,
         },
         {
           key: 'options',
@@ -1475,7 +1432,6 @@ export function ManualTransactionSheet({
                   options.
                 </p>
               )}
-              {bankValue('amount')}
               {voucherGauge && (
                 <div className="mx-auto w-full max-w-64 pt-1">
                   {voucherGauge}
@@ -1504,10 +1460,8 @@ export function ManualTransactionSheet({
               invalid={showDateError}
               onPickingChange={setPickingDay}
             />
-            {pickingDay ? null : showDateError ? (
+            {!pickingDay && showDateError && (
               <FieldError>{dateError}</FieldError>
-            ) : (
-              bankValue('day')
             )}
           </div>
           {!pickingDay && (
@@ -1635,6 +1589,30 @@ export function ManualTransactionSheet({
               </>
             )}
           </div>
+
+          {legacyCorrected && actions && (
+            <div className="bg-muted/40 space-y-2 rounded-md px-3 py-2.5">
+              <p className="text-muted-foreground text-sm">
+                Corrigée à la main avant : la banque dit{' '}
+                {formatCents(item.originalAmountCents ?? item.amountCents)} le{' '}
+                {formatCalendarDate(
+                  item.originalBookingDate ?? item.bookingDate,
+                )}
+                .
+              </p>
+              <Button
+                type="button"
+                variant="secondary"
+                outline
+                onClick={() => {
+                  actions.onRestoreBank()
+                  onOpenChange(false)
+                }}
+              >
+                Rétablir les valeurs de la banque
+              </Button>
+            </div>
+          )}
 
           {/* Adding an expense (#398): who shares it, or my part of what
               someone else paid, kept until « Ajouter ». */}

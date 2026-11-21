@@ -40,7 +40,6 @@ const api = vi.hoisted(() => ({
   transactionsControllerRemoveManual: vi.fn(),
   transactionsControllerSplit: vi.fn(),
   transactionsControllerUnsplit: vi.fn(),
-  transactionsControllerCorrect: vi.fn(),
   transactionsControllerRestoreBankValues: vi.fn(),
   categorizationRulesControllerSuggest: vi.fn(),
   categorizationRulesControllerPreview: vi.fn(),
@@ -1686,47 +1685,46 @@ describe('TransactionsPage', () => {
       expect(api.transactionsControllerSplit).not.toHaveBeenCalled()
     })
 
-    it('corrects an imported amount in its step, the bank value kept, and undoes it', async () => {
+    it('keeps the bank amount and date of an imported row (#398)', async () => {
       const { user } = setup()
       await waitForRows()
-      api.transactionsControllerCorrect.mockReturnValue(
-        ok({ ...shopRow, amountCents: -4_000, originalAmountCents: -4_550 }),
-      )
-
       await user.click(
         screen.getByRole('button', { name: 'Modifier Fakemart' }),
       )
       const editor = await screen.findByRole('dialog')
-      await user.click(
+      // Only its category and its options: amount and day are the bank's.
+      expect(
         within(editor).getByRole('button', { name: /^2\. Montant/ }),
-      )
-      const amount = within(editor).getByLabelText('Montant')
-      // Typed unsigned (#326): the sign is the transaction's own.
-      expect(amount).toHaveValue('45,50')
-      expect(editor).toHaveTextContent('Montant de la banque')
-      await user.clear(amount)
-      await user.type(amount, '40')
-      // The bank's value stays in view, one tap to put it back.
-      expect(editor).toHaveTextContent(`Corrigé · banque : ${euros(-4_550)}`)
+      ).toBeDisabled()
+      expect(
+        within(editor).getByRole('button', { name: /^3\. Détails/ }),
+      ).toBeDisabled()
+    })
+
+    it('puts the bank values back on a row corrected before (#398)', async () => {
+      const corrected = {
+        ...shopRow,
+        categoryId: groceries.id,
+        category: { ...groceries },
+        amountCents: -4_000,
+        originalAmountCents: -4_550,
+      }
+      api.transactionsControllerList.mockReturnValue(listOf([corrected]))
+      const { user } = setup()
+      await screen.findByRole('button', { name: 'Modifier Fakemart' })
+      api.transactionsControllerRestoreBankValues.mockReturnValue(ok(shopRow))
       await user.click(
-        within(editor).getByRole('button', { name: 'Enregistrer' }),
+        screen.getByRole('button', { name: 'Modifier Fakemart' }),
       )
-      await waitFor(() =>
-        expect(api.transactionsControllerCorrect).toHaveBeenCalledWith({
-          path: { id: shopRow.id },
-          body: { amountCents: -4_000 },
-          throwOnError: false,
+      const editor = await screen.findByRole('dialog')
+      expect(editor).toHaveTextContent(
+        `Corrigée à la main avant : la banque dit ${euros(-4_550)}`,
+      )
+      await user.click(
+        within(editor).getByRole('button', {
+          name: 'Rétablir les valeurs de la banque',
         }),
       )
-      await waitFor(() =>
-        expect(
-          screen.getByRole('listitem', { name: 'Fakemart' }),
-        ).toHaveTextContent('Montant ou date corrigé à la main'),
-      )
-      expect(api.transactionsControllerUpdate).not.toHaveBeenCalled()
-
-      api.transactionsControllerRestoreBankValues.mockReturnValue(ok(shopRow))
-      lastToastAction().onClick()
       await waitFor(() =>
         expect(
           api.transactionsControllerRestoreBankValues,

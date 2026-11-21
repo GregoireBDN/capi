@@ -222,7 +222,6 @@ export function TransactionRow({
   onSelectedChange,
   onChange,
   onUpdateManual,
-  onCorrect,
   onRestoreBank,
   onSplit,
   onUnsplit,
@@ -374,7 +373,6 @@ export function TransactionRow({
         actions={{
           onChange: change,
           onUpdateManual,
-          onCorrect,
           onRestoreBank,
           onSplit,
           onUnsplit,

@@ -19,7 +19,6 @@ import {
 import type {
   AccountDto,
   CategoryDto,
-  CorrectTransactionDto,
   TransactionDto,
   UpdateManualTransactionDto,
 } from '#/api/types.gen'
@@ -63,7 +62,6 @@ export interface EditDetourActions {
  */
 export interface TransactionEditActions extends EditDetourActions {
   onUpdateManual: (changes: UpdateManualTransactionDto) => Promise<boolean>
-  onCorrect: (body: CorrectTransactionDto) => void
   onRestoreBank: () => void
 }
 

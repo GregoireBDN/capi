@@ -553,7 +553,6 @@ export function TransactionsPage({
                   }),
                 onUpdateManual: (changes) =>
                   actions.updateManual(item, changes),
-                onCorrect: (body) => void actions.correct(item, body),
                 onRestoreBank: () => void actions.restoreBank(item),
                 onSplit: (parts) => void actions.split(item, parts),
                 onUnsplit: () => void actions.unsplit(item),
