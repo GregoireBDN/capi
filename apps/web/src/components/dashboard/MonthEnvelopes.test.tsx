@@ -697,7 +697,9 @@ describe('MonthEnvelopes', () => {
       within(dialog).getByRole('button', { name: /^4\. Options/ }),
     )
     // « J’ai payé pour quelqu’un › » opens in the same frame, ‹ back to the options.
-    await user.click(within(dialog).getByRole('button', { name: /^J’ai payé pour quelqu’un/ }))
+    await user.click(
+      within(dialog).getByRole('button', { name: /^J’ai payé pour quelqu’un/ }),
+    )
     await user.click(
       await within(dialog).findByRole('button', { name: /Camille/ }),
     )

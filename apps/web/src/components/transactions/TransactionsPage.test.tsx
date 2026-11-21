@@ -504,10 +504,9 @@ describe('TransactionsPage', () => {
       'aria-pressed',
       'true',
     )
-    expect(screen.getByRole('button', { name: 'Exceptionnelles' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    expect(
+      screen.getByRole('button', { name: 'Exceptionnelles' }),
+    ).toHaveAttribute('aria-pressed', 'true')
     expect(
       screen.getByRole('button', { name: 'Filtres, 5 actifs' }),
     ).toBeInTheDocument()
@@ -995,7 +994,9 @@ describe('TransactionsPage', () => {
     await user.click(
       within(editor).getByRole('button', { name: /^\d\. Options/ }),
     )
-    await user.click(within(editor).getByRole('switch', { name: /Exceptionnelle/ }))
+    await user.click(
+      within(editor).getByRole('switch', { name: /Exceptionnelle/ }),
+    )
     await user.click(
       within(editor).getByRole('button', { name: 'Enregistrer' }),
     )

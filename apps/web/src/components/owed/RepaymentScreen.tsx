@@ -21,9 +21,7 @@ import {
 export function repaymentTitle(item: TransactionDto): string {
   // Money in: someone pays the owner back; money out: he pays someone
   // back (#398: one name per direction).
-  return item.amountCents > 0
-    ? 'On me rembourse'
-    : 'Je rembourse'
+  return item.amountCents > 0 ? 'On me rembourse' : 'Je rembourse'
 }
 
 /**
