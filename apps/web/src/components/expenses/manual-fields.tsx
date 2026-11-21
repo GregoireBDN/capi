@@ -1,6 +1,8 @@
-import { ToggleGroup, ToggleGroupItem, cn } from '@finances/ui'
-import { CalendarIcon } from 'lucide-react'
+import { OptionRow, cn } from '@finances/ui'
+import type { ReactNode } from 'react'
 import type { AccountDto } from '#/api/types.gen'
+import { ACCOUNT_TYPE_ICONS } from '#/components/accounts/labels'
+import { formatCents } from '#/lib/money'
 
 /**
  * Quick-entry fields of `ManualTransactionSheet` (#196, #245): chips and
@@ -32,129 +34,56 @@ export function previousDay(day: string): string {
     .slice(0, 10)
 }
 
-const shortDay = new Intl.DateTimeFormat('fr-FR', {
-  weekday: 'short',
-  day: 'numeric',
-  month: 'short',
-  timeZone: 'UTC',
-})
-
-/** `2026-11-08` → "dim. 8 nov." */
-function formatShortDay(day: string): string {
-  const [year, month, date] = day.split('-').map(Number)
-  return shortDay.format(new Date(Date.UTC(year, month - 1, date)))
-}
-
 /**
- * "Aujourd'hui", "Hier", then a chip that opens the native date picker (a
- * transparent date input laid over it) and shows the day picked there.
+ * « Payé avec » (#398, the owner's choice): one row per account, its type's
+ * badge, its name and balance, a check on the chosen one. `children` ends
+ * the choice (« Quelqu’un d’autre », #398).
  */
-export function DateChips({
-  value,
-  today,
-  invalid,
-  onChange,
-}: {
-  value: string
-  today: string
-  invalid: boolean
-  onChange: (day: string) => void
-}) {
-  const yesterday = previousDay(today)
-  const quick =
-    value === today ? 'today' : value === yesterday ? 'yesterday' : ''
-  const other = value !== '' && quick === ''
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      <ToggleGroup
-        type="single"
-        spacing={1.5}
-        aria-label="Jour"
-        className="flex-wrap"
-        value={quick}
-        onValueChange={(next) => {
-          if (next === 'today') onChange(today)
-          else if (next === 'yesterday') onChange(yesterday)
-        }}
-      >
-        <ToggleGroupItem value="today" className={cn(CHIP_CLASS, CHIP_ON)}>
-          Aujourd’hui
-        </ToggleGroupItem>
-        <ToggleGroupItem value="yesterday" className={cn(CHIP_CLASS, CHIP_ON)}>
-          Hier
-        </ToggleGroupItem>
-      </ToggleGroup>
-      <div
-        data-state={other ? 'on' : 'off'}
-        className={cn(
-          CHIP_CLASS,
-          CHIP_ON,
-          'relative inline-flex items-center gap-1.5',
-          'has-[input:focus-visible]:border-ring has-[input:focus-visible]:ring-3 has-[input:focus-visible]:ring-ring/50',
-          invalid && 'border-destructive text-destructive',
-        )}
-      >
-        <CalendarIcon aria-hidden className="size-4" />
-        <span>{other ? formatShortDay(value) : 'Autre'}</span>
-        <input
-          type="date"
-          aria-label="Date"
-          aria-invalid={invalid}
-          max={today}
-          value={value}
-          // Transparent over the chip: a tap opens the native picker (iOS,
-          // Android); desktop browsers need showPicker().
-          className="absolute inset-0 size-full cursor-pointer appearance-none text-base opacity-0"
-          onClick={(event) => {
-            try {
-              event.currentTarget.showPicker()
-            } catch {
-              // Not supported or not allowed: the input still takes typing.
-            }
-          }}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      </div>
-    </div>
-  )
-}
-
-/**
- * The account as chips (#298): « Payé avec » the bank account or the
- * meal-voucher card, one tap, for the categories the card pays.
- */
-export function AccountChips({
+export function AccountRows({
   labelId,
   accounts,
   value,
   onChange,
+  children,
 }: {
   labelId: string
-  accounts: readonly Pick<AccountDto, 'id' | 'name'>[]
+  accounts: readonly Pick<AccountDto, 'id' | 'name' | 'type' | 'balanceCents'>[]
   value: string
   onChange: (accountId: string) => void
+  children?: ReactNode
 }) {
   return (
-    <ToggleGroup
-      type="single"
-      spacing={1.5}
-      aria-labelledby={labelId}
-      className="flex-wrap"
-      value={value}
-      onValueChange={(next) => {
-        if (next) onChange(next)
-      }}
-    >
-      {accounts.map((account) => (
-        <ToggleGroupItem
-          key={account.id}
-          value={account.id}
-          className={cn(CHIP_CLASS, CHIP_ON, 'max-w-full')}
-        >
-          <span className="truncate">{account.name}</span>
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
+    <div className="bg-muted/40 divide-y overflow-hidden rounded-md">
+      <div role="radiogroup" aria-labelledby={labelId} className="divide-y">
+        {accounts.map((account) => {
+          const { icon: Icon, className } = ACCOUNT_TYPE_ICONS[account.type]
+          return (
+            <OptionRow
+              key={account.id}
+              selected={account.id === value}
+              leading={
+                <span
+                  className={cn(
+                    'flex size-[36px] shrink-0 items-center justify-center rounded-full',
+                    className,
+                  )}
+                >
+                  <Icon aria-hidden className="size-[18px]" />
+                </span>
+              }
+              label={account.name}
+              detail={
+                account.balanceCents === null
+                  ? undefined
+                  : `Solde ${formatCents(account.balanceCents)}`
+              }
+              onClick={() => onChange(account.id)}
+            />
+          )
+        })}
+        {children}
+      </div>
+    </div>
   )
 }
 

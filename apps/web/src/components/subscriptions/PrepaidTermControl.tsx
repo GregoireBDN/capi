@@ -1,9 +1,7 @@
-import { SegmentedControl, SegmentedControlItem } from '@finances/ui'
+import { OptionRow } from '@finances/ui'
 import { useId } from 'react'
 import { formatCents } from '#/lib/money'
 import { PREPAID_TERMS, prepaidMonthlyCents } from './format'
-
-const NONE = 'none'
 
 interface PrepaidTermControlProps {
   /** Term in months, null for « Non » (only offered with `allowNone`). */
@@ -11,15 +9,17 @@ interface PrepaidTermControlProps {
   onChange: (value: number | null) => void
   /** Offers « Non »: an item charged every period. */
   allowNone?: boolean
-  /** The upfront payment, positive cents: previews the monthly cost. */
+  /** The upfront payment, positive cents: each term shows its monthly cost. */
   amountCents?: number
   label?: string
+  /** A line under a term (its renewal date), from its months. */
+  detail?: (months: number) => string | undefined
 }
 
 /**
- * The term of a prepaid subscription (#314): 12, 24 or 36 months (a term
- * set otherwise is offered too), one segmented choice, with the monthly
- * equivalent it gives under it.
+ * The term of a prepaid subscription (#314, as a list since #398): 12, 24
+ * or 36 months (a term set otherwise is offered too), one row each with
+ * what it comes to per month; « Non » first when offered.
  */
 export function PrepaidTermControl({
   value,
@@ -27,6 +27,7 @@ export function PrepaidTermControl({
   allowNone = false,
   amountCents,
   label = 'Payé d’avance pour',
+  detail,
 }: PrepaidTermControlProps) {
   const id = useId()
   const terms: number[] = [...PREPAID_TERMS]
@@ -35,32 +36,47 @@ export function PrepaidTermControl({
     terms.sort((a, b) => a - b)
   }
   return (
-    <div className="space-y-1.5">
-      <p id={`${id}-label`} className="text-sm font-medium">
+    <div className="space-y-2">
+      <p
+        id={`${id}-label`}
+        className="text-muted-foreground px-1 text-xs font-semibold tracking-wide uppercase"
+      >
         {label}
       </p>
-      <SegmentedControl
+      <div
+        role="radiogroup"
         aria-labelledby={`${id}-label`}
-        fullWidth
-        value={value === null ? NONE : String(value)}
-        onValueChange={(next) => onChange(next === NONE ? null : Number(next))}
+        className="bg-muted/40 divide-y overflow-hidden rounded-md"
       >
         {allowNone && (
-          <SegmentedControlItem value={NONE}>Non</SegmentedControlItem>
+          <OptionRow
+            selected={value === null}
+            label="Non"
+            detail="Prélevé à chaque période"
+            onClick={() => onChange(null)}
+          />
         )}
         {terms.map((term) => (
-          <SegmentedControlItem key={term} value={String(term)}>
-            {term} mois
-          </SegmentedControlItem>
+          <OptionRow
+            key={term}
+            selected={value === term}
+            label={
+              amountCents === undefined ? (
+                `${term} mois`
+              ) : (
+                <span className="flex items-baseline justify-between gap-3">
+                  <span>{term} mois</span>
+                  <span className="text-muted-foreground text-[15px] font-normal tabular-nums">
+                    {formatCents(prepaidMonthlyCents(amountCents, term))} / mois
+                  </span>
+                </span>
+              )
+            }
+            detail={detail?.(term)}
+            onClick={() => onChange(term)}
+          />
         ))}
-      </SegmentedControl>
-      <p className="text-muted-foreground text-xs tabular-nums">
-        {value === null
-          ? 'Prélevé à chaque période.'
-          : amountCents !== undefined
-            ? `${formatCents(prepaidMonthlyCents(amountCents, value))} / mois : ${formatCents(amountCents)} ÷ ${value} mois, payés en une fois.`
-            : `Payé en une fois pour ${value} mois.`}
-      </p>
+      </div>
     </div>
   )
 }

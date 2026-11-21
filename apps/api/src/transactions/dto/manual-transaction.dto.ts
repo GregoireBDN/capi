@@ -12,7 +12,6 @@ import {
   Max,
   MaxLength,
   Min,
-  NotEquals,
   ValidateIf,
 } from 'class-validator'
 import {
@@ -232,35 +231,6 @@ export class UpdateManualTransactionDto {
   @IsString()
   @MaxLength(MANUAL_NOTE_MAX)
   note?: string | null
-}
-
-/**
- * Hand correction of an imported row's amount or date (#74). The bank values
- * are kept (`originalAmountCents`, `originalBookingDate`) and keep feeding
- * balances, continuity checks and the dedupe of later imports.
- */
-export class CorrectTransactionDto {
-  @ApiPropertyOptional({
-    type: 'integer',
-    minimum: -MANUAL_AMOUNT_MAX_CENTS,
-    maximum: MANUAL_AMOUNT_MAX_CENTS,
-    description: 'Corrected signed amount, integer cents (never 0).',
-  })
-  @NotNullIfPresent()
-  @IsInt()
-  @NotEquals(0)
-  @Min(-MANUAL_AMOUNT_MAX_CENTS)
-  @Max(MANUAL_AMOUNT_MAX_CENTS)
-  amountCents?: number
-
-  @ApiPropertyOptional({
-    ...DATE_DOC,
-    description: 'Corrected booking date.',
-  })
-  @NotNullIfPresent()
-  @Matches(ISO_DATE, { message: '$property must be YYYY-MM-DD' })
-  @IsISO8601({ strict: true })
-  bookingDate?: string
 }
 
 /** Labels suggested at most when entering a transaction by hand (#196). */

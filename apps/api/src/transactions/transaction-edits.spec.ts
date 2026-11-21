@@ -25,6 +25,7 @@ import {
 } from '#/imports/testing/cic-csv-fixture'
 import { ManualTransactionsService } from './manual-transactions.service'
 import { TransactionsService } from './transactions.service'
+import { legacyCorrect } from './testing/legacy-correction'
 
 /**
  * Hand edits of #74 against the migrated test database: corrections of
@@ -179,26 +180,19 @@ describe.skipIf(!process.env.DATABASE_URL)(
         })
     }
 
-    describe('correcting an imported row', () => {
+    describe('an imported row corrected before #398', () => {
       it('keeps the bank values and a re-import neither duplicates nor overwrites it', async () => {
         await withFixture(
-          async ({
-            importRows,
-            byLabel,
-            transactions,
-            accounts,
-            accountId,
-            tx,
-          }) => {
+          async ({ importRows, byLabel, accounts, accountId, tx }) => {
             await importRows(OCTOBER)
             const balanceBefore = await accounts.findOne(accountId)
             const market = await byLabel(MARKET)
 
-            const corrected = await transactions.correct(market.id, {
+            await legacyCorrect(tx, market.id, {
               amountCents: -3_000,
               bookingDate: '2026-10-07',
             })
-            expect(corrected).toMatchObject({
+            expect(await byLabel(MARKET)).toMatchObject({
               amountCents: -3_000,
               bookingDate: '2026-10-07',
               originalAmountCents: -4_500,
@@ -229,10 +223,17 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
       it('counts the corrected amount in statistics, the bank one in the continuity check', async () => {
         await withFixture(
-          async ({ importRows, byLabel, transactions, imports, accountId }) => {
+          async ({
+            importRows,
+            byLabel,
+            transactions,
+            imports,
+            accountId,
+            tx,
+          }) => {
             await importRows(OCTOBER)
             const market = await byLabel(MARKET)
-            await transactions.correct(market.id, { amountCents: -3_000 })
+            await legacyCorrect(tx, market.id, { amountCents: -3_000 })
             const summary = await transactions.summary({ month: '2026-10' })
             expect(summary.expenseCents).toBe(-5_000)
 
@@ -256,17 +257,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
 
       it('goes back to the bank values', async () => {
-        await withFixture(async ({ importRows, byLabel, transactions }) => {
+        await withFixture(async ({ importRows, byLabel, transactions, tx }) => {
           await importRows(OCTOBER)
           const market = await byLabel(MARKET)
-          await transactions.correct(market.id, {
+          await legacyCorrect(tx, market.id, {
             amountCents: -3_000,
             bookingDate: '2026-10-07',
           })
-          // Typing the bank value again drops its original.
-          expect(
-            await transactions.correct(market.id, { amountCents: -4_500 }),
-          ).toMatchObject({ amountCents: -4_500, originalAmountCents: null })
           expect(await transactions.restoreBankValues(market.id)).toMatchObject(
             {
               amountCents: -4_500,
@@ -279,27 +276,28 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
 
       it('dates the data with the bank date', async () => {
-        await withFixture(
-          async ({ importRows, byLabel, transactions, tx, accountId }) => {
-            await importRows(OCTOBER)
-            const bar = await byLabel(BAR)
-            await transactions.correct(bar.id, { bookingDate: '2026-10-30' })
-            expect(await dataUntil(tx, { accountId, now: NOW })).toBe(
-              '2026-10-28',
-            )
-          },
-        )
+        await withFixture(async ({ importRows, byLabel, tx, accountId }) => {
+          await importRows(OCTOBER)
+          const bar = await byLabel(BAR)
+          await legacyCorrect(tx, bar.id, { bookingDate: '2026-10-30' })
+          expect(await dataUntil(tx, { accountId, now: NOW })).toBe(
+            '2026-10-28',
+          )
+        })
       })
 
-      it('refuses a manual transaction', async () => {
-        await withFixture(async ({ manual, transactions, outings }) => {
-          const noted = await manual.create(
-            { amountCents: 500, categoryId: outings },
-            NOW,
-          )
+      it('never corrects an imported row again (#398)', async () => {
+        await withFixture(async ({ importRows, byLabel, tx }) => {
+          await importRows(OCTOBER)
+          const market = await byLabel(MARKET)
           await expect(
-            transactions.correct(noted.id, { amountCents: -600 }),
-          ).rejects.toBeInstanceOf(BadRequestException)
+            tx.transaction(async (nested) => {
+              await nested
+                .update(transactionsTable)
+                .set({ amountCents: -3_000, originalAmountCents: -4_500 })
+                .where(eq(transactionsTable.id, market.id))
+            }),
+          ).rejects.toMatchObject({ cause: { code: '23514' } })
         })
       })
     })
@@ -425,11 +423,6 @@ describe.skipIf(!process.env.DATABASE_URL)(
               { categoryId: groceries, amountCents: -3_300 },
             ]
             await transactions.split(market.id, parts)
-            await expect(
-              transactions.correct(market.id, { amountCents: -4_000 }),
-            ).rejects.toBeInstanceOf(BadRequestException)
-            // A date correction is fine.
-            await transactions.correct(market.id, { bookingDate: '2026-10-06' })
 
             const whole = await transactions.update(market.id, {
               categoryId: outings,

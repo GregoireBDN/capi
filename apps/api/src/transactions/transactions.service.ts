@@ -54,7 +54,6 @@ import {
   type TransactionSummaryDto,
   type UpdateTransactionDto,
 } from './dto/transaction.dto'
-import type { CorrectTransactionDto } from './dto/manual-transaction.dto'
 import { assertKindOfCategory, KIND_OF_CATEGORY_MESSAGE } from './category-kind'
 
 type Db = PostgresJsDatabase<typeof schema>
@@ -407,69 +406,11 @@ export class TransactionsService {
     })
   }
 
-  /**
-   * Corrects the amount or date of an imported row by hand ("modifier une
-   * opération importée"). The bank values are kept the first time
-   * (`originalAmountCents`, `originalBookingDate`) and keep feeding balances,
-   * continuity checks, coverage and the dedupe of later imports, so a
-   * re-import never duplicates or overwrites the correction. Setting a value
-   * back to the bank's drops its original. Rows entered by hand are edited
-   * through `PATCH /transactions/manual/{id}` instead.
+  /*
+   * An imported row keeps its bank amount and date (#398, the owner's
+   * decision; the `transactions_bank_values_kept` trigger refuses any other
+   * write): a correction made before can only be undone, below.
    */
-  correct(id: string, dto: CorrectTransactionDto): Promise<TransactionDto> {
-    if (dto.amountCents === undefined && dto.bookingDate === undefined) {
-      throw new BadRequestException('Nothing to update')
-    }
-    return this.db.transaction(async (tx) => {
-      const [current] = await tx
-        .select({
-          manual: transactionsTable.manual,
-          amountCents: transactionsTable.amountCents,
-          bookingDate: transactionsTable.bookingDate,
-          originalAmountCents: transactionsTable.originalAmountCents,
-          originalBookingDate: transactionsTable.originalBookingDate,
-        })
-        .from(transactionsTable)
-        .where(eq(transactionsTable.id, id))
-        .for('update')
-      if (!current) throw new NotFoundException('Transaction not found')
-      if (current.manual) {
-        throw new BadRequestException(
-          'A manual transaction is edited through PATCH /transactions/manual/{id}',
-        )
-      }
-      const set: TransactionSet = {}
-      if (
-        dto.amountCents !== undefined &&
-        dto.amountCents !== current.amountCents
-      ) {
-        if (await this.isSplit(id, tx)) {
-          throw new BadRequestException(
-            'The transaction is split: remove the split before changing its amount',
-          )
-        }
-        await this.assertCarries(tx, id, dto.amountCents)
-        const bank = current.originalAmountCents ?? current.amountCents
-        set.amountCents = dto.amountCents
-        set.originalAmountCents = dto.amountCents === bank ? null : bank
-      }
-      if (
-        dto.bookingDate !== undefined &&
-        dto.bookingDate !== current.bookingDate
-      ) {
-        const bank = current.originalBookingDate ?? current.bookingDate
-        set.bookingDate = dto.bookingDate
-        set.originalBookingDate = dto.bookingDate === bank ? null : bank
-      }
-      if (Object.keys(set).length > 0) {
-        await tx
-          .update(transactionsTable)
-          .set(set)
-          .where(eq(transactionsTable.id, id))
-      }
-      return this.findOne(id, tx)
-    })
-  }
 
   /** Puts the bank amount and date of a corrected imported row back. */
   restoreBankValues(id: string): Promise<TransactionDto> {

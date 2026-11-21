@@ -311,9 +311,14 @@ describe('SpendingPage', () => {
     await screen.findByRole('region', { name: 'Indicateurs du mois' })
 
     // Outside the shell the page actions are buttons beside the title.
-    expect(
-      screen.getByRole('button', { name: 'Ajouter une dépense' }),
-    ).toBeInTheDocument()
+    // The kind is chosen before adding (#398).
+    for (const name of [
+      'Ajouter une dépense',
+      'Ajouter un revenu',
+      'Ajouter un virement',
+    ]) {
+      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+    }
     await userEvent.click(
       screen.getByRole('button', { name: 'Voir les opérations' }),
     )

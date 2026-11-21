@@ -1,11 +1,9 @@
 import {
-  transactionsControllerCorrect,
   transactionsControllerRestoreBankValues,
   transactionsControllerSplit,
   transactionsControllerUnsplit,
 } from '#/api'
 import type {
-  CorrectTransactionDto,
   SplitPartDto,
   TransactionDto,
   TransactionKind,
@@ -35,16 +33,6 @@ export function splitTransaction(
 export function unsplitTransaction(id: string): Promise<TransactionDto> {
   return unwrap(
     transactionsControllerUnsplit({ path: { id }, throwOnError: false }),
-  )
-}
-
-/** Corrects the amount or date of an imported transaction. */
-export function correctTransaction(
-  id: string,
-  body: CorrectTransactionDto,
-): Promise<TransactionDto> {
-  return unwrap(
-    transactionsControllerCorrect({ path: { id }, body, throwOnError: false }),
   )
 }
 

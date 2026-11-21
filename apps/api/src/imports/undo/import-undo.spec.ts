@@ -24,6 +24,7 @@ import { RecurringService } from '#/recurring/recurring.service'
 import { ManualTransactionsService } from '#/transactions/manual-transactions.service'
 import { TransactionsService } from '#/transactions/transactions.service'
 import { restoredManual } from './import-undo'
+import { legacyCorrect } from '#/transactions/testing/legacy-correction'
 
 /**
  * Undoing a committed import (#371): what it deletes is counted beforehand,
@@ -261,7 +262,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Import undo (database)', () => {
           { categoryId: groceries, amountCents: -4_000 },
           { categoryId: outings, amountCents: -2_000 },
         ])
-        await transactions.correct((await byLabel(PHARMACY)).id, {
+        await legacyCorrect(tx, (await byLabel(PHARMACY)).id, {
           amountCents: -900,
         })
         await transactions.update((await byLabel(TO_OTHER)).id, {
