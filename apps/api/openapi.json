@@ -19104,6 +19104,28 @@
           "belowThreshold"
         ]
       },
+      "SavingsMovedDto": {
+        "type": "object",
+        "properties": {
+          "toSavingsCents": {
+            "type": "integer",
+            "description": "As `SavingsMonthDto.movedToSavingsCents`."
+          },
+          "toInvestmentsCents": {
+            "type": "integer",
+            "description": "As `SavingsMonthDto.movedToInvestmentsCents`."
+          },
+          "totalCents": {
+            "type": "integer",
+            "description": "`toSavingsCents + toInvestmentsCents`."
+          }
+        },
+        "required": [
+          "toSavingsCents",
+          "toInvestmentsCents",
+          "totalCents"
+        ]
+      },
       "SavingsMonthDto": {
         "type": "object",
         "properties": {
@@ -19389,6 +19411,14 @@
               }
             ]
           },
+          "moved": {
+            "description": "Moved to savings and investments during `period.month` (« Mis de côté »), up to `period.dataUntil` while it is partial.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SavingsMovedDto"
+              }
+            ]
+          },
           "monthlyTargetCents": {
             "type": "integer",
             "nullable": true,
@@ -19422,6 +19452,7 @@
           "period",
           "current",
           "previous",
+          "moved",
           "monthlyTargetCents",
           "months",
           "averages",

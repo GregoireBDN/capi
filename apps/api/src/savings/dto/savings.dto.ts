@@ -420,6 +420,27 @@ export class SavingsStockDto {
   investments!: InvestmentsStockDto
 }
 
+/** What left the checking accounts for savings and investments in a month. */
+export class SavingsMovedDto {
+  @ApiProperty({
+    type: 'integer',
+    description: 'As `SavingsMonthDto.movedToSavingsCents`.',
+  })
+  toSavingsCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'As `SavingsMonthDto.movedToInvestmentsCents`.',
+  })
+  toInvestmentsCents!: number
+
+  @ApiProperty({
+    type: 'integer',
+    description: '`toSavingsCents + toInvestmentsCents`.',
+  })
+  totalCents!: number
+}
+
 export class SavingsOverviewDto {
   @ApiProperty({ type: String, description: 'Current month (Europe/Paris).' })
   currentMonth!: string
@@ -444,6 +465,13 @@ export class SavingsOverviewDto {
       'The month before, up to `period.previousUntil`: its same first days while `period.month` is partial. Not comparable when `period.status` is `empty`.',
   })
   previous!: MonthFlowDto
+
+  @ApiProperty({
+    type: SavingsMovedDto,
+    description:
+      'Moved to savings and investments during `period.month` (« Mis de côté »), up to `period.dataUntil` while it is partial.',
+  })
+  moved!: SavingsMovedDto
 
   @ApiProperty({
     type: 'integer',

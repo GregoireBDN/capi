@@ -99,7 +99,7 @@ export function investmentFlowLines(flows: InvestmentFlowsDto): string[] {
   }
   const names = new Map(flows.accounts.map((a) => [a.accountId, a.name]))
   return [
-    `Où est allé l'argent investi du ${frenchDate(flows.from)} au ${frenchDate(flows.to)} : ${signedEuros(flows.netCents)} nets (versé ${euros(flows.depositsCents)}, retiré ${euros(flows.withdrawalsCents)}).`,
+    `Où est allé l'argent investi du ${frenchDate(flows.from)} au ${frenchDate(flows.to)} : ${signedEuros(flows.netCents)} nets (mis de côté ${euros(flows.depositsCents)}, retiré ${euros(flows.withdrawalsCents)}).`,
     ...flows.accounts.map(
       (a) =>
         `- ${a.name} (${ACCOUNT_TYPE_LABELS[a.type]}) : ${signedEuros(a.netCents)} en ${a.count} virement(s)${a.withdrawalsCents > 0 ? `, dont ${euros(a.withdrawalsCents)} retirés` : ''}`,
@@ -154,7 +154,7 @@ export const savingsTool = defineTool({
   name: 'savings_and_goals',
   title: 'Épargne et objectifs',
   description:
-    'Savings: what was saved this month and month by month (income + expenses, transfers excluded), averages, money moved to savings and investment accounts, the savings stock (savings accounts and investments: invested, value and gain, the invested amount coming from the transfers linked to the account when it has some), where the invested money went (transfers linked to each investment account, per month), and the savings goals with their progress and projection.',
+    "Savings, in the app's words: « Épargné » (what was saved this month and month by month: income + expenses, transfers excluded) against the monthly « Cible », averages, « Mis de côté » (money moved to savings and investment accounts), « Livrets et placements » (savings accounts and investments: invested, value and gain, the invested amount coming from the transfers linked to the account when it has some), where the invested money went (transfers linked to each investment account, per month), and the savings goals with their progress and projection.",
   inputSchema: {
     months: z
       .number()
@@ -181,13 +181,14 @@ export const savingsTool = defineTool({
     ])
     const { stock, averages } = overview
     const lines = [
-      `Épargne de ${frenchMonth(overview.period.month)} : ${flowLine(overview.current)}.`,
+      `Épargné en ${frenchMonth(overview.period.month)} : ${flowLine(overview.current)}.`,
       periodNote(overview.period),
       `${frenchMonth(overview.previous.month)} sur la même période : ${flowLine(overview.previous)}.`,
+      `Mis de côté en ${frenchMonth(overview.period.month)} : ${signedEuros(overview.moved.totalCents)} (livrets ${signedEuros(overview.moved.toSavingsCents)}, placements ${signedEuros(overview.moved.toInvestmentsCents)}).`,
     ]
     if (overview.monthlyTargetCents !== null) {
       lines.push(
-        `Objectif d'épargne mensuel : ${euros(overview.monthlyTargetCents)}.`,
+        `Cible : ${euros(overview.monthlyTargetCents)} par mois${overview.period.status === 'complete' ? ` (écart ${signedEuros(overview.current.netCents - overview.monthlyTargetCents)})` : ''}.`,
       )
     }
     // 3, 6 and 12 months: with a short history they cover the same months.
@@ -202,14 +203,14 @@ export const savingsTool = defineTool({
         'Moyennes par mois (mois complets) :',
         ...windows.map(
           (a) =>
-            `- ${a.monthCount} mois${a.from && a.to ? ` (${shortMonth(a.from)} à ${shortMonth(a.to)})` : ''} : revenus ${eurosOrUnknown(a.incomeCents)}, dépenses ${eurosOrUnknown(a.expenseCents)}, épargné ${eurosOrUnknown(a.netCents)} (hors exceptionnel ${eurosOrUnknown(a.netExcludingOneOffsCents)}), versé sur l'épargne et les placements ${eurosOrUnknown(a.movedCents)}, taux ${percent(a.savingsRate)}`,
+            `- ${a.monthCount} mois${a.from && a.to ? ` (${shortMonth(a.from)} à ${shortMonth(a.to)})` : ''} : revenus ${eurosOrUnknown(a.incomeCents)}, dépenses ${eurosOrUnknown(a.expenseCents)}, épargné ${eurosOrUnknown(a.netCents)} (hors exceptionnel ${eurosOrUnknown(a.netExcludingOneOffsCents)}), mis de côté ${eurosOrUnknown(a.movedCents)}, taux ${percent(a.savingsRate)}`,
         ),
       )
     }
     lines.push(
       '',
-      `Épargne totale : ${euros(stock.totalCents)}${stock.gainCents === null ? '' : ` (dont résultat des placements ${signedEuros(stock.gainCents)})`}.`,
-      `Livrets et comptes d'épargne : ${euros(stock.cash.totalCents)}`,
+      `Livrets et placements : ${euros(stock.totalCents)}${stock.gainCents === null ? '' : ` (dont résultat des placements ${signedEuros(stock.gainCents)})`}.`,
+      `Livrets : ${euros(stock.cash.totalCents)}`,
       ...stock.cash.accounts.map(
         (a) =>
           `- ${a.name} : ${a.balanceCents === null ? 'solde inconnu' : `${euros(a.balanceCents)} au ${frenchDate(a.balanceDate)}`}`,
@@ -221,14 +222,7 @@ export const savingsTool = defineTool({
       ...cryptoMovementLines(movements),
       '',
       table(
-        [
-          'Mois',
-          'Revenus',
-          'Dépenses',
-          'Épargné',
-          'Taux',
-          'Versé épargne/placements',
-        ],
+        ['Mois', 'Revenus', 'Dépenses', 'Épargné', 'Taux', 'Mis de côté'],
         overview.months.map((m) => [
           `${shortMonth(m.month)}${m.complete ? '' : ' (en cours)'}`,
           euros(m.incomeCents),
@@ -240,9 +234,15 @@ export const savingsTool = defineTool({
       ),
     )
     const active = goals.filter((g) => !g.archived)
+    const needs = active
+      .filter((g) => !g.reached && g.requiredMonthlyCents !== null)
+      .map((g) => g.requiredMonthlyCents ?? 0)
+    const need = needs.reduce((a, b) => a + b, 0)
     lines.push(
       '',
-      'Objectifs :',
+      needs.length === 0
+        ? 'Objectifs :'
+        : `Objectifs : ensemble, ${euros(need)} par mois${overview.projectionAverageCents === null ? '' : ` ; épargné en moyenne ${euros(overview.projectionAverageCents)} (6 mois complets, hors exceptionnel) : marge ${signedEuros(overview.projectionAverageCents - need)}`}.`,
       ...(active.length > 0 ? active.map(goalLine) : ['- aucun']),
     )
     return lines.join('\n')
