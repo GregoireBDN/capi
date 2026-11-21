@@ -21,16 +21,6 @@ export function signedWholeEuros(cents: number): string {
   return cents > 0 && /[1-9]/.test(text) ? `+${text}` : text
 }
 
-/**
- * Cards read top to bottom on a phone; on a computer each card spreads its
- * figures across its width in strips (the owner's « Bandeaux », as on the
- * dashboard), never two columns of cards. Width of the card's content.
- */
-export const WIDE = '@[32rem]'
-/** A strip: the main figure on the left, its bars beside it. */
-export const STRIP =
-  'space-y-4 @[32rem]:grid @[32rem]:grid-cols-[13rem_minmax(0,1fr)] @[32rem]:items-center @[32rem]:gap-x-8 @[32rem]:space-y-0'
-
 /** Colours of the split bars: savings accounts, then investments. */
 export const SAVINGS_COLOR = 'bg-emerald-500'
 export const INVESTMENTS_COLOR = 'bg-violet-500'
@@ -66,24 +56,15 @@ export function FigureRow({
   value,
   tone = 'neutral',
   dot,
-  stackWhenWide = false,
 }: {
   label: ReactNode
   value: ReactNode
   tone?: Tone
   /** A colour dot before the label, matching a bar's part. */
   dot?: string
-  /** On a wide card, the figure over its label, like a `Stat`. */
-  stackWhenWide?: boolean
 }) {
   return (
-    <div
-      className={cn(
-        'flex items-baseline justify-between gap-3 text-sm',
-        stackWhenWide &&
-          '@[32rem]:flex-col-reverse @[32rem]:items-start @[32rem]:justify-start @[32rem]:gap-0.5',
-      )}
-    >
+    <div className="flex items-baseline justify-between gap-3 text-sm">
       <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 break-normal">
         {dot && (
           <span

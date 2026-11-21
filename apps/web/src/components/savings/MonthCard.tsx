@@ -11,6 +11,7 @@ import {
 } from '@finances/ui'
 import { CalendarXIcon, CheckIcon, TargetIcon } from 'lucide-react'
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import type {
   MonthPeriodDto,
   SavingsMonthDto,
@@ -23,10 +24,10 @@ import { comparisonLabel, formatShortDay } from '#/lib/period'
 import {
   FigureRow,
   signedWholeEuros,
-  STRIP,
   SplitBar,
   Stat,
   StatusChip,
+  TONE_TEXT,
 } from './figures'
 import type { Tone } from './figures'
 import { TargetForm } from './TargetForm'
@@ -75,9 +76,12 @@ export function monthStatus(
 export function MonthCard({
   overview,
   onMonthChange,
+  wide = false,
 }: {
   overview: SavingsOverviewDto
   onMonthChange: (month: string) => void
+  /** A computer: the month as one row of figures (#407, « A. Rangée »). */
+  wide?: boolean
 }) {
   const target = overview.monthlyTargetCents
   const [editing, setEditing] = useState(false)
@@ -94,13 +98,17 @@ export function MonthCard({
     <Card className="min-w-0">
       <CardHeader className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <CardTitle>
-          {partial && period.month === overview.currentMonth
-            ? 'Épargné à ce jour'
-            : 'Épargné'}
+          {wide
+            ? partial && period.dataUntil !== null
+              ? `${monthName(period.month)}, au ${formatShortDay(period.dataUntil)}`
+              : monthName(period.month)
+            : partial && period.month === overview.currentMonth
+              ? 'Épargné à ce jour'
+              : 'Épargné'}
         </CardTitle>
         {period.status !== 'empty' && <MonthStatusChip overview={overview} />}
       </CardHeader>
-      <CardContent className="@container space-y-4">
+      <CardContent className="space-y-4">
         {editing ? (
           <TargetForm target={target} onDone={() => setEditing(false)} />
         ) : period.status === 'empty' ? (
@@ -118,6 +126,8 @@ export function MonthCard({
               />
             }
           />
+        ) : wide ? (
+          <MonthRow overview={overview} />
         ) : (
           <MonthFigures overview={overview} />
         )}
@@ -170,9 +180,7 @@ function MonthFigures({ overview }: { overview: SavingsOverviewDto }) {
 
   return (
     <>
-      {/* A computer: the figure beside its gauge, then the figures beside
-          the dots and the average. */}
-      <div className={STRIP}>
+      <div className="space-y-4">
         <p
           className={cn(
             'text-[2.6rem] leading-none font-semibold tracking-tight whitespace-nowrap tabular-nums',
@@ -189,7 +197,7 @@ function MonthFigures({ overview }: { overview: SavingsOverviewDto }) {
           partial={partial}
         />
       </div>
-      <div className="space-y-4 @[32rem]:grid @[32rem]:grid-cols-[minmax(0,26rem)_1fr] @[32rem]:items-center @[32rem]:gap-x-8 @[32rem]:space-y-0">
+      <div className="space-y-4">
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-2">
             {partial ? (
@@ -250,7 +258,7 @@ function MonthFigures({ overview }: { overview: SavingsOverviewDto }) {
           )}
         </div>
         {(recent.length > 0 || average !== null) && (
-          <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t pt-3 text-xs @[32rem]:flex-col @[32rem]:items-end @[32rem]:border-t-0 @[32rem]:pt-0 @[32rem]:text-sm">
+          <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t pt-3 text-xs">
             {target !== null && <ReachedDots months={recent} target={target} />}
             {average !== null && (
               <span className="ml-auto">
@@ -267,6 +275,185 @@ function MonthFigures({ overview }: { overview: SavingsOverviewDto }) {
   )
 }
 
+/** « +254 € vs cible », the gap in its tone, under the month's figure. */
+function Gap({
+  cents,
+  tone,
+  label,
+}: {
+  cents: number
+  tone: Tone
+  label: string
+}) {
+  return (
+    <span className="block">
+      <span className={cn('font-semibold tabular-nums', TONE_TEXT[tone])}>
+        {signedWholeEuros(cents)}
+      </span>{' '}
+      {label}
+    </span>
+  )
+}
+
+/** A figure under its label, at a reading size (the computer's row). */
+function RowFigure({
+  label,
+  value,
+  tone = 'neutral',
+  note,
+  big = false,
+}: {
+  label: ReactNode
+  value: ReactNode
+  tone?: Tone
+  note?: ReactNode
+  big?: boolean
+}) {
+  return (
+    <div className="min-w-0 space-y-0.5 pr-3 [&:not(:first-child)]:pl-3">
+      <p className="text-muted-foreground truncate text-xs">{label}</p>
+      <p
+        className={cn(
+          'leading-tight font-semibold whitespace-nowrap tabular-nums',
+          big ? 'text-2xl' : 'text-lg',
+          TONE_TEXT[tone],
+        )}
+      >
+        {value}
+      </p>
+      {note && (
+        <div className="text-muted-foreground text-xs whitespace-nowrap">
+          {note}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The month on a computer (#407, the owner's « A. Rangée de chiffres »):
+ * five figures in one row (Épargné with its gap under it, the rate, Mis de
+ * côté, what it did to the checking account, the average with the dots),
+ * then a thin gauge. While the month runs: the gap is to the same days of
+ * the month before, last month replaces the rate, no checking account.
+ */
+function MonthRow({ overview }: { overview: SavingsOverviewDto }) {
+  const { period, current, previous, months, moved } = overview
+  const target = overview.monthlyTargetCents
+  const average = overview.projectionAverageCents
+  const net = current.netCents
+  const partial = period.status === 'partial'
+  const status = monthStatus(period, net, target, overview.currentMonth)
+  const oneOff = current.oneOffIncomeCents + current.oneOffExpenseCents
+  const recent = months.filter((m) => m.complete).slice(-RECENT_MONTHS)
+  const lastFull = partial
+    ? months.find((m) => m.month === period.previousMonth && m.complete)
+    : undefined
+  const reference = target ?? average
+  const checking = net - moved.totalCents
+  return (
+    <div className="space-y-4">
+      <div
+        className="grid divide-x"
+        style={{
+          gridTemplateColumns: `auto repeat(${partial ? 3 : 4}, minmax(0, 1fr))`,
+        }}
+      >
+        <RowFigure
+          label={partial ? 'À ce jour' : 'Épargné'}
+          value={formatWholeEuros(net)}
+          tone={net < 0 ? 'bad' : 'neutral'}
+          note={
+            <span className="space-y-0.5">
+              {partial ? (
+                <Gap
+                  cents={net - previous.netCents}
+                  tone={net >= previous.netCents ? 'good' : 'bad'}
+                  label={comparisonLabel(period, 'vs mois précédent')}
+                />
+              ) : (
+                reference !== null && (
+                  <Gap
+                    cents={net - reference}
+                    tone={
+                      target === null ? 'neutral' : (status?.tone ?? 'neutral')
+                    }
+                    label={target === null ? 'vs moyenne' : 'vs cible'}
+                  />
+                )
+              )}
+              {oneOff !== 0 && (
+                <span className="block">
+                  Sans le ponctuel {formatWholeEuros(net - oneOff)}
+                </span>
+              )}
+            </span>
+          }
+          big
+        />
+        {partial ? (
+          <RowFigure
+            label={lastFull ? monthName(lastFull.month) : 'Mois précédent'}
+            value={
+              lastFull ? (
+                <span className="inline-flex items-center gap-1">
+                  {formatWholeEuros(lastFull.netCents)}
+                  {target !== null && lastFull.netCents >= target && (
+                    <CheckIcon
+                      aria-label="cible atteinte"
+                      className="text-chart-delta-good size-[0.9em]"
+                    />
+                  )}
+                </span>
+              ) : (
+                '—'
+              )
+            }
+          />
+        ) : (
+          <RowFigure
+            label="Taux d’épargne"
+            value={
+              current.savingsRate === null
+                ? '—'
+                : formatPercent(current.savingsRate)
+            }
+            note={current.savingsRate === null ? 'sans revenus' : undefined}
+          />
+        )}
+        <RowFigure
+          label="Mis de côté"
+          value={formatWholeEuros(moved.totalCents)}
+        />
+        {!partial && (
+          <RowFigure
+            label="Compte courant"
+            value={signedWholeEuros(checking)}
+            tone={checking < 0 ? 'bad' : 'neutral'}
+          />
+        )}
+        <RowFigure
+          label="Moyenne"
+          value={average === null ? '—' : formatWholeEuros(average)}
+          note={
+            target !== null && recent.length > 0 ? (
+              <ReachedDots months={recent} target={target} />
+            ) : undefined
+          }
+        />
+      </div>
+      <Gauge
+        net={net}
+        reference={reference}
+        referenceLabel={target === null ? 'Moyenne' : 'Cible'}
+        tone={status?.tone ?? 'neutral'}
+        partial={partial}
+        thin
+      />
+    </div>
+  )
+}
+
 /**
  * The month against its reference: the bar up to the month's figure, the
  * reference as a mark with its name above it.
@@ -277,20 +464,23 @@ function Gauge({
   referenceLabel,
   tone,
   partial,
+  thin = false,
 }: {
   net: number
   reference: number | null
   referenceLabel: string
   tone: Tone
   partial: boolean
+  /** A computer: a thin bar under the row of figures. */
+  thin?: boolean
 }) {
   if (reference === null || reference <= 0) return null
   const scale = Math.max(reference * 1.6, net * 1.1)
   const mark = (reference / scale) * 100
   return (
-    <div className="relative pt-5">
+    <div className={thin ? 'relative pt-4' : 'relative pt-5'}>
       <SplitBar
-        className="h-3.5"
+        className={thin ? 'h-2' : 'h-3.5'}
         max={scale}
         parts={[
           {
@@ -307,7 +497,12 @@ function Gauge({
       />
       <span
         aria-hidden
-        className="bg-foreground absolute bottom-[-0.35rem] h-[1.5rem] w-0.5 rounded-full"
+        className={cn(
+          'bg-foreground absolute w-0.5 rounded-full',
+          thin
+            ? 'bottom-[-0.25rem] h-[1.1rem]'
+            : 'bottom-[-0.35rem] h-[1.5rem]',
+        )}
         style={{ left: `${mark}%` }}
       />
       <span

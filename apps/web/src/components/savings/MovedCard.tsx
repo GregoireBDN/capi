@@ -3,6 +3,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  cn,
   formatWholeEuros,
 } from '@finances/ui'
 import type { SavingsOverviewDto } from '#/api/types.gen'
@@ -14,7 +15,7 @@ import {
   signedWholeEuros,
   SplitBar,
   StatusChip,
-  STRIP,
+  TONE_TEXT,
 } from './figures'
 
 interface Moved {
@@ -53,61 +54,99 @@ function MovedCard({
         <CardTitle>Mis de côté</CardTitle>
         <StatusChip tone="neutral">{period}</StatusChip>
       </CardHeader>
-      <CardContent className="@container space-y-4">
-        {/* A computer: the figure beside its bars, then the lines abreast. */}
-        <div className={STRIP}>
-          <p className="text-2xl font-semibold tracking-tight whitespace-nowrap tabular-nums">
-            {formatWholeEuros(total)}
-          </p>
+      <CardContent className="space-y-4">
+        <p className="text-2xl font-semibold tracking-tight whitespace-nowrap tabular-nums">
+          {formatWholeEuros(total)}
+        </p>
+        {saved && (
           <div className="space-y-2">
-            {saved && (
-              <>
-                <FigureRow
-                  label="Épargné"
-                  value={formatWholeEuros(moved.savedCents)}
-                />
-                <SplitBar
-                  max={max}
-                  parts={[
-                    { cents: moved.savedCents, color: 'bg-chart-savings' },
-                  ]}
-                />
-              </>
-            )}
+            <FigureRow
+              label="Épargné"
+              value={formatWholeEuros(moved.savedCents)}
+            />
             <SplitBar
               max={max}
-              className={saved ? 'mt-4' : undefined}
-              parts={[
-                { cents: moved.toSavingsCents, color: SAVINGS_COLOR },
-                { cents: moved.toInvestmentsCents, color: INVESTMENTS_COLOR },
-              ]}
+              parts={[{ cents: moved.savedCents, color: 'bg-chart-savings' }]}
             />
           </div>
-        </div>
-        <div className="space-y-2 @[32rem]:ml-[15rem] @[32rem]:flex @[32rem]:flex-wrap @[32rem]:gap-x-10 @[32rem]:gap-y-2 @[32rem]:space-y-0">
+        )}
+        <div className="space-y-2">
+          <SplitBar
+            max={max}
+            parts={[
+              { cents: moved.toSavingsCents, color: SAVINGS_COLOR },
+              { cents: moved.toInvestmentsCents, color: INVESTMENTS_COLOR },
+            ]}
+          />
           <FigureRow
             label="Livrets"
             value={signedWholeEuros(moved.toSavingsCents)}
             dot={SAVINGS_COLOR}
-            stackWhenWide
           />
           <FigureRow
             label="Placements"
             value={signedWholeEuros(moved.toInvestmentsCents)}
             dot={INVESTMENTS_COLOR}
-            stackWhenWide
           />
-          {checking && (
-            <div className="mt-3 border-t pt-3 @[32rem]:mt-0 @[32rem]:border-t-0 @[32rem]:pt-0">
-              <FigureRow
-                label="Compte courant"
-                value={signedWholeEuros(rest)}
-                tone={rest < 0 ? 'bad' : 'neutral'}
-                stackWhenWide
-              />
-            </div>
-          )}
         </div>
+        {checking && (
+          <div className="border-t pt-3">
+            <FigureRow
+              label="Compte courant"
+              value={signedWholeEuros(rest)}
+              tone={rest < 0 ? 'bad' : 'neutral'}
+            />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * The same on a computer (#407, « A. Rangée de chiffres »): one strip, the
+ * total over its split bar on the left, the three lines as figures on the
+ * right.
+ */
+function MovedStrip({ period, moved }: { period: string; moved: Moved }) {
+  const total = moved.toSavingsCents + moved.toInvestmentsCents
+  const rest = moved.savedCents - total
+  const figure = (label: string, cents: number, bad = false) => (
+    <div className="min-w-0 space-y-0.5">
+      <p className="text-muted-foreground text-xs whitespace-nowrap">{label}</p>
+      <p
+        className={cn(
+          'text-lg font-semibold whitespace-nowrap tabular-nums',
+          bad && TONE_TEXT.bad,
+        )}
+      >
+        {signedWholeEuros(cents)}
+      </p>
+    </div>
+  )
+  return (
+    <Card className="min-w-0">
+      <CardHeader className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <CardTitle>Mis de côté</CardTitle>
+        <StatusChip tone="neutral">{period}</StatusChip>
+      </CardHeader>
+      <CardContent className="grid grid-cols-[minmax(0,1fr)_repeat(3,auto)] items-end gap-x-8">
+        <div className="space-y-2">
+          <p className="text-xl font-semibold whitespace-nowrap tabular-nums">
+            {formatWholeEuros(total)}
+          </p>
+          <SplitBar
+            className="h-2"
+            max={Math.max(total, 1)}
+            parts={[
+              { cents: moved.toSavingsCents, color: SAVINGS_COLOR },
+              { cents: moved.toInvestmentsCents, color: INVESTMENTS_COLOR },
+            ]}
+          />
+        </div>
+        {figure('Livrets', moved.toSavingsCents)}
+        {figure('Placements', moved.toInvestmentsCents)}
+        {figure('Compte courant', rest, rest < 0)}
       </CardContent>
     </Card>
   )
@@ -131,19 +170,26 @@ export function MonthMovedCard({ overview }: { overview: SavingsOverviewDto }) {
 }
 
 /** The last 12 months (the current one so far), summed. */
-export function YearMovedCard({ overview }: { overview: SavingsOverviewDto }) {
+export function YearMovedCard({
+  overview,
+  wide = false,
+}: {
+  overview: SavingsOverviewDto
+  /** A computer: one strip. */
+  wide?: boolean
+}) {
   const { months } = overview
   const sum = (pick: (m: (typeof months)[number]) => number) =>
     months.reduce((total, m) => total + pick(m), 0)
-  return (
-    <MovedCard
-      period={`${months.length} mois`}
-      checking
-      moved={{
-        savedCents: sum((m) => m.netCents),
-        toSavingsCents: sum((m) => m.movedToSavingsCents),
-        toInvestmentsCents: sum((m) => m.movedToInvestmentsCents),
-      }}
-    />
+  const moved = {
+    savedCents: sum((m) => m.netCents),
+    toSavingsCents: sum((m) => m.movedToSavingsCents),
+    toInvestmentsCents: sum((m) => m.movedToInvestmentsCents),
+  }
+  const period = `${months.length} mois`
+  return wide ? (
+    <MovedStrip period={period} moved={moved} />
+  ) : (
+    <MovedCard period={period} checking moved={moved} />
   )
 }

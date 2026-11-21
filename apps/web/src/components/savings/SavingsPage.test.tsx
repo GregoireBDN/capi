@@ -638,6 +638,54 @@ describe('SavingsPage', () => {
     expect(await card('Objectifs')).not.toHaveTextContent('de marge')
   })
 
+  it('reads as rows of figures and tables on a computer', async () => {
+    // A wide page: jsdom has no layout, so the page measures 1 200 px.
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ width: 1200 } as DOMRect)
+    api.savingsControllerOverview.mockImplementation(() =>
+      ok(overview(OCTOBER_COMPLETE)),
+    )
+    renderPage()
+
+    // The month: five figures in one row, named by its month.
+    const shown = await card('Octobre')
+    expect(shown).toHaveTextContent(text('Épargné1 200 €+340 € vs cible'))
+    expect(shown).toHaveTextContent(text('Taux d’épargne40 %'))
+    expect(shown).toHaveTextContent(text('Mis de côté900 €'))
+    expect(shown).toHaveTextContent(text('Compte courant+300 €'))
+    expect(shown).toHaveTextContent(text('Moyenne1 100 €'))
+    // « Mis de côté » of the month is in that row, not a card of its own.
+    expect(
+      screen
+        .getAllByText('Mis de côté')
+        .filter((element) => element.closest('[data-slot="card-title"]')),
+    ).toHaveLength(1)
+
+    // Every account in one row, the total and the result in the header.
+    const stock = await card('Livrets et placements')
+    expect(stock).toHaveTextContent(text('4 800 €+300 € de résultat'))
+    expect(
+      within(stock)
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('href')),
+    ).toEqual([`/accounts/${LIVRET_ID}`, `/accounts/${PEA_ID}`])
+    expect(
+      within(stock).getByRole('link', { name: /PEA test/ }),
+    ).toHaveTextContent(text('PEA testPEA / compte-titres2 300 €+15 %'))
+
+    // Goals: what they need together in the header, one row each.
+    await screen.findByText('Fonds de secours', {}, { timeout: 3000 })
+    const goals = await card('Objectifs')
+    expect(goals).toHaveTextContent(text('1 500 €/mois · marge -400 €'))
+    expect(
+      within(goals).getByRole('button', {
+        name: /^Modifier l’objectif Fonds de secours/,
+      }),
+    ).toHaveTextContent(text('2 500 € / 10 000 €1 500 €/moismai 2027'))
+    rect.mockRestore()
+  })
+
   it('edits the monthly target in place', async () => {
     const user = userEvent.setup()
     renderPage()

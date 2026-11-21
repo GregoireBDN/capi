@@ -83,6 +83,10 @@ export function goalsMonthlyNeed(goals: SavingsGoalDto[]): number | null {
   return needs.length === 0 ? null : needs.reduce((a, b) => a + b, 0)
 }
 
+/** The columns of a goal's row on a computer, and of their headings. */
+const GOAL_COLUMNS =
+  'grid-cols-[minmax(0,9rem)_minmax(5rem,1fr)_7rem_5.5rem_6.5rem]'
+
 const TONE: Record<GoalTone, string> = {
   good: 'text-chart-delta-good',
   bad: 'text-chart-delta-bad',
@@ -97,9 +101,11 @@ const TONE: Record<GoalTone, string> = {
 function GoalItem({
   goal,
   onEdit,
+  wide,
 }: {
   goal: SavingsGoalDto
   onEdit: () => void
+  wide: boolean
 }) {
   const status = goalStatus(goal)
   const when = goalWhen(goal)
@@ -119,6 +125,76 @@ function GoalItem({
   ]
     .filter(Boolean)
     .join(', ')
+  if (wide) {
+    return (
+      <li>
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label={label}
+          className={cn(
+            'hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-ring grid min-h-11 w-full items-center gap-x-3 rounded-lg px-2 text-left text-sm outline-none focus-visible:ring-2',
+            GOAL_COLUMNS,
+          )}
+        >
+          <span className="min-w-0 truncate font-medium">{goal.name}</span>
+          <span
+            aria-hidden
+            className="bg-muted block h-1.5 overflow-hidden rounded-full"
+          >
+            <span
+              className={cn(
+                'block h-full rounded-full',
+                goal.reached ? 'bg-chart-delta-good' : 'bg-primary',
+              )}
+              style={{ width: `${Math.min(goal.progressRatio, 1) * 100}%` }}
+            />
+          </span>
+          <span className="text-muted-foreground text-right text-xs whitespace-nowrap tabular-nums">
+            {goal.reached ? formatWholeEuros(goal.currentCents) : amount}
+          </span>
+          <span className="text-right font-semibold whitespace-nowrap tabular-nums">
+            {need === null ? (
+              <span className="text-muted-foreground font-normal">—</span>
+            ) : (
+              <>
+                {formatWholeEuros(need)}
+                <span className="text-muted-foreground text-xs font-normal">
+                  /mois
+                </span>
+              </>
+            )}
+          </span>
+          <span
+            className={cn(
+              'flex items-center justify-end gap-1 text-xs font-medium whitespace-nowrap',
+              goal.reached || goal.archived
+                ? TONE[status.tone]
+                : when
+                  ? TONE[when.tone]
+                  : undefined,
+            )}
+          >
+            {goal.reached || goal.archived ? (
+              <>
+                {goal.reached && !goal.archived && (
+                  <CheckIcon aria-hidden className="size-3.5" />
+                )}
+                {status.label}
+              </>
+            ) : (
+              when && (
+                <>
+                  <WhenIcon aria-hidden className="size-3.5" />
+                  {when.label}
+                </>
+              )
+            )}
+          </span>
+        </button>
+      </li>
+    )
+  }
   return (
     <li>
       <button
@@ -196,9 +272,12 @@ function GoalItem({
  */
 export function GoalsSection({
   projectionAverageCents,
+  wide = false,
 }: {
   /** Average the projections use (6 full months, one-offs excluded). */
   projectionAverageCents: number | null
+  /** A computer: the two figures in the header, one table row per goal. */
+  wide?: boolean
 }) {
   const [showArchived, setShowArchived] = useState(false)
   const goals = useQuery(savingsGoalsQuery(showArchived))
@@ -221,8 +300,32 @@ export function GoalsSection({
 
   return (
     <Card className="min-w-0">
-      <CardHeader>
+      <CardHeader
+        className={cn(
+          wide && 'flex flex-wrap items-baseline justify-between gap-x-4',
+        )}
+      >
         <CardTitle>Objectifs</CardTitle>
+        {wide && need !== null && (
+          <span className="text-muted-foreground text-sm">
+            <span className="text-foreground font-semibold tabular-nums">
+              {formatWholeEuros(need)}/mois
+            </span>
+            {projectionAverageCents !== null && (
+              <>
+                {' · marge '}
+                <span
+                  className={cn(
+                    'font-semibold tabular-nums',
+                    TONE[projectionAverageCents >= need ? 'good' : 'bad'],
+                  )}
+                >
+                  {signedWholeEuros(projectionAverageCents - need)}
+                </span>
+              </>
+            )}
+          </span>
+        )}
         {!inMenu && (
           <CardAction>
             <Button size="sm" onClick={() => open()}>
@@ -232,9 +335,9 @@ export function GoalsSection({
           </CardAction>
         )}
       </CardHeader>
-      <CardContent className="@container space-y-3">
-        {need !== null && (
-          <div className="grid grid-cols-2 gap-2 @[32rem]:max-w-[26rem]">
+      <CardContent className="space-y-3">
+        {!wide && need !== null && (
+          <div className="grid grid-cols-2 gap-2">
             <Stat value={formatWholeEuros(need)} label="par mois" />
             {projectionAverageCents !== null && (
               <Stat
@@ -285,11 +388,33 @@ export function GoalsSection({
             </EmptyContent>
           </Empty>
         ) : (
-          <ul className="space-y-1">
-            {list.map((goal) => (
-              <GoalItem key={goal.id} goal={goal} onEdit={() => open(goal)} />
-            ))}
-          </ul>
+          <div>
+            {wide && (
+              <div
+                aria-hidden
+                className={cn(
+                  'text-muted-foreground grid gap-x-3 border-b px-2 pb-1.5 text-xs',
+                  GOAL_COLUMNS,
+                )}
+              >
+                <span className="truncate">Objectif</span>
+                <span className="truncate">Avancement</span>
+                <span className="text-right">Épargné</span>
+                <span className="text-right">Il faut</span>
+                <span className="text-right">À ce rythme</span>
+              </div>
+            )}
+            <ul className={wide ? 'divide-y' : 'space-y-1'}>
+              {list.map((goal) => (
+                <GoalItem
+                  key={goal.id}
+                  goal={goal}
+                  wide={wide}
+                  onEdit={() => open(goal)}
+                />
+              ))}
+            </ul>
+          </div>
         )}
         {goals.isSuccess && (
           <button

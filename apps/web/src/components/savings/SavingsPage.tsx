@@ -12,6 +12,7 @@ import {
   Skeleton,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
+import { useRef } from 'react'
 import { Link } from '@tanstack/react-router'
 import { PiggyBankIcon, UploadIcon } from 'lucide-react'
 import { AddInvestmentButton } from '#/components/accounts/AddInvestmentSheet'
@@ -26,10 +27,12 @@ import { MonthCard } from './MonthCard'
 import { MonthMovedCard, YearMovedCard } from './MovedCard'
 import { StockCard } from './StockCard'
 import { savingsOverviewQuery } from './queries'
+import { useWideLayout } from './use-wide-layout'
 
 /**
  * One card per row at every width (the owner, #407: two columns of cards
- * read worse on a computer); each card spreads across its width there.
+ * read worse on a computer); from `WIDE_LAYOUT_REM` the cards take their
+ * computer layout (rows of figures, tables).
  */
 const COLUMN = 'space-y-4'
 
@@ -71,6 +74,8 @@ export function SavingsPage({
   onMonthChange,
 }: SavingsPageProps) {
   const overview = useQuery(savingsOverviewQuery(monthParam))
+  const page = useRef<HTMLDivElement>(null)
+  const wide = useWideLayout(page)
   const data = overview.data
   const isEmpty = data !== undefined && isEmptyOverview(data)
   const month = monthParam ?? data?.period.month
@@ -79,7 +84,7 @@ export function SavingsPage({
     onMonthChange(target === data?.period.defaultMonth ? undefined : target)
 
   return (
-    <div className="@container space-y-6">
+    <div ref={page} className="@container space-y-6">
       <PageHeader title="Épargne" />
 
       {/* The month is in the app header (#401) from the first render:
@@ -143,8 +148,9 @@ export function SavingsPage({
       {data && !isEmpty && (
         <>
           <div className={COLUMN}>
-            <MonthCard overview={data} onMonthChange={go} />
-            <MonthMovedCard overview={data} />
+            <MonthCard overview={data} onMonthChange={go} wide={wide} />
+            {/* A computer has « Mis de côté » in the month's row. */}
+            {!wide && <MonthMovedCard overview={data} />}
           </div>
           <section aria-labelledby="savings-held" className="space-y-4">
             <h2
@@ -154,11 +160,12 @@ export function SavingsPage({
               Ce que vous avez
             </h2>
             <div className={COLUMN}>
-              <StockCard stock={data.stock} />
+              <StockCard stock={data.stock} wide={wide} />
               <GoalsSection
                 projectionAverageCents={data.projectionAverageCents}
+                wide={wide}
               />
-              <YearMovedCard overview={data} />
+              <YearMovedCard overview={data} wide={wide} />
             </div>
           </section>
         </>
