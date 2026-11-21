@@ -174,13 +174,13 @@ const envelopes: EnvelopesDto = {
   ],
 }
 
-function renderCard(month = '2026-11') {
+function renderCard() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <MonthEnvelopes month={month} />
+      <MonthEnvelopes />
     </QueryClientProvider>,
   )
 }
@@ -219,12 +219,16 @@ describe('MonthEnvelopes', () => {
   it('shows each envelope against its target and the month’s pace', async () => {
     renderCard()
 
-    const card = await screen.findByRole('region', { name: 'Budget' })
-    expect(await within(card).findByText(/Jour 13 sur 30/)).toBeInTheDocument()
-    const outings = within(card).getByRole('meter', { name: 'Sorties' })
+    const card = await screen.findByRole('region', { name: 'Enveloppes' })
+    const outings = await within(card).findByRole('meter', { name: 'Sorties' })
     expect(outings).toHaveAttribute('aria-valuenow', '9000')
-    expect(text(outings.getAttribute('aria-valuetext')!)).toContain(
-      'rythme du mois : 65 €',
+    expect(text(outings.getAttribute('aria-valuetext')!)).toBe(
+      '90 € sur 150 €, reste 60 €, rythme du mois : 65 €, en avance sur le rythme',
+    )
+    // The detail and past months are on Budget.
+    expect(within(card).getByRole('link', { name: /Budget/ })).toHaveAttribute(
+      'href',
+      '/budget',
     )
     // One target per envelope: the whole row notes an expense in it.
     const row = within(card).getByRole('button', {
@@ -237,14 +241,19 @@ describe('MonthEnvelopes', () => {
         .querySelector('[data-slot="category-icon"] svg')
         ?.getAttribute('class'),
     ).toContain('lucide-party-popper')
-    expect(row).toHaveTextContent(text('Reste 60 € · en avance'))
+    // What's left, in the warning tone while ahead of the pace (#405: one
+    // line per envelope).
+    expect(row).toHaveTextContent(text('60 €'))
+    expect(within(row).getByText(text('60 €'))).toHaveClass('text-amber-700')
     // What was noted by hand isn't repeated in the row (owner: too much room).
     expect(row).not.toHaveTextContent('noté à la main')
     const shopping = within(card).getByRole('button', {
       name: 'Ajouter une dépense Shopping',
     })
-    expect(shopping).toHaveTextContent(text('Reste 80 €'))
-    expect(shopping).not.toHaveTextContent('en avance')
+    expect(shopping).toHaveTextContent(text('80 €'))
+    expect(within(shopping).getByText(text('80 €'))).not.toHaveClass(
+      'text-amber-700',
+    )
     // No link to the transactions from the rows any more.
     expect(
       within(card).queryByRole('link', { name: /Opérations/ }),
@@ -617,38 +626,32 @@ describe('MonthEnvelopes', () => {
     expect(api.transactionsControllerCreateManual).not.toHaveBeenCalled()
   })
 
-  it('reads a past month: spent against the target, no pace, nothing to add', async () => {
+  it('says by how much an envelope went over', async () => {
     api.budgetsControllerEnvelopes.mockImplementation(() =>
       ok({
         ...envelopes,
-        month: '2026-10',
-        current: false,
-        dayOfMonth: 31,
-        daysInMonth: 31,
-        items: envelopes.items.map((item) => ({
-          ...item,
-          paceCents: item.targetCents,
-          aheadOfPace: false,
-        })),
+        items: [
+          {
+            ...envelopes.items[1],
+            spentCents: 16_200,
+            remainingCents: -1_200,
+            status: 'over',
+          },
+        ],
       }),
     )
-    renderCard('2026-10')
-
-    const card = await screen.findByRole('region', { name: 'Budget' })
-    const outings = await within(card).findByRole('meter', { name: 'Sorties' })
-    expect(text(outings.getAttribute('aria-valuetext')!)).toBe('90 € sur 150 €')
-    expect(api.budgetsControllerEnvelopes).toHaveBeenCalledWith({
-      query: { month: '2026-10' },
-      throwOnError: false,
+    renderCard()
+    const row = await screen.findByRole('button', {
+      name: 'Ajouter une dépense Sorties',
     })
-    expect(text(card.textContent)).toContain('60 € sous l’objectif')
-    expect(card).not.toHaveTextContent(/Jour \d+/)
-    expect(card).not.toHaveTextContent('Reste')
-    expect(within(card).queryByRole('button')).not.toBeInTheDocument()
-    expect(within(card).getByRole('link', { name: 'Détail' })).toHaveAttribute(
-      'href',
-      '/budget?month=2026-10',
-    )
+    expect(row).toHaveTextContent(text('−12 €'))
+    expect(
+      text(
+        within(row)
+          .getByRole('meter', { name: 'Sorties' })
+          .getAttribute('aria-valuetext')!,
+      ),
+    ).toContain('dépassé de 12 €')
   })
 
   it('invites to choose envelopes when none is followed', async () => {

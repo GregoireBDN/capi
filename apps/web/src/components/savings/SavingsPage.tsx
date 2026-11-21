@@ -22,6 +22,7 @@ import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { MonthToolbar } from '#/components/month/MonthToolbar'
 import { ROUTES } from '#/lib/routes'
 import { GoalsSection } from './GoalsSection'
+import { CashFlowSection } from './CashFlowChart'
 import { SavingsChart, SavingsChartSkeleton } from './SavingsChart'
 import { SavingsKpis } from './SavingsKpis'
 import { InvestmentsRecap } from './InvestmentsRecap'
@@ -141,6 +142,7 @@ export function SavingsPage({
         <>
           <SavingsKpis overview={data} />
           <SavingsChart months={data.months} target={data.monthlyTargetCents} />
+          <CashFlowSection />
         </>
       )}
 
