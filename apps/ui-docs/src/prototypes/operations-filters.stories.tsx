@@ -1185,7 +1185,14 @@ const TOOL =
   'relative inline-flex h-[44px] max-w-full items-center gap-2 rounded-lg border text-[15px] whitespace-nowrap shadow-xs outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50'
 const TOOL_OFF = 'bg-card hover:bg-muted/60'
 
-function ToolSearch({ phone }: { phone: boolean }) {
+function ToolSearch({
+  phone,
+  end,
+}: {
+  phone: boolean
+  /** Inside the field, at its end (1a·A: the filters, on phones). */
+  end?: React.ReactNode
+}) {
   return (
     <label
       className={cn(
@@ -1207,6 +1214,7 @@ function ToolSearch({ phone }: { phone: boolean }) {
         }
         className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-[16px] outline-none"
       />
+      {end}
     </label>
   )
 }
@@ -1327,7 +1335,19 @@ function ToolOneOff({ state }: { state: FilterState }) {
   )
 }
 
-function Toolbar({ state, phone, setOverlay, openCategory }: DirectionProps) {
+function Toolbar({
+  state,
+  phone,
+  setOverlay,
+  openCategory,
+  filtersInSearch = false,
+  phoneReview,
+}: DirectionProps & {
+  /** Phones: the filters button inside the search field (1a·A). */
+  filtersInSearch?: boolean
+  /** Phones: a row of its own under the search (1a·B). */
+  phoneReview?: React.ReactNode
+}) {
   const { filters } = state
   const set = state.count - (filters.review ? 1 : 0)
   const clear =
@@ -1344,18 +1364,48 @@ function Toolbar({ state, phone, setOverlay, openCategory }: DirectionProps) {
   if (phone)
     return (
       <div className="space-y-2">
-        <div className="flex gap-2">
-          <ToolSearch phone />
-          <button
-            type="button"
-            aria-label={set > 0 ? `Filtres, ${set} actifs` : 'Filtres'}
-            onClick={() => setOverlay({ kind: 'sheet' })}
-            className={cn(TOOL, TOOL_OFF, 'shrink-0 justify-center px-3')}
-          >
-            <SlidersHorizontalIcon aria-hidden className="size-[18px]" />
-            {set > 0 && <CountPill value={set} label="filtres actifs" />}
-          </button>
-        </div>
+        {filtersInSearch ? (
+          <div className="flex">
+            <ToolSearch
+              phone
+              end={
+                <>
+                  <span aria-hidden className="bg-border h-6 w-px shrink-0" />
+                  <button
+                    type="button"
+                    aria-label={set > 0 ? `Filtres, ${set} actifs` : 'Filtres'}
+                    onClick={() => setOverlay({ kind: 'sheet' })}
+                    className="text-foreground hover:bg-muted -mr-2 flex h-[40px] shrink-0 items-center gap-1.5 rounded-md px-2 text-[15px] font-medium"
+                  >
+                    <SlidersHorizontalIcon
+                      aria-hidden
+                      className="size-[18px]"
+                    />
+                    {/* Its word from 360px of screen, the search keeping room. */}
+                    <span className="hidden @[360px]:inline">Filtres</span>
+                    {set > 0 && (
+                      <CountPill value={set} label="filtres actifs" />
+                    )}
+                  </button>
+                </>
+              }
+            />
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <ToolSearch phone />
+            <button
+              type="button"
+              aria-label={set > 0 ? `Filtres, ${set} actifs` : 'Filtres'}
+              onClick={() => setOverlay({ kind: 'sheet' })}
+              className={cn(TOOL, TOOL_OFF, 'shrink-0 justify-center px-3')}
+            >
+              <SlidersHorizontalIcon aria-hidden className="size-[18px]" />
+              {set > 0 && <CountPill value={set} label="filtres actifs" />}
+            </button>
+          </div>
+        )}
+        {phoneReview}
         {set > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <ToolFilter listKey="account" state={state} phone />
@@ -1402,9 +1452,12 @@ function ReviewCount({ value }: { value: number }) {
 function ReviewButton({
   state,
   phone,
+  pill = false,
 }: {
   state: FilterState
   phone: boolean
+  /** 1a·A: a round pill with its label on every width. */
+  pill?: boolean
 }) {
   const on = state.filters.review
   return (
@@ -1413,21 +1466,22 @@ function ReviewButton({
       aria-pressed={on}
       onClick={() => state.setToggle('review', !on)}
       className={cn(
-        'border-warning/70 inline-flex h-[44px] shrink-0 items-center gap-2 rounded-lg border px-3 text-[15px] font-semibold whitespace-nowrap outline-none',
+        'border-warning/70 inline-flex h-[44px] shrink-0 items-center gap-2 border px-3 text-[15px] font-semibold whitespace-nowrap outline-none',
+        pill ? 'rounded-full pr-2' : 'rounded-lg',
         'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
         on
           ? 'bg-warning text-warning-foreground'
           : 'bg-[color-mix(in_srgb,var(--warning)_18%,var(--card))] hover:bg-[color-mix(in_srgb,var(--warning)_28%,var(--card))]',
       )}
     >
-      <InboxIcon aria-hidden className="size-[18px]" />
-      {phone && !on ? null : 'À revoir'}
+      {!(phone && pill) && <InboxIcon aria-hidden className="size-[18px]" />}
+      {phone && !on && !pill ? null : 'À revoir'}
       {on ? (
         <XIcon aria-hidden className="size-[16px]" />
       ) : (
         <ReviewCount value={REVIEW_COUNT} />
       )}
-      {phone && !on && <span className="sr-only">À revoir</span>}
+      {phone && !on && !pill && <span className="sr-only">À revoir</span>}
     </button>
   )
 }
@@ -1436,6 +1490,67 @@ function Direction1a(props: DirectionProps) {
   return {
     titleEnd: <ReviewButton state={props.state} phone={props.phone} />,
     body: <Toolbar {...props} />,
+  }
+}
+
+/*
+ * The owner chose 1a (21 Nov), but on phones « À revoir » (icon + count)
+ * sat right above the filters button, both small squares of the same
+ * size. Two fixes, phones only (the computer stays 1a):
+ * 1a·A the filters inside the search field, « À revoir 7 » a round pill
+ *      with its label at the end of the title: two shapes, two places;
+ * 1a·B « À revoir » leaves the title for a full-width amber row under
+ *      the search (like the full-width chip of #393).
+ */
+
+function Direction1aA(props: DirectionProps) {
+  return {
+    titleEnd: <ReviewButton state={props.state} phone={props.phone} pill />,
+    body: <Toolbar {...props} filtersInSearch />,
+  }
+}
+
+function ReviewRow({ state }: { state: FilterState }) {
+  const on = state.filters.review
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={() => state.setToggle('review', !on)}
+      className={cn(
+        'border-warning/70 flex h-[44px] w-full items-center gap-2.5 rounded-lg border px-3 text-left text-[15px] outline-none',
+        'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+        on
+          ? 'bg-warning text-warning-foreground'
+          : 'bg-[color-mix(in_srgb,var(--warning)_16%,var(--card))]',
+      )}
+    >
+      <InboxIcon aria-hidden className="size-[18px] shrink-0" />
+      <span className="min-w-0 flex-1 truncate">
+        <span className="font-semibold">
+          {on ? 'À revoir' : `${REVIEW_COUNT} opérations`}
+        </span>
+        {on ? ' · toutes les dates' : ' à revoir'}
+      </span>
+      {on ? (
+        <XIcon aria-hidden className="size-[16px] shrink-0" />
+      ) : (
+        <ChevronRightIcon aria-hidden className="size-[18px] shrink-0" />
+      )}
+    </button>
+  )
+}
+
+function Direction1aB(props: DirectionProps) {
+  const { state, phone } = props
+  return {
+    titleEnd: phone ? undefined : <ReviewButton state={state} phone={false} />,
+    body: (
+      <Toolbar
+        {...props}
+        phoneReview={phone ? <ReviewRow state={state} /> : undefined}
+      />
+    ),
   }
 }
 
@@ -1542,7 +1657,7 @@ function Direction1c(props: DirectionProps) {
  * Frames and boards
  * ------------------------------------------------------------------------ */
 
-type Direction = 'A' | '1a' | '1b' | '1c'
+type Direction = 'A' | '1a' | '1aA' | '1aB' | '1b' | '1c'
 
 interface DirectionProps {
   state: FilterState
@@ -1575,6 +1690,8 @@ function Frame({
   const view = {
     A: DirectionA,
     '1a': Direction1a,
+    '1aA': Direction1aA,
+    '1aB': Direction1aB,
     '1b': Direction1b,
     '1c': Direction1c,
   }[direction](props)
@@ -1746,6 +1863,28 @@ const meta = {
 
 export default meta
 type Story = StoryObj<typeof meta>
+
+export const R1aA_FiltresDansLaRecherche: Story = {
+  name: '1a·A. Téléphone : filtres dans la recherche',
+  render: (args) => (
+    <Board
+      direction="1aA"
+      group={toGroup((args as { group?: unknown }).group)}
+      text="1a·A (téléphone ; l’ordinateur reste 1a). « Filtres » entre dans le champ de recherche, à son bout, après un trait. « À revoir 7 » au bout du titre devient une pastille ronde avec son libellé : deux formes, deux places, plus deux carrés l’un sur l’autre."
+    />
+  ),
+}
+
+export const R1aB_RevoirEnRangee: Story = {
+  name: '1a·B. Téléphone : « À revoir » en rangée',
+  render: (args) => (
+    <Board
+      direction="1aB"
+      group={toGroup((args as { group?: unknown }).group)}
+      text="1a·B (téléphone ; l’ordinateur reste 1a). « À revoir » quitte le titre : une rangée ambre sur toute la largeur sous la recherche, « 7 opérations à revoir › », comme la puce pleine largeur de #393. Le bouton des filtres reste à côté de la recherche."
+    />
+  ),
+}
 
 export const R1a_Titre: Story = {
   name: '1a. « À revoir » à côté du titre',
