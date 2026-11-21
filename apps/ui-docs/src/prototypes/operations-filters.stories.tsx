@@ -1,10 +1,11 @@
 /*
- * #406 prototypes: Opérations' filters, clearer and with icons. Three
- * directions for the owner to choose from, drawn in the app's frame (header,
- * month bar, title, search, filters, totals, the start of the list) on a
- * computer and on phones of 320 and 390 px; deleted by the PR that builds
- * the chosen one. Synthetic data only (invented accounts, labels, amounts).
- * Widths follow the frames (container queries), never the Storybook window.
+ * #406 prototypes: Opérations' filters, clearer and with icons, drawn in
+ * the app's frame (header, month bar, title, search, filters, totals, the
+ * start of the list) on a computer and on phones of 320 and 390 px. The
+ * owner kept A (icon chips) from a first round of three; A1–A3 are its
+ * second round. Deleted by the PR that builds the chosen one. Synthetic
+ * data only (invented accounts, labels, amounts). Widths follow the frames
+ * (container queries), never the Storybook window.
  */
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import {
@@ -22,6 +23,7 @@ import {
   InboxIcon,
   LandmarkIcon,
   PiggyBankIcon,
+  SearchIcon,
   SlidersHorizontalIcon,
   SparkleIcon,
   TagIcon,
@@ -35,7 +37,6 @@ import * as React from 'react'
 import {
   Button,
   CategoryIcon,
-  ChoiceTiles,
   cn,
   CountPill,
   OptionGroup,
@@ -46,8 +47,6 @@ import {
   PopoverContent,
   PopoverTrigger,
   SearchField,
-  SegmentedControl,
-  SegmentedControlItem,
   Sheet,
   SheetBar,
   SheetBarAction,
@@ -312,6 +311,9 @@ function useFilters(preset: Preset) {
   const setToggle = (key: 'oneOff' | 'review', on: boolean) =>
     setFilters((current) => ({ ...current, [key]: on }))
   const clear = () => setFilters({ oneOff: false, review: false })
+  /** Every filter but « À revoir ». */
+  const clearChips = () =>
+    setFilters((current) => ({ oneOff: false, review: current.review }))
   const count = [
     filters.account,
     filters.category,
@@ -319,7 +321,7 @@ function useFilters(preset: Preset) {
     filters.oneOff || undefined,
     filters.review || undefined,
   ].filter((value) => value !== undefined).length
-  return { filters, setList, setToggle, clear, count }
+  return { filters, setList, setToggle, clear, clearChips, count }
 }
 
 type FilterState = ReturnType<typeof useFilters>
@@ -969,9 +971,12 @@ function ToggleChipA({
 function SheetA({
   state,
   onClose,
+  withReview = true,
 }: {
   state: FilterState
   onClose: () => void
+  /** « À revoir » among the switches (not when the bar shows it). */
+  withReview?: boolean
 }) {
   const [list, setList] = React.useState<ListKey | null>(null)
   if (list)
@@ -998,7 +1003,10 @@ function SheetA({
       action={<SheetBarAction label="Voir les opérations" onClick={onClose} />}
     >
       <div className="divide-y border-b">
-        {(['review', 'oneOff'] as const).map((toggle) => {
+        {(withReview
+          ? (['review', 'oneOff'] as const)
+          : (['oneOff'] as const)
+        ).map((toggle) => {
           const meta = TOGGLES[toggle]
           return (
             <label
@@ -1141,119 +1149,262 @@ function DirectionA({
 }
 
 /* ---------------------------------------------------------------------------
- * B. Champs: every filter is a field (its icon, its name over its value,
- *    ⌄) in a grid on phones, a row on a computer, nothing hidden; on / off
- *    filters are switches; « À revoir » is a banner above them.
+ * Second round (the owner, 21 Nov: A's icon chips, but the chips and the
+ * search are badly fitted into the page, a small icon is not enough, and
+ * « À revoir » needs something more distinct on a computer). Three variants
+ * of A, all with:
+ * - the search and the filters in one bar (one card), the search inside it;
+ * - each chip naming what it filters and its value (« Compte · Tous »);
+ * - a chip once set tinted with its value's own colour (the category's, the
+ *   account type's, the kind's), with its icon;
+ * - « À revoir » in amber, the colour of the rows to review, never like a
+ *   filter chip: A1 a pill set apart, A2 tabs, A3 a strip at the bar's end.
  * ------------------------------------------------------------------------ */
 
-function FieldB({
+/** The colour of a chosen value: the category's, the account type's… */
+function valueColor(key: ListKey, value: string): string {
+  if (key === 'account') {
+    const account = ACCOUNTS.find((item) => item.id === value)!
+    return {
+      checking: 'var(--chart-1)',
+      savings: 'var(--chart-3)',
+      meal_voucher: 'var(--chart-6)',
+      crypto: 'var(--chart-2)',
+    }[account.type]
+  }
+  if (key === 'kind') return KINDS.find((item) => item.id === value)!.color
+  if (value === UNCATEGORIZED) return 'var(--muted-foreground)'
+  return CATEGORIES.find((item) => item.id === value)!.color
+}
+
+const BAR_CHIP =
+  'relative inline-flex min-h-[38px] max-w-full items-center gap-1.5 rounded-full border text-[15px] whitespace-nowrap outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:touch-hitbox'
+
+/** « [icon] Compte · Tous ⌄ », or « [value icon] Compte Livret A × » tinted. */
+function BarChip({
   listKey,
   state,
-  onOpen,
-  forceOpen = false,
   phone,
+  forceOpen = false,
 }: {
   listKey: ListKey
   state: FilterState
-  onOpen: () => void
-  forceOpen?: boolean
   phone: boolean
+  forceOpen?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
   const meta = LISTS[listKey]
+  const Icon = meta.icon
   const value = state.filters[listKey]
-  const chosen = value === undefined ? undefined : valueOf(listKey, value)
-  const field = (
-    <button
-      type="button"
-      onClick={phone ? onOpen : undefined}
-      className={cn(
-        'flex min-h-[52px] w-full min-w-0 items-center gap-2 rounded-xl border px-2.5 @[360px]:px-3 text-left transition-colors outline-none',
-        'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
-        chosen
-          ? 'border-primary/60 bg-[color-mix(in_srgb,var(--primary)_7%,var(--card))]'
-          : 'bg-card hover:bg-muted/50',
-      )}
-    >
-      <span className="min-w-0 flex-1 leading-tight">
-        <span className="text-muted-foreground flex items-center gap-1 text-[12px]">
-          <meta.icon aria-hidden className="size-[13px] shrink-0" />
-          {meta.label}
-        </span>
-        <span
+  if (value === undefined && phone) return null
+  if (value === undefined)
+    return (
+      <OptionsPopover
+        listKey={listKey}
+        state={state}
+        open={open}
+        onOpenChange={setOpen}
+      >
+        <button
+          type="button"
           className={cn(
-            'mt-0.5 flex min-w-0 items-center gap-1.5 text-[15px]',
-            chosen && 'font-semibold',
+            BAR_CHIP,
+            'bg-background hover:bg-muted pr-2.5 pl-3 font-medium',
           )}
         >
-          {chosen?.icon}
-          <span className="truncate">{chosen?.label ?? meta.short}</span>
-        </span>
-      </span>
-      <ChevronDownIcon
-        aria-hidden
-        className="text-muted-foreground hidden size-[16px] shrink-0 @[360px]:block"
-      />
-    </button>
-  )
-  if (phone) return field
-  if (forceOpen)
-    return (
-      <div className="relative">
-        {field}
-        <StaticOptions listKey={listKey} state={state} />
-      </div>
+          <Icon aria-hidden className="text-muted-foreground size-[17px]" />
+          {meta.label}
+          <span className="text-muted-foreground font-normal">
+            · {meta.short}
+          </span>
+          <ChevronDownIcon aria-hidden className="size-[16px] opacity-60" />
+        </button>
+      </OptionsPopover>
     )
-  return (
-    <OptionsPopover
-      listKey={listKey}
-      state={state}
-      open={open}
-      onOpenChange={setOpen}
+  const chosen = valueOf(listKey, value)
+  const color = valueColor(listKey, value)
+  const chip = (
+    <span
+      className={cn(BAR_CHIP, 'pr-1 pl-1.5')}
+      style={{
+        borderColor: `color-mix(in srgb, ${color} 55%, transparent)`,
+        backgroundColor: `color-mix(in srgb, ${color} 12%, var(--card))`,
+      }}
     >
-      {field}
-    </OptionsPopover>
+      <OptionsPopover
+        listKey={listKey}
+        state={state}
+        open={open}
+        onOpenChange={setOpen}
+      >
+        <button
+          type="button"
+          aria-label={`${meta.label} : ${chosen.label}, changer`}
+          className="flex min-w-0 items-center gap-1.5 outline-none"
+        >
+          {chosen.icon}
+          <span className="text-muted-foreground">{meta.label}</span>
+          <span className="truncate font-semibold">{chosen.label}</span>
+        </button>
+      </OptionsPopover>
+      <button
+        type="button"
+        aria-label={`Retirer le filtre ${meta.label}`}
+        onClick={() => state.setList(listKey, undefined)}
+        className="hover:bg-foreground/10 flex size-7 shrink-0 items-center justify-center rounded-full"
+      >
+        <XIcon aria-hidden className="size-[15px]" />
+      </button>
+    </span>
+  )
+  if (!forceOpen) return chip
+  return (
+    <span className="relative inline-flex max-w-full">
+      {chip}
+      <StaticOptions listKey={listKey} state={state} />
+    </span>
   )
 }
 
-function SwitchFieldB({ state }: { state: FilterState }) {
+/** « Ponctuelles »: on / off, its round check like A. */
+function OneOffChip({ state }: { state: FilterState }) {
   const on = state.filters.oneOff
   return (
-    <label
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={() => state.setToggle('oneOff', !on)}
       className={cn(
-        'flex min-h-[52px] min-w-0 items-center gap-2 rounded-xl border px-2.5 @[360px]:px-3',
+        BAR_CHIP,
+        'pr-3 pl-1.5 font-medium',
         on
-          ? 'border-primary/60 bg-[color-mix(in_srgb,var(--primary)_7%,var(--card))]'
-          : 'bg-card',
+          ? 'border-primary/60 bg-[color-mix(in_srgb,var(--primary)_10%,var(--card))]'
+          : 'bg-background hover:bg-muted',
       )}
     >
-      <span className="min-w-0 flex-1 leading-tight">
-        <span className="text-muted-foreground block truncate text-[12px]">
-          Ponctuelles
-        </span>
-        <span
-          className={cn(
-            'mt-0.5 flex min-w-0 items-center gap-1 text-[15px]',
-            on && 'font-semibold',
-          )}
-        >
-          <SparkleIcon
-            aria-hidden
-            className="text-muted-foreground size-[14px] shrink-0"
-          />
-          <span className="truncate">{on ? 'Seules' : 'Toutes'}</span>
-        </span>
+      <span
+        aria-hidden
+        className={cn(
+          'flex size-[22px] shrink-0 items-center justify-center rounded-full border-[1.5px]',
+          on
+            ? 'border-primary bg-primary text-primary-foreground'
+            : 'border-muted-foreground/40',
+        )}
+      >
+        {on && <CheckIcon className="size-[13px]" strokeWidth={3} />}
       </span>
-      <Switch
-        size="sm"
-        checked={on}
-        onCheckedChange={(next) => state.setToggle('oneOff', next)}
-      />
-    </label>
+      <SparkleIcon aria-hidden className="text-muted-foreground size-[17px]" />
+      Ponctuelles
+    </button>
   )
 }
 
-function ReviewBannerB({ state }: { state: FilterState }) {
+/** The count of the rows to review, in their amber. */
+function ReviewCount({ value }: { value: number }) {
+  return (
+    <span className="bg-warning text-warning-foreground flex h-[20px] min-w-[20px] items-center justify-center rounded-full px-1.5 text-[12px] font-bold tabular-nums">
+      {value}
+    </span>
+  )
+}
+
+/** The search, inside the bar: no box of its own. */
+function BarSearch({
+  phone,
+  state,
+  setOverlay,
+}: {
+  phone: boolean
+  state: FilterState
+  setOverlay: (overlay: Overlay) => void
+}) {
+  const panelCount = state.count - (state.filters.review ? 1 : 0)
+  return (
+    <div className="flex min-h-[52px] items-center gap-2 pr-2 pl-3.5">
+      <SearchIcon aria-hidden className="text-muted-foreground size-[19px]" />
+      <input
+        type="search"
+        aria-label="Rechercher une opération"
+        placeholder={
+          phone ? 'Rechercher' : 'Rechercher un libellé, un marchand…'
+        }
+        className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-[16px] outline-none"
+      />
+      {phone && (
+        // On a phone, sized to its icon and count so the search keeps room.
+        <Button
+          variant="secondary"
+          outline
+          aria-label={
+            panelCount > 0 ? `Filtres, ${panelCount} actifs` : 'Filtres'
+          }
+          className="h-[40px] shrink-0 gap-1.5 rounded-full px-2.5"
+          onClick={() => setOverlay({ kind: 'sheet' })}
+        >
+          <SlidersHorizontalIcon aria-hidden />
+          {panelCount > 0 && (
+            <CountPill value={panelCount} label="filtres actifs" />
+          )}
+        </Button>
+      )}
+    </div>
+  )
+}
+
+/** The chips under the search; on phones only those that are set. */
+function BarChips({
+  state,
+  phone,
+  openCategory,
+  lead,
+}: {
+  state: FilterState
+  phone: boolean
+  openCategory: boolean
+  /** Before the chips (A1's « À revoir »). */
+  lead?: React.ReactNode
+}) {
+  const { filters } = state
+  const set = state.count - (filters.review ? 1 : 0)
+  if (phone && set === 0 && !lead) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2.5">
+      {lead}
+      <BarChip listKey="account" state={state} phone={phone} />
+      <BarChip
+        listKey="category"
+        state={state}
+        phone={phone}
+        forceOpen={openCategory}
+      />
+      <BarChip listKey="kind" state={state} phone={phone} />
+      {(!phone || filters.oneOff) && <OneOffChip state={state} />}
+      {set > 0 && (
+        <Button variant="secondary" ghost onClick={state.clearChips}>
+          Effacer
+        </Button>
+      )}
+    </div>
+  )
+}
+
+function Bar({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-card overflow-visible rounded-xl border shadow-xs">
+      {children}
+    </div>
+  )
+}
+
+/* A1. Une barre: « À revoir » an amber pill first, a rule after it. */
+
+function ReviewPill({
+  state,
+  className,
+}: {
+  state: FilterState
+  className?: string
+}) {
   const on = state.filters.review
   return (
     <button
@@ -1261,43 +1412,25 @@ function ReviewBannerB({ state }: { state: FilterState }) {
       aria-pressed={on}
       onClick={() => state.setToggle('review', !on)}
       className={cn(
-        'flex min-h-[52px] w-full items-center gap-3 rounded-xl border px-3 text-left outline-none',
-        'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+        BAR_CHIP,
+        'border-warning/60 gap-2 pr-2 pl-3 font-semibold',
         on
-          ? 'border-primary bg-primary text-primary-foreground'
-          : 'border-warning/40 bg-[color-mix(in_srgb,var(--warning)_10%,var(--card))]',
+          ? 'bg-warning text-warning-foreground'
+          : 'bg-[color-mix(in_srgb,var(--warning)_16%,var(--card))]',
+        className,
       )}
     >
-      <InboxIcon
-        aria-hidden
-        className={cn('size-[20px] shrink-0', !on && 'text-warning')}
-      />
-      <span className="min-w-0 flex-1 text-[15px]">
-        {on ? (
-          <>
-            <span className="font-semibold">À revoir</span> · toutes les dates
-          </>
-        ) : (
-          <>
-            <span className="font-semibold">{REVIEW_COUNT} opérations</span> à
-            revoir
-          </>
-        )}
-      </span>
+      <InboxIcon aria-hidden className="size-[17px]" />À revoir
       {on ? (
-        <span className="flex items-center gap-1 text-[14px] font-medium">
-          <XIcon aria-hidden className="size-[16px]" />
-        </span>
+        <XIcon aria-hidden className="size-[16px]" />
       ) : (
-        <span className="flex items-center gap-0.5 text-[14px] font-medium">
-          <ChevronRightIcon aria-hidden className="size-[16px]" />
-        </span>
+        <ReviewCount value={REVIEW_COUNT} />
       )}
     </button>
   )
 }
 
-function DirectionB({
+function DirectionA1({
   state,
   phone,
   setOverlay,
@@ -1306,364 +1439,143 @@ function DirectionB({
   return {
     titleEnd: undefined,
     body: (
-      <>
-        <ReviewBannerB state={state} />
-        <SearchField
-          aria-label="Rechercher une opération"
-          placeholder="Rechercher un libellé, un marchand…"
-          value=""
-          onValueChange={() => undefined}
+      <Bar>
+        <BarSearch phone={phone} state={state} setOverlay={setOverlay} />
+        <BarChips
+          state={state}
+          phone={phone}
+          openCategory={openCategory}
+          lead={
+            <>
+              <ReviewPill state={state} />
+              {!phone && (
+                <span aria-hidden className="bg-border mx-1 h-7 w-px" />
+              )}
+            </>
+          }
         />
-        <div className="@container">
-          <div className="grid grid-cols-2 gap-2 @[672px]:grid-cols-4">
-            <FieldB
-              listKey="account"
-              state={state}
-              phone={phone}
-              onOpen={() => setOverlay({ kind: 'list', key: 'account' })}
-            />
-            <FieldB
-              listKey="category"
-              state={state}
-              phone={phone}
-              forceOpen={openCategory}
-              onOpen={() => setOverlay({ kind: 'list', key: 'category' })}
-            />
-            <FieldB
-              listKey="kind"
-              state={state}
-              phone={phone}
-              onOpen={() => setOverlay({ kind: 'list', key: 'kind' })}
-            />
-            <SwitchFieldB state={state} />
-          </div>
-          {state.count > (state.filters.review ? 1 : 0) && (
-            <div className="mt-1 flex justify-end">
-              <Button variant="secondary" ghost onClick={state.clear}>
-                Effacer les filtres
-              </Button>
-            </div>
-          )}
-        </div>
-      </>
+      </Bar>
     ),
   }
 }
 
-/* ---------------------------------------------------------------------------
- * C. Un panneau « Filtres »: « Toutes · À revoir 7 » as a switch of view;
- *    one « Filtres » button beside the search on every width, opening the
- *    same panel (a popover on a computer, a page on a phone); what is set
- *    stays in view as tokens with their icons.
- * ------------------------------------------------------------------------ */
+/* A2. Onglets: « Toutes » / « À revoir 7 » on top of the bar. */
 
-function PanelC({
+function DirectionA2({
   state,
-  onList,
-}: {
-  state: FilterState
-  onList: (key: ListKey) => void
-}) {
-  const { filters } = state
-  return (
-    <div className="space-y-1 pb-2">
-      <p className="text-muted-foreground px-4 pt-4 pb-1 text-[12px] font-semibold tracking-wide uppercase">
-        Type
-      </p>
-      <div className="px-3">
-        <ChoiceTiles
-          aria-label="Type"
-          value={filters.kind ?? 'all'}
-          onValueChange={(value) =>
-            state.setList('kind', value === 'all' ? undefined : value)
-          }
-          options={[
-            { value: 'all', label: 'Tous', icon: <ArrowDownUpIcon /> },
-            ...KINDS.map((kind) => {
-              const Icon = kind.icon
-              return {
-                value: kind.id,
-                label:
-                  kind.id === 'expense'
-                    ? 'Dépense'
-                    : kind.id === 'income'
-                      ? 'Revenu'
-                      : 'Virement',
-                icon: <Icon />,
-                color: kind.color,
-              }
-            }),
-          ]}
-        />
-      </div>
-      <p className="text-muted-foreground px-4 pt-4 pb-1 text-[12px] font-semibold tracking-wide uppercase">
-        Où et quoi
-      </p>
-      <div className="divide-y border-y">
-        {(['account', 'category'] as const).map((key) => {
-          const meta = LISTS[key]
-          const value = filters[key]
-          const chosen =
-            value === undefined ? undefined : valueOf(key, value, 'md')
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => onList(key)}
-              className="hover:bg-muted/50 flex min-h-[56px] w-full items-center gap-3 px-4 text-left"
-            >
-              {chosen?.icon ?? <FilterBadge icon={meta.icon} />}
-              <span className="flex-1 text-[16px]">{meta.label}</span>
-              <span
-                className={cn(
-                  'max-w-[45%] truncate text-[15px]',
-                  chosen ? 'font-semibold' : 'text-muted-foreground',
-                )}
-              >
-                {chosen?.label ?? LISTS[key].short}
-              </span>
-              <ChevronRightIcon
-                aria-hidden
-                className="text-muted-foreground size-[18px] shrink-0"
-              />
-            </button>
-          )
-        })}
-        <label className="flex min-h-[56px] items-center gap-3 px-4">
-          <FilterBadge icon={SparkleIcon} />
-          <span className="flex-1 text-[16px]">Ponctuelles seulement</span>
-          <Switch
-            checked={filters.oneOff}
-            onCheckedChange={(on) => state.setToggle('oneOff', on)}
-          />
-        </label>
-      </div>
-      {state.count - (filters.review ? 1 : 0) > 0 && (
-        <div className="px-3 pt-3">
-          <Button
-            variant="secondary"
-            outline
-            className="w-full"
-            onClick={state.clear}
-          >
-            Effacer les filtres
-          </Button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/** The panel's own screens: the filters, then a list (‹ back). */
-function PanelScreensC({
-  state,
-  initialList = null,
-  onDone,
-}: {
-  state: FilterState
-  initialList?: ListKey | null
-  onDone?: () => void
-}) {
-  const [list, setList] = React.useState<ListKey | null>(initialList)
-  if (list)
-    return (
-      <div>
-        <button
-          type="button"
-          onClick={() => setList(null)}
-          className="text-muted-foreground hover:text-foreground flex min-h-11 items-center gap-1 px-2 text-[15px]"
-        >
-          <ChevronLeftIcon aria-hidden className="size-[18px]" />
-          Filtres · {LISTS[list].label}
-        </button>
-        <OptionsList
-          listKey={list}
-          value={state.filters[list]}
-          onPick={(value) => {
-            state.setList(list, value)
-            setList(null)
-            onDone?.()
-          }}
-        />
-      </div>
+  phone,
+  setOverlay,
+  openCategory,
+}: DirectionProps) {
+  const on = state.filters.review
+  const tab = (selected: boolean) =>
+    cn(
+      '-mb-px flex min-h-[48px] items-center justify-center gap-2 border-b-[3px] px-4 text-[15px] outline-none',
+      phone && 'flex-1',
+      selected
+        ? 'text-foreground font-semibold'
+        : 'text-muted-foreground border-transparent font-medium hover:text-foreground',
     )
-  return <PanelC state={state} onList={setList} />
-}
-
-function TokensC({ state }: { state: FilterState }) {
-  const { filters } = state
-  const tokens: {
-    key: string
-    icon: React.ReactNode
-    label: string
-    clear: () => void
-  }[] = []
-  for (const key of ['account', 'category', 'kind'] as const) {
-    const value = filters[key]
-    if (value === undefined) continue
-    const chosen = valueOf(key, value)
-    tokens.push({
-      key,
-      icon: chosen.icon,
-      label: chosen.label,
-      clear: () => state.setList(key, undefined),
-    })
-  }
-  if (filters.oneOff)
-    tokens.push({
-      key: 'oneOff',
-      icon: <FilterBadge icon={SparkleIcon} size="sm" />,
-      label: 'Ponctuelles',
-      clear: () => state.setToggle('oneOff', false),
-    })
-  if (tokens.length === 0) return null
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {tokens.map((token) => (
-        <span
-          key={token.key}
-          className="bg-muted inline-flex min-h-[36px] max-w-full items-center gap-1.5 rounded-lg pr-1 pl-2 text-[15px]"
-        >
-          {token.icon}
-          <span className="truncate">{token.label}</span>
+  return {
+    titleEnd: undefined,
+    body: (
+      <Bar>
+        <div role="tablist" className="flex border-b px-1">
           <button
             type="button"
-            aria-label={`Retirer ${token.label}`}
-            onClick={token.clear}
-            className="hover:bg-foreground/10 pointer-coarse:touch-hitbox relative flex size-7 shrink-0 items-center justify-center rounded-md"
+            role="tab"
+            aria-selected={!on}
+            onClick={() => state.setToggle('review', false)}
+            className={cn(tab(!on), !on && 'border-primary')}
           >
-            <XIcon aria-hidden className="size-[15px]" />
+            {phone ? 'Toutes' : 'Toutes les opérations'}
           </button>
-        </span>
-      ))}
-      <Button variant="secondary" ghost onClick={state.clear}>
-        Effacer
-      </Button>
-    </div>
-  )
+          <button
+            type="button"
+            role="tab"
+            aria-selected={on}
+            onClick={() => state.setToggle('review', true)}
+            className={cn(tab(on), on && 'border-warning')}
+          >
+            <InboxIcon
+              aria-hidden
+              className={cn('size-[17px]', !on && 'text-warning')}
+            />
+            À revoir
+            <ReviewCount value={REVIEW_COUNT} />
+          </button>
+        </div>
+        <BarSearch phone={phone} state={state} setOverlay={setOverlay} />
+        <BarChips state={state} phone={phone} openCategory={openCategory} />
+      </Bar>
+    ),
+  }
 }
 
-function DirectionC({
+/* A3. Bandeau: « À revoir » a strip at the end of the bar. */
+
+function DirectionA3({
   state,
   phone,
   setOverlay,
   openCategory,
 }: DirectionProps) {
-  const [open, setOpen] = React.useState(false)
-  const { filters } = state
-  const panelCount = state.count - (filters.review ? 1 : 0)
-  const button = (
-    <Button
-      variant="secondary"
-      outline
-      className="h-[44px] shrink-0 rounded-lg px-3"
-      iconStart={<SlidersHorizontalIcon aria-hidden />}
-      onClick={phone ? () => setOverlay({ kind: 'sheet' }) : undefined}
-    >
-      Filtres
-      {panelCount > 0 && (
-        <CountPill value={panelCount} label="filtres actifs" />
-      )}
-    </Button>
-  )
+  const on = state.filters.review
   return {
     titleEnd: undefined,
     body: (
-      <>
-        <SegmentedControl
-          fullWidth={phone}
-          value={filters.review ? 'review' : 'all'}
-          onValueChange={(value) =>
-            state.setToggle('review', value === 'review')
-          }
-        >
-          <SegmentedControlItem value="all">Toutes</SegmentedControlItem>
-          <SegmentedControlItem value="review">
-            <InboxIcon aria-hidden className="size-[16px]" />
-            À revoir
-            <CountPill value={REVIEW_COUNT} label="opérations à revoir" />
-          </SegmentedControlItem>
-        </SegmentedControl>
-        <div className="flex items-center gap-2">
-          <SearchField
-            containerClassName="min-w-0 flex-1"
-            aria-label="Rechercher une opération"
-            placeholder={
-              phone ? 'Rechercher' : 'Rechercher un libellé, un marchand…'
-            }
-            value=""
-            onValueChange={() => undefined}
-          />
-          {phone ? (
-            button
-          ) : openCategory ? (
-            <div className="relative">
-              {button}
-              <StaticPanel align="end" width="24rem">
-                <PanelScreensC state={state} />
-              </StaticPanel>
-            </div>
-          ) : (
-            <Popover open={open} onOpenChange={setOpen}>
-              <PopoverTrigger asChild>{button}</PopoverTrigger>
-              <PopoverContent
-                align="end"
-                aria-label="Filtres"
-                onOpenAutoFocus={(event) => event.preventDefault()}
-                className="max-h-[min(34rem,var(--radix-popover-content-available-height))] w-[24rem] overflow-y-auto p-0"
-              >
-                <PanelScreensC state={state} />
-              </PopoverContent>
-            </Popover>
+      <Bar>
+        <BarSearch phone={phone} state={state} setOverlay={setOverlay} />
+        <BarChips state={state} phone={phone} openCategory={openCategory} />
+        <button
+          type="button"
+          aria-pressed={on}
+          onClick={() => state.setToggle('review', !on)}
+          className={cn(
+            'flex min-h-[48px] w-full items-center gap-2.5 rounded-b-xl border-t px-3.5 text-left text-[15px] outline-none',
+            on
+              ? 'bg-warning text-warning-foreground'
+              : 'bg-[color-mix(in_srgb,var(--warning)_14%,var(--card))]',
           )}
-        </div>
-        <TokensC state={state} />
-      </>
+        >
+          <InboxIcon
+            aria-hidden
+            className={cn('size-[18px] shrink-0', !on && 'text-warning')}
+          />
+          <span className="min-w-0 flex-1">
+            {on ? (
+              <>
+                <span className="font-semibold">À revoir</span>
+                {!phone && ' · toutes les dates'}
+              </>
+            ) : (
+              <>
+                <span className="font-semibold">
+                  {phone ? REVIEW_COUNT : `${REVIEW_COUNT} opérations`}
+                </span>{' '}
+                à revoir
+              </>
+            )}
+          </span>
+          <span className="flex items-center gap-1 text-[14px] font-semibold">
+            {on ? 'Quitter' : 'Revoir'}
+            {on ? (
+              <XIcon aria-hidden className="size-[16px]" />
+            ) : (
+              <ChevronRightIcon aria-hidden className="size-[16px]" />
+            )}
+          </span>
+        </button>
+      </Bar>
     ),
   }
-}
-
-function SheetC({
-  state,
-  onClose,
-}: {
-  state: FilterState
-  onClose: () => void
-}) {
-  const [list, setList] = React.useState<ListKey | null>(null)
-  if (list)
-    return (
-      <PhoneScreen
-        title={LISTS[list].label}
-        onClose={onClose}
-        onBack={() => setList(null)}
-      >
-        <OptionsList
-          listKey={list}
-          value={state.filters[list]}
-          onPick={(value) => {
-            state.setList(list, value)
-            setList(null)
-          }}
-        />
-      </PhoneScreen>
-    )
-  return (
-    <PhoneScreen
-      title="Filtres"
-      onClose={onClose}
-      action={<SheetBarAction label="Voir les opérations" onClick={onClose} />}
-    >
-      <PanelC state={state} onList={setList} />
-    </PhoneScreen>
-  )
 }
 
 /* ---------------------------------------------------------------------------
  * Frames and boards
  * ------------------------------------------------------------------------ */
 
-type Direction = 'A' | 'B' | 'C'
+type Direction = 'A' | 'A1' | 'A2' | 'A3'
 
 interface DirectionProps {
   state: FilterState
@@ -1693,21 +1605,22 @@ function Frame({
   const state = useFilters(preset)
   const [overlay, setOverlay] = React.useState<Overlay>(initialOverlay)
   const props = { state, phone, setOverlay, openCategory }
-  const view =
-    direction === 'A'
-      ? DirectionA(props)
-      : direction === 'B'
-        ? DirectionB(props)
-        : DirectionC(props)
+  const view = {
+    A: DirectionA,
+    A1: DirectionA1,
+    A2: DirectionA2,
+    A3: DirectionA3,
+  }[direction](props)
   const close = () => setOverlay(null)
   let screen: React.ReactNode = null
   if (overlay?.kind === 'sheet')
-    screen =
-      direction === 'C' ? (
-        <SheetC state={state} onClose={close} />
-      ) : (
-        <SheetA state={state} onClose={close} />
-      )
+    screen = (
+      <SheetA
+        state={state}
+        onClose={close}
+        withReview={direction === 'A' || direction === 'A1'}
+      />
+    )
   if (overlay?.kind === 'list')
     screen = (
       <PhoneScreen title={LISTS[overlay.key].label} onClose={close}>
@@ -1783,23 +1696,20 @@ function Board({
         <Frame
           direction={direction}
           preset={preset}
-          width={960}
+          width={1100}
           phone={false}
         />
       ),
     })),
     {
       group: 'desktop',
-      label:
-        direction === 'C'
-          ? 'Ordinateur · le panneau « Filtres » ouvert'
-          : 'Ordinateur · la liste des catégories ouverte',
+      label: 'Ordinateur · la liste des catégories ouverte',
       node: (
         <div style={{ height: 760 }}>
           <Frame
             direction={direction}
             preset="two"
-            width={960}
+            width={1100}
             phone={false}
             openCategory
           />
@@ -1816,35 +1726,20 @@ function Board({
       label: `390 px · ${label}`,
       node: <Frame direction={direction} preset={preset} width={390} phone />,
     })),
-    direction === 'B'
-      ? {
-          group: '390',
-          label: '390 px · la liste des catégories',
-          node: (
-            <Frame
-              direction={direction}
-              preset="two"
-              width={390}
-              height={780}
-              phone
-              overlay={{ kind: 'list', key: 'category' }}
-            />
-          ),
-        }
-      : {
-          group: '390',
-          label: '390 px · « Filtres » ouvert',
-          node: (
-            <Frame
-              direction={direction}
-              preset="two"
-              width={390}
-              height={780}
-              phone
-              overlay={{ kind: 'sheet' }}
-            />
-          ),
-        },
+    {
+      group: '390',
+      label: '390 px · « Filtres » ouvert',
+      node: (
+        <Frame
+          direction={direction}
+          preset="two"
+          width={390}
+          height={780}
+          phone
+          overlay={{ kind: 'sheet' }}
+        />
+      ),
+    },
   ]
   return (
     <AppRoot>
@@ -1889,35 +1784,46 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+export const A1_Barre: Story = {
+  name: 'A1. Une barre, « À revoir » en ambre',
+  render: (args) => (
+    <Board
+      direction="A1"
+      group={toGroup((args as { group?: unknown }).group)}
+      text="A1. La recherche et les puces dans une seule barre (une carte), la recherche sans cadre à elle. Chaque puce dit ce qu’elle filtre et sa valeur (« Compte · Tous ⌄ ») ; choisie, elle prend la couleur de sa valeur (la catégorie, le type de compte) avec son icône. « À revoir » ouvre la rangée, en ambre (la couleur des opérations à revoir), son nombre dedans, séparé des filtres par un trait. Sur téléphone, « Filtres » est au bout de la recherche."
+    />
+  ),
+}
+
+export const A2_Onglets: Story = {
+  name: 'A2. Une barre avec onglets',
+  render: (args) => (
+    <Board
+      direction="A2"
+      group={toGroup((args as { group?: unknown }).group)}
+      text="A2. La même barre, coiffée de deux onglets : « Toutes les opérations » et « À revoir 7 » (souligné en ambre quand il est ouvert). « À revoir » devient une vue, comme une boîte de réception, plus un filtre parmi d’autres."
+    />
+  ),
+}
+
+export const A3_Bandeau: Story = {
+  name: 'A3. Une barre avec bandeau',
+  render: (args) => (
+    <Board
+      direction="A3"
+      group={toGroup((args as { group?: unknown }).group)}
+      text="A3. La même barre, fermée par un bandeau ambre sur toute sa largeur : « 7 opérations à revoir · Revoir › », puis « À revoir · toutes les dates · Quitter × » une fois ouvert."
+    />
+  ),
+}
+
 export const A_Puces: Story = {
-  name: 'A. Puces à icônes',
+  name: 'A. Puces à icônes (1re série)',
   render: (args) => (
     <Board
       direction="A"
       group={toGroup((args as { group?: unknown }).group)}
       text="A. Les puces d’aujourd’hui, chacune avec son icône. Une puce qui ouvre une liste finit par ⌄ ; une puce oui / non commence par une case ronde. Choisie, la puce montre l’icône de la valeur (le badge du compte, l’icône de la catégorie). « À revoir » porte son nombre dans la puce. Sur téléphone, « Filtres » ouvre une page : une ligne par filtre avec les mêmes icônes, chaque liste sur son écran."
-    />
-  ),
-}
-
-export const B_Champs: Story = {
-  name: 'B. Champs',
-  render: (args) => (
-    <Board
-      direction="B"
-      group={toGroup((args as { group?: unknown }).group)}
-      text="B. Chaque filtre est un champ : son icône, son nom au-dessus de sa valeur, ⌄. Quatre champs côte à côte sur ordinateur, en grille 2 × 2 sur téléphone : rien de caché, plus de bouton « Filtres ». « Ponctuelles » est un interrupteur. « À revoir » devient un bandeau au-dessus (« 7 opérations à revoir › »), qui se lit comme une file d’attente plutôt qu’un filtre."
-    />
-  ),
-}
-
-export const C_Panneau: Story = {
-  name: 'C. Un panneau Filtres',
-  render: (args) => (
-    <Board
-      direction="C"
-      group={toGroup((args as { group?: unknown }).group)}
-      text="C. « Toutes · À revoir 7 » en haut, comme un choix de vue. Puis la recherche et un seul bouton « Filtres » sur toutes les largeurs, qui ouvre le même panneau (fenêtre sur ordinateur, page sur téléphone) : Type en segments avec icônes, Compte et Catégorie en lignes qui ouvrent leur liste, Ponctuelles en interrupteur. Ce qui est choisi reste visible sous la recherche, en étiquettes avec leur icône."
     />
   ),
 }
