@@ -8,7 +8,8 @@ import {
   WalletIcon,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { AccountType } from '#/api/types.gen'
+import type { AccountDto, AccountType } from '#/api/types.gen'
+import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { formatCalendarDate } from '#/lib/money'
 
 /**
@@ -58,4 +59,26 @@ export const ACCOUNT_TYPE_ICONS: Record<
     icon: UtensilsIcon,
     className: 'bg-chart-6/15 text-chart-6',
   },
+}
+
+/** What a crypto account is, by where its holdings come from. */
+const CRYPTO_KIND_LABELS = {
+  exchange: 'Plateforme crypto',
+  wallet: 'Wallet crypto',
+  manual: 'Cryptos saisies à la main',
+} as const
+
+/**
+ * The kind of an account, the last step of its page's breadcrumb (#404,
+ * the owner's choice on #408: « Comptes › Assurance vie », its own name
+ * being the title): its type, a crypto account's source (« Plateforme
+ * crypto », « Wallet crypto »), « Crypto » alone saying too little.
+ */
+export function accountKindLabel(
+  account: Pick<AccountDto, 'type' | 'cryptoSource'>,
+): string {
+  if (account.type === 'crypto' && account.cryptoSource) {
+    return CRYPTO_KIND_LABELS[account.cryptoSource]
+  }
+  return ACCOUNT_TYPE_LABELS[account.type]
 }

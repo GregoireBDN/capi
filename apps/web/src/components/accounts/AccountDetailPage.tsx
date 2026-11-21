@@ -49,8 +49,12 @@ import { todayInParis } from './dates'
 import { InvestedSheet } from './InvestedSheet'
 import { InvestmentSummary } from './InvestmentSummary'
 import { historyPoints } from './history'
-import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
-import { formatAge, isInvestmentType, valueAgeText } from './labels'
+import {
+  accountKindLabel,
+  formatAge,
+  isInvestmentType,
+  valueAgeText,
+} from './labels'
 import { LinkedTransfers } from './LinkedTransfers'
 import { MealVoucherAccount } from './MealVoucherAccount'
 import { MovementsCard } from './Movements'
@@ -89,7 +93,7 @@ function AccountHeader({
       <PageHeader
         back={back}
         title={account.name}
-        crumb={ACCOUNT_TYPE_LABELS[account.type]}
+        crumb={accountKindLabel(account)}
         compactTitle
         titleAddon={
           account.archivedAt && (
