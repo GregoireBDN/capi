@@ -1,6 +1,7 @@
-import { Link, useRouterState } from '@tanstack/react-router'
+import { Link, useRouter, useRouterState } from '@tanstack/react-router'
 import { QueryClientContext, useQuery } from '@tanstack/react-query'
 import { useContext } from 'react'
+import type { MouseEvent } from 'react'
 import { owedSummaryQuery } from '#/components/owed/queries'
 import { formatCents, formatWholeEuros } from '#/lib/money'
 import { ChevronsLeftIcon, ChevronsRightIcon, SettingsIcon } from 'lucide-react'
@@ -32,6 +33,7 @@ import {
   isSettingsPage,
 } from './nav-items'
 import type { NavItem } from './nav-items'
+import { closeSheetThenNavigate } from './close-then-navigate'
 
 /**
  * Page icons a little larger than the menu default, the same size open and
@@ -74,15 +76,22 @@ export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const search = useRouterState({ select: (s) => s.location.search })
   const { isMobile, open, setOpenMobile, toggleSidebar } = useSidebar()
+  const router = useRouter()
   const reviewCount = useReviewCount()
   // The badge reads the query cache when the app provides one.
   const queryClient = useContext(QueryClientContext)
 
   const onSettings = isSettingsPage(pathname)
 
-  // The mobile sheet stays open across navigations unless we close it.
-  const closeMobileSheet = () => {
-    if (isMobile) setOpenMobile(false)
+  // The mobile sheet stays open across navigations unless we close it, and
+  // it is closed before the page changes (#419, `closeSheetThenNavigate`).
+  const closeMobileSheet = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!isMobile) return
+    closeSheetThenNavigate(
+      event,
+      () => setOpenMobile(false),
+      (href) => void router.navigate({ href }),
+    )
   }
 
   function renderItem(item: NavItem) {
