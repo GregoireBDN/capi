@@ -2,7 +2,6 @@ import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   Button,
   Card,
-  CardContent,
   CategoryIcon,
   cn,
   Skeleton,
@@ -16,106 +15,86 @@ import type { EnvelopeDto, EnvelopesDto } from '#/api/types.gen'
 import { formatBudgetAmount } from '#/components/budget/amount'
 import { ManualTransactionSheet } from '#/components/expenses/ManualTransactionSheet'
 import { envelopesQuery } from '#/components/expenses/queries'
-import { currentMonth } from '#/lib/calendar'
+import { formatWholeEuros } from '#/lib/money'
 import { ROUTES } from '#/lib/routes'
-import { DashboardCardHeader } from './DashboardCardHeader'
+import { SeeLink } from './DashboardCardHeader'
 
 /** Same warning level as the budget page (80 % of the target). */
 const WARNING_THRESHOLD = 0.8
 
 /**
- * « Budget » (#321, formerly « Ce mois-ci »): the envelopes of the month
- * the dashboard follows (budget lines flagged « suivre pendant le mois »),
- * each with what was spent against its target and what is left. While the
- * month runs, a mark where an even pace through the month would be today,
- * and expenses are noted from here (a tap on an envelope, or « Ajouter une
- * dépense »); a past month is only read.
+ * « Enveloppes » (#262, #321, compact since #405): the current month's
+ * envelopes (budget lines flagged « suivre pendant le mois »), one line
+ * each: its category, what's left, a bar with the mark where an even pace
+ * would be today and a « + »; a tap on the line notes an expense in it
+ * (owner's « Appuyer = ajouter »). « Ajouter une dépense » is an item of
+ * the page's « ⋮ » (#386). The detail and past months are on Budget.
  */
-export function MonthEnvelopes({ month }: { month: string }) {
-  const current = month === currentMonth()
-  const envelopes = useQuery(envelopesQuery(current ? undefined : month))
+export function MonthEnvelopes() {
+  const envelopes = useQuery(envelopesQuery())
   const [sheet, setSheet] = useState<{ open: boolean; categoryId?: string }>({
     open: false,
   })
-  // While another month loads, the previous figures stay, but not the
-  // actions of the wrong month.
   const data = envelopes.data
-  const live = current && data?.current === true
-  // « Ajouter une dépense » is in the page's « ⋮ » for the current month
-  // (#386); the envelopes keep their own « + ».
-  const inMenu = useRegisterPageAction(
-    current
-      ? {
-          label: 'Ajouter une dépense',
-          icon: <ReceiptEuroIcon />,
-          primary: true,
-          onSelect: () => setSheet({ open: true }),
-        }
-      : null,
-  )
+  const inMenu = useRegisterPageAction({
+    label: 'Ajouter une dépense',
+    icon: <ReceiptEuroIcon />,
+    primary: true,
+    onSelect: () => setSheet({ open: true }),
+  })
 
   return (
     <section aria-labelledby="month-envelopes-title" className="min-w-0">
-      <Card className="min-w-0">
-        <DashboardCardHeader
-          id="month-envelopes-title"
-          title="Budget"
-          status={
-            live && data.items.length > 0
-              ? `Jour ${data.dayOfMonth} sur ${data.daysInMonth} · le trait marque le rythme`
-              : undefined
-          }
-          link={{
-            label: 'Détail',
-            to: ROUTES.budget,
-            search: current ? {} : { month },
-          }}
-        />
-        <CardContent className="@container space-y-4">
-          {data ? (
-            <EnvelopeList
-              data={data}
-              onAdd={
-                live
-                  ? (categoryId) => setSheet({ open: true, categoryId })
-                  : undefined
-              }
-            />
-          ) : envelopes.isError ? (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-muted-foreground text-sm">
-                Enveloppes indisponibles.
-              </p>
-              <Button
-                outline
-                variant="secondary"
-                size="sm"
-                onClick={() => void envelopes.refetch()}
-              >
-                Réessayer
-              </Button>
-            </div>
-          ) : (
-            <div aria-busy="true" aria-label="Chargement des enveloppes">
-              <Skeleton className="h-12 w-full" />
-            </div>
-          )}
-          {current && !inMenu && (
+      <Card className="min-w-0 gap-1 px-2 pt-3 pb-2">
+        <div className="flex items-baseline justify-between gap-3 px-2">
+          <h2 id="month-envelopes-title" className="text-sm font-semibold">
+            Enveloppes
+          </h2>
+          <SeeLink label="Budget" to={ROUTES.budget} />
+        </div>
+        {data ? (
+          <EnvelopeList
+            data={data}
+            onAdd={(categoryId) => setSheet({ open: true, categoryId })}
+          />
+        ) : envelopes.isError ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-2">
+            <p className="text-muted-foreground text-sm">
+              Enveloppes indisponibles.
+            </p>
+            <Button
+              outline
+              variant="secondary"
+              size="sm"
+              onClick={() => void envelopes.refetch()}
+            >
+              Réessayer
+            </Button>
+          </div>
+        ) : (
+          <div
+            aria-busy="true"
+            aria-label="Chargement des enveloppes"
+            className="px-2"
+          >
+            <Skeleton className="h-11 w-full" />
+          </div>
+        )}
+        {!inMenu && (
+          <div className="px-2 pt-1">
             <Button className="w-full" onClick={() => setSheet({ open: true })}>
               <PlusIcon aria-hidden />
               Ajouter une dépense
             </Button>
-          )}
-        </CardContent>
+          </div>
+        )}
       </Card>
-      {current && (
-        <ManualTransactionSheet
-          open={sheet.open}
-          onOpenChange={(open) => setSheet((state) => ({ ...state, open }))}
-          initialCategoryId={sheet.categoryId}
-          suggestedCategoryIds={data?.items.map((item) => item.categoryId)}
-        />
-      )}
+      <ManualTransactionSheet
+        open={sheet.open}
+        onOpenChange={(open) => setSheet((state) => ({ ...state, open }))}
+        initialCategoryId={sheet.categoryId}
+        suggestedCategoryIds={data?.items.map((item) => item.categoryId)}
+      />
     </section>
   )
 }
@@ -125,11 +104,10 @@ function EnvelopeList({
   onAdd,
 }: {
   data: EnvelopesDto
-  /** Notes an expense in an envelope; absent for a month that is over. */
-  onAdd?: (categoryId: string) => void
+  onAdd: (categoryId: string) => void
 }) {
   if (data.items.length === 0) {
-    return data.current ? (
+    return (
       <EmptyState
         variant="inline"
         icon={<WalletCardsIcon />}
@@ -141,22 +119,16 @@ function EnvelopeList({
           </Button>
         }
       />
-    ) : (
-      <EmptyState
-        variant="inline"
-        icon={<WalletCardsIcon />}
-        title="Aucune enveloppe suivie ce mois-là"
-        description="Les catégories marquées « Suivre pendant le mois » sur la page Budget s’affichent ici."
-      />
     )
   }
   return (
-    <ul className="space-y-2" aria-label="Enveloppes du mois">
+    <ul className="space-y-0.5" aria-label="Enveloppes du mois">
       {data.items.map((item) => (
         <EnvelopeRow
           key={item.categoryId}
           item={item}
-          onAdd={onAdd && (() => onAdd(item.categoryId))}
+          live={data.current}
+          onAdd={() => onAdd(item.categoryId)}
         />
       ))}
     </ul>
@@ -164,115 +136,88 @@ function EnvelopeList({
 }
 
 /**
- * One envelope, one target (#262, owner's « Appuyer = ajouter »): while the
- * month runs, the whole row notes an expense in it (the sheet opens at the
- * amount). Its category icon on its colour, the spent amount against the
- * target (with the pace mark while the month runs), what's left, and a
- * « + » that says what a tap does. A past month's row is only read.
+ * One envelope on one line: its category icon, its name over the bar (the
+ * pace mark across it), what's left (« −12 € » once over, in the warning
+ * tone when ahead of the pace), then a « + » that says what a tap does.
  */
 function EnvelopeRow({
   item,
+  live,
   onAdd,
 }: {
   item: EnvelopeDto
-  onAdd?: () => void
+  /** The month runs: the pace mark is today's. */
+  live: boolean
+  onAdd: () => void
 }) {
   const over = item.remainingCents < 0
   const ratio = item.targetCents > 0 ? item.spentCents / item.targetCents : 0
-  const live = onAdd !== undefined
   const pace =
     item.targetCents > 0 ? Math.min(item.paceCents / item.targetCents, 1) : 0
-  const body = (
-    <>
-      {/* Its category, and what a tap does. */}
-      <span className="flex items-center gap-2.5">
-        <CategoryIcon icon={item.icon} color={item.color} />
-        <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
-        {live && (
-          <span
-            aria-hidden
-            className="bg-primary text-primary-foreground flex size-[40px] shrink-0 items-center justify-center rounded-full"
-          >
-            <PlusIcon className="size-[22px]" strokeWidth={2.5} />
-          </span>
-        )}
-      </span>
-      <span
-        role="meter"
-        aria-label={item.name}
-        aria-valuemin={0}
-        aria-valuemax={item.targetCents}
-        aria-valuenow={item.spentCents}
-        aria-valuetext={`${formatBudgetAmount(item.spentCents)} sur ${formatBudgetAmount(item.targetCents)}${live ? `, rythme du mois : ${formatBudgetAmount(item.paceCents)}` : ''}`}
-        className="bg-muted relative block h-2 rounded-full"
-      >
-        <span
-          className={cn(
-            'absolute inset-y-0 left-0 rounded-full',
-            ratio > 1
-              ? 'bg-chart-over'
-              : ratio >= WARNING_THRESHOLD
-                ? 'bg-chart-warning'
-                : 'bg-primary',
-          )}
-          style={{ width: `${Math.min(ratio, 1) * 100}%` }}
-        />
-        {/* Where an even pace through the month would be today. */}
-        {live && (
-          <span
-            aria-hidden
-            className="bg-foreground absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded"
-            style={{ left: `${pace * 100}%` }}
-          />
-        )}
-      </span>
-      <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs">
-        <span className="tabular-nums">
-          <span className="font-medium">
-            {formatBudgetAmount(item.spentCents)}
-          </span>
-          <span className="text-muted-foreground">
-            {' '}
-            / {formatBudgetAmount(item.targetCents)}
-          </span>
-        </span>
-        <span
-          className={cn(
-            'ml-auto font-medium whitespace-nowrap',
-            over && 'text-chart-delta-bad',
-          )}
-        >
-          {over
-            ? `Dépassé de ${formatBudgetAmount(-item.remainingCents)}`
-            : live
-              ? `Reste ${formatBudgetAmount(item.remainingCents)}`
-              : `${formatBudgetAmount(item.remainingCents)} sous l’objectif`}
-          {!over && item.aheadOfPace && (
-            <span className="text-amber-700 dark:text-amber-300">
-              {' '}
-              · en avance
-            </span>
-          )}
-        </span>
-      </span>
-    </>
-  )
+  const ahead = !over && item.aheadOfPace
   return (
     <li data-ahead={item.aheadOfPace || undefined}>
-      {live ? (
-        <button
-          type="button"
-          aria-label={`Ajouter une dépense ${item.name}`}
-          onClick={onAdd}
-          className="border-border hover:bg-muted/50 focus-visible:ring-ring/50 block w-full space-y-2 rounded-xl border px-3 py-2.5 text-left text-sm outline-none focus-visible:ring-[3px]"
+      <button
+        type="button"
+        aria-label={`Ajouter une dépense ${item.name}`}
+        onClick={onAdd}
+        className="hover:bg-muted/60 focus-visible:ring-ring/50 flex min-h-11 w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-[3px]"
+      >
+        <CategoryIcon icon={item.icon} color={item.color} />
+        <span className="min-w-0 flex-1 space-y-1.5">
+          <span className="flex items-baseline justify-between gap-2">
+            <span className="min-w-0 truncate font-medium">{item.name}</span>
+            <span
+              className={cn(
+                'text-xs font-medium whitespace-nowrap tabular-nums',
+                over && 'text-chart-delta-bad',
+                ahead && 'text-amber-700 dark:text-amber-300',
+              )}
+            >
+              {over
+                ? `−${formatWholeEuros(-item.remainingCents)}`
+                : formatWholeEuros(item.remainingCents)}
+            </span>
+          </span>
+          <span
+            role="meter"
+            aria-label={item.name}
+            aria-valuemin={0}
+            aria-valuemax={item.targetCents}
+            aria-valuenow={item.spentCents}
+            aria-valuetext={`${formatBudgetAmount(item.spentCents)} sur ${formatBudgetAmount(item.targetCents)}, ${over ? `dépassé de ${formatBudgetAmount(-item.remainingCents)}` : `reste ${formatBudgetAmount(item.remainingCents)}`}${live ? `, rythme du mois : ${formatBudgetAmount(item.paceCents)}` : ''}${ahead ? ', en avance sur le rythme' : ''}`}
+            className="bg-muted relative block h-1.5 rounded-full"
+          >
+            <span
+              className={cn(
+                'absolute inset-y-0 left-0 rounded-full',
+                ratio > 1
+                  ? 'bg-chart-over'
+                  : ratio >= WARNING_THRESHOLD
+                    ? 'bg-chart-warning'
+                    : 'bg-primary',
+              )}
+              style={{ width: `${Math.min(ratio, 1) * 100}%` }}
+            />
+            {/* Where an even pace through the month would be today. */}
+            {live && (
+              <span
+                aria-hidden
+                className="bg-foreground absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded"
+                style={{ left: `${pace * 100}%` }}
+              />
+            )}
+          </span>
+        </span>
+        {/* Quiet (the owner, #405): a light tint like the icon badges, the
+            whole line being the button anyway. */}
+        <span
+          aria-hidden
+          className="bg-primary/10 text-primary flex size-[32px] shrink-0 items-center justify-center rounded-full"
         >
-          {body}
-        </button>
-      ) : (
-        <div className="border-border block space-y-2 rounded-xl border px-3 py-2.5 text-sm">
-          {body}
-        </div>
-      )}
+          <PlusIcon className="size-[18px]" strokeWidth={2.5} />
+        </span>
+      </button>
     </li>
   )
 }

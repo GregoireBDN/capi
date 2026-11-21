@@ -46,7 +46,7 @@ import {
   dashboardHistoryQuery,
   dashboardOverviewQuery,
 } from '#/components/dashboard/queries'
-import { formatSignedWhole } from '#/components/dashboard/MonthReview'
+import { formatSignedWholeEuros as formatSignedWhole } from '#/lib/money'
 import { currentMonth } from '#/lib/calendar'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'

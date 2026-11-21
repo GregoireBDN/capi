@@ -23,6 +23,7 @@ import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { MonthToolbar } from '#/components/month/MonthToolbar'
 import { ROUTES } from '#/lib/routes'
 import { GoalsSection } from './GoalsSection'
+import { CashFlowSection } from './CashFlowChart'
 import { MonthCard } from './MonthCard'
 import { MonthMovedCard, YearMovedCard } from './MovedCard'
 import { StockCard } from './StockCard'
@@ -168,6 +169,8 @@ export function SavingsPage({
               <YearMovedCard overview={data} wide={wide} />
             </div>
           </section>
+          {/* « Revenus et dépenses » over 12 months, from the dashboard (#405). */}
+          <CashFlowSection />
         </>
       )}
 
