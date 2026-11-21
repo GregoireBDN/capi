@@ -316,6 +316,13 @@
       "when": 1795189328708,
       "tag": "0044_cost_follows_coins",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1795242696819,
+      "tag": "0045_bank_values_kept",
+      "breakpoints": true
     }
   ]
 }

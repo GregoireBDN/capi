@@ -42,7 +42,6 @@ import {
   UpdateTransactionDto,
 } from './dto/transaction.dto'
 import {
-  CorrectTransactionDto,
   CreateManualTransactionDto,
   ManualSuggestionsDto,
   ManualSuggestionsQueryDto,
@@ -222,30 +221,11 @@ export class TransactionsController {
     return this.transactionsService.unsplit(id)
   }
 
-  @Put(':id/correction')
-  @ApiOperation({
-    summary: 'Correct the amount or date of an imported transaction',
-    description:
-      '"Modifier une opération importée": the bank values are kept (`originalAmountCents`, `originalBookingDate`) and still feed balances, continuity checks, coverage and the dedupe of later imports, so re-importing never duplicates or overwrites the correction. Statistics use the corrected values.',
-  })
-  @ApiParam(ID_PARAM)
-  @ApiBody({ type: CorrectTransactionDto })
-  @ApiOkResponse({ type: TransactionDto })
-  @ApiBadRequestResponse({
-    description:
-      'A transaction entered by hand, an amount change on a split transaction, nothing to update, or invalid body.',
-  })
-  @ApiNotFoundResponse()
-  correct(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: CorrectTransactionDto,
-  ): Promise<TransactionDto> {
-    return this.transactionsService.correct(id, dto)
-  }
-
   @Delete(':id/correction')
   @ApiOperation({
     summary: 'Restore the bank amount and date of a corrected transaction',
+    description:
+      'An imported transaction keeps its bank amount and date (#398): corrections made before can only be undone, never made again.',
   })
   @ApiParam(ID_PARAM)
   @ApiOkResponse({ type: TransactionDto })

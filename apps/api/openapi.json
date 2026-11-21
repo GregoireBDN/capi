@@ -4037,62 +4037,8 @@
       }
     },
     "/api/transactions/{id}/correction": {
-      "put": {
-        "description": "\"Modifier une opération importée\": the bank values are kept (`originalAmountCents`, `originalBookingDate`) and still feed balances, continuity checks, coverage and the dedupe of later imports, so re-importing never duplicates or overwrites the correction. Statistics use the corrected values.",
-        "operationId": "TransactionsController_correct",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CorrectTransactionDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TransactionDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "A transaction entered by hand, an amount change on a split transaction, nothing to update, or invalid body."
-          },
-          "401": {
-            "description": ""
-          },
-          "404": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "token": []
-          }
-        ],
-        "summary": "Correct the amount or date of an imported transaction",
-        "tags": [
-          "Transactions"
-        ]
-      },
       "delete": {
+        "description": "An imported transaction keeps its bank amount and date (#398): corrections made before can only be undone, never made again.",
         "operationId": "TransactionsController_restoreBankValues",
         "parameters": [
           {
@@ -12822,23 +12768,6 @@
         "required": [
           "parts"
         ]
-      },
-      "CorrectTransactionDto": {
-        "type": "object",
-        "properties": {
-          "amountCents": {
-            "type": "integer",
-            "minimum": -100000000,
-            "maximum": 100000000,
-            "description": "Corrected signed amount, integer cents (never 0)."
-          },
-          "bookingDate": {
-            "type": "string",
-            "format": "date",
-            "example": "2026-11-13",
-            "description": "Corrected booking date."
-          }
-        }
       },
       "UpdateTransactionDto": {
         "type": "object",

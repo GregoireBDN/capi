@@ -314,11 +314,16 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
         // Removing the correction puts the bank values back.
         const [restored] = await tx
           .update(transactionsTable)
-          .set({ originalAmountCents: null, originalBookingDate: null })
+          .set({
+            amountCents: -1_250,
+            bookingDate: '2026-10-15',
+            originalAmountCents: null,
+            originalBookingDate: null,
+          })
           .where(eq(transactionsTable.id, corrected.id))
           .returning()
-        expect(restored.bankAmountCents).toBe(-2_000)
-        expect(restored.bankBookingDate).toBe('2026-10-20')
+        expect(restored.amountCents).toBe(-1_250)
+        expect(restored.bankBookingDate).toBe('2026-10-15')
 
         await expect(
           tx.transaction((nested) =>
@@ -327,6 +332,63 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
             ),
           ),
         ).rejects.toMatchObject({ cause: { code: '428C9' } })
+      })
+    })
+
+    it('keeps the bank amount and date of an imported row (#398)', async () => {
+      await inRollback(async (tx) => {
+        const checking = await account(tx)
+        const file = await bankImport(tx, checking.id)
+        const [plain, corrected] = await tx
+          .insert(transactionsTable)
+          .values([
+            bankRow(checking.id, file.id),
+            // Corrected before #398: it may only go back to the bank's.
+            bankRow(checking.id, file.id, {
+              dedupeHash: 'hash-corrected',
+              amountCents: -2_000,
+              originalAmountCents: -1_250,
+            }),
+          ])
+          .returning()
+        const refusedWrite = (
+          id: string,
+          set: Partial<typeof transactionsTable.$inferInsert>,
+        ) =>
+          expect(
+            tx.transaction(async (nested) => {
+              await nested
+                .update(transactionsTable)
+                .set(set)
+                .where(eq(transactionsTable.id, id))
+            }),
+          ).rejects.toMatchObject({ cause: { code: '23514' } })
+        await refusedWrite(plain.id, { amountCents: -900 })
+        await refusedWrite(plain.id, { bookingDate: '2026-10-16' })
+        await refusedWrite(plain.id, {
+          amountCents: -900,
+          originalAmountCents: -1_250,
+        })
+        await refusedWrite(corrected.id, { amountCents: -3_000 })
+        await refusedWrite(corrected.id, { originalAmountCents: null })
+        // Back to the bank's value: fine.
+        const [restored] = await tx
+          .update(transactionsTable)
+          .set({ amountCents: -1_250, originalAmountCents: null })
+          .where(eq(transactionsTable.id, corrected.id))
+          .returning()
+        expect(restored.amountCents).toBe(-1_250)
+        // A row entered by hand changes freely.
+        const [noted] = await tx
+          .insert(transactionsTable)
+          .values(manualRow(checking.id))
+          .returning()
+        const [edited] = await tx
+          .update(transactionsTable)
+          .set({ amountCents: -777, bookingDate: '2026-10-02' })
+          .where(eq(transactionsTable.id, noted.id))
+          .returning()
+        expect(edited.amountCents).toBe(-777)
       })
     })
 
@@ -565,13 +627,11 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
           line({ kind: 'deposit', quantity: '0.5' }),
         )
         const link = (outId: string, inId: string) => (nested: Tx) =>
-          nested
-            .insert(cryptoTransferLinksTable)
-            .values({
-              outMovementId: outId,
-              inMovementId: inId,
-              matched: 'auto',
-            })
+          nested.insert(cryptoTransferLinksTable).values({
+            outMovementId: outId,
+            inMovementId: inId,
+            matched: 'auto',
+          })
         await refused(
           tx,
           'crypto_transfer_links_sides',

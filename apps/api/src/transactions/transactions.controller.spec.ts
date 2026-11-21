@@ -44,7 +44,6 @@ describe('TransactionsController (HTTP)', () => {
     bulkUpdate: vi.fn(),
     split: vi.fn(),
     unsplit: vi.fn(),
-    correct: vi.fn(),
     restoreBankValues: vi.fn(),
   }
   const manual = {
@@ -539,31 +538,12 @@ describe('TransactionsController (HTTP)', () => {
     })
   })
 
-  describe('corrections of imported rows', () => {
-    it('corrects the amount and the date', async () => {
-      const body = { amountCents: -4200, bookingDate: '2026-10-03' }
-      const response = await request(
-        'PUT',
-        `/transactions/${ID}/correction`,
-        body,
-      )
-      expect(response.statusCode).toBe(200)
-      expect(service.correct).toHaveBeenCalledWith(ID, body)
-    })
-
-    it.each<[string, object]>([
-      ['a zero amount', { amountCents: 0 }],
-      ['a decimal amount', { amountCents: -1.5 }],
-      ['a bad date', { bookingDate: '2026-02-30' }],
-      ['a null date', { bookingDate: null }],
-    ])('rejects %s', async (_name, body) => {
-      const response = await request(
-        'PUT',
-        `/transactions/${ID}/correction`,
-        body,
-      )
-      expect(response.statusCode).toBe(400)
-      expect(service.correct).not.toHaveBeenCalled()
+  describe('corrections of imported rows made before #398', () => {
+    it('has no correction any more: an imported row keeps its bank values (#398)', async () => {
+      const response = await request('PUT', `/transactions/${ID}/correction`, {
+        amountCents: -4200,
+      })
+      expect(response.statusCode).toBe(404)
     })
 
     it('restores the bank values', async () => {
