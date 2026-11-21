@@ -3,6 +3,10 @@ import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 const location = vi.hoisted(() => ({ pathname: '/settings' }))
+// The screen the layout shows: a page with its `PageHeader`.
+const screenPage = vi.hoisted(() => ({
+  Component: (() => null) as () => ReactNode,
+}))
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: object) => options,
@@ -11,7 +15,10 @@ vi.mock('@tanstack/react-router', () => ({
   }: {
     select: (state: { location: typeof location }) => unknown
   }) => select({ location }),
-  Outlet: () => <h1>Page</h1>,
+  Outlet: () => {
+    const Page = screenPage.Component
+    return <Page />
+  },
   Link: ({ to, children, ...props }: { to: string; children: ReactNode }) => {
     const { params: _p, search: _s, ...rest } = props as Record<string, unknown>
     return (
@@ -22,6 +29,8 @@ vi.mock('@tanstack/react-router', () => ({
   },
 }))
 
+const { PageHeader } = await import('#/components/app-shell/PageHeader')
+screenPage.Component = () => <PageHeader title="Sécurité" />
 const { Route } = await import('#/routes/_app/_settings')
 const Layout = (Route as unknown as { component: () => ReactNode }).component
 
@@ -35,7 +44,8 @@ describe('settings layout', () => {
   it('goes back to Réglages from its screens, with the one back link (#324)', () => {
     location.pathname = '/settings/security'
     render(<Layout />)
-    // Outside the shell's header: in the page (`PageBack`).
+    // Given to the screen's `PageHeader` (#404); outside the shell's
+    // header, in the page (`PageBack`).
     expect(screen.getByRole('link', { name: 'Réglages' })).toHaveAttribute(
       'href',
       '/settings',

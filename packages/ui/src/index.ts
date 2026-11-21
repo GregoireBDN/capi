@@ -3,6 +3,7 @@ export { useIsMobile } from './hooks/use-mobile'
 
 export * from './components/alert'
 export * from './components/badge'
+export * from './components/breadcrumb'
 export * from './components/button'
 export * from './components/button-group'
 export * from './components/calendar'
