@@ -17,12 +17,12 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import {
+  ArrowDownUpIcon,
   ArrowLeftRightIcon,
   BanknoteIcon,
   ChartPieIcon,
+  FileUpIcon,
   ReceiptEuroIcon,
-  UploadIcon,
-  ArrowDownUpIcon,
 } from 'lucide-react'
 import { NearestMonthButton } from '#/components/month/NearestMonthButton'
 import { useMemo, useState } from 'react'
@@ -299,7 +299,7 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
                 />
                 <Button asChild outline variant="secondary">
                   <Link to={ROUTES.import}>
-                    <UploadIcon aria-hidden />
+                    <FileUpIcon aria-hidden />
                     Importer un relevé
                   </Link>
                 </Button>

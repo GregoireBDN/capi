@@ -16,12 +16,12 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
+  FileUpIcon,
   HistoryIcon,
   PlusIcon,
   RepeatIcon,
   TrendingUpIcon,
   TriangleAlertIcon,
-  UploadIcon,
 } from 'lucide-react'
 import { useState } from 'react'
 import type { ForecastDto } from '#/api/types.gen'
@@ -77,7 +77,7 @@ export function StaleForecastNotice({ forecast }: { forecast: ForecastDto }) {
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">
             <Link to={ROUTES.import}>
-              <UploadIcon aria-hidden />
+              <FileUpIcon aria-hidden />
               Importer un relevé
             </Link>
           </Button>
@@ -181,7 +181,7 @@ function NoAccount() {
     <Empty className="border">
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          <UploadIcon />
+          <FileUpIcon />
         </EmptyMedia>
         <EmptyTitle>Aucun compte courant</EmptyTitle>
         <EmptyDescription>

@@ -34,7 +34,7 @@ export function AppHeader({ user }: { user: UserDto }) {
   const setActionsSlot = useSetPageActionsSlot()
   const setBackSlot = useSetPageBackSlot()
   // Loads the « À revoir » count on every width: on phones the sidebar is
-  // not mounted until opened, and Dépenses' « ⋮ » and Opérations' chip read
+  // not mounted until opened, and Mouvements' « ⋮ » and Opérations' chip read
   // it (`useKnownReviewCount`). ☰ shows no dot (the owner, #393).
   useReviewCount()
 

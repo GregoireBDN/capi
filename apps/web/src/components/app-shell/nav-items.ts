@@ -1,14 +1,14 @@
 import {
+  ActivityIcon,
   BitcoinIcon,
-  CalendarCheckIcon,
-  ChartPieIcon,
-  HandCoinsIcon,
+  FileUpIcon,
   LandmarkIcon,
   LayoutDashboardIcon,
+  NotebookPenIcon,
   PiggyBankIcon,
   RepeatIcon,
   TargetIcon,
-  UploadIcon,
+  UsersRoundIcon,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { isMonth } from '#/lib/calendar'
@@ -98,7 +98,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       {
         label: 'Mouvements',
         to: ROUTES.spending,
-        icon: ChartPieIcon,
+        icon: ActivityIcon,
         badge: 'reviewCount',
         alsoActiveOn: [ROUTES.transactions],
       },
@@ -106,7 +106,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       {
         label: 'Bilan du mois',
         to: ROUTES.monthReview,
-        icon: CalendarCheckIcon,
+        icon: NotebookPenIcon,
       },
       { label: 'Abonnements', to: ROUTES.subscriptions, icon: RepeatIcon },
     ],
@@ -121,14 +121,14 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       {
         label: 'Dépenses partagées',
         to: ROUTES.owed,
-        icon: HandCoinsIcon,
+        icon: UsersRoundIcon,
         badge: 'owedTotal',
       },
     ],
   },
   {
     label: 'Outils',
-    items: [{ label: 'Relevés', to: ROUTES.import, icon: UploadIcon }],
+    items: [{ label: 'Relevés', to: ROUTES.import, icon: FileUpIcon }],
   },
 ]
 

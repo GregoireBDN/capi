@@ -13,7 +13,7 @@ import {
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { LayoutDashboardIcon, UploadIcon } from 'lucide-react'
+import { FileUpIcon, LayoutDashboardIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { NewAccountButton } from '#/components/accounts/AccountEditor'
 import { PageHeader } from '#/components/app-shell/PageHeader'
@@ -168,7 +168,7 @@ export function DashboardPage({ banner }: { banner?: ReactNode }) {
           <EmptyContent className="flex-row flex-wrap justify-center">
             <Button asChild>
               <Link to={ROUTES.import}>
-                <UploadIcon aria-hidden />
+                <FileUpIcon aria-hidden />
                 Importer un relevé
               </Link>
             </Button>

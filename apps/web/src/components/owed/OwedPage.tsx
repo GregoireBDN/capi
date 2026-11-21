@@ -12,7 +12,7 @@ import {
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { HandCoinsIcon, UsersIcon } from 'lucide-react'
+import { HandCoinsIcon, UsersRoundIcon } from 'lucide-react'
 import { useState } from 'react'
 import type {
   ExpectedRepaymentDto,
@@ -116,7 +116,7 @@ export function OwedPage({
         </Card>
       ) : (
         <EmptyState
-          icon={<UsersIcon />}
+          icon={<UsersRoundIcon />}
           title={
             side === 'owed'
               ? 'Personne ne vous doit rien'

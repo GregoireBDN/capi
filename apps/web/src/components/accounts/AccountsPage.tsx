@@ -14,7 +14,7 @@ import {
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { LandmarkIcon, TrendingUpIcon, UploadIcon } from 'lucide-react'
+import { FileUpIcon, LandmarkIcon, TrendingUpIcon } from 'lucide-react'
 import { useState } from 'react'
 import type {
   AccountDto,
@@ -144,7 +144,7 @@ export function AccountsPage() {
           actions={
             <Button asChild>
               <Link to={ROUTES.import}>
-                <UploadIcon aria-hidden />
+                <FileUpIcon aria-hidden />
                 Importer un relevé
               </Link>
             </Button>

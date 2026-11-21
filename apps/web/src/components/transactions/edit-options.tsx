@@ -13,8 +13,8 @@ import {
   CheckIcon,
   ChevronRightIcon,
   HandCoinsIcon,
+  HandshakeIcon,
   SplitIcon,
-  UsersIcon,
 } from 'lucide-react'
 import type {
   AccountDto,
@@ -115,7 +115,7 @@ export function EditOptionRows({
     shareable && (
       <SettingRow
         key="share"
-        icon={UsersIcon}
+        icon={HandCoinsIcon}
         label="J’ai payé pour quelqu’un"
         // No « Non »: beside the long label it would be cut (#409).
         value={
@@ -158,7 +158,7 @@ export function EditOptionRows({
     onAccount && !out && (item.repayments.length > 0 || owedToMeCents > 0) && (
       <SettingRow
         key="repaid"
-        icon={HandCoinsIcon}
+        icon={HandshakeIcon}
         label="On me rembourse"
         value={repaidNames || 'Non'}
         onClick={() => onOpen('repayment')}
@@ -167,7 +167,7 @@ export function EditOptionRows({
     onAccount && out && (item.repayments.length > 0 || iOweCents > 0) && (
       <SettingRow
         key="repay"
-        icon={HandCoinsIcon}
+        icon={HandshakeIcon}
         label="Je rembourse"
         value={repaidNames || 'Non'}
         onClick={() => onOpen('repayment')}

@@ -1,17 +1,17 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import {
+  ActivityIcon,
+  FileUpIcon,
   HomeIcon,
   InboxIcon,
   LandmarkIcon,
   LayoutDashboardIcon,
   ListIcon,
-  PieChartIcon,
   PiggyBankIcon,
   RepeatIcon,
   SearchIcon,
   SettingsIcon,
   TargetIcon,
-  UploadIcon,
 } from 'lucide-react'
 import type * as React from 'react'
 import { expect, userEvent, waitFor } from 'storybook/test'
@@ -116,14 +116,14 @@ export const Basic: Story = {
 
 const appItems = [
   { title: 'Tableau de bord', icon: LayoutDashboardIcon },
-  { title: 'Mouvements', icon: PieChartIcon },
+  { title: 'Mouvements', icon: ActivityIcon },
   { title: 'Opérations', icon: ListIcon },
   { title: 'À revoir', icon: InboxIcon },
   { title: 'Budget', icon: TargetIcon },
   { title: 'Abonnements', icon: RepeatIcon },
   { title: 'Épargne', icon: PiggyBankIcon },
   { title: 'Comptes', icon: LandmarkIcon },
-  { title: 'Relevés', icon: UploadIcon },
+  { title: 'Relevés', icon: FileUpIcon },
 ]
 
 function AppLikeSidebar({ defaultOpen = true }: { defaultOpen?: boolean }) {

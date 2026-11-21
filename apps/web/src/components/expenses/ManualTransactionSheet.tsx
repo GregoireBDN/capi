@@ -33,13 +33,13 @@ import {
   ChevronRightIcon,
   EuroIcon,
   FlagIcon,
+  HandCoinsIcon,
   LockIcon,
   SlidersHorizontalIcon,
-  SparkleIcon,
   SplitIcon,
   TagIcon,
   UserRoundIcon,
-  UsersIcon,
+  ZapIcon,
 } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -1645,7 +1645,7 @@ export function ManualTransactionSheet({
                   />
                 ) : (
                   <SettingRow
-                    icon={UsersIcon}
+                    icon={HandCoinsIcon}
                     label="J’ai payé pour quelqu’un"
                     // No « Non »: it would be cut beside the label (#409).
                     value={sharing ? sharedNames : undefined}
@@ -1679,7 +1679,7 @@ export function ManualTransactionSheet({
             </p>
             <div className={SETTING_GROUP_CLASS}>
               <SettingSwitchRow
-                icon={SparkleIcon}
+                icon={ZapIcon}
                 label="Exceptionnelle"
                 checked={isOneOff}
                 onCheckedChange={setIsOneOff}
