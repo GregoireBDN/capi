@@ -6,6 +6,7 @@ import {
   HandIcon,
   HandshakeIcon,
   PencilLineIcon,
+  ReceiptTextIcon,
   StickyNoteIcon,
   TagIcon,
   ZapIcon,
@@ -100,7 +101,10 @@ function Flags({ item }: { item: TransactionDto }) {
     // Money owed (#359): who owes what on it, what it repays.
     {
       on: item.shares.length > 0,
-      icon: HandCoinsIcon,
+      // Someone paid it for me (« Je dois à … ») or I paid for others.
+      icon: item.shares.some((s) => s.direction === 'i_owe')
+        ? ReceiptTextIcon
+        : HandCoinsIcon,
       label: owedLabel(item),
     },
     {

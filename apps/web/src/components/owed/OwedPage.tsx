@@ -12,7 +12,7 @@ import {
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { HandCoinsIcon, UsersRoundIcon } from 'lucide-react'
+import { ReceiptTextIcon, UsersRoundIcon } from 'lucide-react'
 import { useState } from 'react'
 import type {
   ExpectedRepaymentDto,
@@ -60,7 +60,7 @@ export function OwedPage({
         actions={[
           {
             label: 'Quelqu’un a payé pour moi',
-            icon: <HandCoinsIcon />,
+            icon: <ReceiptTextIcon />,
             onSelect: () => setAdding(true),
             primary: true,
           },

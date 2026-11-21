@@ -29,12 +29,12 @@ import {
   ArrowLeftRightIcon,
   ArrowUpRightIcon,
   CalendarDaysIcon,
-  ChartPieIcon,
   ChevronRightIcon,
   EuroIcon,
   FlagIcon,
   HandCoinsIcon,
   LockIcon,
+  ReceiptTextIcon,
   SlidersHorizontalIcon,
   SplitIcon,
   TagIcon,
@@ -1637,7 +1637,7 @@ export function ManualTransactionSheet({
               <div className={SETTING_GROUP_CLASS}>
                 {paidByOther ? (
                   <SettingRow
-                    icon={ChartPieIcon}
+                    icon={ReceiptTextIcon}
                     label={`Je dois à ${payer.name}`}
                     value={formatCents(myPart)}
                     aria-invalid={shareError || undefined}

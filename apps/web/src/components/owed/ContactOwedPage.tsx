@@ -10,7 +10,7 @@ import {
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { HandCoinsIcon, RepeatIcon } from 'lucide-react'
+import { ReceiptTextIcon, RepeatIcon } from 'lucide-react'
 import { useState } from 'react'
 import type {
   ContactDirectionDto,
@@ -103,7 +103,7 @@ export function ContactOwedPage({
         actions={[
           {
             label: 'Quelqu’un a payé pour moi',
-            icon: <HandCoinsIcon />,
+            icon: <ReceiptTextIcon />,
             onSelect: () => setAdding(true),
           },
         ]}

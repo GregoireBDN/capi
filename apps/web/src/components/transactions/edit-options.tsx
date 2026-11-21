@@ -14,6 +14,7 @@ import {
   ChevronRightIcon,
   HandCoinsIcon,
   HandshakeIcon,
+  ReceiptTextIcon,
   SplitIcon,
 } from 'lucide-react'
 import type {
@@ -133,7 +134,7 @@ export function EditOptionRows({
         params={{ contactId: debt.contactId }}
         className={SETTING_ROW_CLASS}
       >
-        <HandCoinsIcon
+        <ReceiptTextIcon
           className="text-muted-foreground size-[0.8rem] shrink-0"
           aria-hidden="true"
         />
