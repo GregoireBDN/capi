@@ -259,7 +259,7 @@ export const syncSecurityPositionsTool = defineTool({
       written.totals.valueCents === null
         ? ''
         : `Lignes aujourd'hui (relevé du ${frenchDate(written.asOf!)}) : ${euros(written.totals.valueCents)}.`,
-      "Pour l'annuler, supprimez ce relevé dans l'application (fiche du PEA, « Lignes », « Relevés ») ; aucun outil MCP ne supprime.",
+      "Pour l'annuler, supprimez ce relevé dans l'application (fiche du PEA, « Lignes », « Relevés de portefeuille ») ; aucun outil MCP ne supprime.",
     ]
       .filter(Boolean)
       .join('\n')

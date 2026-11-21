@@ -13,14 +13,14 @@ import {
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
+  ArrowDownUpIcon,
   ArrowLeftRightIcon,
   BanknoteIcon,
   CheckIcon,
   CircleCheckBigIcon,
+  FileUpIcon,
   ReceiptIcon,
   SearchXIcon,
-  UploadIcon,
-  ArrowDownUpIcon,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { PageHeader } from '#/components/app-shell/PageHeader'
@@ -150,7 +150,7 @@ function EmptyList({
       variant={nearest === null ? undefined : 'secondary'}
     >
       <Link to={ROUTES.import}>
-        <UploadIcon aria-hidden />
+        <FileUpIcon aria-hidden />
         Importer un relevé
       </Link>
     </Button>
@@ -330,10 +330,10 @@ export function TransactionsPage({
       <PageHeader
         title="Opérations"
         description="Filtrez, recherchez et corrigez vos opérations."
-        // A sub-page of Dépenses (#393), reached from its « ⋮ »: back to it
+        // A sub-page of Mouvements (#393), reached from its « ⋮ »: back to it
         // on the month shown (none for every date).
         back={{
-          label: 'Dépenses',
+          label: 'Mouvements',
           to: ROUTES.spending,
           search:
             search.month && search.month !== ALL_MONTHS

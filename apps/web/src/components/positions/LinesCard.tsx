@@ -355,7 +355,7 @@ function Statements({
         }
         onClick={() => setOpen(!open)}
       >
-        Relevés ({data.statements.length})
+        Relevés de portefeuille ({data.statements.length})
       </Button>
       <ul id={id} hidden={!open} className="divide-y">
         {data.statements.map((statement) => (

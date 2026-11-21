@@ -150,7 +150,7 @@ export function MonthReport({ review }: { review: MonthCloseDto }) {
             </Highlight>
           )}
           {report.oneOffs.length > 0 && (
-            <Highlight title="Ponctuels">
+            <Highlight title="Exceptionnels">
               {report.oneOffs.map((oneOff) => (
                 <li
                   key={oneOff.transactionId}

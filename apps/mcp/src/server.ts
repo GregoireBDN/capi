@@ -90,7 +90,7 @@ export function createServer(context: ToolContext): McpServer {
   server.registerPrompt(
     'revue_du_mois',
     {
-      title: 'Revue du mois',
+      title: 'Bilan du mois',
       description:
         'Walks through the month-end review with the tools: imports, review queue, recurring items, budget, savings, investments, next month’s budget, close.',
       argsSchema: monthReviewPromptArgs,

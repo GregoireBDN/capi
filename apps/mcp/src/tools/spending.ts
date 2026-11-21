@@ -83,7 +83,7 @@ export const spendingByCategoryTool = defineTool({
       query,
     )
     const lines = [
-      `Dépenses de ${frenchMonth(data.month)}${account ? ` (compte ${account.name})` : ''}, ${data.includeOneOffs ? 'ponctuelles comprises' : 'hors dépenses ponctuelles'}.`,
+      `Dépenses de ${frenchMonth(data.month)}${account ? ` (compte ${account.name})` : ''}, ${data.includeOneOffs ? 'exceptionnelles comprises' : 'hors dépenses exceptionnelles'}.`,
       periodNote(data.period),
     ]
     if (data.period.status !== 'empty') {
@@ -92,7 +92,7 @@ export const spendingByCategoryTool = defineTool({
       )
       if (!data.includeOneOffs && data.oneOffCents !== 0) {
         lines.push(
-          `Dépenses ponctuelles laissées de côté : ${euros(data.oneOffCents)}.`,
+          `Dépenses exceptionnelles laissées de côté : ${euros(data.oneOffCents)}.`,
         )
       }
       if (data.expectedCents > 0) {
@@ -152,7 +152,7 @@ export const spendingHistoryTool = defineTool({
     const first = data.months[0]
     const last = data.months[data.months.length - 1]
     const lines = [
-      `Dépenses par mois${first && last ? ` de ${frenchMonth(first)} à ${frenchMonth(last)}` : ''}${account ? `, compte ${account.name}` : ''}, ${data.includeOneOffs ? 'ponctuelles comprises' : 'hors dépenses ponctuelles'}. Le dernier mois peut être incomplet.`,
+      `Dépenses par mois${first && last ? ` de ${frenchMonth(first)} à ${frenchMonth(last)}` : ''}${account ? `, compte ${account.name}` : ''}, ${data.includeOneOffs ? 'exceptionnelles comprises' : 'hors dépenses exceptionnelles'}. Le dernier mois peut être incomplet.`,
       `Moyenne des mois complets (${data.averageMonths}) : ${eurosOrUnknown(data.averageCents)} par mois.`,
       '',
       table(

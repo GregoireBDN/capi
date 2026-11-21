@@ -11,7 +11,7 @@ export const Route = createFileRoute('/_app/import')({
     typeof search.account === 'string' && search.account !== ''
       ? { account: search.account }
       : {},
-  head: () => ({ meta: [{ title: 'Import · Finances' }] }),
+  head: () => ({ meta: [{ title: 'Relevés · Finances' }] }),
   component: ImportRoute,
 })
 

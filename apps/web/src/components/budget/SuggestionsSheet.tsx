@@ -140,8 +140,8 @@ export function SuggestionsSheet({
           description={
             <>
               Moyenne mensuelle de vos dépenses
-              {period && ` (${period})`}, hors dépenses ponctuelles, arrondie à
-              l’euro. Cochez celles à garder, à partir de{' '}
+              {period && ` (${period})`}, hors dépenses exceptionnelles,
+              arrondie à l’euro. Cochez celles à garder, à partir de{' '}
               {formatMonth(month).toLowerCase()}.
             </>
           }

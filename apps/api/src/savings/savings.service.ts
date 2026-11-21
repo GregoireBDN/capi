@@ -37,6 +37,7 @@ import {
   PROJECTION_WINDOW,
   type SavingsGoalDto,
   type SavingsMonthDto,
+  type SavingsMovedDto,
   type SavingsOverviewDto,
   type SavingsTargetResultDto,
   type UpdateGoalDto,
@@ -190,6 +191,9 @@ export class SavingsService {
         previousFigures.get(period.previousMonth) ??
           emptyFigures(period.previousMonth),
         period.previousUntil ?? monthEnd(period.previousMonth),
+      ),
+      moved: movedOf(
+        shownFigures.get(period.month) ?? emptyFigures(period.month),
       ),
       monthlyTargetCents: target,
       months,
@@ -579,6 +583,14 @@ function emptyFigures(month: string): MonthFigures {
 }
 
 /** Income and expenses of one month up to `until`, as the dashboard shows them. */
+function movedOf(row: MonthFigures): SavingsMovedDto {
+  return {
+    toSavingsCents: row.movedToSavingsCents,
+    toInvestmentsCents: row.movedToInvestmentsCents,
+    totalCents: row.movedToSavingsCents + row.movedToInvestmentsCents,
+  }
+}
+
 function flowOf(row: MonthFigures, until: string): MonthFlowDto {
   const netCents = row.incomeCents + row.expenseCents
   return {

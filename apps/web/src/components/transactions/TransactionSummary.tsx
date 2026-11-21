@@ -34,13 +34,17 @@ function Figure({ label, cents, toned = false }: FigureProps) {
   )
 }
 
-/** "dont ponctuelles −200,00 € · 12 virements internes exclus". */
+/** "dont exceptionnelles −200,00 € · 12 virements internes exclus". */
 export function summaryNote(summary: TransactionSummaryDto): string {
   const parts: string[] = []
   if (summary.oneOffExpenseCents !== 0)
-    parts.push(`dont ponctuelles ${formatCents(summary.oneOffExpenseCents)}`)
+    parts.push(
+      `dont exceptionnelles ${formatCents(summary.oneOffExpenseCents)}`,
+    )
   if (summary.oneOffIncomeCents !== 0)
-    parts.push(`revenus ponctuels ${formatCents(summary.oneOffIncomeCents)}`)
+    parts.push(
+      `revenus exceptionnels ${formatCents(summary.oneOffIncomeCents)}`,
+    )
   parts.push(
     summary.transferCount > 0
       ? plural(

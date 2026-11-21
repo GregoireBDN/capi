@@ -90,7 +90,11 @@ export function AppSidebar() {
     const active = isNavEntryActive(pathname, item)
     const count = badge === 'reviewCount' ? reviewCount : null
     return (
-      <SidebarMenuItem key={to}>
+      <SidebarMenuItem
+        key={to}
+        // The owed amount is shown only where it fits beside the name.
+        className={cn(badge === 'owedTotal' && '@container/nav-item')}
+      >
         <SidebarMenuButton
           asChild
           isActive={active}
@@ -108,7 +112,7 @@ export function AppSidebar() {
           </Link>
         </SidebarMenuButton>
         {/* The badge is a link of its own: Opérations filtered on « À
-            revoir » (#322), on « Dépenses », whose sub-page it is (#393).
+            revoir » (#322), on « Mouvements », whose sub-page it is (#393).
             Hidden while the column is folded. */}
         {/* What people owe the owner (#359), hidden at 0. */}
         {badge === 'owedTotal' && queryClient && <OwedBadge to={to} />}
@@ -256,14 +260,18 @@ export function AppSidebar() {
   )
 }
 
-/** The id of a group's title, which names its list. */
+/**
+ * The id of a group's title, which names its list: no spaces (« Au
+ * quotidien », #409), since `aria-labelledby` reads a list of ids.
+ */
 function groupId(label: string): string {
-  return `nav-group-${label.toLowerCase()}`
+  return `nav-group-${label.toLowerCase().replace(/\s+/g, '-')}`
 }
 
 /**
- * What people owe the owner (#359), whole euros, hidden at 0, and on the
- * narrow column of small tablets (768–1023px), where it would touch the name.
+ * What people owe the owner (#359), whole euros, hidden at 0, and wherever
+ * the row is too narrow for it beside « Dépenses partagées » (#409: the
+ * phone's menu, the column of small tablets), so the name is never covered.
  */
 function OwedBadge({ to }: { to: string }) {
   const owed = useQuery(owedSummaryQuery)
@@ -273,7 +281,7 @@ function OwedBadge({ to }: { to: string }) {
     <span
       data-testid={`nav-badge-${to}`}
       aria-label={`On me doit ${formatCents(total)}`}
-      className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs whitespace-nowrap tabular-nums group-data-[collapsible=icon]:hidden md:max-lg:hidden"
+      className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 text-xs whitespace-nowrap tabular-nums group-data-[collapsible=icon]:hidden @[14rem]/nav-item:block"
     >
       {formatWholeEuros(total)}
     </span>

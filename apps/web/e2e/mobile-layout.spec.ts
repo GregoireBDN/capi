@@ -78,7 +78,7 @@ async function openExpenseSheet(page: Page) {
 }
 
 async function openPaidForMe(page: Page) {
-  await pageAction(/^Payé pour moi$/)(page)
+  await pageAction(/^Quelqu’un a payé pour moi$/)(page)
   await page.getByRole('dialog').waitFor()
 }
 
@@ -134,7 +134,7 @@ const SCENARIOS: Array<Scenario> = [
   { name: 'shell-nav', path: '/dashboard', step: openNav },
   { name: 'shell-account', path: '/dashboard', step: openAccountMenu },
   { name: 'spending', path: '/spending' },
-  // Dépenses' « ⋮ »: « Ajouter une dépense » and « Voir les opérations » (#393).
+  // Mouvements' « ⋮ »: « Ajouter une dépense » and « Voir les opérations » (#393).
   { name: 'spending-actions', path: '/spending', step: openPageActions },
   { name: 'transactions', path: '/transactions?month=all' },
   {
@@ -206,7 +206,7 @@ const SCENARIOS: Array<Scenario> = [
   { name: 'forecast', path: '/forecast' },
   { name: 'owed', path: '/owed' },
   {
-    // « Payé pour moi » in four steps (#394): the first, then the last.
+    // « Quelqu’un a payé pour moi » in four steps (#394): the first, then the last.
     name: 'owed-paid-for-me',
     path: '/owed',
     step: openPaidForMe,

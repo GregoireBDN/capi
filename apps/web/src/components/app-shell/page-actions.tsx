@@ -25,7 +25,7 @@ export interface PageAction {
   disabled?: boolean
   /**
    * Something waiting behind the action (#393: the transactions to review
-   * behind Dépenses' « Voir les opérations »): its number beside the item
+   * behind Mouvements' « Voir les opérations »): its number beside the item
    * and on the « ⋮ » itself, so it shows without opening the menu; `label`
    * says it to screen readers (« 7 opérations à revoir »). Hidden at 0.
    */

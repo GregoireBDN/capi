@@ -4367,7 +4367,7 @@
     },
     "/api/owed": {
       "get": {
-        "description": "« Entre proches »: « On me doit » and « Je dois » as two lists, never netted, one row per person (the oldest open item’s age), the people all settled apart, and this month’s repayments expected from shared recurring items. Outside the net worth.",
+        "description": "« Dépenses partagées »: « On me doit » and « Je dois » as two lists, never netted, one row per person (the oldest open item’s age), the people all settled apart, and this month’s repayments expected from shared recurring items. Outside the net worth.",
         "operationId": "OwedController_summary",
         "parameters": [],
         "responses": {
@@ -4448,7 +4448,7 @@
     },
     "/api/receivables/debts": {
       "post": {
-        "description": "« Payé pour moi »: a manual expense without an account holding the owner’s part (his spending, in its category, on its day) and what he owes the contact (`i_owe`), the bill kept beside. Open to write tokens.",
+        "description": "« Quelqu’un a payé pour moi »: a manual expense without an account holding the owner’s part (his spending, in its category, on its day) and what he owes the contact (`i_owe`), the bill kept beside. Open to write tokens.",
         "operationId": "ReceivablesController_createDebt",
         "parameters": [],
         "requestBody": {
@@ -4770,7 +4770,7 @@
         ]
       },
       "delete": {
-        "description": "A share goes, its expense stays; what the owner owes goes with its expense « Payé pour moi ». Session only.",
+        "description": "A share goes, its expense stays; what the owner owes goes with its expense « Quelqu’un a payé pour moi ». Session only.",
         "operationId": "ReceivablesController_remove",
         "parameters": [
           {
@@ -4909,7 +4909,7 @@
     },
     "/api/transactions/{id}/shares": {
       "put": {
-        "description": "« Partager »: everyone listed gets or keeps a share of that amount, the others lose theirs (refused once partly repaid or let go). An empty list stops sharing it. Session only.",
+        "description": "« J’ai payé pour quelqu’un »: everyone listed gets or keeps a share of that amount, the others lose theirs (refused once partly repaid or let go). An empty list stops sharing it. Session only.",
         "operationId": "OwedLinksController_replaceShares",
         "parameters": [
           {
@@ -12765,7 +12765,7 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Null only for an expense a contact paid for the owner (`paidByContactId`, « Payé pour moi »)."
+            "description": "Null only for an expense a contact paid for the owner (`paidByContactId`, « Quelqu’un a payé pour moi »)."
           },
           "accountName": {
             "type": "string",
@@ -15951,7 +15951,7 @@
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "When the month was closed in « Revue du mois » (`POST /month-close/:month/close`); null while it is open."
+            "description": "When the month was closed in « Bilan du mois » (`POST /month-close/:month/close`); null while it is open."
           },
           "nextMonthBudgeted": {
             "type": "boolean",
@@ -20062,6 +20062,28 @@
           "belowThreshold"
         ]
       },
+      "SavingsMovedDto": {
+        "type": "object",
+        "properties": {
+          "toSavingsCents": {
+            "type": "integer",
+            "description": "As `SavingsMonthDto.movedToSavingsCents`."
+          },
+          "toInvestmentsCents": {
+            "type": "integer",
+            "description": "As `SavingsMonthDto.movedToInvestmentsCents`."
+          },
+          "totalCents": {
+            "type": "integer",
+            "description": "`toSavingsCents + toInvestmentsCents`."
+          }
+        },
+        "required": [
+          "toSavingsCents",
+          "toInvestmentsCents",
+          "totalCents"
+        ]
+      },
       "SavingsMonthDto": {
         "type": "object",
         "properties": {
@@ -20347,6 +20369,14 @@
               }
             ]
           },
+          "moved": {
+            "description": "Moved to savings and investments during `period.month` (« Mis de côté »), up to `period.dataUntil` while it is partial.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SavingsMovedDto"
+              }
+            ]
+          },
           "monthlyTargetCents": {
             "type": "integer",
             "nullable": true,
@@ -20380,6 +20410,7 @@
           "period",
           "current",
           "previous",
+          "moved",
           "monthlyTargetCents",
           "months",
           "averages",

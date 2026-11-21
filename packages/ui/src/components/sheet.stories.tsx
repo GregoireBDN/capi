@@ -251,7 +251,7 @@ export const Center: Story = {
         </SheetTrigger>
         <SheetContent side="center">
           <SheetBar
-            title="Payé pour moi"
+            title="Quelqu’un a payé pour moi"
             description={`Étape ${step === 'who' ? 1 : 2} sur 2`}
             steps={
               <SheetSteps

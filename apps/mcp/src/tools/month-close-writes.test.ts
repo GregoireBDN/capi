@@ -135,7 +135,7 @@ describe('close_months', () => {
     expect(text).toContain(
       '3 mois clôturé(s) : août 2026, septembre 2026, octobre 2026.',
     )
-    expect(text).toContain('Revue du mois › Rouvrir')
+    expect(text).toContain('Bilan du mois › Rouvrir')
 
     const again = await call('close_months', {
       allBefore: true,

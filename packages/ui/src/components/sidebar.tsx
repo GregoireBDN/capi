@@ -395,8 +395,9 @@ function Sidebar({
           data-mobile="true"
           className={cn(
             [
-              // Layout
-              'w-(--sidebar-width)',
+              // Layout: 85 % of a phone (the sheet's 3/4 cut the longest
+              // names at 320px), leaving a strip ≥ 44px to tap it closed.
+              'w-(--sidebar-width) data-[side=left]:w-[85%] data-[side=right]:w-[85%]',
 
               // Styling
               'bg-sidebar text-sidebar-foreground',

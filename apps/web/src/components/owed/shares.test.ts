@@ -9,7 +9,7 @@ describe('shares', () => {
     expect(partOf('amount', 9000, 1)).toBeNull()
   })
 
-  it('« Payé pour moi »: 90 € between 3, 100 € between 3, half of 90 €', () => {
+  it('« Quelqu’un a payé pour moi »: 90 € between 3, 100 € between 3, half of 90 €', () => {
     expect(myPartOf('equal', 9000, 3)).toBe(3000)
     expect(myPartOf('equal', 10000, 3)).toBe(3333)
     expect(myPartOf('half', 9000, 3)).toBe(4500)

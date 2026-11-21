@@ -114,7 +114,7 @@ export function BulkActionsBar({
           disabled={busy}
           onClick={() => onApply({ isOneOff: !allOneOff })}
         >
-          {allOneOff ? 'Non ponctuelles' : 'Ponctuelles'}
+          {allOneOff ? 'Non exceptionnelles' : 'Exceptionnelles'}
         </Button>
         <Button
           size="sm"

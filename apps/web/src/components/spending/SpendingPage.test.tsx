@@ -292,7 +292,7 @@ describe('SpendingPage', () => {
         (_, element) =>
           element?.tagName === 'P' &&
           element.textContent.replace(/\s/g, ' ') ===
-            `Virements entre vos comptes exclus. Dépenses ponctuelles exclues : ${euros(25_000)}.`,
+            `Virements entre vos comptes exclus. Dépenses exceptionnelles exclues : ${euros(25_000)}.`,
       ),
     ).toBeInTheDocument()
 
@@ -464,7 +464,9 @@ describe('SpendingPage', () => {
     expect(changes.at(-1)).toEqual({ month: '2026-10' })
 
     await user.click(
-      screen.getByRole('switch', { name: 'Inclure les dépenses ponctuelles' }),
+      screen.getByRole('switch', {
+        name: 'Inclure les dépenses exceptionnelles',
+      }),
     )
     expect(changes.at(-1)).toEqual({ month: '2026-10', oneOffs: true })
     await waitFor(() =>
@@ -770,7 +772,7 @@ describe('SpendingPage', () => {
     // A tap elsewhere on the page closes it too.
     await user.keyboard('{ArrowLeft}')
     expect(document.querySelector('[data-slot="trend-detail"]')).not.toBeNull()
-    await user.click(screen.getByRole('heading', { name: 'Dépenses' }))
+    await user.click(screen.getByRole('heading', { name: 'Mouvements' }))
     expect(document.querySelector('[data-slot="trend-detail"]')).toBeNull()
   })
 
@@ -1099,7 +1101,7 @@ describe('SpendingPage', () => {
 
     await user.click(
       await screen.findByRole('button', {
-        name: 'Inclure les dépenses ponctuelles',
+        name: 'Inclure les dépenses exceptionnelles',
       }),
     )
     expect(changes.at(-1)).toEqual({ month: '2026-10', oneOffs: true })

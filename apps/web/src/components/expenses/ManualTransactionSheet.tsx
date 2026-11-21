@@ -29,17 +29,17 @@ import {
   ArrowLeftRightIcon,
   ArrowUpRightIcon,
   CalendarDaysIcon,
-  ChartPieIcon,
   ChevronRightIcon,
   EuroIcon,
   FlagIcon,
+  HandCoinsIcon,
   LockIcon,
+  ReceiptTextIcon,
   SlidersHorizontalIcon,
-  SparkleIcon,
   SplitIcon,
   TagIcon,
   UserRoundIcon,
-  UsersIcon,
+  ZapIcon,
 } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -200,7 +200,7 @@ const isAddDetour = (detour: string): detour is AddDetour =>
   ADD_DETOURS.includes(detour)
 const ADD_DETOUR_TITLES: Record<AddDetour, string> = {
   payer: 'Qui a payé ?',
-  share: 'Partager',
+  share: 'J’ai payé pour quelqu’un',
   mine: 'Ma part',
 }
 
@@ -305,7 +305,7 @@ export function ManualTransactionSheet({
   const editing = item !== undefined
   const bank = item !== undefined && !item.manual
   const split = (item?.splits.length ?? 0) > 0
-  // « Payé pour moi » (#359): a contact paid, no account of the owner's.
+  // « Quelqu’un a payé pour moi » (#359): a contact paid, no account of the owner's.
   const paidBy = item?.paidByContactName ?? null
 
   const [kind, setKind] = useState<TransactionKind>(initialKind)
@@ -624,7 +624,7 @@ export function ManualTransactionSheet({
     mutationFn: async () => {
       const amountCents = parseEurosToCents(amount)!
       // Someone else paid (#398): the owner's part, owed to them, without
-      // an account (« Payé pour moi », #359).
+      // an account (« Quelqu’un a payé pour moi », #359).
       if (paidByOther) {
         const created = await createDebt({
           ...personRef(payer),
@@ -1492,7 +1492,7 @@ export function ManualTransactionSheet({
                     if (next === toAccountId) setToAccountId('')
                   }}
                 >
-                  {/* « Payé pour moi » (#398): who paid, in the same frame. */}
+                  {/* « Quelqu’un a payé pour moi » (#398): who paid, in the same frame. */}
                   {canShare && (
                     <OptionRow
                       role={payer ? 'radio' : 'button'}
@@ -1637,7 +1637,7 @@ export function ManualTransactionSheet({
               <div className={SETTING_GROUP_CLASS}>
                 {paidByOther ? (
                   <SettingRow
-                    icon={ChartPieIcon}
+                    icon={ReceiptTextIcon}
                     label={`Je dois à ${payer.name}`}
                     value={formatCents(myPart)}
                     aria-invalid={shareError || undefined}
@@ -1645,9 +1645,10 @@ export function ManualTransactionSheet({
                   />
                 ) : (
                   <SettingRow
-                    icon={UsersIcon}
-                    label="Partager"
-                    value={sharing ? sharedNames : 'Non'}
+                    icon={HandCoinsIcon}
+                    label="J’ai payé pour quelqu’un"
+                    // No « Non »: it would be cut beside the label (#409).
+                    value={sharing ? sharedNames : undefined}
                     aria-invalid={shareError || undefined}
                     onClick={() => setDetour('share')}
                   />
@@ -1678,8 +1679,8 @@ export function ManualTransactionSheet({
             </p>
             <div className={SETTING_GROUP_CLASS}>
               <SettingSwitchRow
-                icon={SparkleIcon}
-                label="Ponctuelle"
+                icon={ZapIcon}
+                label="Exceptionnelle"
                 checked={isOneOff}
                 onCheckedChange={setIsOneOff}
               />
@@ -1693,7 +1694,7 @@ export function ManualTransactionSheet({
               )}
             </div>
             <p className="text-muted-foreground px-1 text-xs">
-              Ponctuelle : hors des moyennes et des abonnements.
+              Exceptionnelle : hors des moyennes et des abonnements.
             </p>
           </div>
 
