@@ -22,6 +22,7 @@ import {
   EllipsisVerticalIcon,
   InboxIcon,
   LandmarkIcon,
+  ListIcon,
   PiggyBankIcon,
   SearchIcon,
   SlidersHorizontalIcon,
@@ -736,12 +737,20 @@ function Totals({
  * The page around the filters
  * ------------------------------------------------------------------------ */
 
-function ListPreview({ review }: { review: boolean }) {
+function ListPreview({
+  review,
+  count = 42,
+}: {
+  review: boolean
+  count?: number
+}) {
   const rows = review ? REVIEW_ROWS : ROWS
   return (
     <section className="bg-card overflow-hidden rounded-xl border">
       <div className="text-muted-foreground flex min-h-11 items-center justify-between border-b px-3 text-[14px]">
-        <span>{review ? `${REVIEW_COUNT} à revoir` : '42 opérations'}</span>
+        <span>
+          {review ? `${REVIEW_COUNT} à revoir` : `${count} opérations`}
+        </span>
         <span>{review ? 'Tout valider' : 'Plus récentes ⌄'}</span>
       </div>
       <p className="bg-muted/50 text-muted-foreground px-3 py-1 text-[13px] font-medium">
@@ -1474,6 +1483,132 @@ function ActiveTokens({ state }: { state: FilterState }) {
   )
 }
 
+/*
+ * The funnel (the owner, 21 Nov: « une liste avec un décompte : on part du
+ * total et ça fait un fil conducteur où ça réduit le nombre »): the month's
+ * transactions first, then each filter set as a step, with how many are
+ * left once it applies and a bar of that share of the total. Synthetic
+ * counts; the app would ask `GET /transactions/summary` once per step.
+ */
+const FUNNEL_TOTAL = 142
+const FUNNEL_STEPS = [38, 12, 5, 2]
+
+/** How many are left after each filter set, in order. */
+function funnelCount(state: FilterState): number {
+  const steps = activeItems(state).length
+  return steps === 0 ? FUNNEL_TOTAL : FUNNEL_STEPS[steps - 1]!
+}
+
+function Funnel({
+  state,
+  setOverlay,
+  card,
+}: {
+  state: FilterState
+  setOverlay: (overlay: Overlay) => void
+  /** In a card of its own, or plain rows under the search. */
+  card: boolean
+}) {
+  const items = activeItems(state)
+  const rows = [
+    {
+      key: 'all',
+      icon: <FilterBadge icon={ListIcon} size="sm" />,
+      label: 'Tout le mois',
+      count: FUNNEL_TOTAL,
+      clear: undefined as (() => void) | undefined,
+    },
+    ...items.map((item, index) => ({
+      key: item.key,
+      icon: item.icon,
+      label: item.label,
+      count: FUNNEL_STEPS[index]!,
+      clear: item.clear,
+    })),
+  ]
+  return (
+    <section
+      aria-label="Filtres choisis"
+      className={cn(card && 'bg-card overflow-hidden rounded-xl border')}
+    >
+      <ol>
+        {rows.map((row, index) => {
+          const last = index === rows.length - 1
+          return (
+            <li
+              key={row.key}
+              className={cn(
+                'relative flex min-h-[48px] items-center gap-2.5 pr-1',
+                card ? 'pl-3' : 'pl-0',
+              )}
+            >
+              {/* The thread: from each step down to the next one. */}
+              {!last && (
+                <span
+                  aria-hidden
+                  className={cn(
+                    'bg-border absolute top-[36px] bottom-[-11px] w-[2px]',
+                    card
+                      ? 'left-[calc(0.75rem+0.575rem-1px)]'
+                      : 'left-[calc(0.575rem-1px)]',
+                  )}
+                />
+              )}
+              <span className="relative z-[1] flex shrink-0">{row.icon}</span>
+              <button
+                type="button"
+                onClick={() => setOverlay({ kind: 'sheet' })}
+                className="min-w-0 flex-1 py-1.5 text-left outline-none"
+              >
+                <span className="flex items-baseline gap-2">
+                  <span
+                    className={cn(
+                      'min-w-0 flex-1 truncate text-[15px]',
+                      index === 0 ? 'text-muted-foreground' : 'font-medium',
+                    )}
+                  >
+                    {row.label}
+                  </span>
+                  <span
+                    className={cn(
+                      'shrink-0 text-[15px] tabular-nums',
+                      last ? 'font-bold' : 'text-muted-foreground',
+                    )}
+                  >
+                    {row.count}
+                  </span>
+                </span>
+                {/* What is left of the total. */}
+                <span className="bg-muted mt-1 block h-[4px] overflow-hidden rounded-full">
+                  <span
+                    className={cn(
+                      'block h-full rounded-full',
+                      last ? 'bg-primary' : 'bg-muted-foreground/35',
+                    )}
+                    style={{ width: `${(row.count / FUNNEL_TOTAL) * 100}%` }}
+                  />
+                </span>
+              </button>
+              {row.clear ? (
+                <button
+                  type="button"
+                  aria-label={`Retirer ${row.label}`}
+                  onClick={row.clear}
+                  className="text-muted-foreground hover:bg-muted flex size-[40px] shrink-0 items-center justify-center rounded-md"
+                >
+                  <XIcon aria-hidden className="size-[16px]" />
+                </button>
+              ) : (
+                <span aria-hidden className="size-[40px] shrink-0" />
+              )}
+            </li>
+          )
+        })}
+      </ol>
+    </section>
+  )
+}
+
 function Toolbar({
   state,
   phone,
@@ -1488,7 +1623,7 @@ function Toolbar({
    * one summary line, nothing (the totals say them), or one row of light
    * tokens scrolling sideways.
    */
-  phoneSet?: 'chips' | 'line' | 'totals' | 'scroll'
+  phoneSet?: 'chips' | 'line' | 'totals' | 'scroll' | 'funnel' | 'funnelPlain'
   /** Phones: the filters button inside the search field (1a·A). */
   filtersInSearch?: boolean
   /** Phones: a row of its own under the search (1a·B). */
@@ -1556,6 +1691,12 @@ function Toolbar({
           <ActiveLine state={state} setOverlay={setOverlay} />
         )}
         {set > 0 && phoneSet === 'scroll' && <ActiveTokens state={state} />}
+        {set > 0 && phoneSet === 'funnel' && (
+          <Funnel state={state} setOverlay={setOverlay} card />
+        )}
+        {set > 0 && phoneSet === 'funnelPlain' && (
+          <Funnel state={state} setOverlay={setOverlay} card={false} />
+        )}
         {set > 0 && phoneSet === 'chips' && (
           <div className="flex flex-wrap items-center gap-2">
             <ToolFilter listKey="account" state={state} phone />
@@ -1681,6 +1822,22 @@ function Direction1aA3(props: DirectionProps) {
   return {
     ...Direction1aA(props),
     body: <Toolbar {...props} filtersInSearch phoneSet="scroll" />,
+  }
+}
+
+function Direction1aA4(props: DirectionProps) {
+  return {
+    ...Direction1aA(props),
+    body: <Toolbar {...props} filtersInSearch phoneSet="funnel" />,
+    listCount: props.phone ? funnelCount(props.state) : undefined,
+  }
+}
+
+function Direction1aA5(props: DirectionProps) {
+  return {
+    ...Direction1aA(props),
+    body: <Toolbar {...props} filtersInSearch phoneSet="funnelPlain" />,
+    listCount: props.phone ? funnelCount(props.state) : undefined,
   }
 }
 
@@ -1838,6 +1995,8 @@ type Direction =
   | '1aA1'
   | '1aA2'
   | '1aA3'
+  | '1aA4'
+  | '1aA5'
   | '1aB'
   | '1b'
   | '1c'
@@ -1877,6 +2036,8 @@ function Frame({
     '1aA1': Direction1aA1,
     '1aA2': Direction1aA2,
     '1aA3': Direction1aA3,
+    '1aA4': Direction1aA4,
+    '1aA5': Direction1aA5,
     '1aB': Direction1aB,
     '1b': Direction1b,
     '1c': Direction1c,
@@ -1920,7 +2081,10 @@ function Frame({
           review={state.filters.review}
           head={(view as { totalsHead?: React.ReactNode }).totalsHead}
         />
-        <ListPreview review={state.filters.review} />
+        <ListPreview
+          review={state.filters.review}
+          count={(view as { listCount?: number }).listCount}
+        />
       </Chrome>
       {screen}
     </div>
@@ -2052,6 +2216,28 @@ const meta = {
 
 export default meta
 type Story = StoryObj<typeof meta>
+
+export const R1aA4_Decompte: Story = {
+  name: '1a·A·4. Filtres choisis : le décompte',
+  render: (args) => (
+    <Board
+      direction="1aA4"
+      group={toGroup((args as { group?: unknown }).group)}
+      text="1a·A·4 (téléphone). Un décompte : on part de tout le mois (142 opérations), chaque filtre choisi est une marche reliée à la précédente par un fil, avec ce qu’il en reste (38 avec Livret A, puis 12 avec Courses) et une barre de cette part du total. × retire une marche. Dans sa carte."
+    />
+  ),
+}
+
+export const R1aA5_DecompteSansCarte: Story = {
+  name: '1a·A·5. Filtres choisis : le décompte, sans carte',
+  render: (args) => (
+    <Board
+      direction="1aA5"
+      group={toGroup((args as { group?: unknown }).group)}
+      text="1a·A·5 (téléphone). Le même décompte, posé sous la recherche sans carte autour."
+    />
+  ),
+}
 
 export const R1aA1_Ligne: Story = {
   name: '1a·A·1. Filtres choisis : une ligne',
