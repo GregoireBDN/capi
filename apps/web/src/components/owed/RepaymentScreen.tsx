@@ -19,7 +19,11 @@ import {
 
 /** Title of the screen in the transaction editor. */
 export function repaymentTitle(item: TransactionDto): string {
-  return item.amountCents > 0 ? 'C’est un remboursement' : 'Je rembourse…'
+  // Money in: someone pays the owner back; money out: he pays someone
+  // back (#398: one name per direction).
+  return item.amountCents > 0
+    ? 'On me rembourse'
+    : 'Je rembourse'
 }
 
 /**

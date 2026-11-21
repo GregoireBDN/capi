@@ -14,17 +14,19 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
-  ArrowLeftRightIcon,
+  BanknoteIcon,
   ClipboardPasteIcon,
   ClockAlertIcon,
   FileUpIcon,
   PencilIcon,
   PencilLineIcon,
   PlusIcon,
+  ReceiptIcon,
   RefreshCwIcon,
+  ArrowDownUpIcon,
 } from 'lucide-react'
 import { useState } from 'react'
-import type { AccountDto, SnapshotDto } from '#/api/types.gen'
+import type { AccountDto, SnapshotDto, TransactionKind } from '#/api/types.gen'
 import { PageBack } from '#/components/app-shell/PageBack'
 import type { PageBackLink } from '#/components/app-shell/PageBack'
 import { PageHeader } from '#/components/app-shell/PageHeader'
@@ -137,7 +139,8 @@ export function AccountDetailPage({
   const performance = useQuery(performanceQuery(accountId))
   const [editor, setEditor] = useState<EditorState>({ open: false })
   const [pasteOpen, setPasteOpen] = useState(false)
-  const [addOpen, setAddOpen] = useState(false)
+  // The kind is chosen before adding (#398).
+  const [addKind, setAddKind] = useState<TransactionKind | null>(null)
   const [investedOpen, setInvestedOpen] = useState(false)
   const navigate = useNavigate()
   const today = todayInParis()
@@ -256,9 +259,19 @@ export function AccountDetailPage({
                   onSelect: openImport,
                 },
                 {
-                  label: 'Ajouter une opération',
-                  icon: <ArrowLeftRightIcon />,
-                  onSelect: () => setAddOpen(true),
+                  label: 'Ajouter une dépense',
+                  icon: <ReceiptIcon />,
+                  onSelect: () => setAddKind('expense'),
+                },
+                {
+                  label: 'Ajouter un revenu',
+                  icon: <BanknoteIcon />,
+                  onSelect: () => setAddKind('income'),
+                },
+                {
+                  label: 'Ajouter un virement',
+                  icon: <ArrowDownUpIcon />,
+                  onSelect: () => setAddKind('transfer'),
                 },
               ]
 
@@ -362,7 +375,7 @@ export function AccountDetailPage({
           today={today}
           snapshots={data.snapshots}
           onImport={openImport}
-          onAddTransaction={() => setAddOpen(true)}
+          onAddTransaction={() => setAddKind('expense')}
           onAddStatement={openAdd}
           onPasteStatements={() => setPasteOpen(true)}
           onEditStatement={(snapshot) => setEditor({ open: true, snapshot })}
@@ -447,8 +460,11 @@ export function AccountDetailPage({
           )}
           {!investment && (
             <ManualTransactionSheet
-              open={addOpen}
-              onOpenChange={setAddOpen}
+              open={addKind !== null}
+              onOpenChange={(open) => {
+                if (!open) setAddKind(null)
+              }}
+              initialKind={addKind ?? 'expense'}
               initialAccountId={current.id}
             />
           )}

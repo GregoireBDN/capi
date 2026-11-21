@@ -8,7 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { XIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import type { TransactionDto } from '#/api/types.gen'
+import type { ContactDto, TransactionDto } from '#/api/types.gen'
 import { AmountField } from '#/components/amount/AmountField'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
 import { formatCents } from '#/lib/money'
@@ -28,15 +28,35 @@ import type { ShareMode } from './shares'
 /** Delay before a change is saved, so typing an amount saves once. */
 const SAVE_DELAY_MS = 700
 
-interface Draft {
+/** Who shares an expense and how (#359; a draft while adding one, #398). */
+export interface ShareDraft {
   people: Person[]
   mode: ShareMode
   /** Typed amounts, per person (by index), in « Montants ». */
   texts: string[]
 }
 
+/** Nobody yet: what adding an expense starts from. */
+export const EMPTY_SHARE: ShareDraft = { people: [], mode: 'equal', texts: [] }
+
+/** A draft every part of which is a positive amount, the owner's included. */
+export function shareValid(draft: ShareDraft, totalCents: number): boolean {
+  const parts = partsOf(draft, totalCents)
+  const others = parts.reduce<number>((sum, part) => sum + (part ?? 0), 0)
+  return parts.every((part) => part !== null && part > 0) && others < totalCents
+}
+
+/** The shares to send for a draft (`shareValid` first). */
+export function sharesOf(draft: ShareDraft, totalCents: number) {
+  const parts = partsOf(draft, totalCents)
+  return draft.people.map((person, index) => ({
+    ...personRef(person),
+    amountCents: parts[index] ?? 0,
+  }))
+}
+
 /** Who owes what now on `item`, as the screen edits it. */
-function draftOf(item: TransactionDto): Draft {
+export function draftOf(item: TransactionDto): ShareDraft {
   const shares = item.shares.filter((s) => s.direction === 'owed_to_me')
   const people = shares.map((s) => ({
     contactId: s.contactId,
@@ -57,7 +77,10 @@ function draftOf(item: TransactionDto): Draft {
 }
 
 /** Each person's part in cents (null where a typed amount is not valid). */
-function partsOf(draft: Draft, totalCents: number): (number | null)[] {
+export function partsOf(
+  draft: ShareDraft,
+  totalCents: number,
+): (number | null)[] {
   const each = partOf(draft.mode, totalCents, draft.people.length)
   return draft.people.map((_, index) =>
     each !== null ? each : parseEurosToCents(draft.texts[index] ?? ''),
@@ -76,7 +99,7 @@ export function ShareScreen({ item }: { item: TransactionDto }) {
   const queryClient = useQueryClient()
   const contacts = useQuery(contactsQuery())
   const totalCents = -item.amountCents
-  const [draft, setDraft] = useState<Draft>(() => draftOf(item))
+  const [draft, setShareDraft] = useState<ShareDraft>(() => draftOf(item))
   const initial = useRef(draftOf(item))
   const dirty = useRef(false)
 
@@ -111,7 +134,7 @@ export function ShareScreen({ item }: { item: TransactionDto }) {
               })),
             })
               .then(() => {
-                setDraft(before)
+                setShareDraft(before)
                 return afterOwedChanged(queryClient)
               })
               .catch((error: unknown) => toast.error(owedErrorMessage(error)))
@@ -141,10 +164,52 @@ export function ShareScreen({ item }: { item: TransactionDto }) {
     // `signature` holds what is saved.
   }, [signature])
 
-  const change = (next: Draft) => {
+  const change = (next: ShareDraft) => {
     dirty.current = true
-    setDraft(next)
+    setShareDraft(next)
   }
+  if (item.splits.length > 0) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        Cette opération est répartie entre plusieurs catégories : retirez la
+        répartition pour la partager.
+      </p>
+    )
+  }
+
+  return (
+    <ShareFields
+      totalCents={totalCents}
+      draft={draft}
+      onChange={change}
+      contacts={contacts.data ?? []}
+    />
+  )
+}
+
+/**
+ * Who shares an expense and how (#359), controlled: the people (a list, a
+ * second tap takes one out), one choice for everyone (« Moitié » with one
+ * person, « Parts égales » with several, or « Montants » typed for each;
+ * switching keeps the figures), each person removable, « Ma part » live.
+ * `ShareScreen` saves it at once; adding an expense keeps it as a draft
+ * (#398).
+ */
+export function ShareFields({
+  totalCents,
+  draft,
+  onChange: change,
+  contacts,
+}: {
+  totalCents: number
+  draft: ShareDraft
+  onChange: (draft: ShareDraft) => void
+  contacts: readonly ContactDto[]
+}) {
+  const parts = partsOf(draft, totalCents)
+  const others = parts.reduce<number>((sum, part) => sum + (part ?? 0), 0)
+  const mine = totalCents - others
+  const over = mine < 0
   /** The figures as shown, to keep them when switching to « Montants ». */
   const shownTexts = () =>
     parts.map((part, index) =>
@@ -180,20 +245,11 @@ export function ShareScreen({ item }: { item: TransactionDto }) {
   }
   const single = draft.people.length === 1
 
-  if (item.splits.length > 0) {
-    return (
-      <p className="text-muted-foreground text-sm">
-        Cette opération est répartie entre plusieurs catégories : retirez la
-        répartition pour la partager.
-      </p>
-    )
-  }
-
   return (
     <div className="space-y-4">
       <PeoplePicker
         label="Avec qui ?"
-        contacts={contacts.data ?? []}
+        contacts={contacts}
         chosen={draft.people}
         onPick={add}
         onRemove={(person) =>

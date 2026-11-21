@@ -1,6 +1,4 @@
-import { Button } from '@finances/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
 import { toast } from 'sonner'
 import type { TransactionDto } from '#/api/types.gen'
 import { addMonths, formatDayMonth, todayInParis } from './format'
@@ -18,7 +16,8 @@ import {
  * « Abonnement prépayé » of the transaction editor (#314): declares an
  * expense as a subscription paid upfront for 12, 24 or 36 months, or
  * changes the term of the one it pays (« Non » makes it an ordinary item
- * again). Every change's toast offers « Annuler ».
+ * again). One tap on a term saves it (#398: a list, each term's monthly
+ * cost and renewal); every change's toast offers « Annuler ».
  */
 export function PrepaidScreen({
   item,
@@ -30,7 +29,6 @@ export function PrepaidScreen({
   const queryClient = useQueryClient()
   const today = todayInParis()
   const current = item.prepaidItemId ? item.prepaidTermMonths : null
-  const [termMonths, setTermMonths] = useState<number | null>(current ?? 12)
   const amountCents = -item.amountCents
 
   const declare = useMutation({
@@ -84,38 +82,27 @@ export function PrepaidScreen({
 
   const pending = declare.isPending || change.isPending
   const declared = item.prepaidItemId !== null
+  // A tap saves (#398): no button, the toast offers « Annuler ».
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" aria-busy={pending || undefined}>
       <p className="text-muted-foreground text-sm">
-        Un paiement fait en une fois pour plusieurs mois (hébergement, logiciel,
-        assurance…). Il reste dans les dépenses de son mois, mais sort des
-        moyennes et des budgets proposés.
+        Payé une fois pour plusieurs mois : compté dans son mois, hors des
+        moyennes.
       </p>
       <PrepaidTermControl
-        value={termMonths}
-        onChange={setTermMonths}
+        value={current}
         allowNone={declared}
         amountCents={amountCents}
-      />
-      {termMonths !== null && (
-        <p className="text-sm">
-          Renouvellement le{' '}
-          {formatDayMonth(addMonths(item.bookingDate, termMonths), today)}, avec
-          un rappel 30 jours avant.
-        </p>
-      )}
-      <Button
-        type="button"
-        className="w-full"
-        loading={pending}
-        disabled={declared ? termMonths === current : termMonths === null}
-        onClick={() => {
-          if (!declared) declare.mutate(termMonths!)
-          else change.mutate(termMonths)
+        detail={(months) =>
+          `Renouvellement le ${formatDayMonth(addMonths(item.bookingDate, months), today)}`
+        }
+        onChange={(term) => {
+          if (pending || term === current) return
+          if (!declared) {
+            if (term !== null) declare.mutate(term)
+          } else change.mutate(term)
         }}
-      >
-        {declared ? 'Enregistrer' : 'Déclarer'}
-      </Button>
+      />
     </div>
   )
 }

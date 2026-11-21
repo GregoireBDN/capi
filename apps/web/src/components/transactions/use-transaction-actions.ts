@@ -7,7 +7,6 @@ import {
 } from '#/api'
 import type {
   CategoryDto,
-  CorrectTransactionDto,
   SplitPartDto,
   TransactionDto,
   UpdateManualTransactionDto,
@@ -36,7 +35,6 @@ import {
   transactionKeys,
 } from './queries'
 import {
-  correctTransaction,
   restoreBankValues,
   splitParts,
   splitTransaction,
@@ -197,7 +195,7 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     item: TransactionDto,
     request: () => Promise<TransactionDto>,
     message: string,
-    revert: () => Promise<unknown>,
+    revert?: () => Promise<unknown>,
   ): Promise<boolean> {
     let data: TransactionDto
     try {
@@ -209,6 +207,10 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     patchCachedTransactions(queryClient, [data])
     void afterTransactionEdited(queryClient)
     scheduleReviewCountRefresh()
+    if (!revert) {
+      toast.success(message, { description: displayLabel(item) })
+      return true
+    }
     toastUndoable(message, displayLabel(item), () => {
       void revert()
         .then(() =>
@@ -238,35 +240,15 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     )
   }
 
-  /** "Modifier une opération importée": amount or date, bank values kept. */
-  function correct(item: TransactionDto, body: CorrectTransactionDto) {
-    const wasCorrected =
-      item.originalAmountCents !== null || item.originalBookingDate !== null
-    return edit(
-      item,
-      () => correctTransaction(item.id, body),
-      'Opération importée corrigée',
-      () =>
-        wasCorrected
-          ? correctTransaction(item.id, {
-              amountCents: item.amountCents,
-              bookingDate: item.bookingDate,
-            })
-          : restoreBankValues(item.id),
-    )
-  }
-
-  /** Puts the bank amount and date back. */
+  /**
+   * Puts the bank amount and date of a row corrected before #398 back. No
+   * « Annuler »: an imported row is never corrected again.
+   */
   function restoreBank(item: TransactionDto) {
     return edit(
       item,
       () => restoreBankValues(item.id),
       'Valeurs de la banque rétablies',
-      () =>
-        correctTransaction(item.id, {
-          amountCents: item.amountCents,
-          bookingDate: item.bookingDate,
-        }),
     )
   }
 
@@ -410,7 +392,6 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     update,
     updateMany,
     updateManual,
-    correct,
     restoreBank,
     split,
     unsplit,
