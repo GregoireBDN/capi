@@ -22,23 +22,19 @@ import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { MonthToolbar } from '#/components/month/MonthToolbar'
 import { ROUTES } from '#/lib/routes'
 import { GoalsSection } from './GoalsSection'
-import { SavingsChart, SavingsChartSkeleton } from './SavingsChart'
-import { SavingsKpis } from './SavingsKpis'
-import { InvestmentsRecap } from './InvestmentsRecap'
-import { SavingsStock } from './SavingsStock'
-import { TargetCard } from './TargetCard'
+import { MonthCard } from './MonthCard'
+import { MonthMovedCard, YearMovedCard } from './MovedCard'
+import { StockCard } from './StockCard'
 import { savingsOverviewQuery } from './queries'
+
+/** Two columns from this page width (a computer), one card per row below. */
+const COLUMNS = 'grid items-start gap-4 @[38rem]:grid-cols-2'
 
 function OverviewSkeleton() {
   return (
-    <div className="space-y-6" aria-busy="true" aria-label="Chargement">
-      <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @2xl:grid-cols-4">
-        {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-24 rounded-xl" />
-        ))}
-      </div>
-      <Skeleton className="h-36 rounded-xl" />
-      <SavingsChartSkeleton />
+    <div className={COLUMNS} aria-busy="true" aria-label="Chargement">
+      <Skeleton className="h-80 rounded-xl" />
+      <Skeleton className="h-72 rounded-xl" />
     </div>
   )
 }
@@ -54,10 +50,12 @@ function isEmptyOverview(overview: SavingsOverviewDto) {
 }
 
 /**
- * Savings at a glance: the month's net savings and rate (the dashboard's
- * figures, transfers excluded), the average monthly savings, the monthly
- * target, a 12-month chart, what is put aside on savings and investment
- * accounts, and the goals with their projection.
+ * Épargne (#407, the owner's « A. Jauge » with far less text): the month
+ * first, « Épargné » (income − expenses, transfers between the owner's
+ * accounts excluded) against its target and « Mis de côté » (what left the
+ * checking accounts for savings and investments), then « Ce que vous
+ * avez »: « Livrets et placements », the goals and the 12 months of « Mis
+ * de côté ». The month bar moves between months: no chart of the months.
  */
 interface SavingsPageProps {
   /** Month of the headline figures, from the URL; absent = the API's pick. */
@@ -79,10 +77,7 @@ export function SavingsPage({
 
   return (
     <div className="@container space-y-6">
-      <PageHeader
-        title="Épargne"
-        description="Ce que vous mettez de côté chaque mois, et où."
-      />
+      <PageHeader title="Épargne" />
 
       {/* The month is in the app header (#401) from the first render:
           the current month until the API says which month it shows. */}
@@ -90,7 +85,12 @@ export function SavingsPage({
         navigator={
           <MonthNavigator month={month ?? currentMonth()} onMonthChange={go} />
         }
-        period={isEmpty ? undefined : data?.period}
+        // Said only when the month is not a full one.
+        period={
+          isEmpty || data?.period.status === 'complete'
+            ? undefined
+            : data?.period
+        }
       />
 
       {overview.isPending && <OverviewSkeleton />}
@@ -139,27 +139,34 @@ export function SavingsPage({
 
       {data && !isEmpty && (
         <>
-          <SavingsKpis overview={data} />
-          <SavingsChart months={data.months} target={data.monthlyTargetCents} />
+          <div className={COLUMNS}>
+            <MonthCard overview={data} onMonthChange={go} />
+            <MonthMovedCard overview={data} />
+          </div>
+          <section aria-labelledby="savings-held" className="space-y-4">
+            <h2
+              id="savings-held"
+              className="px-1 text-lg font-semibold tracking-tight"
+            >
+              Ce que vous avez
+            </h2>
+            <div className={COLUMNS}>
+              <StockCard stock={data.stock} />
+              <div className="min-w-0 space-y-4">
+                <GoalsSection
+                  projectionAverageCents={data.projectionAverageCents}
+                />
+                <YearMovedCard overview={data} />
+              </div>
+            </div>
+          </section>
         </>
       )}
 
-      {/* The chart takes the whole width; below it the targets (monthly
-          target, then goals) beside the accounts, each card at its own
-          height rather than stretched to its neighbour's (#210). */}
-      {data && (
-        <div className="grid items-start gap-4 @4xl:grid-cols-2">
-          <div className="min-w-0 space-y-4">
-            {!isEmpty && <TargetCard overview={data} />}
-            <GoalsSection
-              projectionAverageCents={data.projectionAverageCents}
-            />
-          </div>
-          {!isEmpty && <SavingsStock stock={data.stock} />}
-        </div>
+      {/* Goals can be set before any data. */}
+      {isEmpty && (
+        <GoalsSection projectionAverageCents={data.projectionAverageCents} />
       )}
-
-      {data && !isEmpty && <InvestmentsRecap />}
     </div>
   )
 }

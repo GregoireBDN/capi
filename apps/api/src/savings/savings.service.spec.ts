@@ -342,6 +342,11 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
         throughDay: 2,
       })
       expect(december.current.netCents).toBe(250_000)
+      expect(overview.moved).toEqual({
+        toSavingsCents: 0,
+        toInvestmentsCents: 0,
+        totalCents: 0,
+      })
 
       // A month asked for: its figures, compared with the whole month before.
       const september = await savings.overview(4, {
@@ -354,6 +359,12 @@ describe.skipIf(!process.env.DATABASE_URL)('SavingsService (database)', () => {
         defaultMonth: '2026-11',
       })
       expect(september.current.month).toBe('2026-09')
+      // What was put aside that month, as its row of `months`.
+      expect(september.moved).toEqual({
+        toSavingsCents: -30_000,
+        toInvestmentsCents: 0,
+        totalCents: -30_000,
+      })
       expect(september.previous).toMatchObject({
         month: '2026-08',
         until: '2026-08-31',

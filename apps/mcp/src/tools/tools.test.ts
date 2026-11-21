@@ -950,6 +950,11 @@ describe('savings_and_goals', () => {
       period: period(),
       current: flow({ month: '2026-11' }),
       previous: flow(),
+      moved: {
+        toSavingsCents: 40000,
+        toInvestmentsCents: 50000,
+        totalCents: 90000,
+      },
       monthlyTargetCents: 60000,
       months: [],
       averages: [window, { ...window, months: 6 }, { ...window, months: 12 }],
@@ -1042,12 +1047,21 @@ describe('savings_and_goals', () => {
       },
     })
     const { text } = await call('savings_and_goals')
+    // The app's words (#407): Épargné, Mis de côté, Livrets et placements, Cible.
+    expect(text).toContain(
+      'Mis de côté en novembre 2026 : +900,00 € (livrets +400,00 €, placements +500,00 €).',
+    )
+    expect(text).toContain('Cible : 600,00 € par mois')
+    expect(text).toContain('Livrets et placements : 5 000,00 €.')
+    expect(text).toContain(
+      'Objectifs : ensemble, 257,15 € par mois ; épargné en moyenne 700,00 € (6 mois complets, hors ponctuel) : marge +442,85 €.',
+    )
     expect(text).toContain(
       '- Plateforme → Ledger : 2 mouvement(s), coût 800,00 €',
     )
     expect(text).toContain('- 1 retrait(s) ou dépôt(s) sans compte lié')
     expect(text).toContain(
-      "Où est allé l'argent investi du 01/12/2025 au 05/11/2026 : +800,00 € nets (versé 900,00 €, retiré 100,00 €).",
+      "Où est allé l'argent investi du 01/12/2025 au 05/11/2026 : +800,00 € nets (mis de côté 900,00 €, retiré 100,00 €).",
     )
     expect(text).toContain(
       '- PEA test (PEA / compte-titres) : +800,00 € en 3 virement(s), dont 100,00 € retirés',
