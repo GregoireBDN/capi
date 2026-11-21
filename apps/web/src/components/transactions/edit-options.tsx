@@ -117,10 +117,11 @@ export function EditOptionRows({
         key="share"
         icon={UsersIcon}
         label="J’ai payé pour quelqu’un"
+        // No « Non »: beside the long label it would be cut (#409).
         value={
           owedShares.length > 0
             ? owedShares.map((s) => s.contactName).join(', ')
-            : 'Non'
+            : undefined
         }
         onClick={() => onOpen('share')}
       />

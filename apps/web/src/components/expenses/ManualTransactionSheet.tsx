@@ -1647,7 +1647,8 @@ export function ManualTransactionSheet({
                   <SettingRow
                     icon={UsersIcon}
                     label="J’ai payé pour quelqu’un"
-                    value={sharing ? sharedNames : 'Non'}
+                    // No « Non »: it would be cut beside the label (#409).
+                    value={sharing ? sharedNames : undefined}
                     aria-invalid={shareError || undefined}
                     onClick={() => setDetour('share')}
                   />
