@@ -44,7 +44,8 @@ function AppLayout() {
       data-app-shell
       style={
         {
-          '--sidebar-width': 'min(16rem, 32vw)',
+          // 34vw: « Dépenses partagées » whole on a small tablet (#409).
+          '--sidebar-width': 'min(16rem, 34vw)',
           // Folded to its icons: a column centred under the header's logo
           // (0.75rem of padding + 0.25rem + half its 1.5rem), with 44px
           // square buttons around 1.1rem icons (`AppSidebar`, #386).

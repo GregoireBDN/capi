@@ -130,7 +130,7 @@ function AppLikeSidebar({ defaultOpen = true }: { defaultOpen?: boolean }) {
   return (
     <SidebarProvider
       defaultOpen={defaultOpen}
-      style={{ '--sidebar-width': 'min(16rem, 32vw)' } as React.CSSProperties}
+      style={{ '--sidebar-width': 'min(16rem, 34vw)' } as React.CSSProperties}
     >
       <Sidebar>
         <SidebarHeader>
