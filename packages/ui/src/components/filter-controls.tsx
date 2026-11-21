@@ -26,7 +26,7 @@ type FilterControlProps = {
   icon: React.ReactNode
   /** The chosen value; none: the control reads « Compte Tous ⌄ ». */
   value?: FilterValue
-  /** What « nothing chosen » means (« Tous », « Toutes »). */
+  /** What « nothing chosen » means (« Tous », « Toutes »), said to screen readers. */
   emptyLabel?: string
   /** Clears the value (the × of a set control). */
   onClear: () => void
@@ -62,7 +62,7 @@ type FilterToggleProps = Omit<
  * as one family.
  */
 const FILTER_CONTROL =
-  'relative inline-flex h-[44px] max-w-full items-center gap-2 rounded-lg border text-[15px] whitespace-nowrap shadow-xs outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50'
+  'relative inline-flex h-[44px] max-w-full min-w-0 items-center gap-2 rounded-lg border text-[15px] whitespace-nowrap shadow-xs outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50'
 
 const FILTER_CONTROL_OFF = 'bg-card hover:bg-muted/60'
 
@@ -70,12 +70,27 @@ const FILTER_CONTROL_OFF = 'bg-card hover:bg-muted/60'
  * COMPONENTS
  * ========================================================================= */
 
+/** The icon of a control, in a box of one size set or not (no shift). */
+function ControlIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      aria-hidden
+      className="text-muted-foreground flex size-[1.15rem] shrink-0 items-center justify-center [&_svg]:size-[17px]"
+    >
+      {children}
+    </span>
+  )
+}
+
 /**
  * Filter Control
- * A filter of a toolbar that opens its options in a popover (#406): « 🏛
- * Compte Tous ⌄ » while nothing is chosen, then « [value icon] Compte
- * Livret A × » tinted with the value's colour. The name of what it filters
- * stays in view, set or not.
+ * A filter of a toolbar that opens its options in a popover (#406), like a
+ * field with a floating label (the owner's request): « 🏛 Compte ⌄ », its
+ * name as a placeholder, while nothing is chosen; then « [value icon]
+ * Livret A × » tinted with the value's colour, its name moved up onto its
+ * top edge. Leave room above it (about 0.5em). Its size never changes with
+ * its value: give it its width (`className`, a grid cell); the value is cut
+ * with « … ».
  */
 function FilterControl({
   label,
@@ -119,22 +134,21 @@ function FilterControl({
         className={cn(
           FILTER_CONTROL,
           FILTER_CONTROL_OFF,
-          'pr-2.5 pl-3 [&_svg]:shrink-0',
+          'pr-1 pl-2.5 text-left',
           className,
         )}
       >
+        <ControlIcon>{icon}</ControlIcon>
+        {/* Its name in place of a value, like a field's placeholder. */}
+        <span className="text-muted-foreground min-w-0 flex-1 truncate">
+          {label}
+        </span>
         <span
           aria-hidden
-          className="text-muted-foreground flex [&_svg]:size-[17px]"
+          className="text-muted-foreground flex size-7 shrink-0 items-center justify-center"
         >
-          {icon}
+          <ChevronDownIcon className="size-[16px]" />
         </span>
-        <span className="font-medium">{label}</span>
-        <span className="text-muted-foreground">{emptyLabel}</span>
-        <ChevronDownIcon
-          aria-hidden
-          className="text-muted-foreground size-[16px]"
-        />
       </button>
     )
     return withOptions(triggerOf(button))
@@ -149,12 +163,14 @@ function FilterControl({
     <button
       type="button"
       aria-label={`${label} : ${value.label}, changer`}
+      title={value.label}
       onClick={onOpen}
-      className="-my-px flex h-[44px] min-w-0 flex-1 items-center gap-2 text-left outline-none"
+      className="-my-px flex h-[44px] min-w-0 flex-1 items-center gap-1.5 text-left outline-none"
     >
-      {value.icon}
-      <span className="text-muted-foreground">{label}</span>
-      <span className="truncate font-semibold">{value.label}</span>
+      <ControlIcon>{value.icon ?? icon}</ControlIcon>
+      <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">
+        {value.label}
+      </span>
     </button>
   )
   return withOptions(
@@ -165,17 +181,25 @@ function FilterControl({
         FILTER_CONTROL,
         !value.color &&
           'border-primary/60 bg-[color-mix(in_srgb,var(--primary)_10%,var(--card))]',
-        'pr-1 pl-2',
+        'gap-1.5 pr-1 pl-2',
         className,
       )}
       style={tint}
     >
+      {/* Its name moves up onto the top edge, like a field's label once
+          filled (the owner's request): leave room above the control. */}
+      <span
+        aria-hidden
+        className="bg-background text-muted-foreground pointer-events-none absolute -top-[0.55em] left-2 max-w-[calc(100%-1rem)] truncate rounded-sm px-1 text-[12px] leading-none font-medium"
+      >
+        {label}
+      </span>
       {triggerOf(trigger)}
       <button
         type="button"
         aria-label={`Retirer le filtre ${label}`}
         onClick={onClear}
-        className="hover:bg-foreground/10 focus-visible:ring-ring/50 relative flex size-8 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-[3px] pointer-coarse:touch-hitbox"
+        className="hover:bg-foreground/10 focus-visible:ring-ring/50 relative flex size-7 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-[3px] pointer-coarse:touch-hitbox"
       >
         <XIcon aria-hidden className="size-[15px]" />
       </button>
@@ -205,7 +229,7 @@ function FilterToggle({
       onClick={() => onPressedChange(!pressed)}
       className={cn(
         FILTER_CONTROL,
-        'pr-3 pl-2.5',
+        'pr-3 pl-2.5 text-left',
         pressed
           ? 'border-primary/60 bg-[color-mix(in_srgb,var(--primary)_10%,var(--card))]'
           : FILTER_CONTROL_OFF,

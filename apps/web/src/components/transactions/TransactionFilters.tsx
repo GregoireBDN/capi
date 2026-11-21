@@ -104,6 +104,8 @@ function ReviewButton({
   onToggle: () => void
 }) {
   const counted = !on && count !== null && count > 0
+  // The same size on and off (the owner): « À revoir » never moves the
+  // title's row; its slot holds the count, × once on.
   return (
     <button
       type="button"
@@ -111,7 +113,7 @@ function ReviewButton({
       aria-pressed={on}
       onClick={onToggle}
       className={cn(
-        'border-warning/70 inline-flex h-[44px] shrink-0 items-center gap-2 rounded-full border pr-2 pl-3 text-[15px] font-semibold whitespace-nowrap transition-colors outline-none @[672px]:rounded-lg @[672px]:pr-3',
+        'border-warning/70 inline-flex h-[44px] shrink-0 items-center justify-center gap-2 rounded-full border pr-2 pl-3 text-[15px] font-semibold whitespace-nowrap transition-colors outline-none @[672px]:rounded-lg @[672px]:pr-3',
         'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
         on
           ? 'bg-warning text-warning-foreground'
@@ -120,15 +122,19 @@ function ReviewButton({
     >
       <InboxIcon aria-hidden className="hidden size-[18px] @[672px]:block" />À
       revoir
-      {counted && (
-        <span className="bg-warning text-warning-foreground flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1.5 text-[13px] font-bold tabular-nums">
-          <span aria-hidden>{count > 99 ? '99+' : count}</span>
-          <span className="sr-only">
-            , {plural(count, 'opération à revoir', 'opérations à revoir')}
+      {/* One slot for the count or ×: the same size on or off. */}
+      <span className="flex h-[22px] w-[32px] shrink-0 items-center justify-center">
+        {counted ? (
+          <span className="bg-warning text-warning-foreground flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1.5 text-[13px] font-bold tabular-nums">
+            <span aria-hidden>{count > 99 ? '99+' : count}</span>
+            <span className="sr-only">
+              , {plural(count, 'opération à revoir', 'opérations à revoir')}
+            </span>
           </span>
-        </span>
-      )}
-      {on && <XIcon aria-hidden className="size-[16px]" />}
+        ) : on ? (
+          <XIcon aria-hidden className="size-[16px]" />
+        ) : null}
+      </span>
     </button>
   )
 }
@@ -328,8 +334,7 @@ export function TransactionFilters({
           data-slot="transactions-toolbar"
           className="flex flex-wrap items-center gap-2"
         >
-          {/* The search keeps 320px at least on a computer; past that the
-              filters go, as one group, to the row under it. */}
+          {/* The search fills its row; the filters follow on the next. */}
           <InputGroup className="bg-card h-[44px] min-w-0 flex-[1_1_320px] shadow-xs dark:bg-card">
             <InputGroupAddon>
               <SearchIcon />
@@ -366,10 +371,13 @@ export function TransactionFilters({
               </button>
             </InputGroupAddon>
           </InputGroup>
-          {/* A computer: every filter as a control of the toolbar. */}
+          {/* A computer: the four filters under the search, one size each
+              (the owner: nothing moves as they are set), then
+              « Effacer », greyed out while none is. Room above them for the
+              names that move onto their top edge. */}
           <div
             data-slot="filter-controls"
-            className="hidden flex-wrap items-center gap-2 @[672px]:flex"
+            className="hidden basis-full grid-cols-[repeat(4,minmax(0,1fr))_auto] items-center gap-2 pt-1.5 @[672px]:grid"
           >
             {LISTS.map((filter) => {
               const meta = LIST_FILTERS[filter]
@@ -387,6 +395,7 @@ export function TransactionFilters({
                     categories,
                   )}
                   onClear={() => set(filter, undefined)}
+                  className="w-full"
                   open={openList === filter}
                   onOpenChange={(open) => setOpenList(open ? filter : null)}
                 >
@@ -408,23 +417,23 @@ export function TransactionFilters({
               icon={<ZapIcon />}
               pressed={search.oneOff === true}
               onPressedChange={(on) => set('oneOff', on || undefined)}
+              className="w-full"
             />
-            {count > 0 && (
-              <Button
-                variant="secondary"
-                ghost
-                className="h-[44px]"
-                onClick={clear}
-              >
-                Effacer
-              </Button>
-            )}
+            <Button
+              variant="secondary"
+              ghost
+              className="h-[44px]"
+              onClick={clear}
+              disabled={count === 0}
+            >
+              Effacer
+            </Button>
           </div>
         </div>
         {phoneRows && (
           <div
             data-slot="filters-set"
-            className="flex flex-col gap-2 @[672px]:hidden"
+            className="flex flex-col gap-3 pt-1.5 @[672px]:hidden"
           >
             {LISTS.map((filter) => {
               const chosen = filterValue(

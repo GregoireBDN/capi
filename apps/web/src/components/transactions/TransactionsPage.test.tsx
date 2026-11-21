@@ -522,10 +522,8 @@ describe('TransactionsPage', () => {
     await waitForRows()
     const bar = monthBar()
 
-    // No filter on: nothing to clear.
-    expect(
-      bar.queryByRole('button', { name: 'Effacer' }),
-    ).not.toBeInTheDocument()
+    // No filter on: « Effacer » stays in place, greyed out (#406).
+    expect(bar.getByRole('button', { name: 'Effacer' })).toBeDisabled()
 
     // Only transactional accounts are offered.
     await user.click(bar.getByRole('button', { name: 'Compte, tous' }))
