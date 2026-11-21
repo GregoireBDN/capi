@@ -40,11 +40,11 @@ import { useEffect, useState, type ReactNode } from 'react'
  * and investments); « Livrets et placements » (what is held there).
  *
  * Top to bottom: the month (figure, gauge with the target as a mark, gap,
- * rate, the last 6 months as dots, the average), the months as bars green
- * when the target is reached, « Mis de côté » this month, the goals (what
- * they need per month, the margin, when each one is reached at this pace),
- * then « Ce que vous avez »: the stock and where the money went over 12
- * months. A month in progress gets no verdict, only the same day of the
+ * rate, the last 6 months as dots, the average) and « Mis de côté » this
+ * month, then « Ce que vous avez »: the stock, the goals (what they need
+ * per month, the margin, when each one is reached at this pace) and where
+ * the money went over 12 months. No chart of the months: the month bar
+ * moves between them (the owner, 21 Nov). A month in progress gets no verdict, only the same day of the
  * month before and last month's result.
  */
 const meta: Meta<FrameArgs> = {
@@ -683,90 +683,6 @@ function MonthHero({ f }: { f: MonthFigures }) {
 }
 
 /**
- * The months as bars: green when the target is reached, grey below it, red
- * below zero, the month shown outlined, the month in progress hatched; the
- * target as a dashed line.
- */
-function MonthBars({
-  f,
-  onSelect,
-}: {
-  f: MonthFigures
-  onSelect: (index: number) => void
-}) {
-  const height = 120
-  const values = MONTHS.map((x) => x.net)
-  const reference = f.target ?? f.average
-  const max = Math.max(...values, reference)
-  const min = Math.min(0, ...values)
-  const y = (v: number) => ((max - v) / (max - min)) * height
-  return (
-    <div className="@container space-y-1">
-      <div className="relative" style={{ height }}>
-        <div
-          aria-hidden
-          className="bg-border absolute inset-x-0 h-px"
-          style={{ top: y(0) }}
-        />
-        <div className="absolute inset-0 flex items-stretch gap-[3px]">
-          {MONTHS.map((x, i) => {
-            const top = y(Math.max(x.net, 0))
-            const bottom = y(Math.min(x.net, 0))
-            const good = f.target !== null && x.complete && x.net >= f.target
-            return (
-              <button
-                key={x.month}
-                type="button"
-                aria-label={`${monthLong(x.month)} : ${fmt0(x.net)}`}
-                onClick={() => onSelect(i)}
-                className="relative flex-1 rounded-sm outline-none focus-visible:ring-2"
-              >
-                <span
-                  className={cn(
-                    'absolute inset-x-0 rounded-[3px]',
-                    !x.complete
-                      ? 'bg-[repeating-linear-gradient(135deg,var(--muted-foreground)_0_2px,transparent_2px_5px)] opacity-50'
-                      : good
-                        ? 'bg-chart-delta-good'
-                        : x.net < 0
-                          ? 'bg-chart-delta-bad'
-                          : f.target === null
-                            ? 'bg-chart-savings'
-                            : 'bg-muted-foreground/35',
-                    i === f.index &&
-                      'ring-foreground ring-offset-card ring-2 ring-offset-1',
-                  )}
-                  style={{ top, height: Math.max(bottom - top, 2) }}
-                />
-              </button>
-            )
-          })}
-        </div>
-        <div
-          aria-hidden
-          className="border-foreground/60 pointer-events-none absolute inset-x-0 border-t border-dashed"
-          style={{ top: y(reference) }}
-        />
-      </div>
-      <div className="text-muted-foreground flex gap-[3px] text-[10px] leading-4">
-        {MONTHS.map((x, i) => (
-          <span
-            key={x.month}
-            className={cn(
-              'flex-1 text-center',
-              i === f.index && 'text-foreground font-semibold',
-              i % 2 === 1 && i !== f.index && '@max-[20rem]:invisible',
-            )}
-          >
-            {monthAbbr(x.month).replace('.', '')}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/**
  * « Mis de côté » this month: saved and put aside as two bars, the split,
  * and what it did to the checking account as one figure.
  */
@@ -1029,36 +945,35 @@ function Moved12() {
  * The page
  * ------------------------------------------------------------------------- */
 
-function SavingsBody({
-  f,
-  select,
-  wide,
-}: {
-  f: MonthFigures
-  select: (index: number) => void
-  wide: boolean
-}) {
-  const grid = cn('grid items-start gap-4', wide && 'grid-cols-2')
+function SavingsBody({ f, wide }: { f: MonthFigures; wide: boolean }) {
+  // The month is moved with the month bar: no chart of the months here.
+  const held = <Stock />
+  const goals = <Goals f={f} />
+  const moved12 = <Moved12 />
   return (
     <div className="space-y-4">
-      <div className={grid}>
+      <div className={cn('grid items-start gap-4', wide && 'grid-cols-2')}>
         <MonthHero f={f} />
-        <Card>
-          <CardTitle>Épargné par mois</CardTitle>
-          <MonthBars f={f} onSelect={select} />
-        </Card>
-      </div>
-      <div className={grid}>
         <MovedThisMonth f={f} />
-        <Goals f={f} />
       </div>
       <h2 className="px-1 pt-2 text-lg font-semibold tracking-tight">
         Ce que vous avez
       </h2>
-      <div className={grid}>
-        <Stock />
-        <Moved12 />
-      </div>
+      {wide ? (
+        <div className="grid grid-cols-2 items-start gap-4">
+          {held}
+          <div className="space-y-4">
+            {goals}
+            {moved12}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {held}
+          {goals}
+          {moved12}
+        </div>
+      )}
     </div>
   )
 }
@@ -1265,7 +1180,7 @@ function Frame(args: FrameArgs) {
                 </p>
               )}
             </header>
-            <SavingsBody f={f} select={setIndex} wide={!phone} />
+            <SavingsBody f={f} wide={!phone} />
           </div>
         </main>
       </div>
