@@ -81,10 +81,36 @@ export type CryptoPriceSource = (typeof CRYPTO_PRICE_SOURCES)[number]
 /**
  * Where a value snapshot comes from (#366): `typed` (a statement, a value
  * entered by hand or through the MCP) or `computed` (a crypto account's daily
- * close, holdings × that day's price), which is never edited or deleted.
+ * close, holdings × that day's price, or a PEA's value from its priced lines,
+ * ADR 0006), which is never edited by hand.
  */
 export const SNAPSHOT_SOURCES = ['typed', 'computed'] as const
 export type SnapshotSource = (typeof SNAPSHOT_SOURCES)[number]
+
+/**
+ * Account types that hold security positions (ADR 0006, #413): their lines
+ * by ISIN, their value computed from the priced lines. A compte-titres (#414)
+ * joins them.
+ */
+export const POSITION_ACCOUNT_TYPES = [
+  'brokerage',
+] as const satisfies readonly AccountType[]
+
+/** Where a security's price of a day comes from, strongest first (ADR 0006). */
+export const SECURITY_PRICE_SOURCES = [
+  'manual',
+  'statement',
+  'provider',
+] as const
+export type SecurityPriceSource = (typeof SECURITY_PRICE_SOURCES)[number]
+
+/**
+ * Where a position statement comes from: `typed` in the app, `mcp` read from
+ * a broker's statement through Claude (ADR 0006).
+ */
+export const POSITION_STATEMENT_SOURCES = ['typed', 'mcp'] as const
+export type PositionStatementSource =
+  (typeof POSITION_STATEMENT_SOURCES)[number]
 
 /**
  * Where a savings goal's current amount comes from: the balances of its

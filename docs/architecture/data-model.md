@@ -323,24 +323,31 @@ These 13 tables are covered by `CLAUDE.md` (Auth, Passkeys, Personal access toke
 - **`crypto_bitcoin_scans`**, **`crypto_bitcoin_scan_addresses`** — resumable scan state per key and address type; addresses are derived again, never stored.
 - **`crypto_imports`**, **`crypto_movements`** — exchange exports and their signed lines, and since #373 a wallet's or manual account's observed rises and falls (`observed_in` / `observed_out`, no import); unique `(account_id, dedupe_hash)` (DB). The preview is dropped at commit like a bank import's and accounts restrict their deletion (#367). Costs are not stored: one replay over every crypto account computes them (`crypto/cost-basis.ts`); `cost_cents` and `resolution` hold only what the owner answered. **`crypto_transfer_links`** pairs the two sides of a transfer between two of the owner's accounts (one link per movement, trigger-checked kinds).
 
+### Securities (a PEA's lines, #413, ADR 0006)
+
+- **`securities`** — one per ISIN (format and check digit checked by `isin_is_valid`, DB), name, optional ticker; public reference data, no amount.
+- **`security_prices`** — one exact EUR price per security and day, source `manual` > `statement` > `provider` (a weaker source never replaces a stronger one: code). Unique `(security_id, day)` (DB).
+- **`position_statements`**, **`position_lines`** — what a PEA held on a day, as a whole (its lines and its cash), unique `(account_id, as_of)` and `(statement_id, security_id)` (DB); quantity > 0, PRU ≥ 0, cash ≥ 0 (DB); only on `POSITION_ACCOUNT_TYPES` (trigger). The account's computed values are rewritten from them in the transaction of every write.
+
 ### Access
 
 `users`, `refresh_tokens`, `password_reset_tokens`, `email_verification_tokens`, `webauthn_credentials`, `webauthn_challenges`, `personal_access_tokens`, `access_token_audit`, `oauth_clients`, `oauth_grants`, `oauth_authorization_codes`, `oauth_tokens`, `oauth_audit`.
 
 ## 4. Stored, derived, or both
 
-| Value                                 | Stored where                            | Derived from                     | Drift risk                                                                        |
-| ------------------------------------- | --------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------- |
-| Cash balance                          | not stored                              | bank rows + anchors              | none                                                                              |
-| Coverage (`dataUntil`)                | not stored                              | bank rows, committed imports     | none                                                                              |
-| Exchange holdings (`origin = import`) | `crypto_holdings`                       | `crypto_movements`               | rewritten on every commit; safe as long as nothing else writes them               |
-| Withdrawal cost                       | `crypto_movements.cost_cents`           | holdings replay                  | same                                                                              |
-| Wallet holdings (`origin = sync`)     | `crypto_holdings`                       | the chain                        | a cache by nature: keep                                                           |
-| Crypto value per day                  | `balance_snapshots` (`computed`)        | holdings × that day's close      | stored by the daily close (#366); past prices kept in `crypto_price_history`      |
-| Crypto invested per day               | `balance_snapshots.contributions_cents` | holdings' cost, linked movements | **overwrites typed values** (#358), shares a column with typed statement figures  |
-| Recurring stats                       | `recurring_items`                       | transactions                     | recomputed on read anyway; the stored copy feeds the forecast and the month close |
-| Transaction category of a split       | `transactions.category_id`              | largest part                     | kept by the split writer                                                          |
-| Month report                          | `month_closes.report`                   | everything                       | intended: frozen on purpose                                                       |
+| Value                                 | Stored where                            | Derived from                     | Drift risk                                                                             |
+| ------------------------------------- | --------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------- |
+| Cash balance                          | not stored                              | bank rows + anchors              | none                                                                                   |
+| Coverage (`dataUntil`)                | not stored                              | bank rows, committed imports     | none                                                                                   |
+| Exchange holdings (`origin = import`) | `crypto_holdings`                       | `crypto_movements`               | rewritten on every commit; safe as long as nothing else writes them                    |
+| Withdrawal cost                       | `crypto_movements.cost_cents`           | holdings replay                  | same                                                                                   |
+| Wallet holdings (`origin = sync`)     | `crypto_holdings`                       | the chain                        | a cache by nature: keep                                                                |
+| Crypto value per day                  | `balance_snapshots` (`computed`)        | holdings × that day's close      | stored by the daily close (#366); past prices kept in `crypto_price_history`           |
+| PEA value per day                     | `balance_snapshots` (`computed`)        | lines × that day's latest price  | rewritten by `revalue` in every positions write (ADR 0006); a typed value wins its day |
+| Crypto invested per day               | `balance_snapshots.contributions_cents` | holdings' cost, linked movements | **overwrites typed values** (#358), shares a column with typed statement figures       |
+| Recurring stats                       | `recurring_items`                       | transactions                     | recomputed on read anyway; the stored copy feeds the forecast and the month close      |
+| Transaction category of a split       | `transactions.category_id`              | largest part                     | kept by the split writer                                                               |
+| Month report                          | `month_closes.report`                   | everything                       | intended: frozen on purpose                                                            |
 
 ## 5. Query plans
 

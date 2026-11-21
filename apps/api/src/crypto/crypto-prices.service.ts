@@ -5,7 +5,7 @@ import { cryptoPricesTable } from '#/database/schema'
 import type { CryptoPriceSource } from '#/database/schema/domain-enums'
 import { searchBuiltinAssets } from './builtin-assets'
 import { isContractAssetId } from './contract-assets'
-import { fitsNumeric, formatDecimal, parseDecimal, rescale } from './decimal'
+import { fitsNumeric, formatDecimal, parseDecimal, rescale } from '#/common/decimal'
 import type { CryptoPriceDto } from './dto/crypto.dto'
 import {
   CRYPTO_PRICE_OPTIONS,

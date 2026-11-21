@@ -1,4 +1,4 @@
-import { divideHalfEven } from '#/crypto/decimal'
+import { divideHalfEven } from '#/common/decimal'
 import type { CryptoMovementKind } from '#/database/schema/domain-enums'
 import { FIAT_TICKERS } from './assets'
 import type { AssetMapping, ProjectedHolding } from './crypto-import.types'

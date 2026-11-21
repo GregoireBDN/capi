@@ -17,6 +17,7 @@ import {
 } from 'class-validator'
 import { Type } from 'class-transformer'
 import { WalletKeyInputDto } from '#/crypto/wallet-keys/wallet-keys.dto'
+import { CalendarDate } from '#/investments/calendar-date'
 import {
   ACCOUNT_TYPES,
   type AccountType,
@@ -147,6 +148,15 @@ export class AccountDto {
     description: 'Day `investedBaseCents` covers (« Investi jusqu’au … »).',
   })
   investedBaseOn!: string | null
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    nullable: true,
+    description:
+      'The day the account was opened (ADR 0006): a PEA counts its 5 years from it. PEA, life insurance and employee savings only.',
+  })
+  openedOn!: string | null
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date
@@ -305,6 +315,17 @@ export class UpdateAccountDto {
   @NotNullIfPresent()
   @IsBoolean()
   archived?: boolean
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date',
+    nullable: true,
+    description:
+      'The day the account was opened, not in the future; null clears it. PEA, life insurance and employee savings only.',
+  })
+  @IsOptional()
+  @CalendarDate()
+  openedOn?: string | null
 }
 
 const count = (description: string) =>
@@ -326,6 +347,9 @@ export class AccountDeletionPreviewDto {
 
   @count('Crypto holding lines (imported, synced or typed by hand).')
   cryptoHoldings!: number
+
+  @count('Position statements of a PEA (ADR 0006), each with its lines.')
+  positionStatements!: number
 
   @count('Wallet public keys and tokens read for the account.')
   walletKeys!: number

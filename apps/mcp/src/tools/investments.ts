@@ -8,6 +8,7 @@ import type {
   AccountType,
   InvestmentAccountSummaryDto,
   InvestmentsSummaryDto,
+  PositionsDto,
 } from '../api/types.js'
 import type { ApiClient } from '../api/client.js'
 import { euros, frenchDate, percent, signedEuros } from '../format.js'
@@ -117,11 +118,34 @@ function accountLine(
   return `- ${row.name} (${details}) : dernière valeur ${euros(row.valueCents)} au ${frenchDate(row.valueDate)}${age}${contributions}${realised}${stale}`
 }
 
+/** A PEA's lines as of today, one per security, then its cash. */
+export function positionLines(data: PositionsDto | undefined): string[] {
+  if (!data || (data.lines.length === 0 && data.cashCents === 0)) return []
+  const lines = data.lines.map((line) => {
+    const value =
+      line.valueCents === null
+        ? 'sans cours'
+        : `${euros(line.valueCents)} (cours ${frenchQuantity(line.priceEur!)} € au ${frenchDate(line.priceDay!)})`
+    const result =
+      line.gainCents === null
+        ? line.unitCostEur === null
+          ? ', PRU inconnu'
+          : ''
+        : `, PRU ${frenchQuantity(line.unitCostEur!)} €, résultat ${signedEuros(line.gainCents)}`
+    return `  · ${line.name} (${line.isin}) : ${frenchQuantity(line.quantity)} parts, ${value}${result}`
+  })
+  return [
+    `  Lignes au ${frenchDate(data.asOf!)} :`,
+    ...lines,
+    `  · Liquidités : ${euros(data.cashCents)}`,
+  ]
+}
+
 export const listInvestmentAccountsTool = defineTool({
   name: 'list_investment_accounts',
   title: 'Comptes de placement',
   description:
-    "Open investment accounts (PEA / brokerage, life insurance, employee savings, crypto) with their institution, crypto source, last value and its date, what was invested with the latent result and rate (crypto: the cost of the coins held, carried across transfers between the owner's accounts; coins of unknown cost named apart; the realised gain of sales), and whether they are stale. Call it before importing statement values: only documents dated after the last snapshot need importing, and it gives the account names add_investment_snapshots and sync_crypto_holdings accept.",
+    "Open investment accounts (PEA / brokerage, life insurance, employee savings, crypto) with their institution, crypto source, last value and its date, what was invested with the latent result and rate (crypto: the cost of the coins held, carried across transfers between the owner's accounts; coins of unknown cost named apart; the realised gain of sales), whether they are stale, and a PEA's lines (ISIN, quantity, value, PRU and result, then its cash). Call it before importing statement values: only documents dated after the last snapshot need importing, and it gives the account names add_investment_snapshots, sync_security_positions and sync_crypto_holdings accept.",
   inputSchema: {},
   async run({ api }) {
     const [summary, accounts] = await Promise.all([
@@ -132,13 +156,29 @@ export const listInvestmentAccountsTool = defineTool({
       return "Aucun compte de placement ouvert. Pour en ajouter un, voir create_investment_account (la création se fait dans l'application)."
     }
     const byId = new Map(accounts.map((a) => [a.id, a]))
+    // A PEA's lines (ADR 0006, #413), under its row.
+    const peas = summary.accounts.filter((row) => row.type === 'brokerage')
+    const positions = new Map(
+      await Promise.all(
+        peas.map(
+          async (row) =>
+            [
+              row.id,
+              await api.get<PositionsDto>(`/api/accounts/${row.id}/positions`),
+            ] as const,
+        ),
+      ),
+    )
     const stale = summary.accounts.filter(
       (a) => a.stale || a.valueCents === null,
     )
     const lines = [
       `Placements : ${euros(summary.totals.valueCents)} au total (dernières valeurs connues).`,
       '',
-      ...summary.accounts.map((row) => accountLine(row, byId.get(row.id))),
+      ...summary.accounts.flatMap((row) => [
+        accountLine(row, byId.get(row.id)),
+        ...positionLines(positions.get(row.id)),
+      ]),
     ]
     lines.push(
       '',

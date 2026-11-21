@@ -3,6 +3,7 @@
 // Synthetic accounts, dates, amounts and quantities only.
 import { describe, expect, it } from 'vitest'
 import type {
+  PositionsDto,
   AccountDto,
   AccountHoldingsDto,
   BulkSnapshotsDto,
@@ -205,9 +206,41 @@ describe('list_investment_accounts', () => {
         },
       ],
     }
+    const positions: PositionsDto = {
+      accountId: pea.id,
+      asOf: '2026-09-30',
+      cashCents: 48_224,
+      lines: [
+        {
+          securityId: '00000000-0000-4000-8000-0000000000a1',
+          isin: 'ZZ00MSCIWD03',
+          name: 'ETF Monde fictif',
+          ticker: null,
+          quantity: '48',
+          unitCostEur: '412.515',
+          costCents: 1_980_072,
+          priceEur: '498.32',
+          priceDay: '2026-09-30',
+          priceSource: 'statement',
+          valueCents: 2_391_936,
+          gainCents: 411_864,
+          priceOlderThanStatement: false,
+        },
+      ],
+      totals: {
+        valueCents: 2_440_160,
+        pricedValueCents: 2_440_160,
+        costCents: 1_980_072,
+        gainCents: 411_864,
+        withoutPriceCount: 0,
+        withoutCostCount: 0,
+      },
+      statements: [],
+    }
     const { call } = await connect({
       '/api/investments/summary': summary,
       '/api/accounts': accounts,
+      [`/api/accounts/${pea.id}/positions`]: positions,
     })
     const { text, isError } = await call('list_investment_accounts')
     expect(isError).toBe(false)
@@ -223,6 +256,12 @@ describe('list_investment_accounts', () => {
     expect(text).toContain(
       '- Crypto Test (crypto, saisie manuelle) : aucune valeur enregistrée',
     )
+    // A PEA's lines (#413).
+    expect(text).toContain('  Lignes au 30/09/2026 :')
+    expect(text).toContain(
+      '  · ETF Monde fictif (ZZ00MSCIWD03) : 48 parts, 23 919,36 € (cours 498,32 € au 30/09/2026), PRU 412,515 €, résultat +4 118,64 €',
+    )
+    expect(text).toContain('  · Liquidités : 482,24 €')
     expect(text).toContain('À mettre à jour : PEA, Crypto Test.')
     expect(text).toContain('Archivés (non modifiables) : PEE Ancien.')
   })

@@ -8,6 +8,7 @@ import * as schema from '#/database/schema'
 import { categorize } from '#/categories/rules/categorize'
 import {
   accountsTable,
+  balanceSnapshotsTable,
   categoriesTable,
   categorizationRulesTable,
   importsTable,
@@ -234,6 +235,30 @@ describe.skipIf(!process.env.DATABASE_URL)(
         expect(credit?.cadence).toBe('monthly')
       })
     })
+
+    it('gives the PEA lines whose values are computed (#413)', async () => {
+      await seeded(async (tx, result) => {
+        expect(result.counts.positionStatements).toBe(6)
+        const [pea] = await tx
+          .select()
+          .from(accountsTable)
+          .where(eq(accountsTable.type, 'brokerage'))
+        expect(pea.openedOn).toBe('2022-03-12')
+        const values = await tx
+          .select({
+            date: balanceSnapshotsTable.date,
+            source: balanceSnapshotsTable.source,
+          })
+          .from(balanceSnapshotsTable)
+          .where(eq(balanceSnapshotsTable.accountId, pea.id))
+          .orderBy(balanceSnapshotsTable.date)
+        // Typed before the lines, computed at each statement since.
+        expect(values.slice(-6).map((v) => v.source)).toEqual(
+          Array(6).fill('computed'),
+        )
+        expect(values[0].source).toBe('typed')
+      })
+    }, 15_000)
 
     it('is deterministic for a given day', async () => {
       const digest = (tx: Tx) =>

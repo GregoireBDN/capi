@@ -7,7 +7,7 @@ import { addDays } from '#/imports/dedupe/calendar-date'
 import { daysBetween, parisToday } from '#/investments/days'
 import { PRICE_HISTORY_MAX_DAYS } from '../coingecko.provider'
 import { isContractAssetId } from '../contract-assets'
-import { fitsNumeric, formatDecimal, parseDecimal, rescale } from '../decimal'
+import { fitsNumeric, formatDecimal, parseDecimal, rescale } from '#/common/decimal'
 import {
   CRYPTO_PRICE_OPTIONS,
   type CryptoPriceOptions,

@@ -148,6 +148,7 @@ export function InvestmentSummary({
   caption,
   status,
   onEditInvested,
+  footer,
 }: {
   account: Pick<AccountDto, 'type' | 'cryptoSource' | 'archivedAt'>
   performance: AccountPerformanceDto
@@ -162,6 +163,8 @@ export function InvestmentSummary({
   status?: ReactNode
   /** Opens the invested amount's editor (accounts that take one). */
   onEditInvested?: () => void
+  /** At the end of the card: a PEA's own facts (#413). */
+  footer?: ReactNode
 }) {
   const id = useId()
   const {
@@ -308,6 +311,7 @@ export function InvestmentSummary({
             dernière valeur : ils compteront avec la prochaine.
           </p>
         )}
+        {footer}
       </CardContent>
     </Card>
   )

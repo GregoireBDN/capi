@@ -1,5 +1,6 @@
 /**
- * Exact non-negative decimals on `BigInt`, for crypto quantities and prices.
+ * Exact non-negative decimals on `BigInt`, for crypto and securities quantities
+ * and prices (ADR 0006).
  *
  * Quantities (`numeric(38, 18)`) and EUR prices (`numeric(38, 12)`) travel as
  * decimal strings (`"0.00012345"`) and never go through a JS float: a value is

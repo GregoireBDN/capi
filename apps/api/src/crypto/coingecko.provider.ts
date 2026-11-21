@@ -4,7 +4,7 @@ import {
   JSON_NUMBER_MARK,
   quoteJsonNumbers,
   signedDecimalFromJsonNumber,
-} from './decimal'
+} from '#/common/decimal'
 import {
   type CryptoAsset,
   type EurQuote,

@@ -39,6 +39,7 @@ import {
   cryptoWalletTokensTable,
   importsTable,
   monthClosesTable,
+  positionStatementsTable,
   recurringItemsTable,
   savingsGoalAccountsTable,
   transactionSplitsTable,
@@ -50,6 +51,8 @@ import {
   prepareWalletKeys,
 } from '#/crypto/wallet-keys/wallet-keys.repository'
 import { endOfDayBalance } from '#/imports/dedupe/continuity'
+import { parisToday } from '#/investments/days'
+import { takesInvestedBase } from '#/investments/performance'
 import type {
   ChangeCryptoSourceDto,
   CreateAccountDto,
@@ -73,6 +76,7 @@ export interface AccountDeletionPreview {
   imports: number
   snapshots: number
   cryptoHoldings: number
+  positionStatements: number
   walletKeys: number
   recurringItems: number
   rules: number
@@ -307,6 +311,17 @@ export class AccountsService {
       if (dto.name !== undefined) changes.name = dto.name
       if (dto.institution !== undefined) changes.institution = dto.institution
       if (dto.position !== undefined) changes.position = dto.position
+      if (dto.openedOn !== undefined) {
+        if (dto.openedOn !== null && !takesInvestedBase(existing)) {
+          throw new BadRequestException(
+            'Only a PEA, a life insurance or employee savings has an opening date',
+          )
+        }
+        if (dto.openedOn !== null && dto.openedOn > parisToday(new Date())) {
+          throw new BadRequestException('The opening date is in the future')
+        }
+        changes.openedOn = dto.openedOn
+      }
       if (dto.archived !== undefined) {
         // Keep the original archive date when archiving twice.
         changes.archivedAt = dto.archived
@@ -348,6 +363,7 @@ export class AccountsService {
         imports: sql<number>`${countOf(importsTable)} + ${countOf(cryptoImportsTable)}`,
         snapshots: countOf(s),
         cryptoHoldings: countOf(cryptoHoldingsTable),
+        positionStatements: countOf(positionStatementsTable),
         walletKeys: sql<number>`${countOf(cryptoWalletKeysTable)} + ${countOf(cryptoWalletTokensTable)}`,
         recurringItems: countOf(recurringItemsTable),
         rules: countOf(categorizationRulesTable),

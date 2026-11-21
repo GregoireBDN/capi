@@ -7513,6 +7513,505 @@
         ]
       }
     },
+    "/api/accounts/{id}/positions": {
+      "get": {
+        "description": "Each line with its quantity, PRU, cost, latest price, value and result; the cash; the totals; the statements, newest first.",
+        "operationId": "PositionsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a PEA."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "A PEA's lines as of today (ADR 0006)",
+        "tags": [
+          "Positions"
+        ]
+      }
+    },
+    "/api/accounts/{id}/positions/statements/{asOf}": {
+      "put": {
+        "description": "Every line held on `asOf` and the cash: the day's lines are replaced, the prices sent become that day's `statement` prices (a manual price is kept), unknown securities are created (a name is then required), and the account's values are computed again from that day. A typed value keeps its day. Open to write tokens (MCP `sync_security_positions`).",
+        "operationId": "PositionsController_putStatement",
+        "parameters": [
+          {
+            "name": "asOf",
+            "required": true,
+            "in": "path",
+            "description": "The statement's day (`YYYY-MM-DD`), not in the future.",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutStatementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body or ISIN, duplicate line, future day, unknown security without a name, archived account, not a PEA."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Write a whole statement of a day",
+        "tags": [
+          "Positions"
+        ]
+      },
+      "delete": {
+        "description": "Session only. Values are computed again from that day.",
+        "operationId": "PositionsController_removeStatement",
+        "parameters": [
+          {
+            "name": "asOf",
+            "required": true,
+            "in": "path",
+            "description": "The statement's day (`YYYY-MM-DD`), not in the future.",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Delete the statement of a day",
+        "tags": [
+          "Positions"
+        ]
+      }
+    },
+    "/api/accounts/{id}/positions/statements/{asOf}/preview": {
+      "post": {
+        "description": "What writing it would change: new, changed, removed and unchanged lines, the cash, the value of the day before and after. Saves nothing.",
+        "operationId": "PositionsController_preview",
+        "parameters": [
+          {
+            "name": "asOf",
+            "required": true,
+            "in": "path",
+            "description": "The statement's day (`YYYY-MM-DD`), not in the future.",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutStatementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementPreviewDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Preview a statement",
+        "tags": [
+          "Positions"
+        ]
+      }
+    },
+    "/api/accounts/{id}/positions/lines/{isin}": {
+      "put": {
+        "description": "Today's statement, or a copy of the latest one dated today, gets the line (the past is never rewritten). An omitted PRU keeps the one known. Session only.",
+        "operationId": "PositionsController_upsertLine",
+        "parameters": [
+          {
+            "name": "isin",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "ZZ00MSCIWD03",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertLineDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Add or change a line, as of today",
+        "tags": [
+          "Positions"
+        ]
+      },
+      "delete": {
+        "description": "Session only.",
+        "operationId": "PositionsController_removeLine",
+        "parameters": [
+          {
+            "name": "isin",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "ZZ00MSCIWD03",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown account, or no such line."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Remove a line, as of today (sold)",
+        "tags": [
+          "Positions"
+        ]
+      }
+    },
+    "/api/accounts/{id}/positions/cash": {
+      "put": {
+        "description": "Session only.",
+        "operationId": "PositionsController_setCash",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetCashDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Set the cash (« Liquidités »), as of today",
+        "tags": [
+          "Positions"
+        ]
+      }
+    },
+    "/api/securities": {
+      "get": {
+        "operationId": "SecuritiesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SecurityDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "The securities the app knows (by ISIN)",
+        "tags": [
+          "Positions"
+        ]
+      }
+    },
+    "/api/securities/{isin}/prices/{day}": {
+      "put": {
+        "description": "In euros, exact. Every account holding it gets its values computed again from that day. Session only.",
+        "operationId": "SecuritiesController_setPrice",
+        "parameters": [
+          {
+            "name": "day",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "name": "isin",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "ZZ00MSCIWD03",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSecurityPriceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Invalid ISIN, price or future day."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown security."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Set the manual price of a security on a day",
+        "tags": [
+          "Positions"
+        ]
+      }
+    },
     "/api/accounts/{id}/crypto-imports": {
       "post": {
         "description": "Parses a Binance or Coinbase \"Transactions\" CSV export (detected from its headers), marks every line new or already imported, lists unknown operation types and tickers without a price id, and computes the holdings the account will have. Stores a pending import; nothing else is written until `POST /crypto-imports/{id}/commit`.",
@@ -10157,6 +10656,12 @@
             "nullable": true,
             "description": "Day `investedBaseCents` covers (« Investi jusqu’au … »)."
           },
+          "openedOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "The day the account was opened (ADR 0006): a PEA counts its 5 years from it. PEA, life insurance and employee savings only."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -10180,6 +10685,7 @@
           "cryptoSyncedAt",
           "investedBaseCents",
           "investedBaseOn",
+          "openedOn",
           "createdAt",
           "updatedAt"
         ]
@@ -10544,6 +11050,12 @@
           "archived": {
             "type": "boolean",
             "description": "true archives the account (kept with its history), false restores it."
+          },
+          "openedOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "The day the account was opened, not in the future; null clears it. PEA, life insurance and employee savings only."
           }
         }
       },
@@ -10602,6 +11114,11 @@
             "minimum": 0,
             "description": "Crypto holding lines (imported, synced or typed by hand)."
           },
+          "positionStatements": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Position statements of a PEA (ADR 0006), each with its lines."
+          },
           "walletKeys": {
             "type": "integer",
             "minimum": 0,
@@ -10633,6 +11150,7 @@
           "imports",
           "snapshots",
           "cryptoHoldings",
+          "positionStatements",
           "walletKeys",
           "recurringItems",
           "rules",
@@ -15990,9 +16508,10 @@
           "links",
           "typed",
           "base",
-          "coins"
+          "coins",
+          "lines"
         ],
-        "description": "`base`: the account's invested base (#360) plus the transfers linked after its day; `typed`: the contributions typed on a value plus the transfers linked after it; `links`: the transfers linked to the account alone (#296); `coins`: a crypto account's coins at their cost, carried across transfers between the owner's accounts (#373)."
+        "description": "`base`: the account's invested base (#360) plus the transfers linked after its day; `typed`: the contributions typed on a value plus the transfers linked after it; `links`: the transfers linked to the account alone (#296); `coins`: a crypto account's coins at their cost, carried across transfers between the owner's accounts (#373); `lines`: a PEA's lines at their PRU plus its cash, when nothing else is known (ADR 0006)."
       },
       "UnknownCostDto": {
         "type": "object",
@@ -16160,7 +16679,7 @@
           },
           "contributionsSource": {
             "nullable": true,
-            "description": "`base`: the account's invested base (#360) plus the transfers linked after its day; `typed`: the contributions typed on a value plus the transfers linked after it; `links`: the transfers linked to the account alone (#296); `coins`: a crypto account's coins at their cost, carried across transfers between the owner's accounts (#373).",
+            "description": "`base`: the account's invested base (#360) plus the transfers linked after its day; `typed`: the contributions typed on a value plus the transfers linked after it; `links`: the transfers linked to the account alone (#296); `coins`: a crypto account's coins at their cost, carried across transfers between the owner's accounts (#373); `lines`: a PEA's lines at their PRU plus its cash, when nothing else is known (ADR 0006).",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ContributionsSource"
@@ -16484,7 +17003,7 @@
           },
           "contributionsSource": {
             "nullable": true,
-            "description": "`base`: the account's invested base (#360) plus the transfers linked after its day; `typed`: the contributions typed on a value plus the transfers linked after it; `links`: the transfers linked to the account alone (#296); `coins`: a crypto account's coins at their cost, carried across transfers between the owner's accounts (#373).",
+            "description": "`base`: the account's invested base (#360) plus the transfers linked after its day; `typed`: the contributions typed on a value plus the transfers linked after it; `links`: the transfers linked to the account alone (#296); `coins`: a crypto account's coins at their cost, carried across transfers between the owner's accounts (#373); `lines`: a PEA's lines at their PRU plus its cash, when nothing else is known (ADR 0006).",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ContributionsSource"
@@ -18397,6 +18916,445 @@
             ]
           }
         }
+      },
+      "PositionLineDto": {
+        "type": "object",
+        "properties": {
+          "securityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "isin": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ticker": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Exact decimal string."
+          },
+          "unitCostEur": {
+            "type": "string",
+            "nullable": true
+          },
+          "costCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "quantity × PRU, half to even."
+          },
+          "priceEur": {
+            "type": "string",
+            "nullable": true
+          },
+          "priceDay": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "priceSource": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "statement",
+              "provider"
+            ],
+            "nullable": true
+          },
+          "valueCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "quantity × price, half to even; null without a price."
+          },
+          "gainCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "priceOlderThanStatement": {
+            "type": "boolean",
+            "description": "The price is older than the statement's day."
+          }
+        },
+        "required": [
+          "securityId",
+          "isin",
+          "name",
+          "ticker",
+          "quantity",
+          "unitCostEur",
+          "costCents",
+          "priceEur",
+          "priceDay",
+          "priceSource",
+          "valueCents",
+          "gainCents",
+          "priceOlderThanStatement"
+        ]
+      },
+      "PositionTotalsDto": {
+        "type": "object",
+        "properties": {
+          "valueCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Lines plus cash; null while a line has no price."
+          },
+          "pricedValueCents": {
+            "type": "integer",
+            "description": "The priced lines plus cash."
+          },
+          "costCents": {
+            "type": "integer",
+            "description": "Cost of the lines with a PRU and a price."
+          },
+          "gainCents": {
+            "type": "integer",
+            "description": "Their value minus their cost."
+          },
+          "withoutPriceCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "withoutCostCount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "valueCents",
+          "pricedValueCents",
+          "costCents",
+          "gainCents",
+          "withoutPriceCount",
+          "withoutCostCount"
+        ]
+      },
+      "StatementSummaryDto": {
+        "type": "object",
+        "properties": {
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "typed",
+              "mcp"
+            ]
+          },
+          "lineCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cashCents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "asOf",
+          "source",
+          "lineCount",
+          "cashCents"
+        ]
+      },
+      "PositionsDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "The day of the statement in force; null without lines."
+          },
+          "cashCents": {
+            "type": "integer"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PositionLineDto"
+            }
+          },
+          "totals": {
+            "$ref": "#/components/schemas/PositionTotalsDto"
+          },
+          "statements": {
+            "description": "Newest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatementSummaryDto"
+            }
+          }
+        },
+        "required": [
+          "accountId",
+          "asOf",
+          "cashCents",
+          "lines",
+          "totals",
+          "statements"
+        ]
+      },
+      "StatementLineInputDto": {
+        "type": "object",
+        "properties": {
+          "isin": {
+            "type": "string",
+            "example": "ZZ00MSCIWD03"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Required for a security the app does not know yet."
+          },
+          "quantity": {
+            "type": "string",
+            "example": "48",
+            "description": "Exact decimal string (never a float), > 0."
+          },
+          "unitCostEur": {
+            "type": "string",
+            "nullable": true,
+            "example": "412.515",
+            "description": "PRU (average cost per unit) in euros, exact decimal string."
+          },
+          "priceEur": {
+            "type": "string",
+            "nullable": true,
+            "example": "498.32",
+            "description": "The statement's price of the day in euros, stored as that day's `statement` price (a manual price of the day is kept)."
+          }
+        },
+        "required": [
+          "isin",
+          "quantity"
+        ]
+      },
+      "PutStatementDto": {
+        "type": "object",
+        "properties": {
+          "lines": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatementLineInputDto"
+            }
+          },
+          "cashCents": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "« Liquidités »."
+          }
+        },
+        "required": [
+          "lines",
+          "cashCents"
+        ]
+      },
+      "PreviewLineDto": {
+        "type": "object",
+        "properties": {
+          "isin": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Null for an unknown security sent without a name."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "changed",
+              "removed",
+              "unchanged"
+            ]
+          },
+          "quantityBefore": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantityAfter": {
+            "type": "string",
+            "nullable": true
+          },
+          "unitCostBefore": {
+            "type": "string",
+            "nullable": true
+          },
+          "unitCostAfter": {
+            "type": "string",
+            "nullable": true
+          },
+          "priceEur": {
+            "type": "string",
+            "nullable": true,
+            "description": "The price the line is valued at on the day, after."
+          },
+          "priceKept": {
+            "type": "boolean",
+            "description": "The statement price sent would not replace a manual one."
+          }
+        },
+        "required": [
+          "isin",
+          "name",
+          "status",
+          "quantityBefore",
+          "quantityAfter",
+          "unitCostBefore",
+          "unitCostAfter",
+          "priceEur",
+          "priceKept"
+        ]
+      },
+      "StatementPreviewDto": {
+        "type": "object",
+        "properties": {
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          },
+          "comparedWith": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "The statement compared with: the one of that day, else the latest before it."
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewLineDto"
+            }
+          },
+          "cashBeforeCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "cashAfterCents": {
+            "type": "integer"
+          },
+          "valueBeforeCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "The account's value that day before (stored), if any."
+          },
+          "valueAfterCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "From the lines after; null while a line has no price."
+          },
+          "typedValueCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "A typed value of that day, which keeps its day (ADR 0006 § 5)."
+          },
+          "unknownWithoutName": {
+            "description": "ISINs the app does not know that came without a name.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unchanged": {
+            "type": "boolean",
+            "description": "Writing it would change nothing."
+          }
+        },
+        "required": [
+          "asOf",
+          "comparedWith",
+          "lines",
+          "cashBeforeCents",
+          "cashAfterCents",
+          "valueBeforeCents",
+          "valueAfterCents",
+          "typedValueCents",
+          "unknownWithoutName",
+          "unchanged"
+        ]
+      },
+      "UpsertLineDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "quantity": {
+            "type": "string",
+            "example": "48",
+            "description": "Exact decimal string (never a float), > 0."
+          },
+          "unitCostEur": {
+            "type": "string",
+            "nullable": true,
+            "example": "412.515",
+            "description": "PRU (average cost per unit) in euros, exact decimal string."
+          }
+        },
+        "required": [
+          "quantity"
+        ]
+      },
+      "SetCashDto": {
+        "type": "object",
+        "properties": {
+          "cashCents": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "cashCents"
+        ]
+      },
+      "SecurityDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "isin": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ticker": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "isin",
+          "name",
+          "ticker"
+        ]
+      },
+      "SetSecurityPriceDto": {
+        "type": "object",
+        "properties": {
+          "priceEur": {
+            "type": "string",
+            "example": "498.32"
+          }
+        },
+        "required": [
+          "priceEur"
+        ]
       },
       "CryptoImportUploadDto": {
         "type": "object",

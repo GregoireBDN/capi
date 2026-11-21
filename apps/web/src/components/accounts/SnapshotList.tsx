@@ -58,6 +58,10 @@ function SnapshotDetails({
             {snapshot.note}
           </p>
         )}
+        {/* A PEA's value from its lines (#413); crypto lists none. */}
+        {snapshot.source === 'computed' && (
+          <p className="text-muted-foreground text-xs">D’après vos lignes</p>
+        )}
       </div>
       <div className="ml-auto text-right whitespace-nowrap">
         <p className="font-medium tabular-nums">

@@ -23,6 +23,7 @@ export const checking: AccountDto = {
   cryptoSyncedAt: null,
   investedBaseCents: null,
   investedBaseOn: null,
+  openedOn: null,
   createdAt: stamp,
   updatedAt: stamp,
 }

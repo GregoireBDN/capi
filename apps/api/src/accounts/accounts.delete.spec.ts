@@ -254,6 +254,7 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
         imports: 1,
         snapshots: 1,
         cryptoHoldings: 0,
+        positionStatements: 0,
         walletKeys: 0,
         recurringItems: 1,
         rules: 1,
@@ -369,6 +370,7 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
         imports: 1,
         snapshots: 1,
         cryptoHoldings: 1,
+        positionStatements: 0,
         walletKeys: 1,
       })
       await service.remove(wallet.id)

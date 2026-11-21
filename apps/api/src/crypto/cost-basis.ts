@@ -4,7 +4,7 @@ import type {
 } from '#/database/schema/domain-enums'
 import { FIAT_TICKERS } from '#/imports/crypto/assets'
 import { formatQuantity, quantityToCents } from '#/imports/crypto/quantity'
-import { divideHalfEven } from './decimal'
+import { divideHalfEven } from '#/common/decimal'
 
 /*
  * The cost follows the coins (#373). Every crypto account keeps, per asset,

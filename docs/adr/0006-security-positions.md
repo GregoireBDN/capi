@@ -1,6 +1,6 @@
 # ADR 0006 — Security positions: an investment account's lines, their prices and its value
 
-- **Status**: Proposed
+- **Status**: Accepted (2026-11-21: the owner chose direction A and the proposals below as written)
 - **Date**: 2026-11-21
 - **Issue**: #413 (milestone M11 UX overhaul & insights), reused by #414 (compte-titres)
 
@@ -99,4 +99,12 @@ Logs carry counts only, never a quantity, a price × quantity, a value or a cost
 2. Prices from statements and by hand only for now, no public source (§ 4).
 3. A typed value wins its day over the lines' value (§ 5).
 4. The invested amount wins; the lines' cost is its fallback (§ 6).
-5. The page's direction (prototypes « A » and « B » in Storybook, Prototypes › Lignes du PEA (#413)).
+5. The page's direction: two prototypes, screenshots in PR #417.
+
+## Amendments
+
+- **2026-11-21, while building (#413, PR #417).** Decisions 1–4 accepted as proposed; direction **A. Comme le Crypto** chosen (the summary ends with the PEA's facts; « Lignes » is one row per ETF that unfolds into its ISIN, « Investi », « Résultat » and « Cours »; the cash last; the statements folded at the end of the card). Facts of the build:
+  - Routes: the statement is `PUT /api/accounts/:id/positions/statements/:asOf` (write token) with its read-only `POST …/statements/:asOf/preview`, `DELETE …/statements/:asOf` (session); hand edits `PUT|DELETE /api/accounts/:id/positions/lines/:isin` and `PUT …/positions/cash` (session); `GET /api/accounts/:id/positions`; `GET /api/securities`, `PUT /api/securities/:isin/prices/:day` (session).
+  - The ISIN check is not in `packages/shared`: the API and the MCP image never import it at run time (it ships TypeScript sources). It is `positions/isin.ts` in the API (with the database's `isin_is_valid`), and the same few lines in `apps/web/src/lib/isin.ts` and `apps/mcp/src/isin.ts`.
+  - A computed value on a PEA is allowed by `balance_snapshots_source_by_type` only on or after the account's first statement. Deleting a typed value of a day with lines gives the day its computed value back; a computed value is never deleted, a typed one replaces it.
+  - Migration `0046_security_positions`; the decimal helpers moved to `common/decimal.ts`.

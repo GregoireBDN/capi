@@ -87,10 +87,12 @@ describe('tool list', () => {
       'split_transaction',
       'subscriptions',
       'sync_crypto_holdings',
+      'sync_security_positions',
     ])
     const writeTools = new Set([
       'add_investment_snapshots',
       'sync_crypto_holdings',
+      'sync_security_positions',
       'set_invested_amount',
       'add_transaction',
       'categorize_transactions',

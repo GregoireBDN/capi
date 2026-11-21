@@ -82,6 +82,7 @@ function accountDto(body: Partial<AccountDto>): AccountDto {
     cryptoSyncedAt: null,
     investedBaseCents: null,
     investedBaseOn: null,
+    openedOn: null,
     createdAt: '2026-11-19T10:00:00Z',
     updatedAt: '2026-11-19T10:00:00Z',
     ...body,

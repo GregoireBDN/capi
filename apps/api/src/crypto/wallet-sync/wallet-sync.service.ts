@@ -15,7 +15,7 @@ import {
   type DerivableAddressType,
 } from '#/database/schema/domain-enums'
 import { CryptoCostBasisService } from '../cost-basis.service'
-import { fitsNumeric, formatDecimal, rescale } from '../decimal'
+import { fitsNumeric, formatDecimal, rescale } from '#/common/decimal'
 import { checkPublicKey } from '../wallet-keys/public-key'
 import { effectiveAddressTypes } from '../wallet-keys/wallet-keys.repository'
 import { BitcoinAddressDeriver } from './bitcoin-derivation'
