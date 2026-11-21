@@ -20,6 +20,7 @@ import {
   ReceiptIcon,
   SearchXIcon,
   UploadIcon,
+  ArrowDownUpIcon,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { PageHeader } from '#/components/app-shell/PageHeader'
@@ -353,7 +354,7 @@ export function TransactionsPage({
           },
           {
             label: 'Ajouter un virement',
-            icon: <ArrowLeftRightIcon />,
+            icon: <ArrowDownUpIcon />,
             onSelect: () => setAddKind('transfer'),
           },
         ]}

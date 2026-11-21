@@ -18,11 +18,11 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import {
   ArrowLeftRightIcon,
-  ArrowRightLeftIcon,
   BanknoteIcon,
   ChartPieIcon,
   ReceiptEuroIcon,
   UploadIcon,
+  ArrowDownUpIcon,
 } from 'lucide-react'
 import { NearestMonthButton } from '#/components/month/NearestMonthButton'
 import { useMemo, useState } from 'react'
@@ -198,7 +198,7 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
           },
           {
             label: 'Ajouter un virement',
-            icon: <ArrowRightLeftIcon />,
+            icon: <ArrowDownUpIcon />,
             onSelect: () => setAdding('transfer'),
           },
           {

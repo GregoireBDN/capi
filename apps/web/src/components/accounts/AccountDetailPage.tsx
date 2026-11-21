@@ -14,7 +14,6 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
-  ArrowLeftRightIcon,
   BanknoteIcon,
   ClipboardPasteIcon,
   ClockAlertIcon,
@@ -24,6 +23,7 @@ import {
   PlusIcon,
   ReceiptIcon,
   RefreshCwIcon,
+  ArrowDownUpIcon,
 } from 'lucide-react'
 import { useState } from 'react'
 import type { AccountDto, SnapshotDto, TransactionKind } from '#/api/types.gen'
@@ -270,7 +270,7 @@ export function AccountDetailPage({
                 },
                 {
                   label: 'Ajouter un virement',
-                  icon: <ArrowLeftRightIcon />,
+                  icon: <ArrowDownUpIcon />,
                   onSelect: () => setAddKind('transfer'),
                 },
               ]
