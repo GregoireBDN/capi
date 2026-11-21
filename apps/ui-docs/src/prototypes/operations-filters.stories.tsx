@@ -2,8 +2,8 @@
  * #406 prototypes: Opérations' filters, clearer and with icons, drawn in
  * the app's frame (header, month bar, title, search, filters, totals, the
  * start of the list) on a computer and on phones of 320 and 390 px. The
- * owner kept A (icon chips) from a first round of three; A1–A3 are its
- * second round. Deleted by the PR that builds the chosen one. Synthetic
+ * owner kept option 1 (icon chips) from a first round of three; 1a–1c are
+ * its third round. Deleted by the PR that builds the chosen one. Synthetic
  * data only (invented accounts, labels, amounts). Widths follow the frames
  * (container queries), never the Storybook window.
  */
@@ -1149,16 +1149,19 @@ function DirectionA({
 }
 
 /* ---------------------------------------------------------------------------
- * Second round (the owner, 21 Nov: A's icon chips, but the chips and the
- * search are badly fitted into the page, a small icon is not enough, and
- * « À revoir » needs something more distinct on a computer). Three variants
- * of A, all with:
- * - the search and the filters in one bar (one card), the search inside it;
- * - each chip naming what it filters and its value (« Compte · Tous »);
- * - a chip once set tinted with its value's own colour (the category's, the
- *   account type's, the kind's), with its icon;
- * - « À revoir » in amber, the colour of the rows to review, never like a
- *   filter chip: A1 a pill set apart, A2 tabs, A3 a strip at the bar's end.
+ * Third round (the owner, 21 Nov: option 1, A's icon chips, but the search
+ * and the filters sit badly in the page, and on a computer « À revoir » is
+ * not set apart enough from the filters). All three share one toolbar:
+ * - the search and every filter are controls of the same family: 44px
+ *   high, the same corners, border and card background, on one row on a
+ *   computer (search first, filling what the filters leave);
+ * - each filter names what it filters and its value (« Compte · Tous ⌄ »);
+ *   once set it takes its value's colour and icon (« Livret A », green);
+ * - on phones, the search and a filters button side by side, the filters
+ *   set on the row under them in the same look.
+ * « À revoir » leaves the toolbar, in amber (the colour of the rows to
+ * review): 1a at the end of the page title, 1b as tabs over the toolbar,
+ * 1c as a callout above it.
  * ------------------------------------------------------------------------ */
 
 /** The colour of a chosen value: the category's, the account type's… */
@@ -1177,11 +1180,39 @@ function valueColor(key: ListKey, value: string): string {
   return CATEGORIES.find((item) => item.id === value)!.color
 }
 
-const BAR_CHIP =
-  'relative inline-flex min-h-[38px] max-w-full items-center gap-1.5 rounded-full border text-[15px] whitespace-nowrap outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:touch-hitbox'
+/** One control of the toolbar: the search's height, corners and border. */
+const TOOL =
+  'relative inline-flex h-[44px] max-w-full items-center gap-2 rounded-lg border text-[15px] whitespace-nowrap shadow-xs outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50'
+const TOOL_OFF = 'bg-card hover:bg-muted/60'
+
+function ToolSearch({ phone }: { phone: boolean }) {
+  return (
+    <label
+      className={cn(
+        TOOL,
+        TOOL_OFF,
+        'focus-within:border-ring focus-within:ring-ring/50 min-w-0 cursor-text px-3 focus-within:ring-[3px]',
+        phone ? 'flex-1' : 'flex-[1_1_320px]',
+      )}
+    >
+      <SearchIcon
+        aria-hidden
+        className="text-muted-foreground size-[18px] shrink-0"
+      />
+      <input
+        type="search"
+        aria-label="Rechercher une opération"
+        placeholder={
+          phone ? 'Rechercher' : 'Rechercher un libellé, un marchand…'
+        }
+        className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-[16px] outline-none"
+      />
+    </label>
+  )
+}
 
 /** « [icon] Compte · Tous ⌄ », or « [value icon] Compte Livret A × » tinted. */
-function BarChip({
+function ToolFilter({
   listKey,
   state,
   phone,
@@ -1205,30 +1236,25 @@ function BarChip({
         open={open}
         onOpenChange={setOpen}
       >
-        <button
-          type="button"
-          className={cn(
-            BAR_CHIP,
-            'bg-background hover:bg-muted pr-2.5 pl-3 font-medium',
-          )}
-        >
+        <button type="button" className={cn(TOOL, TOOL_OFF, 'pr-2.5 pl-3')}>
           <Icon aria-hidden className="text-muted-foreground size-[17px]" />
-          {meta.label}
-          <span className="text-muted-foreground font-normal">
-            · {meta.short}
-          </span>
-          <ChevronDownIcon aria-hidden className="size-[16px] opacity-60" />
+          <span className="font-medium">{meta.label}</span>
+          <span className="text-muted-foreground">{meta.short}</span>
+          <ChevronDownIcon
+            aria-hidden
+            className="text-muted-foreground size-[16px]"
+          />
         </button>
       </OptionsPopover>
     )
   const chosen = valueOf(listKey, value)
   const color = valueColor(listKey, value)
-  const chip = (
+  const control = (
     <span
-      className={cn(BAR_CHIP, 'pr-1 pl-1.5')}
+      className={cn(TOOL, 'pr-1 pl-2')}
       style={{
-        borderColor: `color-mix(in srgb, ${color} 55%, transparent)`,
-        backgroundColor: `color-mix(in srgb, ${color} 12%, var(--card))`,
+        borderColor: `color-mix(in srgb, ${color} 60%, transparent)`,
+        backgroundColor: `color-mix(in srgb, ${color} 11%, var(--card))`,
       }}
     >
       <OptionsPopover
@@ -1240,7 +1266,7 @@ function BarChip({
         <button
           type="button"
           aria-label={`${meta.label} : ${chosen.label}, changer`}
-          className="flex min-w-0 items-center gap-1.5 outline-none"
+          className="flex h-full min-w-0 items-center gap-2 outline-none"
         >
           {chosen.icon}
           <span className="text-muted-foreground">{meta.label}</span>
@@ -1251,23 +1277,23 @@ function BarChip({
         type="button"
         aria-label={`Retirer le filtre ${meta.label}`}
         onClick={() => state.setList(listKey, undefined)}
-        className="hover:bg-foreground/10 flex size-7 shrink-0 items-center justify-center rounded-full"
+        className="hover:bg-foreground/10 flex size-8 shrink-0 items-center justify-center rounded-md"
       >
         <XIcon aria-hidden className="size-[15px]" />
       </button>
     </span>
   )
-  if (!forceOpen) return chip
+  if (!forceOpen) return control
   return (
     <span className="relative inline-flex max-w-full">
-      {chip}
+      {control}
       <StaticOptions listKey={listKey} state={state} />
     </span>
   )
 }
 
-/** « Ponctuelles »: on / off, its round check like A. */
-function OneOffChip({ state }: { state: FilterState }) {
+/** « Ponctuelles »: on / off, a check box in the control. */
+function ToolOneOff({ state }: { state: FilterState }) {
   const on = state.filters.oneOff
   return (
     <button
@@ -1275,135 +1301,110 @@ function OneOffChip({ state }: { state: FilterState }) {
       aria-pressed={on}
       onClick={() => state.setToggle('oneOff', !on)}
       className={cn(
-        BAR_CHIP,
-        'pr-3 pl-1.5 font-medium',
+        TOOL,
+        'pr-3 pl-2.5',
         on
           ? 'border-primary/60 bg-[color-mix(in_srgb,var(--primary)_10%,var(--card))]'
-          : 'bg-background hover:bg-muted',
+          : TOOL_OFF,
       )}
     >
       <span
         aria-hidden
         className={cn(
-          'flex size-[22px] shrink-0 items-center justify-center rounded-full border-[1.5px]',
+          'flex size-[20px] shrink-0 items-center justify-center rounded-[5px] border-[1.5px]',
           on
             ? 'border-primary bg-primary text-primary-foreground'
-            : 'border-muted-foreground/40',
+            : 'border-muted-foreground/45',
         )}
       >
         {on && <CheckIcon className="size-[13px]" strokeWidth={3} />}
       </span>
       <SparkleIcon aria-hidden className="text-muted-foreground size-[17px]" />
-      Ponctuelles
+      <span className={cn(on ? 'font-semibold' : 'font-medium')}>
+        Ponctuelles
+      </span>
     </button>
+  )
+}
+
+function Toolbar({ state, phone, setOverlay, openCategory }: DirectionProps) {
+  const { filters } = state
+  const set = state.count - (filters.review ? 1 : 0)
+  const clear =
+    set > 0 ? (
+      <Button
+        variant="secondary"
+        ghost
+        className="h-[44px]"
+        onClick={state.clearChips}
+      >
+        Effacer
+      </Button>
+    ) : null
+  if (phone)
+    return (
+      <div className="space-y-2">
+        <div className="flex gap-2">
+          <ToolSearch phone />
+          <button
+            type="button"
+            aria-label={set > 0 ? `Filtres, ${set} actifs` : 'Filtres'}
+            onClick={() => setOverlay({ kind: 'sheet' })}
+            className={cn(TOOL, TOOL_OFF, 'shrink-0 justify-center px-3')}
+          >
+            <SlidersHorizontalIcon aria-hidden className="size-[18px]" />
+            {set > 0 && <CountPill value={set} label="filtres actifs" />}
+          </button>
+        </div>
+        {set > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <ToolFilter listKey="account" state={state} phone />
+            <ToolFilter listKey="category" state={state} phone />
+            <ToolFilter listKey="kind" state={state} phone />
+            {filters.oneOff && <ToolOneOff state={state} />}
+            {clear}
+          </div>
+        )}
+      </div>
+    )
+  // The search keeps 320px at least; past that the filters go, as one
+  // group, to the row under it.
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <ToolSearch phone={false} />
+      <div className="flex flex-wrap items-center gap-2">
+        <ToolFilter listKey="account" state={state} phone={false} />
+        <ToolFilter
+          listKey="category"
+          state={state}
+          phone={false}
+          forceOpen={openCategory}
+        />
+        <ToolFilter listKey="kind" state={state} phone={false} />
+        <ToolOneOff state={state} />
+        {clear}
+      </div>
+    </div>
   )
 }
 
 /** The count of the rows to review, in their amber. */
 function ReviewCount({ value }: { value: number }) {
   return (
-    <span className="bg-warning text-warning-foreground flex h-[20px] min-w-[20px] items-center justify-center rounded-full px-1.5 text-[12px] font-bold tabular-nums">
+    <span className="bg-warning text-warning-foreground flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1.5 text-[13px] font-bold tabular-nums">
       {value}
     </span>
   )
 }
 
-/** The search, inside the bar: no box of its own. */
-function BarSearch({
-  phone,
-  state,
-  setOverlay,
-}: {
-  phone: boolean
-  state: FilterState
-  setOverlay: (overlay: Overlay) => void
-}) {
-  const panelCount = state.count - (state.filters.review ? 1 : 0)
-  return (
-    <div className="flex min-h-[52px] items-center gap-2 pr-2 pl-3.5">
-      <SearchIcon aria-hidden className="text-muted-foreground size-[19px]" />
-      <input
-        type="search"
-        aria-label="Rechercher une opération"
-        placeholder={
-          phone ? 'Rechercher' : 'Rechercher un libellé, un marchand…'
-        }
-        className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-[16px] outline-none"
-      />
-      {phone && (
-        // On a phone, sized to its icon and count so the search keeps room.
-        <Button
-          variant="secondary"
-          outline
-          aria-label={
-            panelCount > 0 ? `Filtres, ${panelCount} actifs` : 'Filtres'
-          }
-          className="h-[40px] shrink-0 gap-1.5 rounded-full px-2.5"
-          onClick={() => setOverlay({ kind: 'sheet' })}
-        >
-          <SlidersHorizontalIcon aria-hidden />
-          {panelCount > 0 && (
-            <CountPill value={panelCount} label="filtres actifs" />
-          )}
-        </Button>
-      )}
-    </div>
-  )
-}
+/* 1a. « À revoir » at the end of the page title, an amber button. */
 
-/** The chips under the search; on phones only those that are set. */
-function BarChips({
+function ReviewButton({
   state,
   phone,
-  openCategory,
-  lead,
 }: {
   state: FilterState
   phone: boolean
-  openCategory: boolean
-  /** Before the chips (A1's « À revoir »). */
-  lead?: React.ReactNode
-}) {
-  const { filters } = state
-  const set = state.count - (filters.review ? 1 : 0)
-  if (phone && set === 0 && !lead) return null
-  return (
-    <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2.5">
-      {lead}
-      <BarChip listKey="account" state={state} phone={phone} />
-      <BarChip
-        listKey="category"
-        state={state}
-        phone={phone}
-        forceOpen={openCategory}
-      />
-      <BarChip listKey="kind" state={state} phone={phone} />
-      {(!phone || filters.oneOff) && <OneOffChip state={state} />}
-      {set > 0 && (
-        <Button variant="secondary" ghost onClick={state.clearChips}>
-          Effacer
-        </Button>
-      )}
-    </div>
-  )
-}
-
-function Bar({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="bg-card overflow-visible rounded-xl border shadow-xs">
-      {children}
-    </div>
-  )
-}
-
-/* A1. Une barre: « À revoir » an amber pill first, a rule after it. */
-
-function ReviewPill({
-  state,
-  className,
-}: {
-  state: FilterState
-  className?: string
 }) {
   const on = state.filters.review
   return (
@@ -1412,75 +1413,50 @@ function ReviewPill({
       aria-pressed={on}
       onClick={() => state.setToggle('review', !on)}
       className={cn(
-        BAR_CHIP,
-        'border-warning/60 gap-2 pr-2 pl-3 font-semibold',
+        'border-warning/70 inline-flex h-[44px] shrink-0 items-center gap-2 rounded-lg border px-3 text-[15px] font-semibold whitespace-nowrap outline-none',
+        'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
         on
           ? 'bg-warning text-warning-foreground'
-          : 'bg-[color-mix(in_srgb,var(--warning)_16%,var(--card))]',
-        className,
+          : 'bg-[color-mix(in_srgb,var(--warning)_18%,var(--card))] hover:bg-[color-mix(in_srgb,var(--warning)_28%,var(--card))]',
       )}
     >
-      <InboxIcon aria-hidden className="size-[17px]" />À revoir
+      <InboxIcon aria-hidden className="size-[18px]" />
+      {phone && !on ? null : 'À revoir'}
       {on ? (
         <XIcon aria-hidden className="size-[16px]" />
       ) : (
         <ReviewCount value={REVIEW_COUNT} />
       )}
+      {phone && !on && <span className="sr-only">À revoir</span>}
     </button>
   )
 }
 
-function DirectionA1({
-  state,
-  phone,
-  setOverlay,
-  openCategory,
-}: DirectionProps) {
+function Direction1a(props: DirectionProps) {
   return {
-    titleEnd: undefined,
-    body: (
-      <Bar>
-        <BarSearch phone={phone} state={state} setOverlay={setOverlay} />
-        <BarChips
-          state={state}
-          phone={phone}
-          openCategory={openCategory}
-          lead={
-            <>
-              <ReviewPill state={state} />
-              {!phone && (
-                <span aria-hidden className="bg-border mx-1 h-7 w-px" />
-              )}
-            </>
-          }
-        />
-      </Bar>
-    ),
+    titleEnd: <ReviewButton state={props.state} phone={props.phone} />,
+    body: <Toolbar {...props} />,
   }
 }
 
-/* A2. Onglets: « Toutes » / « À revoir 7 » on top of the bar. */
+/* 1b. Tabs over the toolbar: « Toutes les opérations » / « À revoir 7 ». */
 
-function DirectionA2({
-  state,
-  phone,
-  setOverlay,
-  openCategory,
-}: DirectionProps) {
+function Direction1b(props: DirectionProps) {
+  const { state, phone } = props
   const on = state.filters.review
   const tab = (selected: boolean) =>
     cn(
-      '-mb-px flex min-h-[48px] items-center justify-center gap-2 border-b-[3px] px-4 text-[15px] outline-none',
+      '-mb-px flex min-h-[46px] items-center justify-center gap-2 border-b-[3px] px-3 text-[15px] whitespace-nowrap outline-none',
       phone && 'flex-1',
       selected
         ? 'text-foreground font-semibold'
-        : 'text-muted-foreground border-transparent font-medium hover:text-foreground',
+        : 'text-muted-foreground hover:text-foreground border-transparent font-medium',
     )
   return {
     titleEnd: undefined,
     body: (
-      <Bar>
-        <div role="tablist" className="flex border-b px-1">
+      <>
+        <div role="tablist" className="flex border-b">
           <button
             type="button"
             role="tab"
@@ -1497,76 +1473,67 @@ function DirectionA2({
             onClick={() => state.setToggle('review', true)}
             className={cn(tab(on), on && 'border-warning')}
           >
-            <InboxIcon
-              aria-hidden
-              className={cn('size-[17px]', !on && 'text-warning')}
-            />
+            {!phone && (
+              <InboxIcon
+                aria-hidden
+                className={cn('size-[18px]', !on && 'text-warning')}
+              />
+            )}
             À revoir
             <ReviewCount value={REVIEW_COUNT} />
           </button>
         </div>
-        <BarSearch phone={phone} state={state} setOverlay={setOverlay} />
-        <BarChips state={state} phone={phone} openCategory={openCategory} />
-      </Bar>
+        <Toolbar {...props} />
+      </>
     ),
   }
 }
 
-/* A3. Bandeau: « À revoir » a strip at the end of the bar. */
+/* 1c. A callout above the toolbar. */
 
-function DirectionA3({
-  state,
-  phone,
-  setOverlay,
-  openCategory,
-}: DirectionProps) {
+function Direction1c(props: DirectionProps) {
+  const { state, phone } = props
   const on = state.filters.review
   return {
     titleEnd: undefined,
     body: (
-      <Bar>
-        <BarSearch phone={phone} state={state} setOverlay={setOverlay} />
-        <BarChips state={state} phone={phone} openCategory={openCategory} />
-        <button
-          type="button"
-          aria-pressed={on}
-          onClick={() => state.setToggle('review', !on)}
+      <>
+        <div
           className={cn(
-            'flex min-h-[48px] w-full items-center gap-2.5 rounded-b-xl border-t px-3.5 text-left text-[15px] outline-none',
+            'border-warning/60 flex min-h-[60px] items-center gap-3 rounded-xl border px-3 py-2',
             on
-              ? 'bg-warning text-warning-foreground'
+              ? 'bg-[color-mix(in_srgb,var(--warning)_30%,var(--card))]'
               : 'bg-[color-mix(in_srgb,var(--warning)_14%,var(--card))]',
           )}
         >
-          <InboxIcon
-            aria-hidden
-            className={cn('size-[18px] shrink-0', !on && 'text-warning')}
-          />
-          <span className="min-w-0 flex-1">
-            {on ? (
-              <>
-                <span className="font-semibold">À revoir</span>
-                {!phone && ' · toutes les dates'}
-              </>
-            ) : (
-              <>
-                <span className="font-semibold">
-                  {phone ? REVIEW_COUNT : `${REVIEW_COUNT} opérations`}
-                </span>{' '}
-                à revoir
-              </>
+          <span className="bg-warning text-warning-foreground flex size-9 shrink-0 items-center justify-center rounded-full">
+            <InboxIcon aria-hidden className="size-[18px]" />
+          </span>
+          <span className="min-w-0 flex-1 leading-tight">
+            <span className="block text-[15px] font-semibold">
+              {on
+                ? 'Opérations à revoir'
+                : `${REVIEW_COUNT} opérations à revoir`}
+            </span>
+            {!phone && (
+              <span className="text-muted-foreground block text-[13px]">
+                {on
+                  ? 'Toutes les dates · validez ou classez chaque ligne'
+                  : 'Sans catégorie ou à vérifier, toutes dates confondues'}
+              </span>
             )}
           </span>
-          <span className="flex items-center gap-1 text-[14px] font-semibold">
+          <Button
+            variant={on ? 'secondary' : 'warning'}
+            outline={on}
+            className="h-[40px] shrink-0 rounded-lg px-3"
+            onClick={() => state.setToggle('review', !on)}
+          >
             {on ? 'Quitter' : 'Revoir'}
-            {on ? (
-              <XIcon aria-hidden className="size-[16px]" />
-            ) : (
-              <ChevronRightIcon aria-hidden className="size-[16px]" />
-            )}
-          </span>
-        </button>
-      </Bar>
+          </Button>
+        </div>
+        <Toolbar {...props} />
+      </>
     ),
   }
 }
@@ -1575,7 +1542,7 @@ function DirectionA3({
  * Frames and boards
  * ------------------------------------------------------------------------ */
 
-type Direction = 'A' | 'A1' | 'A2' | 'A3'
+type Direction = 'A' | '1a' | '1b' | '1c'
 
 interface DirectionProps {
   state: FilterState
@@ -1607,19 +1574,15 @@ function Frame({
   const props = { state, phone, setOverlay, openCategory }
   const view = {
     A: DirectionA,
-    A1: DirectionA1,
-    A2: DirectionA2,
-    A3: DirectionA3,
+    '1a': Direction1a,
+    '1b': Direction1b,
+    '1c': Direction1c,
   }[direction](props)
   const close = () => setOverlay(null)
   let screen: React.ReactNode = null
   if (overlay?.kind === 'sheet')
     screen = (
-      <SheetA
-        state={state}
-        onClose={close}
-        withReview={direction === 'A' || direction === 'A1'}
-      />
+      <SheetA state={state} onClose={close} withReview={direction === 'A'} />
     )
   if (overlay?.kind === 'list')
     screen = (
@@ -1784,41 +1747,41 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-export const A1_Barre: Story = {
-  name: 'A1. Une barre, « À revoir » en ambre',
+export const R1a_Titre: Story = {
+  name: '1a. « À revoir » à côté du titre',
   render: (args) => (
     <Board
-      direction="A1"
+      direction="1a"
       group={toGroup((args as { group?: unknown }).group)}
-      text="A1. La recherche et les puces dans une seule barre (une carte), la recherche sans cadre à elle. Chaque puce dit ce qu’elle filtre et sa valeur (« Compte · Tous ⌄ ») ; choisie, elle prend la couleur de sa valeur (la catégorie, le type de compte) avec son icône. « À revoir » ouvre la rangée, en ambre (la couleur des opérations à revoir), son nombre dedans, séparé des filtres par un trait. Sur téléphone, « Filtres » est au bout de la recherche."
+      text="1a. Une barre d’outils : la recherche et chaque filtre ont la même hauteur, les mêmes coins, le même fond de carte, sur une ligne. Chaque filtre dit ce qu’il filtre et sa valeur ; choisi, il prend la couleur et l’icône de sa valeur. « À revoir » sort des filtres : un bouton ambre au bout du titre de la page, avec son nombre."
     />
   ),
 }
 
-export const A2_Onglets: Story = {
-  name: 'A2. Une barre avec onglets',
+export const R1b_Onglets: Story = {
+  name: '1b. « À revoir » en onglet',
   render: (args) => (
     <Board
-      direction="A2"
+      direction="1b"
       group={toGroup((args as { group?: unknown }).group)}
-      text="A2. La même barre, coiffée de deux onglets : « Toutes les opérations » et « À revoir 7 » (souligné en ambre quand il est ouvert). « À revoir » devient une vue, comme une boîte de réception, plus un filtre parmi d’autres."
+      text="1b. La même barre d’outils, sous deux onglets : « Toutes les opérations » et « À revoir 7 » (souligné d’ambre quand il est ouvert)."
     />
   ),
 }
 
-export const A3_Bandeau: Story = {
-  name: 'A3. Une barre avec bandeau',
+export const R1c_Encart: Story = {
+  name: '1c. « À revoir » en encart',
   render: (args) => (
     <Board
-      direction="A3"
+      direction="1c"
       group={toGroup((args as { group?: unknown }).group)}
-      text="A3. La même barre, fermée par un bandeau ambre sur toute sa largeur : « 7 opérations à revoir · Revoir › », puis « À revoir · toutes les dates · Quitter × » une fois ouvert."
+      text="1c. La même barre d’outils, sous un encart ambre : « 7 opérations à revoir », une ligne qui dit pourquoi, et « Revoir » ; une fois ouvert, « Opérations à revoir » et « Quitter »."
     />
   ),
 }
 
 export const A_Puces: Story = {
-  name: 'A. Puces à icônes (1re série)',
+  name: 'Avant : option 1 de la 1re série',
   render: (args) => (
     <Board
       direction="A"
