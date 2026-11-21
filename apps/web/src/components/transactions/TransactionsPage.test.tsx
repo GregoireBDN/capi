@@ -216,6 +216,16 @@ function lastQuery(fn: typeof api.transactionsControllerList) {
   return (fn.mock.calls.at(-1)?.[0] as { query: object }).query
 }
 
+/** The step shown in an editor, from its steps (« 1. Courses »). */
+function currentStepOf(editor: HTMLElement): string {
+  return (
+    within(editor)
+      .getAllByRole('button')
+      .find((button) => button.getAttribute('aria-current') === 'step')
+      ?.getAttribute('aria-label') ?? ''
+  )
+}
+
 function lastToastAction() {
   const options = toast.success.mock.calls.at(-1)?.[1] as {
     action: { label: string; onClick: () => void }
@@ -846,14 +856,16 @@ describe('TransactionsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Modifier Fakemart' }))
     const editor = await screen.findByRole('dialog')
-    // Opens on « Options »: no select, no « Type » screen any more.
-    expect(
-      within(editor).getByRole('button', { name: /^4\. Options/ }),
-    ).toHaveAttribute('aria-current', 'step')
+    // Without a category it opens on its categories (#398); the other
+    // steps are a tap away, no select, no « Type » screen any more.
+    expect(currentStepOf(editor)).toMatch(/^1\./)
     expect(within(editor).queryByRole('combobox')).not.toBeInTheDocument()
     expect(
       within(editor).queryByRole('button', { name: /^Type/ }),
     ).not.toBeInTheDocument()
+    await user.click(
+      within(editor).getByRole('button', { name: /^4\. Options/ }),
+    )
     expect(
       within(editor).getByRole('button', { name: 'Enregistrer' }),
     ).toBeDisabled()
@@ -980,6 +992,10 @@ describe('TransactionsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Modifier Fakemart' }))
     const editor = await screen.findByRole('dialog')
+    // A row without a category opens on its categories (#398).
+    await user.click(
+      within(editor).getByRole('button', { name: /^4\. Options/ }),
+    )
     await user.click(within(editor).getByRole('switch', { name: /Ponctuelle/ }))
     await user.click(
       within(editor).getByRole('button', { name: 'Enregistrer' }),
@@ -1004,6 +1020,10 @@ describe('TransactionsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Modifier Fakemart' }))
     const editor = await screen.findByRole('dialog')
+    // A row without a category opens on its categories (#398).
+    await user.click(
+      within(editor).getByRole('button', { name: /^4\. Options/ }),
+    )
     await user.click(within(editor).getByRole('switch', { name: /À revoir/ }))
     await user.type(within(editor).getByLabelText('Note'), 'Cadeau')
     // Nothing is sent before ✓, then one request for both.
@@ -1541,6 +1561,10 @@ describe('TransactionsPage', () => {
         screen.getByRole('button', { name: 'Modifier Fakemart' }),
       )
       const editor = await screen.findByRole('dialog')
+      // A row without a category opens on its categories (#398).
+      await user.click(
+        within(editor).getByRole('button', { name: /^4\. Options/ }),
+      )
       await user.click(
         within(editor).getByRole('button', { name: /^Répartir/ }),
       )
@@ -1630,6 +1654,10 @@ describe('TransactionsPage', () => {
         screen.getByRole('button', { name: 'Modifier Fakemart' }),
       )
       const editor = await screen.findByRole('dialog')
+      // A row without a category opens on its categories (#398).
+      await user.click(
+        within(editor).getByRole('button', { name: /^4\. Options/ }),
+      )
       await user.click(
         within(editor).getByRole('button', { name: /^Répartir/ }),
       )

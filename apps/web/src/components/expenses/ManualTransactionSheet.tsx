@@ -254,7 +254,11 @@ interface ManualTransactionSheetProps {
   item?: TransactionDto
   /** What an edit applies, bound to `item` by its row. */
   actions?: TransactionEditActions
-  /** An edit opens on « Catégorie » (« Classer », #322), not « Options ». */
+  /**
+   * « Classer » (#322): an edit opens on « Catégorie » and a tap saves it.
+   * Without it, an edit opens on « Options », or on « Catégorie » for a
+   * transaction without one.
+   */
   startOnCategory?: boolean
 }
 
@@ -429,10 +433,12 @@ export function ManualTransactionSheet({
     setIsOneOff(start.isOneOff)
     setNeedsReview(start.needsReview)
     setNote(start.note)
-    // An envelope already says the category; an edit opens on its options.
+    // An envelope already says the category; an edit opens on its options,
+    // or on its categories when it has none yet (the owner's request).
     setStep(
       item
-        ? startOnCategory
+        ? startOnCategory ||
+          (item.categoryId === null && item.splits.length === 0)
           ? 'category'
           : 'options'
         : initialCategoryId
