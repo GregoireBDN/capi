@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
   NotificationDot,
   Spinner,
+  cn,
 } from '@finances/ui'
 import { EllipsisVerticalIcon } from 'lucide-react'
 import { PageBack, useDefaultPageBack } from './PageBack'
@@ -39,6 +40,17 @@ interface PageHeaderProps {
    * their layout (`DefaultPageBack`).
    */
   back?: PageBackLink
+  /**
+   * The breadcrumb's last step when the title is a name of the owner's own
+   * (an account: its type, « Comptes › Assurance vie », #404); the title
+   * by default.
+   */
+  crumb?: string
+  /**
+   * A name of the owner's own, as long as he typed it (an account): `text-xl`
+   * on every width, two lines at most, the rest cut with … (#404).
+   */
+  compactTitle?: boolean
 }
 
 /**
@@ -56,6 +68,8 @@ export function PageHeader({
   titleAddon,
   actions = [],
   back: ownBack,
+  crumb,
+  compactTitle = false,
 }: PageHeaderProps) {
   const defaultBack = useDefaultPageBack()
   const back = ownBack ?? defaultBack
@@ -71,13 +85,19 @@ export function PageHeader({
 
   return (
     <header>
-      {back && <PageBack {...back} current={title} />}
+      {back && <PageBack {...back} current={crumb ?? title} />}
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-[min(100%,14rem)] flex-1 space-y-1">
           {/* 44px high, so what a section puts at its end (#401) moves
               nothing when it arrives. */}
           <div className="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1">
-            <h1 className="min-w-0 text-xl font-semibold tracking-tight break-words md:text-2xl">
+            <h1
+              title={compactTitle ? title : undefined}
+              className={cn(
+                'min-w-0 text-xl font-semibold tracking-tight break-words',
+                compactTitle ? 'line-clamp-2' : 'md:text-2xl',
+              )}
+            >
               {title}
             </h1>
             {titleAddon}

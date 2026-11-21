@@ -254,6 +254,30 @@ describe('PageHeader', () => {
     )
   })
 
+  it('names an account by its type in the breadcrumb (#404)', () => {
+    const name = 'Assurance vie Linxea Spirit 2 — contrat principal'
+    renderInShell(
+      <PageHeader
+        title={name}
+        crumb="Assurance vie"
+        compactTitle
+        back={{ label: 'Comptes', to: '/accounts' }}
+      />,
+    )
+    const trail = within(topBarBack()).getByRole('navigation', {
+      name: 'Fil d’Ariane',
+    })
+    expect(within(trail).getByText('Assurance vie')).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(within(trail).queryByText(name)).toBeNull()
+    // The name stays the page's title, smaller, two lines at most.
+    const title = within(page()).getByRole('heading', { name })
+    expect(title).toHaveClass('line-clamp-2')
+    expect(title).not.toHaveClass('md:text-2xl')
+  })
+
   it('keeps the way back in the page outside the shell', () => {
     render(
       <PageHeader

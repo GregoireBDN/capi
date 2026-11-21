@@ -115,13 +115,16 @@ function BreadcrumbLink({
   )
 }
 
-/** The page shown: text, not a link, cut with … */
+/** The page shown: text, not a link, at most 18rem, cut with … (#404). */
 function BreadcrumbPage({ className, ...props }: React.ComponentProps<'span'>) {
   return (
     <span
       data-slot="breadcrumb-page"
       aria-current="page"
-      className={cn('text-foreground truncate px-1.5 font-medium', className)}
+      className={cn(
+        'text-foreground max-w-[18rem] truncate px-1.5 font-medium',
+        className,
+      )}
       {...props}
     />
   )

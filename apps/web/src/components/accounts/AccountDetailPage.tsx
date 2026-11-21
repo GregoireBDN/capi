@@ -49,6 +49,7 @@ import { todayInParis } from './dates'
 import { InvestedSheet } from './InvestedSheet'
 import { InvestmentSummary } from './InvestmentSummary'
 import { historyPoints } from './history'
+import { ACCOUNT_TYPE_LABELS } from '#/components/dashboard/labels'
 import { formatAge, isInvestmentType, valueAgeText } from './labels'
 import { LinkedTransfers } from './LinkedTransfers'
 import { MealVoucherAccount } from './MealVoucherAccount'
@@ -88,6 +89,8 @@ function AccountHeader({
       <PageHeader
         back={back}
         title={account.name}
+        crumb={ACCOUNT_TYPE_LABELS[account.type]}
+        compactTitle
         titleAddon={
           account.archivedAt && (
             <Badge variant="secondary" outline>
