@@ -137,6 +137,23 @@ const SCENARIOS: Array<Scenario> = [
   // Mouvements' « ⋮ »: « Ajouter une dépense » and « Voir les opérations » (#393).
   { name: 'spending-actions', path: '/spending', step: openPageActions },
   { name: 'transactions', path: '/transactions?month=all' },
+  // Filters set: the count down on phones, the tinted controls (#406).
+  {
+    name: 'transactions-filtered',
+    path: '/transactions?month=all&kind=expense&oneOff=true',
+  },
+  {
+    // The « Filtres » page, opened from inside the search (#406).
+    name: 'transactions-filters',
+    path: '/transactions?month=all&kind=expense',
+    step: async (page) => {
+      // A wide page (landscape) has the filters in its toolbar instead.
+      const filters = page.getByRole('button', { name: /^Filtres/ })
+      if (!(await filters.isVisible())) return
+      await filters.click()
+      await page.getByRole('dialog').waitFor()
+    },
+  },
   {
     name: 'transactions-editor',
     path: '/transactions?month=all',

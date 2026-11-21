@@ -54,7 +54,6 @@ function FiltersButton({
   count: number
   filters: NonNullable<MonthToolbarProps['filters']>
 }) {
-  const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -83,25 +82,55 @@ function FiltersButton({
           </Badge>
         )}
       </Button>
-      <Sheet open={open} onOpenChange={setOpen}>
-        {/* A phone: a page of its own (#385); a narrow window elsewhere: a
-            bottom sheet. */}
-        <SheetContent
-          side={isMobile ? 'screen' : 'bottom'}
-          className={
-            isMobile
-              ? FORM_SHEET_SCREEN
-              : 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
-          }
-        >
-          <SheetBar
-            title="Filtres"
-            description="Filtres des chiffres du mois"
-          />
-          <SheetScroll className="px-4 pb-6">{filters('sheet')}</SheetScroll>
-        </SheetContent>
-      </Sheet>
+      <FiltersSheet open={open} onOpenChange={setOpen}>
+        <div className="px-4">{filters('sheet')}</div>
+      </FiltersSheet>
     </>
+  )
+}
+
+/**
+ * The « Filtres » panel of a narrow page: a page of its own on a phone
+ * (#385), a bottom sheet in a narrow window elsewhere. `onBack` turns its ✕
+ * into ‹ (a list opened from it, #406).
+ */
+export function FiltersSheet({
+  open,
+  onOpenChange,
+  title = 'Filtres',
+  description = 'Filtres des chiffres du mois',
+  onBack,
+  action,
+  children,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title?: string
+  description?: string
+  onBack?: () => void
+  action?: ReactNode
+  children: ReactNode
+}) {
+  const isMobile = useIsMobile()
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side={isMobile ? 'screen' : 'bottom'}
+        className={
+          isMobile
+            ? FORM_SHEET_SCREEN
+            : 'max-h-[calc(90svh-var(--keyboard-inset,0px))] overflow-y-auto rounded-t-xl'
+        }
+      >
+        <SheetBar
+          title={title}
+          description={description}
+          onBack={onBack}
+          action={action}
+        />
+        <SheetScroll className="pb-6">{children}</SheetScroll>
+      </SheetContent>
+    </Sheet>
   )
 }
 
