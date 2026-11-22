@@ -1,13 +1,8 @@
-import {
-  Card,
-  formatEuros,
-  formatSignedPercent,
-  Skeleton,
-  StatCard,
-} from '@finances/ui'
+import { Card, formatEuros, formatSignedPercent, Skeleton } from '@finances/ui'
 import type { ReactNode } from 'react'
 import type { SpendingByCategoryDto } from '#/api/types.gen'
 import { Delta } from './Delta'
+import { INCREASE_IS_GOOD } from './kinds'
 import { categoryLabel, comparedName } from './labels'
 import { comparisonCaption } from './rows'
 
@@ -58,11 +53,11 @@ function percentOf(delta: number, previous: number | null): string {
 export function SpendingKpisSkeleton() {
   return (
     <div
-      className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @2xl:grid-cols-4"
+      className="grid grid-cols-1 gap-2 @xl:grid-cols-3"
       aria-busy="true"
       aria-label="Chargement des indicateurs"
     >
-      {[0, 1, 2, 3].map((i) => (
+      {[0, 1, 2].map((i) => (
         <Skeleton key={i} className="h-28 rounded-xl" />
       ))}
     </div>
@@ -70,20 +65,16 @@ export function SpendingKpisSkeleton() {
 }
 
 /**
- * Month at a glance: total spent (with its trend), change from the previous
- * month and from the average, and the category that grew the most.
+ * The part's month at a glance (its total is in the month's tiles above,
+ * `MonthFlow`): change from the previous month and from the average, and
+ * the row that grew the most (expenses) or moved the most (income,
+ * savings).
  */
-export function SpendingKpis({
-  data,
-  trend,
-}: {
-  data: SpendingByCategoryDto
-  /** Monthly totals ending with the shown month, for the sparkline. */
-  trend?: readonly number[]
-}) {
+export function SpendingKpis({ data }: { data: SpendingByCategoryDto }) {
   // While the month is partial, everything is compared on the same first
   // days ("1–3 oct.") rather than on whole months.
   const partial = data.period.status === 'partial'
+  const good = INCREASE_IS_GOOD[data.kind]
   const previous = comparedName(data)
   const previousIn = partial ? `au ${previous}` : `en ${previous}`
   const vsPrevious = data.totalCents - data.previousTotalCents
@@ -91,32 +82,25 @@ export function SpendingKpis({
     data.averageTotalCents === null
       ? null
       : data.totalCents - data.averageTotalCents
+  const expense = data.kind === 'expense'
   const biggest = data.categories.reduce<
     SpendingByCategoryDto['categories'][number] | null
-  >(
-    (best, item) =>
-      item.deltaCents > 0 && (!best || item.deltaCents > best.deltaCents)
-        ? item
-        : best,
-    null,
-  )
+  >((best, item) => {
+    const wanted = expense ? item.deltaCents > 0 : item.deltaCents !== 0
+    return wanted &&
+      (!best || Math.abs(item.deltaCents) > Math.abs(best.deltaCents))
+      ? item
+      : best
+  }, null)
 
   return (
     <section aria-label="Indicateurs du mois">
-      <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @2xl:grid-cols-4">
-        <StatCard
-          label="Dépensé"
-          value={data.totalCents}
-          trend={trend}
-          trendLabel={
-            trend ? `Dépenses des ${trend.length} derniers mois` : undefined
-          }
-        />
+      <div className="grid grid-cols-1 gap-2 @xl:grid-cols-3">
         <ComparisonTile
           label={comparisonCaption(data, 'previous')}
           detail={`${formatEuros(data.previousTotalCents)} ${previousIn}${percentOf(vsPrevious, data.previousTotalCents)}`}
         >
-          <Delta cents={vsPrevious} {...TILE_DELTA} />
+          <Delta cents={vsPrevious} increaseIsGood={good} {...TILE_DELTA} />
         </ComparisonTile>
         <ComparisonTile
           label="Écart avec la moyenne"
@@ -129,21 +113,23 @@ export function SpendingKpis({
           {vsAverage === null ? (
             <span className="text-muted-foreground">—</span>
           ) : (
-            <Delta cents={vsAverage} {...TILE_DELTA} />
+            <Delta cents={vsAverage} increaseIsGood={good} {...TILE_DELTA} />
           )}
         </ComparisonTile>
         <ComparisonTile
-          label="Plus forte hausse"
+          label={expense ? 'Plus forte hausse' : 'Plus grand écart'}
           detail={
             biggest ? (
-              <Delta cents={biggest.deltaCents} />
-            ) : (
+              <Delta cents={biggest.deltaCents} increaseIsGood={good} />
+            ) : expense ? (
               'Aucune catégorie en hausse'
+            ) : (
+              'Rien n’a bougé'
             )
           }
         >
           <span className="block truncate">
-            {biggest ? categoryLabel(biggest) : 'Aucune'}
+            {biggest ? categoryLabel(biggest, data.kind) : 'Aucune'}
           </span>
         </ComparisonTile>
       </div>

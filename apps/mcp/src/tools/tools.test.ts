@@ -282,6 +282,7 @@ describe('API errors', () => {
 describe('spending', () => {
   it('passes the month, average window and account', async () => {
     const data: SpendingByCategoryDto = {
+      kind: 'expense',
       month: '2026-11',
       previousMonth: '2026-10',
       period: period(),
@@ -310,6 +311,10 @@ describe('spending', () => {
           notYetThisMonth: false,
           targetCents: 40000,
           expectedCents: 0,
+          accountId: null,
+          accountType: null,
+          inCents: null,
+          outCents: null,
         },
       ],
     }
@@ -341,6 +346,7 @@ describe('spending', () => {
 
   it('renders the history as a table', async () => {
     const data: SpendingTrendDto = {
+      kind: 'expense',
       months: ['2026-09', '2026-10'],
       includeOneOffs: false,
       series: [
@@ -348,6 +354,7 @@ describe('spending', () => {
           key: groceries.id,
           type: 'category',
           categoryId: groceries.id,
+          accountId: null,
           slug: groceries.slug,
           name: groceries.name,
           color: null,
@@ -359,6 +366,7 @@ describe('spending', () => {
           key: 'other',
           type: 'other',
           categoryId: null,
+          accountId: null,
           slug: null,
           name: null,
           color: null,

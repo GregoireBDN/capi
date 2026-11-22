@@ -11,6 +11,8 @@ import { monthPeriod } from '#/coverage/period'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import {
+  accountsTable,
+  type AccountType,
   budgetsTable,
   categoriesTable,
   transactionLinesView,
@@ -18,11 +20,13 @@ import {
 } from '#/database/schema'
 import { parisToday } from '#/investments/days'
 import { RecurringService } from '#/recurring/recurring.service'
+import { MOVED_CATEGORIES, savingsAccountsHaveRows } from '#/savings/moved'
 import {
   AVERAGE_MONTHS_DEFAULT,
   type CategorySpendingDto,
   type SpendingByCategoryDto,
   type SpendingByCategoryQueryDto,
+  type SpendingKind,
   type SpendingTrendDto,
   type SpendingTrendQueryDto,
   type SpendingTrendMonthDto,
@@ -41,20 +45,26 @@ type Db = PostgresJsDatabase<typeof schema>
 const UNCATEGORIZED = 'uncategorized'
 const OTHER = 'other'
 
-/** Spending of one category (or of the uncategorized bucket) in one month. */
+/** One row's amount (a category, an account, the uncategorized bucket) in one month. */
 interface MonthlyRow {
   month: string
-  /** Category id, or `UNCATEGORIZED`. */
+  /** Category id (account id for savings), or `UNCATEGORIZED`. */
   key: string
   spentCents: number
   count: number
   oneOffCents: number
   oneOffCount: number
+  /** Savings: paid in and taken out (positive cents); 0 for the other kinds. */
+  inCents: number
+  outCents: number
 }
 
-interface CategoryInfo {
-  id: string
-  slug: string
+/** What a row's key names: a category, or an account (savings). */
+interface RowInfo {
+  categoryId: string | null
+  accountId: string | null
+  accountType: AccountType | null
+  slug: string | null
   name: string
   color: string | null
   icon: CategoryIcon | null
@@ -63,6 +73,20 @@ interface CategoryInfo {
 interface Scope {
   accountId?: string
   includeOneOffs: boolean
+}
+
+/**
+ * An account's look in « Épargne » rows (#410): the Épargne page's colours
+ * (#407, Livrets emerald, Placements violet) and an icon per type.
+ */
+const SAVINGS_COLOR = '#10b981'
+const INVESTMENTS_COLOR = '#8b5cf6'
+const ACCOUNT_ICON: Partial<Record<AccountType, CategoryIcon>> = {
+  savings: 'piggy-bank',
+  brokerage: 'trending-up',
+  life_insurance: 'shield',
+  employee_savings: 'briefcase',
+  crypto: 'coins',
 }
 
 /** Sum of values over the given months, missing months counting as 0. */
@@ -120,6 +144,7 @@ export class SpendingService {
     })
     const { month, previousMonth } = period
     const partial = period.status === 'partial'
+    const kind = query.kind ?? 'expense'
     const scope: Scope = {
       accountId: query.accountId,
       includeOneOffs: query.includeOneOffs ?? false,
@@ -128,11 +153,17 @@ export class SpendingService {
     const windowStart = shiftMonth(month, -wanted)
 
     const [rows, firstMonth, targets, expected] = await Promise.all([
-      this.monthly(windowStart, month, scope.accountId, period.throughDay),
+      this.monthly(
+        kind,
+        windowStart,
+        month,
+        scope.accountId,
+        period.throughDay,
+      ),
       this.firstMonth(scope.accountId),
-      this.targets(month),
-      partial
-        ? this.expected(month, scope.accountId)
+      kind === 'savings' ? new Map<string, number>() : this.targets(month),
+      partial && kind !== 'savings'
+        ? this.expected(kind, month, scope.accountId)
         : new Map<string, number>(),
     ])
 
@@ -148,8 +179,10 @@ export class SpendingService {
 
     const spent = new Map<string, Map<string, number>>()
     const counts = new Map<string, Map<string, number>>()
+    const moves = new Map<string, { inCents: number; outCents: number }>()
     let oneOffCents = 0
     for (const row of rows) {
+      if (row.month === month) moves.set(row.key, row)
       const value = scope.includeOneOffs
         ? row.spentCents
         : row.spentCents - row.oneOffCents
@@ -174,7 +207,7 @@ export class SpendingService {
         (period.status !== 'empty' &&
           (counts.get(key)?.get(previousMonth) ?? 0) > 0),
     )
-    const info = await this.categories(shown)
+    const info = await this.infos(kind, shown)
 
     let totalCents = 0
     let previousTotalCents = 0
@@ -196,8 +229,13 @@ export class SpendingService {
       const spentCents = spent.get(key)?.get(month) ?? 0
       const previousSpentCents = spent.get(key)?.get(previousMonth) ?? 0
       const transactionCount = counts.get(key)?.get(month) ?? 0
+      const move = moves.get(key)
       return {
-        categoryId: category?.id ?? null,
+        categoryId: category?.categoryId ?? null,
+        accountId: category?.accountId ?? null,
+        accountType: category?.accountType ?? null,
+        inCents: kind === 'savings' ? (move?.inCents ?? 0) : null,
+        outCents: kind === 'savings' ? (move?.outCents ?? 0) : null,
         slug: category?.slug ?? null,
         name: category?.name ?? null,
         color: category?.color ?? null,
@@ -216,7 +254,9 @@ export class SpendingService {
           transactionCount === 0 &&
           (counts.get(key)?.get(previousMonth) ?? 0) > 0,
         targetCents:
-          category === undefined ? null : (targets.get(category.id) ?? null),
+          category?.categoryId == null
+            ? null
+            : (targets.get(category.categoryId) ?? null),
         expectedCents: expected.get(key) ?? 0,
       }
     })
@@ -229,6 +269,7 @@ export class SpendingService {
     )
 
     return {
+      kind,
       month,
       previousMonth,
       period,
@@ -261,9 +302,10 @@ export class SpendingService {
     const start = shiftMonth(end, -((query.months ?? TREND_MONTHS_DEFAULT) - 1))
     const months = monthsBetween(start, end)
     const includeOneOffs = query.includeOneOffs ?? false
+    const kind = query.kind ?? 'expense'
 
     const [rows, firstMonth] = await Promise.all([
-      this.monthly(start, end, query.accountId),
+      this.monthly(kind, start, end, query.accountId),
       this.firstMonth(query.accountId),
     ])
 
@@ -298,9 +340,11 @@ export class SpendingService {
     let series: SpendingTrendSeriesDto[]
     if (single) {
       const key = filterKey
-      const info = await this.categories([key])
+      const info = await this.infos(kind, [key])
       if (query.categoryId !== undefined && !info.has(key)) {
-        throw new NotFoundException('Category not found')
+        throw new NotFoundException(
+          kind === 'savings' ? 'Account not found' : 'Category not found',
+        )
       }
       series = [this.series(key, info.get(key), valuesOf([key]))]
     } else {
@@ -310,7 +354,7 @@ export class SpendingService {
         .sort((a, b) => b.total - a.total)
       const top = ranked.slice(0, TREND_TOP_CATEGORIES).map((e) => e.key)
       const rest = [...spent.keys()].filter((key) => !top.includes(key))
-      const info = await this.categories(top)
+      const info = await this.infos(kind, top)
       series = top.map((key) =>
         this.series(key, info.get(key), valuesOf([key])),
       )
@@ -320,6 +364,7 @@ export class SpendingService {
           key: OTHER,
           type: 'other',
           categoryId: null,
+          accountId: null,
           slug: null,
           name: null,
           color: null,
@@ -358,6 +403,7 @@ export class SpendingService {
     let sameDaysAverageCents: number | null = null
     if (throughDay !== null && complete.length > 0) {
       const sameDays = await this.monthly(
+        kind,
         complete[0].month,
         complete.at(-1)!.month,
         query.accountId,
@@ -378,7 +424,7 @@ export class SpendingService {
       sameDaysAverageCents = average(sum, complete.length)
     }
 
-    const topInfo = await this.categories([
+    const topInfo = await this.infos(kind, [
       ...new Set(monthTops.flat().map((entry) => entry.key)),
     ])
     const details: SpendingTrendMonthDto[] = months.map((month, index) => ({
@@ -388,7 +434,7 @@ export class SpendingService {
       topCategories: monthTops[index].map(({ key, cents }) => {
         const info = topInfo.get(key)
         return {
-          categoryId: info?.id ?? null,
+          categoryId: info?.categoryId ?? null,
           name: info?.name ?? null,
           color: info?.color ?? null,
           icon: info?.icon ?? null,
@@ -398,6 +444,7 @@ export class SpendingService {
     }))
 
     return {
+      kind,
       months,
       includeOneOffs,
       series,
@@ -411,13 +458,18 @@ export class SpendingService {
 
   private series(
     key: string,
-    category: CategoryInfo | undefined,
+    category: RowInfo | undefined,
     valuesCents: number[],
   ): SpendingTrendSeriesDto {
     return {
       key,
-      type: category ? 'category' : 'uncategorized',
-      categoryId: category?.id ?? null,
+      type: category?.accountId
+        ? 'account'
+        : category
+          ? 'category'
+          : 'uncategorized',
+      categoryId: category?.categoryId ?? null,
+      accountId: category?.accountId ?? null,
       slug: category?.slug ?? null,
       name: category?.name ?? null,
       color: category?.color ?? null,
@@ -428,17 +480,23 @@ export class SpendingService {
   }
 
   /**
-   * Expenses per month and category from `from` to `to` (months, both
-   * included), with the one-off part apart. Money out is positive. With
-   * `throughDay`, only the first `throughDay` days of each month count (all
-   * of a shorter month), so a partial month is compared like for like.
+   * Amounts per month and row from `from` to `to` (months, both included),
+   * with the one-off part apart: expenses (money out positive) or income
+   * (money in positive) per category, or the moves to savings per account
+   * (`monthlySavings`). With `throughDay`, only the first `throughDay` days
+   * of each month count (all of a shorter month), so a partial month is
+   * compared like for like.
    */
   private async monthly(
+    kind: SpendingKind,
     from: string,
     to: string,
     accountId: string | undefined,
     throughDay: number | null = null,
   ): Promise<MonthlyRow[]> {
+    if (kind === 'savings') {
+      return this.monthlySavings(from, to, accountId, throughDay)
+    }
     // Lines: a split transaction counts in each of its categories.
     const t = transactionLinesView
     const month = sql<string>`to_char(${t.bookingDate}, 'YYYY-MM')`
@@ -446,8 +504,10 @@ export class SpendingService {
     // and the GROUP BY, which Postgres then refuses.
     const key = sql<string>`coalesce(${t.categoryId}::text, ${sql.raw(`'${UNCATEGORIZED}'`)})`
     const oneOff = eq(t.isOneOff, true)
+    // Money out is positive for expenses, money in for income.
+    const sign = sql.raw(kind === 'expense' ? '-' : '')
     const conditions: SQL[] = [
-      eq(t.kind, 'expense'),
+      eq(t.kind, kind),
       gte(t.bookingDate, firstDay(from)),
       lt(t.bookingDate, firstDay(shiftMonth(to, 1))),
     ]
@@ -456,17 +516,17 @@ export class SpendingService {
       conditions.push(sql`extract(day from ${t.bookingDate}) <= ${throughDay}`)
     }
 
-    return this.db
+    const rows = await this.db
       .select({
         month,
         key,
         spentCents:
-          sql<number>`-coalesce(sum(${t.amountCents}), 0)::bigint`.mapWith(
+          sql<number>`${sign}coalesce(sum(${t.amountCents}), 0)::bigint`.mapWith(
             Number,
           ),
         count: sql<number>`count(*)`.mapWith(Number),
         oneOffCents:
-          sql<number>`-coalesce(sum(${t.amountCents}) filter (where ${oneOff}), 0)::bigint`.mapWith(
+          sql<number>`${sign}coalesce(sum(${t.amountCents}) filter (where ${oneOff}), 0)::bigint`.mapWith(
             Number,
           ),
         oneOffCount: sql<number>`count(*) filter (where ${oneOff})`.mapWith(
@@ -476,6 +536,91 @@ export class SpendingService {
       .from(t)
       .where(and(...conditions))
       .groupBy(month, key)
+    // `|| 0` turns a `-0` into 0.
+    return rows.map((row) => ({
+      ...row,
+      spentCents: row.spentCents || 0,
+      oneOffCents: row.oneOffCents || 0,
+      inCents: 0,
+      outCents: 0,
+    }))
+  }
+
+  /**
+   * « Mis de côté » per month and account (#410), exactly as the Épargne
+   * page counts it (`SavingsService`, `savings/moved.ts`): the transfers
+   * booked on the savings accounts (deposits positive, withdrawals
+   * negative), or the checking side's `savings_transfer` rows when no
+   * savings account has any row; and the checking side's
+   * `investment_transfer` rows, sign flipped, keyed by their counterpart
+   * account (`UNCATEGORIZED` when unknown). Every move counts, one-off or
+   * not. With `accountId`, the moves from or to that account.
+   */
+  private async monthlySavings(
+    from: string,
+    to: string,
+    accountId: string | undefined,
+    throughDay: number | null,
+  ): Promise<MonthlyRow[]> {
+    const t = transactionLinesView
+    const a = accountsTable
+    const c = categoriesTable
+    const tx = transactionsTable
+    const savingsSide = await savingsAccountsHaveRows(this.db)
+    const onSavings = sql`${a.type} = 'savings'`
+    // Slugs inlined (constants): see `monthly`.
+    const onChecking = (slug: string) =>
+      sql`(${a.type} = 'checking' and ${c.slug} = ${sql.raw(`'${slug}'`)})`
+    const moves = [onChecking(MOVED_CATEGORIES.investments)]
+    moves.push(savingsSide ? onSavings : onChecking(MOVED_CATEGORIES.savings))
+    const month = sql<string>`to_char(${t.bookingDate}, 'YYYY-MM')`
+    const key = sql<string>`case when ${onSavings} then ${t.accountId}::text else coalesce(${tx.counterpartAccountId}::text, ${sql.raw(`'${UNCATEGORIZED}'`)}) end`
+    const value = sql`case when ${onSavings} then ${t.amountCents} else -${t.amountCents} end`
+    const conditions: SQL[] = [
+      eq(t.kind, 'transfer'),
+      sql`(${sql.join(moves, sql` or `)})`,
+      gte(t.bookingDate, firstDay(from)),
+      lt(t.bookingDate, firstDay(shiftMonth(to, 1))),
+    ]
+    if (accountId !== undefined) {
+      conditions.push(
+        sql`(${t.accountId} = ${accountId} or ${tx.counterpartAccountId} = ${accountId})`,
+      )
+    }
+    if (throughDay !== null) {
+      conditions.push(sql`extract(day from ${t.bookingDate}) <= ${throughDay}`)
+    }
+
+    const rows = await this.db
+      .select({
+        month,
+        key,
+        spentCents: sql<number>`coalesce(sum(${value}), 0)::bigint`.mapWith(
+          Number,
+        ),
+        count: sql<number>`count(*)`.mapWith(Number),
+        inCents:
+          sql<number>`coalesce(sum(${value}) filter (where ${value} > 0), 0)::bigint`.mapWith(
+            Number,
+          ),
+        outCents:
+          sql<number>`-coalesce(sum(${value}) filter (where ${value} < 0), 0)::bigint`.mapWith(
+            Number,
+          ),
+      })
+      .from(t)
+      .innerJoin(a, eq(a.id, t.accountId))
+      .innerJoin(tx, eq(tx.id, t.id))
+      .leftJoin(c, eq(c.id, t.categoryId))
+      .where(and(...conditions))
+      .groupBy(month, key)
+    return rows.map((row) => ({
+      ...row,
+      spentCents: row.spentCents || 0,
+      outCents: row.outCents || 0,
+      oneOffCents: 0,
+      oneOffCount: 0,
+    }))
   }
 
   /** Budget target of each category in `month`, positive cents. */
@@ -499,11 +644,13 @@ export class SpendingService {
   }
 
   /**
-   * Recurring costs still expected in `month` per category key (see
+   * Recurring amounts still expected in `month` per category key (see
    * `expectedByCategory`), from the confirmed series of the accounts in
-   * scope, each read up to the day its own data goes.
+   * scope, each read up to the day its own data goes: the debits for
+   * expenses, the credits (the salary) for income.
    */
   private async expected(
+    kind: 'expense' | 'income',
     month: string,
     accountId: string | undefined,
   ): Promise<Map<string, number>> {
@@ -515,10 +662,14 @@ export class SpendingService {
       (item) => accountId === undefined || item.accountId === accountId,
     )
     return new Map(
-      [...expectedByCategory(inScope, month, horizons)].map(([id, cents]) => [
-        id ?? UNCATEGORIZED,
-        cents,
-      ]),
+      [
+        ...expectedByCategory(
+          inScope,
+          month,
+          horizons,
+          kind === 'expense' ? 'debit' : 'credit',
+        ),
+      ].map(([id, cents]) => [id ?? UNCATEGORIZED, cents]),
     )
   }
 
@@ -532,9 +683,37 @@ export class SpendingService {
     return row?.first ? row.first.slice(0, 7) : null
   }
 
-  private async categories(keys: string[]): Promise<Map<string, CategoryInfo>> {
+  /** What each key names: categories, or accounts for savings. */
+  private async infos(
+    kind: SpendingKind,
+    keys: string[],
+  ): Promise<Map<string, RowInfo>> {
     const ids = keys.filter((key) => key !== UNCATEGORIZED && key !== OTHER)
     if (ids.length === 0) return new Map()
+    if (kind === 'savings') {
+      const rows = await this.db
+        .select({
+          id: accountsTable.id,
+          name: accountsTable.name,
+          type: accountsTable.type,
+        })
+        .from(accountsTable)
+        .where(inArray(accountsTable.id, ids))
+      return new Map(
+        rows.map((row) => [
+          row.id,
+          {
+            categoryId: null,
+            accountId: row.id,
+            accountType: row.type,
+            slug: null,
+            name: row.name,
+            color: row.type === 'savings' ? SAVINGS_COLOR : INVESTMENTS_COLOR,
+            icon: ACCOUNT_ICON[row.type] ?? 'landmark',
+          },
+        ]),
+      )
+    }
     const rows = await this.db
       .select({
         id: categoriesTable.id,
@@ -545,6 +724,19 @@ export class SpendingService {
       })
       .from(categoriesTable)
       .where(inArray(categoriesTable.id, ids))
-    return new Map(rows.map((row) => [row.id, row]))
+    return new Map(
+      rows.map((row) => [
+        row.id,
+        {
+          categoryId: row.id,
+          accountId: null,
+          accountType: null,
+          slug: row.slug,
+          name: row.name,
+          color: row.color,
+          icon: row.icon,
+        },
+      ]),
+    )
   }
 }

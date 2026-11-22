@@ -107,11 +107,16 @@ function spending(
     notYetThisMonth: false,
     targetCents: null,
     expectedCents: 0,
+    accountId: null,
+    accountType: null,
+    inCents: null,
+    outCents: null,
     ...overrides,
   }
 }
 
 const october: SpendingByCategoryDto = {
+  kind: 'expense',
   month: '2026-10',
   previousMonth: '2026-09',
   period: {
@@ -169,10 +174,99 @@ const october: SpendingByCategoryDto = {
   ],
 }
 
+const SALARY = 'c0000000-0000-4000-8000-000000000004'
+const LIVRET_ID = '10000000-0000-4000-8000-000000000003'
+const PEA_ID = '10000000-0000-4000-8000-000000000002'
+
+/** Income of October: a salary, above what was planned. */
+const incomeOctober: SpendingByCategoryDto = {
+  ...october,
+  kind: 'income',
+  totalCents: 260_000,
+  transactionCount: 1,
+  previousTotalCents: 250_000,
+  averageTotalCents: 250_000,
+  oneOffCents: 10_000,
+  categories: [
+    spending({
+      categoryId: SALARY,
+      slug: 'salary',
+      name: 'Salaire',
+      color: '#16a34a',
+      icon: 'briefcase',
+      spentCents: 260_000,
+      share: 1,
+      transactionCount: 1,
+      previousSpentCents: 250_000,
+      deltaCents: 10_000,
+      averageCents: 250_000,
+      targetCents: 250_000,
+    }),
+  ],
+}
+
+/** « Mis de côté » in October: a Livret (paid in and taken out), a PEA. */
+const savingsOctober: SpendingByCategoryDto = {
+  ...october,
+  kind: 'savings',
+  totalCents: 40_000,
+  transactionCount: 3,
+  previousTotalCents: 50_000,
+  averageTotalCents: 45_000,
+  oneOffCents: 0,
+  categories: [
+    spending({
+      categoryId: null,
+      slug: null,
+      accountId: PEA_ID,
+      accountType: 'brokerage',
+      name: 'PEA test',
+      color: '#8b5cf6',
+      icon: 'trending-up',
+      spentCents: 20_000,
+      share: 0.5,
+      transactionCount: 1,
+      previousSpentCents: 20_000,
+      averageCents: 20_000,
+      inCents: 20_000,
+      outCents: 0,
+    }),
+    spending({
+      categoryId: null,
+      slug: null,
+      accountId: LIVRET_ID,
+      accountType: 'savings',
+      name: 'Livret test',
+      color: '#10b981',
+      icon: 'piggy-bank',
+      spentCents: 20_000,
+      share: 0.5,
+      transactionCount: 2,
+      previousSpentCents: 30_000,
+      deltaCents: -10_000,
+      averageCents: 25_000,
+      inCents: 30_000,
+      outCents: 10_000,
+    }),
+  ],
+}
+
+/** The month's three parts, by the `kind` asked. */
+function byKind({ query }: { query: { kind?: string } }) {
+  return ok(
+    query.kind === 'income'
+      ? incomeOctober
+      : query.kind === 'savings'
+        ? savingsOctober
+        : october,
+  )
+}
+
 const RENT_SERIES: SpendingTrendSeriesDto = {
   key: RENT,
   type: 'category',
   categoryId: RENT,
+  accountId: null,
   slug: 'rent',
   name: 'Loyer',
   color: '#dc2626',
@@ -184,6 +278,7 @@ const GROCERIES_SERIES: SpendingTrendSeriesDto = {
   key: GROCERIES,
   type: 'category',
   categoryId: GROCERIES,
+  accountId: null,
   slug: 'groceries',
   name: 'Courses',
   color: '#d97706',
@@ -194,6 +289,7 @@ const GROCERIES_SERIES: SpendingTrendSeriesDto = {
 
 function trend(overrides: Partial<SpendingTrendDto> = {}): SpendingTrendDto {
   return {
+    kind: 'expense',
     months: ['2026-08', '2026-09', '2026-10'],
     includeOneOffs: false,
     series: [RENT_SERIES, GROCERIES_SERIES],
@@ -263,7 +359,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-11-05T10:00:00Z'))
   api.accountsControllerList.mockReturnValue(ok(accounts))
   api.categoriesControllerList.mockReturnValue(ok(categories))
-  api.spendingControllerByCategory.mockReturnValue(ok(october))
+  api.spendingControllerByCategory.mockImplementation(byKind)
   api.spendingControllerTrend.mockReturnValue(ok(trend()))
 })
 
@@ -279,8 +375,9 @@ describe('SpendingPage', () => {
     const kpis = await screen.findByRole('region', {
       name: 'Indicateurs du mois',
     })
-    expect(within(kpis).getByText('Dépensé')).toBeInTheDocument()
-    expect(within(kpis).getByText(euros(100_000))).toBeInTheDocument()
+    // The month's total is in its tile, which is the selected tab.
+    const tile = screen.getByRole('tab', { name: /^Dépenses/, selected: true })
+    expect(tile).toHaveTextContent(/1\s000\s€/)
     expect(within(kpis).getByText('Écart avec septembre')).toBeInTheDocument()
     expect(within(kpis).getByText(`+${euros(10_000)}`)).toBeInTheDocument()
     expect(within(kpis).getByText('Écart avec la moyenne')).toBeInTheDocument()
@@ -465,12 +562,12 @@ describe('SpendingPage', () => {
 
     await user.click(
       screen.getByRole('switch', {
-        name: 'Inclure les dépenses exceptionnelles',
+        name: 'Inclure les opérations exceptionnelles',
       }),
     )
     expect(changes.at(-1)).toEqual({ month: '2026-10', oneOffs: true })
     await waitFor(() =>
-      expect(api.spendingControllerByCategory).toHaveBeenLastCalledWith({
+      expect(api.spendingControllerByCategory).toHaveBeenCalledWith({
         query: { month: '2026-10', includeOneOffs: true, averageMonths: 6 },
         throwOnError: false,
       }),
@@ -489,7 +586,7 @@ describe('SpendingPage', () => {
       '12',
     )
     await waitFor(() =>
-      expect(api.spendingControllerByCategory).toHaveBeenLastCalledWith({
+      expect(api.spendingControllerByCategory).toHaveBeenCalledWith({
         query: {
           month: '2026-10',
           includeOneOffs: true,
@@ -1120,7 +1217,105 @@ describe('SpendingPage', () => {
       screen.getByRole('generic', { name: 'Chargement des indicateurs' }),
     ).toBeInTheDocument()
 
+    // One call per part (the tiles), then the retry of the part shown.
     await user.click(await screen.findByRole('button', { name: 'Réessayer' }))
-    expect(api.spendingControllerByCategory).toHaveBeenCalledTimes(2)
+    expect(api.spendingControllerByCategory).toHaveBeenCalledTimes(4)
+  })
+
+  describe("the month's parts (#410)", () => {
+    it('shows Revenus, Dépenses and Épargne as tabs, and what stayed', async () => {
+      const user = userEvent.setup()
+      const { changes } = renderPage()
+
+      const tabs = await screen.findByRole('tablist', {
+        name: 'Mouvements du mois',
+      })
+      await waitFor(() =>
+        expect(
+          within(tabs).getByRole('tab', { name: /^Revenus/ }),
+        ).toHaveTextContent(/2\s600\s€/),
+      )
+      expect(
+        within(tabs).getByRole('tab', { name: /^Épargne/ }),
+      ).toHaveTextContent(/400\s€/)
+      expect(
+        within(tabs).getByRole('tab', { name: /^Dépenses/ }),
+      ).toHaveAttribute('aria-selected', 'true')
+      // One-offs included: 2 700 − 1 250 − 400 = 1 050 €.
+      expect(
+        screen.getByText('Resté sur le compte courant'),
+      ).toBeInTheDocument()
+      expect(
+        document.querySelector('[data-slot="month-flow-kept"]'),
+      ).toHaveTextContent(/\+1\s050\s€/)
+
+      await user.click(within(tabs).getByRole('tab', { name: /^Revenus/ }))
+      expect(changes.at(-1)).toEqual({ month: '2026-10', vue: 'revenus' })
+      // The arrows move between the tiles.
+      await user.keyboard('{ArrowRight}')
+      expect(changes.at(-1)).toEqual({ month: '2026-10' })
+    })
+
+    it('reads income per category, against the planned income', async () => {
+      renderPage({ month: '2026-10', vue: 'revenus' })
+
+      const list = await screen.findByRole('list', {
+        name: 'Revenus par catégorie',
+      })
+      expect(within(list).getByText('Salaire')).toBeInTheDocument()
+      expect(within(list).getByText(/104 % du prévu/)).toBeInTheDocument()
+      // More income than before is good news.
+      expect(
+        list.querySelector('[data-slot="spending-delta"]'),
+      ).toHaveAttribute('data-tone', 'good')
+      expect(within(list).getByRole('link')).toHaveAttribute(
+        'href',
+        `/transactions?month=2026-10&category=${SALARY}&kind=income`,
+      )
+      expect(
+        screen.getByRole('heading', { name: 'Revenus' }),
+      ).toBeInTheDocument()
+      expect(screen.getByText('Plus grand écart')).toBeInTheDocument()
+      expect(api.spendingControllerTrend).toHaveBeenCalledWith({
+        query: {
+          kind: 'income',
+          month: '2026-10',
+          months: 12,
+          includeOneOffs: false,
+        },
+        throwOnError: false,
+      })
+      // Adding a revenue comes first here.
+      const add = screen.getAllByRole('button', { name: /^Ajouter/ })
+      expect(add[0]).toHaveAccessibleName('Ajouter un revenu')
+    })
+
+    it('reads the moves to savings per account, never income or expense', async () => {
+      renderPage({ month: '2026-10', vue: 'epargne' })
+
+      const list = await screen.findByRole('list', {
+        name: 'Épargne par compte',
+      })
+      const links = within(list).getAllByRole('link')
+      expect(links.map((link) => link.getAttribute('href'))).toEqual([
+        '/transactions?month=2026-10&kind=transfer',
+        `/transactions?month=2026-10&kind=transfer&account=${LIVRET_ID}`,
+      ])
+      expect(
+        within(list).getByText(
+          (_, element) =>
+            element?.getAttribute('data-slot') === 'category-moves' &&
+            element.textContent.replace(/\s/g, ' ') ===
+              `Versé ${euros(30_000)} · retiré ${euros(10_000)}`,
+        ),
+      ).toBeInTheDocument()
+      expect(within(list).getByText('Placement')).toBeInTheDocument()
+      expect(
+        screen.getByRole('link', { name: 'Ce que vous avez : Épargne' }),
+      ).toHaveAttribute('href', '/savings')
+      expect(
+        screen.getAllByRole('button', { name: /^Ajouter/ })[0],
+      ).toHaveAccessibleName('Ajouter un virement')
+    })
   })
 })

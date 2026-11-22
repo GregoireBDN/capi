@@ -4,11 +4,17 @@ import { OTHER_COLOR, UNCATEGORIZED_COLOR } from './labels'
 
 interface SpendingCategoryIconProps {
   /**
-   * A category (id, icon, colour), the uncategorized bucket (`categoryId`
-   * null) or the remaining categories folded together (`other`).
+   * A category (id, icon, colour), an Épargne account (`accountId`), the
+   * bucket without either (`categoryId` null) or the remaining ones folded
+   * together (`other`).
    */
   item:
-    | { categoryId: string | null; icon: string | null; color: string | null }
+    | {
+        categoryId: string | null
+        accountId?: string | null
+        icon: string | null
+        color: string | null
+      }
     | 'other'
   size?: 'sm' | 'md'
 }
@@ -31,7 +37,7 @@ export function SpendingCategoryIcon({
       />
     )
   }
-  if (item.categoryId === null) {
+  if (item.categoryId === null && !item.accountId) {
     return (
       <CategoryIcon
         icon={null}

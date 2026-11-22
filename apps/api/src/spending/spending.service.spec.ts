@@ -283,6 +283,10 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
           notYetThisMonth: false,
           targetCents: null,
           expectedCents: 0,
+          accountId: null,
+          accountType: null,
+          inCents: null,
+          outCents: null,
         })
         expect(result.totalCents).toBe(11_000)
       })
@@ -528,6 +532,7 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
       await withFixture(async (f) => {
         const result = await f.service.byCategory({})
         expect(result).toEqual({
+          kind: 'expense',
           month: '2026-11',
           previousMonth: '2026-10',
           period: {
@@ -732,6 +737,238 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
     })
   })
 
+  describe('income (#410)', () => {
+    it('sums income per category, money in positive, leaving expenses and transfers out', async () => {
+      await withFixture(async (f) => {
+        await insert(f.tx, [
+          row(f.checking, '2026-09-28', 250_000, {
+            kind: 'income',
+            categoryId: f.salary,
+          }),
+          row(f.checking, '2026-10-28', 260_000, {
+            kind: 'income',
+            categoryId: f.salary,
+          }),
+          // An outgoing amount filed in income lowers it.
+          row(f.checking, '2026-10-29', -10_000, {
+            kind: 'income',
+            categoryId: f.salary,
+          }),
+          row(f.checking, '2026-10-12', 4_000, { kind: 'income' }),
+          row(f.checking, '2026-10-03', -4_000, {
+            categoryId: f.category.groceries,
+          }),
+          row(f.savings, '2026-10-05', 50_000, {
+            kind: 'transfer',
+            categoryId: f.livret,
+          }),
+        ])
+        await f.tx.insert(budgetsTable).values({
+          categoryId: f.salary,
+          effectiveFrom: '2026-01-01',
+          monthlyTargetCents: 255_000,
+        })
+
+        const result = await f.service.byCategory({
+          kind: 'income',
+          month: '2026-10',
+        })
+
+        expect(result.kind).toBe('income')
+        expect(result.totalCents).toBe(254_000)
+        expect(result.previousTotalCents).toBe(250_000)
+        expect(result.categories.map((c) => c.categoryId)).toEqual([
+          f.salary,
+          null,
+        ])
+        expect(find(result.categories, f.salary)).toMatchObject({
+          spentCents: 250_000,
+          previousSpentCents: 250_000,
+          transactionCount: 2,
+          targetCents: 255_000,
+          accountId: null,
+          inCents: null,
+        })
+      })
+    })
+
+    it('returns the recurring income still expected in a month in progress', async () => {
+      await withFixture(async (f) => {
+        const SALARY = 'VIR SEPA EMPLOYEUR EXEMPLE SALAIRE'
+        await insert(f.tx, [
+          ...['2026-08-28', '2026-09-28', '2026-10-28'].map((date) =>
+            row(f.checking, date, 250_000, {
+              kind: 'income',
+              rawLabel: SALARY,
+              categoryId: f.salary,
+            }),
+          ),
+          row(f.checking, '2026-11-03', -2_500, {
+            categoryId: f.category.groceries,
+          }),
+        ])
+        await recurring(f.tx, f.checking, SALARY, 250_000, {
+          direction: 'credit',
+          categoryId: f.salary,
+          lastSeenDate: '2026-10-28',
+        })
+        f.service.now = () => new Date('2026-11-05T10:00:00Z')
+
+        const result = await f.service.byCategory({ kind: 'income' })
+
+        expect(result.period.status).toBe('partial')
+        expect(find(result.categories, f.salary)).toMatchObject({
+          spentCents: 0,
+          expectedCents: 250_000,
+        })
+        expect(result.totalCents).toBe(0)
+        expect(result.expectedCents).toBe(250_000)
+        // The expenses expect no debit from it.
+        const expenses = await f.service.byCategory({})
+        expect(expenses.expectedCents).toBe(0)
+      })
+    })
+  })
+
+  describe('savings (#410)', () => {
+    /** The transfer categories the Épargne rule reads (not seeded in tests). */
+    async function moveCategories(tx: Tx) {
+      const rows = await tx
+        .insert(categoriesTable)
+        .values(
+          ['savings_transfer', 'investment_transfer', 'internal_transfer'].map(
+            (slug) => ({ slug, name: slug, kind: 'transfer' as const }),
+          ),
+        )
+        .onConflictDoNothing()
+        .returning({ id: categoriesTable.id, slug: categoriesTable.slug })
+      return new Map(rows.map((r) => [r.slug, r.id]))
+    }
+
+    it('reads the moves as the Épargne page does: per account, deposits and withdrawals', async () => {
+      await withFixture(async (f) => {
+        const cat = await moveCategories(f.tx)
+        const [pea] = await f.tx
+          .insert(accountsTable)
+          .values({ name: 'Test PEA', type: 'brokerage' })
+          .returning()
+        const internal = {
+          kind: 'transfer' as const,
+          categoryId: cat.get('internal_transfer')!,
+        }
+        const invest = {
+          kind: 'transfer' as const,
+          categoryId: cat.get('investment_transfer')!,
+        }
+        await insert(f.tx, [
+          // On both sides: only the savings account's row counts.
+          row(f.checking, '2026-10-02', -30_000, internal),
+          row(f.savings, '2026-10-02', 30_000, internal),
+          row(f.savings, '2026-10-20', -10_000, internal),
+          row(f.checking, '2026-10-20', 10_000, internal),
+          // The PEA has no rows: its checking side, sign flipped.
+          row(f.checking, '2026-10-05', -20_000, {
+            ...invest,
+            counterpartAccountId: pea.id,
+          }),
+          // A contribution whose account is not known.
+          row(f.checking, '2026-10-06', -5_000, invest),
+          // Between checking accounts, income, expenses: never counted.
+          row(f.checking, '2026-10-07', -7_000, internal),
+          row(f.checking, '2026-10-28', 250_000, {
+            kind: 'income',
+            categoryId: f.salary,
+          }),
+          row(f.checking, '2026-10-03', -4_000, {
+            categoryId: f.category.groceries,
+          }),
+          row(f.savings, '2026-09-02', 30_000, internal),
+        ])
+
+        const result = await f.service.byCategory({
+          kind: 'savings',
+          month: '2026-10',
+        })
+
+        expect(result.kind).toBe('savings')
+        expect(result.totalCents).toBe(45_000)
+        expect(result.previousTotalCents).toBe(30_000)
+        // Equal this month: the one with more the month before first.
+        expect(result.categories.map((c) => c.accountId)).toEqual([
+          f.savings,
+          pea.id,
+          null,
+        ])
+        expect(
+          result.categories.find((c) => c.accountId === f.savings),
+        ).toMatchObject({
+          categoryId: null,
+          name: 'Test savings',
+          accountType: 'savings',
+          icon: 'piggy-bank',
+          spentCents: 20_000,
+          inCents: 30_000,
+          outCents: 10_000,
+          previousSpentCents: 30_000,
+          targetCents: null,
+        })
+        expect(
+          result.categories.find((c) => c.accountId === pea.id),
+        ).toMatchObject({
+          name: 'Test PEA',
+          accountType: 'brokerage',
+          spentCents: 20_000,
+          inCents: 20_000,
+          outCents: 0,
+        })
+        expect(
+          result.categories.find((c) => c.accountId === null),
+        ).toMatchObject({ name: null, spentCents: 5_000 })
+
+        // The trend follows the same rule, one series per account.
+        const trend = await f.service.trend({
+          kind: 'savings',
+          month: '2026-10',
+          months: 2,
+        })
+        expect(trend.kind).toBe('savings')
+        expect(trend.totalsCents).toEqual([30_000, 45_000])
+        expect(
+          trend.series.find((s) => s.accountId === f.savings),
+        ).toMatchObject({ type: 'account', valuesCents: [30_000, 20_000] })
+      })
+    })
+
+    it('reads the checking side when no savings account has rows', async () => {
+      await withFixture(async (f) => {
+        const cat = await moveCategories(f.tx)
+        await insert(f.tx, [
+          row(f.checking, '2026-10-02', -30_000, {
+            kind: 'transfer',
+            categoryId: cat.get('savings_transfer')!,
+            counterpartAccountId: f.savings,
+          }),
+          row(f.checking, '2026-10-03', -9_000, {
+            kind: 'transfer',
+            categoryId: cat.get('internal_transfer')!,
+          }),
+        ])
+
+        const result = await f.service.byCategory({
+          kind: 'savings',
+          month: '2026-10',
+        })
+
+        expect(result.totalCents).toBe(30_000)
+        expect(result.categories).toHaveLength(1)
+        expect(result.categories[0]).toMatchObject({
+          accountId: f.savings,
+          inCents: 30_000,
+        })
+      })
+    })
+  })
+
   describe('trend', () => {
     it('stacks the top categories of the period and folds the rest into "other"', async () => {
       await withFixture(async (f) => {
@@ -777,6 +1014,7 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
           key: 'other',
           type: 'other',
           categoryId: null,
+          accountId: null,
           slug: null,
           name: null,
           color: null,
@@ -945,6 +1183,7 @@ describe.skipIf(!process.env.DATABASE_URL)('SpendingService (database)', () => {
             key: 'uncategorized',
             type: 'uncategorized',
             categoryId: null,
+            accountId: null,
             slug: null,
             name: null,
             color: null,

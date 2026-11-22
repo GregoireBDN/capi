@@ -30,6 +30,10 @@ function item(
     notYetThisMonth: false,
     targetCents: null,
     expectedCents: 0,
+    accountId: null,
+    accountType: null,
+    inCents: null,
+    outCents: null,
     ...overrides,
   }
 }

@@ -134,6 +134,9 @@ const SCENARIOS: Array<Scenario> = [
   { name: 'shell-nav', path: '/dashboard', step: openNav },
   { name: 'shell-account', path: '/dashboard', step: openAccountMenu },
   { name: 'spending', path: '/spending' },
+  // Revenus and Épargne, the other two parts of Mouvements (#410).
+  { name: 'spending-income', path: '/spending?vue=revenus' },
+  { name: 'spending-savings', path: '/spending?vue=epargne' },
   // Mouvements' « ⋮ »: « Ajouter une dépense » and « Voir les opérations » (#393).
   { name: 'spending-actions', path: '/spending', step: openPageActions },
   { name: 'transactions', path: '/transactions?month=all' },
@@ -476,6 +479,9 @@ function auditPage(min: { target: number; font: number; width: number }) {
     if (['auto', 'scroll'].includes(style.overflowX)) continue
     if (style.textOverflow === 'ellipsis') continue
     if (el.closest('[data-slot=table-container]')) continue
+    // The trend's value above a month's bar floats over the next months on
+    // purpose: at 320px a column is narrower than « 1 k € » (#290, #410).
+    if (el.closest('[data-slot=trend-value]')) continue
     // Wider than itself, or sticking out of its parent's content box.
     let out = style.display !== 'inline' && el.scrollWidth > el.clientWidth + 1
     // Nearest box that lays it out (skip inline / inline-flex wrappers).

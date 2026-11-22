@@ -50,7 +50,7 @@ Series found by the detector (`suggested`, `confirmed`, `dismissed`); a detectio
 - Statements are imported by hand, so the current month is often empty or partial. Every page that compares months (spending, savings, budget, the dashboard's current month) goes through `apps/api/src/coverage/`: `dataUntil` is the latest booked transaction or committed import end (per account, overall = the latest of them), never after today in Europe/Paris; a month is `complete`, `partial` (first `throughDay` days known) or `empty`.
 - A partial month is compared **like for like** (the same first days of the other months); an empty month is not compared at all. The forecast projects from the day after `knownUntil`, never from today. The dashboard follows today, not a month.
 
-Details (month navigation and the month bar, Opérations filters, the forecast, the dashboard): [`docs/domain/months-and-dashboard.md`](docs/domain/months-and-dashboard.md).
+Details (month navigation and the month bar, Opérations filters, Mouvements' Revenus · Dépenses · Épargne, the forecast, the dashboard): [`docs/domain/months-and-dashboard.md`](docs/domain/months-and-dashboard.md).
 
 ### Budgets and envelopes
 

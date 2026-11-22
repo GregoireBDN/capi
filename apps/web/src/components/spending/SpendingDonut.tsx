@@ -6,12 +6,14 @@ import {
   categoryLabel,
   OTHER_LABEL,
 } from './labels'
+import { FIGURE_LABEL, KIND_LABEL, NOTHING, RANKING_TITLE } from './kinds'
 import { SpendingCategoryIcon } from './SpendingCategoryIcon'
 
 /**
- * The month's spending by category; small slices fold into "Autres". Only
- * categories with net spending get a slice, but the centre shows the month's
- * net total (refunds included) so it matches the KPI and the transactions page.
+ * The month's part by row (expenses or income by category, savings by
+ * account); small slices fold into "Autres". Only rows with a positive net
+ * amount get a slice, but the centre shows the month's net total (refunds,
+ * withdrawals included) so it matches the tile and the transactions page.
  */
 export function SpendingDonut({
   data,
@@ -24,7 +26,7 @@ export function SpendingDonut({
     .filter((item) => item.spentCents > 0)
     .map((item) => ({
       id: categoryKey(item),
-      label: categoryLabel(item),
+      label: categoryLabel(item, data.kind),
       value: item.spentCents,
       color: categoryColor(item),
       icon: <SpendingCategoryIcon item={item} size="sm" />,
@@ -34,11 +36,11 @@ export function SpendingDonut({
       data={slices}
       otherLabel={OTHER_LABEL}
       otherIcon={<SpendingCategoryIcon item="other" size="sm" />}
-      centerLabel="Dépensé"
+      centerLabel={FIGURE_LABEL[data.kind]}
       centerFormatter={() => formatWholeEuros(data.totalCents)}
       height={220}
-      label={`Dépenses de ${monthLabel} par catégorie`}
-      emptyMessage="Aucune dépense ce mois-ci"
+      label={`${KIND_LABEL[data.kind]} de ${monthLabel} ${RANKING_TITLE[data.kind].toLowerCase()}`}
+      emptyMessage={`${NOTHING[data.kind]} ce mois-ci`}
     />
   )
 }
