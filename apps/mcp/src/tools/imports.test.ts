@@ -77,6 +77,8 @@ function pendingDetail(
     accountId: checking.id,
     accountName: checking.name,
     source: 'cic_csv',
+    profileId: null,
+    profileName: null,
     fileName: 'cic-releve.csv',
     status: 'pending',
     periodStart: '2026-10-01',
@@ -104,6 +106,7 @@ function pendingDetail(
         openingMismatch: null,
       },
       issues: [],
+      ignoredColumns: [],
       rows,
       unmatchedManual: [],
     },
@@ -231,7 +234,7 @@ describe('preview_bank_import', () => {
     expect(result.isError).toBe(false)
     const sent = await uploadedFile(uploads(calls)[0])
     expect(sent.accountId).toBe(livret.id)
-    expect(sent.name).toBe('releve-cic.csv')
+    expect(sent.name).toBe('releve.csv')
     expect([...sent.bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf])
     expect(sent.bytes.subarray(3).toString('utf8')).toBe(content)
   })
@@ -353,6 +356,64 @@ describe('preview_bank_import', () => {
     })
     expect(result.isError).toBe(true)
     expect(result.text).toContain('Not a CIC CSV export')
+  })
+
+  it('takes a statement converted into the standard format and lists the ignored columns (#431)', async () => {
+    const detail = pendingDetail(freshRows, {
+      source: 'standard_csv',
+      fileName: 'releve.csv',
+    })
+    detail.preview!.ignoredColumns = ['reference']
+    const { call, calls } = await connect(routes(detail))
+    const content =
+      'date;amount;label;balance;reference\n2026-10-01;2100.00;VIR SALAIRE FICTIF;2600.00;R1\n'
+    const result = await call('preview_bank_import', {
+      account: 'Compte courant',
+      content,
+    })
+    expect(result.isError).toBe(false)
+    const sent = await uploadedFile(uploads(calls)[0])
+    expect(sent.name).toBe('releve.csv')
+    expect(sent.bytes.subarray(3).toString('utf8')).toBe(content)
+    expect(result.text).toContain('format : format standard')
+    expect(result.text).toContain('Colonnes ignorées')
+    expect(result.text).toContain('« reference »')
+  })
+
+  it('names a saved format', async () => {
+    const { call } = await connect(
+      routes(
+        pendingDetail(freshRows, {
+          source: 'csv_profile',
+          profileId: '00000000-0000-4000-8000-0000000000c1',
+          profileName: 'Banque fictive',
+        }),
+      ),
+    )
+    const result = await call('preview_bank_import', {
+      account: 'Compte courant',
+      filePath: FIXTURE,
+    })
+    expect(result.text).toContain('format enregistré « Banque fictive »')
+  })
+
+  it('asks for the standard format when the header is not recognised', async () => {
+    const { call } = await connect(
+      routes(
+        jsonError(400, {
+          message:
+            'Unrecognised CSV format: neither a CIC export, the standard format nor a saved profile',
+        }),
+      ),
+    )
+    const result = await call('preview_bank_import', {
+      account: 'Compte courant',
+      content: 'Jour;Texte;Valeur\n01/10/2026;X;1\n',
+    })
+    expect(result.isError).toBe(true)
+    expect(result.text).toContain('Format non reconnu')
+    expect(result.text).toContain('date;amount;label;balance')
+    expect(result.text).toContain("Rien n'a été importé")
   })
 })
 

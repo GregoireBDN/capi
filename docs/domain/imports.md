@@ -2,6 +2,10 @@
 
 Feature details moved out of [`CLAUDE.md`](../../CLAUDE.md) (#422). The domain rules, workflow conventions and architecture there apply here too.
 
+## Formats
+
+A bank file is read by a saved import profile, the CIC export's parser or the app's standard format, recognised from its header; an unknown file is mapped once on the Relevés page and saved as a profile (#431, [ADR 0007](../adr/0007-import-profiles.md)). The formats, the profiles and their rules: [`import-formats.md`](import-formats.md).
+
 ## Undoing a committed import
 
 - **Undoing a committed import** (`DELETE /api/imports/:id`, #371, ADR 0005 R5, `imports/undo/`) deletes the rows it wrote with what was done on them by hand; re-importing the file brings back the bank rows, not the edits. `GET /api/imports/:id` gives a committed import's `undo`: `editedCount`, the rows edited by hand (filed by hand rather than by a rule, kind changed, one-off flag (these three not counted for a spreadsheet history import, whose rows come filed), note, split, correction, prepaid link, a transfer link that neither its rule nor matching would set again), the absorbed rows left out; and `absorbedManualCount`, the manual transactions its rows absorbed by reconciliation, which the undo puts back as manual transactions (`restoredManual` in its answer). The web reads it when « Annuler l’import » is pressed and says it in the confirmation (« 42 opérations … seront supprimées, dont 12 modifiées à la main et 3 rapprochées de vos saisies : ces 3 saisies seront remises comme saisies manuelles. Réimporter le fichier ne rendra pas les modifications. »), the plain sentence when both are 0.

@@ -75,6 +75,9 @@ export function parseCicCsv(input: Buffer): ParseResult {
   }
   const columns = matchHeader(header.fields)
   const headerLength = header.fields.length
+  const ignoredColumns = header.fields
+    .map((name) => name.trim())
+    .filter((name) => name !== '' && !HEADER_COLUMNS[normalizeHeader(name)])
 
   const rows: ParsedRow[] = []
   const issues: ParseIssue[] = []
@@ -85,7 +88,7 @@ export function parseCicCsv(input: Buffer): ParseResult {
     if ('row' in result) rows.push(result.row)
     else issues.push({ lineNumber: line.lineNumber, message: result.error })
   }
-  return { rows, issues }
+  return { rows, issues, ignoredColumns }
 }
 
 /**

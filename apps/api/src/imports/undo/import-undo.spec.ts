@@ -14,6 +14,7 @@ import {
   transactionsTable,
 } from '#/database/schema'
 import { ImportsService } from '#/imports/imports.service'
+import { ImportProfilesService } from '#/imports/profiles/import-profiles.service'
 import {
   type CicRow,
   cicCsv,
@@ -124,6 +125,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Import undo (database)', () => {
         const imports = new ImportsService(
           database,
           new CategorizationRulesService(database),
+          new ImportProfilesService(database),
         )
         const transactions = new TransactionsService(database)
         const stored = () =>

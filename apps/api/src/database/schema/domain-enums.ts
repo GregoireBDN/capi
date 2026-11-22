@@ -47,8 +47,38 @@ export type TransactionKind = (typeof TRANSACTION_KINDS)[number]
 export const RULE_MATCH_TYPES = ['contains', 'regex'] as const
 export type RuleMatchType = (typeof RULE_MATCH_TYPES)[number]
 
-export const IMPORT_SOURCES = ['cic_csv', 'spreadsheet'] as const
+/**
+ * Where an import's rows come from: the CIC export, the one-shot spreadsheet
+ * history, the app's standard CSV format, or a CSV read through a saved
+ * import profile (#431).
+ */
+export const IMPORT_SOURCES = [
+  'cic_csv',
+  'spreadsheet',
+  'standard_csv',
+  'csv_profile',
+] as const
 export type ImportSource = (typeof IMPORT_SOURCES)[number]
+
+/** What a CSV import profile reads (#431): bank rows or investment movements. */
+export const IMPORT_PROFILE_TARGETS = ['cash', 'investment'] as const
+export type ImportProfileTarget = (typeof IMPORT_PROFILE_TARGETS)[number]
+
+/**
+ * Kinds of an investment movement in the standard investment format (#431),
+ * each with the sign of its cash effect (see `INVESTMENT_KIND_SIGN`).
+ */
+export const INVESTMENT_MOVEMENT_KINDS = [
+  'buy',
+  'sell',
+  'deposit',
+  'withdrawal',
+  'dividend',
+  'interest',
+  'fee',
+  'tax',
+] as const
+export type InvestmentMovementKind = (typeof INVESTMENT_MOVEMENT_KINDS)[number]
 
 export const RECURRING_CADENCES = [
   'weekly',

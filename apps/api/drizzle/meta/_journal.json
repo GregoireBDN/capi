@@ -330,6 +330,13 @@
       "when": 1795248141162,
       "tag": "0046_security_positions",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795337804916,
+      "tag": "0047_import_profiles",
+      "breakpoints": true
     }
   ]
 }

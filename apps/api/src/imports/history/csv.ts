@@ -1,7 +1,8 @@
 /**
- * Minimal RFC 4180 reader for the Google Sheets CSV export: `,`-separated,
- * fields optionally wrapped in double quotes, `""` is an escaped quote, and a
- * quoted field may span several lines. Pure: no I/O, no logging.
+ * Minimal RFC 4180 reader, first written for the Google Sheets CSV export and
+ * shared by the crypto exports and the import profiles (#431): `,`-separated
+ * by default, fields optionally wrapped in double quotes, `""` is an escaped
+ * quote, and a quoted field may span several lines. Pure: no I/O, no logging.
  */
 
 export interface CsvRecord {
@@ -16,15 +17,18 @@ export interface CsvReadResult {
   unterminatedLines: number[]
 }
 
-const SEPARATOR = ','
+const DEFAULT_SEPARATOR = ','
 
 /**
- * Splits `text` into records. A record whose quoted field is still open at
+ * Splits `text` into records on `separator` (one character). A record whose quoted field is still open at
  * the end of the input is reported in `unterminatedLines` and reading resumes
  * on the next physical line, so one stray quote does not swallow the rest of
  * the file.
  */
-export function readCsv(text: string): CsvReadResult {
+export function readCsv(
+  text: string,
+  separator: string = DEFAULT_SEPARATOR,
+): CsvReadResult {
   const records: CsvRecord[] = []
   const unterminatedLines: number[] = []
   let pos = text.charCodeAt(0) === 0xfeff ? 1 : 0
@@ -67,7 +71,7 @@ export function readCsv(text: string): CsvReadResult {
         pos++
         continue
       }
-      if (ch === SEPARATOR) {
+      if (ch === separator) {
         fields.push(field)
         field = ''
         fieldStarted = false

@@ -25,6 +25,10 @@ const api = vi.hoisted(() => ({
   importsControllerCommit: vi.fn(),
   importsControllerRemove: vi.fn(),
   importsControllerFindOne: vi.fn(),
+  importProfilesControllerList: vi.fn(),
+  importProfilesControllerInspect: vi.fn(),
+  importProfilesControllerCreate: vi.fn(),
+  importProfilesControllerRemove: vi.fn(),
 }))
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 
@@ -79,6 +83,7 @@ beforeEach(() => {
   api.accountsControllerList.mockResolvedValue(ok([account]))
   api.categoriesControllerList.mockResolvedValue(ok(categories))
   api.importsControllerList.mockResolvedValue(ok([]))
+  api.importProfilesControllerList.mockResolvedValue(ok([]))
 })
 
 describe('ImportPage — first account', () => {
@@ -139,11 +144,7 @@ describe('ImportPage — upload errors', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(message)
     expect(api.importsControllerPreview).toHaveBeenCalledWith({
-      body: {
-        file: expect.any(File),
-        accountId: account.id,
-        source: 'cic_csv',
-      },
+      body: { file: expect.any(File), accountId: account.id },
       throwOnError: false,
     })
   })
@@ -156,6 +157,136 @@ describe('ImportPage — upload errors', () => {
     )
     expect(await screen.findByRole('alert')).toHaveTextContent(/fichier \.csv/)
     expect(api.importsControllerPreview).not.toHaveBeenCalled()
+  })
+})
+
+describe('ImportPage — a file in no known format (#431)', () => {
+  const inspection = {
+    encoding: 'windows-1252' as const,
+    delimiter: ';' as const,
+    headers: ['Date opération', 'Libellé', 'Débit', 'Crédit', 'Catégorie'],
+    sample: [['02/10/2026', 'CB CAFE FICTIF', '3,20', '', 'Sorties']],
+    lineCount: 1,
+    recognised: null,
+    suggestion: {
+      decimalSeparator: ',' as const,
+      dateFormat: 'dd/mm/yyyy' as const,
+      columns: {
+        date: 'Date opération',
+        label: 'Libellé',
+        debit: 'Débit',
+        credit: 'Crédit',
+      },
+    },
+  }
+  const profile = {
+    id: 'profile-1',
+    name: 'Banque fictive',
+    target: 'cash' as const,
+    encoding: 'windows-1252' as const,
+    delimiter: ';' as const,
+    decimalSeparator: ',' as const,
+    dateFormat: 'dd/mm/yyyy' as const,
+    headers: ['date operation', 'libelle', 'debit', 'credit', 'categorie'],
+    columns: { date: 'date operation' },
+    lastUsedAt: null,
+    createdAt: '2026-11-01T10:00:00.000Z',
+  }
+
+  it('asks which column is which, saves the format and previews with it', async () => {
+    api.importsControllerPreview
+      .mockResolvedValueOnce(
+        fail(
+          400,
+          'Unrecognised CSV format: neither a CIC export, the standard format nor a saved profile',
+        ),
+      )
+      .mockResolvedValueOnce(ok(pendingDetail))
+    api.importProfilesControllerInspect.mockResolvedValue(ok(inspection))
+    api.importProfilesControllerCreate.mockResolvedValue(ok(profile))
+    const { user } = setup()
+
+    await user.upload(await screen.findByLabelText('Fichier CSV'), csv())
+    expect(
+      await screen.findByText('Nouveau format de relevé'),
+    ).toBeInTheDocument()
+    // The guesses are filled in; the sample helps check them.
+    expect(screen.getByLabelText('Date')).toHaveValue('Date opération')
+    expect(screen.getByLabelText('Débit')).toHaveValue('Débit')
+    expect(screen.getByText('CB CAFE FICTIF')).toBeInTheDocument()
+
+    const submit = screen.getByRole('button', {
+      name: 'Enregistrer et prévisualiser',
+    })
+    // Named after the account's bank by default.
+    const name = screen.getByLabelText('Nom du format')
+    expect(name).toHaveValue(account.institution)
+    await user.clear(name)
+    expect(submit).toBeDisabled()
+    expect(screen.getByText('Donnez un nom à ce format.')).toBeInTheDocument()
+    await user.type(name, 'Banque fictive')
+    await user.selectOptions(screen.getByLabelText('Libellé'), 'Date opération')
+    expect(
+      screen.getByText('Une même colonne est choisie deux fois.'),
+    ).toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText('Libellé'), 'Libellé')
+    await user.click(submit)
+
+    expect(
+      await screen.findByRole('region', { name: 'Opérations du fichier' }),
+    ).toBeInTheDocument()
+    expect(api.importProfilesControllerCreate).toHaveBeenCalledWith({
+      body: {
+        name: 'Banque fictive',
+        headers: inspection.headers,
+        encoding: 'windows-1252',
+        delimiter: ';',
+        decimalSeparator: ',',
+        dateFormat: 'dd/mm/yyyy',
+        columns: {
+          date: 'Date opération',
+          label: 'Libellé',
+          debit: 'Débit',
+          credit: 'Crédit',
+          balance: undefined,
+          valueDate: undefined,
+        },
+      },
+      throwOnError: false,
+    })
+    expect(api.importsControllerPreview).toHaveBeenLastCalledWith({
+      body: {
+        file: expect.any(File),
+        accountId: account.id,
+        profileId: 'profile-1',
+      },
+      throwOnError: false,
+    })
+  })
+
+  it('lists the saved formats and deletes one after confirmation', async () => {
+    api.importProfilesControllerList.mockResolvedValue(
+      ok([{ ...profile, lastUsedAt: '2026-11-02T09:00:00.000Z' }]),
+    )
+    api.importProfilesControllerRemove.mockResolvedValue(ok(undefined))
+    const { user } = setup()
+
+    const formats = await screen.findByRole('region', {
+      name: 'Formats enregistrés',
+    })
+    expect(within(formats).getByText('Banque fictive')).toBeInTheDocument()
+    await user.click(
+      within(formats).getByRole('button', {
+        name: 'Supprimer le format Banque fictive',
+      }),
+    )
+    await user.click(await screen.findByRole('button', { name: 'Supprimer' }))
+    await waitFor(() =>
+      expect(api.importProfilesControllerRemove).toHaveBeenCalledWith({
+        path: { id: 'profile-1' },
+        throwOnError: false,
+      }),
+    )
   })
 })
 

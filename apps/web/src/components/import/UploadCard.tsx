@@ -15,11 +15,16 @@ import {
 } from '@finances/ui'
 import { CircleAlertIcon, UploadIcon } from 'lucide-react'
 import { useState } from 'react'
-import { importsControllerPreview } from '#/api'
-import type { AccountDto, ImportDetailDto } from '#/api'
+import {
+  importProfilesControllerInspect,
+  importsControllerPreview,
+} from '#/api'
+import type { AccountDto, CsvInspectionDto, ImportDetailDto } from '#/api'
 import { importKeys, MAX_FILE_BYTES, unwrap } from './api'
-import { uploadErrorMessage } from './errors'
+import { isUnrecognisedFormat, uploadErrorMessage } from './errors'
 import { FileDropzone } from './FileDropzone'
+import { ProfileMappingForm } from './ProfileMappingForm'
+import { SavedFormats } from './SavedFormats'
 import { formatCents } from '#/lib/money'
 import { formatDate } from './format'
 
@@ -61,21 +66,44 @@ export function UploadCard({
       '',
   )
   const [error, setError] = useState<string | null>(null)
+  /** A file in no known format, being mapped to a new one (#431). */
+  const [mapping, setMapping] = useState<{
+    file: File
+    inspection: CsvInspectionDto
+  } | null>(null)
   const account = accounts.find((a) => a.id === accountId)
   const queryClient = useQueryClient()
 
   const upload = useMutation({
-    mutationFn: (file: File) =>
-      unwrap(
-        importsControllerPreview({
-          body: { file, accountId, source: 'cic_csv' },
-          throwOnError: false,
-        }),
-      ),
-    onSuccess: (detail) => {
+    mutationFn: async (file: File) => {
+      try {
+        // The format is recognised from the header (CIC, standard, saved).
+        const detail = await unwrap(
+          importsControllerPreview({
+            body: { file, accountId },
+            throwOnError: false,
+          }),
+        )
+        return { detail }
+      } catch (err) {
+        if (!isUnrecognisedFormat(err)) throw err
+        const inspection = await unwrap(
+          importProfilesControllerInspect({
+            body: { file },
+            throwOnError: false,
+          }),
+        )
+        return { unknown: { file, inspection } }
+      }
+    },
+    onSuccess: (result) => {
+      if ('unknown' in result) {
+        setMapping(result.unknown ?? null)
+        return
+      }
       // The pending import now appears in the history.
       void queryClient.invalidateQueries({ queryKey: importKeys.imports })
-      onPreview(detail)
+      onPreview(result.detail)
     },
     onError: (err) => setError(uploadErrorMessage(err)),
   })
@@ -83,7 +111,7 @@ export function UploadCard({
   function send(file: File) {
     setError(null)
     if (!isCsv(file)) {
-      setError('Choisissez un fichier .csv exporté depuis votre espace CIC.')
+      setError('Choisissez un fichier .csv exporté depuis votre banque.')
       return
     }
     if (file.size > MAX_FILE_BYTES) {
@@ -101,7 +129,8 @@ export function UploadCard({
           Nouvel import
         </CardTitle>
         <CardDescription>
-          Rien n’est enregistré avant votre validation : vous verrez d’abord un
+          L’export CSV de votre banque, ou un fichier au format standard. Rien
+          n’est enregistré avant votre validation : vous verrez d’abord un
           aperçu des opérations.
         </CardDescription>
       </CardHeader>
@@ -112,7 +141,7 @@ export function UploadCard({
             id="import-account"
             className="w-full"
             value={accountId}
-            disabled={upload.isPending}
+            disabled={upload.isPending || mapping !== null}
             onChange={(event) => {
               setAccountId(event.target.value)
               setError(null)
@@ -132,11 +161,22 @@ export function UploadCard({
           )}
         </Field>
 
-        <FileDropzone
-          onFile={send}
-          disabled={!accountId}
-          busy={upload.isPending}
-        />
+        {mapping ? (
+          <ProfileMappingForm
+            file={mapping.file}
+            accountId={accountId}
+            inspection={mapping.inspection}
+            defaultName={account?.institution ?? ''}
+            onPreview={onPreview}
+            onCancel={() => setMapping(null)}
+          />
+        ) : (
+          <FileDropzone
+            onFile={send}
+            disabled={!accountId}
+            busy={upload.isPending}
+          />
+        )}
 
         {error && (
           <Alert variant="destructive">
@@ -145,6 +185,8 @@ export function UploadCard({
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
+
+        {!mapping && <SavedFormats />}
       </CardContent>
     </Card>
   )

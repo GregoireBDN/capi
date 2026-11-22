@@ -19,7 +19,7 @@ export function FileDropzone({
   onFile,
   disabled,
   busy,
-  hint = 'Export CSV CIC, 5 Mo maximum',
+  hint = 'Export CSV de votre banque, 5 Mo maximum',
 }: FileDropzoneProps) {
   const inputId = useId()
   const [dragging, setDragging] = useState(false)
