@@ -417,6 +417,54 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
       })
     })
 
+    it('flags for review a yearly fee charged again about a year later (#439)', async () => {
+      await withFixture(
+        async ({ tx, service, preview, accountId, groceries }) => {
+          const CLUB = 'PRLV SEPA CLUB ANNUEL EXEMPLE'
+          await tx.insert(categorizationRulesTable).values({
+            position: 2,
+            labelPattern: 'club annuel',
+            categoryId: groceries,
+          })
+          // Last year's charge, from an earlier import.
+          await tx.insert(transactionsTable).values(
+            await bankRows(tx, [
+              {
+                accountId,
+                bookingDate: '2025-10-04',
+                amountCents: -9_000,
+                rawLabel: CLUB,
+                kind: 'expense',
+                categoryId: groceries,
+                dedupeHash: 'import-spec-club-2025',
+              },
+            ]),
+          )
+          const file = cicCsv(
+            withBalances(OPENING, [
+              { date: '2026-10-03', amountCents: -4_250, label: GROCERIES },
+              { date: '2026-10-04', amountCents: -9_500, label: CLUB },
+            ]),
+          )
+          await service.commit((await preview(file)).id, {})
+          const stored = await storedTransactions(tx, accountId)
+          expect(
+            stored
+              .filter((t) => t.bookingDate >= '2026-10-01')
+              .map((t) => ({
+                label: t.rawLabel,
+                categoryId: t.categoryId,
+                needsReview: t.needsReview,
+              })),
+          ).toEqual([
+            { label: GROCERIES, categoryId: groceries, needsReview: false },
+            // Categorized, still offered as « Prépayé 12 mois ? ».
+            { label: CLUB, categoryId: groceries, needsReview: true },
+          ])
+        },
+      )
+    })
+
     it('links transfers through a rule’s destination and to their other side (#296)', async () => {
       await withFixture(async ({ tx, service, preview, accountId }) => {
         const [livret, pea] = await tx

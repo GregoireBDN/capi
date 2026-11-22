@@ -43,7 +43,7 @@ Contacts, receivables (`owed_to_me` / `i_owe`) and their repayments; a receivabl
 
 ### Recurring items (Abonnements)
 
-Series found by the detector (`suggested`, `confirmed`, `dismissed`); a detection run refreshes the stats only, never the user's columns. Prepaid subscriptions (paid once for a term) and cancellation (« Résilier », an end date `ended_on`, not a status). Details: [`docs/domain/recurring.md`](docs/domain/recurring.md).
+Series found by the detector (`suggested`, `confirmed`, `dismissed`); a detection run refreshes the stats only, never the user's columns. Prepaid subscriptions (paid once for a term, on confirmed debits only) and cancellation (« Résilier », an end date `ended_on`, not a status). A confirmed quarterly or yearly debit **is** a prepaid item of term 3 / 12 (#439): its charges are its payments, out of averages, its renewal reminded; never a cadence rule in `transaction_lines`. Details: [`docs/domain/recurring.md`](docs/domain/recurring.md).
 
 ### Month comparisons
 

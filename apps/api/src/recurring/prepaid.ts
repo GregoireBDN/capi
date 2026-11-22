@@ -1,3 +1,4 @@
+import type { RecurringCadence } from '#/database/schema/domain-enums'
 import { addMonths, daysBetween } from './dates'
 
 /**
@@ -132,4 +133,51 @@ export function renewalReminderDue({
   if (endedOn !== null || renewalKeptOn === renewalOn) return false
   const days = daysBetween(today, renewalOn)
   return days >= 0 && days <= PREPAID_REMINDER_DAYS
+}
+
+/**
+ * Prepaid term of a cadence (#439): a confirmed debit series charged every
+ * quarter or every year is a fee paid once for 3 or 12 months, so it gets
+ * the prepaid treatment (left out of averages, renewal reminded). Null for
+ * the cadences charged every week or month.
+ */
+export const CADENCE_PREPAID_TERMS: Readonly<
+  Partial<Record<RecurringCadence, number>>
+> = { quarterly: 3, yearly: 12 }
+
+export function cadenceTermMonths(cadence: RecurringCadence): number | null {
+  return CADENCE_PREPAID_TERMS[cadence] ?? null
+}
+
+/** Term offered by « Prépayé 12 mois ? » on a large debit (#439). */
+export const PREPAID_SUGGESTED_TERM = 12
+/** A debit from this many cents on may be a yearly fee (#439). */
+export const PREPAID_SUGGESTION_MIN_CENTS = 5_000
+
+/**
+ * Whether a large debit on `date` looks like a fee paid for a year (#439),
+ * from the dates of the merchant's earlier debits on its account:
+ * - `renewal`: exactly one of them in the past year and its renewal window,
+ *   about a year before (the yearly fee's second charge, which the detector
+ *   may have missed);
+ * - `first`: none at all (a first charge, offered in the review queue);
+ * - null otherwise (a merchant charged more often, or long ago).
+ */
+export function prepaidSuggestion(
+  date: string,
+  earlierDates: readonly string[],
+): { kind: 'renewal' | 'first'; earlierOn: string | null } | null {
+  const earlier = earlierDates.filter((d) => d < date)
+  if (earlier.length === 0) return { kind: 'first', earlierOn: null }
+  // The merchant's debits since a year (and the renewal window) before.
+  const recent = earlier.filter(
+    (d) =>
+      daysBetween(renewalDate(d, PREPAID_SUGGESTED_TERM), date) <=
+      PREPAID_RENEWAL_WINDOW_DAYS,
+  )
+  if (recent.length !== 1) return null
+  const gap = daysBetween(renewalDate(recent[0], PREPAID_SUGGESTED_TERM), date)
+  return Math.abs(gap) <= PREPAID_RENEWAL_WINDOW_DAYS
+    ? { kind: 'renewal', earlierOn: recent[0] }
+    : null
 }

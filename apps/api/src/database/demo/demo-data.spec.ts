@@ -197,6 +197,16 @@ describe.skipIf(!process.env.DATABASE_URL)(
         expect(ended).toHaveLength(2)
         expect(ended.every((r) => r.status === 'confirmed')).toBe(true)
         expect(ended.map((r) => r.key).join(' ')).toMatch(/SPOTIFY.*VIDEOPASS/)
+        // Yearly and quarterly debits, confirmed, are prepaid (#439).
+        const terms = Object.fromEntries(
+          recurring
+            .filter((r) => /GMF|EAU DE PARIS/.test(r.merchantKey))
+            .map((r) => [
+              r.merchantKey.includes('GMF') ? 'gmf' : 'eau',
+              r.termMonths,
+            ]),
+        )
+        expect(terms).toEqual({ gmf: 12, eau: 3 })
 
         // The meal-voucher card (#298): entered by hand, credits are income
         // (a confirmed monthly credit), payments expenses, never below zero.

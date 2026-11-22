@@ -13465,6 +13465,34 @@
           "kind"
         ]
       },
+      "TransactionPrepaidSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "renewal",
+              "first"
+            ],
+            "description": "`renewal`: the merchant was charged once about a year before (a yearly fee seen twice); `first`: its first charge."
+          },
+          "termMonths": {
+            "type": "integer",
+            "description": "Suggested term in months."
+          },
+          "earlierOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "The merchant’s charge about a year before (`renewal` only)."
+          }
+        },
+        "required": [
+          "kind",
+          "termMonths",
+          "earlierOn"
+        ]
+      },
       "TransactionSplitDto": {
         "type": "object",
         "properties": {
@@ -13735,6 +13763,16 @@
             "type": "integer",
             "nullable": true,
             "description": "Term in months of that prepaid subscription."
+          },
+          "prepaidSuggestion": {
+            "nullable": true,
+            "description": "Rows of the review queue only (#439): a large debit that may be a fee paid for a year, offered as « Prépayé 12 mois ? ».",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionPrepaidSuggestionDto"
+              }
+            ]
           },
           "originalAmountCents": {
             "type": "integer",

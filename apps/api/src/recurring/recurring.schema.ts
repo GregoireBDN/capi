@@ -148,6 +148,11 @@ export const recurringItemsTable = pgTable(
       'recurring_items_term_only_debit',
       sql`${t.termMonths} is null or ${t.direction} = 'debit'`,
     ),
+    // A prepaid term is a confirmed item's (#439): leaving `confirmed` clears it.
+    check(
+      'recurring_items_term_only_confirmed',
+      sql`${t.termMonths} is null or ${t.status} = 'confirmed'`,
+    ),
     check(
       'recurring_items_term_months_range',
       sql`${t.termMonths} is null or (${t.termMonths} >= 2 and ${t.termMonths} <= 60)`,

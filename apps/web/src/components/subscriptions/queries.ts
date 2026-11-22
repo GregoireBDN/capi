@@ -47,6 +47,19 @@ export function confirmRecurringItems(ids: string[]) {
   )
 }
 
+/**
+ * « Assurance confirmé », or « … confirmé, prépayé 12 mois » for a
+ * quarterly or yearly debit, which confirming makes prepaid (#439).
+ */
+export function confirmedMessage(item: {
+  name: string
+  termMonths: number | null
+}): string {
+  return item.termMonths
+    ? `${item.name} confirmé, prépayé ${item.termMonths} mois`
+    : `${item.name} confirmé`
+}
+
 /** The list and the totals depend on every change: refetch both. */
 export function afterRecurringChanged(queryClient: QueryClient) {
   return queryClient.invalidateQueries({ queryKey: recurringKeys.all })

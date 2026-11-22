@@ -182,6 +182,27 @@ export class TransactionRepaymentDto {
   amountCents!: number
 }
 
+/** « Prépayé 12 mois ? » on a large debit of the review queue (#439). */
+export class TransactionPrepaidSuggestionDto {
+  @ApiProperty({
+    enum: ['renewal', 'first'],
+    description:
+      '`renewal`: the merchant was charged once about a year before (a yearly fee seen twice); `first`: its first charge.',
+  })
+  kind!: 'renewal' | 'first'
+
+  @ApiProperty({ type: 'integer', description: 'Suggested term in months.' })
+  termMonths!: number
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    nullable: true,
+    description: 'The merchant’s charge about a year before (`renewal` only).',
+  })
+  earlierOn!: string | null
+}
+
 export class TransactionDto {
   @ApiProperty({ type: String, format: 'uuid' })
   id!: string
@@ -299,6 +320,14 @@ export class TransactionDto {
     description: 'Term in months of that prepaid subscription.',
   })
   prepaidTermMonths!: number | null
+
+  @ApiPropertyOptional({
+    type: TransactionPrepaidSuggestionDto,
+    nullable: true,
+    description:
+      'Rows of the review queue only (#439): a large debit that may be a fee paid for a year, offered as « Prépayé 12 mois ? ».',
+  })
+  prepaidSuggestion?: TransactionPrepaidSuggestionDto | null
 
   @ApiProperty({
     type: 'integer',
