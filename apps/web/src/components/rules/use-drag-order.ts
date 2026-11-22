@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent, PointerEvent } from 'react'
+import {
+  appScrollTop,
+  appViewportEdges,
+  scrollAppBy,
+} from '#/components/app-shell/app-scroll'
 
-/** Distance from the screen edge (px) that scrolls the page while dragging. */
+/** Distance from the page area's edge (px) that scrolls it while dragging. */
 const EDGE = 96
 /** Page scroll per frame (px) near an edge. */
 const SCROLL_STEP = 10
@@ -47,7 +52,7 @@ export function useDragOrder(
   const frame = useRef<number | null>(null)
 
   function place(state: DragState, clientY: number): DragState {
-    const dy = clientY + window.scrollY - state.startY
+    const dy = clientY + appScrollTop() - state.startY
     const center = state.mids[state.from] + dy
     const over = state.mids.filter(
       (mid, index) => index !== state.from && mid < center,
@@ -60,14 +65,12 @@ export function useDragOrder(
     if (!drag) return
     const tick = () => {
       const y = pointerY.current
+      // The page's area, under the header (#418).
+      const { top, bottom } = appViewportEdges()
       const step =
-        y < EDGE
-          ? -SCROLL_STEP
-          : y > window.innerHeight - EDGE
-            ? SCROLL_STEP
-            : 0
+        y < top + EDGE ? -SCROLL_STEP : y > bottom - EDGE ? SCROLL_STEP : 0
       if (step !== 0) {
-        window.scrollBy(0, step)
+        scrollAppBy(step)
         setDrag((current) => (current ? place(current, y) : current))
       }
       frame.current = requestAnimationFrame(tick)
@@ -98,11 +101,11 @@ export function useDragOrder(
           id,
           from: index,
           over: index,
-          startY: event.clientY + window.scrollY,
+          startY: event.clientY + appScrollTop(),
           dy: 0,
           height: rects[index].height,
           mids: rects.map(
-            (rect) => rect.top + window.scrollY + rect.height / 2,
+            (rect) => rect.top + appScrollTop() + rect.height / 2,
           ),
         })
       },

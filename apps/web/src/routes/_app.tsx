@@ -4,6 +4,7 @@ import { SidebarInset, SidebarProvider } from '@finances/ui'
 import { AppSidebar } from '#/components/app-shell/AppSidebar'
 import { AppHeader } from '#/components/app-shell/AppHeader'
 import { MonthBarSlot } from '#/components/app-shell/MonthBarSlot'
+import { APP_SCROLL_ID } from '#/components/app-shell/app-scroll'
 import { PageActionsSlotProvider } from '#/components/app-shell/page-actions'
 import { useAuth } from '#/lib/auth-context'
 import { requireUser } from '#/lib/auth-guard'
@@ -38,9 +39,11 @@ function AppLayout() {
     <SidebarProvider
       defaultOpen={sidebarOpen}
       // The header across the whole width, then the sidebar and the page.
-      className="flex-col"
-      // `--app-header` and `--app-top-bar` live in `globals.css`: the
-      // latter grows with a month page's bar (#401).
+      // The shell is as tall as the window and only the page's area scrolls
+      // (#418): the header never moves and the scrollbar starts under it
+      // (`body:has([data-app-shell])` in `globals.css`).
+      className="min-h-0 flex-1 flex-col"
+      // `--app-header` lives in `globals.css`.
       data-app-shell
       style={
         {
@@ -58,17 +61,34 @@ function AppLayout() {
           (`PageBack`, `PageHeader`, `MonthNavigator`). */}
       <PageActionsSlotProvider>
         <AppHeader user={currentUser} />
-        <div className="flex min-w-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1">
           <AppSidebar />
-          <SidebarInset
-            id="main-content"
-            tabIndex={-1}
-            className="min-w-0 outline-none"
-          >
-            {/* A month page's month, fixed under the header (#401). */}
+          <SidebarInset className="min-h-0 min-w-0">
+            {/* A month page's month, under the header, out of the scrolling
+                area too (#401). */}
             <MonthBarSlot />
-            <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 md:py-10">
-              <Outlet />
+            {/* The one area that scrolls (#418): sticky elements inside it
+                stick to its top (`top-0`), sticky bottom bars to the
+                window's bottom. `relative`: what a page positions absolutely
+                is clipped and scrolled with it, never left to stretch the
+                body. Its id lets the router restore its scroll
+                and reset it on a new page (`router.tsx`). */}
+            <div
+              id={APP_SCROLL_ID}
+              data-scroll-restoration-id={APP_SCROLL_ID}
+              className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
+            >
+              {/* The skip link's target (`AppHeader`): focused, the keys
+                  scroll this area. The same space above the page's title on
+                  every page and width (#418); the end clears the home
+                  indicator, the body no longer padding it. */}
+              <div
+                id="main-content"
+                tabIndex={-1}
+                className="mx-auto w-full max-w-5xl px-4 pt-5 pb-[calc(2.5rem+env(safe-area-inset-bottom))] outline-none sm:px-6"
+              >
+                <Outlet />
+              </div>
             </div>
           </SidebarInset>
         </div>

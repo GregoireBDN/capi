@@ -31,15 +31,26 @@
 @custom-variant short-screen (@media (max-height: 600px));
 
 /* `--app-header`: the height of `AppHeader` (the sidebar's column starts
- * under it, #386). `--app-top-bar`: what stays on screen above the page,
- * for sticky elements under it: the header, plus a month page's bar
- * (`MonthBarSlot`, #401). */
+ * under it, #386). */
 [data-app-shell] {
   --app-header: 3rem;
-  --app-top-bar: 3rem;
 }
-[data-app-shell]:has([data-page-month]:not(:empty), [data-month-placeholder]) {
-  --app-top-bar: 6rem;
+/* The signed-in shell is exactly as tall as the window and the document
+ * never scrolls (#418): the header and a month page's bar stay put and the
+ * page scrolls in its own area (`#app-scroll`, `routes/_app.tsx`), whose
+ * scrollbar starts under them. No rubber band of the whole page on iOS; the
+ * page's area pads its own end for the home indicator, so its content still
+ * scrolls under it. */
+html:has([data-app-shell]) {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+body:has([data-app-shell]) {
+  height: 100dvh;
+  /* `clip`, not `hidden`: not even `scrollIntoView` can move it. */
+  overflow: clip;
+  overscroll-behavior: none;
+  padding-bottom: 0;
 }
 /* A month page keeps its bar's room until its month is in (`MonthBarSlot`). */
 [data-page-month]:not(:empty) ~ [data-month-placeholder] {

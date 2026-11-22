@@ -26,8 +26,9 @@ import { useSetPageActionsSlot, useSetPageBackSlot } from './page-actions'
  * A month page's month is not in it: it is the bar at the top of the page's
  * column (`MonthBarSlot`, #401), fixed under the header.
  *
- * `h-12` on every width (`--app-header`, `globals.css`): sticky elements
- * below it use `top-(--app-top-bar)`, the header plus a month page's bar.
+ * `h-12` on every width (`--app-header`, `globals.css`), out of the
+ * scrolling area (#418): the page scrolls under it in its own area, so a
+ * page's sticky elements stick to that area's top (`top-0`).
  */
 export function AppHeader({ user }: { user: UserDto }) {
   const { openMobile, setOpenMobile } = useSidebar()
@@ -41,7 +42,7 @@ export function AppHeader({ user }: { user: UserDto }) {
   return (
     <header
       data-app-header
-      className="bg-(--header-bg) group/header sticky top-0 z-20 flex h-12 shrink-0 items-center gap-1 border-b px-2 backdrop-blur-lg md:gap-2 md:px-3"
+      className="bg-(--header-bg) group/header relative z-20 flex h-12 shrink-0 items-center gap-1 border-b px-2 backdrop-blur-lg md:gap-2 md:px-3"
     >
       <a
         href="#main-content"

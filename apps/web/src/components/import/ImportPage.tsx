@@ -11,6 +11,7 @@ import { ImportPreview } from './ImportPreview'
 import type { CommitOutcome } from './ImportPreview'
 import { ImportSuccess } from './ImportSuccess'
 import { UploadCard } from './UploadCard'
+import { scrollAppTo } from '#/components/app-shell/app-scroll'
 
 type Step =
   | { name: 'upload' }
@@ -30,7 +31,7 @@ export function ImportPage({ accountId }: { accountId?: string } = {}) {
 
   const openPreview = (detail: ImportDetailDto) => {
     setStep({ name: 'preview', detail })
-    window.scrollTo({ top: 0 })
+    scrollAppTo({ top: 0 })
   }
 
   let main: React.ReactNode
@@ -41,7 +42,7 @@ export function ImportPage({ accountId }: { accountId?: string } = {}) {
         detail={step.detail}
         onCommitted={(outcome) => {
           setStep({ name: 'done', outcome })
-          window.scrollTo({ top: 0 })
+          scrollAppTo({ top: 0 })
         }}
         onClosed={() => setStep({ name: 'upload' })}
       />

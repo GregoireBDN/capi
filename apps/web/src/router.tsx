@@ -2,6 +2,7 @@ import { QueryClient } from '@tanstack/react-query'
 import { createRouter as createTanStackRouter } from '@tanstack/react-router'
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
 import './lib/api-client'
+import { APP_SCROLL_ID } from './components/app-shell/app-scroll'
 import { PagePending } from './components/PagePending'
 import { RouteError } from './components/RouteError'
 import { getCspNonce } from './lib/csp-nonce'
@@ -19,6 +20,9 @@ export function getRouter() {
   const router = createTanStackRouter({
     routeTree,
     scrollRestoration: true,
+    // The signed-in pages scroll in their own area, not the window (#418):
+    // a new page starts at its top, back / forward restore it.
+    scrollToTopSelectors: [`#${APP_SCROLL_ID}`],
     defaultPreload: 'intent',
     defaultPreloadStaleTime: 0,
     // French error page with "Réessayer" instead of the router's default
