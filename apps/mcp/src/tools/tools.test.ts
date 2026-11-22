@@ -162,7 +162,7 @@ describe('accounts_overview', () => {
       '- Compte courant (compte courant, Banque Test) : 1 234,56 € au 10/11/2026',
     )
     expect(text).toContain(
-      'PEA (PEA / compte-titres, Banque Test) : 10 000,00 € au 30/09/2026 — pas à jour',
+      'PEA (PEA, Banque Test) : 10 000,00 € au 30/09/2026 — pas à jour',
     )
   })
 })
@@ -902,9 +902,7 @@ describe('month_review', () => {
     expect(text).toContain(
       'Bilan de octobre 2026 : des données manquent encore.',
     )
-    expect(text).toContain(
-      "- PEA (PEA / compte-titres) : données jusqu'au 30/09/2026",
-    )
+    expect(text).toContain("- PEA (PEA) : données jusqu'au 30/09/2026")
     expect(text).toContain(
       'Variation : +1 000,00 €, dont épargné +700,00 € et reste (marchés, mises à jour de valeur) +300,00 €.',
     )
@@ -1066,7 +1064,7 @@ describe('savings_and_goals', () => {
       "Où est allé l'argent investi du 01/12/2025 au 05/11/2026 : +800,00 € nets (mis de côté 900,00 €, retiré 100,00 €).",
     )
     expect(text).toContain(
-      '- PEA test (PEA / compte-titres) : +800,00 € en 3 virement(s), dont 100,00 € retirés',
+      '- PEA test (PEA) : +800,00 € en 3 virement(s), dont 100,00 € retirés',
     )
     expect(text.match(/- 3 mois \(août 2026 à oct\. 2026\)/g)).toHaveLength(1)
     expect(text).toContain('- Livret A : solde inconnu')

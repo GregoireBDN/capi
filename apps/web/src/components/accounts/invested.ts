@@ -18,13 +18,14 @@ export function investedBaseOf(
 
 const BASE_TYPES: readonly AccountDto['type'][] = [
   'brokerage',
+  'securities',
   'life_insurance',
   'employee_savings',
 ]
 
 /**
  * Whether the owner types the account's invested amount (#360): a PEA, a
- * life insurance or employee savings, not archived. Never a crypto account,
+ * compte-titres (#414), a life insurance or employee savings, not archived. Never a crypto account,
  * whose cost follows its coins (#373: the cost of coins from elsewhere is
  * given in « À préciser »).
  */

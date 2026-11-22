@@ -246,7 +246,7 @@ describe('list_investment_accounts', () => {
     expect(isError).toBe(false)
     expect(text).toContain('Placements : 25 000,00 € au total')
     expect(text).toContain(
-      '- PEA (PEA / compte-titres, Banque Test) : dernière valeur 25 000,00 € au 30/09/2026 (il y a 45 j), investi 20 000,00 €, résultat +5 000,00 € (25 %) — PAS À JOUR',
+      '- PEA (PEA, Banque Test) : dernière valeur 25 000,00 € au 30/09/2026 (il y a 45 j), investi 20 000,00 €, résultat +5 000,00 € (25 %) — PAS À JOUR',
     )
     // Crypto too (#373): invested, result, rate, the coins of unknown cost
     // and the realised gain.
@@ -875,6 +875,13 @@ describe('create_investment_account', () => {
     expect(fresh.text).toContain('- Type : Épargne salariale')
     expect(fresh.text).toContain('- Établissement : Gestionnaire Test')
     expect(fresh.text).toContain("Rien n'a été créé")
+
+    // A compte-titres (#414) has its own type, apart from the PEA.
+    const cto = await call('create_investment_account', {
+      name: 'CTO Courtier Test',
+      type: 'securities',
+    })
+    expect(cto.text).toContain('- Type : Compte-titres')
 
     const existing = await call('create_investment_account', {
       name: 'assurance vie test',

@@ -2,6 +2,7 @@ import {
   BitcoinIcon,
   BriefcaseIcon,
   ChartCandlestickIcon,
+  ChartLineIcon,
   PiggyBankIcon,
   UmbrellaIcon,
   UtensilsIcon,
@@ -59,6 +60,11 @@ export const ACCOUNT_TYPE_ICONS: Record<
     icon: ChartCandlestickIcon,
     className: 'bg-chart-7/15 text-chart-7',
     color: 'var(--chart-7)',
+  },
+  securities: {
+    icon: ChartLineIcon,
+    className: 'bg-chart-8/15 text-chart-8',
+    color: 'var(--chart-8)',
   },
   life_insurance: {
     icon: UmbrellaIcon,

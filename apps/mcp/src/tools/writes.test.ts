@@ -880,7 +880,7 @@ describe('month-end review', () => {
     )
     expect(text).toContain('4 opération(s) du mois à revoir')
     expect(text).toContain(
-      'PEA (PEA / compte-titres) : pas de valeur à la fin du mois (dernière au 30/09/2026)',
+      'PEA (PEA) : pas de valeur à la fin du mois (dernière au 30/09/2026)',
     )
   })
 

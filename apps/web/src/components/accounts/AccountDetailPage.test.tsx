@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
+  DividendsDto,
   PositionsDto,
   AccountDto,
   AccountMonthFlowsDto,
@@ -50,6 +51,10 @@ const api = vi.hoisted(() => ({
   positionsControllerGet: vi.fn(),
   positionsControllerUpsertLine: vi.fn(),
   securitiesControllerList: vi.fn(),
+  dividendsControllerList: vi.fn(),
+  dividendsControllerCreate: vi.fn(),
+  dividendsControllerUpdate: vi.fn(),
+  dividendsControllerRemove: vi.fn(),
 }))
 const navigate = vi.hoisted(() => vi.fn())
 const toast = vi.hoisted(() =>
@@ -541,6 +546,97 @@ describe('AccountDetailPage', () => {
     expect(content).toContain('5 ans12 mars 2027Encore 4 mois')
     expect(content).not.toContain('Ouvert le')
     expect(content).not.toMatch(/Versements|Plus-value|—/)
+  })
+
+  it('shows a compte-titres’ lines, dividends and tax note, no PEA rule (#414)', async () => {
+    const dividends: DividendsDto = {
+      accountId: ACCOUNT_ID,
+      totalCents: 9_500,
+      last12MonthsCents: 6_000,
+      dividends: [
+        {
+          id: 'c0000000-0000-4000-8000-000000000002',
+          paidOn: '2026-10-08',
+          amountCents: 6_000,
+          isin: 'ZZ00MSCIWD03',
+          securityName: 'ETF Monde (test)',
+        },
+        {
+          id: 'c0000000-0000-4000-8000-000000000001',
+          paidOn: '2025-10-08',
+          amountCents: 3_500,
+          isin: null,
+          securityName: null,
+        },
+      ],
+    }
+    api.accountsControllerFindOne.mockImplementation(() =>
+      ok(account({ name: 'CTO test', type: 'securities' })),
+    )
+    api.accountSnapshotsControllerPerformance.mockImplementation(() =>
+      ok(performance({ type: 'securities' })),
+    )
+    api.positionsControllerGet.mockImplementation(() => ok(positions))
+    api.dividendsControllerList.mockImplementation(() => ok(dividends))
+    api.dividendsControllerCreate.mockImplementation(() => ok(dividends))
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderPage()
+
+    // The lines work like a PEA's.
+    const lines = await screen.findByRole('region', { name: 'Lignes' })
+    expect(text(lines.textContent)).toContain('2 lignes · au 30 sept.')
+
+    // Its own facts: dividends and the tax note, never a ceiling or 5 years.
+    const summary = screen.getByRole('region', { name: 'Valeur' })
+    await waitFor(() =>
+      expect(text(summary.textContent)).toContain(
+        'Dividendes sur 12 mois60,00 €',
+      ),
+    )
+    const content = text(summary.textContent)
+    expect(content).toContain('Les plus-values ne sont imposées qu’à la vente.')
+    expect(content).not.toMatch(/Plafond|5 ans/)
+
+    expect(text((await detailRow('Dividendes')).textContent)).toContain(
+      '2 · dernier le 8 oct.',
+    )
+    const screenOf = await openDetail('Dividendes', user)
+    expect(text(screenOf.textContent)).toContain('Sur 12 mois60,00 €')
+    expect(text(screenOf.textContent)).toContain('Au total95,00 €')
+    expect(
+      within(screenOf).getByRole('button', {
+        name: /^Modifier le dividende du 8 oct\.? 2026/,
+      }),
+    ).toHaveTextContent('ETF Monde')
+    await closeDetail('Dividendes')
+
+    // Adding one from the page's actions.
+    await user.click(
+      await screen.findByRole('button', { name: 'Ajouter un dividende' }),
+    )
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Ajouter un dividende',
+    })
+    const save = within(dialog).getByRole('button', { name: 'Enregistrer' })
+    expect(save).toBeDisabled()
+    await user.type(within(dialog).getByLabelText('Montant net'), '12,34')
+    await user.selectOptions(
+      within(dialog).getByLabelText('Ligne'),
+      'ZZ00EMMKT008',
+    )
+    await user.click(save)
+    await waitFor(() =>
+      expect(api.dividendsControllerCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          path: { id: ACCOUNT_ID },
+          body: {
+            paidOn: '2026-11-06',
+            amountCents: 1_234,
+            isin: 'ZZ00EMMKT008',
+          },
+        }),
+      ),
+    )
   })
 
   it('adds a line, checking its ISIN (#413)', async () => {

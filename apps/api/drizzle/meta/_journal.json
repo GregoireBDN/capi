@@ -330,6 +330,13 @@
       "when": 1795248141162,
       "tag": "0046_security_positions",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795338542138,
+      "tag": "0047_securities_accounts",
+      "breakpoints": true
     }
   ]
 }

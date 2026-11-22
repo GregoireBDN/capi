@@ -1,6 +1,10 @@
 import { queryOptions } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
 import {
+  dividendsControllerCreate,
+  dividendsControllerList,
+  dividendsControllerRemove,
+  dividendsControllerUpdate,
   positionsControllerGet,
   positionsControllerRemoveLine,
   positionsControllerRemoveStatement,
@@ -9,7 +13,7 @@ import {
   securitiesControllerList,
   securitiesControllerSetPrice,
 } from '#/api'
-import type { UpsertLineDto } from '#/api/types.gen'
+import type { SaveDividendDto, UpsertLineDto } from '#/api/types.gen'
 import { afterSnapshotsChanged } from '#/components/accounts/queries'
 import { referenceKeys, unwrap } from '#/lib/queries'
 
@@ -18,6 +22,8 @@ export const positionKeys = {
   account: (id: string) =>
     [...referenceKeys.accounts, id, 'positions'] as const,
   securities: ['securities'] as const,
+  dividends: (id: string) =>
+    [...referenceKeys.accounts, id, 'dividends'] as const,
 }
 
 export function positionsQuery(accountId: string) {
@@ -100,4 +106,51 @@ export function afterPositionsChanged(queryClient: QueryClient) {
     afterSnapshotsChanged(queryClient),
     queryClient.invalidateQueries({ queryKey: positionKeys.securities }),
   ])
+}
+
+/** A compte-titres' dividends (#414), information only. */
+export function dividendsQuery(accountId: string) {
+  return queryOptions({
+    queryKey: positionKeys.dividends(accountId),
+    queryFn: () =>
+      unwrap(
+        dividendsControllerList({
+          path: { id: accountId },
+          throwOnError: false,
+        }),
+      ),
+  })
+}
+
+export function createDividend(accountId: string, body: SaveDividendDto) {
+  return unwrap(
+    dividendsControllerCreate({
+      path: { id: accountId },
+      body,
+      throwOnError: false,
+    }),
+  )
+}
+
+export function updateDividend(
+  accountId: string,
+  dividendId: string,
+  body: SaveDividendDto,
+) {
+  return unwrap(
+    dividendsControllerUpdate({
+      path: { id: accountId, dividendId },
+      body,
+      throwOnError: false,
+    }),
+  )
+}
+
+export function removeDividend(accountId: string, dividendId: string) {
+  return unwrap(
+    dividendsControllerRemove({
+      path: { id: accountId, dividendId },
+      throwOnError: false,
+    }),
+  )
 }

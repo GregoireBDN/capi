@@ -144,6 +144,37 @@ describe('sync_security_positions', () => {
     expect(text).toContain('aucun outil MCP ne supprime')
   })
 
+  it('writes the lines of a compte-titres alike (#414)', async () => {
+    const cto = {
+      ...pea,
+      id: 'a0000000-0000-4000-8000-0000000000c7',
+      name: 'CTO test',
+      type: 'securities' as const,
+    }
+    const { call, calls } = await connect({
+      ...routes(),
+      '/api/accounts': [...accounts, cto],
+      [`POST /api/accounts/${cto.id}/positions/statements/2026-10-31/preview`]:
+        preview,
+      [`PUT /api/accounts/${cto.id}/positions/statements/2026-10-31`]: {
+        ...written,
+        accountId: cto.id,
+      },
+    })
+    const { text, isError } = await call('sync_security_positions', {
+      ...args,
+      account: 'CTO test',
+      confirm: true,
+    })
+    expect(isError).toBe(false)
+    expect(text).toContain('Relevé du 31/10/2026 enregistré pour CTO test.')
+    expect(
+      calls.filter(
+        (c) => c.method === 'PUT' && c.url.pathname.includes(cto.id),
+      ),
+    ).toHaveLength(1)
+  })
+
   it('changes nothing when the statement is already there', async () => {
     const { call, calls } = await connect({
       ...routes(),

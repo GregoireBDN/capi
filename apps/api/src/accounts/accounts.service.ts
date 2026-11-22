@@ -37,6 +37,7 @@ import {
   cryptoImportsTable,
   cryptoWalletKeysTable,
   cryptoWalletTokensTable,
+  dividendsTable,
   importsTable,
   monthClosesTable,
   positionStatementsTable,
@@ -77,6 +78,7 @@ export interface AccountDeletionPreview {
   snapshots: number
   cryptoHoldings: number
   positionStatements: number
+  dividends: number
   walletKeys: number
   recurringItems: number
   rules: number
@@ -314,7 +316,7 @@ export class AccountsService {
       if (dto.openedOn !== undefined) {
         if (dto.openedOn !== null && !takesInvestedBase(existing)) {
           throw new BadRequestException(
-            'Only a PEA, a life insurance or employee savings has an opening date',
+            'Only a PEA, a compte-titres, a life insurance or employee savings has an opening date',
           )
         }
         if (dto.openedOn !== null && dto.openedOn > parisToday(new Date())) {
@@ -364,6 +366,7 @@ export class AccountsService {
         snapshots: countOf(s),
         cryptoHoldings: countOf(cryptoHoldingsTable),
         positionStatements: countOf(positionStatementsTable),
+        dividends: countOf(dividendsTable),
         walletKeys: sql<number>`${countOf(cryptoWalletKeysTable)} + ${countOf(cryptoWalletTokensTable)}`,
         recurringItems: countOf(recurringItemsTable),
         rules: countOf(categorizationRulesTable),

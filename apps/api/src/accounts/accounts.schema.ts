@@ -70,8 +70,8 @@ export const accountsTable = pgTable(
     cryptoObservedAt: timestamp('crypto_observed_at', { withTimezone: true }),
     /**
      * What the owner invested in it up to `investedBaseOn` (« Investi au
-     * … »), typed by hand, never overwritten by a valuation: PEA, life
-     * insurance and employee savings (#360). The bank transfers linked to the
+     * … »), typed by hand, never overwritten by a valuation: PEA,
+     * compte-titres (#414), life insurance and employee savings (#360). The bank transfers linked to the
      * account after that day add on top. Never a crypto account, whose cost
      * follows its coins (#373: one replay, the owner's answers per movement),
      * nor a cash account.
@@ -80,7 +80,8 @@ export const accountsTable = pgTable(
     investedBaseOn: date('invested_base_on', { mode: 'string' }),
     /**
      * The day the account was opened (ADR 0006): a PEA's 5-year mark is
-     * counted from it. Investment accounts that take an invested base only.
+     * counted from it (a compte-titres has none, #414). Investment accounts
+     * that take an invested base only.
      */
     openedOn: date('opened_on', { mode: 'string' }),
   },
@@ -106,20 +107,22 @@ export const accountsTable = pgTable(
       'accounts_invested_base_both',
       sql`(${t.investedBaseCents} IS NULL) = (${t.investedBaseOn} IS NULL)`,
     ),
+    // `type::text`: an enum value added by a migration can't be used as an
+    // enum in the same transaction (`securities`, #414).
     check(
       'accounts_invested_base_type',
-      sql`${t.investedBaseCents} IS NULL OR (${t.investedBaseCents} >= 0 AND ${t.type} IN ('brokerage', 'life_insurance', 'employee_savings'))`,
+      sql`${t.investedBaseCents} IS NULL OR (${t.investedBaseCents} >= 0 AND ${t.type}::text IN ('brokerage', 'securities', 'life_insurance', 'employee_savings'))`,
     ),
     check(
       'accounts_opened_on_type',
-      sql`${t.openedOn} IS NULL OR ${t.type} IN ('brokerage', 'life_insurance', 'employee_savings')`,
+      sql`${t.openedOn} IS NULL OR ${t.type}::text IN ('brokerage', 'securities', 'life_insurance', 'employee_savings')`,
     ),
   ],
 )
 
 /**
  * Dated value of an account. Main source of truth for investment accounts
- * (PEA, life insurance, employee savings, crypto); also used for statement
+ * (PEA, compte-titres, life insurance, employee savings, crypto); also used for statement
  * closing balances of transactional accounts.
  */
 export const balanceSnapshotsTable = pgTable(

@@ -151,7 +151,7 @@ export class DashboardAccountDto {
   @ApiProperty({
     type: Boolean,
     description:
-      'Investment account whose latest value is older than its update rhythm (a month for a PEA, a life insurance or employee savings, see `STALE_AFTER_DAYS`); always false for cash accounts and accounts without a value.',
+      'Investment account whose latest value is older than its update rhythm (a month for a PEA, a compte-titres, a life insurance or employee savings, see `STALE_AFTER_DAYS`); always false for cash accounts and accounts without a value.',
   })
   stale!: boolean
 }

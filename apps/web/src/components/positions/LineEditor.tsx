@@ -177,7 +177,7 @@ export function LineEditor({
         >
           <SheetBar
             title={line ? shortName(line.name) : 'Ajouter une ligne'}
-            description="Ce que le PEA détient aujourd’hui : la ligne compte à partir de ce jour."
+            description="Ce que le compte détient aujourd’hui : la ligne compte à partir de ce jour."
             action={
               <SheetBarAction
                 type="submit"

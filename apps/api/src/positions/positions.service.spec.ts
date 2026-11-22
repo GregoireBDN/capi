@@ -1,5 +1,5 @@
 import '#/load-env'
-import { BadRequestException } from '@nestjs/common'
+import { BadRequestException, NotFoundException } from '@nestjs/common'
 import { and, asc, eq } from 'drizzle-orm'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -9,12 +9,14 @@ import * as schema from '#/database/schema'
 import {
   accountsTable,
   balanceSnapshotsTable,
+  dividendsTable,
   positionLinesTable,
   positionStatementsTable,
   securitiesTable,
 } from '#/database/schema'
 import type { AccountType } from '#/database/schema/domain-enums'
 import { InvestmentsService } from '#/investments/investments.service'
+import { DividendsService } from './dividends.service'
 import type { PutStatementDto } from './dto/positions.dto'
 import { PositionsService } from './positions.service'
 
@@ -72,6 +74,7 @@ describe.skipIf(!process.env.DATABASE_URL)('positions (database)', () => {
     tx: Tx
     positions: PositionsService
     investments: InvestmentsService
+    dividends: DividendsService
     account: (type?: AccountType) => Promise<string>
     values: (
       accountId: string,
@@ -87,6 +90,7 @@ describe.skipIf(!process.env.DATABASE_URL)('positions (database)', () => {
           tx,
           positions: new PositionsService(database, accounts),
           investments: new InvestmentsService(database, accounts),
+          dividends: new DividendsService(database, accounts),
           account: async (type = 'brokerage') => {
             const [created] = await tx
               .insert(accountsTable)
@@ -212,13 +216,11 @@ describe.skipIf(!process.env.DATABASE_URL)('positions (database)', () => {
     it('keeps an opening date on investment accounts that take a base', async () => {
       await inRollback(async ({ tx }) => {
         await refused(tx, 'accounts_opened_on_type', (nested) =>
-          nested
-            .insert(accountsTable)
-            .values({
-              name: 'Livret fictif',
-              type: 'savings',
-              openedOn: '2022-03-12',
-            }),
+          nested.insert(accountsTable).values({
+            name: 'Livret fictif',
+            type: 'savings',
+            openedOn: '2022-03-12',
+          }),
         )
       })
     })
@@ -443,6 +445,149 @@ describe.skipIf(!process.env.DATABASE_URL)('positions (database)', () => {
           contributionsCents: 120_000,
           contributionsSource: 'base',
         })
+      })
+    })
+  })
+
+  describe('compte-titres (#414)', () => {
+    it('holds lines like a PEA, with an invested base and an opening date', async () => {
+      await inRollback(
+        async ({ tx, positions, investments, account, values }) => {
+          const cto = await account('securities')
+          const dto = await positions.putStatement(
+            cto,
+            '2026-10-31',
+            october,
+            'mcp',
+            NOW,
+          )
+          expect(dto.totals.valueCents).toBe(10_000 + 110_500 + 7_352)
+          expect(await values(cto)).toEqual([
+            { date: '2026-10-31', valueCents: 127_852, source: 'computed' },
+          ])
+          expect(await investments.performance(cto, NOW)).toMatchObject({
+            contributionsSource: 'lines',
+            gainCents: 10_852,
+          })
+          await tx
+            .update(accountsTable)
+            .set({
+              investedBaseCents: 120_000,
+              investedBaseOn: '2026-10-01',
+              openedOn: '2019-05-02',
+            })
+            .where(eq(accountsTable.id, cto))
+          expect(await investments.performance(cto, NOW)).toMatchObject({
+            contributionsCents: 120_000,
+            contributionsSource: 'base',
+          })
+        },
+      )
+    })
+
+    it('keeps dividends on a compte-titres only, amounts positive', async () => {
+      await inRollback(async ({ tx, account }) => {
+        const pea = await account()
+        const cto = await account('securities')
+        const dividend = (accountId: string, amountCents = 1_234) => ({
+          accountId,
+          paidOn: '2026-10-15',
+          amountCents,
+        })
+        await refused(tx, 'dividends_account_type', (nested) =>
+          nested.insert(dividendsTable).values(dividend(pea)),
+        )
+        await refused(tx, 'dividends_amount_positive', (nested) =>
+          nested.insert(dividendsTable).values(dividend(cto, 0)),
+        )
+        const [kept] = await tx
+          .insert(dividendsTable)
+          .values(dividend(cto))
+          .returning()
+        await refused(tx, 'dividends_account_type', (nested) =>
+          nested
+            .update(dividendsTable)
+            .set({ accountId: pea })
+            .where(eq(dividendsTable.id, kept.id)),
+        )
+      })
+    })
+
+    it('records, changes and deletes dividends, totals over all time and twelve months', async () => {
+      await inRollback(async ({ positions, dividends, account }) => {
+        const cto = await account('securities')
+        await positions.putStatement(cto, '2026-10-31', october, 'mcp', NOW)
+        await dividends.create(
+          cto,
+          { paidOn: '2025-11-05', amountCents: 1_000 },
+          NOW,
+        )
+        await dividends.create(
+          cto,
+          { paidOn: '2025-11-06', amountCents: 2_000, isin: WORLD },
+          NOW,
+        )
+        const list = await dividends.create(
+          cto,
+          { paidOn: '2026-10-20', amountCents: 3_000, isin: EMERGING },
+          NOW,
+        )
+        expect(list).toMatchObject({
+          totalCents: 6_000,
+          // The 5 November 2025 one is a year old.
+          last12MonthsCents: 5_000,
+        })
+        expect(list.dividends.map((d) => [d.paidOn, d.isin])).toEqual([
+          ['2026-10-20', EMERGING],
+          ['2025-11-06', WORLD],
+          ['2025-11-05', null],
+        ])
+        expect(list.dividends[0].securityName).toBe('ETF Émergents fictif')
+
+        const [latest] = list.dividends
+        const changed = await dividends.update(
+          cto,
+          latest.id,
+          { paidOn: '2026-10-21', amountCents: 3_500, isin: null },
+          NOW,
+        )
+        expect(changed.dividends[0]).toMatchObject({
+          paidOn: '2026-10-21',
+          amountCents: 3_500,
+          isin: null,
+        })
+        const removed = await dividends.remove(cto, latest.id, NOW)
+        expect(removed.totalCents).toBe(3_000)
+        await expect(dividends.remove(cto, latest.id, NOW)).rejects.toThrow(
+          NotFoundException,
+        )
+      })
+    })
+
+    it('refuses a dividend in the future, of an unknown security, or not on a compte-titres', async () => {
+      await inRollback(async ({ tx, dividends, account }) => {
+        const pea = await account()
+        const cto = await account('securities')
+        await expect(
+          dividends.create(cto, { paidOn: '2026-11-06', amountCents: 1 }, NOW),
+        ).rejects.toThrow(BadRequestException)
+        await expect(
+          dividends.create(
+            cto,
+            { paidOn: '2026-11-05', amountCents: 1, isin: WORLD },
+            NOW,
+          ),
+        ).rejects.toThrow('Unknown security')
+        await expect(dividends.list(pea, NOW)).rejects.toThrow(
+          BadRequestException,
+        )
+        await tx
+          .update(accountsTable)
+          .set({ archivedAt: NOW })
+          .where(eq(accountsTable.id, cto))
+        await expect(
+          dividends.create(cto, { paidOn: '2026-11-05', amountCents: 1 }, NOW),
+        ).rejects.toThrow('archived')
       })
     })
   })

@@ -62,10 +62,11 @@ The guided « Bilan du mois » computes its steps from existing data; closing fr
 
 ### Accounts
 
-- Account types: `checking`, `savings`, `meal_voucher` (« Titres-restaurant »), `brokerage` (PEA), `life_insurance`, `employee_savings`, `crypto`.
+- Account types: `checking`, `savings`, `meal_voucher` (« Titres-restaurant »), `brokerage` (PEA), `securities` (« Compte-titres », #414), `life_insurance`, `employee_savings`, `crypto`.
+- **Lines by ISIN** (`POSITION_ACCOUNT_TYPES`): a PEA and a compte-titres hold them alike (statements, prices, computed values); only a PEA has a ceiling and a 5-year date, only a compte-titres records dividends (typed, information only: never in a value, an invested amount or a statistic).
 - **Transactional accounts** (checking, savings, meal voucher) have their balance from transactions. **Bank accounts** (checking, savings: `BANK_ACCOUNT_TYPES`, `isBankAccount`) are fed by imports; only they take a bank import, are checked for imports up to date (the month review's accounts to update, the month close's import step) and are projected by the forecast.
 
-Details (meal vouchers, archive or delete, a cash account's page, account lists): [`docs/domain/accounts.md`](docs/domain/accounts.md). Investment accounts (dated value snapshots, a PEA's lines, one invested amount per account, the investment summary, Épargne): [`docs/domain/investments.md`](docs/domain/investments.md).
+Details (meal vouchers, archive or delete, a cash account's page, account lists): [`docs/domain/accounts.md`](docs/domain/accounts.md). Investment accounts (dated value snapshots, the lines of a PEA or a compte-titres, a compte-titres' dividends, one invested amount per account, the investment summary, Épargne): [`docs/domain/investments.md`](docs/domain/investments.md).
 
 ### Crypto
 

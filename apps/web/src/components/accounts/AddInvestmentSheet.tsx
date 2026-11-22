@@ -46,6 +46,7 @@ const NAME_MAX = 100
 /** The investment types valued by hand, in the order of the picker. */
 export const INVESTMENT_TYPES = [
   { type: 'brokerage', label: 'PEA', defaultName: 'PEA' },
+  { type: 'securities', label: 'Compte-titres', defaultName: 'Compte-titres' },
   {
     type: 'life_insurance',
     label: 'Assurance vie',
@@ -125,8 +126,8 @@ interface AddInvestmentSheetProps {
 }
 
 /**
- * "Ajouter un placement": a PEA, a life insurance or employee savings
- * account with its current value in one step, then, if the owner wants, its
+ * "Ajouter un placement": a PEA, a compte-titres (#414), a life insurance or
+ * employee savings account with its current value in one step, then, if the owner wants, its
  * past month-end values pasted or typed in a second one, so the net worth
  * history is right from day one. A bottom sheet on phones, a side sheet
  * otherwise; the owner stays on the page they came from.

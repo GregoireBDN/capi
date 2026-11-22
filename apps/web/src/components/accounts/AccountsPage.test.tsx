@@ -187,7 +187,7 @@ describe('AccountsPage', () => {
     const peaRow = screen.getByRole('link', { name: /PEA test/ })
     expect(peaRow).toHaveTextContent('au 30 sept.')
     expect(peaRow).toHaveTextContent('à mettre à jour')
-    expect(peaRow).not.toHaveTextContent('PEA / compte-titres')
+    expect(peaRow).not.toHaveTextContent('PEA testPEA')
 
     // Gain over contributions on the right.
     expect(

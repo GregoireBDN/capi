@@ -393,7 +393,8 @@ function StatementsList({
 }
 
 /**
- * A PEA's statements (#413), the whole account on each day: a row of « Plus
+ * The statements of a PEA or a compte-titres (#413, #414), the whole account
+ * on each day: a row of « Plus
  * d’informations » (#447), absent while there is none.
  */
 export function useStatementsDetail({
@@ -403,7 +404,7 @@ export function useStatementsDetail({
 }: {
   accountId: string
   writable: boolean
-  /** Only a PEA has statements. */
+  /** Only a PEA or a compte-titres has statements. */
   enabled: boolean
 }): AccountDetail | null {
   const positions = useQuery({ ...positionsQuery(accountId), enabled })
@@ -416,7 +417,7 @@ export function useStatementsDetail({
     label: 'Relevés de portefeuille',
     summary: `${data.statements.length} · au ${formatShortDay(latest, todayInParis().slice(0, 4))}`,
     description:
-      'Ce que contenait le PEA à chaque relevé, lu par Claude ou saisi.',
+      'Ce que contenait le compte à chaque relevé, lu par Claude ou saisi.',
     content: (
       <StatementsList accountId={accountId} data={data} writable={writable} />
     ),
@@ -430,6 +431,7 @@ export function useStatementsDetail({
  */
 export function LinesCard({
   accountId,
+  accountType,
   writable,
   onAddLine,
   onEditLine,
@@ -437,6 +439,8 @@ export function LinesCard({
   onEditCash,
 }: {
   accountId: string
+  /** Names the account in the empty state (#414). */
+  accountType: 'brokerage' | 'securities'
   writable: boolean
   onAddLine: () => void
   onEditLine: (line: PositionLineDto) => void
@@ -455,7 +459,11 @@ export function LinesCard({
           <EmptyState
             variant="inline"
             icon={<ListPlusIcon />}
-            title="Ce que contient votre PEA"
+            title={
+              accountType === 'securities'
+                ? 'Ce que contient votre compte-titres'
+                : 'Ce que contient votre PEA'
+            }
             description="Ajoutez vos lignes pour voir chaque ETF, son prix de revient et son résultat. Claude peut aussi les lire sur votre relevé."
             actions={
               writable && (
