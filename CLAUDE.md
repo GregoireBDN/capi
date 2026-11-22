@@ -58,7 +58,7 @@ Expense targets and planned income in one `budgets` table (effective-dated, carr
 
 ### Month-end review (closing a month)
 
-The guided « Bilan du mois » computes its steps from existing data; closing freezes the report with its shape's version (`report_version`), read only through `upgradeReport`, never recomputed. Details: [`docs/domain/month-close.md`](docs/domain/month-close.md).
+The guided « Bilan du mois » computes its steps from existing data; closing freezes the report with its shape's version (`report_version`), read only through `upgradeReport`, never recomputed. Its « Cohérence des chiffres » step (#427, `apps/api/src/integrity/`, `GET /api/integrity?month=`, MCP `integrity_checks`) checks the stored data against itself (bank balances vs running balances and statements, crypto holdings vs the last complete read, money owed never below zero, income − expenses = saved with moves between own accounts excluded); read only, never blocks the app or the close, logs counts only. Details: [`docs/domain/month-close.md`](docs/domain/month-close.md).
 
 ### Accounts
 

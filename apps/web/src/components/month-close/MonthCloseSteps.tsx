@@ -27,6 +27,8 @@ import {
   UpdateValueButton,
 } from '#/components/accounts/UpdateValueButton'
 import { formatCents } from '#/lib/money'
+import { INTEGRITY_TITLE, IntegrityStep, integrityDone } from './IntegrityStep'
+import type { IntegrityState } from './IntegrityStep'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
 import { accountLinkSearch } from '#/components/accounts/account-origin'
@@ -55,20 +57,40 @@ interface StepsProps {
   onNotesBlur: () => void
 }
 
-/** The review's steps in order, each with what is left and where to fix it. */
-export function MonthCloseSteps(props: StepsProps) {
+/**
+ * The review's steps in order, each with what is left and where to fix it;
+ * « Cohérence des chiffres » (#427, read on its own) comes before the close.
+ */
+export function MonthCloseSteps({
+  integrity,
+  ...props
+}: StepsProps & { integrity: IntegrityState }) {
   const { review } = props
-  const done = new Map(review.steps.map((step) => [step.key, step.done]))
+  const cards: {
+    key: MonthCloseStep | 'integrity'
+    done: boolean
+    body: ReactNode
+  }[] = review.steps.map((step) => ({
+    key: step.key,
+    done: step.done,
+    body: <StepBody step={step.key} {...props} />,
+  }))
+  const close = cards.findIndex((card) => card.key === 'close')
+  cards.splice(close === -1 ? cards.length : close, 0, {
+    key: 'integrity',
+    done: integrity.data !== undefined && integrityDone(integrity.data),
+    body: <IntegrityStep integrity={integrity} />,
+  })
   return (
     <ol className="space-y-3" aria-label="Étapes">
-      {review.steps.map((step, index) => (
+      {cards.map((card, index) => (
         <StepCard
-          key={step.key}
+          key={card.key}
           number={index + 1}
-          step={step.key}
-          done={done.get(step.key) ?? false}
+          step={card.key}
+          done={card.done}
         >
-          <StepBody step={step.key} {...props} />
+          {card.body}
         </StepCard>
       ))}
     </ol>
@@ -82,7 +104,7 @@ function StepCard({
   children,
 }: {
   number: number
-  step: MonthCloseStep
+  step: MonthCloseStep | 'integrity'
   done: boolean
   children: ReactNode
 }) {
@@ -105,7 +127,7 @@ function StepCard({
             </span>
           )}
           <CardTitle id={titleId} className="min-w-0 flex-1">
-            {STEP_TITLES[step]}
+            {step === 'integrity' ? INTEGRITY_TITLE : STEP_TITLES[step]}
             <span className="sr-only">{done ? ' : fait' : ' : à faire'}</span>
           </CardTitle>
         </CardHeader>
