@@ -4303,6 +4303,66 @@
         ]
       }
     },
+    "/api/transactions/{id}/edit": {
+      "post": {
+        "description": "Fields, kind, flags, note, a transfer’s other account, split, shares, prepaid term, repayments and the bank values of an old correction, each with the rules of its own route, applied in one database transaction: a refusal anywhere leaves the transaction as it was.",
+        "operationId": "TransactionEditController_save",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveTransactionEditDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Nothing to update, or a change one of the routes would refuse; nothing is saved."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "409": {
+            "description": "A share repaid or let go removed, or a prepaid declaration on a payment that already pays one; nothing is saved."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Save every change of the transaction editor at once",
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
     "/api/contacts": {
       "get": {
         "description": "The people the owner shares expenses with (#359), by name, with what is open both ways. Archived ones only with `archived=true`.",
@@ -14189,6 +14249,156 @@
           }
         }
       },
+      "ShareInputDto": {
+        "type": "object",
+        "properties": {
+          "contactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contactName": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "Name of the contact when no id is given: an existing contact of that name (case ignored), else a new one."
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "What this person owes on the expense, positive cents."
+          }
+        },
+        "required": [
+          "amountCents"
+        ]
+      },
+      "ReplaceSharesDto": {
+        "type": "object",
+        "properties": {
+          "splitId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "shares": {
+            "description": "Everyone the expense is shared with; an empty list stops sharing it. A person left out loses their share, refused once they repaid part of it.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShareInputDto"
+            }
+          }
+        },
+        "required": [
+          "shares"
+        ]
+      },
+      "LinkItemDto": {
+        "type": "object",
+        "properties": {
+          "receivableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Part of the repayment for this item, positive cents."
+          }
+        },
+        "required": [
+          "receivableId",
+          "amountCents"
+        ]
+      },
+      "EditRepaymentLinkDto": {
+        "type": "object",
+        "properties": {
+          "splitId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The part of a split transfer: required when it is split."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkItemDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "EditRepaymentsDto": {
+        "type": "object",
+        "properties": {
+          "unlink": {
+            "description": "Repayments linked to this transaction to unlink (`repayments[].id`).",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "link": {
+            "description": "Items this transaction repays, linked after the unlinks and every other change, dated on its day.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EditRepaymentLinkDto"
+              }
+            ]
+          }
+        }
+      },
+      "SaveTransactionEditDto": {
+        "type": "object",
+        "properties": {
+          "restoreBankValues": {
+            "type": "boolean",
+            "description": "Puts back the bank amount and date of an imported row corrected before #398 (`DELETE /transactions/{id}/correction`). Applied first."
+          },
+          "manual": {
+            "description": "Fields of a transaction entered by hand (`PATCH /transactions/manual/{id}`): 400 on an imported row.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UpdateManualTransactionDto"
+              }
+            ]
+          },
+          "changes": {
+            "description": "Category, kind, flags, note and a transfer’s other account (`PATCH /transactions/{id}`), applied after the manual fields.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UpdateTransactionDto"
+              }
+            ]
+          },
+          "split": {
+            "nullable": true,
+            "description": "The parts of a split (`PUT /transactions/{id}/splits`); `null` puts it back in one category (`DELETE`). Ending a split is applied before the other fields, a new split after them.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SplitTransactionDto"
+              }
+            ]
+          },
+          "shares": {
+            "description": "Who owes the owner what on this expense (`PUT /transactions/{id}/shares`): what goes down first, what goes up after the other fields.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReplaceSharesDto"
+              }
+            ]
+          },
+          "prepaidTermMonths": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 2,
+            "maximum": 60,
+            "description": "Prepaid term in months (#314): declares this expense as an upfront payment, or changes the term of the item it pays; `null` makes that item an ordinary one again."
+          },
+          "repayments": {
+            "$ref": "#/components/schemas/EditRepaymentsDto"
+          }
+        }
+      },
       "ContactDto": {
         "type": "object",
         "properties": {
@@ -14804,27 +15014,6 @@
           "expected"
         ]
       },
-      "ShareInputDto": {
-        "type": "object",
-        "properties": {
-          "contactId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "contactName": {
-            "type": "string",
-            "maxLength": 60,
-            "description": "Name of the contact when no id is given: an existing contact of that name (case ignored), else a new one."
-          },
-          "amountCents": {
-            "type": "integer",
-            "description": "What this person owes on the expense, positive cents."
-          }
-        },
-        "required": [
-          "amountCents"
-        ]
-      },
       "CreateSharesDto": {
         "type": "object",
         "properties": {
@@ -15072,23 +15261,6 @@
           "exact"
         ]
       },
-      "LinkItemDto": {
-        "type": "object",
-        "properties": {
-          "receivableId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "amountCents": {
-            "type": "integer",
-            "description": "Part of the repayment for this item, positive cents."
-          }
-        },
-        "required": [
-          "receivableId",
-          "amountCents"
-        ]
-      },
       "LinkRepaymentDto": {
         "type": "object",
         "properties": {
@@ -15171,25 +15343,6 @@
             "maxLength": 500
           }
         }
-      },
-      "ReplaceSharesDto": {
-        "type": "object",
-        "properties": {
-          "splitId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "shares": {
-            "description": "Everyone the expense is shared with; an empty list stops sharing it. A person left out loses their share, refused once they repaid part of it.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ShareInputDto"
-            }
-          }
-        },
-        "required": [
-          "shares"
-        ]
       },
       "SetRecurringShareDto": {
         "type": "object",

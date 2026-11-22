@@ -57,7 +57,8 @@ vi.mock('@tanstack/react-router', () => ({
     >
       {children}
     </a>
-  ),
+  ), // The editor's « Je dois à … » leaves for the contact's page (#435).
+  useNavigate: () => vi.fn(),
 }))
 
 /** Testing Library collapses the narrow no-break spaces `Intl` emits. */
@@ -871,10 +872,7 @@ describe('ManualTransactionSheet (editing)', () => {
     const actions = {
       onChange: vi.fn(),
       onUpdateManual: vi.fn(() => Promise.resolve(true)),
-      onCorrect: vi.fn(),
-      onRestoreBank: vi.fn(),
-      onSplit: vi.fn(),
-      onUnsplit: vi.fn(),
+      onSave: vi.fn(() => Promise.resolve(true)),
     }
     render(
       <QueryClientProvider client={queryClient}>
@@ -924,17 +922,23 @@ describe('ManualTransactionSheet (editing)', () => {
       expect(groupNames(dialog, 'Toutes les catégories')).toContain('Sorties'),
     )
     expect(chosenCategory(dialog)).toBe('Sorties')
+    // Nothing saved while editing (#435), the change said under the bar.
+    expect(
+      within(dialog).getByText('Modifications non enregistrées'),
+    ).toBeInTheDocument()
+    expect(actions.onSave).not.toHaveBeenCalled()
     await user.click(
       within(dialog).getByRole('button', { name: 'Enregistrer' }),
     )
-    // Only what changed, through the row's actions (their toast « Annuler »).
+    // Only what changed, in one save (its toast « Annuler »).
     await waitFor(() =>
-      expect(actions.onUpdateManual).toHaveBeenCalledWith({
-        amountCents: 2_700,
-        direction: 'out',
+      expect(actions.onSave).toHaveBeenCalledWith({
+        manual: { amountCents: 2_700, direction: 'out' },
       }),
     )
+    expect(actions.onSave).toHaveBeenCalledTimes(1)
     expect(actions.onChange).not.toHaveBeenCalled()
+    expect(actions.onUpdateManual).not.toHaveBeenCalled()
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 
@@ -963,13 +967,99 @@ describe('ManualTransactionSheet (editing)', () => {
       within(dialog).getByRole('button', { name: 'Enregistrer' }),
     )
     await waitFor(() =>
-      expect(actions.onUpdateManual).toHaveBeenCalledWith({
-        note: 'Avoir Fnac',
+      expect(actions.onSave).toHaveBeenCalledWith({
+        manual: { note: 'Avoir Fnac' },
+        changes: { needsReview: true },
       }),
     )
-    await waitFor(() =>
-      expect(actions.onChange).toHaveBeenCalledWith({ needsReview: true }),
+    expect(actions.onChange).not.toHaveBeenCalled()
+  })
+
+  it('keeps the options in the draft and asks before dropping them on ✕', async () => {
+    const user = userEvent.setup()
+    const { onOpenChange, actions } = renderSheet()
+    const dialog = await screen.findByRole('dialog')
+
+    // Prépayé (#314): a tap chooses a term, back to the options, unsaved.
+    await user.click(within(dialog).getByRole('button', { name: /^Prépayé/ }))
+    await user.click(within(dialog).getByRole('radio', { name: /^12 mois/ }))
+    expect(currentStep(dialog)).toMatch(/^4\./)
+    expect(
+      within(dialog).getByRole('button', { name: /^Prépayé/ }),
+    ).toHaveTextContent('12 mois')
+    await user.type(within(dialog).getByLabelText('Note'), 'Abonnement')
+    expect(
+      within(dialog).getByText('Modifications non enregistrées'),
+    ).toBeInTheDocument()
+
+    // ✕ asks first; « Continuer » keeps editing.
+    await user.click(within(dialog).getByRole('button', { name: 'Fermer' }))
+    const ask = await screen.findByRole('dialog', {
+      name: 'Abandonner les modifications ?',
+    })
+    await user.click(within(ask).getByRole('button', { name: 'Continuer' }))
+    expect(onOpenChange).not.toHaveBeenCalled()
+
+    // « Abandonner »: closed, nothing saved.
+    await user.click(within(dialog).getByRole('button', { name: 'Fermer' }))
+    await user.click(
+      within(
+        await screen.findByRole('dialog', {
+          name: 'Abandonner les modifications ?',
+        }),
+      ).getByRole('button', { name: 'Abandonner' }),
     )
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(actions.onSave).not.toHaveBeenCalled()
+    expect(actions.onChange).not.toHaveBeenCalled()
+  })
+
+  it('shares it from its options in the draft, sent with ✓ only (#435)', async () => {
+    api.contactsControllerList.mockImplementation(() =>
+      ok([contact(CAMILLE, 'Camille')]),
+    )
+    const user = userEvent.setup()
+    const { actions } = renderSheet()
+    const dialog = await screen.findByRole('dialog')
+    await user.click(
+      within(dialog).getByRole('button', { name: /^J’ai payé pour quelqu’un/ }),
+    )
+    // The edit's own screen: who shares it, on the expense's amount.
+    await user.click(
+      await within(dialog).findByRole('button', { name: /Camille/ }),
+    )
+    expect(dialog).toHaveTextContent(
+      `Ma part${euros(1_250)} sur ${euros(2_500)}`,
+    )
+    expect(
+      within(dialog).getByText('Modifications non enregistrées'),
+    ).toBeInTheDocument()
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Retour aux options' }),
+    )
+    expect(
+      within(dialog).getByRole('button', { name: /^J’ai payé pour quelqu’un/ }),
+    ).toHaveTextContent('Camille')
+    expect(actions.onSave).not.toHaveBeenCalled()
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Enregistrer' }),
+    )
+    await waitFor(() =>
+      expect(actions.onSave).toHaveBeenCalledWith({
+        shares: { shares: [{ contactId: CAMILLE, amountCents: 1_250 }] },
+      }),
+    )
+  })
+
+  it('closes at once on ✕ when nothing changed', async () => {
+    const user = userEvent.setup()
+    const { onOpenChange } = renderSheet()
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Fermer' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(
+      screen.queryByRole('dialog', { name: 'Abandonner les modifications ?' }),
+    ).not.toBeInTheDocument()
   })
 
   it('reaches what only an edit has from its options', async () => {

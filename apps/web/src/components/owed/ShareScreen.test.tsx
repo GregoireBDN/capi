@@ -1,15 +1,10 @@
-import { screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useState } from 'react'
+import { describe, expect, it } from 'vitest'
 import type { ContactDto, TransactionDto } from '#/api/types.gen'
-import { ok, renderWithClient } from '#/components/import/test-fixtures'
-import { ShareScreen } from './ShareScreen'
-
-const api = vi.hoisted(() => ({
-  contactsControllerList: vi.fn(),
-  owedLinksControllerReplaceShares: vi.fn(),
-}))
-vi.mock('#/api', () => api)
+import { draftOf, ShareFields, shareValid, sharesOf } from './ShareScreen'
+import type { ShareDraft } from './ShareScreen'
 
 /** Synthetic data only. */
 const contact = (id: string, name: string): ContactDto => ({
@@ -63,17 +58,29 @@ function text(element: HTMLElement) {
   return element.textContent.replace(/\s/g, ' ')
 }
 
-describe('ShareScreen (#359, « A. Un mode pour tous »)', () => {
-  beforeEach(() => {
-    api.contactsControllerList.mockResolvedValue(ok([ALEX, SAM]))
-    api.owedLinksControllerReplaceShares.mockResolvedValue(ok(dinner))
-  })
+/** The editor's draft (#435): what is shared, never saved here. */
+function Draft({ onDraft }: { onDraft: (draft: ShareDraft) => void }) {
+  const [draft, setDraft] = useState(() => draftOf(dinner))
+  return (
+    <ShareFields
+      totalCents={-dinner.amountCents}
+      draft={draft}
+      onChange={(next) => {
+        setDraft(next)
+        onDraft(next)
+      }}
+      contacts={[ALEX, SAM]}
+    />
+  )
+}
 
-  it('gives each person half or an equal part, the rest to « Ma part », and saves', async () => {
+describe('ShareFields (#359, « A. Un mode pour tous »)', () => {
+  it('gives each person half or an equal part, the rest to « Ma part »', async () => {
     const user = userEvent.setup()
-    renderWithClient(<ShareScreen item={dinner} />)
+    let last = draftOf(dinner)
+    render(<Draft onDraft={(draft) => (last = draft)} />)
 
-    await user.click(await screen.findByRole('button', { name: /Alex/ }))
+    await user.click(screen.getByRole('button', { name: /Alex/ }))
     expect(screen.getByRole('radio', { name: 'Moitié' })).toBeInTheDocument()
     expect(text(screen.getByText('Ma part').parentElement!)).toContain(
       '47,50 € sur 95,00 €',
@@ -87,28 +94,18 @@ describe('ShareScreen (#359, « A. Un mode pour tous »)', () => {
     expect(text(screen.getByText('Ma part').parentElement!)).toContain(
       '31,66 € sur 95,00 €',
     )
-
-    await waitFor(
-      () =>
-        expect(api.owedLinksControllerReplaceShares).toHaveBeenCalledWith(
-          expect.objectContaining({
-            path: { id: dinner.id },
-            body: {
-              shares: [
-                { contactId: ALEX.id, amountCents: 3167 },
-                { contactId: SAM.id, amountCents: 3167 },
-              ],
-            },
-          }),
-        ),
-      { timeout: 2000 },
-    )
+    expect(shareValid(last, 9500)).toBe(true)
+    expect(sharesOf(last, 9500)).toEqual([
+      { contactId: ALEX.id, amountCents: 3167 },
+      { contactId: SAM.id, amountCents: 3167 },
+    ])
   })
 
-  it('shows parts above the expense in red and never saves them', async () => {
+  it('shows parts above the expense in red, a draft that cannot be saved', async () => {
     const user = userEvent.setup()
-    renderWithClient(<ShareScreen item={dinner} />)
-    await user.click(await screen.findByRole('button', { name: /Alex/ }))
+    let last = draftOf(dinner)
+    render(<Draft onDraft={(draft) => (last = draft)} />)
+    await user.click(screen.getByRole('button', { name: /Alex/ }))
     await user.click(screen.getByRole('radio', { name: 'Montants' }))
     const field = screen.getByLabelText('Part de Alex')
     await user.clear(field)
@@ -116,11 +113,6 @@ describe('ShareScreen (#359, « A. Un mode pour tous »)', () => {
     expect(text(screen.getByText('Ma part').parentElement!)).toContain(
       '25,00 € de trop',
     )
-    await new Promise((resolve) => setTimeout(resolve, 900))
-    expect(api.owedLinksControllerReplaceShares).not.toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: { shares: [{ contactId: ALEX.id, amountCents: 12000 }] },
-      }),
-    )
+    expect(shareValid(last, 9500)).toBe(false)
   })
 })

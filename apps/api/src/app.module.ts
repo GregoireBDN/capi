@@ -30,6 +30,7 @@ import { RecurringModule } from '#/recurring/recurring.module'
 import { SavingsModule } from '#/savings/savings.module'
 import { SpendingModule } from '#/spending/spending.module'
 import { TransactionsModule } from '#/transactions/transactions.module'
+import { TransactionEditModule } from '#/transactions/edit/transaction-edit.module'
 import { UserModule } from '#/user/user.module'
 
 @Module({
@@ -56,6 +57,7 @@ import { UserModule } from '#/user/user.module'
     AccountsModule,
     ImportsModule,
     TransactionsModule,
+    TransactionEditModule,
     OwedModule,
     BudgetsModule,
     DashboardModule,

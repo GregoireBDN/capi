@@ -20,6 +20,8 @@ interface Part {
 
 interface SplitEditorProps {
   item: TransactionDto
+  /** The parts to start from (the editor's draft, #435), else its split. */
+  parts?: readonly { categoryId: string; amountCents: number }[]
   categories: readonly CategoryDto[]
   onSave: (parts: { categoryId: string; amountCents: number }[]) => void
   onCancel: () => void
@@ -35,6 +37,7 @@ interface SplitEditorProps {
  */
 export function SplitEditor({
   item,
+  parts: initialParts = item.splits,
   categories,
   onSave,
   onCancel,
@@ -42,8 +45,8 @@ export function SplitEditor({
   const id = useId()
   const sign = Math.sign(item.amountCents)
   const [parts, setParts] = useState<Part[]>(() =>
-    item.splits.length > 0
-      ? item.splits.map((part, key) => ({
+    initialParts.length > 0
+      ? initialParts.map((part, key) => ({
           key,
           categoryId: part.categoryId,
           amount: centsToInput(Math.abs(part.amountCents)),
@@ -195,7 +198,7 @@ export function SplitEditor({
           Annuler
         </Button>
         <Button type="submit" size="sm">
-          Enregistrer la répartition
+          Valider la répartition
         </Button>
       </div>
     </form>

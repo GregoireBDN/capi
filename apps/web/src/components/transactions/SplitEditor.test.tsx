@@ -106,7 +106,7 @@ describe('SplitEditor (#357)', () => {
     ).toBeInTheDocument()
 
     await user.click(
-      screen.getByRole('button', { name: 'Enregistrer la répartition' }),
+      screen.getByRole('button', { name: 'Valider la répartition' }),
     )
     expect(onSave).toHaveBeenCalledWith([
       { categoryId: refunds.id, amountCents: 4_000 },
@@ -158,7 +158,7 @@ describe('SplitEditor (#357)', () => {
     await pickCategory(user, moves.name)
     await user.type(screen.getByLabelText('Montant de la part 2'), '20')
     await user.click(
-      screen.getByRole('button', { name: 'Enregistrer la répartition' }),
+      screen.getByRole('button', { name: 'Valider la répartition' }),
     )
     expect(onSave).not.toHaveBeenCalled()
     expect(screen.getByText(/mouvement interne/)).toBeInTheDocument()
