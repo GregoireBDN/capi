@@ -28,7 +28,6 @@ import {
 } from '#/components/app-shell/page-actions'
 import { coverageQuery } from './coverage'
 import { isMonthKey } from './month-keys'
-import { useMonthSwipe } from './month-swipe'
 
 const shortMonth = new Intl.DateTimeFormat('fr-FR', {
   month: 'short',
@@ -195,8 +194,9 @@ export interface MonthNavigatorProps {
    */
   allDates?: { selected: boolean; onSelect: () => void }
   /**
-   * Whether ← / → on a keyboard and a sideways swipe on a touch screen move
-   * the month (one navigator per page). Default: on.
+   * Whether ← / → on a keyboard move the month (one navigator per page).
+   * Default: on. A sideways swipe no longer does (#446): on a phone it opens
+   * the sidebar.
    */
   keyboard?: boolean
   className?: string
@@ -206,8 +206,8 @@ export interface MonthNavigatorProps {
  * The month navigator of every month page (#401, the owner's « B. Barre du
  * mois »): previous / next month, the month's name opening a month picker
  * (months with transactions marked, months after `max` off, shortcuts to the
- * current month and to the month the data stops in), ← / → on a keyboard
- * and a sideways swipe on a touch screen. It is part of the app's frame:
+ * current month and to the month the data stops in) and ← / → on a
+ * keyboard. It is part of the app's frame:
  * the bar at the top of the page's column, fixed under the header, on every
  * width (`MonthBarSlot`, beside the sidebar on a computer); rendered where
  * it stands outside the shell. Place it with `MonthToolbar` (or alone, like the
@@ -262,14 +262,6 @@ export function MonthNavigator({
     setOpen(false)
     if (target !== month || !free) onMonthChange(target)
   }
-
-  useMonthSwipe(keyboard, (direction) => {
-    const state = latest.current
-    if (!state.free) return
-    const target = shiftMonth(state.month, direction === 'next' ? 1 : -1)
-    if (target > state.max) return
-    state.onMonthChange(target)
-  })
 
   const inShell = useInShell()
   const slot = usePageMonthSlot()

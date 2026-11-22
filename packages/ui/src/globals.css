@@ -408,3 +408,80 @@
     --line: var(--border);
   }
 }
+
+/*
+ * The phone's navigation sheet (`Sidebar` below `md`, #446): it slides in
+ * whole from the left on an iOS-like curve and its backdrop fades in step,
+ * the same timing the app's swipe settles with (`useSidebarSwipe`). The
+ * `Sheet`'s short fade-and-slide is replaced here. Unlayered: it wins over
+ * the animation utilities. The backdrop is the portal sibling just before
+ * the sheet.
+ */
+:root {
+  --sidebar-sheet-duration: 320ms;
+  --sidebar-sheet-ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+[data-slot='sidebar'][data-mobile='true'] {
+  will-change: transform;
+}
+
+[data-slot='sidebar'][data-mobile='true'][data-state='open'] {
+  animation: sidebar-sheet-in var(--sidebar-sheet-duration)
+    var(--sidebar-sheet-ease) backwards;
+}
+
+[data-slot='sidebar'][data-mobile='true'][data-state='closed'] {
+  animation: sidebar-sheet-out var(--sidebar-sheet-duration)
+    var(--sidebar-sheet-ease) forwards;
+}
+
+[data-slot='sheet-overlay']:has(
+    + [data-slot='sidebar'][data-mobile='true']
+  )[data-state='open'] {
+  animation: sidebar-backdrop-in var(--sidebar-sheet-duration)
+    var(--sidebar-sheet-ease) backwards;
+}
+
+[data-slot='sheet-overlay']:has(
+    + [data-slot='sidebar'][data-mobile='true']
+  )[data-state='closed'] {
+  animation: sidebar-backdrop-out var(--sidebar-sheet-duration)
+    var(--sidebar-sheet-ease) forwards;
+}
+
+/* Opened by a swipe: it is already there, nothing to play. */
+[data-gesture-opened][data-state='open'] {
+  animation: none !important;
+}
+
+@keyframes sidebar-sheet-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes sidebar-sheet-out {
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes sidebar-backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sidebar-backdrop-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot='sidebar'][data-mobile='true'],
+  [data-slot='sheet-overlay']:has(+ [data-slot='sidebar'][data-mobile='true']) {
+    animation: none !important;
+  }
+}

@@ -129,13 +129,19 @@ body:has([data-app-shell]) {
 }
 
 /*
- * The phone's navigation sheet closes at once for a link (#419,
- * `closeSheetThenNavigate`): with no closing animation, Radix unmounts it
- * before the page changes, so Safari's picture of the page left (shown during
- * its back swipe) never has the sidebar open. Unlayered: it wins over the
- * animation utilities.
+ * The phone's navigation sheet without its keyframe animation:
+ * - while it closes for a link (#419, `closeSheetThenNavigate`), so Radix
+ *   unmounts it before the page changes and Safari's picture of the page
+ *   left (shown during its back swipe) never has the sidebar open;
+ * - while a swipe drives it (#446, `useSidebarSwipe`): the finger moves it.
+ * The sheet's slot is `sidebar` (the `Sidebar` names its `SheetContent`).
+ * Unlayered and important: it wins over every animation rule.
  */
-[data-sheet-instant-close] [data-slot='sheet-content'],
-[data-sheet-instant-close] [data-slot='sheet-overlay'] {
+:is([data-sheet-instant-close], [data-sheet-gesture])
+  :is(
+    [data-slot='sheet-content'],
+    [data-slot='sidebar'],
+    [data-slot='sheet-overlay']
+  ) {
   animation: none !important;
 }
