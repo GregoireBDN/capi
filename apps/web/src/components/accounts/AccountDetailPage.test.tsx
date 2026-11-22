@@ -1658,7 +1658,9 @@ describe('AccountDetailPage', () => {
         expect.objectContaining({ path: { id: ACCOUNT_ID, keyId: 'k-evm' } }),
       ),
     )
-  })
+    // The heaviest test of the file (sheets, typing): over 5 s on a loaded
+    // CI runner while it takes under 1 s locally.
+  }, 15_000)
 
   function walletHoldings(
     sync: WalletSyncStatusDto,
