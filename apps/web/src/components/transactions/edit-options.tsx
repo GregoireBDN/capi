@@ -1,12 +1,11 @@
 import {
-  Button,
   cn,
   SETTING_GROUP_CLASS,
   SETTING_ROW_CLASS,
   SettingRow,
 } from '@finances/ui'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowRightIcon,
   CalendarClockIcon,
@@ -20,6 +19,7 @@ import {
 import type {
   AccountDto,
   CategoryDto,
+  SaveTransactionEditDto,
   TransactionDto,
   UpdateManualTransactionDto,
 } from '#/api/types.gen'
@@ -27,21 +27,23 @@ import {
   RepaymentScreen,
   repaymentTitle,
 } from '#/components/owed/RepaymentScreen'
-import { owedSummaryQuery } from '#/components/owed/queries'
-import { ShareScreen } from '#/components/owed/ShareScreen'
+import { contactsQuery, owedSummaryQuery } from '#/components/owed/queries'
+import { ShareFields } from '#/components/owed/ShareScreen'
 import { PrepaidScreen } from '#/components/subscriptions/PrepaidScreen'
 import { formatCents } from '#/lib/money'
-import { accountsQuery } from '#/lib/queries'
+import { accountsQuery, categoriesQuery } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import type { TransactionChanges } from './changes'
+import { draftSplitError } from './edit-draft'
+import type { EditDraft } from './edit-draft'
 import { counterpartLabel } from './labels'
 import { SplitEditor } from './SplitEditor'
 
 /**
  * What only exists once a transaction is there (#398): the settings the
  * « Options » step of an edit adds, each opening its own screen in the
- * editor's frame (‹ back to « Options »), each applied at once with its
- * toast « Annuler », as before (#280, #296, #314, #357, #359).
+ * editor's frame (‹ back to « Options »). Each changes the editor's draft
+ * only, saved with everything else by « Enregistrer » (#435).
  */
 export type EditDetour =
   | 'counterpart'
@@ -50,20 +52,17 @@ export type EditDetour =
   | 'split'
   | 'prepaid'
 
-/** What the detours change, applied at once. */
-export interface EditDetourActions {
-  onChange: (changes: TransactionChanges) => void
-  onSplit: (parts: { categoryId: string; amountCents: number }[]) => void
-  onUnsplit: () => void
-}
-
 /**
- * What an edit applies to one transaction, bound to it by its row
- * (`useTransactionActions`: optimistic, a toast with « Annuler »).
+ * What a transaction's row applies (`useTransactionActions`): one change at
+ * once (the category picked in the row, « Classer », « Valider »), the amount
+ * typed in the row, and the editor's « Enregistrer » (#435), each with its
+ * toast « Annuler ».
  */
-export interface TransactionEditActions extends EditDetourActions {
+export interface TransactionEditActions {
+  onChange: (changes: TransactionChanges) => void
   onUpdateManual: (changes: UpdateManualTransactionDto) => Promise<boolean>
-  onRestoreBank: () => void
+  /** Saves every change of the editor at once; false when refused. */
+  onSave: (edit: SaveTransactionEditDto) => Promise<boolean>
 }
 
 export function detourTitle(detour: EditDetour, item: TransactionDto): string {
@@ -84,24 +83,55 @@ export function detourTitle(detour: EditDetour, item: TransactionDto): string {
 /** The rows of an edit's « Options » that open a detour. */
 export function EditOptionRows({
   item,
+  saved,
+  draft,
   onOpen,
+  onLeave,
 }: {
+  /** The transaction as the draft has it (kind, amount, account). */
   item: TransactionDto
+  /** The transaction as saved: its repayments and debts. */
+  saved: TransactionDto
+  draft: EditDraft
   onOpen: (detour: EditDetour) => void
+  /** Leaves the editor for another page (asks first when unsaved). */
+  onLeave: (go: () => void) => void
 }) {
+  const navigate = useNavigate()
   const owed = useQuery(owedSummaryQuery)
+  const accounts = useQuery(accountsQuery)
   const iOweCents = owed.data?.iOwe.totalCents ?? 0
   const owedToMeCents = owed.data?.owedToMe.totalCents ?? 0
-  const split = item.splits.length > 0
+  const split = draft.splits.length > 0
   const onAccount = item.accountId !== null
   const out = item.amountCents < 0
   // Money owed (#359): who owes what on it, what it repays.
-  const owedShares = item.shares.filter((s) => s.direction === 'owed_to_me')
-  const debt = item.shares.find((s) => s.direction === 'i_owe')
+  const debt = saved.shares.find((s) => s.direction === 'i_owe')
   const shareable = onAccount && item.kind === 'expense' && out && !split
   const repaidNames = [
-    ...new Set(item.repayments.map((r) => r.contactName)),
-  ].join(', ')
+    ...new Set([
+      ...saved.repayments
+        .filter((r) => !draft.repayment.unlink.includes(r.id))
+        .map((r) => r.contactName),
+      ...(draft.repayment.link?.items ?? []).map((i) => i.contactName),
+    ]),
+  ]
+    .filter(Boolean)
+    .join(', ')
+  const linkedSomething =
+    saved.repayments.length > 0 || draft.repayment.link !== null
+  const counterpartName =
+    draft.counterpartAccountId === null
+      ? null
+      : ((accounts.data ?? []).find((a) => a.id === draft.counterpartAccountId)
+          ?.name ??
+        (draft.counterpartAccountId === saved.counterpartAccountId
+          ? saved.counterpartAccountName
+          : null))
+  const categories = useQuery(categoriesQuery)
+  const categoryNames = new Map(
+    (categories.data ?? []).map((category) => [category.id, category.name]),
+  )
 
   const rows = [
     item.kind === 'transfer' && (
@@ -109,7 +139,7 @@ export function EditOptionRows({
         key="counterpart"
         icon={ArrowRightIcon}
         label={counterpartLabel(item)}
-        value={item.counterpartAccountName ?? 'Choisir'}
+        value={counterpartName ?? 'Choisir'}
         onClick={() => onOpen('counterpart')}
       />
     ),
@@ -120,19 +150,27 @@ export function EditOptionRows({
         label="J’ai payé pour quelqu’un"
         // No « Non »: beside the long label it would be cut (#409).
         value={
-          owedShares.length > 0
-            ? owedShares.map((s) => s.contactName).join(', ')
+          draft.share.people.length > 0
+            ? draft.share.people.map((person) => person.name).join(', ')
             : undefined
         }
         onClick={() => onOpen('share')}
       />
     ),
     debt && (
-      <Link
+      <button
         key="debt"
-        to={ROUTES.owedContact}
-        params={{ contactId: debt.contactId }}
+        type="button"
         className={SETTING_ROW_CLASS}
+        onClick={() =>
+          onLeave(
+            () =>
+              void navigate({
+                to: ROUTES.owedContact,
+                params: { contactId: debt.contactId },
+              }),
+          )
+        }
       >
         <ReceiptTextIcon
           className="text-muted-foreground size-[0.8rem] shrink-0"
@@ -152,11 +190,11 @@ export function EditOptionRows({
           className="text-muted-foreground size-[0.7rem] shrink-0"
           aria-hidden="true"
         />
-      </Link>
+      </button>
     ),
     // A repayment, named by its direction (#398), only when there is
     // something to repay that way.
-    onAccount && !out && (item.repayments.length > 0 || owedToMeCents > 0) && (
+    onAccount && !out && (linkedSomething || owedToMeCents > 0) && (
       <SettingRow
         key="repaid"
         icon={HandshakeIcon}
@@ -165,7 +203,7 @@ export function EditOptionRows({
         onClick={() => onOpen('repayment')}
       />
     ),
-    onAccount && out && (item.repayments.length > 0 || iOweCents > 0) && (
+    onAccount && out && (linkedSomething || iOweCents > 0) && (
       <SettingRow
         key="repay"
         icon={HandshakeIcon}
@@ -179,11 +217,19 @@ export function EditOptionRows({
       icon={SplitIcon}
       label={split ? 'Répartition' : 'Répartir'}
       value={
-        split
-          ? [...new Set(item.splits.map((part) => part.category.name))].join(
-              ', ',
-            )
-          : 'Non'
+        // Started but not adding up yet: ✓ is refused until it does.
+        split &&
+        draftSplitError(draft.splits, item.amountCents, categories.data ?? [])
+          ? 'À compléter'
+          : split
+            ? [
+                ...new Set(
+                  draft.splits.map(
+                    (part) => categoryNames.get(part.categoryId) ?? '…',
+                  ),
+                ),
+              ].join(', ')
+            : 'Non'
       }
       onClick={() => onOpen('split')}
     />,
@@ -194,10 +240,11 @@ export function EditOptionRows({
         // Short: « 24 mois » stays whole beside it on a phone.
         label="Prépayé"
         value={
-          item.prepaidItemId && item.prepaidTermMonths
-            ? `${item.prepaidTermMonths} mois`
-            : item.prepaidSuggestion
-              ? `${item.prepaidSuggestion.termMonths} mois ?`
+          draft.prepaidTermMonths
+            ? `${draft.prepaidTermMonths} mois`
+            : // Not prepaid: the term #439 suggests, until one is chosen.
+              !saved.prepaidItemId && saved.prepaidSuggestion
+              ? `${saved.prepaidSuggestion.termMonths} mois ?`
               : 'Non'
         }
         onClick={() => onOpen('prepaid')}
@@ -214,9 +261,11 @@ export function EditOptionRows({
  */
 function CounterpartScreen({
   item,
+  value,
   onPick,
 }: {
   item: TransactionDto
+  value: string | null
   onPick: (accountId: string | null) => void
 }) {
   const accounts = useQuery(accountsQuery)
@@ -244,7 +293,7 @@ function CounterpartScreen({
           className={SETTING_GROUP_CLASS}
         >
           {options.map((option) => {
-            const current = option.id === item.counterpartAccountId
+            const current = option.id === value
             return (
               <button
                 key={option.id ?? 'none'}
@@ -270,67 +319,109 @@ function CounterpartScreen({
   )
 }
 
-/** One detour's screen, in the editor's scrolling body. */
+/**
+ * One detour's screen, in the editor's scrolling body: it changes the draft
+ * (#435), nothing is saved before « Enregistrer ».
+ */
 export function EditDetourScreen({
   detour,
   item,
+  saved,
   categories,
-  actions,
+  draft,
+  initial,
+  showErrors,
+  onDraftChange,
   onDone,
 }: {
   detour: EditDetour
+  /** The transaction as the draft has it (kind, amount, day). */
   item: TransactionDto
+  /** The transaction as saved: what is linked to it now. */
+  saved: TransactionDto
   categories: readonly CategoryDto[]
-  actions: EditDetourActions
+  draft: EditDraft
+  /** The draft as the editor opened: what « Réinitialiser » puts back. */
+  initial: EditDraft
+  /** ✓ was tried: say what is wrong. */
+  showErrors: boolean
+  onDraftChange: (draft: EditDraft) => void
   /** Back to « Options ». */
   onDone: () => void
 }) {
+  const contacts = useQuery({ ...contactsQuery(), enabled: detour === 'share' })
   switch (detour) {
     case 'counterpart':
       return (
         <CounterpartScreen
           item={item}
+          value={draft.counterpartAccountId}
           onPick={(counterpartAccountId) => {
+            onDraftChange({ ...draft, counterpartAccountId })
             onDone()
-            if (counterpartAccountId !== item.counterpartAccountId) {
-              actions.onChange({ counterpartAccountId })
-            }
           }}
         />
       )
     case 'share':
-      return <ShareScreen item={item} />
-    case 'repayment':
-      return <RepaymentScreen item={item} onDone={onDone} />
-    case 'prepaid':
-      return <PrepaidScreen item={item} onDone={onDone} />
-    case 'split':
+      if (draft.splits.length > 0) {
+        return (
+          <p className="text-muted-foreground text-sm">
+            Cette opération est répartie entre plusieurs catégories : retirez la
+            répartition pour la partager.
+          </p>
+        )
+      }
       return (
-        <div className="space-y-3">
-          <SplitEditor
-            item={item}
-            categories={categories}
-            onCancel={onDone}
-            onSave={(parts) => {
-              onDone()
-              actions.onSplit(parts)
-            }}
-          />
-          {item.splits.length > 0 && (
-            <Button
-              type="button"
-              size="sm"
-              ghost
-              variant="secondary"
-              onClick={() => {
-                onDone()
-                actions.onUnsplit()
-              }}
-            >
-              Ne plus répartir
-            </Button>
-          )}
-        </div>
+        <ShareFields
+          totalCents={-item.amountCents}
+          draft={draft.share}
+          onChange={(share) => onDraftChange({ ...draft, share })}
+          contacts={contacts.data ?? []}
+        />
       )
+    case 'repayment':
+      return (
+        <RepaymentScreen
+          item={saved}
+          draft={draft.repayment}
+          onChange={(repayment) => onDraftChange({ ...draft, repayment })}
+          onDone={onDone}
+        />
+      )
+    case 'prepaid':
+      return (
+        <PrepaidScreen
+          item={item}
+          value={draft.prepaidTermMonths}
+          onChange={(prepaidTermMonths) => {
+            onDraftChange({ ...draft, prepaidTermMonths })
+            onDone()
+          }}
+        />
+      )
+    case 'split': {
+      const changed =
+        JSON.stringify(draft.splits) !== JSON.stringify(initial.splits)
+      // Changed as typed (#435): ‹ keeps it, ✓ saves it with the rest.
+      return (
+        <SplitEditor
+          item={item}
+          parts={draft.splits}
+          categories={categories}
+          showError={showErrors}
+          onChange={(splits) => onDraftChange({ ...draft, splits })}
+          onReset={
+            changed
+              ? () => onDraftChange({ ...draft, splits: initial.splits })
+              : undefined
+          }
+          onUnsplit={
+            initial.splits.length > 0 && draft.splits.length > 0
+              ? () => onDraftChange({ ...draft, splits: [] })
+              : undefined
+          }
+        />
+      )
+    }
   }
 }

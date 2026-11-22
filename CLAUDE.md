@@ -35,6 +35,8 @@ These rules are non-negotiable. Code, tests and reviews must enforce them.
 - Moves between the user's own accounts (e.g. checking → Livret A, checking → PEA) are `transfer` and must **never** count as income or expense in any statistic, budget or forecast.
 - **Transfer links** (#296, [ADR 0004](docs/adr/0004-transfer-links-and-contributions.md)): `transactions.counterpart_account_id` names the other account of a transfer, only on transfers; a link removed by hand stays removed.
 
+- **The transaction editor saves everything at once** (#435): its steps and option screens (split, shares, repayments, prepaid…) edit one draft, nothing is saved while editing, ✕ with changes asks first; « Enregistrer » sends one `POST /api/transactions/:id/edit` that applies every change through the services of their own routes in **one database transaction** (all or nothing). Manual entry, bulk edits and the MCP keep their routes.
+
 Details (kind rules, transfer links, manual transactions, hand edits, splits, the transaction editor): [`docs/domain/transactions.md`](docs/domain/transactions.md).
 
 ### Money owed (Dépenses partagées, #359)

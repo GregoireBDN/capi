@@ -4,10 +4,7 @@ import {
   SegmentedControl,
   SegmentedControlItem,
 } from '@finances/ui'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { XIcon } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { toast } from 'sonner'
 import type { ContactDto, TransactionDto } from '#/api/types.gen'
 import { AmountField } from '#/components/amount/AmountField'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
@@ -15,18 +12,8 @@ import { formatCents } from '#/lib/money'
 import { ContactAvatar } from './ContactAvatar'
 import { PeoplePicker, personRef, samePerson } from './PeoplePicker'
 import type { Person } from './PeoplePicker'
-import {
-  afterOwedChanged,
-  contactsQuery,
-  owedErrorMessage,
-  replaceShares,
-  UNDO_TOAST_MS,
-} from './queries'
 import { partOf } from './shares'
 import type { ShareMode } from './shares'
-
-/** Delay before a change is saved, so typing an amount saves once. */
-const SAVE_DELAY_MS = 700
 
 /** Who shares an expense and how (#359; a draft while adding one, #398). */
 export interface ShareDraft {
@@ -88,112 +75,11 @@ export function partsOf(
 }
 
 /**
- * « J’ai payé pour quelqu’un › » of an expense the owner paid (#359, owner's « A. Un mode
- * pour tous »): who (contact chips, or a typed name), one choice for
- * everyone (« Moitié » with one person, « Parts égales » with several, or
- * « Montants » typed for each; switching keeps the figures), each person
- * removable, « Ma part » live at the bottom. Every change is saved at once,
- * with « Annuler » back to how it was.
- */
-export function ShareScreen({ item }: { item: TransactionDto }) {
-  const queryClient = useQueryClient()
-  const contacts = useQuery(contactsQuery())
-  const totalCents = -item.amountCents
-  const [draft, setShareDraft] = useState<ShareDraft>(() => draftOf(item))
-  const initial = useRef(draftOf(item))
-  const dirty = useRef(false)
-
-  const parts = partsOf(draft, totalCents)
-  const valid = parts.every((part) => part !== null && part > 0)
-  const others = parts.reduce<number>((sum, part) => sum + (part ?? 0), 0)
-  const mine = totalCents - others
-  const over = mine < 0
-
-  const save = useMutation({
-    mutationFn: (shares: { person: Person; amountCents: number }[]) =>
-      replaceShares(item.id, {
-        shares: shares.map(({ person, amountCents }) => ({
-          ...personRef(person),
-          amountCents,
-        })),
-      }),
-    onSuccess: async () => {
-      await afterOwedChanged(queryClient)
-      const before = initial.current
-      toast.success('Partage enregistré', {
-        id: `share-${item.id}`,
-        duration: UNDO_TOAST_MS,
-        action: {
-          label: 'Annuler',
-          onClick: () => {
-            const amounts = partsOf(before, totalCents)
-            void replaceShares(item.id, {
-              shares: before.people.map((person, index) => ({
-                ...personRef(person),
-                amountCents: amounts[index] ?? 0,
-              })),
-            })
-              .then(() => {
-                setShareDraft(before)
-                return afterOwedChanged(queryClient)
-              })
-              .catch((error: unknown) => toast.error(owedErrorMessage(error)))
-          },
-        },
-      })
-    },
-    onError: (error) => toast.error(owedErrorMessage(error)),
-  })
-
-  // Saved at once: a valid change is sent after a short pause.
-  const signature = JSON.stringify({
-    people: draft.people.map((p) => p.contactId ?? p.name),
-    parts,
-  })
-  useEffect(() => {
-    if (!dirty.current || !valid || over) return
-    const timer = setTimeout(() => {
-      save.mutate(
-        draft.people.map((person, index) => ({
-          person,
-          amountCents: parts[index]!,
-        })),
-      )
-    }, SAVE_DELAY_MS)
-    return () => clearTimeout(timer)
-    // `signature` holds what is saved.
-  }, [signature])
-
-  const change = (next: ShareDraft) => {
-    dirty.current = true
-    setShareDraft(next)
-  }
-  if (item.splits.length > 0) {
-    return (
-      <p className="text-muted-foreground text-sm">
-        Cette opération est répartie entre plusieurs catégories : retirez la
-        répartition pour la partager.
-      </p>
-    )
-  }
-
-  return (
-    <ShareFields
-      totalCents={totalCents}
-      draft={draft}
-      onChange={change}
-      contacts={contacts.data ?? []}
-    />
-  )
-}
-
-/**
  * Who shares an expense and how (#359), controlled: the people (a list, a
  * second tap takes one out), one choice for everyone (« Moitié » with one
  * person, « Parts égales » with several, or « Montants » typed for each;
  * switching keeps the figures), each person removable, « Ma part » live.
- * `ShareScreen` saves it at once; adding an expense keeps it as a draft
- * (#398).
+ * A draft, adding an expense (#398) as editing one (#435, saved with ✓).
  */
 export function ShareFields({
   totalCents,

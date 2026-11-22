@@ -1,14 +1,54 @@
 import {
-  transactionsControllerRestoreBankValues,
+  transactionEditControllerSave,
   transactionsControllerSplit,
   transactionsControllerUnsplit,
 } from '#/api'
 import type {
+  SaveTransactionEditDto,
   SplitPartDto,
   TransactionDto,
   TransactionKind,
 } from '#/api/types.gen'
-import { unwrap } from '#/lib/queries'
+import { manualExpenseErrorMessage } from '#/components/expenses/queries'
+import { owedErrorMessage } from '#/components/owed/queries'
+import { recurringErrorMessage } from '#/components/subscriptions/queries'
+import { ApiRequestError, unwrap } from '#/lib/queries'
+
+/**
+ * Saves every change of the transaction editor at once (#435): applied in
+ * one database transaction, all or nothing.
+ */
+export function saveTransactionEdit(
+  id: string,
+  body: SaveTransactionEditDto,
+): Promise<TransactionDto> {
+  return unwrap(
+    transactionEditControllerSave({ path: { id }, body, throwOnError: false }),
+  )
+}
+
+/** Refusals of money owed, said by `owedErrorMessage`. */
+const OWED_MESSAGES =
+  /exceed the expense|exceeds the transfer|exceeds what is left|repaid or let go|less than what was repaid|Already (let go|repaid)|repayment/i
+
+/** French message for a refused save of the editor (the API's are English). */
+export function transactionEditErrorMessage(error: unknown): string {
+  const message = error instanceof ApiRequestError ? error.apiMessage : null
+  if (message) {
+    if (message.includes('must still cover')) {
+      return 'Le montant doit rester au moins ce qui est partagé ou lié dessus.'
+    }
+    if (OWED_MESSAGES.test(message)) return owedErrorMessage(error)
+    if (/prepaid/i.test(message)) return recurringErrorMessage(error)
+    if (/parts|sum exactly/i.test(message)) {
+      return 'La répartition doit faire exactement le montant de l’opération.'
+    }
+  }
+  if (error instanceof ApiRequestError && error.status === 409) {
+    return owedErrorMessage(error)
+  }
+  return manualExpenseErrorMessage(error)
+}
 
 /** Splits a transaction between categories (parts summing to its amount). */
 export function splitTransaction(
@@ -33,16 +73,6 @@ export function splitTransaction(
 export function unsplitTransaction(id: string): Promise<TransactionDto> {
   return unwrap(
     transactionsControllerUnsplit({ path: { id }, throwOnError: false }),
-  )
-}
-
-/** Puts back the bank amount and date of a corrected transaction. */
-export function restoreBankValues(id: string): Promise<TransactionDto> {
-  return unwrap(
-    transactionsControllerRestoreBankValues({
-      path: { id },
-      throwOnError: false,
-    }),
   )
 }
 

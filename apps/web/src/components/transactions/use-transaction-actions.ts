@@ -7,7 +7,7 @@ import {
 } from '#/api'
 import type {
   CategoryDto,
-  SplitPartDto,
+  SaveTransactionEditDto,
   TransactionDto,
   UpdateManualTransactionDto,
 } from '#/api/types.gen'
@@ -17,6 +17,8 @@ import {
   manualExpenseErrorMessage,
   updateManualExpense,
 } from '#/components/expenses/queries'
+import { afterOwedChanged } from '#/components/owed/queries'
+import { afterPrepaidChanged } from '#/components/subscriptions/queries'
 import { plural } from '#/lib/plural'
 import { accountsQuery } from '#/lib/queries'
 import {
@@ -34,11 +36,12 @@ import {
   refetchReviewLists,
   transactionKeys,
 } from './queries'
+import { undoBody } from './edit-draft'
 import {
-  restoreBankValues,
+  saveTransactionEdit,
   splitParts,
   splitTransaction,
-  unsplitTransaction,
+  transactionEditErrorMessage,
 } from './edits'
 import { restoreTransactions } from './restore'
 import type { RuleOffer } from './RuleOfferBanner'
@@ -240,46 +243,80 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     )
   }
 
+  /** What a save of the editor changed, refreshed everywhere it shows. */
+  function afterSave(body: SaveTransactionEditDto) {
+    void afterTransactionEdited(queryClient)
+    scheduleReviewCountRefresh()
+    if (body.shares || body.repayments) void afterOwedChanged(queryClient)
+    if (body.prepaidTermMonths !== undefined) {
+      void afterPrepaidChanged(queryClient)
+    }
+    // A transfer's link makes the contributions of an investment (#296).
+    if (body.changes || body.manual) {
+      void queryClient.invalidateQueries({ queryKey: ['investments'] })
+      void queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey.includes('performance'),
+      })
+    }
+  }
+
   /**
-   * Puts the bank amount and date of a row corrected before #398 back. No
-   * « Annuler »: an imported row is never corrected again.
+   * The editor's « Enregistrer » (#435): every change of its draft in one
+   * request, applied all or nothing. « Annuler » sends the save that puts
+   * the transaction back, when there is one; a new category offers its rule.
    */
-  function restoreBank(item: TransactionDto) {
-    return edit(
-      item,
-      () => restoreBankValues(item.id),
-      'Valeurs de la banque rétablies',
-    )
-  }
-
-  /** Splits a transaction between categories (or changes its split). */
-  function split(
+  async function saveEdit(
     item: TransactionDto,
-    parts: readonly Pick<SplitPartDto, 'categoryId' | 'amountCents'>[],
-  ) {
-    return edit(
-      item,
-      () => splitTransaction(item.id, parts),
-      `Répartie entre ${plural(parts.length, 'catégorie', 'catégories')}`,
-      async () => {
-        if (item.splits.length > 0) {
-          await splitTransaction(item.id, splitParts(item))
-          return
-        }
-        await unsplitTransaction(item.id)
-        await restoreTransactions([item])
-      },
-    )
+    body: SaveTransactionEditDto,
+  ): Promise<boolean> {
+    await queryClient.cancelQueries({ queryKey: transactionKeys.lists })
+    let saved: TransactionDto
+    try {
+      saved = await saveTransactionEdit(item.id, body)
+    } catch (error) {
+      toast.error(transactionEditErrorMessage(error), {
+        description: 'Rien n’a été enregistré.',
+      })
+      return false
+    }
+    patchCachedTransactions(queryClient, [saved])
+    // Validated or filed: out of « À revoir » at once (#322).
+    if (item.needsReview && !saved.needsReview) leave([item])
+    afterSave(body)
+    const back = undoBody(item, body, saved)
+    const message = 'Opération enregistrée'
+    if (back) {
+      toastUndoable(message, displayLabel(saved), () => {
+        void revertEdit(saved, back)
+      })
+    } else {
+      toast.success(message, { description: displayLabel(saved) })
+    }
+    const categoryId = body.changes?.categoryId ?? body.manual?.categoryId
+    const category = categoryId ? categoriesById.get(categoryId) : undefined
+    if (category) setOffer({ transaction: saved, category })
+    return true
   }
 
-  /** Puts a split transaction back in one category. */
-  function unsplit(item: TransactionDto) {
-    return edit(
-      item,
-      () => unsplitTransaction(item.id),
-      'Répartition annulée',
-      () => splitTransaction(item.id, splitParts(item)),
-    )
+  /** « Annuler » of a save: the save that puts it back. */
+  async function revertEdit(
+    saved: TransactionDto,
+    body: SaveTransactionEditDto,
+  ) {
+    try {
+      const restored = await saveTransactionEdit(saved.id, body)
+      patchCachedTransactions(queryClient, [restored])
+      if (restored.needsReview && !saved.needsReview) {
+        refetchReviewLists(queryClient)
+      }
+      afterSave(body)
+      setOffer((current) =>
+        current?.transaction.id === saved.id ? null : current,
+      )
+    } catch {
+      toast.error('Impossible d’annuler la modification.')
+      void queryClient.invalidateQueries({ queryKey: transactionKeys.all })
+    }
   }
 
   /** Takes `items` out of the « À revoir » lists before the request. */
@@ -392,9 +429,7 @@ export function useTransactionActions(categories: readonly CategoryDto[]) {
     update,
     updateMany,
     updateManual,
-    restoreBank,
-    split,
-    unsplit,
+    saveEdit,
     offer,
     setOffer,
     onRuleCreated,

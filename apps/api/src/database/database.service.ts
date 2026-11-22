@@ -5,10 +5,29 @@ import postgres from 'postgres'
 import { env } from '#/config/env'
 import * as schema from './schema'
 
+type Db = PostgresJsDatabase<typeof schema>
+/** An open database transaction. */
+export type DatabaseTransaction = Parameters<
+  Parameters<Db['transaction']>[0]
+>[0]
+
 @Injectable()
 export class DatabaseService implements OnModuleDestroy {
   private client: postgres.Sql | undefined
   private _db: PostgresJsDatabase<typeof schema> | undefined
+
+  /**
+   * A `DatabaseService` whose `db` is the open transaction `tx` (#435):
+   * services built on it run every query inside it, and their own
+   * `db.transaction(...)` become savepoints, so a refusal anywhere rolls
+   * everything back with `tx`.
+   */
+  static within(tx: DatabaseTransaction): DatabaseService {
+    const scoped = Object.create(DatabaseService.prototype) as DatabaseService
+    // The services read `db` only; a transaction answers the same calls.
+    Object.defineProperty(scoped, 'db', { value: tx })
+    return scoped
+  }
 
   get db(): PostgresJsDatabase<typeof schema> {
     if (!this._db) {

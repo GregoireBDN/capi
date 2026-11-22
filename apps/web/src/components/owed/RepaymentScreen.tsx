@@ -1,21 +1,17 @@
 import { Button, CategoryIcon, Checkbox, cn, Skeleton } from '@finances/ui'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { toast } from 'sonner'
 import type { RepaymentOptionsDto, TransactionDto } from '#/api/types.gen'
 import { AmountField } from '#/components/amount/AmountField'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
 import { CHIP_CLASS, CHIP_ON } from '#/components/expenses/manual-fields'
+import type {
+  RepaymentDraft,
+  RepaymentLinkItem,
+} from '#/components/transactions/edit-draft'
 import { formatCalendarDate, formatCents } from '#/lib/money'
 import { ContactAvatar } from './ContactAvatar'
-import {
-  afterOwedChanged,
-  linkRepayment,
-  owedErrorMessage,
-  repaymentOptionsQuery,
-  UNDO_TOAST_MS,
-  unlinkPayment,
-} from './queries'
+import { owedErrorMessage, repaymentOptionsQuery } from './queries'
 
 /** Title of the screen in the transaction editor. */
 export function repaymentTitle(item: TransactionDto): string {
@@ -32,12 +28,20 @@ export function repaymentTitle(item: TransactionDto): string {
  * ticked one (what is left by default), then what is linked, what stays in
  * the transfer's category and what they owe before → after. « Lier » is off
  * past the transfer or past what is left on an item.
+ *
+ * In the editor's draft (#435): « Lier » and « Délier » change only what
+ * « Enregistrer » will send, said here until then.
  */
 export function RepaymentScreen({
   item,
+  draft,
+  onChange,
   onDone,
 }: {
+  /** The transaction as saved: its repayments, its category. */
   item: TransactionDto
+  draft: RepaymentDraft
+  onChange: (draft: RepaymentDraft) => void
   onDone: () => void
 }) {
   const [contactId, setContactId] = useState<string | null>(null)
@@ -64,6 +68,8 @@ export function RepaymentScreen({
       key={options.data.contactId ?? 'nobody'}
       item={item}
       options={options.data}
+      draft={draft}
+      onChange={onChange}
       onPick={setContactId}
       onDone={onDone}
     />
@@ -73,29 +79,54 @@ export function RepaymentScreen({
 function RepaymentForm({
   item,
   options,
+  draft,
+  onChange,
   onPick,
   onDone,
 }: {
   item: TransactionDto
   options: RepaymentOptionsDto
+  draft: RepaymentDraft
+  onChange: (draft: RepaymentDraft) => void
   onPick: (contactId: string) => void
   onDone: () => void
 }) {
-  const queryClient = useQueryClient()
   const owedToMe = options.direction === 'owed_to_me'
+  const pending = draft.link?.items ?? []
+  const shownIds = new Set(options.items.map((entry) => entry.id))
+  /** What the draft links to items not on this person's list. */
+  const pendingElsewhere = pending
+    .filter((p) => !shownIds.has(p.receivableId))
+    .reduce((sum, p) => sum + p.amountCents, 0)
+  const unlinked = item.repayments.filter((r) => draft.unlink.includes(r.id))
+  /** What unlinking gives back, in all and on each item. */
+  const freed = unlinked.reduce((sum, r) => sum + r.amountCents, 0)
+  const freedOn = (id: string) =>
+    unlinked
+      .filter((r) => r.receivableId === id)
+      .reduce((sum, r) => sum + r.amountCents, 0)
+  const leftOn = (id: string) =>
+    (options.items.find((e) => e.id === id)?.leftCents ?? 0) + freedOn(id)
+  const available = options.availableCents + freed - pendingElsewhere
+  // This person's items already in the draft start ticked with their amount.
+  const pendingHere = pending.filter((p) => shownIds.has(p.receivableId))
+
   const [checked, setChecked] = useState<Set<string>>(
-    () => new Set(options.suggestion.map((s) => s.receivableId)),
+    () =>
+      new Set(
+        pendingHere.length > 0
+          ? pendingHere.map((p) => p.receivableId)
+          : options.suggestion.map((s) => s.receivableId),
+      ),
   )
   const [texts, setTexts] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       options.items.map((entry) => {
-        const suggested = options.suggestion.find(
-          (s) => s.receivableId === entry.id,
-        )
-        return [
-          entry.id,
-          centsToInput(suggested?.amountCents ?? entry.leftCents),
-        ]
+        const chosen =
+          pendingHere.find((p) => p.receivableId === entry.id)?.amountCents ??
+          options.suggestion.find((s) => s.receivableId === entry.id)
+            ?.amountCents
+        return [entry.id, centsToInput(chosen ?? entry.leftCents)]
       }),
     ),
   )
@@ -107,10 +138,9 @@ function RepaymentForm({
   const amountOf = (id: string) =>
     checked.has(id) ? (parseEurosToCents(texts[id] ?? '') ?? 0) : 0
   const linked = options.items.reduce((sum, e) => sum + amountOf(e.id), 0)
-  const overItem = (id: string) =>
-    amountOf(id) > (options.items.find((e) => e.id === id)?.leftCents ?? 0)
+  const overItem = (id: string) => amountOf(id) > leftOn(id)
   const anyEmpty = [...checked].some((id) => amountOf(id) <= 0)
-  const rest = options.availableCents - linked
+  const rest = available - linked
   const person = options.contacts.find((c) => c.id === options.contactId)
   const ok =
     linked > 0 &&
@@ -118,65 +148,96 @@ function RepaymentForm({
     !anyEmpty &&
     !options.items.some((e) => overItem(e.id))
 
-  const link = useMutation({
-    mutationFn: () =>
-      linkRepayment({
-        transactionId: item.id,
+  /** « Lier »: this person's ticked items replace theirs in the draft. */
+  function link() {
+    const items: RepaymentLinkItem[] = [
+      ...pending.filter((p) => !shownIds.has(p.receivableId)),
+      ...options.items
+        .filter((e) => checked.has(e.id))
+        .map((e) => ({
+          receivableId: e.id,
+          amountCents: amountOf(e.id),
+          contactName: person?.name ?? '',
+          label: e.label,
+        })),
+    ]
+    onChange({
+      ...draft,
+      link: {
         ...(options.splitId ? { splitId: options.splitId } : {}),
-        items: options.items
-          .filter((e) => checked.has(e.id))
-          .map((e) => ({ receivableId: e.id, amountCents: amountOf(e.id) })),
-      }),
-    onSuccess: async (result) => {
-      onDone()
-      await afterOwedChanged(queryClient)
-      let undone = false
-      toast.success(`${formatCents(result.linkedCents)} liés`, {
-        duration: UNDO_TOAST_MS,
-        action: {
-          label: 'Annuler',
-          onClick: () => {
-            if (undone) return
-            undone = true
-            void Promise.all(result.payments.map((p) => unlinkPayment(p.id)))
-              .then(() => afterOwedChanged(queryClient))
-              .catch((error: unknown) => toast.error(owedErrorMessage(error)))
-          },
-        },
-      })
-    },
-    onError: (error) => toast.error(owedErrorMessage(error)),
-  })
+        items,
+      },
+    })
+    onDone()
+  }
 
-  const unlink = useMutation({
-    mutationFn: (id: string) => unlinkPayment(id),
-    onSuccess: () => afterOwedChanged(queryClient),
-    onError: (error) => toast.error(owedErrorMessage(error)),
-  })
+  function dropPending(receivableId: string) {
+    const items = pending.filter((p) => p.receivableId !== receivableId)
+    onChange({
+      ...draft,
+      link: items.length > 0 && draft.link ? { ...draft.link, items } : null,
+    })
+  }
+
+  function toggleUnlink(paymentId: string) {
+    onChange({
+      ...draft,
+      unlink: draft.unlink.includes(paymentId)
+        ? draft.unlink.filter((id) => id !== paymentId)
+        : [...draft.unlink, paymentId],
+    })
+  }
 
   const category = item.category?.name ?? 'sa catégorie'
   return (
     <div className="space-y-4">
-      {item.repayments.length > 0 && (
+      {(item.repayments.length > 0 || pending.length > 0) && (
         <ul className="space-y-1 text-sm">
-          {item.repayments.map((repayment) => (
+          {item.repayments.map((repayment) => {
+            const dropped = draft.unlink.includes(repayment.id)
+            return (
+              <li
+                key={repayment.id}
+                className="flex min-h-11 flex-wrap items-center gap-x-3"
+              >
+                <span
+                  className={cn(
+                    'min-w-0 flex-1 break-normal',
+                    dropped && 'text-muted-foreground line-through',
+                  )}
+                >
+                  {dropped ? 'Sera délié' : 'Déjà lié'} :{' '}
+                  {formatCents(repayment.amountCents)} · {repayment.contactName}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  ghost
+                  variant="secondary"
+                  onClick={() => toggleUnlink(repayment.id)}
+                >
+                  {dropped ? 'Garder' : 'Délier'}
+                </Button>
+              </li>
+            )
+          })}
+          {pending.map((entry) => (
             <li
-              key={repayment.id}
+              key={entry.receivableId}
               className="flex min-h-11 flex-wrap items-center gap-x-3"
             >
               <span className="min-w-0 flex-1 break-normal">
-                Déjà lié : {formatCents(repayment.amountCents)} ·{' '}
-                {repayment.contactName}
+                À lier : {formatCents(entry.amountCents)} · {entry.label}
+                {entry.contactName ? ` (${entry.contactName})` : ''}
               </span>
               <Button
                 type="button"
                 size="sm"
                 ghost
                 variant="secondary"
-                loading={unlink.isPending && unlink.variables === repayment.id}
-                onClick={() => unlink.mutate(repayment.id)}
+                onClick={() => dropPending(entry.receivableId)}
               >
-                Délier
+                Retirer
               </Button>
             </li>
           ))}
@@ -229,8 +290,8 @@ function RepaymentForm({
           {options.items.length > 0 && (
             <>
               <p className="text-muted-foreground text-xs">
-                Proposé : au plus près de {formatCents(options.availableCents)},
-                les plus anciennes d’abord.
+                Proposé : au plus près de {formatCents(available)}, les plus
+                anciennes d’abord.
               </p>
               <ul className="divide-y">
                 {options.items.map((entry) => {
@@ -278,7 +339,7 @@ function RepaymentForm({
                             )}
                           >
                             {formatCalendarDate(entry.bookingDate)} · reste{' '}
-                            {formatCents(entry.leftCents)}
+                            {formatCents(leftOn(entry.id))}
                           </span>
                         </span>
                       </label>
@@ -329,13 +390,7 @@ function RepaymentForm({
               : `Vous devez à ${person.name} ${formatCents(person.owedCents)} → ${formatCents(Math.max(0, person.owedCents - linked))}`}
           </p>
         )}
-        <Button
-          type="button"
-          className="w-full"
-          disabled={!ok}
-          loading={link.isPending}
-          onClick={() => link.mutate()}
-        >
+        <Button type="button" className="w-full" disabled={!ok} onClick={link}>
           Lier
         </Button>
       </div>

@@ -47,10 +47,9 @@ import type {
   MoneyDirection,
   TransactionDto,
   TransactionKind,
-  UpdateManualTransactionDto,
 } from '#/api/types.gen'
 import { ACCOUNT_TYPE_ICONS } from '#/components/accounts/labels'
-import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
+import { parseEurosToCents } from '#/components/budget/amount'
 import { CategoryPicker } from '#/components/categories/CategoryPicker'
 import type { CategoryHabit } from '#/components/categories/CategoryPicker'
 import { ContactAvatar } from '#/components/owed/ContactAvatar'
@@ -72,7 +71,6 @@ import {
   sharesOf,
 } from '#/components/owed/ShareScreen'
 import type { ShareDraft } from '#/components/owed/ShareScreen'
-import type { TransactionChanges } from '#/components/transactions/changes'
 import {
   displayLabel,
   KIND_LABELS,
@@ -87,6 +85,17 @@ import type {
   EditDetour,
   TransactionEditActions,
 } from '#/components/transactions/edit-options'
+import {
+  draftSplitError,
+  editBody,
+  editDraftOf,
+  fieldsOf,
+  signedCents,
+} from '#/components/transactions/edit-draft'
+import type {
+  EditDraft,
+  EditFields,
+} from '#/components/transactions/edit-draft'
 import { splitTransaction } from '#/components/transactions/edits'
 import { FormSheetMoreActions } from '#/components/sheets/form-sheet'
 import { isTextEntry } from '#/lib/text-entry'
@@ -205,37 +214,7 @@ const ADD_DETOUR_TITLES: Record<AddDetour, string> = {
 }
 
 /** The fields of the four steps, as the editor holds them. */
-interface Fields {
-  kind: TransactionKind
-  direction: MoneyDirection
-  amount: string
-  categoryId: string
-  date: string
-  label: string
-  accountId: string
-  isOneOff: boolean
-  needsReview: boolean
-  note: string
-}
-
-/** A transaction's fields as the editor shows them. */
-function fieldsOf(item: TransactionDto): Fields {
-  return {
-    kind: item.kind,
-    direction: item.amountCents > 0 ? 'in' : 'out',
-    amount: centsToInput(Math.abs(item.amountCents)),
-    categoryId: item.categoryId ?? '',
-    date: item.bookingDate,
-    // A label left to its default (the category name) shows as empty; a
-    // bank row's label is the bank's, never edited.
-    label:
-      item.manual && item.rawLabel !== item.category?.name ? item.rawLabel : '',
-    accountId: item.accountId ?? '',
-    isOneOff: item.isOneOff,
-    needsReview: item.needsReview,
-    note: item.note ?? '',
-  }
-}
+type Fields = EditFields
 
 interface ManualTransactionSheetProps {
   open: boolean
@@ -271,15 +250,17 @@ interface ManualTransactionSheetProps {
  * with « Suivant » and adds on the last step; an envelope starts at the
  * amount.
  *
- * An edit opens on « Options », every step a tap away, and saves what
- * changed with ✓ (greyed out until then), with « Annuler » in its toast.
- * Its « Options » also hold what only an existing transaction has (split,
- * share, repayment, prepaid, its transfer's other account, « À revoir »),
- * each on its own screen applied at once. A bank row's amount and day are
- * corrected (#74: the bank values kept, « Rétablir »), its label and
- * account stay the bank's; one entered by hand is edited in full and can
- * be deleted. The import of the bank export replaces a manual entry with
- * the matching bank row.
+ * An edit opens on « Options », every step a tap away. Its « Options »
+ * also hold what only an existing transaction has (split, share,
+ * repayment, prepaid, its transfer's other account, « À revoir »), each on
+ * its own screen. Everything edits one draft (#435): nothing is saved until
+ * ✓ « Enregistrer » (greyed out until something changed) sends it all at
+ * once, applied all or nothing, with « Annuler » in its toast; a line under
+ * the bar says the changes are not saved, and ✕ asks before dropping them.
+ * A bank row keeps the bank's amount, day, label and account (#398; one
+ * corrected before can get them back, « Rétablir »); one entered by hand is
+ * edited in full and can be deleted. The import of the bank export
+ * replaces a manual entry with the matching bank row.
  *
  * On phones a page of its own (#385): the round bar on top (✕ or ‹, the
  * steps, › then ✓), the amount typed with the phone's decimal keyboard.
@@ -304,7 +285,13 @@ export function ManualTransactionSheet({
   const accounts = useQuery({ ...accountsQuery, enabled: open })
   const editing = item !== undefined
   const bank = item !== undefined && !item.manual
-  const split = (item?.splits.length ?? 0) > 0
+  /** An edit's options (#435): changed here, saved with ✓ only. */
+  const [draft, setDraft] = useState<EditDraft | null>(null)
+  const [initialDraft, setInitialDraft] = useState<EditDraft | null>(null)
+  const split = (draft?.splits.length ?? 0) > 0
+  /** « Abandonner les modifications ? », and where to go once dropped. */
+  const [discardOpen, setDiscardOpen] = useState(false)
+  const afterDiscard = useRef<(() => void) | null>(null)
   // « Quelqu’un a payé pour moi » (#359): a contact paid, no account of the owner's.
   const paidBy = item?.paidByContactName ?? null
 
@@ -424,6 +411,11 @@ export function ManualTransactionSheet({
           note: '',
         }
     setWas(item ? start : null)
+    const options = item ? editDraftOf(item) : null
+    setDraft(options)
+    setInitialDraft(options)
+    setDiscardOpen(false)
+    afterDiscard.current = null
     setKind(start.kind)
     setDirection(start.direction)
     setAmount(start.amount)
@@ -765,64 +757,74 @@ export function ManualTransactionSheet({
     needsReview,
     note,
   }
-  const changed = (key: keyof Fields) =>
-    was !== null && fields[key] !== was[key]
-  const amountChanged =
-    was !== null &&
-    (parseEurosToCents(amount) !== parseEurosToCents(was.amount) ||
-      direction !== was.direction)
-  const dirty =
-    was !== null &&
-    (amountChanged ||
-      (['kind', 'categoryId', 'date', 'label', 'accountId'] as const).some(
-        changed,
-      ) ||
-      isOneOff !== was.isOneOff ||
-      needsReview !== was.needsReview ||
-      note.trim() !== was.note.trim())
+  /** What ✓ sends (#435): only what changed, nothing when nothing did. */
+  const body =
+    item && was && draft && initialDraft
+      ? editBody({ item, was, fields, initial: initialDraft, draft })
+      : {}
+  const dirty = Object.keys(body).length > 0
   const [saving, setSaving] = useState(false)
+  /**
+   * The transaction as the draft has it (#435): what the options' screens
+   * show (its kind, amount, day and account as edited).
+   */
+  const preview: TransactionDto | undefined =
+    item && draft
+      ? {
+          ...item,
+          kind,
+          amountCents: signedCents(fields) ?? item.amountCents,
+          bookingDate: date || item.bookingDate,
+          accountId: paidBy ? item.accountId : accountId || item.accountId,
+        }
+      : undefined
+  // Shared while editing (#359): every part positive, the owner's too.
+  const editShareError =
+    preview !== undefined &&
+    draft !== null &&
+    draft.share.people.length > 0 &&
+    preview.kind === 'expense' &&
+    preview.amountCents < 0 &&
+    !split &&
+    !shareValid(draft.share, -preview.amountCents)
+  // A split started in the draft that does not add up yet (#435).
+  const editSplitError =
+    preview !== undefined && draft !== null
+      ? draftSplitError(
+          draft.splits,
+          preview.amountCents,
+          categories.data ?? [],
+        )
+      : null
 
-  /** ✓ of an edit: what changed, through the row's actions. */
-  async function saveEdit() {
-    if (!item || !actions || !was) return
-    const reviewChange: TransactionChanges = {}
-    if (needsReview !== was.needsReview) reviewChange.needsReview = needsReview
-    if (item.manual) {
-      const body: UpdateManualTransactionDto = {}
-      if (amountChanged) {
-        body.amountCents = parseEurosToCents(amount)!
-        body.direction = direction
-      }
-      if (changed('kind')) body.kind = kind
-      if (changed('categoryId')) body.categoryId = categoryId || null
-      if (changed('date')) body.bookingDate = date
-      if (changed('label')) body.label = label.trim() || null
-      if (changed('accountId') && !paidBy) body.accountId = accountId
-      if (isOneOff !== was.isOneOff) body.isOneOff = isOneOff
-      if (note.trim() !== was.note.trim()) body.note = note.trim() || null
-      setSaving(true)
-      const saved =
-        Object.keys(body).length === 0 || (await actions.onUpdateManual(body))
-      setSaving(false)
-      if (!saved) return
-      if (reviewChange.needsReview !== undefined) actions.onChange(reviewChange)
-      onOpenChange(false)
+  /** Closes the editor; with unsaved changes, asks first (#435). */
+  function requestClose(next: boolean) {
+    if (!next && editing && dirty) {
+      afterDiscard.current = null
+      setDiscardOpen(true)
       return
     }
-    // A bank row: its category, flags and note only; its amount and day
-    // are the bank's (#398, refused by the API and the database).
-    const changes: TransactionChanges = { ...reviewChange }
-    if (changed('categoryId')) {
-      changes.categoryId = categoryId || null
-      // « Sans catégorie »: the kind chosen with its tile (#368).
-      if (!categoryId) changes.kind = kind
-    } else if (!categoryId && changed('kind')) {
-      changes.kind = kind
+    onOpenChange(next)
+  }
+
+  /** Leaves for another page; with unsaved changes, asks first. */
+  function leave(go: () => void) {
+    if (editing && dirty) {
+      afterDiscard.current = go
+      setDiscardOpen(true)
+      return
     }
-    if (isOneOff !== was.isOneOff) changes.isOneOff = isOneOff
-    if (note.trim() !== was.note.trim()) changes.note = note.trim()
-    if (Object.keys(changes).length > 0) actions.onChange(changes)
     onOpenChange(false)
+    go()
+  }
+
+  /** ✓ of an edit: the whole draft at once, through the row's actions. */
+  async function saveEdit() {
+    if (!item || !actions || !dirty) return
+    setSaving(true)
+    const saved = await actions.onSave(body)
+    setSaving(false)
+    if (saved) onOpenChange(false)
   }
 
   const formError =
@@ -831,7 +833,8 @@ export function ManualTransactionSheet({
     labelError ??
     (voucherOver ? 'over' : null) ??
     (!bank && !paidBy && !paidByOther && !accountId ? 'account' : null) ??
-    (shareError ? 'share' : null) ??
+    (shareError || editShareError ? 'share' : null) ??
+    (editSplitError ? 'split' : null) ??
     (transferAdd && !toAccountId ? 'to' : null)
 
   // "Suivant" (and Enter) moves on; the last step adds, back
@@ -861,7 +864,12 @@ export function ManualTransactionSheet({
     if (amountError) return setStep('amount')
     if (dateError) return setStep('details')
     if (labelError) return setStep('options')
-    if (shareError) return setStep('options')
+    if (shareError || editShareError) {
+      setDetour(null)
+      return setStep('options')
+    }
+    // Its screen says what is wrong.
+    if (editSplitError) return setDetour('split')
     if (formError) return
     if (editing) {
       if (dirty) void saveEdit()
@@ -894,7 +902,16 @@ export function ManualTransactionSheet({
           : `Un revenu rendu : déduit de ${chosenCategory?.name ?? 'ses revenus'}`
         : null
   const categoryText = split
-    ? [...new Set(item!.splits.map((part) => part.category.name))].join(', ')
+    ? [
+        ...new Set(
+          draft!.splits.map(
+            (part) =>
+              categories.data?.find(
+                (category) => category.id === part.categoryId,
+              )?.name ?? '…',
+          ),
+        ),
+      ].join(', ')
     : (chosenCategory?.name ?? (allowNoCategory ? 'Sans catégorie' : null))
   const shownLabel = bank ? displayLabel(item) : label.trim() || null
   const amountText = transferAdd
@@ -1078,13 +1095,18 @@ export function ManualTransactionSheet({
     />
   )
 
+  /**
+   * A screen of adding (who paid, who shares it, my part) or of an edit's
+   * options: both have a « share », told apart by what the sheet does.
+   */
+  const addDetour = detour !== null && !editing && isAddDetour(detour)
   const bar = detour ? (
     <SheetBar
       titleRef={stepRef}
       title={
-        isAddDetour(detour)
+        addDetour
           ? ADD_DETOUR_TITLES[detour]
-          : detourTitle(detour, item!)
+          : detourTitle(detour as EditDetour, preview ?? item!)
       }
       onBack={() => setDetour(null)}
       backLabel={
@@ -1179,8 +1201,21 @@ export function ManualTransactionSheet({
       className="flex min-h-0 flex-1 flex-col"
     >
       {bar}
+      {editing && dirty && (
+        // Said on every step and screen until ✓ or ✕ (#435).
+        <p
+          role="status"
+          className="text-muted-foreground flex shrink-0 items-center justify-center gap-1.5 border-b px-4 py-1.5 text-[13px]"
+        >
+          <span
+            aria-hidden
+            className="size-[8px] shrink-0 rounded-full bg-amber-500"
+          />
+          Modifications non enregistrées
+        </p>
+      )}
 
-      {detour && isAddDetour(detour) && (
+      {addDetour && (
         <div
           data-sheet-scroll=""
           className="@container min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pt-3 pb-6"
@@ -1243,16 +1278,20 @@ export function ManualTransactionSheet({
         </div>
       )}
 
-      {detour && !isAddDetour(detour) && item && actions && (
+      {detour && !addDetour && item && preview && draft && (
         <div
           data-sheet-scroll=""
           className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pt-3 pb-6"
         >
           <EditDetourScreen
-            detour={detour}
-            item={item}
+            detour={detour as EditDetour}
+            item={preview}
+            saved={item}
             categories={categories.data ?? []}
-            actions={actions}
+            draft={draft}
+            initial={initialDraft ?? draft}
+            showErrors={submitted}
+            onDraftChange={setDraft}
             onDone={() => setDetour(null)}
           />
         </div>
@@ -1603,10 +1642,12 @@ export function ManualTransactionSheet({
             )}
           </div>
 
-          {legacyCorrected && actions && (
+          {legacyCorrected && draft && (
             <div className="bg-muted/40 space-y-2 rounded-md px-3 py-2.5">
               <p className="text-muted-foreground text-sm">
-                Corrigée à la main avant : la banque dit{' '}
+                {draft.restoreBank
+                  ? 'Les valeurs de la banque seront rétablies à l’enregistrement : '
+                  : 'Corrigée à la main avant : la banque dit '}
                 {formatCents(item.originalAmountCents ?? item.amountCents)} le{' '}
                 {formatCalendarDate(
                   item.originalBookingDate ?? item.bookingDate,
@@ -1617,12 +1658,13 @@ export function ManualTransactionSheet({
                 type="button"
                 variant="secondary"
                 outline
-                onClick={() => {
-                  actions.onRestoreBank()
-                  onOpenChange(false)
-                }}
+                onClick={() =>
+                  setDraft({ ...draft, restoreBank: !draft.restoreBank })
+                }
               >
-                Rétablir les valeurs de la banque
+                {draft.restoreBank
+                  ? 'Garder la correction'
+                  : 'Rétablir les valeurs de la banque'}
               </Button>
             </div>
           )}
@@ -1664,12 +1706,21 @@ export function ManualTransactionSheet({
             </div>
           )}
 
-          {item && actions && (
+          {item && preview && draft && (
             <div className="space-y-2">
               <p className="text-muted-foreground px-1 text-xs font-semibold tracking-wide uppercase">
                 Cette opération
               </p>
-              <EditOptionRows item={item} onOpen={setDetour} />
+              <EditOptionRows
+                item={preview}
+                saved={item}
+                draft={draft}
+                onOpen={setDetour}
+                onLeave={leave}
+              />
+              {submitted && editShareError && (
+                <FieldError>Les parts dépassent la dépense.</FieldError>
+              )}
             </div>
           )}
 
@@ -1740,7 +1791,7 @@ export function ManualTransactionSheet({
   return (
     <>
       {isMobile ? (
-        <Sheet open={open} onOpenChange={onOpenChange}>
+        <Sheet open={open} onOpenChange={requestClose}>
           <SheetContent
             side="screen"
             onKeyDown={onKeyDown}
@@ -1762,7 +1813,7 @@ export function ManualTransactionSheet({
           </SheetContent>
         </Sheet>
       ) : (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={requestClose}>
           <DialogContent
             className="flex h-[min(34rem,calc(100svh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
             onKeyDown={onKeyDown}
@@ -1774,6 +1825,24 @@ export function ManualTransactionSheet({
             {form}
           </DialogContent>
         </Dialog>
+      )}
+      {editing && (
+        <ConfirmDialog
+          open={discardOpen}
+          onOpenChange={setDiscardOpen}
+          title="Abandonner les modifications ?"
+          description="Ce que vous avez changé n’est pas enregistré : l’opération reste comme avant."
+          confirmLabel="Abandonner"
+          cancelLabel="Continuer"
+          variant="danger"
+          onConfirm={() => {
+            const go = afterDiscard.current
+            afterDiscard.current = null
+            setDiscardOpen(false)
+            onOpenChange(false)
+            go?.()
+          }}
+        />
       )}
       {item?.manual && (
         <ConfirmDialog

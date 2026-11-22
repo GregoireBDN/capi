@@ -553,9 +553,7 @@ export function TransactionsPage({
                   }),
                 onUpdateManual: (changes) =>
                   actions.updateManual(item, changes),
-                onRestoreBank: () => void actions.restoreBank(item),
-                onSplit: (parts) => void actions.split(item, parts),
-                onUnsplit: () => void actions.unsplit(item),
+                onSave: (edit) => actions.saveEdit(item, edit),
               })}
               onValidate={
                 reviewing

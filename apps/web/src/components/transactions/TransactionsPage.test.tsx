@@ -41,6 +41,7 @@ const api = vi.hoisted(() => ({
   transactionsControllerSplit: vi.fn(),
   transactionsControllerUnsplit: vi.fn(),
   transactionsControllerRestoreBankValues: vi.fn(),
+  transactionEditControllerSave: vi.fn(),
   categorizationRulesControllerSuggest: vi.fn(),
   categorizationRulesControllerPreview: vi.fn(),
   categorizationRulesControllerCreate: vi.fn(),
@@ -79,7 +80,8 @@ vi.mock('@tanstack/react-router', () => ({
   }) => {
     const query = new URLSearchParams(search).toString()
     return <a href={query ? `${to}?${query}` : to}>{children}</a>
-  },
+  }, // The editor's « Je dois à … » leaves for the contact's page (#435).
+  useNavigate: () => vi.fn(),
 }))
 
 /** Testing Library collapses the narrow no-break spaces `Intl` emits. */
@@ -223,6 +225,34 @@ function currentStepOf(editor: HTMLElement): string {
       .getAllByRole('button')
       .find((button) => button.getAttribute('aria-current') === 'step')
       ?.getAttribute('aria-label') ?? ''
+  )
+}
+
+/**
+ * The editor's one save (#435) answering `row` with its `changes` applied
+ * (the category given back from the list), as the API would.
+ */
+function savesOnto(row: TransactionDto) {
+  api.transactionEditControllerSave.mockImplementation(
+    ({ body }: { body: { changes?: Partial<TransactionDto> } }) => {
+      const changes = body.changes ?? {}
+      const filed =
+        changes.categoryId === undefined
+          ? row.category
+          : (categories.find((c) => c.id === changes.categoryId) ?? null)
+      return ok({
+        ...row,
+        ...changes,
+        ...(filed ? { kind: filed.kind } : {}),
+        category: filed ? { ...filed } : null,
+        ...(changes.categoryId ? { needsReview: false } : {}),
+        counterpartAccountName:
+          changes.counterpartAccountId === undefined
+            ? row.counterpartAccountName
+            : (accounts.find((a) => a.id === changes.counterpartAccountId)
+                ?.name ?? null),
+      })
+    },
   )
 }
 
@@ -801,34 +831,28 @@ describe('TransactionsPage', () => {
   it('recategorizes a row, offers a rule and undoes', async () => {
     const { user } = setup()
     await waitForRows()
-    api.transactionsControllerUpdate.mockReturnValue(
-      ok({
-        ...shopRow,
-        categoryId: groceries.id,
-        category: { ...groceries },
-        needsReview: false,
-      }),
-    )
+    savesOnto(shopRow)
 
     await user.click(screen.getByRole('button', { name: 'Modifier Fakemart' }))
     const editor = await screen.findByRole('dialog')
     // The editor (#398): the add steps, filled in; the category on step 1.
     await user.click(within(editor).getByRole('button', { name: /^1\. / }))
     await pickCategory(user, 'Courses')
-    // Back on the options; ✓ saves.
+    // Back on the options; nothing saved before ✓ (#435).
+    expect(api.transactionEditControllerSave).not.toHaveBeenCalled()
     expect(api.transactionsControllerUpdate).not.toHaveBeenCalled()
     await user.click(
       within(editor).getByRole('button', { name: 'Enregistrer' }),
     )
 
-    expect(api.transactionsControllerUpdate).toHaveBeenCalledWith({
+    expect(api.transactionEditControllerSave).toHaveBeenCalledWith({
       path: { id: shopRow.id },
-      body: { categoryId: groceries.id },
+      body: { changes: { categoryId: groceries.id } },
       throwOnError: false,
     })
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(
-        'Classée dans « Courses »',
+        'Opération enregistrée',
         expect.objectContaining({ description: 'Fakemart' }),
       ),
     )
@@ -859,16 +883,13 @@ describe('TransactionsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Annuler' }))
 
     // Undo restores the previous state (uncategorized, in review).
-    api.transactionsControllerUpdate.mockReturnValue(ok(shopRow))
+    api.transactionEditControllerSave.mockReturnValue(ok(shopRow))
     lastToastAction().onClick()
     await waitFor(() =>
-      expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith({
+      expect(api.transactionEditControllerSave).toHaveBeenLastCalledWith({
         path: { id: shopRow.id },
         body: {
-          categoryId: null,
-          kind: 'expense',
-          isOneOff: false,
-          needsReview: true,
+          changes: { categoryId: null, kind: 'expense', needsReview: true },
         },
         throwOnError: false,
       }),
@@ -887,13 +908,7 @@ describe('TransactionsPage', () => {
     const { user } = setup()
     await waitForRows()
     const pea = accounts[1]
-    api.transactionsControllerUpdate.mockReturnValue(
-      ok({
-        ...transferRow,
-        counterpartAccountId: pea.id,
-        counterpartAccountName: pea.name,
-      }),
-    )
+    savesOnto(transferRow)
 
     await user.click(
       screen.getByRole('button', { name: 'Modifier VIR LIVRET TEST' }),
@@ -910,22 +925,19 @@ describe('TransactionsPage', () => {
     ).toEqual(['PEA test', 'Aucun'])
     await user.click(within(choices).getByRole('radio', { name: 'PEA test' }))
 
-    expect(api.transactionsControllerUpdate).toHaveBeenCalledWith({
-      path: { id: transferRow.id },
-      body: { counterpartAccountId: pea.id },
-      throwOnError: false,
-    })
-    await waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith(
-        'Vers PEA test',
-        expect.anything(),
-      ),
-    )
-    // Back on the options, which show the link.
+    // Back on the options, which show the link, not saved yet (#435).
     expect(
       within(editor).getByRole('button', { name: /^Vers/ }),
     ).toHaveTextContent('PEA test')
-    await user.keyboard('{Escape}')
+    expect(api.transactionEditControllerSave).not.toHaveBeenCalled()
+    await user.click(
+      within(editor).getByRole('button', { name: 'Enregistrer' }),
+    )
+    expect(api.transactionEditControllerSave).toHaveBeenCalledWith({
+      path: { id: transferRow.id },
+      body: { changes: { counterpartAccountId: pea.id } },
+      throwOnError: false,
+    })
     await waitFor(() =>
       expect(
         screen
@@ -938,9 +950,7 @@ describe('TransactionsPage', () => {
   it('edits in the four steps of adding, the kind with its tiles (#398)', async () => {
     const { user } = setup()
     await waitForRows()
-    api.transactionsControllerUpdate.mockImplementation(
-      ({ body }: { body: object }) => ok({ ...shopRow, ...body }),
-    )
+    savesOnto(shopRow)
 
     await user.click(screen.getByRole('button', { name: 'Modifier Fakemart' }))
     const editor = await screen.findByRole('dialog')
@@ -995,17 +1005,15 @@ describe('TransactionsPage', () => {
     await user.click(
       within(editor).getByRole('button', { name: 'Enregistrer' }),
     )
-    expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
-      expect.objectContaining({ body: { kind: 'income' } }),
+    expect(api.transactionEditControllerSave).toHaveBeenLastCalledWith(
+      expect.objectContaining({ body: { changes: { kind: 'income' } } }),
     )
   })
 
   it('changes the type of a categorized row by choosing a category of it (#368)', async () => {
     const { user } = setup()
     await waitForRows()
-    api.transactionsControllerUpdate.mockImplementation(
-      ({ body }: { body: object }) => ok({ ...transferRow, ...body }),
-    )
+    savesOnto(transferRow)
 
     await user.click(
       screen.getByRole('button', { name: 'Modifier VIR LIVRET TEST' }),
@@ -1016,7 +1024,7 @@ describe('TransactionsPage', () => {
       within(editor).getByRole('button', { name: /^Classer en dépense/ }),
     )
     // No request yet: the categories of that kind, and only them.
-    expect(api.transactionsControllerUpdate).not.toHaveBeenCalled()
+    expect(api.transactionEditControllerSave).not.toHaveBeenCalled()
     expect(
       within(editor).queryByRole('radio', { name: /^Épargne/ }),
     ).not.toBeInTheDocument()
@@ -1024,17 +1032,17 @@ describe('TransactionsPage', () => {
     await user.click(
       within(editor).getByRole('button', { name: 'Enregistrer' }),
     )
-    expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
-      expect.objectContaining({ body: { categoryId: groceries.id } }),
+    expect(api.transactionEditControllerSave).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        body: { changes: { categoryId: groceries.id } },
+      }),
     )
   })
 
   it('or leaves a categorized row without a category, with the new kind (#368)', async () => {
     const { user } = setup()
     await waitForRows()
-    api.transactionsControllerUpdate.mockImplementation(
-      ({ body }: { body: object }) => ok({ ...transferRow, ...body }),
-    )
+    savesOnto(transferRow)
 
     await user.click(
       screen.getByRole('button', { name: 'Modifier VIR LIVRET TEST' }),
@@ -1050,8 +1058,10 @@ describe('TransactionsPage', () => {
     await user.click(
       within(editor).getByRole('button', { name: 'Enregistrer' }),
     )
-    expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
-      expect.objectContaining({ body: { categoryId: null, kind: 'income' } }),
+    expect(api.transactionEditControllerSave).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        body: { changes: { categoryId: null, kind: 'income' } },
+      }),
     )
   })
 
@@ -1073,10 +1083,10 @@ describe('TransactionsPage', () => {
     ).toBeDisabled()
   })
 
-  it('rolls an edit back when the API refuses it', async () => {
+  it('saves nothing and keeps the editor open when the API refuses it', async () => {
     const { user } = setup()
     await waitForRows()
-    api.transactionsControllerUpdate.mockReturnValue(failed())
+    api.transactionEditControllerSave.mockReturnValue(failed())
 
     await user.click(screen.getByRole('button', { name: 'Modifier Fakemart' }))
     const editor = await screen.findByRole('dialog')
@@ -1092,21 +1102,24 @@ describe('TransactionsPage', () => {
     )
 
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith(
-        'La modification n’a pas pu être enregistrée.',
-      ),
+      expect(toast.error).toHaveBeenCalledWith(expect.any(String), {
+        description: 'Rien n’a été enregistré.',
+      }),
+    )
+    // The draft stays to try again or drop (#435).
+    expect(screen.getByRole('dialog')).toHaveTextContent(
+      'Modifications non enregistrées',
     )
     expect(
-      screen.getByRole('listitem', { name: 'Fakemart' }),
+      // Behind the editor, still open.
+      screen.getByRole('listitem', { name: 'Fakemart', hidden: true }),
     ).not.toHaveTextContent('Exceptionnelle')
   })
 
   it('saves a note and marks a row reviewed from the editor', async () => {
     const { user } = setup()
     await waitForRows()
-    api.transactionsControllerUpdate.mockImplementation(
-      ({ body }: { body: object }) => ok({ ...shopRow, ...body }),
-    )
+    savesOnto(shopRow)
 
     await user.click(screen.getByRole('button', { name: 'Modifier Fakemart' }))
     const editor = await screen.findByRole('dialog')
@@ -1117,18 +1130,18 @@ describe('TransactionsPage', () => {
     await user.click(within(editor).getByRole('switch', { name: /À revoir/ }))
     await user.type(within(editor).getByLabelText('Note'), 'Cadeau')
     // Nothing is sent before ✓, then one request for both.
-    expect(api.transactionsControllerUpdate).not.toHaveBeenCalled()
+    expect(api.transactionEditControllerSave).not.toHaveBeenCalled()
     await user.click(
       within(editor).getByRole('button', { name: 'Enregistrer' }),
     )
-    expect(api.transactionsControllerUpdate).toHaveBeenLastCalledWith(
+    expect(api.transactionEditControllerSave).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        body: { needsReview: false, note: 'Cadeau' },
+        body: { changes: { needsReview: false, note: 'Cadeau' } },
       }),
     )
     await waitFor(() =>
       expect(toast.success).toHaveBeenLastCalledWith(
-        'Opération validée',
+        'Opération enregistrée',
         expect.anything(),
       ),
     )
@@ -1665,18 +1678,20 @@ describe('TransactionsPage', () => {
     it('splits a transaction between categories and undoes it', async () => {
       const { user } = setup()
       await waitForRows()
-      api.transactionsControllerSplit.mockImplementation(
+      api.transactionEditControllerSave.mockImplementation(
         ({
-          body,
+          body: { split },
         }: {
-          body: { parts: { categoryId: string; amountCents: number }[] }
+          body: {
+            split: { parts: { categoryId: string; amountCents: number }[] }
+          }
         }) =>
           ok({
             ...shopRow,
             categoryId: groceries.id,
             category: { ...groceries },
             needsReview: false,
-            splits: body.parts.map((part, index) => ({
+            splits: split.parts.map((part, index) => ({
               id: `s000000${index}-0000-4000-8000-000000000000`,
               ...part,
               kind: 'expense' as const,
@@ -1698,7 +1713,7 @@ describe('TransactionsPage', () => {
       await user.click(
         within(editor).getByRole('button', { name: /^Répartir/ }),
       )
-      const form = within(editor).getByRole('form', {
+      const form = within(editor).getByRole('group', {
         name: 'Répartir entre catégories',
       })
       // The whole amount starts in the first part.
@@ -1724,56 +1739,53 @@ describe('TransactionsPage', () => {
         '15,5',
       )
       expect(form).toHaveTextContent('Tout est réparti')
+      // Kept as typed (#435): ‹ back to the options, nothing to validate.
       await user.click(
-        within(form).getByRole('button', {
-          name: 'Enregistrer la répartition',
-        }),
+        within(editor).getByRole('button', { name: 'Retour aux options' }),
       )
 
-      await waitFor(() =>
-        expect(api.transactionsControllerSplit).toHaveBeenCalledWith({
-          path: { id: shopRow.id },
-          body: {
-            parts: [
-              { categoryId: groceries.id, amountCents: -3_000 },
-              { categoryId: household.id, amountCents: -1_550 },
-            ],
-          },
-          throwOnError: false,
-        }),
-      )
-      // Back on the options of the editor, which shows the split.
+      // Back on the options of the editor, which shows the split, unsaved.
       await waitFor(() =>
         expect(
           within(editor).getByRole('button', { name: /^Répartition/ }),
         ).toHaveTextContent('Courses, Maison'),
       )
-      await user.keyboard('{Escape}')
+      expect(api.transactionEditControllerSave).not.toHaveBeenCalled()
+      await user.click(
+        within(editor).getByRole('button', { name: 'Enregistrer' }),
+      )
+      await waitFor(() =>
+        expect(api.transactionEditControllerSave).toHaveBeenCalledWith({
+          path: { id: shopRow.id },
+          body: {
+            split: {
+              parts: [
+                { categoryId: groceries.id, amountCents: -3_000 },
+                { categoryId: household.id, amountCents: -1_550 },
+              ],
+            },
+          },
+          throwOnError: false,
+        }),
+      )
       await waitFor(() =>
         expect(
           screen.getByRole('listitem', { name: 'Fakemart' }),
         ).toHaveTextContent('Courses, Maison'),
       )
 
-      // Undo: no split any more, and the row back as it was.
-      api.transactionsControllerUnsplit.mockReturnValue(ok(shopRow))
-      api.transactionsControllerUpdate.mockReturnValue(ok(shopRow))
+      // Undo: no split any more, and the row back as it was, in one save.
+      api.transactionEditControllerSave.mockReturnValue(ok(shopRow))
       lastToastAction().onClick()
       await waitFor(() =>
-        expect(api.transactionsControllerUnsplit).toHaveBeenCalledWith({
+        expect(api.transactionEditControllerSave).toHaveBeenLastCalledWith({
           path: { id: shopRow.id },
+          body: {
+            changes: { categoryId: null, kind: 'expense', needsReview: true },
+            split: null,
+          },
           throwOnError: false,
         }),
-      )
-      await waitFor(() =>
-        expect(api.transactionsControllerUpdate).toHaveBeenCalledWith(
-          expect.objectContaining({
-            body: expect.objectContaining({
-              categoryId: null,
-              needsReview: true,
-            }),
-          }),
-        ),
       )
     })
 
@@ -1791,7 +1803,7 @@ describe('TransactionsPage', () => {
       await user.click(
         within(editor).getByRole('button', { name: /^Répartir/ }),
       )
-      const form = within(editor).getByRole('form', {
+      const form = within(editor).getByRole('group', {
         name: 'Répartir entre catégories',
       })
       await chooseCategory(
@@ -1805,15 +1817,25 @@ describe('TransactionsPage', () => {
         household.name,
       )
       await user.type(within(form).getByLabelText('Montant de la part 2'), '1')
+      // Back on the options it is « À compléter », and ✓ brings its screen
+      // back with what is wrong, saving nothing (#435).
       await user.click(
-        within(form).getByRole('button', {
-          name: 'Enregistrer la répartition',
-        }),
+        within(editor).getByRole('button', { name: 'Retour aux options' }),
       )
-      expect(form).toHaveTextContent(
+      expect(
+        within(editor).getByRole('button', { name: /^Répartition/ }),
+      ).toHaveTextContent('À compléter')
+      await user.click(
+        within(editor).getByRole('button', { name: 'Enregistrer' }),
+      )
+      expect(
+        within(editor).getByRole('group', {
+          name: 'Répartir entre catégories',
+        }),
+      ).toHaveTextContent(
         'Les parts doivent faire exactement le montant de l’opération',
       )
-      expect(api.transactionsControllerSplit).not.toHaveBeenCalled()
+      expect(api.transactionEditControllerSave).not.toHaveBeenCalled()
     })
 
     it('keeps the bank amount and date of an imported row (#398)', async () => {
@@ -1850,7 +1872,7 @@ describe('TransactionsPage', () => {
       api.transactionsControllerList.mockReturnValue(listOf([corrected]))
       const { user } = setup()
       await screen.findByRole('button', { name: 'Modifier Fakemart' })
-      api.transactionsControllerRestoreBankValues.mockReturnValue(ok(shopRow))
+      api.transactionEditControllerSave.mockReturnValue(ok(shopRow))
       await user.click(
         screen.getByRole('button', { name: 'Modifier Fakemart' }),
       )
@@ -1863,13 +1885,27 @@ describe('TransactionsPage', () => {
           name: 'Rétablir les valeurs de la banque',
         }),
       )
+      // In the draft until ✓ (#435), and back with « Garder la correction ».
+      expect(editor).toHaveTextContent(
+        'Les valeurs de la banque seront rétablies à l’enregistrement',
+      )
+      expect(api.transactionEditControllerSave).not.toHaveBeenCalled()
+      await user.click(
+        within(editor).getByRole('button', { name: 'Enregistrer' }),
+      )
       await waitFor(() =>
-        expect(
-          api.transactionsControllerRestoreBankValues,
-        ).toHaveBeenCalledWith({
+        expect(api.transactionEditControllerSave).toHaveBeenCalledWith({
           path: { id: shopRow.id },
+          body: { restoreBankValues: true },
           throwOnError: false,
         }),
+      )
+      // The bank values cannot be corrected again: no « Annuler ».
+      await waitFor(() =>
+        expect(toast.success).toHaveBeenLastCalledWith(
+          'Opération enregistrée',
+          { description: 'Fakemart' },
+        ),
       )
     })
 
