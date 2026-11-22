@@ -14,6 +14,7 @@ import {
   transactionSplitsTable,
   transactionsTable,
 } from '#/database/schema'
+import { RecurringService } from '#/recurring/recurring.service'
 import { BudgetsService } from './budgets.service'
 import { bankRows } from '#/transactions/testing/bank-rows'
 
@@ -822,6 +823,100 @@ describe.skipIf(!process.env.DATABASE_URL)('BudgetsService (database)', () => {
         })
         expect((await service.month('2026-10')).items[0].prepaid).toEqual([])
       })
+    })
+
+    it('leaves a confirmed yearly or quarterly charge out like a prepaid one (#439)', async () => {
+      await withFixture(
+        async ({ tx, service, checking, leisure, groceries }) => {
+          const recurring = new RecurringService({ db: tx } as never)
+          await service.upsert(leisure, '2026-01', {
+            monthlyTargetCents: 4_500,
+          })
+          await service.upsert(groceries, '2026-01', {
+            monthlyTargetCents: 12_000,
+          })
+          await insert(tx, [
+            // 40 € of leisure and 100 € of groceries a month.
+            ...['2026-08-20', '2026-09-20', '2026-10-20'].flatMap(
+              (bookingDate) => [
+                transaction(checking, {
+                  categoryId: leisure,
+                  bookingDate,
+                  amountCents: -4_000,
+                }),
+                transaction(checking, {
+                  categoryId: groceries,
+                  bookingDate,
+                  amountCents: -10_000,
+                }),
+              ],
+            ),
+            // A yearly fee of 120 € in leisure, 12 months apart.
+            ...['2025-09-07', '2026-09-07'].map((bookingDate) =>
+              transaction(checking, {
+                categoryId: leisure,
+                bookingDate,
+                amountCents: -12_000,
+                rawLabel: 'PRLV SEPA CLUB ANNUEL EXEMPLE',
+              }),
+            ),
+            // A quarterly bill of 90 € in groceries.
+            ...['2026-04-05', '2026-07-05', '2026-10-05'].map((bookingDate) =>
+              transaction(checking, {
+                categoryId: groceries,
+                bookingDate,
+                amountCents: -9_000,
+                rawLabel: 'PRLV SEPA PANIER TRIMESTRIEL EXEMPLE',
+              }),
+            ),
+          ])
+          await recurring.detect('2026-11-06')
+          const suggested = await recurring.list('suggested', '2026-11-06')
+          expect(suggested.map((i) => i.cadence).sort()).toEqual([
+            'quarterly',
+            'yearly',
+          ])
+          await recurring.confirm(
+            suggested.map((i) => i.id),
+            '2026-11-06',
+          )
+
+          // The averages are those of the months without the charges.
+          const suggestion = await service.suggest('2026-11', 3)
+          expect(suggestion.items).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                categoryId: leisure,
+                averageCents: 4_000,
+              }),
+              expect.objectContaining({
+                categoryId: groceries,
+                averageCents: 10_000,
+              }),
+            ]),
+          )
+          // The month of the charge still counts it, once, and names it.
+          const september = await service.month('2026-09')
+          expect(
+            september.items.find((i) => i.categoryId === leisure),
+          ).toMatchObject({
+            spentCents: 16_000,
+            spentExcludingOneOffsCents: 4_000,
+            prepaid: [
+              expect.objectContaining({ amountCents: 12_000, termMonths: 12 }),
+            ],
+          })
+          const october = await service.month('2026-10')
+          expect(
+            october.items.find((i) => i.categoryId === groceries),
+          ).toMatchObject({
+            spentCents: 19_000,
+            prepaid: [
+              expect.objectContaining({ amountCents: 9_000, termMonths: 3 }),
+            ],
+          })
+        },
+      )
     })
 
     it('does not dilute a short history with empty months', async () => {

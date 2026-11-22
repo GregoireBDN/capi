@@ -25,6 +25,7 @@ import { alias } from 'drizzle-orm/pg-core'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type { CategoryIcon } from '#/categories/category-icons'
 import type { TransactionKind } from '#/database/schema/domain-enums'
+import { prepaidSuggestions } from '#/recurring/prepaid-suggestions'
 import { DatabaseService } from '#/database/database.service'
 import * as schema from '#/database/schema'
 import {
@@ -245,12 +246,18 @@ export class TransactionsService {
         .offset((page - 1) * limit),
       executor.select({ total: count() }).from(transactionsTable).where(where),
     ])
-    return {
-      items: await this.withSplits(rows, executor),
-      total,
-      page,
-      limit,
+    const items = await this.withSplits(rows, executor)
+    // « Prépayé 12 mois ? » on the large debits to review (#439).
+    const toReview = items.filter(
+      (item) => item.needsReview && !item.splits.length,
+    )
+    if (toReview.length > 0) {
+      const suggestions = await prepaidSuggestions(executor, toReview)
+      for (const item of toReview) {
+        item.prepaidSuggestion = suggestions.get(item.id) ?? null
+      }
     }
+    return { items, total, page, limit }
   }
 
   /**

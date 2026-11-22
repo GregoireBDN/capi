@@ -196,7 +196,9 @@ export function EditOptionRows({
         value={
           item.prepaidItemId && item.prepaidTermMonths
             ? `${item.prepaidTermMonths} mois`
-            : 'Non'
+            : item.prepaidSuggestion
+              ? `${item.prepaidSuggestion.termMonths} mois ?`
+              : 'Non'
         }
         onClick={() => onOpen('prepaid')}
       />

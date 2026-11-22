@@ -14,6 +14,7 @@ import {
   isNotNull,
   isNull,
   lt,
+  lte,
   ne,
 } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -22,6 +23,8 @@ import { isBankAccount } from '#/accounts/accounts.service'
 import { CategorizationRulesService } from '#/categories/categorization-rules.service'
 import { defaultKind } from '#/categories/rules/categorize'
 import { DatabaseService } from '#/database/database.service'
+import { PREPAID_SUGGESTION_MIN_CENTS } from '#/recurring/prepaid'
+import { prepaidSuggestions } from '#/recurring/prepaid-suggestions'
 import * as schema from '#/database/schema'
 import {
   accountsTable,
@@ -342,6 +345,7 @@ export class ImportsService {
       await this.settleManualExpenses(tx, record, manual, replaced)
       // The other side of a transfer between two cash accounts (#296).
       await linkMatchingTransfers(tx, insertedIds)
+      await this.flagYearlyFees(tx, insertedIds)
 
       const previewDuplicates = rows.filter(
         (row) => row.status === 'duplicate',
@@ -561,6 +565,42 @@ export class ImportsService {
           ),
         ),
       )
+  }
+
+  /**
+   * Flags for review the new large debits whose merchant was charged once
+   * about a year before (#439): a yearly fee's second charge, offered as
+   * « Prépayé 12 mois ? » in the review queue.
+   */
+  private async flagYearlyFees(tx: Tx, insertedIds: string[]): Promise<void> {
+    if (insertedIds.length === 0) return
+    const rows = await tx
+      .select({
+        id: transactionsTable.id,
+        accountId: transactionsTable.accountId,
+        bookingDate: transactionsTable.bookingDate,
+        amountCents: transactionsTable.amountCents,
+        rawLabel: transactionsTable.rawLabel,
+        kind: transactionsTable.kind,
+        prepaidItemId: transactionsTable.prepaidItemId,
+      })
+      .from(transactionsTable)
+      .where(
+        and(
+          inArray(transactionsTable.id, insertedIds),
+          eq(transactionsTable.kind, 'expense'),
+          lte(transactionsTable.amountCents, -PREPAID_SUGGESTION_MIN_CENTS),
+        ),
+      )
+    const suggestions = await prepaidSuggestions(tx, rows)
+    const renewals = [...suggestions]
+      .filter(([, suggestion]) => suggestion.kind === 'renewal')
+      .map(([id]) => id)
+    if (renewals.length === 0) return
+    await tx
+      .update(transactionsTable)
+      .set({ needsReview: true })
+      .where(inArray(transactionsTable.id, renewals))
   }
 
   /**

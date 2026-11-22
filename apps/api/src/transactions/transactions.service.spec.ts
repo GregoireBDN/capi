@@ -342,6 +342,68 @@ describe.skipIf(!process.env.DATABASE_URL)(
         })
       })
 
+      it('offers « Prépayé 12 mois ? » on large debits to review (#439)', async () => {
+        await withFixture(async ({ tx, service, checking }) => {
+          const CLUB = 'PRLV SEPA CLUB ANNUEL EXEMPLE'
+          const GYM = 'PRLV SEPA SALLE MENSUELLE EXEMPLE'
+          const one = async (overrides: Partial<InsertTransaction>) =>
+            (await insert(tx, [transaction(checking, overrides)]))[0]
+          await one({
+            rawLabel: CLUB,
+            bookingDate: '2025-10-07',
+            amountCents: -9_000,
+          })
+          for (const bookingDate of ['2026-08-03', '2026-09-03']) {
+            await one({ rawLabel: GYM, bookingDate, amountCents: -6_000 })
+          }
+          const renewal = await one({
+            rawLabel: CLUB,
+            bookingDate: '2026-10-09',
+            amountCents: -9_500,
+            needsReview: true,
+          })
+          const first = await one({
+            rawLabel: 'PRLV SEPA ANTIVIRUS EXEMPLE',
+            bookingDate: '2026-10-12',
+            amountCents: -6_000,
+            needsReview: true,
+          })
+          const small = await one({
+            rawLabel: 'PRLV SEPA DOMAINE EXEMPLE',
+            bookingDate: '2026-10-13',
+            amountCents: -1_200,
+            needsReview: true,
+          })
+          const monthly = await one({
+            rawLabel: GYM,
+            bookingDate: '2026-10-03',
+            amountCents: -6_000,
+            needsReview: true,
+          })
+          const notToReview = await one({
+            rawLabel: 'PRLV SEPA TELEVISEUR EXEMPLE',
+            bookingDate: '2026-10-14',
+            amountCents: -60_000,
+          })
+          const { items } = await service.list({ limit: 50 })
+          const byId = new Map(items.map((item) => [item.id, item]))
+          expect(byId.get(renewal.id)!.prepaidSuggestion).toEqual({
+            kind: 'renewal',
+            termMonths: 12,
+            earlierOn: '2025-10-07',
+          })
+          expect(byId.get(first.id)!.prepaidSuggestion).toEqual({
+            kind: 'first',
+            termMonths: 12,
+            earlierOn: null,
+          })
+          // Small, charged every month, or not to review.
+          expect(byId.get(small.id)!.prepaidSuggestion).toBeNull()
+          expect(byId.get(monthly.id)!.prepaidSuggestion).toBeNull()
+          expect(byId.get(notToReview.id)!.prepaidSuggestion).toBeUndefined()
+        })
+      })
+
       it('rejects categoryId combined with uncategorized', async () => {
         await withFixture(async ({ service, groceries }) => {
           await expect(

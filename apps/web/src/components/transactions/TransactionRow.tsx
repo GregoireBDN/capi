@@ -32,6 +32,10 @@ import {
   secondaryLabel,
 } from './labels'
 import { othersPartCents } from '#/components/owed/shares'
+import {
+  PrepaidSuggestionButton,
+  prepaidSuggestionText,
+} from '#/components/subscriptions/PrepaidSuggestionButton'
 import type { TransactionEditActions } from './edit-options'
 
 /**
@@ -43,11 +47,14 @@ const ROW_COLUMNS =
   '@xl:grid @xl:grid-cols-[2rem_minmax(0,1fr)_11rem_7.5rem] @xl:items-center @xl:gap-3'
 const ROW_COLUMNS_WITH_ACCOUNT =
   '@2xl:grid-cols-[2rem_minmax(0,1fr)_11rem_8rem_7.5rem]'
-/** The same with « Valider » last, while « À revoir » is filtered (#322). */
+/**
+ * The same with « Valider » last, while « À revoir » is filtered (#322),
+ * after « Prépayé 12 mois ? » on a large debit (#439).
+ */
 const REVIEW_ROW_COLUMNS =
-  '@xl:grid-cols-[2rem_minmax(0,1fr)_11rem_7.5rem_6.5rem]'
+  '@xl:grid-cols-[2rem_minmax(0,1fr)_11rem_7.5rem_8.5rem]'
 const REVIEW_ROW_COLUMNS_WITH_ACCOUNT =
-  '@2xl:grid-cols-[2rem_minmax(0,1fr)_11rem_8rem_7.5rem_6.5rem]'
+  '@2xl:grid-cols-[2rem_minmax(0,1fr)_11rem_8rem_7.5rem_8.5rem]'
 /**
  * The review action: a 44px icon on narrow pages (the label keeps its
  * room), its name beside the icon in the wide row.
@@ -318,6 +325,12 @@ export function TransactionRow({
             À revoir
           </span>
         )}
+        {/* What the action beside « Valider » answers (#439). */}
+        {item.needsReview && onValidate && item.prepaidSuggestion && (
+          <span className="text-foreground rounded-full border px-1.5 text-[0.7rem] font-medium whitespace-nowrap">
+            {prepaidSuggestionText(item)}
+          </span>
+        )}
         <Flags item={item} />
       </span>
     </button>
@@ -433,7 +446,10 @@ export function TransactionRow({
       </span>
 
       {onValidate && (
-        <span className="flex shrink-0 justify-end">
+        <span className="flex shrink-0 justify-end gap-1">
+          {item.needsReview && (
+            <PrepaidSuggestionButton item={item} name={name} />
+          )}
           {item.needsReview && item.categoryId !== null && (
             <Button
               size="sm"

@@ -63,6 +63,7 @@ import {
   type UpdateRecurringItemDto,
 } from './dto/recurring.dto'
 import {
+  cadenceTermMonths,
   matchRenewals,
   prepaidActive,
   prepaidMonthlyCents,
@@ -274,7 +275,13 @@ export class RecurringService {
         )
       }
       for (const item of existing) {
-        if (item.termMonths !== null) await this.attachRenewals(tx, item)
+        if (item.termMonths === null) continue
+        // A prepaid item without payment (#439: made prepaid by the
+        // migration, or its payments unlinked) takes its series' charges.
+        if (!(await this.hasPayment(tx, item.id))) {
+          await this.linkSeries(tx, item, today)
+        }
+        await this.attachRenewals(tx, item)
       }
       // Charges of items shared with a contact get their share (#359).
       await applyRecurringShares(tx)
@@ -394,6 +401,13 @@ export class RecurringService {
     if (dto.termMonths != null && item.direction !== 'debit') {
       throw new BadRequestException('Only a debit can be prepaid')
     }
+    if (
+      dto.termMonths != null &&
+      dto.status !== undefined &&
+      dto.status !== 'confirmed'
+    ) {
+      throw new BadRequestException('Only a confirmed item can be prepaid')
+    }
 
     if (dto.categoryId) {
       const [category] = await this.db
@@ -407,10 +421,22 @@ export class RecurringService {
 
     const changes: Partial<typeof recurringItemsTable.$inferInsert> = {}
     if (dto.status !== undefined) changes.status = dto.status
-    // A cancellation belongs to a confirmed item: one left for another status
-    // loses its end date (`recurring_items_ended_only_confirmed`).
-    if (dto.status !== undefined && dto.status !== 'confirmed') {
+    // A prepaid term belongs to a confirmed item (#439): setting one
+    // confirms it, like a declaration.
+    if (dto.termMonths != null && dto.status === undefined) {
+      changes.status = 'confirmed'
+    }
+    const status = changes.status ?? item.status
+    // A cancellation and a prepaid term belong to a confirmed item: one left
+    // for another status loses them (`recurring_items_ended_only_confirmed`,
+    // `recurring_items_term_only_confirmed`).
+    const leavesConfirmed = status !== 'confirmed'
+    if (leavesConfirmed) {
       changes.endedOn = null
+      if (item.termMonths !== null) {
+        changes.termMonths = null
+        changes.renewalKeptOn = null
+      }
     }
     if (dto.name !== undefined) changes.name = dto.name
     if (dto.categoryId !== undefined) changes.categoryId = dto.categoryId
@@ -422,12 +448,21 @@ export class RecurringService {
     }
     if (dto.notes !== undefined) changes.notes = dto.notes
     if (dto.endedOn !== undefined) changes.endedOn = dto.endedOn
-    if (dto.termMonths !== undefined) {
+    if (dto.termMonths !== undefined && !leavesConfirmed) {
       changes.termMonths = dto.termMonths
       if (dto.termMonths !== item.termMonths) changes.renewalKeptOn = null
     }
+    const cadence = dto.cadence ?? item.cadenceOverride ?? item.cadence
+    // A debit series charged every quarter or year becomes prepaid once
+    // confirmed (#439), unless the owner says otherwise in the same request.
+    const prepaidByCadence =
+      status === 'confirmed' &&
+      item.termMonths === null &&
+      dto.termMonths === undefined &&
+      (item.status !== 'confirmed' ||
+        cadence !== (item.cadenceOverride ?? item.cadence))
     await this.db.transaction(async (tx) => {
-      if (dto.termMonths === null && item.termMonths !== null) {
+      if (changes.termMonths === null && item.termMonths !== null) {
         await tx
           .update(transactionsTable)
           .set({ prepaidItemId: null })
@@ -449,6 +484,19 @@ export class RecurringService {
       }
       if (dto.termMonths != null) {
         await this.attachRenewals(tx, { ...item, termMonths: dto.termMonths })
+      }
+      if (prepaidByCadence) {
+        await this.prepaidFromCadence(
+          tx,
+          {
+            ...item,
+            cadenceOverride:
+              changes.cadenceOverride !== undefined
+                ? changes.cadenceOverride
+                : item.cadenceOverride,
+          },
+          today,
+        )
       }
     })
     const [updated] = await this.items(
@@ -612,22 +660,116 @@ export class RecurringService {
       .where(eq(recurringItemsTable.id, id))
   }
 
-  /** Confirms several items at once ("Tout confirmer"); unknown ids are ignored. */
-  async confirm(ids: readonly string[]): Promise<RecurringConfirmResultDto> {
-    const confirmed = await this.db
-      .update(recurringItemsTable)
-      .set({ status: 'confirmed' })
-      .where(
-        and(
-          inArray(recurringItemsTable.id, [...new Set(ids)]),
-          ne(recurringItemsTable.status, 'confirmed'),
-        ),
-      )
-      .returning({ id: recurringItemsTable.id })
-    return { confirmedCount: confirmed.length }
+  /**
+   * Confirms several items at once ("Tout confirmer"); unknown ids are
+   * ignored. A quarterly or yearly debit becomes prepaid (#439).
+   */
+  async confirm(
+    ids: readonly string[],
+    today: string = todayInParis(),
+  ): Promise<RecurringConfirmResultDto> {
+    return this.db.transaction(async (tx) => {
+      const confirmed = await tx
+        .update(recurringItemsTable)
+        .set({ status: 'confirmed' })
+        .where(
+          and(
+            inArray(recurringItemsTable.id, [...new Set(ids)]),
+            ne(recurringItemsTable.status, 'confirmed'),
+          ),
+        )
+        .returning()
+      for (const item of confirmed) {
+        await this.prepaidFromCadence(tx, item, today)
+      }
+      return { confirmedCount: confirmed.length }
+    })
   }
 
   // --- Helpers --------------------------------------------------------------
+
+  /**
+   * Makes a confirmed debit series charged every quarter or every year a
+   * prepaid item of term 3 / 12 (#439): its charges become its payments
+   * (`transactions.prepaid_item_id`), so they count in their month but stay
+   * out of averages and budget suggestions, and its renewal is reminded.
+   * Nothing for another cadence, a credit or an item already prepaid.
+   */
+  private async prepaidFromCadence(
+    executor: Executor,
+    item: SelectRecurringItem,
+    today: string,
+  ): Promise<void> {
+    if (item.direction !== 'debit' || item.termMonths !== null) return
+    const termMonths = cadenceTermMonths(item.cadenceOverride ?? item.cadence)
+    if (termMonths === null) return
+    await executor
+      .update(recurringItemsTable)
+      .set({ termMonths, renewalKeptOn: null })
+      .where(eq(recurringItemsTable.id, item.id))
+    await this.linkSeries(executor, item, today)
+    await this.attachRenewals(executor, { ...item, termMonths })
+  }
+
+  /** Whether a prepaid item has a payment linked. */
+  private async hasPayment(executor: Executor, id: string): Promise<boolean> {
+    const [linked] = await executor
+      .select({ id: transactionsTable.id })
+      .from(transactionsTable)
+      .where(eq(transactionsTable.prepaidItemId, id))
+      .limit(1)
+    return linked !== undefined
+  }
+
+  /**
+   * Links the expenses of an item's series (the run its cadence fits, not
+   * linked to another item) as its prepaid payments (#439).
+   */
+  private async linkSeries(
+    executor: Executor,
+    item: Pick<
+      SelectRecurringItem,
+      | 'id'
+      | 'accountId'
+      | 'merchantKey'
+      | 'direction'
+      | 'cadence'
+      | 'cadenceOverride'
+    >,
+    today: string,
+  ): Promise<void> {
+    const transactions = await executor
+      .select(transactionColumns)
+      .from(transactionsTable)
+      .where(
+        and(
+          eq(transactionsTable.accountId, item.accountId),
+          isNull(transactionsTable.prepaidItemId),
+        ),
+      )
+    const group = groupTransactions(transactions).get(
+      seriesKey(item.accountId, item.merchantKey, item.direction),
+    )
+    if (!group?.occurrences.length) return
+    const stats = describeSeries(
+      group.occurrences,
+      item.cadenceOverride ?? item.cadence,
+      accountHorizons(transactions, today).get(item.accountId) ?? today,
+    )
+    await executor
+      .update(transactionsTable)
+      .set({ prepaidItemId: item.id })
+      .where(
+        and(
+          inArray(
+            transactionsTable.id,
+            stats.occurrences.map((o) => o.transactionId),
+          ),
+          eq(transactionsTable.kind, 'expense'),
+          isNull(transactionsTable.prepaidItemId),
+        ),
+      )
+  }
 
   /**
    * Links to a prepaid item the charges of its merchant that renew it

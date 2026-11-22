@@ -330,6 +330,8 @@ const RULES: readonly RuleSpec[] = [
   { pattern: 'FREE MOBILE', slug: 'telecom' },
   { pattern: 'BOUYGUES TELECOM', slug: 'telecom' },
   { pattern: 'MAIF', slug: 'insurance', merchant: 'MAIF' },
+  { pattern: 'GMF', slug: 'insurance', merchant: 'GMF Auto' },
+  { pattern: 'EAU DE PARIS', slug: 'energy', merchant: 'Eau de Paris' },
   { pattern: 'DGFIP', slug: 'taxes', merchant: 'DGFiP' },
   { pattern: 'NAVIGO', slug: 'transport', merchant: 'Navigo' },
   { pattern: 'SNCF', slug: 'transport' },
@@ -505,6 +507,45 @@ function checkingMonth(
       bookingDate: videoDate,
       amountCents: -999,
       rawLabel: `PAIEMENT CB ${ddmm(videoDate)} PARIS VIDEOPASS ${CARD}`,
+    })
+  }
+  // Charged every year or quarter (#439): confirmed, they become prepaid
+  // for 12 or 3 months. Car insurance, last paid a month ago; water, whose
+  // renewal is due at the end of this month (its reminder shows).
+  if (fromEnd === 13 || fromEnd === 1) {
+    rows.push({
+      bookingDate: dayIn(month, 9),
+      amountCents: -42_000,
+      rawLabel: 'PRLV SEPA GMF ASSURANCE AUTO',
+    })
+  }
+  if (fromEnd > 0 && fromEnd % 3 === 0 && fromEnd <= 12) {
+    rows.push({
+      bookingDate: dayIn(month, 27),
+      amountCents: -8_400,
+      rawLabel: 'PRLV SEPA EAU DE PARIS',
+    })
+  }
+  // Yearly fees left to review (#439, « Prépayé 12 mois ? »): a club paid
+  // again three weeks later than last year (too late for the detector), and
+  // a first membership.
+  if (fromEnd === 13) {
+    rows.push({
+      bookingDate: dayIn(month, 2),
+      amountCents: -7_500,
+      rawLabel: 'PRLV SEPA CLUB ALPIN ADHESION',
+    })
+  }
+  if (fromEnd === 1) {
+    rows.push({
+      bookingDate: dayIn(month, 23),
+      amountCents: -7_800,
+      rawLabel: 'PRLV SEPA CLUB ALPIN ADHESION',
+    })
+    rows.push({
+      bookingDate: dayIn(month, 6),
+      amountCents: -12_000,
+      rawLabel: 'PRLV SEPA ASSOC TENNIS COTISATION',
     })
   }
   // Prepaid subscriptions (#314), declared after the detection: a VPS paid
@@ -1594,15 +1635,21 @@ export async function generateDemoData(
     'energy',
     'meal_vouchers',
   ]
-  await db
-    .update(recurringItemsTable)
-    .set({ status: 'confirmed' })
+  // Through the app's confirmation: a quarterly or yearly debit becomes
+  // prepaid (#439).
+  const toConfirm = await db
+    .select({ id: recurringItemsTable.id })
+    .from(recurringItemsTable)
     .where(
       inArray(
         recurringItemsTable.categoryId,
         confirmSlugs.map((slug) => category(slug).id),
       ),
     )
+  await new RecurringService({ db } as never).confirm(
+    toConfirm.map((item) => item.id),
+    today,
+  )
   // Two cancellations (#270): one already over (the day after its last
   // charge), one from after next month's charge (Spotify, the 12th).
   const subscriptionItems = await db

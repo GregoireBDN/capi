@@ -14,6 +14,7 @@ import {
 } from './format'
 import {
   afterRecurringChanged,
+  confirmedMessage,
   confirmRecurringItems,
   recurringErrorMessage,
   updateRecurringItem,
@@ -52,7 +53,7 @@ export function SuggestionsSection({
     onSuccess: async (item) => {
       toast.success(
         item.status === 'confirmed'
-          ? `${item.name} confirmé`
+          ? confirmedMessage(item)
           : `${item.name} ignoré`,
       )
       await afterRecurringChanged(queryClient)
