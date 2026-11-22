@@ -84,6 +84,7 @@ const INVESTMENTS_COLOR = '#8b5cf6'
 const ACCOUNT_ICON: Partial<Record<AccountType, CategoryIcon>> = {
   savings: 'piggy-bank',
   brokerage: 'trending-up',
+  securities: 'trending-up',
   life_insurance: 'shield',
   employee_savings: 'briefcase',
   crypto: 'coins',
