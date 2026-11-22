@@ -334,8 +334,15 @@
     {
       "idx": 47,
       "version": "7",
-      "when": 1795338542138,
-      "tag": "0047_securities_accounts",
+      "when": 1795337804916,
+      "tag": "0047_import_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795341224501,
+      "tag": "0048_securities_accounts",
       "breakpoints": true
     }
   ]

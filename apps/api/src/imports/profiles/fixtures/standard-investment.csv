@@ -1,0 +1,6 @@
+date,kind,isin,asset,quantity,price,fees,amount,label
+2026-09-01,deposit,,,,,,500.00,Versement fictif
+2026-09-02,buy,ZZ00MSCIWD03,ETF Monde fictif,3,120.50,1.99,-363.49,Achat fictif
+2026-09-15,dividend,ZZ00MSCIWD03,,,,,2.10,
+2026-09-20,sell,ZZ00EMMKT008,ETF Emergents fictif,1.5,30,0.99,44.01,
+2026-09-30,fee,,,,,,-1.20,Droits de garde fictifs

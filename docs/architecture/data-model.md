@@ -44,6 +44,7 @@ Columns shown are the ones that carry meaning; every table also has `id` (uuid),
 erDiagram
   accounts ||--o{ transactions : "account_id (restrict)"
   accounts ||--o{ imports : "account_id (restrict)"
+  import_profiles |o--o{ imports : "profile_id (set null)"
   imports ||--o{ transactions : "import_id (cascade)"
   accounts |o--o{ transactions : "counterpart_account_id (set null)"
   categories |o--o{ transactions : "category_id (set null)"
@@ -96,6 +97,7 @@ erDiagram
   }
   imports {
     import_source source
+    uuid profile_id "csv_profile only"
     varchar file_hash
     date period_start
     date period_end
@@ -296,7 +298,7 @@ These 13 tables are covered by [`docs/domain/auth-and-sessions.md`](../domain/au
 - **`accounts`** — the owner's accounts, seven types. Crypto columns: `crypto_source` iff `type = 'crypto'` (DB), `crypto_provider` iff source `exchange` (DB); `crypto_synced_at` / `crypto_sync_failed_at` only on crypto accounts (DB, #367). Archive rather than delete; delete is one DB transaction across every dependant (code, `DELETE /api/accounts/:id`).
 - **`transactions`** — bank rows, manual entries and the spreadsheet history in one table. Unique `(account_id, dedupe_hash)` (DB). Counterpart ≠ own account (DB). Since #367 (DB): counterpart only on transfers, prepaid link only on expenses, `manual` ⇔ no import ⇔ `manual:` hash, corrections only on bank rows (`original_*` never on manual rows); since #398 a bank row's amount and date never change but back to the bank's (`transactions_bank_values_kept` trigger), so `original_*` only remain on rows corrected before; `bank_amount_cents` / `bank_booking_date` are generated stored columns (the original of a corrected row, else its own), read by every reader of bank data, with the partial index `(account_id, bank_booking_date) where not manual`; a partial index on `needs_review`. Code only: uncategorized ⇒ `needs_review`, `kind` agrees with the category.
 - **`transaction_splits`** — parts of a split transaction. Unique `(transaction_id, position)` (DB). Code only: 2–20 parts, same sign as the transaction, never 0, sum = amount, the transaction's category = largest part's, its amount locked while split, a whole-transaction category ends the split.
-- **`imports`** — one uploaded bank file (CIC CSV) or one account's share of the spreadsheet history. `preview` jsonb while pending, null once committed (code). Accounts restrict their deletion (the account deletion deletes them first). Undoing deletes its transactions (code, plus `ON DELETE CASCADE`), after putting back as manual transactions the ones its rows absorbed on reconciliation (`transactions.absorbed_manual`: their day, typed label and own note; only on bank rows, check constraint; #371). `GET /api/imports/:id` counts beforehand the rows edited by hand and the absorbed entries (`imports/undo/`).
+- **`imports`** — one uploaded bank file (CIC CSV, standard CSV, or a CSV read through an import profile, #431) or one account's share of the spreadsheet history. `profile_id` only on `csv_profile` imports (check `imports_profile_source`), set to null when the profile is deleted. `preview` jsonb while pending, null once committed (code). Accounts restrict their deletion (the account deletion deletes them first). Undoing deletes its transactions (code, plus `ON DELETE CASCADE`), after putting back as manual transactions the ones its rows absorbed on reconciliation (`transactions.absorbed_manual`: their day, typed label and own note; only on bank rows, check constraint; #371). `GET /api/imports/:id` counts beforehand the rows edited by hand and the absorbed entries (`imports/undo/`).
 
 ### Classification
 
@@ -321,6 +323,7 @@ These 13 tables are covered by [`docs/domain/auth-and-sessions.md`](../domain/au
 - **`crypto_asset_aliases`** — ticker → price id for tickers outside the built-in table.
 - **`crypto_wallet_keys`**, **`crypto_wallet_tokens`** — what a wallet account reads; public key unique (DB), chains not empty (DB), contract fields all or none (DB).
 - **`crypto_bitcoin_scans`**, **`crypto_bitcoin_scan_addresses`** — resumable scan state per key and address type; addresses are derived again, never stored.
+- **`import_profiles`** (#431, [ADR 0007](../adr/0007-import-profiles.md)) — how the CSV files of one source are read: target (`cash` / `investment`), normalized header (unique with the separator, recognition key), `columns` field → header key, date layout, decimal mark, encoding, separator, investment `kind_values`. Column names only, never rows. The settings are checked against their lists, the mapping by `import_profile_columns_valid`, the kind values by `import_profile_kind_values_valid` (DB). Details: [import formats](../domain/import-formats.md).
 - **`crypto_imports`**, **`crypto_movements`** — exchange exports and their signed lines, and since #373 a wallet's or manual account's observed rises and falls (`observed_in` / `observed_out`, no import); unique `(account_id, dedupe_hash)` (DB). The preview is dropped at commit like a bank import's and accounts restrict their deletion (#367). Costs are not stored: one replay over every crypto account computes them (`crypto/cost-basis.ts`); `cost_cents` and `resolution` hold only what the owner answered. **`crypto_transfer_links`** pairs the two sides of a transfer between two of the owner's accounts (one link per movement, trigger-checked kinds).
 
 ### Securities (the lines of a PEA or a compte-titres, #413, #414, ADR 0006)

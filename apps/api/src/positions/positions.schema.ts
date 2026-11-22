@@ -135,7 +135,7 @@ export type SelectPositionLine = typeof positionLinesTable.$inferSelect
  * broker's notice: information only, shown on the account's page. It changes
  * neither the account's value (the cash it brought is in the statements) nor
  * what was invested. Only on a compte-titres (`dividends_account_type`
- * trigger, migration 0047).
+ * trigger, migration 0048).
  */
 export const dividendsTable = pgTable(
   'dividends',

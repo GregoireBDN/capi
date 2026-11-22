@@ -1,5 +1,5 @@
 {
-  "id": "d20f43f0-1a88-4e2a-a18b-a6f64d8a39e1",
+  "id": "cc5fa1c3-996e-4d0f-ae60-cfb419c708a3",
   "prevId": "99669f3f-bd8e-4480-b63c-54a2af0d7b98",
   "version": "7",
   "dialect": "postgresql",
@@ -1444,11 +1444,11 @@
         },
         "accounts_invested_base_type": {
           "name": "accounts_invested_base_type",
-          "value": "\"accounts\".\"invested_base_cents\" IS NULL OR (\"accounts\".\"invested_base_cents\" >= 0 AND \"accounts\".\"type\"::text IN ('brokerage', 'securities', 'life_insurance', 'employee_savings'))"
+          "value": "\"accounts\".\"invested_base_cents\" IS NULL OR (\"accounts\".\"invested_base_cents\" >= 0 AND \"accounts\".\"type\" IN ('brokerage', 'life_insurance', 'employee_savings'))"
         },
         "accounts_opened_on_type": {
           "name": "accounts_opened_on_type",
-          "value": "\"accounts\".\"opened_on\" IS NULL OR \"accounts\".\"type\"::text IN ('brokerage', 'securities', 'life_insurance', 'employee_savings')"
+          "value": "\"accounts\".\"opened_on\" IS NULL OR \"accounts\".\"type\" IN ('brokerage', 'life_insurance', 'employee_savings')"
         }
       },
       "isRLSEnabled": false
@@ -1851,6 +1851,143 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.import_profiles": {
+      "name": "import_profiles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target": {
+          "name": "target",
+          "type": "import_profile_target",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "encoding": {
+          "name": "encoding",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "delimiter": {
+          "name": "delimiter",
+          "type": "varchar(1)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decimal_separator": {
+          "name": "decimal_separator",
+          "type": "varchar(1)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_format": {
+          "name": "date_format",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "headers": {
+          "name": "headers",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "columns": {
+          "name": "columns",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind_values": {
+          "name": "kind_values",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "import_profiles_header_unique": {
+          "name": "import_profiles_header_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "delimiter",
+            "headers"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "import_profiles_name_not_blank": {
+          "name": "import_profiles_name_not_blank",
+          "value": "btrim(\"import_profiles\".\"name\") <> ''"
+        },
+        "import_profiles_encoding_known": {
+          "name": "import_profiles_encoding_known",
+          "value": "\"import_profiles\".\"encoding\" IN ('utf-8', 'windows-1252')"
+        },
+        "import_profiles_delimiter_known": {
+          "name": "import_profiles_delimiter_known",
+          "value": "\"import_profiles\".\"delimiter\" IN (chr(59), ',', chr(9))"
+        },
+        "import_profiles_decimal_separator_known": {
+          "name": "import_profiles_decimal_separator_known",
+          "value": "\"import_profiles\".\"decimal_separator\" IN (',', '.')"
+        },
+        "import_profiles_date_format_known": {
+          "name": "import_profiles_date_format_known",
+          "value": "\"import_profiles\".\"date_format\" IN ('yyyy-mm-dd', 'dd/mm/yyyy', 'dd-mm-yyyy', 'dd.mm.yyyy', 'dd/mm/yy', 'mm/dd/yyyy')"
+        },
+        "import_profiles_headers_size": {
+          "name": "import_profiles_headers_size",
+          "value": "cardinality(\"import_profiles\".\"headers\") BETWEEN 1 AND 200"
+        },
+        "import_profiles_columns_valid": {
+          "name": "import_profiles_columns_valid",
+          "value": "import_profile_columns_valid(\"import_profiles\".\"target\"::text, \"import_profiles\".\"columns\", \"import_profiles\".\"headers\")"
+        },
+        "import_profiles_kind_values_valid": {
+          "name": "import_profiles_kind_values_valid",
+          "value": "\"import_profiles\".\"kind_values\" IS NULL OR (\"import_profiles\".\"target\" = 'investment' AND import_profile_kind_values_valid(\"import_profiles\".\"kind_values\"))"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.imports": {
       "name": "imports",
       "schema": "",
@@ -1888,6 +2025,12 @@
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
+        },
+        "profile_id": {
+          "name": "profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "file_name": {
           "name": "file_name",
@@ -2005,6 +2148,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "imports_profile_id_index": {
+          "name": "imports_profile_id_index",
+          "columns": [
+            {
+              "expression": "profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -2020,12 +2178,30 @@
           ],
           "onDelete": "restrict",
           "onUpdate": "no action"
+        },
+        "imports_profile_id_import_profiles_id_fk": {
+          "name": "imports_profile_id_import_profiles_id_fk",
+          "tableFrom": "imports",
+          "tableTo": "import_profiles",
+          "columnsFrom": [
+            "profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "imports_profile_source": {
+          "name": "imports_profile_source",
+          "value": "\"imports\".\"profile_id\" IS NULL OR \"imports\".\"source\"::text = 'csv_profile'"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.transaction_splits": {
@@ -5060,133 +5236,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.dividends": {
-      "name": "dividends",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "paid_on": {
-          "name": "paid_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount_cents": {
-          "name": "amount_cents",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "security_id": {
-          "name": "security_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "dividends_account_id_paid_on_index": {
-          "name": "dividends_account_id_paid_on_index",
-          "columns": [
-            {
-              "expression": "account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "paid_on",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "dividends_security_id_index": {
-          "name": "dividends_security_id_index",
-          "columns": [
-            {
-              "expression": "security_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "dividends_account_id_accounts_id_fk": {
-          "name": "dividends_account_id_accounts_id_fk",
-          "tableFrom": "dividends",
-          "tableTo": "accounts",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "dividends_security_id_securities_id_fk": {
-          "name": "dividends_security_id_securities_id_fk",
-          "tableFrom": "dividends",
-          "tableTo": "securities",
-          "columnsFrom": [
-            "security_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "dividends_amount_positive": {
-          "name": "dividends_amount_positive",
-          "value": "\"dividends\".\"amount_cents\" > 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.position_lines": {
       "name": "position_lines",
       "schema": "",
@@ -5601,8 +5650,7 @@
         "life_insurance",
         "employee_savings",
         "crypto",
-        "meal_voucher",
-        "securities"
+        "meal_voucher"
       ]
     },
     "public.crypto_account_source": {
@@ -5648,12 +5696,22 @@
         "transfer"
       ]
     },
+    "public.import_profile_target": {
+      "name": "import_profile_target",
+      "schema": "public",
+      "values": [
+        "cash",
+        "investment"
+      ]
+    },
     "public.import_source": {
       "name": "import_source",
       "schema": "public",
       "values": [
         "cic_csv",
-        "spreadsheet"
+        "spreadsheet",
+        "standard_csv",
+        "csv_profile"
       ]
     },
     "public.recurring_amount_type": {

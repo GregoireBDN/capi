@@ -26,6 +26,7 @@ import * as schema from '#/database/schema'
 import {
   accountsTable,
   categoriesTable,
+  importProfilesTable,
   categorizationRulesTable,
   importsTable,
   type InsertTransaction,
@@ -44,6 +45,12 @@ import {
   parseCicCsv,
 } from '#/imports/parsers/cic-csv.parser'
 import type { ParseResult } from '#/imports/parsers/parsed-row'
+import { detectFormat } from '#/imports/profiles/detect-format'
+import { ImportProfilesService } from '#/imports/profiles/import-profiles.service'
+import { parseCashCsv } from '#/imports/profiles/parse-with-profile'
+import type { CsvProfile } from '#/imports/profiles/profile.types'
+import { CsvFormatError, readCsvTable } from '#/imports/profiles/read-table'
+import { standardProfileFor } from '#/imports/profiles/standard-format'
 import {
   matchManualExpenses,
   unmatchedInPeriod,
@@ -84,10 +91,25 @@ const FILE_NAME_MAX = 255
 
 export interface PreviewImportInput {
   accountId: string
+  /** Omitted: recognised from the header (saved profile, CIC, standard). */
   source?: UploadSource
+  /** A saved profile to read the file with (#431). */
+  profileId?: string
   fileName: string
   buffer: Buffer
 }
+
+/** Start of the 400 message for a file no reader recognises. */
+export const UNRECOGNISED_FORMAT_MESSAGE = 'Unrecognised CSV format'
+
+/** The reader a file goes through. */
+type Reader =
+  | { source: 'cic_csv' }
+  | { source: 'standard_csv'; profile: CsvProfile }
+  | {
+      source: 'csv_profile'
+      profile: CsvProfile & { id: string; name: string }
+    }
 
 /** Import row without the (large) preview column. */
 type ImportRecord = Omit<SelectImport, 'preview'>
@@ -106,6 +128,7 @@ export class ImportsService {
   constructor(
     private readonly database: DatabaseService,
     private readonly rulesService: CategorizationRulesService,
+    private readonly profilesService: ImportProfilesService,
     // Optional so the service can be built without it (tests, scripts).
     @Optional() private readonly recurringService?: RecurringService,
   ) {}
@@ -119,10 +142,12 @@ export class ImportsService {
    * a pending import. No transaction is written.
    */
   async preview(input: PreviewImportInput): Promise<ImportDetailDto> {
-    const source = input.source ?? 'cic_csv'
     const account = await this.findAccountForImport(input.accountId)
+    const reader = await this.readerFor(input)
+    const source = reader.source
+    const profileId = reader.source === 'csv_profile' ? reader.profile.id : null
 
-    const parsed = this.parse(source, input.buffer)
+    const parsed = this.parse(reader, input.buffer)
     const fileHash = createHash('sha256').update(input.buffer).digest('hex')
     const { periodStart, periodEnd } = periodOf(parsed.rows)
 
@@ -149,14 +174,22 @@ export class ImportsService {
       ruleSet,
       manual,
     })
+    preview.ignoredColumns = parsed.ignoredColumns ?? []
 
     const created = await this.db.transaction(async (tx) => {
       await this.discardStalePreviews(tx)
+      if (profileId) {
+        await tx
+          .update(importProfilesTable)
+          .set({ lastUsedAt: new Date() })
+          .where(eq(importProfilesTable.id, profileId))
+      }
       const [row] = await tx
         .insert(importsTable)
         .values({
           accountId: account.id,
           source,
+          profileId,
           fileName: cleanFileName(input.fileName),
           fileHash,
           periodStart,
@@ -334,12 +367,20 @@ export class ImportsService {
   /** Every import, newest first, without rows. */
   async list(): Promise<ImportSummaryDto[]> {
     const rows = await this.db
-      .select({ ...importColumns, accountName: accountsTable.name })
+      .select({
+        ...importColumns,
+        accountName: accountsTable.name,
+        profileName: importProfilesTable.name,
+      })
       .from(importsTable)
       .innerJoin(accountsTable, eq(accountsTable.id, importsTable.accountId))
+      .leftJoin(
+        importProfilesTable,
+        eq(importProfilesTable.id, importsTable.profileId),
+      )
       .orderBy(desc(importsTable.createdAt), desc(importsTable.id))
-    return rows.map(({ accountName, ...record }) =>
-      toSummary(record, accountName),
+    return rows.map(({ accountName, profileName, ...record }) =>
+      toSummary(record, accountName, profileName),
     )
   }
 
@@ -417,18 +458,83 @@ export class ImportsService {
     return account
   }
 
-  private parse(source: UploadSource, buffer: Buffer): ParseResult {
-    switch (source) {
+  /**
+   * The reader of an upload: the profile asked for, the source asked for, or
+   * the format recognised from the header (a saved profile first, then the
+   * CIC export, then the standard format).
+   */
+  private async readerFor(input: PreviewImportInput): Promise<Reader> {
+    if (input.profileId !== undefined) {
+      if (input.source !== undefined && input.source !== 'csv_profile') {
+        throw new BadRequestException(
+          'profileId goes with the csv_profile source only',
+        )
+      }
+      const profile = await this.profilesService.findStored(input.profileId)
+      return { source: 'csv_profile', profile }
+    }
+    switch (input.source) {
       case 'cic_csv':
-        try {
-          return parseCicCsv(buffer)
-        } catch (error) {
-          // The message names columns only, never file contents.
-          if (error instanceof CicCsvFormatError) {
-            throw new BadRequestException(error.message)
-          }
-          throw error
+        return { source: 'cic_csv' }
+      case 'csv_profile':
+        throw new BadRequestException(
+          'The csv_profile source needs a profileId',
+        )
+      case 'standard_csv': {
+        const profile = this.standardProfile(input.buffer)
+        if (!profile) {
+          throw new BadRequestException(
+            'Not the standard format: the header needs date, amount and label columns',
+          )
         }
+        return { source: 'standard_csv', profile }
+      }
+      case undefined: {
+        const detected = detectFormat(
+          input.buffer,
+          await this.profilesService.loadAll(),
+        )
+        if (!detected) {
+          throw new BadRequestException(
+            `${UNRECOGNISED_FORMAT_MESSAGE}: neither a CIC export, the standard format nor a saved profile`,
+          )
+        }
+        return detected
+      }
+    }
+  }
+
+  private standardProfile(buffer: Buffer): CsvProfile | null {
+    try {
+      const table = readCsvTable(buffer, { encoding: null, delimiter: null })
+      return standardProfileFor(table.headerKeys)
+    } catch (error) {
+      if (error instanceof CsvFormatError) {
+        throw new BadRequestException(error.message)
+      }
+      throw error
+    }
+  }
+
+  /** Parses with the reader; format errors become 400s naming columns only. */
+  private parse(reader: Reader, buffer: Buffer): ParseResult {
+    try {
+      if (reader.source === 'cic_csv') return parseCicCsv(buffer)
+      if (reader.profile.target !== 'cash') {
+        throw new BadRequestException(
+          'This file holds investment movements: it cannot be imported into a bank account',
+        )
+      }
+      return parseCashCsv(buffer, reader.profile)
+    } catch (error) {
+      // The messages name columns only, never file contents.
+      if (
+        error instanceof CicCsvFormatError ||
+        error instanceof CsvFormatError
+      ) {
+        throw new BadRequestException(error.message)
+      }
+      throw error
     }
   }
 
@@ -641,9 +747,16 @@ export class ImportsService {
       .orderBy(desc(importsTable.committedAt))
       .limit(1)
 
+    const [profile] = record.profileId
+      ? await executor
+          .select({ name: importProfilesTable.name })
+          .from(importProfilesTable)
+          .where(eq(importProfilesTable.id, record.profileId))
+      : []
+
     const preview = record.preview
     return {
-      ...toSummary(record, accountName),
+      ...toSummary(record, accountName, profile?.name ?? null),
       alreadyImported: previous?.committedAt
         ? { importId: previous.id, committedAt: previous.committedAt }
         : null,
@@ -655,6 +768,7 @@ export class ImportsService {
             previousBalanceCents: preview.previousBalanceCents,
             continuity: preview.continuity,
             issues: preview.issues,
+            ignoredColumns: preview.ignoredColumns ?? [],
             rows: preview.rows.map(({ dedupeHash: _hash, ...row }) => ({
               ...row,
               manualMatch: row.manualMatch ?? null,
@@ -669,12 +783,15 @@ export class ImportsService {
 function toSummary(
   record: ImportRecord,
   accountName: string,
+  profileName: string | null,
 ): ImportSummaryDto {
   return {
     id: record.id,
     accountId: record.accountId,
     accountName,
     source: record.source,
+    profileId: record.profileId,
+    profileName,
     fileName: record.fileName,
     status: record.committedAt ? 'committed' : 'pending',
     periodStart: record.periodStart,

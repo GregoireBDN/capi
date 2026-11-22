@@ -2798,7 +2798,7 @@
     },
     "/api/imports/preview": {
       "post": {
-        "description": "Parses the file, classifies every row (new / duplicate / conflict) against the account, proposes categories and checks the running balance. Stores a pending import; no transaction is written until `POST /imports/{id}/commit`. Pending previews older than 24 h are discarded when a new one is made.",
+        "description": "Reads the file with its format (the CIC export, the standard cash format, or a saved import profile, recognised from the header unless `source` / `profileId` say it), parses it, classifies every row (new / duplicate / conflict) against the account, proposes categories and checks the running balance. Stores a pending import; no transaction is written until `POST /imports/{id}/commit`. Pending previews older than 24 h are discarded when a new one is made.",
         "operationId": "ImportsController_preview",
         "parameters": [],
         "requestBody": {
@@ -2823,7 +2823,7 @@
             }
           },
           "400": {
-            "description": "Missing file or fields, not a CIC CSV export, unknown, archived or non-transactional account."
+            "description": "Missing file or fields, unrecognised format (`Unrecognised CSV format`), a mapped column missing, unknown profile, unknown, archived or non-transactional account."
           },
           "401": {
             "description": ""
@@ -3027,6 +3027,169 @@
           }
         ],
         "summary": "Discard or undo an import",
+        "tags": [
+          "Imports"
+        ]
+      }
+    },
+    "/api/import-profiles": {
+      "get": {
+        "description": "How the CSV files of each source are read; a file whose header matches one is recognised.",
+        "operationId": "ImportProfilesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ImportProfileDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Saved import profiles",
+        "tags": [
+          "Imports"
+        ]
+      },
+      "post": {
+        "description": "Which column is which for the files of one source, with their date layout, decimal mark, encoding and separator.",
+        "operationId": "ImportProfilesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateImportProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportProfileDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A column not in the header or mapped twice, no amount, or a header read without a profile."
+          },
+          "401": {
+            "description": ""
+          },
+          "409": {
+            "description": "A profile already reads this header."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Save an import profile",
+        "tags": [
+          "Imports"
+        ]
+      }
+    },
+    "/api/import-profiles/inspect": {
+      "post": {
+        "description": "Its encoding, separator, header, first lines, the format it is already recognised as, and a guessed mapping for a new profile. Saves nothing.",
+        "operationId": "ImportProfilesController_inspect",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/InspectCsvBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CsvInspectionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing file, empty or unreadable."
+          },
+          "401": {
+            "description": ""
+          },
+          "413": {
+            "description": "The file exceeds 5 MB."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Read the header of a CSV file",
+        "tags": [
+          "Imports"
+        ]
+      }
+    },
+    "/api/import-profiles/{id}": {
+      "delete": {
+        "description": "The imports made with it stay.",
+        "operationId": "ImportProfilesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Delete an import profile",
         "tags": [
           "Imports"
         ]
@@ -9026,6 +9189,52 @@
         ]
       }
     },
+    "/api/integrity": {
+      "get": {
+        "description": "For the month: bank balances recomputed from the transactions vs the bank’s running balance and the statements, transactions entered by hand never matched by an import, income − expenses vs saved, moves between own accounts counted as income or expense. As it stands now: crypto quantities vs the last complete chain read, money owed never below zero and repayments never past their transfer. Each finding names its account and day. A check that cannot run is `failed`; the others still answer. Nothing is fixed automatically.",
+        "operationId": "IntegrityController_check",
+        "parameters": [
+          {
+            "description": "Calendar month (YYYY-MM) whose balances and totals are checked. Default: the current month in Europe/Paris.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrityDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid month."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Consistency checks computed from the stored data",
+        "tags": [
+          "Integrity"
+        ]
+      }
+    },
     "/api/coverage": {
       "get": {
         "description": "The latest day with imported data, the month pages open on without a `month` parameter (the current month when it has data, else the month the data stops in) and the months that have transactions.",
@@ -11390,8 +11599,11 @@
       "ImportUploadSource": {
         "type": "string",
         "enum": [
-          "cic_csv"
-        ]
+          "cic_csv",
+          "standard_csv",
+          "csv_profile"
+        ],
+        "description": "Omitted: recognised from the header (a saved profile, the CIC export, the standard format); 400 `Unrecognised CSV format` otherwise."
       },
       "PreviewImportBodyDto": {
         "type": "object",
@@ -11399,7 +11611,7 @@
           "file": {
             "type": "string",
             "format": "binary",
-            "description": "Bank export (CIC CSV, Windows-1252), at most 5 MB."
+            "description": "Bank export, at most 5 MB: the CIC CSV (Windows-1252), the standard cash format (docs/domain/import-formats.md) or a file of a saved import profile."
           },
           "accountId": {
             "type": "string",
@@ -11407,12 +11619,17 @@
             "description": "Target account (checking or savings)."
           },
           "source": {
-            "default": "cic_csv",
+            "description": "Omitted: recognised from the header (a saved profile, the CIC export, the standard format); 400 `Unrecognised CSV format` otherwise.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ImportUploadSource"
               }
             ]
+          },
+          "profileId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Read the file with this saved import profile."
           }
         },
         "required": [
@@ -11424,7 +11641,9 @@
         "type": "string",
         "enum": [
           "cic_csv",
-          "spreadsheet"
+          "spreadsheet",
+          "standard_csv",
+          "csv_profile"
         ]
       },
       "ImportStatus": {
@@ -11776,6 +11995,13 @@
               "$ref": "#/components/schemas/ParseIssueDto"
             }
           },
+          "ignoredColumns": {
+            "description": "Header columns the file’s format does not read, by name: listed, never imported.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "rows": {
             "type": "array",
             "items": {
@@ -11794,6 +12020,7 @@
           "previousBalanceCents",
           "continuity",
           "issues",
+          "ignoredColumns",
           "rows",
           "unmatchedManual"
         ]
@@ -11835,6 +12062,17 @@
                 "$ref": "#/components/schemas/ImportSource"
               }
             ]
+          },
+          "profileId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The import profile the file was read with (`csv_profile`)."
+          },
+          "profileName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Its name; null for other sources or once deleted."
           },
           "fileName": {
             "type": "string"
@@ -11905,6 +12143,8 @@
           "accountId",
           "accountName",
           "source",
+          "profileId",
+          "profileName",
           "fileName",
           "status",
           "periodStart",
@@ -12003,6 +12243,17 @@
               }
             ]
           },
+          "profileId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The import profile the file was read with (`csv_profile`)."
+          },
+          "profileName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Its name; null for other sources or once deleted."
+          },
           "fileName": {
             "type": "string"
           },
@@ -12042,6 +12293,8 @@
           "accountId",
           "accountName",
           "source",
+          "profileId",
+          "profileName",
           "fileName",
           "status",
           "periodStart",
@@ -12079,6 +12332,383 @@
           "result",
           "removedTransactions",
           "restoredManual"
+        ]
+      },
+      "ImportProfileTarget": {
+        "type": "string",
+        "enum": [
+          "cash",
+          "investment"
+        ]
+      },
+      "CsvEncoding": {
+        "type": "string",
+        "enum": [
+          "utf-8",
+          "windows-1252"
+        ]
+      },
+      "CsvDelimiter": {
+        "type": "string",
+        "enum": [
+          ";",
+          ",",
+          "\t"
+        ],
+        "description": "Column separator (`\\t` for tab)."
+      },
+      "DecimalSeparator": {
+        "type": "string",
+        "enum": [
+          ",",
+          "."
+        ]
+      },
+      "CsvDateFormat": {
+        "type": "string",
+        "enum": [
+          "yyyy-mm-dd",
+          "dd/mm/yyyy",
+          "dd-mm-yyyy",
+          "dd.mm.yyyy",
+          "dd/mm/yy",
+          "mm/dd/yyyy"
+        ]
+      },
+      "ImportProfileDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "target": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImportProfileTarget"
+              }
+            ]
+          },
+          "encoding": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CsvEncoding"
+              }
+            ]
+          },
+          "delimiter": {
+            "description": "Column separator (`\\t` for tab).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CsvDelimiter"
+              }
+            ]
+          },
+          "decimalSeparator": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DecimalSeparator"
+              }
+            ]
+          },
+          "dateFormat": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CsvDateFormat"
+              }
+            ]
+          },
+          "headers": {
+            "description": "Header the profile recognises, normalized (lower case, no accent).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "columns": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Field → normalized header name."
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "target",
+          "encoding",
+          "delimiter",
+          "decimalSeparator",
+          "dateFormat",
+          "headers",
+          "columns",
+          "lastUsedAt",
+          "createdAt"
+        ]
+      },
+      "InspectCsvBodyDto": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "A CSV file, at most 5 MB."
+          }
+        },
+        "required": [
+          "file"
+        ]
+      },
+      "RecognisedFormatDto": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "cic_csv",
+              "standard_csv",
+              "csv_profile"
+            ]
+          },
+          "profileId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "profileName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "source",
+          "profileId",
+          "profileName"
+        ]
+      },
+      "CsvColumnGuessDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "debit": {
+            "type": "string"
+          },
+          "credit": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "string"
+          },
+          "valueDate": {
+            "type": "string"
+          }
+        }
+      },
+      "CsvSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "decimalSeparator": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DecimalSeparator"
+              }
+            ]
+          },
+          "dateFormat": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CsvDateFormat"
+              }
+            ]
+          },
+          "columns": {
+            "description": "Guessed field → header name (as in the file).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CsvColumnGuessDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "decimalSeparator",
+          "dateFormat",
+          "columns"
+        ]
+      },
+      "CsvInspectionDto": {
+        "type": "object",
+        "properties": {
+          "encoding": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CsvEncoding"
+              }
+            ]
+          },
+          "delimiter": {
+            "description": "Column separator (`\\t` for tab).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CsvDelimiter"
+              }
+            ]
+          },
+          "headers": {
+            "description": "Header names as written.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sample": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "First lines after the header, one cell per header name."
+          },
+          "lineCount": {
+            "type": "integer",
+            "description": "Lines after the header."
+          },
+          "recognised": {
+            "nullable": true,
+            "description": "The format the file is already read with, if any.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RecognisedFormatDto"
+              }
+            ]
+          },
+          "suggestion": {
+            "$ref": "#/components/schemas/CsvSuggestionDto"
+          }
+        },
+        "required": [
+          "encoding",
+          "delimiter",
+          "headers",
+          "sample",
+          "lineCount",
+          "recognised",
+          "suggestion"
+        ]
+      },
+      "CashColumnsDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string",
+            "description": "Signed amount."
+          },
+          "debit": {
+            "type": "string"
+          },
+          "credit": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "string",
+            "description": "Running balance."
+          },
+          "valueDate": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "label"
+        ]
+      },
+      "CreateImportProfileDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "Banque en ligne"
+          },
+          "headers": {
+            "description": "The file’s header names, in order (as `POST /import-profiles/inspect` gives them).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "encoding": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CsvEncoding"
+              }
+            ]
+          },
+          "delimiter": {
+            "description": "Column separator (`\\t` for tab).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CsvDelimiter"
+              }
+            ]
+          },
+          "decimalSeparator": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DecimalSeparator"
+              }
+            ]
+          },
+          "dateFormat": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CsvDateFormat"
+              }
+            ]
+          },
+          "columns": {
+            "$ref": "#/components/schemas/CashColumnsDto"
+          }
+        },
+        "required": [
+          "name",
+          "headers",
+          "encoding",
+          "delimiter",
+          "decimalSeparator",
+          "dateFormat",
+          "columns"
         ]
       },
       "RecurringDetectResultDto": {
@@ -21842,6 +22472,182 @@
             "description": "Notes saved with the close (kept as they are when absent)."
           }
         }
+      },
+      "IntegrityCheck": {
+        "type": "string",
+        "enum": [
+          "balances",
+          "crypto",
+          "owed",
+          "totals"
+        ]
+      },
+      "IntegrityCheckStatus": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "findings",
+          "failed"
+        ],
+        "description": "`failed`: the check could not run (logged); the other checks still answer."
+      },
+      "IntegrityCheckDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IntegrityCheck"
+              }
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "month",
+              "current"
+            ],
+            "description": "`month`: the asked month’s data (balances, totals). `current`: the data as it stands now, whatever the month (crypto holdings, money owed)."
+          },
+          "status": {
+            "description": "`failed`: the check could not run (logged); the other checks still answer.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IntegrityCheckStatus"
+              }
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "description": "Findings of this check."
+          }
+        },
+        "required": [
+          "key",
+          "scope",
+          "status",
+          "count"
+        ]
+      },
+      "IntegrityFindingCode": {
+        "type": "string",
+        "enum": [
+          "balance_gap",
+          "statement_gap",
+          "manual_not_reconciled",
+          "holding_differs_from_read",
+          "owed_negative",
+          "repayment_over_transfer",
+          "flow_mismatch",
+          "internal_move_counted"
+        ],
+        "description": "`balance_gap`: the balance recomputed from the transactions differs from the bank’s running balance that day (rows missing or extra since `fromDate`). `statement_gap`: a statement closing balance differs from the balance recomputed from the transactions. `manual_not_reconciled`: a transaction entered by hand on a bank account, dated well inside the imported period, never matched to a bank row: it counts in the totals but not in the balance. `holding_differs_from_read`: a crypto holding’s quantity differs from what the last complete chain read (or edit) recorded. `owed_negative`: what is left on a shared expense (share − repaid − let go) is below zero. `repayment_over_transfer`: the repayments linked to a transfer add up to more than the transfer. `flow_mismatch`: income − expenses differs from what is shown as saved. `internal_move_counted`: an income or expense mirrors a transfer of another of the owner’s accounts (opposite amount, at most 3 days apart): a move between own accounts counted as income or spending."
+      },
+      "IntegrityFindingDto": {
+        "type": "object",
+        "properties": {
+          "check": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IntegrityCheck"
+              }
+            ]
+          },
+          "code": {
+            "description": "`balance_gap`: the balance recomputed from the transactions differs from the bank’s running balance that day (rows missing or extra since `fromDate`). `statement_gap`: a statement closing balance differs from the balance recomputed from the transactions. `manual_not_reconciled`: a transaction entered by hand on a bank account, dated well inside the imported period, never matched to a bank row: it counts in the totals but not in the balance. `holding_differs_from_read`: a crypto holding’s quantity differs from what the last complete chain read (or edit) recorded. `owed_negative`: what is left on a shared expense (share − repaid − let go) is below zero. `repayment_over_transfer`: the repayments linked to a transfer add up to more than the transfer. `flow_mismatch`: income − expenses differs from what is shown as saved. `internal_move_counted`: an income or expense mirrors a transfer of another of the owner’s accounts (opposite amount, at most 3 days apart): a move between own accounts counted as income or spending.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IntegrityFindingCode"
+              }
+            ]
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "accountName": {
+            "type": "string",
+            "nullable": true
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Day of the finding."
+          },
+          "fromDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "`balance_gap`, `statement_gap`: last day the balance followed."
+          },
+          "amountCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Integer cents. Gaps: stated − recomputed. `manual_not_reconciled`, `internal_move_counted`: the transaction’s amount. `owed_negative`: what is left (negative). `repayment_over_transfer`: the excess. `flow_mismatch`: (income − expenses) − saved."
+          },
+          "transactionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "asset": {
+            "type": "string",
+            "nullable": true,
+            "description": "`holding_differs_from_read`: the asset’s symbol."
+          },
+          "quantity": {
+            "type": "string",
+            "nullable": true,
+            "description": "`holding_differs_from_read`: quantity held now (exact decimal string)."
+          },
+          "readQuantity": {
+            "type": "string",
+            "nullable": true,
+            "description": "`holding_differs_from_read`: quantity the last complete read recorded (exact decimal string)."
+          }
+        },
+        "required": [
+          "check",
+          "code",
+          "accountId",
+          "accountName",
+          "date",
+          "fromDate",
+          "amountCents",
+          "transactionId",
+          "asset",
+          "quantity",
+          "readQuantity"
+        ]
+      },
+      "IntegrityDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntegrityCheckDto"
+            }
+          },
+          "findings": {
+            "description": "Every finding, by check then day.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntegrityFindingDto"
+            }
+          }
+        },
+        "required": [
+          "month",
+          "checks",
+          "findings"
+        ]
       },
       "CoverageDto": {
         "type": "object",

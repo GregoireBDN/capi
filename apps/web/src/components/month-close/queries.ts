@@ -1,5 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import {
+  integrityControllerCheck,
   monthCloseControllerClose,
   monthCloseControllerGet,
   monthCloseControllerReopen,
@@ -15,6 +16,7 @@ import { ApiRequestError, unwrap } from '#/lib/queries'
  */
 export const monthCloseKeys = {
   month: (month: string) => ['dashboard', 'month-close', month] as const,
+  integrity: (month: string) => ['dashboard', 'integrity', month] as const,
 }
 
 /** Steps, progress and report of `month`. Refetched on mount. */
@@ -23,6 +25,21 @@ export function monthCloseQuery(month: string) {
     queryKey: monthCloseKeys.month(month),
     queryFn: () =>
       unwrap(monthCloseControllerGet({ path: { month }, throwOnError: false })),
+    staleTime: 0,
+  })
+}
+
+/**
+ * Consistency checks of `month` (#427), a step of the review read on its own:
+ * a slow or failed check never holds the other steps back.
+ */
+export function integrityQuery(month: string) {
+  return queryOptions({
+    queryKey: monthCloseKeys.integrity(month),
+    queryFn: () =>
+      unwrap(
+        integrityControllerCheck({ query: { month }, throwOnError: false }),
+      ),
     staleTime: 0,
   })
 }

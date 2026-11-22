@@ -1,0 +1,5 @@
+Date opération;Date valeur;Libellé de l'opération;Débit;Crédit;Catégorie banque
+02/10/2026;02/10/2026;CB SUPERMARCHE FICTIF;1 234,56;;Courses
+03/10/2026;04/10/2026;VIREMENT RECU FICTIF;;2 000,00;Revenus
+04/10/2026;04/10/2026;CB CAFE FICTIF;3,20;;Sorties
+31/02/2026;01/03/2026;LIGNE DATE IMPOSSIBLE;5,00;;Divers

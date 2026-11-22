@@ -22,6 +22,7 @@ import {
 import { ManualTransactionsService } from '#/transactions/manual-transactions.service'
 import { TransactionsService } from '#/transactions/transactions.service'
 import { ImportsService } from './imports.service'
+import { ImportProfilesService } from '#/imports/profiles/import-profiles.service'
 
 /**
  * Reconciliation of expenses noted by hand with the bank rows of an import
@@ -104,6 +105,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           const imports = new ImportsService(
             database,
             new CategorizationRulesService(database),
+            new ImportProfilesService(database),
           )
           const manual = new ManualTransactionsService(
             database,

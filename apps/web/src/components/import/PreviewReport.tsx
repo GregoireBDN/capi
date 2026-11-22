@@ -8,6 +8,7 @@ import {
 } from '@finances/ui'
 import {
   CircleCheckIcon,
+  Columns3Icon,
   CopyIcon,
   FileWarningIcon,
   InfoIcon,
@@ -28,6 +29,7 @@ import {
   formatPeriod,
   parseIssueFr,
   plural,
+  sourceLabel,
 } from './format'
 
 function SummaryCard({
@@ -72,7 +74,8 @@ export function PreviewSummary({ detail }: { detail: ImportDetailDto }) {
             {detail.fileName}
           </p>
           <p className="text-muted-foreground text-sm">
-            {detail.accountName} · {plural(counts.rows, 'ligne')}{' '}
+            {detail.accountName} · {sourceLabel(detail)} ·{' '}
+            {plural(counts.rows, 'ligne')}{' '}
             {formatPeriod(detail.periodStart, detail.periodEnd)}
           </p>
         </CardContent>
@@ -184,6 +187,25 @@ export function ParseIssuesPanel({ issues }: { issues: ParseIssueDto[] }) {
             </li>
           ))}
         </ul>
+      </AlertDescription>
+    </Alert>
+  )
+}
+
+/** Columns of the file its format does not read (#431): listed, never imported. */
+export function IgnoredColumnsPanel({ columns }: { columns: string[] }) {
+  if (columns.length === 0) return null
+  return (
+    <Alert>
+      <Columns3Icon />
+      <AlertTitle>
+        {plural(columns.length, 'colonne ignorée', 'colonnes ignorées')}
+      </AlertTitle>
+      <AlertDescription>
+        <p>
+          Ces colonnes du fichier ne sont pas lues :{' '}
+          {columns.map((name) => `« ${name} »`).join(', ')}.
+        </p>
       </AlertDescription>
     </Alert>
   )

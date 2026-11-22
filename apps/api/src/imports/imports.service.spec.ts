@@ -7,6 +7,8 @@ import {
 import { asc, eq } from 'drizzle-orm'
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { CategorizationRulesService } from '#/categories/categorization-rules.service'
 import * as schema from '#/database/schema'
@@ -24,7 +26,12 @@ import {
   withBalances,
 } from '#/imports/testing/cic-csv-fixture'
 import type { ImportDetailDto } from './dto/import.dto'
-import { ImportsService, PENDING_PREVIEW_TTL_MS } from './imports.service'
+import {
+  ImportsService,
+  PENDING_PREVIEW_TTL_MS,
+  type PreviewImportInput,
+} from './imports.service'
+import { ImportProfilesService } from '#/imports/profiles/import-profiles.service'
 import { bankRows } from '#/transactions/testing/bank-rows'
 
 /**
@@ -73,7 +80,11 @@ interface Fixture {
   groceriesRule: string
   /** Stand-in for the recurring detection run after a commit or an undo. */
   detectInBackground: ReturnType<typeof vi.fn>
-  preview: (file: Buffer, accountId?: string) => Promise<ImportDetailDto>
+  preview: (
+    file: Buffer,
+    accountId?: string,
+    options?: Pick<PreviewImportInput, 'source' | 'profileId'>,
+  ) => Promise<ImportDetailDto>
 }
 
 describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
@@ -131,6 +142,7 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
         const service = new ImportsService(
           database,
           new CategorizationRulesService(database),
+          new ImportProfilesService(database),
           { detectInBackground } as never,
         )
         await fn({
@@ -141,11 +153,12 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
           salary: salary.id,
           groceriesRule: groceriesRule.id,
           detectInBackground,
-          preview: (file, accountId = account.id) =>
+          preview: (file, accountId = account.id, options = {}) =>
             service.preview({
               accountId,
               fileName: 'export.csv',
               buffer: file,
+              ...options,
             }),
         })
         throw ROLLBACK
@@ -254,16 +267,23 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
     })
 
     it('rejects a file that is not a CIC export with a clear message', async () => {
-      await withFixture(async ({ preview }) => {
-        const error = await preview(
-          cp1252('Date,Amount,Description\r\n2026-10-01,-1.00,Test\r\n'),
-        ).catch((e: unknown) => e)
+      await withFixture(async ({ preview, accountId }) => {
+        const unknown = cp1252(
+          'Date,Amount,Description\r\n2026-10-01,-1.00,Test\r\n',
+        )
+        const error = await preview(unknown, accountId, {
+          source: 'cic_csv',
+        }).catch((e: unknown) => e)
         expect(error).toBeInstanceOf(BadRequestException)
         expect((error as BadRequestException).message).toMatch(
           /^Not a CIC CSV export: missing column/,
         )
-        await expect(preview(Buffer.alloc(0))).rejects.toThrow(
-          'Not a CIC CSV export: the file is empty',
+        await expect(
+          preview(Buffer.alloc(0), accountId, { source: 'cic_csv' }),
+        ).rejects.toThrow('Not a CIC CSV export: the file is empty')
+        // Without a source, a header no reader knows (#431).
+        await expect(preview(unknown)).rejects.toThrow(
+          /^Unrecognised CSV format/,
         )
       })
     })
@@ -768,6 +788,200 @@ describe.skipIf(!process.env.DATABASE_URL)('ImportsService (database)', () => {
         await expect(service.remove(id)).rejects.toBeInstanceOf(
           NotFoundException,
         )
+      })
+    })
+  })
+
+  describe('standard format and import profiles (#431)', () => {
+    const fixture = (name: string) =>
+      readFileSync(join(__dirname, 'profiles', 'fixtures', name))
+
+    /** Cents as a standard amount (`-3.90`), without a float. */
+    const decimal = (cents: number) =>
+      `${cents < 0 ? '-' : ''}${Math.trunc(Math.abs(cents) / 100)}.${String(Math.abs(cents) % 100).padStart(2, '0')}`
+
+    /** HISTORY's rows in the standard cash format, with an unknown column. */
+    function standardCsv(rows: CicRow[]): Buffer {
+      const lines = rows.map(
+        (r) =>
+          `${r.date};${decimal(r.amountCents)};${r.label};${decimal(r.balanceCents!)};x`,
+      )
+      return Buffer.from(
+        ['date;amount;label;balance;note', ...lines].join('\n'),
+        'utf8',
+      )
+    }
+
+    it('imports a standard file through preview and commit; a re-import inserts nothing', async () => {
+      await withFixture(async ({ tx, service, preview, accountId }) => {
+        const file = standardCsv(HISTORY.slice(0, 4))
+        const first = await preview(file)
+        expect(first).toMatchObject({
+          source: 'standard_csv',
+          profileId: null,
+          profileName: null,
+          counts: { rows: 4, new: 4, issues: 0 },
+        })
+        expect(first.preview!.ignoredColumns).toEqual(['note'])
+        expect(first.preview!.continuity).toMatchObject({
+          checked: true,
+          ok: true,
+        })
+        const committed = await service.commit(first.id, {})
+        expect(committed.counts).toMatchObject({ inserted: 4 })
+
+        const again = await preview(file)
+        expect(statuses(again)).toEqual([
+          'duplicate',
+          'duplicate',
+          'duplicate',
+          'duplicate',
+        ])
+        expect((await service.commit(again.id, {})).counts).toMatchObject({
+          inserted: 0,
+          duplicates: 4,
+        })
+        // The same rows from the CIC export are the same transactions.
+        expect(statuses(await preview(FILE_A))).toEqual([
+          'duplicate',
+          'duplicate',
+          'duplicate',
+          'duplicate',
+        ])
+        expect(await storedTransactions(tx, accountId)).toHaveLength(4)
+      })
+    })
+
+    it('refuses investment movements on a bank account and a forced wrong source', async () => {
+      await withFixture(async ({ preview, accountId }) => {
+        await expect(
+          preview(fixture('standard-investment.csv')),
+        ).rejects.toThrow('This file holds investment movements')
+        await expect(
+          preview(FILE_A, accountId, { source: 'standard_csv' }),
+        ).rejects.toThrow(/^Not the standard format/)
+        await expect(
+          preview(FILE_A, accountId, { source: 'csv_profile' }),
+        ).rejects.toThrow('The csv_profile source needs a profileId')
+      })
+    })
+
+    it('saves a profile from an unknown file and recognises the next one', async () => {
+      await withFixture(async ({ tx, service, preview }) => {
+        const profiles = new ImportProfilesService({ db: tx } as never)
+        const bytes = fixture('other-bank.csv')
+        await expect(preview(bytes)).rejects.toThrow(/^Unrecognised CSV format/)
+
+        const inspection = await profiles.inspect(bytes)
+        expect(inspection.recognised).toBeNull()
+        const { suggestion } = inspection
+        const profile = await profiles.create({
+          name: 'Banque fictive',
+          headers: inspection.headers,
+          encoding: inspection.encoding,
+          delimiter: inspection.delimiter,
+          decimalSeparator: suggestion.decimalSeparator,
+          dateFormat: suggestion.dateFormat!,
+          columns: {
+            date: suggestion.columns.date!,
+            label: suggestion.columns.label!,
+            debit: suggestion.columns.debit,
+            credit: suggestion.columns.credit,
+          },
+        })
+        expect(profile).toMatchObject({
+          target: 'cash',
+          columns: {
+            date: 'date operation',
+            label: "libelle de l'operation",
+            debit: 'debit',
+            credit: 'credit',
+          },
+          lastUsedAt: null,
+        })
+        expect((await profiles.inspect(bytes)).recognised).toEqual({
+          source: 'csv_profile',
+          profileId: profile.id,
+          profileName: 'Banque fictive',
+        })
+
+        const detail = await preview(bytes)
+        expect(detail).toMatchObject({
+          source: 'csv_profile',
+          profileId: profile.id,
+          profileName: 'Banque fictive',
+          counts: { rows: 3, new: 3, issues: 1 },
+        })
+        expect(detail.preview!.issues).toEqual([
+          { lineNumber: 5, message: 'Invalid or missing date' },
+        ])
+        expect(detail.preview!.ignoredColumns).toEqual([
+          'Date valeur',
+          'Catégorie banque',
+        ])
+        expect(detail.preview!.rows.map((r) => r.amountCents)).toEqual([
+          -123456, 200000, -320,
+        ])
+        expect((await profiles.list())[0].lastUsedAt).not.toBeNull()
+
+        await service.commit(detail.id, {})
+        expect((await preview(bytes)).counts).toMatchObject({
+          new: 0,
+          duplicates: 3,
+        })
+
+        // Deleting the profile keeps the import, without its profile.
+        await profiles.remove(profile.id)
+        const [listed] = (await service.list()).filter(
+          (i) => i.id === detail.id,
+        )
+        expect(listed).toMatchObject({ profileId: null, profileName: null })
+        await expect(preview(bytes)).rejects.toThrow(/^Unrecognised CSV format/)
+      })
+    })
+
+    it('validates a new profile', async () => {
+      await withFixture(async ({ tx }) => {
+        const profiles = new ImportProfilesService({ db: tx } as never)
+        const base = {
+          name: 'Banque fictive',
+          headers: ['Jour', 'Texte', 'Valeur', 'Autre'],
+          encoding: 'utf-8' as const,
+          delimiter: ';' as const,
+          decimalSeparator: ',' as const,
+          dateFormat: 'dd/mm/yyyy' as const,
+          columns: { date: 'Jour', label: 'Texte', amount: 'Valeur' },
+        }
+        await expect(
+          profiles.create({
+            ...base,
+            columns: { ...base.columns, amount: 'Absente' },
+          }),
+        ).rejects.toThrow('columns.amount is not in the header')
+        await expect(
+          profiles.create({
+            ...base,
+            columns: { ...base.columns, label: 'Jour' },
+          }),
+        ).rejects.toThrow('columns.label is already mapped')
+        await expect(
+          profiles.create({
+            ...base,
+            columns: { date: 'Jour', label: 'Texte', debit: 'Valeur' },
+          }),
+        ).rejects.toThrow('Map either an amount column')
+        await expect(
+          profiles.create({
+            ...base,
+            headers: ['Date', 'Montant', 'Libellé'],
+            columns: { date: 'Date', label: 'Libellé', amount: 'Montant' },
+          }),
+        ).rejects.toThrow('already read without a profile')
+
+        await profiles.create(base)
+        await expect(
+          profiles.create({ ...base, name: 'Encore' }),
+        ).rejects.toBeInstanceOf(ConflictException)
       })
     })
   })

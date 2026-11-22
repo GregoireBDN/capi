@@ -31,4 +31,9 @@ export interface ParseResult {
   rows: ParsedRow[]
   /** Skipped lines, in file order. */
   issues: ParseIssue[]
+  /**
+   * Header columns the parser does not read, by their name in the file
+   * (#431): shown in the preview, never imported silently.
+   */
+  ignoredColumns?: string[]
 }

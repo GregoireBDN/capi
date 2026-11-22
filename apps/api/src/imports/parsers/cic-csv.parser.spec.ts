@@ -283,7 +283,7 @@ describe('parseCicCsv — layout tolerance', () => {
     ['CR', '\r'],
   ])('accepts %s line endings', (_name, eol) => {
     const result = parseCicCsv(csv([HEADER, ...body], eol))
-    expect(result).toEqual({ rows: expected, issues: [] })
+    expect(result).toEqual({ rows: expected, issues: [], ignoredColumns: [] })
     expect(result.rows).toHaveLength(3)
   })
 
@@ -314,7 +314,11 @@ describe('parseCicCsv — layout tolerance', () => {
   })
 
   it('accepts a header-only file', () => {
-    expect(parseCicCsv(csv([HEADER]))).toEqual({ rows: [], issues: [] })
+    expect(parseCicCsv(csv([HEADER]))).toEqual({
+      rows: [],
+      issues: [],
+      ignoredColumns: [],
+    })
   })
 
   it('keeps file order when rows are not chronological', () => {

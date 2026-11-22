@@ -62,14 +62,14 @@ export class ImportsController {
   @ApiOperation({
     summary: 'Upload a bank export and preview it',
     description:
-      'Parses the file, classifies every row (new / duplicate / conflict) against the account, proposes categories and checks the running balance. Stores a pending import; no transaction is written until `POST /imports/{id}/commit`. Pending previews older than 24 h are discarded when a new one is made.',
+      'Reads the file with its format (the CIC export, the standard cash format, or a saved import profile, recognised from the header unless `source` / `profileId` say it), parses it, classifies every row (new / duplicate / conflict) against the account, proposes categories and checks the running balance. Stores a pending import; no transaction is written until `POST /imports/{id}/commit`. Pending previews older than 24 h are discarded when a new one is made.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: PreviewImportBodyDto })
   @ApiCreatedResponse({ type: ImportDetailDto })
   @ApiBadRequestResponse({
     description:
-      'Missing file or fields, not a CIC CSV export, unknown, archived or non-transactional account.',
+      'Missing file or fields, unrecognised format (`Unrecognised CSV format`), a mapped column missing, unknown profile, unknown, archived or non-transactional account.',
   })
   @ApiPayloadTooLargeResponse({ description: 'The file exceeds 5 MB.' })
   @ApiUnsupportedMediaTypeResponse({ description: 'Not a multipart body.' })
@@ -94,6 +94,7 @@ export class ImportsController {
     return this.importsService.preview({
       accountId: fields.accountId,
       source: fields.source,
+      profileId: fields.profileId,
       fileName: upload.file.fileName,
       buffer: upload.file.buffer,
     })
