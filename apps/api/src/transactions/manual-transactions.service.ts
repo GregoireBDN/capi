@@ -30,6 +30,7 @@ import {
 } from '#/database/schema'
 import type { TransactionKind } from '#/database/schema/domain-enums'
 import { parisToday } from '#/investments/days'
+import { assertNoSettledShare } from '#/owed/settled'
 import {
   type CreateManualTransactionDto,
   MANUAL_CATEGORIES_MAX,
@@ -367,16 +368,25 @@ export class ManualTransactionsService {
     }
   }
 
+  /**
+   * Deletes a transaction entered by hand. One carrying a share repaid, even
+   * partly, or let go is refused (409, #438): its repayments would silently
+   * count as income. The owner unlinks them, or claims the share again,
+   * first.
+   */
   async remove(id: string): Promise<void> {
-    const deleted = await this.db
-      .delete(transactionsTable)
-      .where(
-        and(eq(transactionsTable.id, id), eq(transactionsTable.manual, true)),
-      )
-      .returning({ id: transactionsTable.id })
-    if (deleted.length === 0) {
-      throw new NotFoundException('Manual transaction not found')
-    }
+    await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ id: transactionsTable.id })
+        .from(transactionsTable)
+        .where(
+          and(eq(transactionsTable.id, id), eq(transactionsTable.manual, true)),
+        )
+        .for('update')
+      if (!row) throw new NotFoundException('Manual transaction not found')
+      await assertNoSettledShare(tx, [id])
+      await tx.delete(transactionsTable).where(eq(transactionsTable.id, id))
+    })
   }
 
   /**

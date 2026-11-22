@@ -111,9 +111,15 @@ export const receivablePaymentsTable = pgTable(
   'receivable_payments',
   {
     ...coreColumns,
+    /**
+     * `restrict` (#438): a repaid share is never removed implicitly, its
+     * repayment would count as income. The deliberate wholesale deletes
+     * (undoing an import, deleting an account) delete the repayments first
+     * (`deletePaymentsOfShares`).
+     */
     receivableId: uuid('receivable_id')
       .notNull()
-      .references(() => receivablesTable.id, { onDelete: 'cascade' }),
+      .references(() => receivablesTable.id, { onDelete: 'restrict' }),
     /** The repayment transfer; null for « Réglé autrement ». */
     transactionId: uuid('transaction_id').references(
       () => transactionsTable.id,
