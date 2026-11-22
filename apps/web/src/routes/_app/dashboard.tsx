@@ -9,7 +9,7 @@ import { useAuth } from '#/lib/auth-context'
  */
 export const Route = createFileRoute('/_app/dashboard')({
   validateSearch: () => ({}),
-  head: () => ({ meta: [{ title: 'Tableau de bord · Finances' }] }),
+  head: () => ({ meta: [{ title: 'Tableau de bord · Capi' }] }),
   component: DashboardRoute,
 })
 

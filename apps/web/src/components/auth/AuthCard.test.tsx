@@ -79,15 +79,13 @@ describe('AuthCard', () => {
   it('shows the passkey offer on its own after a password sign-in', async () => {
     const user = userEvent.setup()
     render(<AuthCard registrationOpen />)
-    expect(screen.getByRole('img', { name: 'Finances' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Capi' })).toBeInTheDocument()
 
     await user.click(screen.getByText('password-sign-in'))
 
     expect(screen.getByText('passkey-offer')).toBeInTheDocument()
     expect(screen.queryByText('Connexion')).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('img', { name: 'Finances' }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: 'Capi' })).not.toBeInTheDocument()
     expect(signUp()).not.toBeInTheDocument()
   })
 })

@@ -18,7 +18,7 @@ export const Route = createFileRoute('/auth')({
   },
   beforeLoad: ({ search }) => redirectIfAuthenticated(search.redirect),
   loader: async () => ({ registrationOpen: await getRegistrationOpen() }),
-  head: () => ({ meta: [{ title: 'Connexion · Finances' }] }),
+  head: () => ({ meta: [{ title: 'Connexion · Capi' }] }),
   component: AuthPage,
 })
 

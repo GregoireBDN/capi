@@ -6,7 +6,7 @@ import { clearMailbox, waitForEmailLink } from './mailpit'
  *   register the owner account → receive verification email → verify → log in
  *   → reload after the access token expired.
  *
- * Finances is single-user, so registration is only possible on an empty
+ * Capi is single-user, so registration is only possible on an empty
  * database: the test skips itself once an account exists (reset the DB, e.g.
  * `docker compose down -v && docker compose up -d`, to run it again).
  *

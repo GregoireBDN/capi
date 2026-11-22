@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Finances MCP server.
+ * Capi MCP server.
  *
  * - Default: stdio, started by the MCP client on the owner's machine with a
  *   personal access token. stdout carries the MCP protocol: anything else goes

@@ -5,7 +5,7 @@ import { AccountDetailPage } from '#/components/accounts/AccountDetailPage'
 export const Route = createFileRoute('/_app/accounts/$accountId')({
   // `?from=savings&month=2026-10`: the page it was opened from (#324).
   validateSearch: validateAccountSearch,
-  head: () => ({ meta: [{ title: 'Compte · Finances' }] }),
+  head: () => ({ meta: [{ title: 'Compte · Capi' }] }),
   component: AccountRoute,
 })
 

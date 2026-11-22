@@ -4,7 +4,7 @@ import { PageHeader } from '#/components/app-shell/PageHeader'
 import { useAuth } from '#/lib/auth-context'
 
 export const Route = createFileRoute('/_app/_settings/settings/access')({
-  head: () => ({ meta: [{ title: 'Claude et accès · Finances' }] }),
+  head: () => ({ meta: [{ title: 'Claude et accès · Capi' }] }),
   component: AccessRoute,
 })
 

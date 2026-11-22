@@ -1,14 +1,14 @@
 # Importing investment values from Google Drive with Claude
 
-The investment statements (PEA, life insurance, employee savings, crypto exports) live in a Google Drive folder. Claude reads them with **its own Google Drive connector** and records the values in Finances with the MCP server's investment tools (#104). **The app has no Google credentials and makes no call to Google**: only the values Claude extracts (dates, amounts in cents, crypto quantities as exact decimal strings) reach the API, each time through a preview you approve.
+The investment statements (PEA, life insurance, employee savings, crypto exports) live in a Google Drive folder. Claude reads them with **its own Google Drive connector** and records the values in Capi with the MCP server's investment tools (#104). **The app has no Google credentials and makes no call to Google**: only the values Claude extracts (dates, amounts in cents, crypto quantities as exact decimal strings) reach the API, each time through a preview you approve.
 
 ```
-Google Drive ──(Drive connector, read)──▶ Claude ──(finances MCP, write token, confirm: true)──▶ Finances API
+Google Drive ──(Drive connector, read)──▶ Claude ──(finances MCP, write token, confirm: true)──▶ Capi API
 ```
 
 ## 1. Set up the two connections
 
-**Finances MCP server**: follow [`apps/mcp/README.md`](../../apps/mcp/README.md) (build, then register `finances` in Claude Desktop or Claude Code). Use a token with the **Lecture et écriture** scope: the import tools write values, a PEA's lines and holdings. A read-only token still lets Claude list accounts and show previews.
+**Capi MCP server**: follow [`apps/mcp/README.md`](../../apps/mcp/README.md) (build, then register `finances` in Claude Desktop or Claude Code). Use a token with the **Lecture et écriture** scope: the import tools write values, a PEA's lines and holdings. A read-only token still lets Claude list accounts and show previews.
 
 **Google Drive**:
 

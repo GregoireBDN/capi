@@ -15,7 +15,7 @@ export const Route = createFileRoute('/_app/month-review')({
     const { month } = searchSchema.parse(search)
     return month ? { month } : {}
   },
-  head: () => ({ meta: [{ title: 'Bilan du mois · Finances' }] }),
+  head: () => ({ meta: [{ title: 'Bilan du mois · Capi' }] }),
   component: MonthReviewRoute,
 })
 

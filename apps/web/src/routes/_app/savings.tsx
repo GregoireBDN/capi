@@ -15,7 +15,7 @@ export const Route = createFileRoute('/_app/savings')({
     const { month } = searchSchema.parse(search)
     return month ? { month } : {}
   },
-  head: () => ({ meta: [{ title: 'Épargne · Finances' }] }),
+  head: () => ({ meta: [{ title: 'Épargne · Capi' }] }),
   component: SavingsRoute,
 })
 

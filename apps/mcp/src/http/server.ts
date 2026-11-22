@@ -157,7 +157,7 @@ export function createHttpHandler(options: HttpServerOptions) {
     authorization_servers: [config.publicUrl],
     scopes_supported: ['read', 'write'],
     bearer_methods_supported: ['header'],
-    resource_name: 'Finances',
+    resource_name: 'Capi',
   }
 
   const unauthorized = (error?: 'invalid_token') =>

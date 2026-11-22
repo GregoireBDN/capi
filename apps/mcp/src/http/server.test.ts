@@ -111,7 +111,7 @@ describe('remote MCP adapter', () => {
         authorization_servers: [PUBLIC_URL],
         scopes_supported: ['read', 'write'],
         bearer_methods_supported: ['header'],
-        resource_name: 'Finances',
+        resource_name: 'Capi',
       })
     }
   })

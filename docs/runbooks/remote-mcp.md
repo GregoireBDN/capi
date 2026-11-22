@@ -1,6 +1,6 @@
 # Remote MCP access (claude.ai and the Claude apps)
 
-Lets claude.ai, Claude Desktop's connectors and the Claude mobile apps use the Finances tools without a local MCP server. Design and threat model: [ADR 0003](../adr/0003-remote-mcp-oauth.md) (#78).
+Lets claude.ai, Claude Desktop's connectors and the Claude mobile apps use the Capi tools without a local MCP server. Design and threat model: [ADR 0003](../adr/0003-remote-mcp-oauth.md) (#78).
 
 > **Status: ready, off in production.** The #102 findings are fixed and the OAuth server and the production adapter service passed `docs/security/pentest/stack.sh oauth` (#328). The image (`ghcr.io/gregoirebdn/finances-mcp`), the `finances-mcp` service (profile `remote-mcp`) and the deploy are in this repository; the public host (DNS, Caddy) is in the `infra` repo. Turning it on is the owner's step: [Enabling](#enabling).
 
@@ -80,7 +80,7 @@ From then on every deploy pulls, health-checks and rolls back the adapter with t
 
 ### 5. Connect Claude
 
-1. claude.ai → Settings → Connectors → **Add custom connector**: name `Finances`, URL `https://finances-mcp.gbodin.cloud/mcp`. Leave the OAuth client fields empty (Claude registers itself).
+1. claude.ai → Settings → Connectors → **Add custom connector**: name `Capi`, URL `https://finances-mcp.gbodin.cloud/mcp`. Leave the OAuth client fields empty (Claude registers itself).
 2. Claude opens the consent page on the tailnet: sign in if asked (password or passkey; approving needs a sign-in in the last 5 minutes), check that the return host is **claude.ai**, tick "Autoriser les modifications" only if you want the write tools, then **Autoriser**.
 3. The connector appears in the Claude apps signed in with the same account (iPhone included). Your phone must be on the tailnet only when (re)connecting, for the consent page.
 4. From the iPhone app: « Quels sont mes comptes ? » (`accounts_overview`), then a write tool without `confirm` to see its preview.

@@ -14,7 +14,9 @@ import {
   ToolInputError,
 } from './tools/tool.js'
 
-export const SERVER_NAME = 'finances'
+/** Sent to the client on connection (`serverInfo`); the tool prefix comes from
+ * the client's config key, which stays the owner's (#464). */
+export const SERVER_NAME = 'capi'
 export const SERVER_VERSION = '0.0.1'
 
 const INSTRUCTIONS = `Access to the owner's personal finances (single user, EUR, Europe/Paris).
@@ -47,7 +49,7 @@ export async function runTool<Shape extends z.ZodRawShape>(
         `[finances-mcp] ${tool.name}: API error ${error.status || 'unreachable'}`,
       )
     } else {
-      message = 'Erreur inattendue du serveur MCP Finances.'
+      message = 'Erreur inattendue du serveur MCP Capi.'
       console.error(
         `[finances-mcp] ${tool.name}: unexpected ${error instanceof Error ? error.name : 'error'}`,
       )

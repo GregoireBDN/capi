@@ -1,4 +1,9 @@
-# Finances
+# Capi
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="apps/web/public/brand/capi-nom-clair.svg">
+  <img src="apps/web/public/brand/capi-nom.svg" alt="Capi" height="64">
+</picture>
 
 A single-user, self-hosted personal finance tracker. Import your bank CSV exports and statements; transactions are parsed, deduplicated, normalized and categorized automatically, and dashboards give you a clear view of where your money is and where it goes.
 

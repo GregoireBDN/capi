@@ -67,7 +67,7 @@ export const fetchCurrentUser = createIsomorphicFn()
   )
 
 /**
- * Whether public sign-up is still open. Finances is single-user: once the owner
+ * Whether public sign-up is still open. Capi is single-user: once the owner
  * account exists the API rejects registration, so the UI hides it too. Fails
  * closed (returns false) if the API can't be reached.
  */

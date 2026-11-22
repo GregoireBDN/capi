@@ -17,7 +17,7 @@ export const SWAGGER_JSON_PATH = 'api/docs-json'
  */
 export function createOpenApiDocument(app: INestApplication): OpenAPIObject {
   const config = new DocumentBuilder()
-    .setTitle('Finances API')
+    .setTitle('Capi API')
     .setVersion('1.0')
     .addCookieAuth('token')
     .build()

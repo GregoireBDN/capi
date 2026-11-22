@@ -3,7 +3,7 @@ import { PageHeader } from '#/components/app-shell/PageHeader'
 import { ContactsSettings } from '#/components/owed/ContactsSettings'
 
 export const Route = createFileRoute('/_app/_settings/settings/contacts')({
-  head: () => ({ meta: [{ title: 'Contacts · Finances' }] }),
+  head: () => ({ meta: [{ title: 'Contacts · Capi' }] }),
   component: ContactsRoute,
 })
 

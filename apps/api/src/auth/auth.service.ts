@@ -97,7 +97,7 @@ export class AuthService {
   ) {}
 
   /**
-   * Finances is single-user: public registration is only open until the first
+   * Capi is single-user: public registration is only open until the first
    * account exists. Afterwards `register` is rejected with 403.
    */
   async isRegistrationOpen(): Promise<boolean> {

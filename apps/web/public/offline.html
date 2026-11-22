@@ -17,7 +17,7 @@
       content="#090c1a"
       media="(prefers-color-scheme: dark)"
     />
-    <title>Hors ligne · Finances</title>
+    <title>Hors ligne · Capi</title>
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <!--
       Served by the service worker when a page cannot be reached. Static on
@@ -99,7 +99,13 @@
   </head>
   <body>
     <main>
-      <img src="/logo.svg" alt="" />
+      <picture>
+        <source
+          srcset="/brand/capi-mark-clair.svg"
+          media="(prefers-color-scheme: dark)"
+        />
+        <img src="/brand/capi-mark.svg" alt="" />
+      </picture>
       <h1>Hors ligne</h1>
       <p>Reconnectez-vous pour voir vos finances.</p>
       <button type="button" id="retry">Réessayer</button>

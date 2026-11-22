@@ -5,7 +5,7 @@ import { useAuth } from '#/lib/auth-context'
 import { ROUTES } from '#/lib/routes'
 
 export const Route = createFileRoute('/_app/_settings/settings/danger')({
-  head: () => ({ meta: [{ title: 'Zone dangereuse · Finances' }] }),
+  head: () => ({ meta: [{ title: 'Zone dangereuse · Capi' }] }),
   component: DangerRoute,
 })
 

@@ -62,7 +62,7 @@ export const Basic: Story = {
     <SidebarProvider>
       <Sidebar>
         <SidebarHeader>
-          <div className="px-2 py-1.5 font-semibold">Finances</div>
+          <div className="px-2 py-1.5 font-semibold">Capi</div>
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
@@ -134,9 +134,7 @@ function AppLikeSidebar({ defaultOpen = true }: { defaultOpen?: boolean }) {
     >
       <Sidebar>
         <SidebarHeader>
-          <div className="flex h-11 items-center px-2 font-semibold">
-            Finances
-          </div>
+          <div className="flex h-11 items-center px-2 font-semibold">Capi</div>
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>

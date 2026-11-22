@@ -205,7 +205,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Passkeys (HTTP)', () => {
           { cookie: owner.fresh },
         )
         const options = res.json<PublicKeyCredentialCreationOptionsJSON>()
-        expect(options.rp).toEqual({ id: 'localhost', name: 'Finances' })
+        expect(options.rp).toEqual({ id: 'localhost', name: 'Capi' })
         expect(options.user.name).toBe('owner@example.test')
         expect(options.authenticatorSelection).toMatchObject({
           residentKey: 'required',

@@ -17,6 +17,13 @@ export const PUBLIC_SHELL_FILES = [
   'manifest.json',
   'favicon.ico',
   'logo.svg',
+  // The Capi brand (#464, cropped by `scripts/generate-icons.mjs`): the SVG
+  // favicon, the wordmark and the mark in light and dark.
+  'brand/capi-favicon.svg',
+  'brand/capi-nom.svg',
+  'brand/capi-nom-clair.svg',
+  'brand/capi-mark.svg',
+  'brand/capi-mark-clair.svg',
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/icon-maskable-512.png',

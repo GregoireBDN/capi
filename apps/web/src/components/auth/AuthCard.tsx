@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@finances/ui'
+import { CapiWordmark } from '#/components/brand/CapiWordmark'
 import { ForgotForm } from './ForgotForm'
 import { LoginForm } from './LoginForm'
 import { PasskeyOffer } from './PasskeyOffer'
@@ -18,7 +19,7 @@ export type AuthMode = 'login' | 'register' | 'forgot' | 'passkey-offer'
 
 interface AuthCardProps {
   /**
-   * Finances is single-user: sign-up is only offered until the owner account
+   * Capi is single-user: sign-up is only offered until the owner account
    * exists. When false, the register form and every link to it are hidden.
    */
   registrationOpen: boolean
@@ -28,11 +29,11 @@ interface AuthCardProps {
 const COPY = {
   login: {
     title: 'Connexion',
-    description: 'Connectez-vous à votre compte Finances',
+    description: 'Connectez-vous à votre compte Capi',
   },
   register: {
     title: 'Créer un compte',
-    description: 'Créez le compte propriétaire de cette instance Finances',
+    description: 'Créez le compte propriétaire de cette instance Capi',
   },
   forgot: {
     title: 'Mot de passe oublié',
@@ -56,7 +57,7 @@ export function AuthCard({
 
   return (
     <>
-      <img src="/logo.svg" alt="Finances" className="size-12" />
+      <CapiWordmark className="h-20" />
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">{COPY[mode].title}</CardTitle>
