@@ -834,6 +834,90 @@ export class OwedService {
 
   // --- Reading --------------------------------------------------------------
 
+  /**
+   * Every receivable's figures for the integrity checks (#427), as stored:
+   * share, repaid and let go, with the expense's account (null for « Quelqu'un
+   * a payé pour moi ») and day. `leftCents` is share − repaid − let go,
+   * never clamped, so a receivable repaid past its share shows below zero.
+   */
+  async settlementFigures(executor: Executor = this.db): Promise<
+    {
+      id: string
+      direction: ReceivableDirection
+      transactionId: string
+      accountId: string | null
+      bookingDate: string
+      amountCents: number
+      repaidCents: number
+      forgivenCents: number
+      leftCents: number
+    }[]
+  > {
+    const paid = paidSubquery(executor)
+    const r = receivablesTable
+    const t = transactionsTable
+    const rows = await executor
+      .select({
+        id: r.id,
+        direction: r.direction,
+        transactionId: r.transactionId,
+        accountId: t.accountId,
+        bookingDate: t.bookingDate,
+        amountCents: r.amountCents,
+        forgivenAt: r.forgivenAt,
+        repaidCents: sql<number>`coalesce(${paid.paidCents}, 0)`.mapWith(
+          Number,
+        ),
+      })
+      .from(r)
+      .innerJoin(t, eq(t.id, r.transactionId))
+      .leftJoin(paid, eq(paid.receivableId, r.id))
+    return rows.map(({ forgivenAt, ...row }) => {
+      // Let go: what was not repaid by then.
+      const forgivenCents =
+        forgivenAt === null ? 0 : Math.max(0, row.amountCents - row.repaidCents)
+      return {
+        ...row,
+        forgivenCents,
+        leftCents: row.amountCents - row.repaidCents - forgivenCents,
+      }
+    })
+  }
+
+  /**
+   * Repayment transfers whose linked repayments add up to more than the
+   * transfer (or its split part) (#427): each with what was linked and the
+   * line's own amount.
+   */
+  async repaymentsOverTransfer(executor: Executor = this.db): Promise<
+    {
+      transactionId: string
+      accountId: string | null
+      bookingDate: string
+      lineCents: number
+      linkedCents: number
+    }[]
+  > {
+    const p = receivablePaymentsTable
+    const t = transactionsTable
+    const s = transactionSplitsTable
+    const lineCents = sql<number>`abs(coalesce(${s.amountCents}, ${t.amountCents}))`
+    const linkedCents = sql<number>`sum(${p.amountCents})::bigint`
+    return executor
+      .select({
+        transactionId: t.id,
+        accountId: t.accountId,
+        bookingDate: t.bookingDate,
+        lineCents: lineCents.mapWith(Number),
+        linkedCents: linkedCents.mapWith(Number),
+      })
+      .from(p)
+      .innerJoin(t, eq(t.id, p.transactionId))
+      .leftJoin(s, eq(s.id, p.splitId))
+      .groupBy(t.id, s.id)
+      .having(sql`${linkedCents} > ${lineCents}`)
+  }
+
   /** « Dépenses partagées »: both lists, per person, and this month's expected. */
   async summary(now: Date = new Date()): Promise<OwedSummaryDto> {
     const today = todayInParis(now)

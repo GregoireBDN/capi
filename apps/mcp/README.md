@@ -23,7 +23,7 @@ Lets Claude (Claude Desktop or Claude Code, on the owner's machine) answer quest
 | `savings_and_goals`    | `GET /api/savings/overview`, `/api/savings/goals` | Saved per month and on average, savings stock (accounts, investments, gains), goals and their projection.           |
 | `month_review`         | `GET /api/dashboard/review`                       | Month-end review (default: previous month): accounts not up to date, net worth change, budget gaps.                 |
 
-Read tools added with the write tools: `month_close_status` (`GET /api/month-close/:month`: steps of the "Bilan du mois" and what is left in each), `review_queue` (`GET /api/transactions?needsReview=true`, with ids), `budget_suggestions` (`POST /api/budgets/suggest`, saves nothing: average spending of past months per category). Transactions are listed with their `id`, which the write tools take.
+Read tools added with the write tools: `month_close_status` (`GET /api/month-close/:month`: steps of the "Bilan du mois" and what is left in each), `review_queue` (`GET /api/transactions?needsReview=true`, with ids), `budget_suggestions` (`POST /api/budgets/suggest`, saves nothing: average spending of past months per category). `integrity_checks` (#427, `GET /api/integrity?month=`: the review's « Cohérence des chiffres », each finding with its account and day, nothing fixed). Transactions are listed with their `id`, which the write tools take.
 
 ### Write tools (write token)
 
@@ -74,7 +74,7 @@ How they behave:
 
 ### Prompt "Bilan du mois"
 
-`revue_du_mois` (optional `month`, default the previous month) starts a guided month-end review: `month_close_status` and `month_review`, statements to import (`list_imports`, then `preview_bank_import` / `commit_bank_import` with your file, or the app), the review queue (categorize, one-offs, rules), subscriptions, budget, savings, investment values, then next month's budget with `budget_suggestions` and one `set_budget_targets`. It ends with `close_months` once you approve its preview. Every change goes through a preview you approve; investment values, ticking steps and reopening a month stay in the app. In Claude Code it shows as `/mcp__finances__revue_du_mois`.
+`revue_du_mois` (optional `month`, default the previous month) starts a guided month-end review: `month_close_status` and `month_review`, statements to import (`list_imports`, then `preview_bank_import` / `commit_bank_import` with your file, or the app), the review queue (categorize, one-offs, rules), subscriptions, budget, savings, investment values and `integrity_checks`, then next month's budget with `budget_suggestions` and one `set_budget_targets`. It ends with `close_months` once you approve its preview. Every change goes through a preview you approve; investment values, ticking steps and reopening a month stay in the app. In Claude Code it shows as `/mcp__finances__revue_du_mois`.
 
 ### Prompt "Importer mes investissements"
 

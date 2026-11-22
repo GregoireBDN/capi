@@ -3,11 +3,16 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { MonthCloseDto, MonthReportDto } from '#/api/types.gen'
+import type {
+  IntegrityDto,
+  MonthCloseDto,
+  MonthReportDto,
+} from '#/api/types.gen'
 import { centsToCsv, reportToCsv } from './csv'
 import { MonthClosePage } from './MonthClosePage'
 
 const api = vi.hoisted(() => ({
+  integrityControllerCheck: vi.fn(),
   monthCloseControllerGet: vi.fn(),
   monthCloseControllerUpdate: vi.fn(),
   monthCloseControllerClose: vi.fn(),
@@ -178,6 +183,20 @@ function ok<T>(data: T) {
 
 const text = (value: string) => value.replace(/\s/g, ' ')
 
+function integrity(overrides: Partial<IntegrityDto> = {}): IntegrityDto {
+  return {
+    month: '2026-10',
+    checks: (['balances', 'crypto', 'owed', 'totals'] as const).map((key) => ({
+      key,
+      scope: key === 'crypto' || key === 'owed' ? 'current' : 'month',
+      status: 'ok',
+      count: 0,
+    })),
+    findings: [],
+    ...overrides,
+  }
+}
+
 function step(key: string) {
   return document.querySelector(`li[data-step="${key}"]`) as HTMLElement
 }
@@ -204,13 +223,14 @@ beforeAll(() => {
 beforeEach(() => {
   vi.clearAllMocks()
   api.monthCloseControllerGet.mockImplementation(() => ok(review()))
+  api.integrityControllerCheck.mockImplementation(() => ok(integrity()))
 })
 
 describe('MonthClosePage', () => {
   it('lists the steps with their state, the progress and where to fix them', async () => {
     renderPage()
 
-    expect(await screen.findByText('2 / 7 étapes faites')).toBeInTheDocument()
+    expect(await screen.findByText('3 / 8 étapes faites')).toBeInTheDocument()
     expect(api.monthCloseControllerGet).toHaveBeenCalledWith(
       expect.objectContaining({ path: { month: '2026-10' } }),
     )
@@ -250,6 +270,72 @@ describe('MonthClosePage', () => {
     expect(
       within(reportCard).getByRole('list', { name: 'Au-dessus du budget' }),
     ).toHaveTextContent(text('50 € de trop'))
+    expect(screen.getByText('Encore 4 étapes.')).toBeInTheDocument()
+  })
+
+  it('lists the integrity findings with their account and day (#427)', async () => {
+    api.integrityControllerCheck.mockImplementation(() =>
+      ok(
+        integrity({
+          checks: integrity().checks.map((check) =>
+            check.key === 'balances'
+              ? { ...check, status: 'findings', count: 1 }
+              : check.key === 'crypto'
+                ? { ...check, status: 'failed' }
+                : check,
+          ),
+          findings: [
+            {
+              check: 'balances',
+              code: 'balance_gap',
+              accountId: CHECKING_ID,
+              accountName: 'Compte test',
+              date: '2026-10-20',
+              fromDate: '2026-10-05',
+              amountCents: -500,
+              transactionId: null,
+              asset: null,
+              quantity: null,
+              readQuantity: null,
+            },
+          ],
+        }),
+      ),
+    )
+    renderPage()
+
+    expect(await screen.findByText('2 / 8 étapes faites')).toBeInTheDocument()
+    const card = step('integrity')
+    expect(card).toHaveAttribute('data-done', 'false')
+    expect(card).toHaveTextContent('Cohérence des chiffres')
+    expect(
+      within(card).getByRole('link', { name: 'Compte test' }),
+    ).toHaveAttribute('href', `/accounts/${CHECKING_ID}`)
+    expect(card).toHaveTextContent('· 20 oct.')
+    expect(card).toHaveTextContent(
+      'Le solde recalculé ne suit plus celui de la banque depuis le 5 oct.',
+    )
+    expect(card).toHaveTextContent(text('-5,00 €'))
+    expect(card).toHaveTextContent('Non vérifié : crypto.')
+    // Before the close, and one more step left.
+    expect(step('close').previousElementSibling).toBe(card)
+    expect(screen.getByText('Encore 5 étapes.')).toBeInTheDocument()
+  })
+
+  it('never holds the review back when the checks fail to load', async () => {
+    api.integrityControllerCheck.mockImplementation(() =>
+      Promise.resolve({
+        data: undefined,
+        error: {},
+        response: { ok: false, status: 500 },
+      }),
+    )
+    renderPage()
+
+    expect(
+      await screen.findByText('La vérification n’a pas pu se faire.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('2 / 7 étapes faites')).toBeInTheDocument()
     expect(screen.getByText('Encore 4 étapes.')).toBeInTheDocument()
   })
 
@@ -312,7 +398,7 @@ describe('MonthClosePage', () => {
     )
     renderPage()
 
-    await screen.findByText('2 / 7 étapes faites')
+    await screen.findByText('3 / 8 étapes faites')
     expect(
       within(step('budget')).getByRole('list', {
         name: 'Revenus pas reçus comme prévu',
@@ -401,7 +487,7 @@ describe('MonthClosePage', () => {
     await waitFor(() =>
       expect(step('budget')).toHaveAttribute('data-done', 'true'),
     )
-    expect(screen.getByText('3 / 7 étapes faites')).toBeInTheDocument()
+    expect(screen.getByText('4 / 8 étapes faites')).toBeInTheDocument()
 
     await user.type(screen.getByLabelText('Notes du mois'), '  Mois calme.  ')
     await user.tab()

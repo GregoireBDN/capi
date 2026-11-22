@@ -8804,6 +8804,52 @@
         ]
       }
     },
+    "/api/integrity": {
+      "get": {
+        "description": "For the month: bank balances recomputed from the transactions vs the bank’s running balance and the statements, transactions entered by hand never matched by an import, income − expenses vs saved, moves between own accounts counted as income or expense. As it stands now: crypto quantities vs the last complete chain read, money owed never below zero and repayments never past their transfer. Each finding names its account and day. A check that cannot run is `failed`; the others still answer. Nothing is fixed automatically.",
+        "operationId": "IntegrityController_check",
+        "parameters": [
+          {
+            "description": "Calendar month (YYYY-MM) whose balances and totals are checked. Default: the current month in Europe/Paris.",
+            "required": false,
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrityDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid month."
+          },
+          "401": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Consistency checks computed from the stored data",
+        "tags": [
+          "Integrity"
+        ]
+      }
+    },
     "/api/coverage": {
       "get": {
         "description": "The latest day with imported data, the month pages open on without a `month` parameter (the current month when it has data, else the month the data stops in) and the months that have transactions.",
@@ -21527,6 +21573,182 @@
             "description": "Notes saved with the close (kept as they are when absent)."
           }
         }
+      },
+      "IntegrityCheck": {
+        "type": "string",
+        "enum": [
+          "balances",
+          "crypto",
+          "owed",
+          "totals"
+        ]
+      },
+      "IntegrityCheckStatus": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "findings",
+          "failed"
+        ],
+        "description": "`failed`: the check could not run (logged); the other checks still answer."
+      },
+      "IntegrityCheckDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IntegrityCheck"
+              }
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "month",
+              "current"
+            ],
+            "description": "`month`: the asked month’s data (balances, totals). `current`: the data as it stands now, whatever the month (crypto holdings, money owed)."
+          },
+          "status": {
+            "description": "`failed`: the check could not run (logged); the other checks still answer.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IntegrityCheckStatus"
+              }
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "description": "Findings of this check."
+          }
+        },
+        "required": [
+          "key",
+          "scope",
+          "status",
+          "count"
+        ]
+      },
+      "IntegrityFindingCode": {
+        "type": "string",
+        "enum": [
+          "balance_gap",
+          "statement_gap",
+          "manual_not_reconciled",
+          "holding_differs_from_read",
+          "owed_negative",
+          "repayment_over_transfer",
+          "flow_mismatch",
+          "internal_move_counted"
+        ],
+        "description": "`balance_gap`: the balance recomputed from the transactions differs from the bank’s running balance that day (rows missing or extra since `fromDate`). `statement_gap`: a statement closing balance differs from the balance recomputed from the transactions. `manual_not_reconciled`: a transaction entered by hand on a bank account, dated well inside the imported period, never matched to a bank row: it counts in the totals but not in the balance. `holding_differs_from_read`: a crypto holding’s quantity differs from what the last complete chain read (or edit) recorded. `owed_negative`: what is left on a shared expense (share − repaid − let go) is below zero. `repayment_over_transfer`: the repayments linked to a transfer add up to more than the transfer. `flow_mismatch`: income − expenses differs from what is shown as saved. `internal_move_counted`: an income or expense mirrors a transfer of another of the owner’s accounts (opposite amount, at most 3 days apart): a move between own accounts counted as income or spending."
+      },
+      "IntegrityFindingDto": {
+        "type": "object",
+        "properties": {
+          "check": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IntegrityCheck"
+              }
+            ]
+          },
+          "code": {
+            "description": "`balance_gap`: the balance recomputed from the transactions differs from the bank’s running balance that day (rows missing or extra since `fromDate`). `statement_gap`: a statement closing balance differs from the balance recomputed from the transactions. `manual_not_reconciled`: a transaction entered by hand on a bank account, dated well inside the imported period, never matched to a bank row: it counts in the totals but not in the balance. `holding_differs_from_read`: a crypto holding’s quantity differs from what the last complete chain read (or edit) recorded. `owed_negative`: what is left on a shared expense (share − repaid − let go) is below zero. `repayment_over_transfer`: the repayments linked to a transfer add up to more than the transfer. `flow_mismatch`: income − expenses differs from what is shown as saved. `internal_move_counted`: an income or expense mirrors a transfer of another of the owner’s accounts (opposite amount, at most 3 days apart): a move between own accounts counted as income or spending.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IntegrityFindingCode"
+              }
+            ]
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "accountName": {
+            "type": "string",
+            "nullable": true
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Day of the finding."
+          },
+          "fromDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "`balance_gap`, `statement_gap`: last day the balance followed."
+          },
+          "amountCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Integer cents. Gaps: stated − recomputed. `manual_not_reconciled`, `internal_move_counted`: the transaction’s amount. `owed_negative`: what is left (negative). `repayment_over_transfer`: the excess. `flow_mismatch`: (income − expenses) − saved."
+          },
+          "transactionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "asset": {
+            "type": "string",
+            "nullable": true,
+            "description": "`holding_differs_from_read`: the asset’s symbol."
+          },
+          "quantity": {
+            "type": "string",
+            "nullable": true,
+            "description": "`holding_differs_from_read`: quantity held now (exact decimal string)."
+          },
+          "readQuantity": {
+            "type": "string",
+            "nullable": true,
+            "description": "`holding_differs_from_read`: quantity the last complete read recorded (exact decimal string)."
+          }
+        },
+        "required": [
+          "check",
+          "code",
+          "accountId",
+          "accountName",
+          "date",
+          "fromDate",
+          "amountCents",
+          "transactionId",
+          "asset",
+          "quantity",
+          "readQuantity"
+        ]
+      },
+      "IntegrityDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntegrityCheckDto"
+            }
+          },
+          "findings": {
+            "description": "Every finding, by check then day.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntegrityFindingDto"
+            }
+          }
+        },
+        "required": [
+          "month",
+          "checks",
+          "findings"
+        ]
       },
       "CoverageDto": {
         "type": "object",

@@ -22,6 +22,7 @@ import {
   reviewQueueTool,
 } from './month-close.js'
 import { closeMonthsTool } from './month-close-writes.js'
+import { integrityChecksTool } from './integrity.js'
 import { monthReviewTool } from './review.js'
 import { owedToMeTool } from './owed.js'
 import { linkRepaymentTool, shareExpenseTool } from './owed-writes.js'
@@ -52,6 +53,8 @@ export const readTools = [
   savingsTool,
   monthReviewTool,
   monthCloseStatusTool,
+  // #427: the review's « Cohérence des chiffres ».
+  integrityChecksTool,
   reviewQueueTool,
   listImportsTool,
   // #104: investments, before importing statement values.
