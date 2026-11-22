@@ -1,19 +1,11 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  NativeSelect,
-  NativeSelectOption,
-} from '@finances/ui'
+import { NativeSelect, NativeSelectOption } from '@finances/ui'
 import {
   queryOptions,
   useMutation,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
-import { ArrowRightIcon } from 'lucide-react'
+import { ArrowLeftRightIcon, ArrowRightIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   cryptoMovementsControllerLink,
@@ -21,7 +13,10 @@ import {
 } from '#/api'
 import type { AccountDto, InvestmentMovementDto } from '#/api/types.gen'
 import { formatCalendarDate, formatCents } from '#/lib/money'
+import { formatShortDay } from '#/lib/period'
 import { accountsQuery, unwrap } from '#/lib/queries'
+import type { AccountDetail } from './AccountDetails'
+import { todayInParis } from './dates'
 
 export const movementsKey = ['investments', 'movements'] as const
 
@@ -180,30 +175,35 @@ export function MovementList({
  * Where a crypto account's money and coins came from and went (#296): the
  * bank transfers to it, the coins withdrawn to the Ledger (with the cost
  * they left with) or received from the exchange. A withdrawal or deposit
- * the app could not link picks its account here.
+ * the app could not link picks its account here. A row of « Plus
+ * d’informations » (#447), in amber while one waits to be linked; absent
+ * while there is none.
  */
-export function MovementsCard({ accountId }: { accountId: string }) {
+export function useMovementsDetail(accountId: string): AccountDetail | null {
   const movements = useQuery(movementsQuery(accountId))
   const items = movements.data?.items ?? []
   if (items.length === 0) return null
   const unlinked = items.filter(
     (m) => m.linkable && (m.from === null || m.to === null),
   ).length
-  return (
-    <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle>Mouvements</CardTitle>
-        <CardDescription>
-          Virements de la banque et cryptos envoyées entre vos comptes, sur 24
-          mois. Le coût d’un retrait (prix moyen d’achat) devient l’investi du
-          compte qui le reçoit.
-          {unlinked > 0 &&
-            ` ${unlinked === 1 ? 'Un mouvement est' : `${unlinked} mouvements sont`} à lier à son compte.`}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <MovementList movements={items} editableFrom={accountId} />
-      </CardContent>
-    </Card>
-  )
+  return {
+    id: 'movements',
+    icon: ArrowLeftRightIcon,
+    label: 'Mouvements',
+    summary:
+      unlinked > 0
+        ? `${unlinked} à lier`
+        : `${items.length} · le dernier le ${formatShortDay(items[0].date, todayInParis().slice(0, 4))}`,
+    warning: unlinked > 0,
+    description: (
+      <>
+        Virements de la banque et cryptos envoyées entre vos comptes, sur 24
+        mois. Le coût d’un retrait (prix moyen d’achat) devient l’investi du
+        compte qui le reçoit.
+        {unlinked > 0 &&
+          ` ${unlinked === 1 ? 'Un mouvement est' : `${unlinked} mouvements sont`} à lier à son compte.`}
+      </>
+    ),
+    content: <MovementList movements={items} editableFrom={accountId} />,
+  }
 }

@@ -44,7 +44,9 @@ import type {
   WalletKeyDto,
 } from '#/api/types.gen'
 import { InvestmentSummary } from '#/components/accounts/InvestmentSummary'
-import { MovementsCard } from '#/components/accounts/Movements'
+import { AccountDetails } from '#/components/accounts/AccountDetails'
+import type { AccountDetail } from '#/components/accounts/AccountDetails'
+import { useMovementsDetail } from '#/components/accounts/Movements'
 import { accountKeys } from '#/components/accounts/queries'
 import { historyPoints } from '#/components/accounts/history'
 import { DashboardCardHeader } from '#/components/dashboard/DashboardCardHeader'
@@ -916,11 +918,13 @@ function WalletKeySheet({
 }
 
 /**
- * Keys and tokens are settings, not content (#294): one row per key (what
- * it found) and one for the tokens read, each opening its own screen, then
- * « Ajouter une clé ».
+ * Keys and tokens are settings, not content (#294): « Clés et jetons », a
+ * row of « Plus d’informations » (#447) whose screen lists one row per key
+ * (what it found) and one for the tokens read, each opening its own screen.
+ * Those screens and « Ajouter une clé » (a page action) stay mounted with
+ * the page, so they open over it.
  */
-function WalletSettings({
+function useWalletKeysDetail({
   account,
   writable,
   onTokensChanged,
@@ -928,7 +932,7 @@ function WalletSettings({
   account: AccountDto
   writable: boolean
   onTokensChanged: () => void
-}) {
+}): { detail: AccountDetail | null; sheets: ReactNode } {
   const keys = useQuery(walletKeysQuery(account.id))
   const tokens = useQuery(walletTokensQuery(account.id))
   const [openKeyId, setOpenKeyId] = useState<string>()
@@ -958,120 +962,139 @@ function WalletSettings({
       : 'ETH, BNB et POL seulement'
   const rowClass = 'w-full text-left'
 
-  return (
-    <Card role="region" aria-label="Clés et jetons" className="min-w-0">
-      <DashboardCardHeader
-        title="Clés et jetons"
-        status="Ce que le wallet lit sur la blockchain."
-      />
-      <CardContent className="space-y-3">
-        {keys.isPending ? (
-          <Skeleton className="h-12 w-full" aria-label="Chargement" />
-        ) : (
-          <ItemList>
-            <ItemListGroup>
-              {list.map((key) => (
-                <ItemListRow
-                  key={key.id}
-                  asChild
-                  icon={<KeyRoundIcon />}
-                  iconClassName={
-                    keyScanText(key)?.warning
-                      ? 'bg-warning/15 text-warning-foreground dark:text-warning'
-                      : undefined
-                  }
-                  title={keyTitle(key)}
-                  subtitle={keySubtitle(key)}
-                >
-                  <button
-                    type="button"
-                    aria-label={`${keyTitle(key)} : ${keySubtitle(key)}`}
-                    className={rowClass}
-                    onClick={() => setOpenKeyId(key.id)}
-                  />
-                </ItemListRow>
-              ))}
-              {evmChains.length > 0 && (
-                <ItemListRow
-                  asChild
-                  icon={<CoinsIcon />}
-                  title="Jetons lus"
-                  subtitle={tokensText}
-                >
-                  <button
-                    type="button"
-                    aria-label={`Jetons lus : ${tokensText}`}
-                    className={rowClass}
-                    onClick={() => setTokensOpen(true)}
-                  />
-                </ItemListRow>
+  const warning = list.some((key) => keyScanText(key)?.warning)
+  const detail: AccountDetail | null =
+    keys.isPending || list.length > 0 || writable
+      ? {
+          id: 'keys',
+          icon: KeyRoundIcon,
+          label: 'Clés et jetons',
+          summary: keys.isPending
+            ? undefined
+            : [
+                plural(list.length, 'clé', 'clés'),
+                ...(tokens.data && tokens.data.length > 0
+                  ? [tokens.data.map((token) => token.symbol).join(', ')]
+                  : []),
+              ].join(' · '),
+          warning,
+          description: 'Ce que le wallet lit sur la blockchain.',
+          content: (
+            <div className="space-y-3">
+              {keys.isPending ? (
+                <Skeleton className="h-12 w-full" aria-label="Chargement" />
+              ) : (
+                <ItemList>
+                  <ItemListGroup>
+                    {list.map((key) => (
+                      <ItemListRow
+                        key={key.id}
+                        asChild
+                        icon={<KeyRoundIcon />}
+                        iconClassName={
+                          keyScanText(key)?.warning
+                            ? 'bg-warning/15 text-warning-foreground dark:text-warning'
+                            : undefined
+                        }
+                        title={keyTitle(key)}
+                        subtitle={keySubtitle(key)}
+                      >
+                        <button
+                          type="button"
+                          aria-label={`${keyTitle(key)} : ${keySubtitle(key)}`}
+                          className={rowClass}
+                          onClick={() => setOpenKeyId(key.id)}
+                        />
+                      </ItemListRow>
+                    ))}
+                    {evmChains.length > 0 && (
+                      <ItemListRow
+                        asChild
+                        icon={<CoinsIcon />}
+                        title="Jetons lus"
+                        subtitle={tokensText}
+                      >
+                        <button
+                          type="button"
+                          aria-label={`Jetons lus : ${tokensText}`}
+                          className={rowClass}
+                          onClick={() => setTokensOpen(true)}
+                        />
+                      </ItemListRow>
+                    )}
+                  </ItemListGroup>
+                </ItemList>
               )}
-            </ItemListGroup>
-          </ItemList>
-        )}
-        {writable && !inMenu && (
-          <Button
-            className="w-full"
-            outline
-            variant="secondary"
-            iconStart={<PlusIcon />}
-            onClick={() => setAdding(true)}
+              {writable && !inMenu && (
+                <Button
+                  className="w-full"
+                  outline
+                  variant="secondary"
+                  iconStart={<PlusIcon />}
+                  onClick={() => setAdding(true)}
+                >
+                  Ajouter une clé
+                </Button>
+              )}
+            </div>
+          ),
+        }
+      : null
+  return {
+    detail,
+    sheets: (
+      <>
+        <WalletKeySheet
+          accountId={account.id}
+          walletKey={list.find((key) => key.id === openKeyId)}
+          removable={list.length > 1}
+          writable={writable}
+          onOpenChange={(open) => !open && setOpenKeyId(undefined)}
+          onChangeType={(key) => {
+            setOpenKeyId(undefined)
+            setTyping(key)
+          }}
+        />
+        <Sheet open={tokensOpen} onOpenChange={setTokensOpen}>
+          <SheetContent
+            side={editorSide(isMobile)}
+            className={sheetClass(isMobile)}
           >
-            Ajouter une clé
-          </Button>
-        )}
-      </CardContent>
-
-      <WalletKeySheet
-        accountId={account.id}
-        walletKey={list.find((key) => key.id === openKeyId)}
-        removable={list.length > 1}
-        writable={writable}
-        onOpenChange={(open) => !open && setOpenKeyId(undefined)}
-        onChangeType={(key) => {
-          setOpenKeyId(undefined)
-          setTyping(key)
-        }}
-      />
-      <Sheet open={tokensOpen} onOpenChange={setTokensOpen}>
-        <SheetContent
-          side={editorSide(isMobile)}
-          className={sheetClass(isMobile)}
-        >
-          <EditorHeader
-            title={<>Jetons lus</>}
-            description={
-              <>Les jetons ERC-20 / BEP-20 lus sur les adresses du wallet.</>
-            }
-            className="pb-0"
-          />
-          <SheetScroll className="px-4 pb-6">
-            <WalletTokenList
-              accountId={account.id}
-              writable={writable}
-              chains={evmChains}
-              onChanged={onTokensChanged}
+            <EditorHeader
+              title={<>Jetons lus</>}
+              description={
+                <>Les jetons ERC-20 / BEP-20 lus sur les adresses du wallet.</>
+              }
+              className="pb-0"
             />
-          </SheetScroll>
-        </SheetContent>
-      </Sheet>
-      {writable && (
-        <>
-          <AddWalletKeySheet
-            open={adding}
-            onOpenChange={setAdding}
-            accountId={account.id}
-            provider={account.institution ?? undefined}
-          />
-          <WalletKeyTypeSheet
-            accountId={account.id}
-            walletKey={typing}
-            onOpenChange={(open) => !open && setTyping(undefined)}
-          />
-        </>
-      )}
-    </Card>
-  )
+            <SheetScroll className="px-4 pb-6">
+              <WalletTokenList
+                accountId={account.id}
+                writable={writable}
+                chains={evmChains}
+                onChanged={onTokensChanged}
+              />
+            </SheetScroll>
+          </SheetContent>
+        </Sheet>
+        {writable && (
+          <>
+            <AddWalletKeySheet
+              open={adding}
+              onOpenChange={setAdding}
+              accountId={account.id}
+              provider={account.institution ?? undefined}
+            />
+            <WalletKeyTypeSheet
+              accountId={account.id}
+              walletKey={typing}
+              onOpenChange={(open) => !open && setTyping(undefined)}
+            />
+          </>
+        )}
+      </>
+    ),
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -1081,8 +1104,8 @@ function WalletSettings({
 /**
  * A wallet account's page body (#269, reworked in #294, the owner's « A.
  * Par actif »): what it holds first (value, change, freshness and the split
- * by asset), the holdings by asset, the evolution, then the keys and tokens
- * as settings. One column at every width, read top to bottom.
+ * by asset), the holdings by asset, the evolution, then « Plus
+ * d’informations » (#447): its movements, its keys and tokens. One column at every width, read top to bottom.
  */
 export function WalletAccount({
   account,
@@ -1105,6 +1128,13 @@ export function WalletAccount({
   // Stored balances and prices at once (#381), then the live step: the
   // chains when due, the prices older than the TTL, in place.
   const holdings = useQuery(holdingsQuery(account.id))
+  // « Plus d’informations » (#447), read before the loading states.
+  const movementsDetail = useMovementsDetail(account.id)
+  const keysDetail = useWalletKeysDetail({
+    account,
+    writable,
+    onTokensChanged,
+  })
   const live = useLiveRefresh({
     target: account.id,
     queryKey: cryptoKeys.holdings(account.id),
@@ -1181,16 +1211,13 @@ export function WalletAccount({
         settling={pricesSettling(data, live || refreshing)}
         now={now}
       />
-      {/* Bank → exchange → Ledger, with the cost the coins left with (#296). */}
-      <MovementsCard accountId={account.id} />
       {historyPoints(performance).length > 0 && (
         <CryptoHistory performance={performance} today={today} />
       )}
-      <WalletSettings
-        account={account}
-        writable={writable}
-        onTokensChanged={onTokensChanged}
-      />
+      {/* Read now and then (#447): bank → exchange → Ledger with the cost
+          the coins left with (#296), then the keys and tokens. */}
+      <AccountDetails items={[movementsDetail, keysDetail.detail]} />
+      {keysDetail.sheets}
     </>
   )
 }

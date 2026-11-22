@@ -26,6 +26,8 @@ import { rowAmount } from '#/components/crypto/HoldingsPanel'
 import { DashboardCardHeader } from '#/components/dashboard/DashboardCardHeader'
 import { formatCalendarDate, formatCents, formatWholeEuros } from '#/lib/money'
 import { formatShortDay } from '#/lib/period'
+import type { AccountDetail } from '#/components/accounts/AccountDetails'
+import { todayInParis } from '#/components/accounts/dates'
 import {
   afterPositionsChanged,
   positionsQuery,
@@ -312,8 +314,8 @@ function SplitBar({ data }: { data: PositionsDto }) {
   )
 }
 
-/** The statements the lines come from, folded at the end of the card. */
-function Statements({
+/** The statements the lines come from, newest first, each deletable. */
+function StatementsList({
   accountId,
   data,
   writable,
@@ -323,9 +325,7 @@ function Statements({
   writable: boolean
 }) {
   const queryClient = useQueryClient()
-  const [open, setOpen] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const id = useId()
   const remove = useMutation({
     mutationFn: (asOf: string) => removeStatement(accountId, asOf),
     onSuccess: async (_data, asOf) => {
@@ -335,26 +335,9 @@ function Statements({
     },
     onError: () => toast.error('Impossible de supprimer ce relevé.'),
   })
-  if (data.statements.length === 0) return null
   return (
-    <div className="border-t pt-2">
-      <Button
-        ghost
-        variant="secondary"
-        size="sm"
-        aria-expanded={open}
-        aria-controls={id}
-        iconEnd={
-          <ChevronDownIcon
-            aria-hidden
-            className={cn('transition-transform', open && 'rotate-180')}
-          />
-        }
-        onClick={() => setOpen(!open)}
-      >
-        Historique ({data.statements.length})
-      </Button>
-      <ul id={id} hidden={!open} className="divide-y">
+    <div>
+      <ul className="divide-y" aria-label="Relevés de portefeuille">
         {data.statements.map((statement) => (
           <li
             key={statement.asOf}
@@ -410,9 +393,40 @@ function Statements({
 }
 
 /**
+ * A PEA's statements (#413), the whole account on each day: a row of « Plus
+ * d’informations » (#447), absent while there is none.
+ */
+export function useStatementsDetail({
+  accountId,
+  writable,
+  enabled,
+}: {
+  accountId: string
+  writable: boolean
+  /** Only a PEA has statements. */
+  enabled: boolean
+}): AccountDetail | null {
+  const positions = useQuery({ ...positionsQuery(accountId), enabled })
+  const data = positions.data
+  if (!enabled || !data || data.statements.length === 0) return null
+  const latest = data.statements[0].asOf
+  return {
+    id: 'statements',
+    icon: FileTextIcon,
+    label: 'Relevés de portefeuille',
+    summary: `${data.statements.length} · au ${formatShortDay(latest, todayInParis().slice(0, 4))}`,
+    description:
+      'Ce que contenait le PEA à chaque relevé, lu par Claude ou saisi.',
+    content: (
+      <StatementsList accountId={accountId} data={data} writable={writable} />
+    ),
+  }
+}
+
+/**
  * « Lignes » (#413, the owner's « A. Comme le Crypto »): the split of the
  * value, one row per ETF like the Crypto page's « Actifs », the cash last,
- * the lines' cost, then the statements folded.
+ * the lines' cost. Its statements are in « Plus d’informations » (#447).
  */
 export function LinesCard({
   accountId,
@@ -537,7 +551,6 @@ export function LinesCard({
             )}
           </>
         )}
-        <Statements accountId={accountId} data={data} writable={writable} />
       </CardContent>
     </Card>
   )

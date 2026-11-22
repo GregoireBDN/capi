@@ -26,6 +26,7 @@ import {
   LinkIcon,
   PlusIcon,
   Trash2Icon,
+  PencilLineIcon,
 } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
@@ -37,6 +38,7 @@ import type {
   WalletKeyDto,
   WalletTokenDto,
 } from '#/api/types.gen'
+import type { AccountDetail } from '#/components/accounts/AccountDetails'
 import { ApiRequestError } from '#/lib/queries'
 import { ChangeCryptoSourceSheet } from './ChangeCryptoSourceSheet'
 import { holdingErrorMessage } from './errors'
@@ -702,10 +704,39 @@ export function keyScanText(
 export function CryptoSourceCard({
   account,
   writable,
+  bare,
 }: {
   account: AccountDto
   writable: boolean
+  /** Inside the « Source » screen (#447): no card, its title is the row's. */
+  bare?: boolean
 }) {
+  const source = account.cryptoSource ?? 'manual'
+  const title = cryptoSourceTitle(account)
+
+  if (source === 'manual') {
+    return (
+      <ManualSourceCard
+        account={account}
+        writable={writable}
+        title={title}
+        bare={bare}
+      />
+    )
+  }
+  // A wallet has its own page body (`WalletAccount`, #269).
+  return (
+    <ExchangeSourceCard
+      account={account}
+      writable={writable}
+      title={title}
+      bare={bare}
+    />
+  )
+}
+
+/** « Plateforme crypto · Binance », « Saisie manuelle · Ledger ». */
+function cryptoSourceTitle(account: AccountDto): string {
   const source = account.cryptoSource ?? 'manual'
   const where =
     source === 'exchange'
@@ -713,19 +744,26 @@ export function CryptoSourceCard({
         (account.cryptoProvider &&
           CRYPTO_EXCHANGE_PROVIDER_LABELS[account.cryptoProvider]))
       : account.institution
-  const title = [CRYPTO_SOURCE_LABELS[source], where]
-    .filter(Boolean)
-    .join(' · ')
+  return [CRYPTO_SOURCE_LABELS[source], where].filter(Boolean).join(' · ')
+}
 
-  if (source === 'manual') {
-    return (
-      <ManualSourceCard account={account} writable={writable} title={title} />
-    )
+/**
+ * Where an exchange's or a manual account's holdings come from: a row of
+ * « Plus d’informations » (#447), the source's name as its few words; its
+ * screen offers « Importer un export » or « Relier à un wallet ou une
+ * plateforme ».
+ */
+export function cryptoSourceDetail(
+  account: AccountDto,
+  writable: boolean,
+): AccountDetail {
+  return {
+    id: 'source',
+    icon: account.cryptoSource === 'exchange' ? FileUpIcon : PencilLineIcon,
+    label: 'Source des avoirs',
+    summary: cryptoSourceTitle(account),
+    content: <CryptoSourceCard account={account} writable={writable} bare />,
   }
-  // A wallet has its own page body (`WalletAccount`, #269).
-  return (
-    <ExchangeSourceCard account={account} writable={writable} title={title} />
-  )
 }
 
 /**
@@ -736,35 +774,47 @@ function ManualSourceCard({
   account,
   writable,
   title,
+  bare,
 }: {
   account: AccountDto
   writable: boolean
   title: string
+  bare?: boolean
 }) {
   const [changing, setChanging] = useState(false)
+  const body = (
+    <>
+      <CardDescription>
+        Avoirs saisis à la main : ajoutez-les et modifiez-les sur la page du
+        compte.
+      </CardDescription>
+      {writable && (
+        <div className="pt-1">
+          <Button
+            size="sm"
+            outline
+            variant="secondary"
+            iconStart={<LinkIcon />}
+            onClick={() => setChanging(true)}
+          >
+            Relier à un wallet ou une plateforme
+          </Button>
+        </div>
+      )}
+    </>
+  )
   return (
     <section aria-label="Source des avoirs">
-      <Card className="min-w-0">
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>
-            Avoirs saisis à la main : ajoutez-les et modifiez-les ci-dessous.
-          </CardDescription>
-          {writable && (
-            <div className="pt-1">
-              <Button
-                size="sm"
-                outline
-                variant="secondary"
-                iconStart={<LinkIcon />}
-                onClick={() => setChanging(true)}
-              >
-                Relier à un wallet ou une plateforme
-              </Button>
-            </div>
-          )}
-        </CardHeader>
-      </Card>
+      {bare ? (
+        <div className="space-y-3">{body}</div>
+      ) : (
+        <Card className="min-w-0">
+          <CardHeader>
+            <CardTitle>{title}</CardTitle>
+            {body}
+          </CardHeader>
+        </Card>
+      )}
       {writable && (
         <ChangeCryptoSourceSheet
           open={changing}
@@ -781,34 +831,45 @@ function ExchangeSourceCard({
   account,
   writable,
   title,
+  bare,
 }: {
   account: AccountDto
   writable: boolean
   title: string
+  bare?: boolean
 }) {
   const [importing, setImporting] = useState(false)
+  const body = (
+    <>
+      <CardDescription>
+        Avoirs calculés depuis les exports de la plateforme.
+      </CardDescription>
+      <p className="text-sm">{syncedAtText(account)}</p>
+      {writable && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
+          <Button
+            size="sm"
+            iconStart={<FileUpIcon />}
+            onClick={() => setImporting(true)}
+          >
+            Importer un export
+          </Button>
+        </div>
+      )}
+    </>
+  )
   return (
     <section aria-label="Source des avoirs">
-      <Card className="min-w-0">
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>
-            Avoirs calculés depuis les exports de la plateforme.
-          </CardDescription>
-          <p className="text-sm">{syncedAtText(account)}</p>
-          {writable && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
-              <Button
-                size="sm"
-                iconStart={<FileUpIcon />}
-                onClick={() => setImporting(true)}
-              >
-                Importer un export
-              </Button>
-            </div>
-          )}
-        </CardHeader>
-      </Card>
+      {bare ? (
+        <div className="space-y-3">{body}</div>
+      ) : (
+        <Card className="min-w-0">
+          <CardHeader>
+            <CardTitle>{title}</CardTitle>
+            {body}
+          </CardHeader>
+        </Card>
+      )}
       {writable && (
         <ExchangeImportSheet
           open={importing}

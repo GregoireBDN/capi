@@ -251,6 +251,47 @@ const positions: PositionsDto = {
   ],
 }
 
+/**
+ * Opens a row of « Plus d’informations » (#447) and returns its screen. The
+ * row's name starts with its label, then says what it holds.
+ */
+async function openDetail(
+  label: string,
+  user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime }),
+) {
+  const details = await screen.findByRole('region', {
+    name: 'Plus d’informations',
+  })
+  await user.click(
+    await within(details).findByRole('button', {
+      name: (name) => name.startsWith(label),
+    }),
+  )
+  return screen.findByRole('dialog', { name: label })
+}
+
+/** Closes the open screen of « Plus d’informations » (#447). */
+async function closeDetail(label: string) {
+  await userEvent
+    .setup({ advanceTimers: vi.advanceTimersByTime })
+    .keyboard('{Escape}')
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', { name: label }),
+    ).not.toBeInTheDocument(),
+  )
+}
+
+/** The few words a row of « Plus d’informations » says (#447). */
+async function detailRow(label: string) {
+  const details = await screen.findByRole('region', {
+    name: 'Plus d’informations',
+  })
+  return within(details).findByRole('button', {
+    name: (name) => name.startsWith(label),
+  })
+}
+
 function renderPage(origin?: AccountSearch) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -355,19 +396,16 @@ describe('AccountDetailPage', () => {
     expect(
       screen.getByRole('img', { name: /Valeur et montant investi/ }),
     ).toBeInTheDocument()
-    // The values are in a screen of their own (#420), not on the page.
+    // The values are one tap away (#420, #447), not on the page.
     expect(
-      screen.queryByRole('list', { name: 'Valeurs enregistrées' }),
+      screen.queryByRole('list', { name: 'Historique des valeurs' }),
     ).not.toBeInTheDocument()
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Historique des valeurs' }),
+    expect(text((await detailRow('Historique des valeurs')).textContent)).toBe(
+      'Historique des valeurs3 valeurs',
     )
-    const history = await screen.findByRole('dialog', {
-      name: 'Historique des valeurs',
-    })
-    expect(text(history.textContent)).toContain('3 valeurs enregistrées')
+    const history = await openDetail('Historique des valeurs')
     const list = within(history).getByRole('list', {
-      name: 'Valeurs enregistrées',
+      name: 'Historique des valeurs',
     })
     const rows = within(list).getAllByRole('listitem')
     // Newest first.
@@ -379,6 +417,88 @@ describe('AccountDetailPage', () => {
     ).toBeInTheDocument()
     expect(
       within(history).getByRole('button', { name: 'Coller un historique' }),
+    ).toBeInTheDocument()
+  })
+
+  it('keeps a PEA’s transfers, statements and values one tap away (#447)', async () => {
+    api.positionsControllerGet.mockImplementation(() => ok(positions))
+    api.transactionsControllerList.mockImplementation(() =>
+      ok({
+        items: [
+          {
+            id: 'b0000000-0000-4000-8000-000000000009',
+            accountId: 'b0000000-0000-4000-8000-0000000000aa',
+            accountName: 'Courant test',
+            paidByContactId: null,
+            paidByContactName: null,
+            importId: null,
+            bookingDate: '2026-11-04',
+            valueDate: null,
+            amountCents: -50_000,
+            rawLabel: 'VIR VERS PEA TEST',
+            merchant: null,
+            kind: 'transfer',
+            categoryId: null,
+            category: null,
+            ruleId: null,
+            needsReview: false,
+            isOneOff: false,
+            note: null,
+            manual: false,
+            prepaidItemId: null,
+            prepaidTermMonths: null,
+            originalAmountCents: null,
+            originalBookingDate: null,
+            counterpartAccountId: ACCOUNT_ID,
+            counterpartAccountName: 'PEA test',
+            splits: [],
+            shares: [],
+            repayments: [],
+            createdAt: '2026-11-05T00:00:00.000Z',
+            updatedAt: '2026-11-05T00:00:00.000Z',
+          },
+        ],
+        total: 1,
+        page: 1,
+        limit: 10,
+      }),
+    )
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderPage()
+
+    // Not on the page: rows saying what each holds, in this order.
+    const details = await screen.findByRole('region', {
+      name: 'Plus d’informations',
+    })
+    await waitFor(() =>
+      expect(
+        within(details)
+          .getAllByRole('button')
+          .map((row) => text(row.textContent)),
+      ).toEqual([
+        'Virements liés1 · le dernier le 4 nov.',
+        'Relevés de portefeuille1 · au 30 sept.',
+        'Historique des valeurs3 valeurs',
+      ]),
+    )
+    expect(screen.queryByText('VIR VERS PEA TEST')).not.toBeInTheDocument()
+    expect(
+      within(screen.getByRole('region', { name: 'Lignes' })).queryByText(
+        /^Historique/,
+      ),
+    ).not.toBeInTheDocument()
+
+    const transfers = await openDetail('Virements liés', user)
+    expect(text(transfers.textContent)).toContain('VIR VERS PEA TEST')
+    expect(text(transfers.textContent)).toContain('+500,00 €')
+    await closeDetail('Virements liés')
+
+    const statements = await openDetail('Relevés de portefeuille', user)
+    expect(text(statements.textContent)).toContain('2 lignes · lu par Claude')
+    expect(
+      within(statements).getByRole('button', {
+        name: 'Supprimer le relevé du 30 sept. 2026',
+      }),
     ).toBeInTheDocument()
   })
 
@@ -566,13 +686,9 @@ describe('AccountDetailPage', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderPage()
 
-    // From the values' own screen (#420), which stays open behind the editor.
-    await user.click(
-      await screen.findByRole('button', { name: 'Historique des valeurs' }),
-    )
-    const history = await screen.findByRole('dialog', {
-      name: 'Historique des valeurs',
-    })
+    // From the values' own screen (#420, #447), which stays open behind
+    // the editor.
+    const history = await openDetail('Historique des valeurs', user)
     await user.click(
       within(history).getByRole('button', {
         name: 'Modifier la valeur du 30 juin 2026',
@@ -874,24 +990,36 @@ describe('AccountDetailPage', () => {
         within(latest).getByRole('link', { name: 'Tout voir' }),
       ).toHaveAttribute('href', `/transactions?account=${ACCOUNT_ID}`)
 
-      const imports = screen.getByRole('region', { name: 'Imports' })
+      // Imports, debits and statement balances are one tap away (#447),
+      // each row saying what it holds; a gap in amber.
+      expect(screen.queryByRole('region', { name: 'Imports' })).toBeNull()
+      await waitFor(async () =>
+        expect(text((await detailRow('Imports')).textContent)).toBe(
+          'Imports1 écart de solde',
+        ),
+      )
+      expect(text((await detailRow('Prélèvements')).textContent)).toBe(
+        'Prélèvements1 · 29,99 € / mois',
+      )
+      expect(text((await detailRow('Soldes de relevés')).textContent)).toBe(
+        'Soldes de relevés1 solde',
+      )
+
+      const imports = await openDetail('Imports')
       expect(
         text((await within(imports).findByText(/20 ajoutées/)).textContent),
       ).toBe('20 ajoutées · le 4 nov.')
       expect(text(imports.textContent)).toContain(
         'Entre le 10 oct. et le 14 oct. : -42,00 € d’opérations manquantes',
       )
+      await closeDetail('Imports')
 
-      const recurring = await screen.findByRole('region', {
-        name: 'Prélèvements',
-      })
+      const recurring = await openDetail('Prélèvements')
       expect(text(recurring.textContent)).toContain('Box internet test')
       expect(text(recurring.textContent)).toContain('29,99 € / mois')
       expect(text(recurring.textContent)).toContain('prévu le 12 nov.')
 
-      // Statement balances: in « Historique des valeurs » (#420), not on the
-      // page; no hand-built buttons beside the header.
-      expect(screen.queryByText('Soldes de relevés')).toBeNull()
+      // No hand-built buttons beside the header.
       expect(screen.queryByRole('button', { name: 'Ajouter' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'Coller' })).toBeNull()
       expect(screen.queryByText(/Versé/)).toBeNull()
@@ -940,17 +1068,11 @@ describe('AccountDetailPage', () => {
       ).toBeInTheDocument()
     })
 
-    it('keeps the statement balances in « Historique des valeurs » (#420)', async () => {
+    it('keeps the statement balances in « Plus d’informations » (#420, #447)', async () => {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
       renderPage()
 
-      await user.click(
-        await screen.findByRole('button', { name: 'Historique des valeurs' }),
-      )
-      const valuesScreen = await screen.findByRole('dialog', {
-        name: 'Historique des valeurs',
-      })
-      expect(text(valuesScreen.textContent)).toContain('1 solde de relevé')
+      const valuesScreen = await openDetail('Soldes de relevés', user)
       const list = within(valuesScreen).getByRole('list', {
         name: 'Soldes de relevés',
       })
@@ -1039,11 +1161,22 @@ describe('AccountDetailPage', () => {
       expect(
         await screen.findByText('Aucune opération pour ce compte'),
       ).toBeInTheDocument()
+      // Its imports say « aucun », its screen how to start; no debits row.
+      await waitFor(async () =>
+        expect(text((await detailRow('Imports')).textContent)).toBe(
+          'Importsaucun',
+        ),
+      )
       expect(
-        await screen.findByText('Aucun relevé importé'),
+        within(
+          screen.getByRole('region', { name: 'Plus d’informations' }),
+        ).queryByRole('button', { name: /^Prélèvements/ }),
+      ).toBeNull()
+      const imports = await openDetail('Imports')
+      expect(
+        within(imports).getByText('Aucun relevé importé'),
       ).toBeInTheDocument()
       expect(screen.queryByText('Évolution du solde')).toBeNull()
-      expect(screen.queryByRole('region', { name: 'Prélèvements' })).toBeNull()
     })
   })
 
@@ -1190,12 +1323,16 @@ describe('AccountDetailPage', () => {
     )
     renderPage()
 
-    const source = await screen.findByRole('region', {
-      name: 'Source des avoirs',
-    })
+    // Where its holdings come from is one tap away (#447), its export a
+    // page action.
+    expect(text((await detailRow('Source des avoirs')).textContent)).toBe(
+      'Source des avoirsPlateforme d’échange · Binance',
+    )
     expect(
-      within(source).getByText('Plateforme d’échange · Binance'),
-    ).toBeInTheDocument()
+      screen.getByRole('button', { name: 'Importer un export' }),
+    ).toBeEnabled()
+    await openDetail('Source des avoirs')
+    const source = screen.getByRole('region', { name: 'Source des avoirs' })
     expect(
       within(source).getByText('Dernier import : jamais'),
     ).toBeInTheDocument()
@@ -1204,6 +1341,7 @@ describe('AccountDetailPage', () => {
       within(source).getByRole('button', { name: 'Importer un export' }),
     ).toBeEnabled()
     expect(within(source).queryByText(/Bientôt disponible/)).toBeNull()
+    await closeDetail('Source des avoirs')
 
     const list = await screen.findByRole('list', { name: 'Avoirs' })
     // The imported line is read-only, the line typed by hand opens its editor.
@@ -1307,7 +1445,7 @@ describe('AccountDetailPage', () => {
     ).toBeInTheDocument()
 
     // Keys and tokens are settings: one row per key, what it found (#294).
-    const settings = screen.getByRole('region', { name: 'Clés et jetons' })
+    const settings = await openDetail('Clés et jetons', user)
     expect(
       await within(settings).findByRole('button', {
         name: 'Épargne : xpub661M…GMcet8 · 3 adresses utilisées',
@@ -1748,7 +1886,7 @@ describe('AccountDetailPage', () => {
     ).toEqual([])
     expect(within(evolution).queryByRole('list')).not.toBeInTheDocument()
 
-    // Then the keys and tokens, last.
+    // Then the keys and tokens, one tap away (#447), last.
     const regions = screen
       .getAllByRole('region')
       .map((region) => region.getAttribute('aria-label') ?? 'Valeur du wallet')
@@ -1756,8 +1894,11 @@ describe('AccountDetailPage', () => {
       'Valeur du wallet',
       'Avoirs crypto',
       'Évolution',
-      'Clés et jetons',
+      'Plus d’informations',
     ])
+    expect(text((await detailRow('Clés et jetons')).textContent)).toMatch(
+      /^Clés et jetons\d+ clés?/,
+    )
   })
 
   it('states what the coins sent to a wallet cost, when the movements say (#296)', async () => {
@@ -1965,6 +2106,7 @@ describe('AccountDetailPage', () => {
     )
     renderPage()
 
+    await openDetail('Clés et jetons', user)
     await user.click(
       await screen.findByRole('button', {
         name: 'Jetons lus : ETH, BNB et POL seulement',
@@ -2187,15 +2329,17 @@ describe('AccountDetailPage', () => {
     ).toBeInTheDocument()
     // Typed by hand: no import or sync action, only the way to read it from
     // a wallet or an exchange instead (#207).
+    expect(text((await detailRow('Source des avoirs')).textContent)).toBe(
+      'Source des avoirsSaisie manuelle · Ledger',
+    )
+    await openDetail('Source des avoirs')
     const source = screen.getByRole('region', { name: 'Source des avoirs' })
-    expect(
-      within(source).getByText('Saisie manuelle · Ledger'),
-    ).toBeInTheDocument()
     expect(
       within(source)
         .getAllByRole('button')
         .map((button) => button.textContent),
     ).toEqual(['Relier à un wallet ou une plateforme'])
+    await closeDetail('Source des avoirs')
     expect(
       screen.queryByText('Aucune valeur pour ce compte'),
     ).not.toBeInTheDocument()

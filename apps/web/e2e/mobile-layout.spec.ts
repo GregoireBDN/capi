@@ -282,16 +282,25 @@ const SCENARIOS: Array<Scenario> = [
       while ((await folded.count()) > 0) await folded.first().click()
     },
   },
-  // An account's values, in a screen of their own (#420).
-  ...['checking', 'life_insurance'].map((type) => ({
-    name: `account-${type}-history`,
+  // « Plus d’informations » (#447), then one of its screens: the values
+  // (#420) of an investment and a bank account's imports.
+  ...(
+    [
+      ['life_insurance', 'Historique des valeurs'],
+      ['checking', 'Imports'],
+    ] as const
+  ).map(([type, label]) => ({
+    name: `account-${type}-details`,
     path: '/accounts',
     account: type,
     step: async (page: Page) => {
-      await pageAction(/^Historique des valeurs$/)(page)
-      await page
-        .getByRole('dialog', { name: 'Historique des valeurs' })
-        .waitFor()
+      const details = page.getByRole('region', {
+        name: 'Plus d’informations',
+      })
+      await details
+        .getByRole('button', { name: new RegExp(`^${label}`) })
+        .click()
+      await page.getByRole('dialog', { name: label }).waitFor()
     },
   })),
   // A wallet crypto account has its own page body (#269, #294).

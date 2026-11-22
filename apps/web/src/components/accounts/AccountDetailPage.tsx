@@ -18,7 +18,6 @@ import {
   ClipboardPasteIcon,
   ClockAlertIcon,
   FileUpIcon,
-  HistoryIcon,
   ListPlusIcon,
   PencilIcon,
   PencilLineIcon,
@@ -30,6 +29,7 @@ import {
 import { useState } from 'react'
 import type {
   AccountDto,
+  AccountPerformanceDto,
   PositionLineDto,
   SnapshotDto,
   TransactionKind,
@@ -38,7 +38,8 @@ import { PageBack } from '#/components/app-shell/PageBack'
 import type { PageBackLink } from '#/components/app-shell/PageBack'
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import type { PageAction } from '#/components/app-shell/page-actions'
-import { CryptoSourceCard } from '#/components/crypto/CryptoSourceCard'
+import { cryptoSourceDetail } from '#/components/crypto/CryptoSourceCard'
+import { ExchangeImportSheet } from '#/components/crypto/ExchangeImportSheet'
 import { HoldingsPanel } from '#/components/crypto/HoldingsPanel'
 import { PendingCard } from '#/components/crypto/PendingCard'
 import {
@@ -59,14 +60,17 @@ import { InvestedSheet } from './InvestedSheet'
 import { InvestmentSummary } from './InvestmentSummary'
 import { historyPoints } from './history'
 import { accountKindLabel, isInvestmentType, valueAgeText } from './labels'
-import { LinkedTransfers } from './LinkedTransfers'
+import { useLinkedTransfersDetail } from './LinkedTransfers'
 import { MealVoucherAccount } from './MealVoucherAccount'
-import { MovementsCard } from './Movements'
+import { useMovementsDetail } from './Movements'
 import { PasteHistorySheet } from './PasteHistorySheet'
 import { accountQuery, performanceQuery } from './queries'
 import { SnapshotEditor } from './SnapshotEditor'
 import { LineEditor } from '#/components/positions/LineEditor'
-import { LinesCard } from '#/components/positions/LinesCard'
+import {
+  LinesCard,
+  useStatementsDetail,
+} from '#/components/positions/LinesCard'
 import { PeaFacts } from '#/components/positions/PeaFacts'
 import {
   CashSheet,
@@ -74,7 +78,9 @@ import {
 } from '#/components/positions/PriceAndCashSheets'
 import { positionsQuery } from '#/components/positions/queries'
 import { ValueChart } from './ValueChart'
-import { ValueHistorySheet } from './ValueHistorySheet'
+import { valueHistoryDetail } from './ValueHistory'
+import { AccountDetails } from './AccountDetails'
+import type { AccountDetail } from './AccountDetails'
 
 type EditorState = { open: false } | { open: true; snapshot?: SnapshotDto }
 
@@ -158,8 +164,8 @@ export function AccountDetailPage({
   const performance = useQuery(performanceQuery(accountId))
   const [editor, setEditor] = useState<EditorState>({ open: false })
   const [pasteOpen, setPasteOpen] = useState(false)
-  // The recorded values, in a screen of their own (#420).
-  const [historyOpen, setHistoryOpen] = useState(false)
+  // An exchange's export, from the page's menu (#447).
+  const [exportOpen, setExportOpen] = useState(false)
   // The kind is chosen before adding (#398).
   const [addKind, setAddKind] = useState<TransactionKind | null>(null)
   const [investedOpen, setInvestedOpen] = useState(false)
@@ -261,19 +267,32 @@ export function AccountDetailPage({
     icon: <ClipboardPasteIcon />,
     onSelect: () => setPasteOpen(true),
   })
-  // Crypto values are computed every day, never typed (#366): no list.
-  const hasValueHistory = !crypto && (writable || data.snapshots.length > 0)
-  const historyAction: PageAction[] = hasValueHistory
-    ? [
-        {
-          label: 'Historique des valeurs',
-          icon: <HistoryIcon />,
-          onSelect: () => setHistoryOpen(true),
-        },
-      ]
-    : []
+  // Its typed values, a row of « Plus d’informations » (#420, #447); a
+  // crypto account's are computed every day, never typed (#366).
+  const valueHistory = crypto
+    ? null
+    : valueHistoryDetail({
+        kind: investment || mealVoucher ? 'values' : 'statements',
+        snapshots: data.snapshots,
+        withContributions: investment,
+        invested: investment
+          ? new Map(
+              data.contributionsHistory.map((p) => [
+                p.date,
+                p.contributionsCents,
+              ]),
+            )
+          : undefined,
+        onEdit: writable
+          ? (snapshot) => setEditor({ open: true, snapshot })
+          : undefined,
+        onAdd: writable ? openAdd : undefined,
+        onPaste:
+          writable && !mealVoucher ? () => setPasteOpen(true) : undefined,
+      })
+  const exchange = crypto && current.cryptoSource === 'exchange'
   const headerActions: PageAction[] = !writable
-    ? historyAction
+    ? []
     : wallet
       ? [
           {
@@ -286,13 +305,22 @@ export function AccountDetailPage({
           },
         ]
       : mealVoucher
-        ? // A meal-voucher card has its own entries (#298); its balance
-          // corrections are its values.
-          historyAction
+        ? // A meal-voucher card has its own entries (#298).
+          []
         : crypto
           ? // Holdings are added in their own panel; the values are
-            // computed from them every day, never typed (#366).
-            []
+            // computed from them every day, never typed (#366). An
+            // exchange's export, its main action, from the menu (#447).
+            exchange
+            ? [
+                {
+                  label: 'Importer un export',
+                  icon: <FileUpIcon />,
+                  primary: true,
+                  onSelect: () => setExportOpen(true),
+                },
+              ]
+            : []
           : investment
             ? [
                 // A PEA with lines (#413): its value follows them, so adding a
@@ -308,7 +336,6 @@ export function AccountDetailPage({
                 },
                 ...(pea && !withLines ? [addLineAction(false)] : []),
                 paste('Coller un historique'),
-                ...historyAction,
               ]
             : [
                 {
@@ -332,8 +359,6 @@ export function AccountDetailPage({
                   icon: <ArrowDownUpIcon />,
                   onSelect: () => setAddKind('transfer'),
                 },
-                // Its statement balances (#420).
-                ...historyAction,
               ]
 
   // A wallet (#294): its value, holdings by asset, evolution, then its keys
@@ -423,14 +448,15 @@ export function AccountDetailPage({
         />
       )}
 
-      {crypto && <CryptoSourceCard account={current} writable={writable} />}
-
       {mealVoucher ? (
-        <MealVoucherAccount
-          account={current}
-          writable={writable}
-          onCorrectBalance={openAdd}
-        />
+        <>
+          <MealVoucherAccount
+            account={current}
+            writable={writable}
+            onCorrectBalance={openAdd}
+          />
+          <AccountDetails items={[valueHistory]} />
+        </>
       ) : investment ? (
         data.valueCents === null &&
         !crypto && (
@@ -458,14 +484,9 @@ export function AccountDetailPage({
           today={today}
           onImport={openImport}
           onAddTransaction={() => setAddKind('expense')}
+          details={[valueHistory]}
         />
       )}
-
-      {investment && !crypto && (
-        <LinkedTransfers accountId={current.id} performance={data} />
-      )}
-      {/* Bank → exchange → Ledger, with the cost the coins left with. */}
-      {crypto && <MovementsCard accountId={current.id} />}
 
       {/* A crypto account's values: one per day and today's, read only. */}
       {crypto && historyPoints(data).length > 0 && (
@@ -480,34 +501,16 @@ export function AccountDetailPage({
         />
       )}
 
-      {hasValueHistory && (
-        <ValueHistorySheet
-          open={historyOpen}
-          onOpenChange={setHistoryOpen}
-          kind={investment || mealVoucher ? 'values' : 'statements'}
-          snapshots={data.snapshots}
-          withContributions={investment}
-          invested={
-            investment
-              ? new Map(
-                  data.contributionsHistory.map((p) => [
-                    p.date,
-                    p.contributionsCents,
-                  ]),
-                )
-              : undefined
-          }
-          onEdit={
-            writable
-              ? (snapshot) => setEditor({ open: true, snapshot })
-              : undefined
-          }
-          onAdd={writable ? openAdd : undefined}
-          onPaste={
-            writable && !mealVoucher ? () => setPasteOpen(true) : undefined
-          }
+      {/* Read now and then, one tap away (#447). */}
+      {investment && !crypto && (
+        <InvestmentDetails
+          account={current}
+          performance={data}
+          writable={writable}
+          valueHistory={valueHistory}
         />
       )}
+      {crypto && <CryptoDetails account={current} writable={writable} />}
 
       {writable && (
         <>
@@ -527,6 +530,13 @@ export function AccountDetailPage({
                   ? null
                   : data.contributionsCents
               }
+            />
+          )}
+          {exchange && (
+            <ExchangeImportSheet
+              open={exportOpen}
+              onOpenChange={setExportOpen}
+              accountId={current.id}
             />
           )}
           {pea && (
@@ -581,5 +591,51 @@ export function AccountDetailPage({
         </>
       )}
     </div>
+  )
+}
+
+/**
+ * « Plus d’informations » of a PEA, a life insurance or employee savings
+ * (#447): the linked transfers, a PEA's statements, the typed values.
+ */
+function InvestmentDetails({
+  account,
+  performance,
+  writable,
+  valueHistory,
+}: {
+  account: AccountDto
+  performance: AccountPerformanceDto
+  writable: boolean
+  valueHistory: AccountDetail | null
+}) {
+  const transfers = useLinkedTransfersDetail({
+    accountId: account.id,
+    performance,
+  })
+  const statements = useStatementsDetail({
+    accountId: account.id,
+    writable,
+    enabled: account.type === 'brokerage',
+  })
+  return <AccountDetails items={[transfers, statements, valueHistory]} />
+}
+
+/**
+ * « Plus d’informations » of an exchange or a manual crypto account (#447):
+ * its movements, then where its holdings come from.
+ */
+function CryptoDetails({
+  account,
+  writable,
+}: {
+  account: AccountDto
+  writable: boolean
+}) {
+  const movements = useMovementsDetail(account.id)
+  return (
+    <AccountDetails
+      items={[movements, cryptoSourceDetail(account, writable)]}
+    />
   )
 }

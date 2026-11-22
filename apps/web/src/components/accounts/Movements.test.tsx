@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccountDto, InvestmentMovementDto } from '#/api/types.gen'
-import { formatQuantity, MovementsCard } from './Movements'
+import { formatQuantity, useMovementsDetail } from './Movements'
 
 const api = vi.hoisted(() => ({
   investmentsControllerListMovements: vi.fn(),
@@ -49,13 +49,26 @@ const movements: InvestmentMovementDto[] = [
   },
 ] as InvestmentMovementDto[]
 
+/** The « Mouvements » screen of « Plus d’informations » (#447). */
+function MovementsScreen({ accountId }: { accountId: string }) {
+  const detail = useMovementsDetail(accountId)
+  if (!detail) return null
+  return (
+    <>
+      <p>{detail.summary}</p>
+      <p>{detail.description}</p>
+      {detail.content}
+    </>
+  )
+}
+
 function renderCard() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   render(
     <QueryClientProvider client={queryClient}>
-      <MovementsCard accountId={EXCHANGE.id} />
+      <MovementsScreen accountId={EXCHANGE.id} />
     </QueryClientProvider>,
   )
 }
@@ -80,7 +93,7 @@ describe('formatQuantity', () => {
   })
 })
 
-describe('MovementsCard (#296)', () => {
+describe('Mouvements (#296, #447)', () => {
   it('lists bank transfers and withdrawals, and links one to the Ledger', async () => {
     const user = userEvent.setup()
     renderCard()
@@ -93,6 +106,8 @@ describe('MovementsCard (#296)', () => {
     expect(rows[1]).toHaveTextContent('Compte test')
     expect(within(rows[1]).queryByRole('combobox')).not.toBeInTheDocument()
     expect(screen.getByText(/Un mouvement est à lier/)).toBeInTheDocument()
+    // The row of « Plus d’informations » says it too.
+    expect(screen.getByText('1 à lier')).toBeInTheDocument()
 
     const select = within(rows[0]).getByRole('combobox')
     // Other crypto accounts only, never the exchange itself.
