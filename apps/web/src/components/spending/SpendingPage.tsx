@@ -10,6 +10,7 @@ import {
   cn,
   EmptyState,
   formatEuros,
+  formatWholeEuros,
   SegmentedControl,
   SegmentedControlItem,
   Skeleton,
@@ -53,7 +54,7 @@ import { compactSearch, DEFAULT_AVERAGE_PERIOD, UNCATEGORIZED } from './search'
 import type { SpendingSearch } from './search'
 import { SpendingDonut } from './SpendingDonut'
 import { SpendingFilters } from './SpendingFilters'
-import { SpendingKpis, SpendingKpisSkeleton } from './SpendingKpis'
+import { ComparisonBars, ComparisonBarsSkeleton } from './ComparisonBars'
 import {
   KIND_COLOR,
   KIND_LABEL,
@@ -161,25 +162,27 @@ function pageActions({
   ]
 }
 
-/** What the part's figures leave out or still expect, under its tiles. */
+/** What the part's figures leave out or still expect, in one short line. */
 function partNotes(data: SpendingByCategoryDto, includeOneOffs: boolean) {
   if (data.kind === 'savings') {
-    return 'Virements de vos comptes courants vers vos livrets et placements, retraits déduits : ni revenu, ni dépense.'
+    return 'Virements vers vos livrets et placements, retraits déduits : ni revenu, ni dépense'
   }
   const expense = data.kind === 'expense'
-  const oneOffs = expense ? 'dépenses exceptionnelles' : 'revenus exceptionnels'
-  return (
-    <>
-      Virements entre vos comptes exclus.{' '}
-      {data.oneOffCents > 0 &&
-        (includeOneOffs
-          ? `Dont ${formatEuros(data.oneOffCents)} de ${oneOffs}.`
-          : `${expense ? 'Dépenses exceptionnelles exclues' : 'Revenus exceptionnels exclus'} : ${formatEuros(data.oneOffCents)}.`)}
-      {expense &&
-        data.expectedCents > 0 &&
-        ` Abonnements et charges fixes attendus d’ici la fin du mois : ${formatEuros(data.expectedCents)}, non comptés.`}
-    </>
-  )
+  const parts = ['Virements exclus']
+  if (data.oneOffCents > 0) {
+    const what = expense ? 'dépenses exceptionnelles' : 'revenus exceptionnels'
+    parts.push(
+      includeOneOffs
+        ? `dont ${formatWholeEuros(data.oneOffCents)} de ${what}`
+        : `${formatWholeEuros(data.oneOffCents)} de ${what} non comptés`,
+    )
+  }
+  if (expense && data.expectedCents > 0) {
+    parts.push(
+      `${formatWholeEuros(data.expectedCents)} d’abonnements et charges fixes encore attendus`,
+    )
+  }
+  return parts.join(' · ')
 }
 
 /**
@@ -371,7 +374,7 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
 
         {byCategory.isPending && (
           <>
-            <SpendingKpisSkeleton />
+            <ComparisonBarsSkeleton />
             <div
               className="grid gap-4 @3xl:grid-cols-2"
               aria-busy="true"
@@ -435,7 +438,7 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
         {data && data.categories.length > 0 && (
           <>
             <div className="space-y-1.5">
-              <SpendingKpis data={data} />
+              <ComparisonBars data={data} accountId={search.account} />
               <p className="text-muted-foreground text-xs" data-slot="notes">
                 {partNotes(data, includeOneOffs)}
               </p>

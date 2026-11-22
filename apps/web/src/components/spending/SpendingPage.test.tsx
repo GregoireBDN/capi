@@ -369,27 +369,41 @@ afterEach(() => {
 })
 
 describe('SpendingPage', () => {
-  it('shows the KPIs of the month', async () => {
+  it('compares the month with the one before and the average, in bars', async () => {
     renderPage()
 
-    const kpis = await screen.findByRole('region', {
-      name: 'Indicateurs du mois',
+    const bars = await screen.findByRole('region', {
+      name: 'Comparaisons du mois',
     })
     // The month's total is in its tile, which is the selected tab.
     const tile = screen.getByRole('tab', { name: /^Dépenses/, selected: true })
     expect(tile).toHaveTextContent(/1\s000\s€/)
-    expect(within(kpis).getByText('Écart avec septembre')).toBeInTheDocument()
-    expect(within(kpis).getByText(`+${euros(10_000)}`)).toBeInTheDocument()
-    expect(within(kpis).getByText('Écart avec la moyenne')).toBeInTheDocument()
-    expect(within(kpis).getByText(`+${euros(5_000)}`)).toBeInTheDocument()
-    // Biggest increase: groceries, +130 €.
-    expect(within(kpis).getByText('Courses')).toBeInTheDocument()
+    const rows = bars.querySelectorAll('[data-slot="comparison-bar"]')
+    expect([...rows].map((row) => row.textContent.replace(/\s/g, ' '))).toEqual(
+      [
+        'Octobre1 000 €',
+        'Septembre900 €100 € de plus en octobre',
+        'Moyenne des 6 mois précédents950 €50 € de plus en octobre',
+      ],
+    )
+    // More spending is bad news.
+    expect(
+      bars.querySelector('[data-slot="comparison-difference"]'),
+    ).toHaveAttribute('data-tone', 'bad')
+    // Biggest increase: groceries, +130 €, with its icon and a link.
+    const biggest = within(bars).getByRole('link', { name: /Courses/ })
+    expect(biggest).toHaveTextContent(/250\s€ contre 120\s€ en septembre/)
+    expect(biggest).toHaveTextContent(/130\s€ de plus/)
+    expect(biggest).toHaveAttribute(
+      'href',
+      `/transactions?month=2026-10&category=${GROCERIES}&kind=expense`,
+    )
     expect(
       screen.getByText(
         (_, element) =>
-          element?.tagName === 'P' &&
+          element?.getAttribute('data-slot') === 'notes' &&
           element.textContent.replace(/\s/g, ' ') ===
-            `Virements entre vos comptes exclus. Dépenses exceptionnelles exclues : ${euros(25_000)}.`,
+            'Virements exclus · 250 € de dépenses exceptionnelles non comptés',
       ),
     ).toBeInTheDocument()
 
@@ -405,7 +419,7 @@ describe('SpendingPage', () => {
 
   it('opens Opérations, its sub-page, on the month shown (#393)', async () => {
     renderPage()
-    await screen.findByRole('region', { name: 'Indicateurs du mois' })
+    await screen.findByRole('region', { name: 'Comparaisons du mois' })
 
     // Outside the shell the page actions are buttons beside the title.
     // The kind is chosen before adding (#398).
@@ -427,7 +441,7 @@ describe('SpendingPage', () => {
 
   it('opens Opérations on its default month without one in the URL (#393)', async () => {
     renderPage({})
-    await screen.findByRole('region', { name: 'Indicateurs du mois' })
+    await screen.findByRole('region', { name: 'Comparaisons du mois' })
     await userEvent.click(
       screen.getByRole('button', { name: 'Voir les opérations' }),
     )
@@ -917,7 +931,7 @@ describe('SpendingPage', () => {
     renderPage({})
 
     const kpis = await screen.findByRole('region', {
-      name: 'Indicateurs du mois',
+      name: 'Comparaisons du mois',
     })
     // The API picks the month: none is sent.
     expect(api.spendingControllerByCategory).toHaveBeenCalledWith({
@@ -925,9 +939,12 @@ describe('SpendingPage', () => {
       throwOnError: false,
     })
     expect(screen.getByText('Novembre 2026')).toBeInTheDocument()
-    expect(within(kpis).getByText('Écart avec le 1–3 oct.')).toBeInTheDocument()
-    expect(kpis).toHaveTextContent(/au 1–3 oct\./)
-    expect(kpis).toHaveTextContent(/mêmes jours/)
+    // Like for like, said in words.
+    expect(within(kpis).getByText('Novembre, jusqu’au 3')).toBeInTheDocument()
+    expect(within(kpis).getByText('Octobre, du 1er au 3')).toBeInTheDocument()
+    expect(
+      within(kpis).getByText('Moyenne des 6 mois précédents, du 1er au 3'),
+    ).toBeInTheDocument()
     expect(
       screen.getByText(
         'Mois en cours : données jusqu’au 3 nov., comparées au 1–3 oct.',
@@ -1044,7 +1061,7 @@ describe('SpendingPage', () => {
           element.textContent
             .replace(/\s/g, ' ')
             .includes(
-              `Abonnements et charges fixes attendus d’ici la fin du mois : ${euros(81_399)}, non comptés.`.replace(
+              '814 € d’abonnements et charges fixes encore attendus'.replace(
                 /\s/g,
                 ' ',
               ),
@@ -1214,7 +1231,7 @@ describe('SpendingPage', () => {
     )
     renderPage()
     expect(
-      screen.getByRole('generic', { name: 'Chargement des indicateurs' }),
+      screen.getByRole('generic', { name: 'Chargement des comparaisons' }),
     ).toBeInTheDocument()
 
     // One call per part (the tiles), then the retry of the part shown.
@@ -1275,7 +1292,9 @@ describe('SpendingPage', () => {
       expect(
         screen.getByRole('heading', { name: 'Revenus' }),
       ).toBeInTheDocument()
-      expect(screen.getByText('Plus grand écart')).toBeInTheDocument()
+      expect(
+        screen.getByText('La catégorie qui a le plus changé'),
+      ).toBeInTheDocument()
       expect(api.spendingControllerTrend).toHaveBeenCalledWith({
         query: {
           kind: 'income',

@@ -91,7 +91,7 @@ function RowBar({
  * Épargne row, the transfers of its savings account (an investment has no
  * operations of its own: the month's transfers).
  */
-function operationsSearch(
+export function operationsSearch(
   item: CategorySpendingDto,
   kind: SpendingKind,
   month: string,
