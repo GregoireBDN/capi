@@ -22,6 +22,8 @@ import type { PreviewRowStatus } from '#/imports/preview/preview.types'
 /** Sources that can be uploaded through `POST /imports/preview`. */
 export const UPLOAD_SOURCES = [
   'cic_csv',
+  'standard_csv',
+  'csv_profile',
 ] as const satisfies readonly ImportSource[]
 export type UploadSource = (typeof UPLOAD_SOURCES)[number]
 
@@ -52,7 +54,8 @@ export class PreviewImportBodyDto {
   @ApiProperty({
     type: 'string',
     format: 'binary',
-    description: 'Bank export (CIC CSV, Windows-1252), at most 5 MB.',
+    description:
+      'Bank export, at most 5 MB: the CIC CSV (Windows-1252), the standard cash format (docs/domain/import-formats.md) or a file of a saved import profile.',
   })
   file!: unknown
 
@@ -66,9 +69,17 @@ export class PreviewImportBodyDto {
   @ApiPropertyOptional({
     enum: UPLOAD_SOURCES,
     enumName: 'ImportUploadSource',
-    default: 'cic_csv',
+    description:
+      'Omitted: recognised from the header (a saved profile, the CIC export, the standard format); 400 `Unrecognised CSV format` otherwise.',
   })
   source?: UploadSource
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    description: 'Read the file with this saved import profile.',
+  })
+  profileId?: string
 }
 
 /** Validates the text fields of the multipart body. */
@@ -79,6 +90,10 @@ export class PreviewImportFieldsDto {
   @IsOptional()
   @IsIn(UPLOAD_SOURCES)
   source?: UploadSource
+
+  @IsOptional()
+  @IsUUID()
+  profileId?: string
 }
 
 // --- Commit -----------------------------------------------------------------
@@ -191,6 +206,21 @@ export class ImportSummaryDto {
 
   @ApiProperty({ enum: IMPORT_SOURCES, enumName: 'ImportSource' })
   source!: ImportSource
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'The import profile the file was read with (`csv_profile`).',
+  })
+  profileId!: string | null
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Its name; null for other sources or once deleted.',
+  })
+  profileName!: string | null
 
   @ApiProperty({ type: String })
   fileName!: string
@@ -396,6 +426,13 @@ export class ImportPreviewDto {
 
   @ApiProperty({ type: [ParseIssueDto] })
   issues!: ParseIssueDto[]
+
+  @ApiProperty({
+    type: [String],
+    description:
+      'Header columns the file’s format does not read, by name: listed, never imported.',
+  })
+  ignoredColumns!: string[]
 
   @ApiProperty({ type: [ImportPreviewRowDto] })
   rows!: ImportPreviewRowDto[]

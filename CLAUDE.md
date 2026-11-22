@@ -58,7 +58,7 @@ Expense targets and planned income in one `budgets` table (effective-dated, carr
 
 ### Month-end review (closing a month)
 
-The guided « Bilan du mois » computes its steps from existing data; closing freezes the report with its shape's version (`report_version`), read only through `upgradeReport`, never recomputed. Details: [`docs/domain/month-close.md`](docs/domain/month-close.md).
+The guided « Bilan du mois » computes its steps from existing data; closing freezes the report with its shape's version (`report_version`), read only through `upgradeReport`, never recomputed. Its « Cohérence des chiffres » step (#427, `apps/api/src/integrity/`, `GET /api/integrity?month=`, MCP `integrity_checks`) checks the stored data against itself (bank balances vs running balances and statements, crypto holdings vs the last complete read, money owed never below zero, income − expenses = saved with moves between own accounts excluded); read only, never blocks the app or the close, logs counts only. Details: [`docs/domain/month-close.md`](docs/domain/month-close.md).
 
 ### Accounts
 
@@ -91,8 +91,9 @@ The running balance is used to **check continuity** (previous balance + amount =
 - Imports are **idempotent**: re-importing a file, or a file whose period overlaps a previous import, must not create duplicates.
 - Legitimate identical transactions on the same day (same date, amount and label, e.g. two identical card payments) must be **kept**. The dedupe hash includes an occurrence index among identical (date, amount, normalized label) rows in file order, so they stay distinct and a re-imported file still matches. Rows from different sources (e.g. the spreadsheet history vs a CSV export) are compared by a fuzzy probable-duplicate check and shown as conflicts in the preview, never dropped automatically. See `apps/api/src/imports/dedupe/dedupe.ts`.
 - Every import goes through a **preview** (new / duplicate / conflicting rows, continuity check) before it is committed. Nothing is written until the user confirms.
+- **Formats** (#431, [ADR 0007](docs/adr/0007-import-profiles.md)): a bank file is read by a saved **import profile** (`import_profiles`: column mapping, date layout, decimal mark, encoding, separator, recognised from the exact header), the CIC parser, or the app's **standard CSV format** (`date;amount;label;balance`, documented in [`docs/domain/import-formats.md`](docs/domain/import-formats.md), with an investment-movements variant for #432), in that order; anything else is `400 Unrecognised CSV format`, mapped once on the Relevés page, or converted to the standard format by Claude through the MCP. Unknown columns (`ignoredColumns`) and invalid or unrecognised lines (`issues`) are listed in the preview, never imported silently; every reader yields the same `ParsedRow`, so dedupe and continuity are unchanged.
 
-Details (undoing an import, reconciliation with manual transactions, the one-shot spreadsheet history import): [`docs/domain/imports.md`](docs/domain/imports.md).
+Details (undoing an import, reconciliation with manual transactions, the one-shot spreadsheet history import): [`docs/domain/imports.md`](docs/domain/imports.md); formats and profiles: [`docs/domain/import-formats.md`](docs/domain/import-formats.md).
 
 ### Categorization
 

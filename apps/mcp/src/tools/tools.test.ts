@@ -65,6 +65,7 @@ describe('tool list', () => {
       'commit_bank_import',
       'create_investment_account',
       'create_rule',
+      'integrity_checks',
       'link_repayment',
       'list_categories',
       'list_imports',

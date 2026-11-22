@@ -1,3 +1,4 @@
+import type { ImportSummaryDto } from '#/api'
 import { format, parseISO } from 'date-fns'
 import { plural } from '#/lib/plural'
 
@@ -60,6 +61,9 @@ const ISSUE_PARTS: [RegExp, string][] = [
   [/^Neither debit nor credit is filled$/i, 'ni débit ni crédit'],
   [/^Invalid debit amount$/i, 'montant au débit invalide'],
   [/^Invalid credit amount$/i, 'montant au crédit invalide'],
+  [/^Negative credit amount$/i, 'montant au crédit négatif'],
+  [/^Invalid amount$/i, 'montant invalide'],
+  [/^Missing amount$/i, 'montant manquant'],
 ]
 
 /** French text for a parse issue ("Invalid balance; Missing label"). */
@@ -117,4 +121,21 @@ export function undoDescription({
   const lost =
     edited > 0 ? ' Réimporter le fichier ne rendra pas les modifications.' : ''
   return `${deleted}, dont ${among.join(' et ')}${restored}.${lost}`
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+  cic_csv: 'CSV CIC',
+  spreadsheet: 'Historique (tableur)',
+  standard_csv: 'Format standard',
+  csv_profile: 'Format enregistré',
+}
+
+/** « CSV CIC », « Format standard », or the saved format's name (#431). */
+export function sourceLabel(
+  item: Pick<ImportSummaryDto, 'source' | 'profileName'>,
+): string {
+  if (item.source === 'csv_profile' && item.profileName) {
+    return item.profileName
+  }
+  return SOURCE_LABEL[item.source] ?? item.source
 }

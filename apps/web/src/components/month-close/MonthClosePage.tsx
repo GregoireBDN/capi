@@ -20,10 +20,12 @@ import type {
 import { PageHeader } from '#/components/app-shell/PageHeader'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { MonthToolbar } from '#/components/month/MonthToolbar'
+import { integrityDone } from './IntegrityStep'
 import { MonthCloseSteps } from './MonthCloseSteps'
 import { MonthReport } from './MonthReport'
 import {
   closeMonth,
+  integrityQuery,
   monthCloseErrorMessage,
   monthCloseKeys,
   monthCloseQuery,
@@ -58,6 +60,8 @@ const cleanNotes = (notes: string) =>
 export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
   const queryClient = useQueryClient()
   const review = useQuery(monthCloseQuery(month))
+  // A step of its own (#427), counted once its checks have answered.
+  const integrity = useQuery(integrityQuery(month))
   const [notesDraft, setNotesDraft] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
   const savedNotes = review.data?.notes ?? null
@@ -102,11 +106,16 @@ export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
     if (notes !== data.notes) update.mutate({ notes })
   }
 
-  const doneCount = data?.steps.filter((step) => step.done).length ?? 0
-  const stepCount = data?.steps.length ?? 0
+  const integrityChecked = integrity.data !== undefined
+  const integrityOk = integrityChecked && integrityDone(integrity.data)
+  const doneCount =
+    (data?.steps.filter((step) => step.done).length ?? 0) +
+    (integrityOk ? 1 : 0)
+  const stepCount = (data?.steps.length ?? 0) + (integrityChecked ? 1 : 0)
   // Every step but the close itself.
   const left = data
-    ? data.steps.filter((step) => step.key !== 'close' && !step.done).length
+    ? data.steps.filter((step) => step.key !== 'close' && !step.done).length +
+      (integrityChecked && !integrityOk ? 1 : 0)
     : 0
 
   return (
@@ -158,6 +167,12 @@ export function MonthClosePage({ month, onMonthChange }: MonthClosePageProps) {
           <div className="grid grid-cols-1 gap-6 @2xl:grid-cols-2 @2xl:items-start">
             <MonthCloseSteps
               review={data}
+              integrity={{
+                data: integrity.data,
+                isPending: integrity.isPending,
+                isError: integrity.isError,
+                refetch: () => void integrity.refetch(),
+              }}
               saving={update.isPending}
               onAcknowledge={acknowledge}
               notesDraft={notesDraft}

@@ -67,6 +67,11 @@ export interface ImportPreviewData {
   previousBalanceCents: number | null
   continuity: ContinuityReport
   issues: ParseIssue[]
+  /**
+   * Header columns the file's format does not read (#431), by name; absent
+   * from previews made before.
+   */
+  ignoredColumns?: string[]
   rows: PreviewRow[]
   /**
    * Manual expenses of the period no row replaces: flagged for review on

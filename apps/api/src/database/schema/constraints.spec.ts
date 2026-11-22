@@ -11,6 +11,7 @@ import {
   cryptoImportsTable,
   cryptoMovementsTable,
   cryptoTransferLinksTable,
+  importProfilesTable,
   importsTable,
   type InsertRecurringItem,
   type InsertTransaction,
@@ -669,6 +670,167 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
           'crypto_transfer_links_sides',
           link(other.id, answered.id),
         )
+      })
+    })
+  })
+
+  describe('import profiles (#431)', () => {
+    const profile = (
+      values: Partial<typeof importProfilesTable.$inferInsert> = {},
+    ): typeof importProfilesTable.$inferInsert => ({
+      name: 'Banque fictive',
+      target: 'cash',
+      encoding: 'utf-8',
+      delimiter: ';',
+      decimalSeparator: ',',
+      dateFormat: 'dd/mm/yyyy',
+      headers: ['jour', 'texte', 'valeur', 'debit', 'credit'],
+      columns: { date: 'jour', label: 'texte', amount: 'valeur' },
+      ...values,
+    })
+
+    it('keeps the settings among the known values', async () => {
+      await inRollback(async (tx) => {
+        await tx
+          .insert(importProfilesTable)
+          .values(profile({ delimiter: '\t' }))
+        for (const [constraint, values] of [
+          ['import_profiles_encoding_known', { encoding: 'latin-9' }],
+          ['import_profiles_delimiter_known', { delimiter: '|' }],
+          [
+            'import_profiles_decimal_separator_known',
+            { decimalSeparator: ' ' },
+          ],
+          ['import_profiles_date_format_known', { dateFormat: 'yyyymmdd' }],
+          [
+            'import_profiles_headers_size',
+            {
+              headers: [
+                'jour',
+                'texte',
+                'valeur',
+                ...Array.from({ length: 198 }, (_, i) => `colonne ${i}`),
+              ],
+            },
+          ],
+          ['import_profiles_name_not_blank', { name: '  ' }],
+        ] as [string, Partial<typeof importProfilesTable.$inferInsert>][]) {
+          await refused(tx, constraint, (n) =>
+            n.insert(importProfilesTable).values(profile(values)),
+          )
+        }
+      })
+    })
+
+    it('maps only its target’s fields to columns of its header, with the required ones', async () => {
+      await inRollback(async (tx) => {
+        await tx.insert(importProfilesTable).values(
+          profile({
+            headers: ['jour', 'texte', 'debit', 'credit'],
+            columns: {
+              date: 'jour',
+              label: 'texte',
+              debit: 'debit',
+              credit: 'credit',
+            },
+          }),
+        )
+        for (const columns of [
+          { date: 'jour', label: 'absente', amount: 'valeur' },
+          { date: 'jour', label: 'jour', amount: 'valeur' },
+          { date: 'jour', amount: 'valeur' },
+          { date: 'jour', label: 'texte' },
+          {
+            date: 'jour',
+            label: 'texte',
+            amount: 'valeur',
+            debit: 'debit',
+            credit: 'credit',
+          },
+          { date: 'jour', label: 'texte', debit: 'debit' },
+          { date: 'jour', label: 'texte', amount: 'valeur', kind: 'credit' },
+          { date: 'jour', label: 'texte', amount: 3 },
+          ['jour'],
+        ]) {
+          await refused(tx, 'import_profiles_columns_valid', (n) =>
+            n
+              .insert(importProfilesTable)
+              .values(profile({ columns: columns as never, delimiter: ',' })),
+          )
+        }
+        await tx.insert(importProfilesTable).values(
+          profile({
+            target: 'investment',
+            columns: { date: 'jour', kind: 'texte', amount: 'valeur' },
+            kindValues: { coupon: 'interest' },
+            delimiter: ',',
+          }),
+        )
+        await refused(tx, 'import_profiles_columns_valid', (n) =>
+          n
+            .insert(importProfilesTable)
+            .values(profile({ target: 'investment', delimiter: '\t' })),
+        )
+      })
+    })
+
+    it('keeps kind values on investment profiles, mapped to the standard kinds', async () => {
+      await inRollback(async (tx) => {
+        await refused(tx, 'import_profiles_kind_values_valid', (n) =>
+          n
+            .insert(importProfilesTable)
+            .values(profile({ kindValues: { coupon: 'interest' } })),
+        )
+        await refused(tx, 'import_profiles_kind_values_valid', (n) =>
+          n.insert(importProfilesTable).values(
+            profile({
+              target: 'investment',
+              columns: { date: 'jour', kind: 'texte', amount: 'valeur' },
+              kindValues: { coupon: 'swap' } as never,
+            }),
+          ),
+        )
+      })
+    })
+
+    it('reads a header with one profile only', async () => {
+      await inRollback(async (tx) => {
+        await tx.insert(importProfilesTable).values(profile())
+        await refused(tx, 'import_profiles_header_unique', (n) =>
+          n.insert(importProfilesTable).values(profile({ name: 'Autre' })),
+        )
+      })
+    })
+
+    it('links an import to a profile only as a csv_profile import, unlinked when deleted', async () => {
+      await inRollback(async (tx) => {
+        const checking = await account(tx)
+        const [saved] = await tx
+          .insert(importProfilesTable)
+          .values(profile())
+          .returning()
+        const base = {
+          accountId: checking.id,
+          fileName: 'releve-fictif.csv',
+          fileHash: 'fixture',
+        }
+        await refused(tx, 'imports_profile_source', (n) =>
+          n
+            .insert(importsTable)
+            .values({ ...base, source: 'standard_csv', profileId: saved.id }),
+        )
+        const [linked] = await tx
+          .insert(importsTable)
+          .values({ ...base, source: 'csv_profile', profileId: saved.id })
+          .returning()
+        await tx
+          .delete(importProfilesTable)
+          .where(eq(importProfilesTable.id, saved.id))
+        const [kept] = await tx
+          .select({ profileId: importsTable.profileId })
+          .from(importsTable)
+          .where(eq(importsTable.id, linked.id))
+        expect(kept.profileId).toBeNull()
       })
     })
   })

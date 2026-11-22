@@ -1,5 +1,7 @@
 import { IMPORT_SOURCES } from '#/database/schema/domain-enums'
+import { sql } from 'drizzle-orm'
 import {
+  check,
   date,
   index,
   integer,
@@ -14,6 +16,7 @@ import { createSelectSchema } from 'drizzle-zod'
 import { accountsTable } from '#/accounts/accounts.schema'
 import { coreColumns } from '#/database/schema/core.schema'
 import type { ImportPreviewData } from '#/imports/preview/preview.types'
+import { importProfilesTable } from '#/imports/profiles/import-profiles.schema'
 
 export const importSourceEnum = pgEnum('import_source', IMPORT_SOURCES)
 
@@ -36,6 +39,13 @@ export const importsTable = pgTable(
       .notNull()
       .references(() => accountsTable.id, { onDelete: 'restrict' }),
     source: importSourceEnum('source').notNull(),
+    /**
+     * The saved profile a `csv_profile` import was read with (#431); null
+     * for the other sources, and once the profile is deleted.
+     */
+    profileId: uuid('profile_id').references(() => importProfilesTable.id, {
+      onDelete: 'set null',
+    }),
     fileName: varchar('file_name', { length: 255 }).notNull(),
     /** SHA-256 of the raw file, to spot a file that was already imported. */
     fileHash: varchar('file_hash', { length: 64 }).notNull(),
@@ -55,7 +65,15 @@ export const importsTable = pgTable(
     preview: jsonb('preview').$type<ImportPreviewData>(),
     committedAt: timestamp('committed_at', { withTimezone: true }),
   },
-  (t) => [index().on(t.accountId), index().on(t.fileHash)],
+  (t) => [
+    index().on(t.accountId),
+    index().on(t.fileHash),
+    index().on(t.profileId),
+    check(
+      'imports_profile_source',
+      sql`${t.profileId} IS NULL OR ${t.source}::text = 'csv_profile'`,
+    ),
+  ],
 )
 
 export const selectImportSchema = createSelectSchema(importsTable)
