@@ -8,7 +8,8 @@ import type {
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   checking: 'compte courant',
   savings: 'épargne',
-  brokerage: 'PEA / compte-titres',
+  brokerage: 'PEA',
+  securities: 'compte-titres',
   life_insurance: 'assurance vie',
   employee_savings: 'épargne salariale',
   crypto: 'crypto',

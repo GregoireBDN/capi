@@ -76,13 +76,13 @@ export class PositionsController {
 
   @Get()
   @ApiOperation({
-    summary: "A PEA's lines as of today (ADR 0006)",
+    summary: "A PEA's or a compte-titres' lines as of today (ADR 0006)",
     description:
       'Each line with its quantity, PRU, cost, latest price, value and result; the cash; the totals; the statements, newest first.',
   })
   @ApiParam(ID_PARAM)
   @ApiOkResponse({ type: PositionsDto })
-  @ApiBadRequestResponse({ description: 'Not a PEA.' })
+  @ApiBadRequestResponse({ description: 'Not a PEA or a compte-titres.' })
   @ApiNotFoundResponse()
   get(@Param('id', ParseUUIDPipe) id: string): Promise<PositionsDto> {
     return this.positions.get(id)
@@ -101,7 +101,7 @@ export class PositionsController {
   @ApiOkResponse({ type: PositionsDto })
   @ApiBadRequestResponse({
     description:
-      'Invalid body or ISIN, duplicate line, future day, unknown security without a name, archived account, not a PEA.',
+      'Invalid body or ISIN, duplicate line, future day, unknown security without a name, archived account, not a PEA or a compte-titres.',
   })
   @ApiNotFoundResponse()
   putStatement(

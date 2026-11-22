@@ -185,7 +185,7 @@ export function CashSheet({
       >
         <SheetBar
           title="Liquidités"
-          description="L’argent du PEA qui n’est pas investi, aujourd’hui."
+          description="L’argent du compte qui n’est pas investi, aujourd’hui."
           action={
             <SheetBarAction
               type="submit"

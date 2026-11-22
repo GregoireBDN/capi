@@ -143,7 +143,7 @@ describe('breakdownByType', () => {
     expect(types.map((t) => [t.type, t.label, t.totalCents])).toEqual([
       ['checking', 'Compte courant', -20_000],
       ['savings', 'Livret d’épargne', 354_566],
-      ['brokerage', 'PEA / compte-titres', 800_000],
+      ['brokerage', 'PEA', 800_000],
       ['crypto', 'Crypto', 100_001],
     ])
     expect(types.reduce((sum, t) => sum + t.totalCents, 0)).toBe(
@@ -173,5 +173,21 @@ describe('breakdownByType', () => {
     expect(shares[0]).toBe(0)
     expect(shares.reduce((sum, share) => sum + share, 0)).toBeCloseTo(1)
     expect(shares[2]).toBeCloseTo(800_000 / 1_254_567)
+  })
+
+  it('puts a compte-titres next to the PEA (#414)', () => {
+    const types = breakdownByType(
+      month('2026-10', 1_050_000, [
+        { accountId: 'e', type: 'crypto', balanceCents: 0 },
+        { accountId: 'f', type: 'securities', balanceCents: 250_000 },
+        { accountId: 'd', type: 'brokerage', balanceCents: 800_000 },
+      ]),
+      [...accounts, account('f', 'securities')],
+    )
+    expect(types.map((t) => [t.type, t.label])).toEqual([
+      ['brokerage', 'PEA'],
+      ['securities', 'Compte-titres'],
+      ['crypto', 'Crypto'],
+    ])
   })
 })

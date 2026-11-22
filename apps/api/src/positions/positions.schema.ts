@@ -129,3 +129,34 @@ export type SelectSecurity = typeof securitiesTable.$inferSelect
 export type SelectPositionStatement =
   typeof positionStatementsTable.$inferSelect
 export type SelectPositionLine = typeof positionLinesTable.$inferSelect
+
+/**
+ * A dividend a compte-titres received (#414), typed by the owner from the
+ * broker's notice: information only, shown on the account's page. It changes
+ * neither the account's value (the cash it brought is in the statements) nor
+ * what was invested. Only on a compte-titres (`dividends_account_type`
+ * trigger, migration 0048).
+ */
+export const dividendsTable = pgTable(
+  'dividends',
+  {
+    ...coreColumns,
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accountsTable.id, { onDelete: 'cascade' }),
+    paidOn: date('paid_on', { mode: 'string' }).notNull(),
+    /** Net amount received, in cents. */
+    amountCents: bigint('amount_cents', { mode: 'number' }).notNull(),
+    /** The security that paid it, when the owner says which. */
+    securityId: uuid('security_id').references(() => securitiesTable.id, {
+      onDelete: 'set null',
+    }),
+  },
+  (t) => [
+    index().on(t.accountId, t.paidOn),
+    index().on(t.securityId),
+    check('dividends_amount_positive', sql`${t.amountCents} > 0`),
+  ],
+)
+
+export type SelectDividend = typeof dividendsTable.$inferSelect

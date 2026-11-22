@@ -57,7 +57,8 @@ import {
 
 type Db = PostgresJsDatabase<typeof schema>
 
-export const POSITIONS_ONLY_MESSAGE = 'Only a PEA holds security positions'
+export const POSITIONS_ONLY_MESSAGE =
+  'Only a PEA or a compte-titres holds security positions'
 
 /** Whether an account of this type holds positions (ADR 0006). */
 export function takesPositions(account: { type: AccountType }): boolean {

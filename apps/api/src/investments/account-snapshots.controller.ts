@@ -146,7 +146,7 @@ export class AccountSnapshotsController {
   @ApiOperation({
     summary: 'Set the invested base of an investment account',
     description:
-      "What was invested in the account up to a day (« Investi au … »): a PEA, a life insurance, employee savings (#360), a wallet or manual crypto account (#358). The invested amount is then that base plus what is linked to the account after that day (transfers, or the cost of coins for crypto); a crypto account's snapshots from that day get it as their contributions. Not for exchange accounts, which keep their holdings' cost.",
+      "What was invested in the account up to a day (« Investi au … »): a PEA, a compte-titres, a life insurance, employee savings (#360), a wallet or manual crypto account (#358). The invested amount is then that base plus what is linked to the account after that day (transfers, or the cost of coins for crypto); a crypto account's snapshots from that day get it as their contributions. Not for exchange accounts, which keep their holdings' cost.",
   })
   @ApiParam(ID_PARAM)
   @ApiBody({ type: SetInvestedBaseDto })

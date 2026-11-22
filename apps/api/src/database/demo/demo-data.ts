@@ -25,6 +25,7 @@ import {
   cryptoMovementsTable,
   cryptoPriceHistoryTable,
   cryptoPricesTable,
+  dividendsTable,
   importsTable,
   positionLinesTable,
   positionStatementsTable,
@@ -145,6 +146,8 @@ export interface DemoCounts {
   cryptoHoldings: number
   /** A PEA's position statements (#413). */
   positionStatements: number
+  /** A compte-titres' dividends (#414). */
+  dividends: number
   recurringItems: number
   /** Money owed (#359). */
   contacts: number
@@ -819,32 +822,39 @@ export async function generateDemoData(
         name: 'Assurance vie',
         type: 'life_insurance',
         institution: 'Assureur Démo',
-        position: 3,
+        position: 4,
       },
       {
         name: 'PEE Acme',
         type: 'employee_savings',
         institution: 'Épargne Démo',
-        position: 4,
+        position: 5,
       },
       {
         name: 'Ledger',
         type: 'crypto',
         cryptoSource: 'manual',
-        position: 5,
+        position: 6,
       },
       {
         name: 'Titres-restaurant',
         type: 'meal_voucher',
         institution: 'Carte Démo',
-        position: 6,
+        position: 7,
       },
       {
         name: 'Binance',
         type: 'crypto',
         cryptoSource: 'exchange',
         cryptoProvider: 'binance',
-        position: 7,
+        position: 8,
+      },
+      // A compte-titres (#414): lines like the PEA's, dividends typed.
+      {
+        name: 'Compte-titres',
+        type: 'securities',
+        institution: 'Courtier Démo',
+        position: 3,
       },
     ])
     .returning()
@@ -857,6 +867,7 @@ export async function generateDemoData(
     crypto,
     mealVoucher,
     exchange,
+    securitiesAccount,
   ] = accountRows
 
   // Rules, in creation order (evaluated most specific first, #299).
@@ -1128,8 +1139,9 @@ export async function generateDemoData(
     await db.insert(balanceSnapshotsTable).values(snapshots)
     snapshotCount += snapshots.length
   }
-  const peaLines = await seedPeaPositions(db, {
+  const peaLines = await seedPositions(db, {
     accountId: pea.id,
+    securities: DEMO_SECURITIES,
     days: statementDays,
     startValueCents: peaValueAtFirstStatement,
     monthlyCents: 20_000,
@@ -1137,6 +1149,20 @@ export async function generateDemoData(
     random,
   })
   snapshotCount += peaLines.values
+  // The compte-titres (#414): its lines over the last months, no invested
+  // amount typed (its lines' cost stands in), and the dividends it received.
+  const ctoDays = statementDays.slice(-CTO_STATEMENT_MONTHS)
+  const ctoLines = await seedPositions(db, {
+    accountId: securitiesAccount.id,
+    securities: CTO_SECURITIES,
+    days: ctoDays,
+    startValueCents: 640_000,
+    monthlyCents: 0,
+    today,
+    random,
+  })
+  snapshotCount += ctoLines.values
+  const dividendCount = await seedDividends(db, securitiesAccount.id, ctoDays)
 
   // Crypto (#296, #373): the euros sent to Binance buy BTC and ETH there;
   // every fourth month the coins go to the Ledger (a manual account whose
@@ -1642,7 +1668,8 @@ export async function generateDemoData(
       budgets: budgetValues.length,
       savingsGoals: goals.length,
       cryptoHoldings: holdings.length,
-      positionStatements: peaLines.statements,
+      positionStatements: peaLines.statements + ctoLines.statements,
+      dividends: dividendCount,
       recurringItems,
       ...owedCounts,
     },
@@ -1751,6 +1778,8 @@ async function seedMoneyOwed(
 
 /** Months of the demo PEA given by its lines (#413). */
 const PEA_STATEMENT_MONTHS = 6
+/** Months of the demo compte-titres, all given by its lines (#414). */
+const CTO_STATEMENT_MONTHS = 4
 
 /** Synthetic ETFs: `ZZ…` ISINs (valid check digits, never a real one). */
 const DEMO_SECURITIES = [
@@ -1783,20 +1812,97 @@ const DEMO_SECURITIES = [
   },
 ] as const
 
+/** The compte-titres' synthetic ETFs (#414), distributing ones. */
+const CTO_SECURITIES = [
+  {
+    isin: 'ZZ00SP500DI1',
+    name: 'ETF S&P 500 distribuant (démo)',
+    ticker: 'SPXD',
+    share: 0.62,
+    priceCents: 5_418,
+    costRatio: 0.88,
+    drift: [-0.03, 0.04],
+  },
+  {
+    isin: 'ZZ00DIVWLD08',
+    name: 'ETF Dividendes Monde (démo)',
+    ticker: 'DIVW',
+    share: 0.3,
+    priceCents: 3_127,
+    costRatio: 1.03,
+    drift: [-0.025, 0.03],
+  },
+] as const
+
+interface DemoSecurity {
+  isin: string
+  name: string
+  ticker: string
+  share: number
+  priceCents: number
+  costRatio: number
+  drift: readonly [number, number]
+}
+
+/**
+ * The compte-titres' dividends (#414): each ETF pays one a quarter, the
+ * first in the month of its first statement; amounts are synthetic.
+ */
+async function seedDividends(
+  db: DemoDb,
+  accountId: string,
+  days: readonly string[],
+): Promise<number> {
+  if (days.length === 0) return 0
+  const securities = await db
+    .select({ id: securitiesTable.id, isin: securitiesTable.isin })
+    .from(securitiesTable)
+    .where(
+      inArray(
+        securitiesTable.isin,
+        CTO_SECURITIES.map((security) => security.isin),
+      ),
+    )
+  const idOf = new Map(securities.map((row) => [row.isin, row.id]))
+  const rows: (typeof dividendsTable.$inferInsert)[] = []
+  for (const [i, day] of days.entries()) {
+    if (i % 3 !== 0) continue
+    const month = day.slice(0, 8)
+    rows.push(
+      {
+        accountId,
+        paidOn: `${month}08`,
+        amountCents: 2_874 + i * 31,
+        securityId: idOf.get(CTO_SECURITIES[0].isin) ?? null,
+      },
+      {
+        accountId,
+        paidOn: `${month}19`,
+        amountCents: 4_212 + i * 17,
+        securityId: idOf.get(CTO_SECURITIES[1].isin) ?? null,
+      },
+    )
+  }
+  if (rows.length > 0) await db.insert(dividendsTable).values(rows)
+  return rows.length
+}
+
 /** Integer cents as an exact euro decimal string (`49832` → `"498.32"`). */
 function centsText(cents: number): string {
   return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`
 }
 
 /**
- * The demo PEA's lines (#413): one statement per month end, its ETFs at that
- * day's price, the monthly transfer buying more of the first one, the PRU as
- * a weighted average; then its values computed from them (`revalue`).
+ * A demo account's lines (the PEA #413, the compte-titres #414): one
+ * statement per month end, its ETFs at that day's price, the monthly transfer
+ * buying more of the first one, the PRU as a weighted average; then its
+ * values computed from them (`revalue`).
  */
-async function seedPeaPositions(
+async function seedPositions(
   db: DemoDb,
   options: {
     accountId: string
+    securities: readonly DemoSecurity[]
     days: readonly string[]
     startValueCents: number
     monthlyCents: number
@@ -1808,7 +1914,11 @@ async function seedPeaPositions(
   await db
     .insert(securitiesTable)
     .values(
-      DEMO_SECURITIES.map(({ isin, name, ticker }) => ({ isin, name, ticker })),
+      options.securities.map(({ isin, name, ticker }) => ({
+        isin,
+        name,
+        ticker,
+      })),
     )
     .onConflictDoNothing({ target: securitiesTable.isin })
   const securities = await db
@@ -1817,11 +1927,11 @@ async function seedPeaPositions(
     .where(
       inArray(
         securitiesTable.isin,
-        DEMO_SECURITIES.map((security) => security.isin),
+        options.securities.map((security) => security.isin),
       ),
     )
   const idOf = new Map(securities.map((row) => [row.isin, row.id]))
-  const held = DEMO_SECURITIES.map((security) => {
+  const held = options.securities.map((security) => {
     const budget = Math.round(options.startValueCents * security.share)
     const quantity = Math.max(1, Math.floor(budget / security.priceCents))
     return {

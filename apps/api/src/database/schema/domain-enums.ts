@@ -11,6 +11,8 @@ export const ACCOUNT_TYPES = [
   'employee_savings',
   'crypto',
   'meal_voucher',
+  // A compte-titres ordinaire (#414): lines like a PEA's, none of its rules.
+  'securities',
 ] as const
 export type AccountType = (typeof ACCOUNT_TYPES)[number]
 
@@ -35,6 +37,7 @@ export const BANK_ACCOUNT_TYPES = [
 /** Tracked by dated value snapshots. */
 export const INVESTMENT_ACCOUNT_TYPES = [
   'brokerage',
+  'securities',
   'life_insurance',
   'employee_savings',
   'crypto',
@@ -119,11 +122,13 @@ export type SnapshotSource = (typeof SNAPSHOT_SOURCES)[number]
 
 /**
  * Account types that hold security positions (ADR 0006, #413): their lines
- * by ISIN, their value computed from the priced lines. A compte-titres (#414)
- * joins them.
+ * by ISIN, their value computed from the priced lines. A PEA and a
+ * compte-titres (#414), whose lines work alike; only a PEA has a ceiling and
+ * a 5-year date, only a compte-titres records its dividends.
  */
 export const POSITION_ACCOUNT_TYPES = [
   'brokerage',
+  'securities',
 ] as const satisfies readonly AccountType[]
 
 /** Where a security's price of a day comes from, strongest first (ADR 0006). */

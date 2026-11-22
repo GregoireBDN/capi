@@ -1,5 +1,6 @@
 /**
- * `sync_security_positions` (ADR 0006, #413): a PEA's lines read by Claude
+ * `sync_security_positions` (ADR 0006, #413, #414): the lines of a PEA or a
+ * compte-titres read by Claude
  * from a broker's statement. Same contract as the #77 write tools: without
  * `confirm: true` the API previews the statement (nothing is written); with
  * it, the whole statement of that day is written and the account's values
@@ -24,7 +25,7 @@ import {
 import { isValidIsin, normalizeIsin } from '../isin.js'
 import { frenchQuantity, parseQuantity } from '../quantity.js'
 import { DATE_PATTERN } from './lookup.js'
-import { resolveInvestmentAccount } from './investments.js'
+import { resolveInvestmentAccount, takesPositions } from './investments.js'
 import { defineTool, ToolInputError } from './tool.js'
 import { confirmSchema, PREVIEW_FOOTER, PREVIEW_HEADER } from './write.js'
 
@@ -104,15 +105,17 @@ function previewText(
 
 export const syncSecurityPositionsTool = defineTool({
   name: 'sync_security_positions',
-  title: 'Synchroniser les lignes du PEA',
+  title: 'Synchroniser les lignes d’un PEA ou d’un compte-titres',
   description:
-    "Record the lines of a PEA read from a broker's statement (« relevé de portefeuille ») on its day: every security held that day by ISIN with its quantity, PRU (average cost per unit) and price, and the cash (« liquidités »). The statement is the whole account: a line left out was sold. Without confirm: preview of new / changed / removed / unchanged lines, the cash and the account's value that day before → after. With confirm: true writes the statement and its prices (a price typed by hand that day is kept); the account's value then follows its lines, except on a day with a value typed by hand, which keeps its day. A repeated call changes nothing. Copy the digits from the document; never compute or round them. PEA accounts only; deleting a statement is done in the app.",
+    "Record the lines of a PEA or a compte-titres read from a broker's statement (« relevé de portefeuille ») on its day: every security held that day by ISIN with its quantity, PRU (average cost per unit) and price, and the cash (« liquidités »). The statement is the whole account: a line left out was sold. Without confirm: preview of new / changed / removed / unchanged lines, the cash and the account's value that day before → after. With confirm: true writes the statement and its prices (a price typed by hand that day is kept); the account's value then follows its lines, except on a day with a value typed by hand, which keeps its day. A repeated call changes nothing. Copy the digits from the document; never compute or round them. PEA and compte-titres accounts only; deleting a statement is done in the app.",
   write: { idempotent: true },
   inputSchema: {
     account: z
       .string()
       .max(100)
-      .describe('PEA account name (see list_investment_accounts).'),
+      .describe(
+        'PEA or compte-titres account name (see list_investment_accounts).',
+      ),
     asOf: z
       .string()
       .regex(DATE_PATTERN)
@@ -164,9 +167,9 @@ export const syncSecurityPositionsTool = defineTool({
   },
   async run({ api, now }, args) {
     const account = await resolveInvestmentAccount(api, args.account)
-    if (account.type !== 'brokerage') {
+    if (!takesPositions(account.type)) {
       throw new ToolInputError(
-        `${account.name} n'est pas un PEA : seuls les PEA ont des lignes (pour une valeur, add_investment_snapshots ; pour des cryptos, sync_crypto_holdings). Rien n'a été modifié.`,
+        `${account.name} n'est ni un PEA ni un compte-titres : seuls eux ont des lignes (pour une valeur, add_investment_snapshots ; pour des cryptos, sync_crypto_holdings). Rien n'a été modifié.`,
       )
     }
     const today = parisToday(now())
@@ -259,7 +262,7 @@ export const syncSecurityPositionsTool = defineTool({
       written.totals.valueCents === null
         ? ''
         : `Lignes aujourd'hui (relevé du ${frenchDate(written.asOf!)}) : ${euros(written.totals.valueCents)}.`,
-      "Pour l'annuler, supprimez ce relevé dans l'application (fiche du PEA, « Lignes », « Historique ») ; aucun outil MCP ne supprime.",
+      "Pour l'annuler, supprimez ce relevé dans l'application (fiche du compte, « Plus d’informations », « Relevés de portefeuille ») ; aucun outil MCP ne supprime.",
     ]
       .filter(Boolean)
       .join('\n')

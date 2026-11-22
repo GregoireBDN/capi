@@ -102,7 +102,7 @@ export function createServer(context: ToolContext): McpServer {
     {
       title: 'Importer mes investissements',
       description:
-        'Reads the investment statements of a Google Drive folder (with the client’s Drive connector) and records the new values with list_investment_accounts, add_investment_snapshots, sync_security_positions (the lines of a PEA) and sync_crypto_holdings, after a summary and previews.',
+        'Reads the investment statements of a Google Drive folder (with the client’s Drive connector) and records the new values with list_investment_accounts, add_investment_snapshots, sync_security_positions (the lines of a PEA or a compte-titres) and sync_crypto_holdings, after a summary and previews.',
       argsSchema: investmentsImportPromptArgs,
     },
     ({ folder }) => investmentsImportPrompt(context.now(), folder),
