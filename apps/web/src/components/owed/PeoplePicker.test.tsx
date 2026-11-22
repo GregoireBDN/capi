@@ -62,6 +62,18 @@ describe('PeoplePicker, a list of people (#394)', () => {
     expect(picked).toEqual({ contactId: 'c2', name: 'Camille' })
   })
 
+  it('leaves an archived contact out of a search for their name too (#440)', async () => {
+    const user = userEvent.setup()
+    render(<Several />)
+    expect(
+      screen.queryByRole('button', { name: /Ancien/ }),
+    ).not.toBeInTheDocument()
+    await user.type(screen.getByRole('searchbox'), 'anc')
+    expect(
+      screen.queryByRole('button', { name: /^(?!Ajouter).*Ancien/ }),
+    ).not.toBeInTheDocument()
+  })
+
   it('filters by the name typed and offers to add a new one', async () => {
     const user = userEvent.setup()
     let picked: Person | null = null
