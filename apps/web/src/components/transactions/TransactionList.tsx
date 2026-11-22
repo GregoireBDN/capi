@@ -91,7 +91,7 @@ export function TransactionList({
               className="not-first:[&>h2]:border-t"
             >
               {/* under the header (AppHeader, h-12) */}
-              <h2 className="bg-muted/70 text-muted-foreground sticky top-(--app-top-bar,3rem) z-[1] flex items-baseline justify-between gap-3 border-b px-3 py-1.5 text-xs font-medium backdrop-blur">
+              <h2 className="bg-muted/70 text-muted-foreground sticky top-0 z-[1] flex items-baseline justify-between gap-3 border-b px-3 py-1.5 text-xs font-medium backdrop-blur">
                 <time dateTime={group.date}>{heading}</time>
                 {group.hasTotal && (
                   <span

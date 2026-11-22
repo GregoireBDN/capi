@@ -48,6 +48,7 @@ import { SpendingFilters } from './SpendingFilters'
 import { SpendingKpis, SpendingKpisSkeleton } from './SpendingKpis'
 import { SpendingTrend } from './SpendingTrend'
 import type { TrendChip } from './SpendingTrend'
+import { scrollAppTo } from '#/components/app-shell/app-scroll'
 
 /**
  * Comparison segments: both labels fit a 320px phone, sized on the row
@@ -404,7 +405,7 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
                       : target,
                 })
                 // The month's figures are at the top of the page.
-                window.scrollTo({ top: 0, behavior: 'smooth' })
+                scrollAppTo({ top: 0, behavior: 'smooth' })
               }}
             />
           ) : (

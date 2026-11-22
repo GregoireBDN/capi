@@ -317,6 +317,8 @@ type Issue = { tag: string; text: string; w: number; h: number }
 /** Runs in the page: overflow, small hit areas and small form fonts. */
 function auditPage(min: { target: number; font: number; width: number }) {
   const doc = document.documentElement
+  // The signed-in pages scroll in their own area, not the document (#418).
+  const scroller = document.getElementById('app-scroll')
   const describe = (el: Element) =>
     (
       el.getAttribute('aria-label') ??
@@ -385,6 +387,7 @@ function auditPage(min: { target: number; font: number; width: number }) {
   const smallTargets: Array<Issue> = []
   const smallInputs: Array<Issue> = []
   const scrollY = window.scrollY
+  const scrollerTop = scroller?.scrollTop ?? 0
   for (const el of document.querySelectorAll(selector)) {
     if (!visible(el)) continue
     // Disabled controls are exempt (and ignore pointer events anyway).
@@ -492,14 +495,21 @@ function auditPage(min: { target: number; font: number; width: number }) {
     })
     .map((el) => describe(el))
   window.scrollTo(0, scrollY)
+  if (scroller) scroller.scrollTop = scrollerTop
+  // The page's area clips sideways (`overflow-x: hidden`): its content wider
+  // than itself is the page scrolling horizontally.
+  const pageWidth = Math.max(
+    doc.scrollWidth,
+    scroller ? scroller.scrollWidth - scroller.clientWidth + min.width : 0,
+  )
   return {
     dialogOverflow,
     overflowingText,
     // Compared with the device width: a mobile browser widens the layout
     // viewport (innerWidth) to fit content that overflows.
-    scrollWidth: doc.scrollWidth,
+    scrollWidth: pageWidth,
     innerWidth: min.width,
-    overflow: doc.scrollWidth > min.width,
+    overflow: pageWidth > min.width,
     smallTargets,
     smallInputs,
   }
