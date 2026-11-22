@@ -799,6 +799,264 @@ describe.skipIf(!process.env.DATABASE_URL)(
         })
       })
     })
+
+    describe('quarterly and yearly charges as prepaid ones (#439)', () => {
+      const INSURANCE = 'PRLV SEPA ASSURANCE HABITATION EXEMPLE'
+      const WATER = 'PRLV SEPA EAU EXEMPLE'
+
+      /** Every line of the transactions, as the statistics read them. */
+      async function lines(f: Fixture) {
+        return f.tx
+          .select({
+            date: transactionLinesView.bookingDate,
+            amountCents: transactionLinesView.amountCents,
+            isOneOff: transactionLinesView.isOneOff,
+            prepaidItemId: transactionLinesView.prepaidItemId,
+          })
+          .from(transactionLinesView)
+          .orderBy(transactionLinesView.bookingDate)
+      }
+
+      it('makes a confirmed yearly series prepaid for 12 months', async () => {
+        await withFixture(async (f) => {
+          await f.insert([
+            {
+              rawLabel: INSURANCE,
+              bookingDate: '2024-11-25',
+              amountCents: -12_000,
+            },
+            {
+              rawLabel: INSURANCE,
+              bookingDate: '2025-11-25',
+              amountCents: -12_000,
+            },
+          ])
+          await f.service.detect(TODAY)
+          const [suggested] = await f.service.list('suggested', TODAY)
+          expect(suggested).toMatchObject({
+            cadence: 'yearly',
+            termMonths: null,
+          })
+          const before = {
+            yearly: suggested.yearlyCostCents,
+            monthly: suggested.monthlyEquivalentCents,
+          }
+
+          expect(
+            (await f.service.confirm([suggested.id], TODAY)).confirmedCount,
+          ).toBe(1)
+          const [item] = await f.service.list('confirmed', TODAY)
+          expect(item).toMatchObject({
+            termMonths: 12,
+            occurrenceCount: 2,
+            renewalDate: '2026-11-25',
+            nextExpectedDate: '2026-11-25',
+            // 19 days before the renewal: keep or cancel it.
+            renewalReminder: true,
+            active: true,
+            yearlyCostCents: before.yearly,
+            monthlyEquivalentCents: before.monthly,
+          })
+          // From 30 days before the renewal, not 31.
+          expect(
+            (await f.service.list('confirmed', '2026-10-25'))[0]
+              .renewalReminder,
+          ).toBe(false)
+          expect(
+            (await f.service.list('confirmed', '2026-10-26'))[0]
+              .renewalReminder,
+          ).toBe(true)
+          // Each charge counted once, in its month, out of averages.
+          expect(await lines(f)).toEqual([
+            {
+              date: '2024-11-25',
+              amountCents: -12_000,
+              isOneOff: true,
+              prepaidItemId: item.id,
+            },
+            {
+              date: '2025-11-25',
+              amountCents: -12_000,
+              isOneOff: true,
+              prepaidItemId: item.id,
+            },
+          ])
+          // The totals count it once a year, as before.
+          const summary = await f.service.summary(TODAY)
+          expect(summary.debits.yearlyCents).toBe(before.yearly)
+          expect(summary.debits.count).toBe(1)
+          // A detection run keeps it as it is.
+          await f.service.detect(TODAY)
+          expect((await f.service.list('confirmed', TODAY))[0]).toMatchObject({
+            termMonths: 12,
+            occurrenceCount: 2,
+          })
+        })
+      })
+
+      it('makes a quarterly series prepaid for 3 months, from the editor too', async () => {
+        await withFixture(async (f) => {
+          await f.insert(
+            ['2026-02-10', '2026-05-10', '2026-08-10'].map((bookingDate) => ({
+              rawLabel: WATER,
+              bookingDate,
+              amountCents: -9_000,
+            })),
+          )
+          await f.service.detect(TODAY)
+          const [suggested] = await f.service.list('suggested', TODAY)
+          expect(suggested.cadence).toBe('quarterly')
+          const item = await f.service.update(
+            suggested.id,
+            { name: 'Eau', status: 'confirmed' },
+            TODAY,
+          )
+          expect(item).toMatchObject({
+            status: 'confirmed',
+            termMonths: 3,
+            occurrenceCount: 3,
+            renewalDate: '2026-11-10',
+            renewalReminder: true,
+            yearlyCostCents: suggested.yearlyCostCents,
+            monthlyEquivalentCents: 3_000,
+          })
+          expect(
+            (await lines(f)).every(
+              (l) => l.isOneOff && l.prepaidItemId === item.id,
+            ),
+          ).toBe(true)
+        })
+      })
+
+      it('leaves monthly series and credits alone', async () => {
+        await withFixture(async (f) => {
+          await seedHousehold(f)
+          await f.service.detect(TODAY)
+          const items = await f.service.list(undefined, TODAY)
+          await f.service.confirm(
+            items.map((i) => i.id),
+            TODAY,
+          )
+          for (const item of await f.service.list(undefined, TODAY)) {
+            expect(item.termMonths).toBeNull()
+          }
+          expect((await lines(f)).some((l) => l.prepaidItemId !== null)).toBe(
+            false,
+          )
+        })
+      })
+
+      it('keeps the owner’s choice: the term cleared stays cleared', async () => {
+        await withFixture(async (f) => {
+          await f.insert([
+            {
+              rawLabel: INSURANCE,
+              bookingDate: '2024-11-25',
+              amountCents: -12_000,
+            },
+            {
+              rawLabel: INSURANCE,
+              bookingDate: '2025-11-25',
+              amountCents: -12_000,
+            },
+          ])
+          await f.service.detect(TODAY)
+          const [suggested] = await f.service.list('suggested', TODAY)
+          // Confirmed and made ordinary in one request.
+          const ordinary = await f.service.update(
+            suggested.id,
+            { status: 'confirmed', termMonths: null },
+            TODAY,
+          )
+          expect(ordinary).toMatchObject({
+            status: 'confirmed',
+            termMonths: null,
+          })
+          await f.service.detect(TODAY)
+          expect(
+            (await f.service.list('confirmed', TODAY))[0].termMonths,
+          ).toBeNull()
+          expect((await lines(f)).some((l) => l.prepaidItemId !== null)).toBe(
+            false,
+          )
+        })
+      })
+
+      it('clears the term when the item leaves « confirmé »', async () => {
+        await withFixture(async (f) => {
+          await f.insert([
+            {
+              rawLabel: INSURANCE,
+              bookingDate: '2024-11-25',
+              amountCents: -12_000,
+            },
+            {
+              rawLabel: INSURANCE,
+              bookingDate: '2025-11-25',
+              amountCents: -12_000,
+            },
+          ])
+          await f.service.detect(TODAY)
+          const [suggested] = await f.service.list('suggested', TODAY)
+          await f.service.confirm([suggested.id], TODAY)
+          const back = await f.service.update(
+            suggested.id,
+            { status: 'suggested' },
+            TODAY,
+          )
+          expect(back).toMatchObject({
+            status: 'suggested',
+            termMonths: null,
+            renewalReminder: false,
+          })
+          expect((await lines(f)).some((l) => l.prepaidItemId !== null)).toBe(
+            false,
+          )
+          // A term confirms the item it is set on; never with another status.
+          await expect(
+            f.service.update(
+              suggested.id,
+              { status: 'dismissed', termMonths: 12 },
+              TODAY,
+            ),
+          ).rejects.toBeInstanceOf(BadRequestException)
+          const prepaid = await f.service.update(
+            suggested.id,
+            { termMonths: 12 },
+            TODAY,
+          )
+          expect(prepaid).toMatchObject({ status: 'confirmed', termMonths: 12 })
+        })
+      })
+
+      it('links the series of a prepaid item without payment on detection', async () => {
+        await withFixture(async (f) => {
+          await f.insert([
+            {
+              rawLabel: INSURANCE,
+              bookingDate: '2024-11-25',
+              amountCents: -12_000,
+            },
+            {
+              rawLabel: INSURANCE,
+              bookingDate: '2025-11-25',
+              amountCents: -12_000,
+            },
+          ])
+          await f.service.detect(TODAY)
+          // As the migration leaves a confirmed yearly item.
+          await f.tx
+            .update(recurringItemsTable)
+            .set({ status: 'confirmed', termMonths: 12 })
+          await f.service.detect(TODAY)
+          const [item] = await f.service.list('confirmed', TODAY)
+          expect(item).toMatchObject({ termMonths: 12, occurrenceCount: 2 })
+          expect(
+            (await lines(f)).every((l) => l.prepaidItemId === item.id),
+          ).toBe(true)
+        })
+      })
+    })
   },
 )
 

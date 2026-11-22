@@ -417,6 +417,20 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
       })
     })
 
+    it('refuses a prepaid term on an item that is not confirmed (#439)', async () => {
+      await inRollback(async (tx) => {
+        const checking = await account(tx)
+        await refused(tx, 'recurring_items_term_only_confirmed', (nested) =>
+          nested.insert(recurringItemsTable).values(
+            recurringItem(checking.id, {
+              status: 'suggested',
+              termMonths: 12,
+            }),
+          ),
+        )
+      })
+    })
+
     it('refuses a prepaid term on a credit', async () => {
       await inRollback(async (tx) => {
         const checking = await account(tx)

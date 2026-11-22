@@ -48,6 +48,7 @@ const api = vi.hoisted(() => ({
   categorizationRulesControllerApply: vi.fn(),
   coverageControllerCoverage: vi.fn(),
   investmentsControllerSummary: vi.fn(),
+  recurringControllerDeclarePrepaid: vi.fn(),
 }))
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), {
@@ -1386,6 +1387,46 @@ describe('TransactionsPage', () => {
         ),
       )
       await screen.findByRole('listitem', { name: 'Faketel' })
+    })
+
+    it('offers « Prépayé 12 mois ? » on a large debit to review (#439)', async () => {
+      const yearly = {
+        ...filed,
+        amountCents: -9_500,
+        prepaidSuggestion: {
+          kind: 'renewal' as const,
+          termMonths: 12,
+          earlierOn: '2025-10-07',
+        },
+      }
+      api.transactionsControllerList.mockReturnValue(listOf([yearly, shopRow]))
+      const { user } = setup(review)
+      await screen.findByText(yearly.rawLabel)
+      expect(screen.getByText('Prépayé 12 mois ?')).toBeInTheDocument()
+      // Only on the suggested row.
+      expect(screen.getAllByText('Prépayé 12 mois ?')).toHaveLength(1)
+
+      api.recurringControllerDeclarePrepaid.mockReturnValue(
+        ok({
+          item: { id: 'item-1', name: 'Faketel', termMonths: 12 },
+          previousStatus: null,
+        }),
+      )
+      await user.click(
+        screen.getByRole('button', { name: 'Prépayé 12 mois ? Faketel' }),
+      )
+      expect(api.recurringControllerDeclarePrepaid).toHaveBeenCalledWith({
+        body: { transactionId: yearly.id, termMonths: 12 },
+        throwOnError: false,
+      })
+      await waitFor(() =>
+        expect(toast.success).toHaveBeenCalledWith(
+          'Faketel : abonnement prépayé 12 mois',
+          expect.objectContaining({
+            action: expect.objectContaining({ label: 'Annuler' }),
+          }),
+        ),
+      )
     })
 
     it('takes a row filed in a category out of the list', async () => {

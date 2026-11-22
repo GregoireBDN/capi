@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  cadenceTermMonths,
   divideHalfEven,
   matchRenewals,
   prepaidActive,
   prepaidMonthlyCents,
+  prepaidSuggestion,
   prepaidYearlyCents,
   renewalDate,
   renewalReminderDue,
@@ -119,5 +121,57 @@ describe('prepaid subscriptions (#314)', () => {
         today: '2026-11-20',
       }),
     ).toBe(false)
+  })
+})
+
+describe('quarterly and yearly charges as prepaid ones (#439)', () => {
+  it('gives a quarterly series 3 months, a yearly one 12, no other', () => {
+    expect(cadenceTermMonths('quarterly')).toBe(3)
+    expect(cadenceTermMonths('yearly')).toBe(12)
+    expect(cadenceTermMonths('monthly')).toBeNull()
+    expect(cadenceTermMonths('weekly')).toBeNull()
+  })
+
+  it('suggests 12 months on a first charge', () => {
+    expect(prepaidSuggestion('2026-10-07', [])).toEqual({
+      kind: 'first',
+      earlierOn: null,
+    })
+    // Only earlier charges count.
+    expect(prepaidSuggestion('2026-10-07', ['2026-10-07'])).toEqual({
+      kind: 'first',
+      earlierOn: null,
+    })
+  })
+
+  it('suggests 12 months on the second charge about a year later', () => {
+    expect(prepaidSuggestion('2026-10-07', ['2025-10-07'])).toEqual({
+      kind: 'renewal',
+      earlierOn: '2025-10-07',
+    })
+    // Within the renewal window (30 days), either way.
+    expect(prepaidSuggestion('2026-11-05', ['2025-10-07'])?.kind).toBe(
+      'renewal',
+    )
+    expect(prepaidSuggestion('2026-09-08', ['2025-10-07'])?.kind).toBe(
+      'renewal',
+    )
+    // Charges older than a year don't matter.
+    expect(
+      prepaidSuggestion('2026-10-07', ['2023-02-01', '2025-10-07'])?.kind,
+    ).toBe('renewal')
+  })
+
+  it('suggests nothing for a merchant charged more often or long ago', () => {
+    // Six months before: not a yearly fee.
+    expect(prepaidSuggestion('2026-10-07', ['2026-04-07'])).toBeNull()
+    // Outside the window.
+    expect(prepaidSuggestion('2026-10-07', ['2025-08-30'])).toBeNull()
+    // Two charges in the year.
+    expect(
+      prepaidSuggestion('2026-10-07', ['2025-10-07', '2026-04-07']),
+    ).toBeNull()
+    // Last charged two years before.
+    expect(prepaidSuggestion('2026-10-07', ['2024-10-07'])).toBeNull()
   })
 })

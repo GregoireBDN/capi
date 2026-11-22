@@ -54,6 +54,7 @@ import { RecurringShareSection } from '#/components/owed/RecurringShareSection'
 import { PrepaidTermControl } from './PrepaidTermControl'
 import {
   afterRecurringChanged,
+  confirmedMessage,
   recurringErrorMessage,
   undoableRecurringToast,
   updateRecurringItem,
@@ -142,7 +143,7 @@ export function RecurringEditor({
     onSuccess: async (saved, body) => {
       toast.success(
         body.status === 'confirmed'
-          ? `${saved.name} confirmé`
+          ? confirmedMessage(saved)
           : body.status === 'dismissed'
             ? `${saved.name} ignoré`
             : body.status === 'suggested'

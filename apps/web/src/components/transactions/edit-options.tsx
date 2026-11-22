@@ -240,7 +240,12 @@ export function EditOptionRows({
         // Short: « 24 mois » stays whole beside it on a phone.
         label="Prépayé"
         value={
-          draft.prepaidTermMonths ? `${draft.prepaidTermMonths} mois` : 'Non'
+          draft.prepaidTermMonths
+            ? `${draft.prepaidTermMonths} mois`
+            : // Not prepaid: the term #439 suggests, until one is chosen.
+              !saved.prepaidItemId && saved.prepaidSuggestion
+              ? `${saved.prepaidSuggestion.termMonths} mois ?`
+              : 'Non'
         }
         onClick={() => onOpen('prepaid')}
       />
