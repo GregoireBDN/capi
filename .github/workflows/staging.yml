@@ -1,0 +1,182 @@
+# Staging (#421, runbook: docs/runbooks/staging.md).
+#
+# Every push to main: CI, then build, scan and push the API, web and MCP
+# adapter images to GHCR as sha-<short> (the tag a release of this commit
+# also gets), then deploy them to the `finances-staging` project on the
+# server (deploy/deploy.sh --staging), which resets the demo data and checks
+# the health. The `staging` environment has no required reviewer: nothing
+# waits for the owner. Production is untouched (release.yml, vX.Y.Z tags).
+# Run it by hand to redeploy main's latest commit.
+name: Staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io/gregoirebdn
+
+jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  images:
+    name: Image (${{ matrix.app }})
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        app: [api, web, mcp]
+    env:
+      TRIVY_IMAGE: aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRY }}/finances-${{ matrix.app }}
+          flavor: latest=false
+          tags: |
+            type=sha,format=short,prefix=sha-
+
+      # Same build and scan as release.yml: a vulnerable image is never pushed.
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          platforms: linux/amd64
+          outputs: type=docker,dest=${{ runner.temp }}/image.tar
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=finances-${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=finances-${{ matrix.app }}
+
+      - name: Trivy (fixable high/critical, secrets)
+        env:
+          IMAGE_DIR: ${{ runner.temp }}
+        run: |
+          docker run --rm -v "$IMAGE_DIR:/scan:ro" -v "$PWD:/repo:ro" -w /repo "$TRIVY_IMAGE" \
+            image --input /scan/image.tar --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed \
+            --skip-dirs app/node_modules --skip-dirs app/server/node_modules \
+            --no-progress --skip-version-check --disable-telemetry
+
+      - name: Push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=finances-${{ matrix.app }}
+
+  deploy:
+    name: Deploy to staging
+    needs: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL || 'https://finances-staging.gbodin.cloud' }}
+    # One deploy at a time, never cancelled halfway; of the merges waiting,
+    # only the latest is deployed.
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST || 'vps' }}
+      STAGING_DIR: /srv/finances-staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The tag metadata-action gave the images: sha- + the 7-character commit.
+      - name: Resolve the version
+        id: version
+        run: |
+          version=sha-${GITHUB_SHA::7}
+          if [[ ! $version =~ ^sha-[0-9a-f]{7}$ ]]; then
+            echo "::error::unexpected version '$version'"
+            exit 1
+          fi
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+
+      # Ephemeral node tagged tag:ci; ACLs only let it SSH to the server as `deploy`.
+      - name: Join the tailnet
+        uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4.4.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -d -m 700 ~/.ssh
+          if [[ -n $DEPLOY_SSH_KEY ]]; then
+            (umask 077 && printf '%s\n' "$DEPLOY_SSH_KEY" >~/.ssh/id_ed25519)
+          fi
+          cat >>~/.ssh/config <<EOF
+          Host $DEPLOY_HOST
+            User deploy
+            BatchMode yes
+            StrictHostKeyChecking accept-new
+            ConnectTimeout 30
+            ServerAliveInterval 15
+            ServerAliveCountMax 8
+          EOF
+
+      # VERSION is validated (sha-<hex>), so expanding it client-side is safe.
+      # Keeps the files of the last 10 deploys under releases/.
+      - name: Upload the deploy files
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          release_dir=$STAGING_DIR/releases/$VERSION
+          # shellcheck disable=SC2029
+          tar -cf - deploy/deploy.sh docker-compose.prod.yml docker-compose.staging.yml |
+            ssh "$DEPLOY_HOST" "rm -rf '$release_dir' && mkdir -p '$release_dir' && tar -xf - -C '$release_dir' &&
+              cp '$release_dir/deploy/deploy.sh' '$STAGING_DIR/deploy.sh.new' && mv -f '$STAGING_DIR/deploy.sh.new' '$STAGING_DIR/deploy.sh' &&
+              cd '$STAGING_DIR/releases' && ls -1t | tail -n +11 | xargs -r rm -rf --"
+
+      - name: Deploy
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          STAGING_URL: ${{ vars.STAGING_URL || 'https://finances-staging.gbodin.cloud' }}
+        run: |
+          release_dir=$STAGING_DIR/releases/$VERSION
+          # shellcheck disable=SC2029
+          ssh "$DEPLOY_HOST" "'$release_dir/deploy/deploy.sh' --staging '$VERSION' '$release_dir/docker-compose.prod.yml'"
+          echo "Deployed **$VERSION** to $STAGING_URL (demo data)" >>"$GITHUB_STEP_SUMMARY"

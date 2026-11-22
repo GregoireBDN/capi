@@ -3,12 +3,21 @@
  * fills a database with synthetic data and a test account whose password is
  * public, so it only ever targets throwaway databases (`finances_demo`, the
  * specs' `finances_test`): never production, never the owner's `finances`.
+ *
+ * The one exception is staging (#421): it runs the production images
+ * (`NODE_ENV=production`) and is reset with the demo data on every deploy.
+ * There the seed runs only on the database its compose override names in
+ * `DEMO_STAGING_DATABASE`, a name ending in `_staging`; `finances` stays
+ * refused whatever the variable says.
  */
 
 /** Databases the demo seed refuses, whatever the server. */
 export const PROTECTED_DATABASE_NAMES: ReadonlySet<string> = new Set([
   'finances',
 ])
+
+/** What a staging database's name looks like (`finances_staging`). */
+export const STAGING_DATABASE_PATTERN = /^[a-z0-9_]+_staging$/
 
 export class DemoTargetError extends Error {}
 
@@ -23,18 +32,15 @@ export function databaseNameOf(databaseUrl: string): string {
 
 /**
  * Throws a `DemoTargetError` with a message for the terminal when the demo
- * seed must not run against `databaseUrl`: in production, without a database
- * name, or on a protected database.
+ * seed must not run against `databaseUrl`: without a database name, on a
+ * protected database, or in production unless the database is the staging
+ * one named by `stagingDatabase` (`DEMO_STAGING_DATABASE`).
  */
 export function assertDemoTarget(
   databaseUrl: string,
   nodeEnv: string | undefined,
+  stagingDatabase?: string,
 ): string {
-  if (nodeEnv === 'production') {
-    throw new DemoTargetError(
-      'Refusing to seed demo data with NODE_ENV=production.',
-    )
-  }
   const name = databaseNameOf(databaseUrl)
   if (!name) {
     throw new DemoTargetError(
@@ -48,5 +54,23 @@ export function assertDemoTarget(
         'DATABASE_URL=postgres://user:password@localhost:5432/finances_demo.',
     )
   }
+  if (nodeEnv === 'production' && !isStagingDatabase(name, stagingDatabase)) {
+    throw new DemoTargetError(
+      'Refusing to seed demo data with NODE_ENV=production ' +
+        '(only the staging database named by DEMO_STAGING_DATABASE).',
+    )
+  }
   return name
+}
+
+/** Whether `name` is the staging database `stagingDatabase` names. */
+function isStagingDatabase(
+  name: string,
+  stagingDatabase: string | undefined,
+): boolean {
+  return (
+    stagingDatabase !== undefined &&
+    name === stagingDatabase &&
+    STAGING_DATABASE_PATTERN.test(name)
+  )
 }

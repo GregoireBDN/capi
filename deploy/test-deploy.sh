@@ -15,7 +15,9 @@ mkdir -p "$work/bin"
 # in .env at that moment, and fails the steps listed (per version) in FAKE_*.
 # The MCP adapter (#328) is in the stack when the installed compose file
 # mentions `finances-mcp` and .env sets COMPOSE_PROFILES=remote-mcp, like the
-# real profile; `config --services` is not recorded.
+# real profile; `config --services` and `config` are not recorded (`config`
+# prints the installed compose files). The project given with `-p` (staging) is
+# written to $FAKE_STATE/project.
 cat >"$work/bin/docker" <<'SHIM'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -25,6 +27,7 @@ args=()
 while (($#)); do
   case $1 in
     -f) shift 2 ;;
+    -p) echo "$2" >"$FAKE_STATE/project"; shift 2 ;;
     *) args+=("$1"); shift ;;
   esac
 done
@@ -39,11 +42,13 @@ services() {
 }
 case "${args[*]}" in
   "config --services") services | tr ' ' '\n'; exit 0 ;;
+  config) cat docker-compose.prod.yml; [[ ! -f docker-compose.staging.yml ]] || cat docker-compose.staging.yml; exit 0 ;;
   "config --quiet") step=config ;;
   "pull api web") step=pull; listed FAKE_PULL_FAIL ;;
   "pull api web finances-mcp") step=pull+mcp; listed FAKE_PULL_FAIL ;;
   "run --rm -T api node dist/database/migrate.js") step=migrate; listed FAKE_MIGRATE_FAIL ;;
   "run --rm -T api node dist/database/seed.js") step=seed ;;
+  "run --rm -T api node dist/database/seed-demo.js --reset") step=demo; listed FAKE_DEMO_FAIL ;;
   "up -d --remove-orphans")
     step=up
     echo "$v" >"$FAKE_STATE/running"
@@ -123,6 +128,7 @@ check() { # check <description> <command...>
 env_version() { sed -n 's/^FINANCES_VERSION=//p' "$srv/.env"; }
 running() { cat "$state/running" 2>/dev/null || echo none; }
 running_mcp() { cat "$state/mcp" 2>/dev/null || echo none; }
+project() { cat "$state/project" 2>/dev/null || echo none; }
 calls() { tr '\n' ' ' <"$state/calls" | sed 's/ $//'; }
 eq() { [[ $1 == "$2" ]] || { echo "  expected [$2], got [$1]"; return 1; }; }
 has() { grep -qF -- "$2" "$1"; }
@@ -144,6 +150,7 @@ check "no compose backup left" test ! -e "$srv/docker-compose.prod.yml.prev"
 check "other .env lines kept" eq "$(grep -c -e '^POSTGRES_USER=app$' -e '^JWT_SECRET=not-a-secret$' "$srv/.env")" 2
 check ".env stays private" eq "$(stat -c %a "$srv/.env")" 600
 check "deploy.log written" has "$srv/deploy.log" "deployed v1.1.0 (previous: v1.0.0)"
+check "default project" eq "$(project)" none
 
 test_case "rolls back when the health check fails"
 setup v1.0.0
@@ -257,6 +264,108 @@ check "exit 1" eq "$rc" 1
 check "no docker call" eq "$(calls)" ""
 check "explains why" has "$work/out" "another deploy is already running"
 check ".env untouched" eq "$(env_version)" v1.0.0
+
+# --- Staging (#421) ----------------------------------------------------------
+
+release=$work/release
+S1=sha-1111111
+S2=sha-2222222
+
+# setup_staging <running version or ""> [.env lines...] — /srv/finances-staging
+# with both compose files, and a release directory with the new ones.
+# NEW_OVERRIDE: content of the new docker-compose.staging.yml.
+setup_staging() {
+  setup "$@"
+  echo "# staging old" >"$srv/docker-compose.staging.yml"
+  rm -rf "$release"
+  mkdir -p "$release"
+  echo "# compose new${NEW_MCP:+ finances-mcp}" >"$release/docker-compose.prod.yml"
+  printf '%s\n' "${NEW_OVERRIDE:-# staging new
+        aliases:
+          - finances-staging-web}" >"$release/docker-compose.staging.yml"
+}
+
+staging_files() { cat "$srv/docker-compose.prod.yml" "$srv/docker-compose.staging.yml" | head -n 2 | tr '\n' '|'; }
+
+test_case "staging: deploys a commit with fresh demo data"
+setup_staging $S1
+deploy --staging $S2 "$release/docker-compose.prod.yml"
+check "exit 0" eq "$rc" 0
+check "steps" eq "$(calls)" "config @$S2 pull @$S2 migrate @$S2 seed @$S2 demo @$S2 up @$S2 health @$S2"
+check "staging project" eq "$(project)" finances-staging
+check ".env version" eq "$(env_version)" $S2
+check "running" eq "$(running)" $S2
+check "both compose files installed" eq "$(staging_files)" "# compose new|# staging new|"
+check "no compose backup left" eq "$(find "$srv" -name '*.prev' | wc -l)" 0
+check "deploy.log written" has "$srv/deploy.log" "deployed $S2 to finances-staging (previous: $S1)"
+
+test_case "staging: first deploy"
+setup_staging ""
+rm "$srv/docker-compose.prod.yml" "$srv/docker-compose.staging.yml"
+deploy --staging $S1 "$release/docker-compose.prod.yml"
+check "exit 0" eq "$rc" 0
+check "running" eq "$(running)" $S1
+check "both compose files installed" eq "$(staging_files)" "# compose new|# staging new|"
+
+test_case "staging: keeps the running version when the demo data fails"
+setup_staging $S1
+FAKE_DEMO_FAIL=$S2 deploy --staging $S2 "$release/docker-compose.prod.yml"
+check "exit 1" eq "$rc" 1
+check "steps" eq "$(calls)" "config @$S2 pull @$S2 migrate @$S2 seed @$S2 demo @$S2"
+check ".env version restored" eq "$(env_version)" $S1
+check "running untouched" eq "$(running)" $S1
+check "both compose files restored" eq "$(staging_files)" "# compose old|# staging old|"
+check "says why" has "$work/out" "FAILED: demo data"
+
+test_case "staging: rolls back both compose files when the health check fails"
+setup_staging $S1
+FAKE_UNHEALTHY=$S2 deploy --staging $S2 "$release/docker-compose.prod.yml"
+check "exit 1" eq "$rc" 1
+check "previous version running" eq "$(running)" $S1
+check "both compose files restored" eq "$(staging_files)" "# compose old|# staging old|"
+check "reports rollback" has "$work/out" "rolled back to $S1"
+
+test_case "staging: refuses a configuration with web's production alias"
+NEW_OVERRIDE="# staging new
+        aliases:
+          - finances-web
+          - finances-staging-web" setup_staging $S1
+deploy --staging $S2 "$release/docker-compose.prod.yml"
+check "exit 1" eq "$rc" 1
+check "steps" eq "$(calls)" "config @$S2"
+check "explains why" has "$work/out" "keeps web's production alias"
+check ".env version restored" eq "$(env_version)" $S1
+check "both compose files restored" eq "$(staging_files)" "# compose old|# staging old|"
+
+test_case "staging: refuses the MCP adapter"
+NEW_MCP=1 setup_staging $S1 "${MCP_ON[@]}"
+deploy --staging $S2 "$release/docker-compose.prod.yml"
+check "exit 1" eq "$rc" 1
+check "steps" eq "$(calls)" "config @$S2"
+check "explains why" has "$work/out" "never runs on staging"
+check ".env version restored" eq "$(env_version)" $S1
+
+test_case "staging: needs the override next to the compose file"
+setup_staging $S1
+rm "$release/docker-compose.staging.yml"
+deploy --staging $S2 "$release/docker-compose.prod.yml"
+check "exit 2" eq "$rc" 2
+check "no docker call" eq "$(calls)" ""
+check ".env untouched" eq "$(env_version)" $S1
+
+test_case "staging: rejects anything but sha-<commit>"
+for bad in v1.2.3 sha-123456 sha-ABCDEF1 sha-xyz1234 'sha-1234567;id' ''; do
+  setup_staging $S1
+  deploy --staging "$bad"
+  check "exit 2 for [$bad]" eq "$rc" 2
+  check "no docker call for [$bad]" eq "$(calls)" ""
+done
+
+test_case "production rejects a staging version"
+setup v1.0.0
+deploy $S1
+check "exit 2" eq "$rc" 2
+check "no docker call" eq "$(calls)" ""
 
 if ((failures > 0)); then
   echo "$failures check(s) failed"

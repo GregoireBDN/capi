@@ -18,7 +18,8 @@ const USAGE = `Seeds a throwaway database with a test account and synthetic data
 
   --reset   empty every table of the database first (all its data is lost)
 
-Refuses NODE_ENV=production and the "finances" database. Run the migrations
+Refuses the "finances" database, and NODE_ENV=production except on the
+staging database named by DEMO_STAGING_DATABASE (#421). Run the migrations
 first (pnpm db:migrate with the same DATABASE_URL).`
 
 /**
@@ -44,7 +45,11 @@ async function main() {
     return
   }
   const reset = args.includes('--reset')
-  const databaseName = assertDemoTarget(env.DATABASE_URL, process.env.NODE_ENV)
+  const databaseName = assertDemoTarget(
+    env.DATABASE_URL,
+    process.env.NODE_ENV,
+    process.env.DEMO_STAGING_DATABASE || undefined,
+  )
 
   const client = postgres(env.DATABASE_URL, { max: 1, onnotice: () => {} })
   try {
