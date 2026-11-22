@@ -16,6 +16,7 @@ import {
   ApiBadRequestResponse,
   ApiBody,
   ApiCookieAuth,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
@@ -181,6 +182,10 @@ export class TransactionsController {
   @ApiParam(ID_PARAM)
   @ApiNoContentResponse()
   @ApiNotFoundResponse({ description: 'No manual transaction with this id.' })
+  @ApiConflictResponse({
+    description:
+      'It carries a share already repaid or let go (#438): unlink its repayments, or claim it again, first.',
+  })
   async removeManual(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.manualTransactions.remove(id)
   }

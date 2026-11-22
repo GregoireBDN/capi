@@ -4087,6 +4087,9 @@
           },
           "404": {
             "description": "No manual transaction with this id."
+          },
+          "409": {
+            "description": "It carries a share already repaid or let go (#438): unlink its repayments, or claim it again, first."
           }
         },
         "security": [
@@ -4955,6 +4958,9 @@
           },
           "404": {
             "description": "Unknown item."
+          },
+          "409": {
+            "description": "Already repaid, even partly, or let go (#438): unlink its repayments, or claim it again, first."
           }
         },
         "security": [

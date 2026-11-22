@@ -1052,6 +1052,45 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
       })
     })
 
+    it('refuses to delete a share, or its expense, that still has repayments (#438)', async () => {
+      await inRollback(async (tx) => {
+        const checking = await account(tx)
+        const sam = await contact(tx)
+        const [row] = await tx
+          .insert(transactionsTable)
+          .values(manualRow(checking.id))
+          .returning()
+        const [owed] = await tx
+          .insert(receivablesTable)
+          .values({
+            direction: 'owed_to_me',
+            transactionId: row.id,
+            contactId: sam.id,
+            amountCents: 400,
+          })
+          .returning()
+        await tx.insert(receivablePaymentsTable).values({
+          receivableId: owed.id,
+          amountCents: 100,
+          paidOn: '2026-10-20',
+        })
+        const fk = 'receivable_payments_receivable_id_receivables_id_fk'
+        await refused(tx, fk, (n) =>
+          n.delete(receivablesTable).where(eq(receivablesTable.id, owed.id)),
+        )
+        await refused(tx, fk, (n) =>
+          n.delete(transactionsTable).where(eq(transactionsTable.id, row.id)),
+        )
+        // Without its repayments, the share goes with its expense.
+        await tx
+          .delete(receivablePaymentsTable)
+          .where(eq(receivablePaymentsTable.receivableId, owed.id))
+        await tx
+          .delete(transactionsTable)
+          .where(eq(transactionsTable.id, row.id))
+      })
+    })
+
     it('keeps a recurring share whole: a contact, a start and one of a rate or an amount', async () => {
       await inRollback(async (tx) => {
         const checking = await account(tx)
