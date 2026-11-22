@@ -12,6 +12,7 @@ import {
   budgetsTable,
   categoriesTable,
   categorizationRulesTable,
+  contactsTable,
   cryptoHoldingsTable,
   cryptoImportsTable,
   cryptoMovementsTable,
@@ -19,6 +20,8 @@ import {
   importsTable,
   type InsertTransaction,
   monthClosesTable,
+  receivablePaymentsTable,
+  receivablesTable,
   recurringItemsTable,
   savingsGoalAccountsTable,
   savingsGoalsTable,
@@ -255,6 +258,7 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
         snapshots: 1,
         cryptoHoldings: 0,
         positionStatements: 0,
+        dividends: 0,
         walletKeys: 0,
         recurringItems: 1,
         rules: 1,
@@ -321,10 +325,12 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
 
   it('deletes a crypto account with its holdings, keys and exchange imports', async () => {
     await inRollback(async ({ tx, service }) => {
+      // An exchange's imports go into an exchange account (#426).
       const wallet = await service.create({
         name: 'Wallet test',
         type: 'crypto',
-        cryptoSource: 'manual',
+        cryptoSource: 'exchange',
+        cryptoProvider: 'binance',
       })
       await tx.insert(cryptoHoldingsTable).values({
         accountId: wallet.id,
@@ -371,6 +377,7 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
         snapshots: 1,
         cryptoHoldings: 1,
         positionStatements: 0,
+        dividends: 0,
         walletKeys: 1,
       })
       await service.remove(wallet.id)
@@ -388,6 +395,60 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
           .from(accountsTable)
           .where(eq(accountsTable.id, wallet.id)),
       ).toEqual([])
+    })
+  })
+
+  it('deletes the shares on its expenses with their repayments, even from another account (#438)', async () => {
+    await inRollback(async ({ tx, service }) => {
+      const doomed = await service.create({
+        name: 'Compte test à supprimer',
+        type: 'checking',
+      })
+      const kept = await service.create({
+        name: 'Compte test gardé',
+        type: 'checking',
+      })
+      const [dinner, transfer] = await tx
+        .insert(transactionsTable)
+        .values(
+          await bankRows(tx, [
+            row(doomed.id, { amountCents: -9_000 }),
+            row(kept.id, {
+              amountCents: 2_000,
+              kind: 'income',
+              rawLabel: 'VIR CONTACT FICTIF',
+            }),
+          ]),
+        )
+        .returning()
+      const [sam] = await tx
+        .insert(contactsTable)
+        .values({ name: 'Contact test' })
+        .returning()
+      const [share] = await tx
+        .insert(receivablesTable)
+        .values({
+          direction: 'owed_to_me',
+          transactionId: dinner.id,
+          contactId: sam.id,
+          amountCents: 6_000,
+        })
+        .returning()
+      await tx.insert(receivablePaymentsTable).values({
+        receivableId: share.id,
+        transactionId: transfer.id,
+        amountCents: 2_000,
+        paidOn: '2019-03-06',
+      })
+
+      await service.remove(doomed.id)
+      expect(await tx.select().from(receivablesTable)).toEqual([])
+      expect(await tx.select().from(receivablePaymentsTable)).toEqual([])
+      const [left] = await tx
+        .select()
+        .from(transactionsTable)
+        .where(eq(transactionsTable.id, transfer.id))
+      expect(left.amountCents).toBe(2_000)
     })
   })
 

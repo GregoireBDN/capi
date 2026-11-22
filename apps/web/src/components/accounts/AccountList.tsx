@@ -56,7 +56,8 @@ export type AccountListPrimaryAction = 'investment' | 'account'
 const TYPE_WORDS: Record<AccountType, string[]> = {
   checking: ['compte courant', 'courant', 'compte cheques', 'compte joint'],
   savings: ['livret', 'ldds', 'lep', 'pel', 'cel', 'epargne'],
-  brokerage: ['pea', 'cto', 'compte titres', 'compte-titres', 'bourse'],
+  brokerage: ['pea'],
+  securities: ['cto', 'compte titres', 'compte-titres', 'bourse'],
   life_insurance: ['assurance vie', 'assurance-vie', 'per'],
   employee_savings: ['pee', 'perco', 'pereco', 'epargne salariale'],
   crypto: ['crypto', 'bitcoin', 'btc', 'ethereum', 'eth', 'wallet'],

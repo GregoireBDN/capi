@@ -4,7 +4,8 @@ import type { AccountType, MonthFlowDto, MonthPeriodDto } from '#/api/types.gen'
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   checking: 'Compte courant',
   savings: 'Livret d’épargne',
-  brokerage: 'PEA / compte-titres',
+  brokerage: 'PEA',
+  securities: 'Compte-titres',
   life_insurance: 'Assurance vie',
   employee_savings: 'Épargne salariale',
   crypto: 'Crypto',

@@ -68,6 +68,7 @@ import {
   type SharedRecurringItem,
 } from './expected'
 import { applyRecurringShares } from './recurring-shares'
+import { SETTLED_SHARE_MESSAGE } from './settled'
 import { labelMatches, suggestRepayment } from './suggest'
 
 type Db = PostgresJsDatabase<typeof schema>
@@ -289,9 +290,7 @@ export class OwedService {
         const amount = wanted.get(row.contactId)
         if (amount === undefined) {
           if (row.repaidCents > 0 || row.forgivenAt !== null) {
-            throw new ConflictException(
-              'A share already repaid or let go cannot be removed',
-            )
+            throw new ConflictException(SETTLED_SHARE_MESSAGE)
           }
         } else if (amount < row.repaidCents) {
           throw new BadRequestException(
@@ -463,18 +462,18 @@ export class OwedService {
   /**
    * Removes an item. What the owner owes goes with its expense « Payé pour
    * moi »; a share of an expense the owner paid leaves the expense as it is.
+   * One repaid, even partly, or let go is refused (409, #438): its
+   * repayments would silently count as income (or spending).
    */
   async deleteReceivable(id: string): Promise<void> {
     await this.db.transaction(async (tx) => {
-      const [row] = await tx
-        .select({
-          direction: receivablesTable.direction,
-          transactionId: receivablesTable.transactionId,
-        })
-        .from(receivablesTable)
-        .where(eq(receivablesTable.id, id))
-        .for('update')
+      const [row] = await this.receivableRows(tx, eq(receivablesTable.id, id), {
+        lock: true,
+      })
       if (!row) throw new NotFoundException('Receivable not found')
+      if (row.repaidCents > 0 || row.forgivenAt !== null) {
+        throw new ConflictException(SETTLED_SHARE_MESSAGE)
+      }
       if (row.direction === 'i_owe') {
         await tx
           .delete(transactionsTable)

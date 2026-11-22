@@ -118,7 +118,7 @@ function fail(status: number, message: string) {
   })
 }
 
-function renderSheet() {
+function renderSheet(source?: 'exchange' | 'wallet') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
@@ -129,6 +129,7 @@ function renderSheet() {
         open
         onOpenChange={onOpenChange}
         accountId={ACCOUNT_ID}
+        source={source}
       />
     </QueryClientProvider>,
   )
@@ -162,6 +163,45 @@ describe('ExchangeImportSheet', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('imports a Ledger Live history into a wallet, without holdings (#426)', async () => {
+    api.accountCryptoImportsControllerPreview.mockImplementation(() =>
+      ok(
+        preview({
+          format: 'ledger_live_csv',
+          fileName: 'ledger-live.csv',
+          unknownOperations: [],
+          unmappedTickers: [],
+          issues: [],
+          holdings: [],
+          counts: { rows: 2, new: 2, duplicates: 0, issues: 0, inserted: 0 },
+        }),
+        201,
+      ),
+    )
+    const user = userEvent.setup()
+    renderSheet('wallet')
+    expect(
+      screen.getByText('Importer l’historique Ledger Live'),
+    ).toBeInTheDocument()
+    await user.upload(
+      screen.getByLabelText('Fichier CSV'),
+      csv('ledger-live.csv'),
+    )
+    expect(await screen.findByText(/Export Ledger Live/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/restent ceux lus sur la chaîne/),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('list', { name: 'Avoirs après l’import' }),
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Importer 2 lignes' }))
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'Historique importé : 2 lignes ajoutées',
+      ),
+    )
   })
 
   it('previews an export, maps a ticker and imports it', async () => {

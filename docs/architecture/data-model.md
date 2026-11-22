@@ -263,6 +263,7 @@ erDiagram
     bigint eur_cents
     bigint cost_cents "withdrawals, computed"
     varchar dedupe_hash "unique per account"
+    varchar tx_hash_digest "SHA-256 of the tx hash, export lines"
   }
 ```
 
@@ -324,13 +325,14 @@ These 13 tables are covered by [`docs/domain/auth-and-sessions.md`](../domain/au
 - **`crypto_wallet_keys`**, **`crypto_wallet_tokens`** — what a wallet account reads; public key unique (DB), chains not empty (DB), contract fields all or none (DB).
 - **`crypto_bitcoin_scans`**, **`crypto_bitcoin_scan_addresses`** — resumable scan state per key and address type; addresses are derived again, never stored.
 - **`import_profiles`** (#431, [ADR 0007](../adr/0007-import-profiles.md)) — how the CSV files of one source are read: target (`cash` / `investment`), normalized header (unique with the separator, recognition key), `columns` field → header key, date layout, decimal mark, encoding, separator, investment `kind_values`. Column names only, never rows. The settings are checked against their lists, the mapping by `import_profile_columns_valid`, the kind values by `import_profile_kind_values_valid` (DB). Details: [import formats](../domain/import-formats.md).
-- **`crypto_imports`**, **`crypto_movements`** — exchange exports and their signed lines, and since #373 a wallet's or manual account's observed rises and falls (`observed_in` / `observed_out`, no import); unique `(account_id, dedupe_hash)` (DB). The preview is dropped at commit like a bank import's and accounts restrict their deletion (#367). Costs are not stored: one replay over every crypto account computes them (`crypto/cost-basis.ts`); `cost_cents` and `resolution` hold only what the owner answered. **`crypto_transfer_links`** pairs the two sides of a transfer between two of the owner's accounts (one link per movement, trigger-checked kinds).
+- **`crypto_imports`**, **`crypto_movements`** — exchange exports and their signed lines, and since #373 a wallet's or manual account's observed rises and falls (`observed_in` / `observed_out`, no import); unique `(account_id, dedupe_hash)` (DB). The preview is dropped at commit like a bank import's and accounts restrict their deletion (#367). Costs are not stored: one replay over every crypto account computes them (`crypto/cost-basis.ts`); `cost_cents` and `resolution` hold only what the owner answered. **`crypto_transfer_links`** pairs the two sides of a transfer between two of the owner's accounts (one link per movement, trigger-checked kinds). Since #426 a wallet takes a Ledger Live history (`ledger_live_csv`): its lines are movements of the wallet with the SHA-256 of their transaction hash (`tx_hash_digest`, export lines only, hex, DB check `crypto_movements_tx_hash_digest`), and its observed movements are rewritten around them so they still add up to each read; trigger `crypto_imports_account_source`: an exchange's export only on an exchange account, a Ledger Live history only on a wallet.
 
-### Securities (a PEA's lines, #413, ADR 0006)
+### Securities (the lines of a PEA or a compte-titres, #413, #414, ADR 0006)
 
 - **`securities`** — one per ISIN (format and check digit checked by `isin_is_valid`, DB), name, optional ticker; public reference data, no amount.
 - **`security_prices`** — one exact EUR price per security and day, source `manual` > `statement` > `provider` (a weaker source never replaces a stronger one: code). Unique `(security_id, day)` (DB).
-- **`position_statements`**, **`position_lines`** — what a PEA held on a day, as a whole (its lines and its cash), unique `(account_id, as_of)` and `(statement_id, security_id)` (DB); quantity > 0, PRU ≥ 0, cash ≥ 0 (DB); only on `POSITION_ACCOUNT_TYPES` (trigger). The account's computed values are rewritten from them in the transaction of every write.
+- **`position_statements`**, **`position_lines`** — what a PEA or a compte-titres held on a day, as a whole (its lines and its cash), unique `(account_id, as_of)` and `(statement_id, security_id)` (DB); quantity > 0, PRU ≥ 0, cash ≥ 0 (DB); only on `POSITION_ACCOUNT_TYPES` (`brokerage`, `securities`; trigger). The account's computed values are rewritten from them in the transaction of every write.
+- **`dividends`** (#414) — what a compte-titres received: day, net amount > 0 (DB), optional security (`ON DELETE SET NULL`); only on a `securities` account (trigger `dividends_account_type`); cascade with the account. Information only: never in a value, an invested amount or a statistic.
 
 ### Access
 

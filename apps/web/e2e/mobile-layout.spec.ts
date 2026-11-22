@@ -266,13 +266,18 @@ const SCENARIOS: Array<Scenario> = [
   { name: 'settings-security', path: '/settings/security' },
   { name: 'settings-access', path: '/settings/access' },
   { name: 'settings-danger', path: '/settings/danger' },
-  ...['checking', 'savings', 'brokerage', 'life_insurance', 'crypto'].map(
-    (type) => ({
-      name: `account-${type}`,
-      path: '/accounts',
-      account: type,
-    }),
-  ),
+  ...[
+    'checking',
+    'savings',
+    'brokerage',
+    'securities',
+    'life_insurance',
+    'crypto',
+  ].map((type) => ({
+    name: `account-${type}`,
+    path: '/accounts',
+    account: type,
+  })),
   {
     // A PEA's lines, every one unfolded (#413).
     name: 'account-brokerage-lines',

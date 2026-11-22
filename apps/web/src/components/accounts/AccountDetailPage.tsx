@@ -17,6 +17,7 @@ import {
   BanknoteIcon,
   ClipboardPasteIcon,
   ClockAlertIcon,
+  CoinsIcon,
   FileUpIcon,
   ListPlusIcon,
   PencilIcon,
@@ -28,6 +29,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import type {
+  DividendDto,
   AccountDto,
   AccountPerformanceDto,
   PositionLineDto,
@@ -66,6 +68,11 @@ import { useMovementsDetail } from './Movements'
 import { PasteHistorySheet } from './PasteHistorySheet'
 import { accountQuery, performanceQuery } from './queries'
 import { SnapshotEditor } from './SnapshotEditor'
+import {
+  DividendSheet,
+  SecuritiesFacts,
+  useDividendsDetail,
+} from '#/components/positions/Dividends'
 import { LineEditor } from '#/components/positions/LineEditor'
 import {
   LinesCard,
@@ -166,18 +173,32 @@ export function AccountDetailPage({
   const [pasteOpen, setPasteOpen] = useState(false)
   // An exchange's export, from the page's menu (#447).
   const [exportOpen, setExportOpen] = useState(false)
+  // The wallet's Ledger Live sheet is mounted once first opened (#426): its
+  // page stays as light as before for the many visits that never import.
+  const [exportMounted, setExportMounted] = useState(false)
   // The kind is chosen before adding (#398).
   const [addKind, setAddKind] = useState<TransactionKind | null>(null)
   const [investedOpen, setInvestedOpen] = useState(false)
-  // A PEA's lines (#413): the line, price and cash editors.
+  // The lines of a PEA or a compte-titres (#413, #414): the line, price and
+  // cash editors.
   const [lineEditor, setLineEditor] = useState<{
     open: boolean
     line?: PositionLineDto
   }>({ open: false })
   const [priceLine, setPriceLine] = useState<PositionLineDto | null>(null)
   const [cashOpen, setCashOpen] = useState(false)
+  // A compte-titres' dividends (#414).
+  const [dividendEditor, setDividendEditor] = useState<{
+    open: boolean
+    dividend?: DividendDto
+  }>({ open: false })
   const pea = account.data?.type === 'brokerage'
-  const positions = useQuery({ ...positionsQuery(accountId), enabled: pea })
+  const securities = account.data?.type === 'securities'
+  const withPositions = pea || securities
+  const positions = useQuery({
+    ...positionsQuery(accountId),
+    enabled: withPositions,
+  })
   const navigate = useNavigate()
   const today = todayInParis()
   const walletRefresh = useWalletRefresh(accountId)
@@ -303,6 +324,15 @@ export function AccountDetailPage({
             disabled: walletRefresh.disabled,
             onSelect: walletRefresh.refresh,
           },
+          // Its own history (#426): the cost of what it received.
+          {
+            label: 'Importer l’historique Ledger Live',
+            icon: <FileUpIcon />,
+            onSelect: () => {
+              setExportMounted(true)
+              setExportOpen(true)
+            },
+          },
         ]
       : mealVoucher
         ? // A meal-voucher card has its own entries (#298).
@@ -323,18 +353,28 @@ export function AccountDetailPage({
             : []
           : investment
             ? [
-                // A PEA with lines (#413): its value follows them, so adding a
-                // line comes first.
-                ...(pea && withLines ? [addLineAction(true)] : []),
-                // PEA, life insurance, employee savings: the value is typed by
-                // hand from each statement, so updating it is the main action.
+                // A PEA or a compte-titres with lines (#413, #414): its value
+                // follows them, so adding a line comes first.
+                ...(withPositions && withLines ? [addLineAction(true)] : []),
+                // PEA, compte-titres, life insurance, employee savings: the
+                // value is typed by hand from each statement, so updating it
+                // is the main action.
                 {
                   label: 'Mettre à jour la valeur',
                   icon: <PencilLineIcon />,
-                  primary: !(pea && withLines),
+                  primary: !(withPositions && withLines),
                   onSelect: openAdd,
                 },
-                ...(pea && !withLines ? [addLineAction(false)] : []),
+                ...(withPositions && !withLines ? [addLineAction(false)] : []),
+                ...(securities
+                  ? [
+                      {
+                        label: 'Ajouter un dividende',
+                        icon: <CoinsIcon />,
+                        onSelect: () => setDividendEditor({ open: true }),
+                      },
+                    ]
+                  : []),
                 paste('Coller un historique'),
               ]
             : [
@@ -375,6 +415,14 @@ export function AccountDetailPage({
           refreshing={walletRefresh.isPending}
           onTokensChanged={walletRefresh.refresh}
         />
+        {writable && exportMounted && (
+          <ExchangeImportSheet
+            open={exportOpen}
+            onOpenChange={setExportOpen}
+            accountId={current.id}
+            source="wallet"
+          />
+        )}
       </div>
     )
   }
@@ -413,22 +461,26 @@ export function AccountDetailPage({
           }
           onEditInvested={crypto ? undefined : () => setInvestedOpen(true)}
           footer={
-            pea && (
+            pea ? (
               <PeaFacts
                 account={current}
                 investedCents={data.contributionsCents}
                 today={today}
                 writable={writable}
               />
+            ) : (
+              securities && <SecuritiesFacts accountId={current.id} />
             )
           }
         />
       )}
 
-      {/* A PEA's lines (#413, the owner's « A. Comme le Crypto »). */}
-      {pea && (
+      {/* The lines of a PEA (#413, the owner's « A. Comme le Crypto ») or a
+          compte-titres (#414), alike. */}
+      {withPositions && (
         <LinesCard
           accountId={current.id}
+          accountType={pea ? 'brokerage' : 'securities'}
           writable={writable}
           onAddLine={() => setLineEditor({ open: true })}
           onEditLine={(line) => setLineEditor({ open: true, line })}
@@ -508,6 +560,10 @@ export function AccountDetailPage({
           performance={data}
           writable={writable}
           valueHistory={valueHistory}
+          onAddDividend={() => setDividendEditor({ open: true })}
+          onEditDividend={(dividend) =>
+            setDividendEditor({ open: true, dividend })
+          }
         />
       )}
       {crypto && <CryptoDetails account={current} writable={writable} />}
@@ -539,7 +595,20 @@ export function AccountDetailPage({
               accountId={current.id}
             />
           )}
-          {pea && (
+          {securities && (
+            <DividendSheet
+              open={dividendEditor.open}
+              onOpenChange={(open) =>
+                !open && setDividendEditor({ open: false })
+              }
+              accountId={current.id}
+              dividend={
+                dividendEditor.open ? dividendEditor.dividend : undefined
+              }
+              today={today}
+            />
+          )}
+          {withPositions && (
             <>
               <LineEditor
                 open={lineEditor.open}
@@ -595,19 +664,24 @@ export function AccountDetailPage({
 }
 
 /**
- * « Plus d’informations » of a PEA, a life insurance or employee savings
- * (#447): the linked transfers, a PEA's statements, the typed values.
+ * « Plus d’informations » of a PEA, a compte-titres, a life insurance or
+ * employee savings (#447): the linked transfers, the statements of the lines
+ * (#413), a compte-titres' dividends (#414), the typed values.
  */
 function InvestmentDetails({
   account,
   performance,
   writable,
   valueHistory,
+  onAddDividend,
+  onEditDividend,
 }: {
   account: AccountDto
   performance: AccountPerformanceDto
   writable: boolean
   valueHistory: AccountDetail | null
+  onAddDividend: () => void
+  onEditDividend: (dividend: DividendDto) => void
 }) {
   const transfers = useLinkedTransfersDetail({
     accountId: account.id,
@@ -616,9 +690,17 @@ function InvestmentDetails({
   const statements = useStatementsDetail({
     accountId: account.id,
     writable,
-    enabled: account.type === 'brokerage',
+    enabled: account.type === 'brokerage' || account.type === 'securities',
   })
-  return <AccountDetails items={[transfers, statements, valueHistory]} />
+  const dividends = useDividendsDetail({
+    accountId: account.id,
+    enabled: account.type === 'securities',
+    onAdd: writable ? onAddDividend : undefined,
+    onEdit: writable ? onEditDividend : undefined,
+  })
+  return (
+    <AccountDetails items={[transfers, statements, dividends, valueHistory]} />
+  )
 }
 
 /**

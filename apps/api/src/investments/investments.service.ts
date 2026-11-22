@@ -345,7 +345,8 @@ export class InvestmentsService {
     // Only typed figures: a value's contributions are never computed.
     const typed = stored.filter((snapshot) => snapshot.source === 'typed')
     const rule = investedOn(typed, investedBaseOf(account), flows)
-    // A PEA with no invested amount at all takes its lines' cost (ADR 0006).
+    // A PEA or a compte-titres with no invested amount at all takes its
+    // lines' cost (ADR 0006).
     return statements && statements.length > 0
       ? orElse(rule, (day) => linesInvestedOn(statements, day))
       : rule
@@ -490,7 +491,7 @@ export class InvestmentsService {
     const account = await this.writableAccount(accountId, executor)
     if (!takesInvestedBase(account)) {
       throw new BadRequestException(
-        'Only a PEA, a life insurance or employee savings take an invested base',
+        'Only a PEA, a compte-titres, a life insurance or employee savings take an invested base',
       )
     }
     return account

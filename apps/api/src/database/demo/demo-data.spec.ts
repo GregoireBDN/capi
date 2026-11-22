@@ -11,6 +11,7 @@ import {
   balanceSnapshotsTable,
   categoriesTable,
   categorizationRulesTable,
+  dividendsTable,
   importsTable,
   recurringItemsTable,
   transactionSplitsTable,
@@ -89,7 +90,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         )
 
         const counts = result.counts
-        expect(counts.accounts).toBe(8)
+        expect(counts.accounts).toBe(9)
         expect(counts.transactions).toBeGreaterThan(400)
         expect(counts.reviewQueue).toBeGreaterThan(0)
         expect(counts.splits).toBe(1)
@@ -238,7 +239,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
     it('gives the PEA lines whose values are computed (#413)', async () => {
       await seeded(async (tx, result) => {
-        expect(result.counts.positionStatements).toBe(6)
+        // 6 of the PEA, 4 of the compte-titres (#414).
+        expect(result.counts.positionStatements).toBe(10)
         const [pea] = await tx
           .select()
           .from(accountsTable)
@@ -257,6 +259,30 @@ describe.skipIf(!process.env.DATABASE_URL)(
           Array(6).fill('computed'),
         )
         expect(values[0].source).toBe('typed')
+      })
+    }, 15_000)
+
+    it('gives the compte-titres lines and dividends, no invested amount typed (#414)', async () => {
+      await seeded(async (tx, result) => {
+        const [cto] = await tx
+          .select()
+          .from(accountsTable)
+          .where(eq(accountsTable.type, 'securities'))
+        expect(cto.investedBaseCents).toBeNull()
+        expect(cto.openedOn).toBeNull()
+        const values = await tx
+          .select({ source: balanceSnapshotsTable.source })
+          .from(balanceSnapshotsTable)
+          .where(eq(balanceSnapshotsTable.accountId, cto.id))
+        expect(values.length).toBeGreaterThan(0)
+        expect(values.every((v) => v.source === 'computed')).toBe(true)
+        const dividends = await tx
+          .select()
+          .from(dividendsTable)
+          .where(eq(dividendsTable.accountId, cto.id))
+        expect(dividends).toHaveLength(result.counts.dividends)
+        expect(dividends.length).toBeGreaterThan(0)
+        expect(dividends.every((d) => d.securityId !== null)).toBe(true)
       })
     }, 15_000)
 

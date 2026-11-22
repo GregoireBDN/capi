@@ -4087,6 +4087,9 @@
           },
           "404": {
             "description": "No manual transaction with this id."
+          },
+          "409": {
+            "description": "It carries a share already repaid or let go (#438): unlink its repayments, or claim it again, first."
           }
         },
         "security": [
@@ -4955,6 +4958,9 @@
           },
           "404": {
             "description": "Unknown item."
+          },
+          "409": {
+            "description": "Already repaid, even partly, or let go (#438): unlink its repayments, or claim it again, first."
           }
         },
         "security": [
@@ -6193,7 +6199,7 @@
     },
     "/api/accounts/{id}/invested-base": {
       "put": {
-        "description": "What was invested in the account up to a day (« Investi au … »): a PEA, a life insurance, employee savings (#360), a wallet or manual crypto account (#358). The invested amount is then that base plus what is linked to the account after that day (transfers, or the cost of coins for crypto); a crypto account's snapshots from that day get it as their contributions. Not for exchange accounts, which keep their holdings' cost.",
+        "description": "What was invested in the account up to a day (« Investi au … »): a PEA, a compte-titres, a life insurance, employee savings (#360), a wallet or manual crypto account (#358). The invested amount is then that base plus what is linked to the account after that day (transfers, or the cost of coins for crypto); a crypto account's snapshots from that day get it as their contributions. Not for exchange accounts, which keep their holdings' cost.",
         "operationId": "AccountSnapshotsController_setInvestedBase",
         "parameters": [
           {
@@ -7731,7 +7737,7 @@
             }
           },
           "400": {
-            "description": "Not a PEA."
+            "description": "Not a PEA or a compte-titres."
           },
           "401": {
             "description": ""
@@ -7745,7 +7751,7 @@
             "token": []
           }
         ],
-        "summary": "A PEA's lines as of today (ADR 0006)",
+        "summary": "A PEA's or a compte-titres' lines as of today (ADR 0006)",
         "tags": [
           "Positions"
         ]
@@ -7798,7 +7804,7 @@
             }
           },
           "400": {
-            "description": "Invalid body or ISIN, duplicate line, future day, unknown security without a name, archived account, not a PEA."
+            "description": "Invalid body or ISIN, duplicate line, future day, unknown security without a name, archived account, not a PEA or a compte-titres."
           },
           "401": {
             "description": ""
@@ -8203,9 +8209,231 @@
         ]
       }
     },
+    "/api/accounts/{id}/dividends": {
+      "get": {
+        "description": "Information only: they change neither the value nor what was invested. Newest first, with the total and the last twelve months.",
+        "operationId": "DividendsController_list",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DividendsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a compte-titres."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "A compte-titres' dividends (#414)",
+        "tags": [
+          "Positions"
+        ]
+      },
+      "post": {
+        "description": "Session only.",
+        "operationId": "DividendsController_create",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveDividendDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DividendsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, future day, unknown security, archived account, not a compte-titres."
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Record a dividend",
+        "tags": [
+          "Positions"
+        ]
+      }
+    },
+    "/api/accounts/{id}/dividends/{dividendId}": {
+      "put": {
+        "description": "Session only.",
+        "operationId": "DividendsController_update",
+        "parameters": [
+          {
+            "name": "dividendId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveDividendDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DividendsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown account, or no such dividend."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Change a dividend",
+        "tags": [
+          "Positions"
+        ]
+      },
+      "delete": {
+        "description": "Session only.",
+        "operationId": "DividendsController_remove",
+        "parameters": [
+          {
+            "name": "dividendId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DividendsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": ""
+          },
+          "401": {
+            "description": ""
+          },
+          "404": {
+            "description": "Unknown account, or no such dividend."
+          }
+        },
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "summary": "Delete a dividend",
+        "tags": [
+          "Positions"
+        ]
+      }
+    },
     "/api/accounts/{id}/crypto-imports": {
       "post": {
-        "description": "Parses a Binance or Coinbase \"Transactions\" CSV export (detected from its headers), marks every line new or already imported, lists unknown operation types and tickers without a price id, and computes the holdings the account will have. Stores a pending import; nothing else is written until `POST /crypto-imports/{id}/commit`.",
+        "description": "Parses a Binance or Coinbase \"Transactions\" CSV export into an exchange account, or a Ledger Live operations history into a wallet account (#426; its holdings stay the chain's, no holdings are projected), detected from its headers; marks every line new or already imported, lists unknown operation types and tickers without a price id, and computes the holdings the account will have. Stores a pending import; nothing else is written until `POST /crypto-imports/{id}/commit`.",
         "operationId": "AccountCryptoImportsController_preview",
         "parameters": [
           {
@@ -8240,7 +8468,7 @@
             }
           },
           "400": {
-            "description": "Missing file, not a Binance or Coinbase export, export of another exchange, not an exchange crypto account, archived account."
+            "description": "Missing file, not a Binance, Coinbase or Ledger Live export, export of another exchange or source, not an exchange or wallet crypto account, archived account."
           },
           "401": {
             "description": ""
@@ -8260,7 +8488,7 @@
             "token": []
           }
         ],
-        "summary": "Upload an exchange export and preview it",
+        "summary": "Upload an exchange export or a Ledger Live history and preview it",
         "tags": [
           "Crypto imports"
         ]
@@ -10791,7 +11019,8 @@
           "life_insurance",
           "employee_savings",
           "crypto",
-          "meal_voucher"
+          "meal_voucher",
+          "securities"
         ],
         "description": "`checking` and `savings` are bank accounts (fed by imports, balance from transactions); `meal_voucher` is the meal-voucher card (titres-restaurant): its transactions are entered by hand, its balance comes from them and it never takes an import; the others are investment accounts (balance from dated value snapshots)."
       },
@@ -10897,7 +11126,7 @@
             "type": "string",
             "format": "date",
             "nullable": true,
-            "description": "The day the account was opened (ADR 0006): a PEA counts its 5 years from it. PEA, life insurance and employee savings only."
+            "description": "The day the account was opened (ADR 0006): a PEA counts its 5 years from it. PEA, compte-titres, life insurance and employee savings only."
           },
           "createdAt": {
             "type": "string",
@@ -11292,7 +11521,7 @@
             "type": "string",
             "format": "date",
             "nullable": true,
-            "description": "The day the account was opened, not in the future; null clears it. PEA, life insurance and employee savings only."
+            "description": "The day the account was opened, not in the future; null clears it. PEA, compte-titres, life insurance and employee savings only."
           }
         }
       },
@@ -11354,7 +11583,12 @@
           "positionStatements": {
             "type": "integer",
             "minimum": 0,
-            "description": "Position statements of a PEA (ADR 0006), each with its lines."
+            "description": "Position statements of a PEA or a compte-titres (ADR 0006), each with its lines."
+          },
+          "dividends": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Dividends typed on a compte-titres (#414)."
           },
           "walletKeys": {
             "type": "integer",
@@ -11388,6 +11622,7 @@
           "snapshots",
           "cryptoHoldings",
           "positionStatements",
+          "dividends",
           "walletKeys",
           "recurringItems",
           "rules",
@@ -16186,7 +16421,7 @@
           },
           "stale": {
             "type": "boolean",
-            "description": "Investment account whose latest value is older than its update rhythm (a month for a PEA, a life insurance or employee savings, see `STALE_AFTER_DAYS`); always false for cash accounts and accounts without a value."
+            "description": "Investment account whose latest value is older than its update rhythm (a month for a PEA, a compte-titres, a life insurance or employee savings, see `STALE_AFTER_DAYS`); always false for cash accounts and accounts without a value."
           }
         },
         "required": [
@@ -17515,7 +17750,7 @@
           },
           "investedBase": {
             "nullable": true,
-            "description": "PEA, life insurance, employee savings (#360): the invested base typed by the owner.",
+            "description": "PEA, compte-titres, life insurance, employee savings (#360): the invested base typed by the owner.",
             "type": "object",
             "allOf": [
               {
@@ -20076,13 +20311,99 @@
           "priceEur"
         ]
       },
+      "DividendDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "paidOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "amountCents": {
+            "type": "integer"
+          },
+          "isin": {
+            "type": "string",
+            "nullable": true
+          },
+          "securityName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "paidOn",
+          "amountCents",
+          "isin",
+          "securityName"
+        ]
+      },
+      "DividendsDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "totalCents": {
+            "type": "integer",
+            "description": "Every dividend recorded."
+          },
+          "last12MonthsCents": {
+            "type": "integer",
+            "description": "Those paid in the last twelve months: after the same day a year ago (today in Europe/Paris)."
+          },
+          "dividends": {
+            "description": "Newest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DividendDto"
+            }
+          }
+        },
+        "required": [
+          "accountId",
+          "totalCents",
+          "last12MonthsCents",
+          "dividends"
+        ]
+      },
+      "SaveDividendDto": {
+        "type": "object",
+        "properties": {
+          "paidOn": {
+            "type": "string",
+            "format": "date",
+            "description": "The day it was paid, not in the future."
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Net amount received, in cents."
+          },
+          "isin": {
+            "type": "string",
+            "nullable": true,
+            "example": "ZZ00MSCIWD03",
+            "description": "The security that paid it: one the app knows (a line of the account, now or before). Null or omitted: not said."
+          }
+        },
+        "required": [
+          "paidOn",
+          "amountCents"
+        ]
+      },
       "CryptoImportUploadDto": {
         "type": "object",
         "properties": {
           "file": {
             "type": "string",
             "format": "binary",
-            "description": "Binance or Coinbase \"Transactions\" CSV export (UTF-8), at most 5 MB."
+            "description": "Binance or Coinbase \"Transactions\" CSV export, or Ledger Live operations history (UTF-8), at most 5 MB."
           }
         },
         "required": [
@@ -20093,7 +20414,8 @@
         "type": "string",
         "enum": [
           "binance_csv",
-          "coinbase_csv"
+          "coinbase_csv",
+          "ledger_live_csv"
         ]
       },
       "CryptoImportCountsDto": {

@@ -20,6 +20,7 @@ import { defineTool, ToolInputError } from './tool.js'
 /** Account types valued by dated snapshots rather than transactions. */
 export const INVESTMENT_TYPES = [
   'brokerage',
+  'securities',
   'life_insurance',
   'employee_savings',
   'crypto',
@@ -27,6 +28,16 @@ export const INVESTMENT_TYPES = [
 
 export function isInvestment(account: Pick<AccountDto, 'type'>): boolean {
   return (INVESTMENT_TYPES as readonly AccountType[]).includes(account.type)
+}
+
+/** Types holding lines by ISIN (ADR 0006): a PEA and a compte-titres (#414). */
+export const POSITION_TYPES = [
+  'brokerage',
+  'securities',
+] as const satisfies readonly AccountType[]
+
+export function takesPositions(type: AccountType): boolean {
+  return (POSITION_TYPES as readonly AccountType[]).includes(type)
 }
 
 const CRYPTO_SOURCE_LABELS = {
@@ -118,7 +129,7 @@ function accountLine(
   return `- ${row.name} (${details}) : dernière valeur ${euros(row.valueCents)} au ${frenchDate(row.valueDate)}${age}${contributions}${realised}${stale}`
 }
 
-/** A PEA's lines as of today, one per security, then its cash. */
+/** A PEA's or a compte-titres' lines as of today, one per security, then its cash. */
 export function positionLines(data: PositionsDto | undefined): string[] {
   if (!data || (data.lines.length === 0 && data.cashCents === 0)) return []
   const lines = data.lines.map((line) => {
@@ -145,7 +156,7 @@ export const listInvestmentAccountsTool = defineTool({
   name: 'list_investment_accounts',
   title: 'Comptes de placement',
   description:
-    "Open investment accounts (PEA / brokerage, life insurance, employee savings, crypto) with their institution, crypto source, last value and its date, what was invested with the latent result and rate (crypto: the cost of the coins held, carried across transfers between the owner's accounts; coins of unknown cost named apart; the realised gain of sales), whether they are stale, and a PEA's lines (ISIN, quantity, value, PRU and result, then its cash). Call it before importing statement values: only documents dated after the last snapshot need importing, and it gives the account names add_investment_snapshots, sync_security_positions and sync_crypto_holdings accept.",
+    "Open investment accounts (PEA, compte-titres, life insurance, employee savings, crypto) with their institution, crypto source, last value and its date, what was invested with the latent result and rate (crypto: the cost of the coins held, carried across transfers between the owner's accounts; coins of unknown cost named apart; the realised gain of sales), whether they are stale, and the lines of a PEA or a compte-titres (ISIN, quantity, value, PRU and result, then its cash). Call it before importing statement values: only documents dated after the last snapshot need importing, and it gives the account names add_investment_snapshots, sync_security_positions and sync_crypto_holdings accept.",
   inputSchema: {},
   async run({ api }) {
     const [summary, accounts] = await Promise.all([
@@ -156,11 +167,12 @@ export const listInvestmentAccountsTool = defineTool({
       return "Aucun compte de placement ouvert. Pour en ajouter un, voir create_investment_account (la création se fait dans l'application)."
     }
     const byId = new Map(accounts.map((a) => [a.id, a]))
-    // A PEA's lines (ADR 0006, #413), under its row.
-    const peas = summary.accounts.filter((row) => row.type === 'brokerage')
+    // The lines of a PEA or a compte-titres (ADR 0006, #413, #414), under
+    // its row.
+    const withLines = summary.accounts.filter((row) => takesPositions(row.type))
     const positions = new Map(
       await Promise.all(
-        peas.map(
+        withLines.map(
           async (row) =>
             [
               row.id,
@@ -197,14 +209,15 @@ export const listInvestmentAccountsTool = defineTool({
 })
 
 const TYPE_HINTS: Record<(typeof INVESTMENT_TYPES)[number], string> = {
-  brokerage: 'PEA / compte-titres',
+  brokerage: 'PEA',
+  securities: 'Compte-titres',
   life_insurance: 'Assurance vie',
   employee_savings: 'Épargne salariale',
   crypto: 'Crypto, source « Saisie manuelle »',
 }
 
 export const INVESTMENT_TYPE_DESCRIPTION =
-  'brokerage = PEA or securities account, life_insurance = assurance vie, employee_savings = PEE / PERCO / épargne salariale, crypto = crypto exchange or wallet.'
+  'brokerage = PEA (plan d’épargne en actions), securities = compte-titres ordinaire (CTO), life_insurance = assurance vie, employee_savings = PEE / PERCO / épargne salariale, crypto = crypto exchange or wallet.'
 
 /** Normalized names of every account (archived ones included), for duplicates. */
 export function findSameName(

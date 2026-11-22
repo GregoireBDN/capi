@@ -11,6 +11,8 @@ export const ACCOUNT_TYPES = [
   'employee_savings',
   'crypto',
   'meal_voucher',
+  // A compte-titres ordinaire (#414): lines like a PEA's, none of its rules.
+  'securities',
 ] as const
 export type AccountType = (typeof ACCOUNT_TYPES)[number]
 
@@ -35,6 +37,7 @@ export const BANK_ACCOUNT_TYPES = [
 /** Tracked by dated value snapshots. */
 export const INVESTMENT_ACCOUNT_TYPES = [
   'brokerage',
+  'securities',
   'life_insurance',
   'employee_savings',
   'crypto',
@@ -119,11 +122,13 @@ export type SnapshotSource = (typeof SNAPSHOT_SOURCES)[number]
 
 /**
  * Account types that hold security positions (ADR 0006, #413): their lines
- * by ISIN, their value computed from the priced lines. A compte-titres (#414)
- * joins them.
+ * by ISIN, their value computed from the priced lines. A PEA and a
+ * compte-titres (#414), whose lines work alike; only a PEA has a ceiling and
+ * a 5-year date, only a compte-titres records its dividends.
  */
 export const POSITION_ACCOUNT_TYPES = [
   'brokerage',
+  'securities',
 ] as const satisfies readonly AccountType[]
 
 /** Where a security's price of a day comes from, strongest first (ADR 0006). */
@@ -267,8 +272,15 @@ export type CryptoMovementResolution =
 export const CRYPTO_TRANSFER_MATCHES = ['auto', 'manual'] as const
 export type CryptoTransferMatch = (typeof CRYPTO_TRANSFER_MATCHES)[number]
 
-/** Exchange export formats that can be imported. */
-export const CRYPTO_IMPORT_FORMATS = ['binance_csv', 'coinbase_csv'] as const
+/**
+ * Crypto exports that can be imported: an exchange's transactions (#128)
+ * or a Ledger Live operations history, on a wallet account (#426).
+ */
+export const CRYPTO_IMPORT_FORMATS = [
+  'binance_csv',
+  'coinbase_csv',
+  'ledger_live_csv',
+] as const
 export type CryptoImportFormat = (typeof CRYPTO_IMPORT_FORMATS)[number]
 
 /**

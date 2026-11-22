@@ -10,8 +10,8 @@
 # volume (finances-staging_db_data), own secrets and host name, no published
 # port. It only ever holds the demo data: each deploy wipes the database and
 # seeds it again (seed-demo.js --reset). What must never differ from that is
-# fixed here rather than in `.env`: the database name, the switches below, and
-# web's alias on the `proxy` network.
+# fixed here rather than in `.env`: the database name, the switches below,
+# web's `APP_ENVIRONMENT` (#454) and its alias on the `proxy` network.
 name: finances-staging
 
 services:
@@ -33,6 +33,10 @@ services:
       WALLET_SYNC_ENABLED: 'false'
 
   web:
+    environment:
+      # Yellow header, icons and manifest (#454, apps/web/src/lib/app-environment.tsx):
+      # the same image as production, told apart by this variable only.
+      APP_ENVIRONMENT: staging
     networks:
       default: {}
       proxy:

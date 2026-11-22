@@ -99,6 +99,12 @@ export const ACCOUNT_TYPE_OPTIONS: readonly {
     hint: 'Suivi par sa valeur à une date, d’après vos relevés.',
   },
   {
+    type: 'securities',
+    label: ACCOUNT_TYPE_LABELS.securities,
+    defaultName: 'Compte-titres',
+    hint: 'Compte-titres ordinaire : sa valeur à une date, ou ses lignes.',
+  },
+  {
     type: 'life_insurance',
     label: ACCOUNT_TYPE_LABELS.life_insurance,
     defaultName: 'Assurance vie',

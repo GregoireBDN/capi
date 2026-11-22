@@ -617,6 +617,51 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
       })
     })
 
+    it('keeps a transaction hash digest on export lines only, as hex SHA-256 (#426)', async () => {
+      await inRollback(async (tx) => {
+        const { line, observedIn, insert } = await setup(tx)
+        const digest = 'a'.repeat(64)
+        await refused(tx, 'crypto_movements_tx_hash_digest', (nested) =>
+          insert(nested, observedIn({ txHashDigest: digest })),
+        )
+        await refused(tx, 'crypto_movements_tx_hash_digest', (nested) =>
+          insert(nested, line({ txHashDigest: 'not-a-digest' })),
+        )
+        await refused(tx, 'crypto_movements_tx_hash_digest', (nested) =>
+          insert(nested, line({ txHashDigest: 'A'.repeat(64) })),
+        )
+        await insert(tx, line({ txHashDigest: digest }))
+      })
+    })
+
+    it('puts an exchange export on an exchange, a Ledger Live history on a wallet (#426)', async () => {
+      await inRollback(async (tx) => {
+        const { exchange, wallet } = await setup(tx)
+        const values = (
+          accountId: string,
+          format: 'coinbase_csv' | 'ledger_live_csv',
+        ) => ({
+          accountId,
+          format,
+          fileName: 'export-fictif.csv',
+          fileHash: 'fixture',
+        })
+        await refused(tx, 'crypto_imports_account_source', (nested) =>
+          nested
+            .insert(cryptoImportsTable)
+            .values(values(exchange.id, 'ledger_live_csv')),
+        )
+        await refused(tx, 'crypto_imports_account_source', (nested) =>
+          nested
+            .insert(cryptoImportsTable)
+            .values(values(wallet.id, 'coinbase_csv')),
+        )
+        await tx
+          .insert(cryptoImportsTable)
+          .values(values(wallet.id, 'ledger_live_csv'))
+      })
+    })
+
     it('links a departure to an arrival of another account, once, never answered otherwise', async () => {
       await inRollback(async (tx) => {
         const { line, observedIn, insert } = await setup(tx)
@@ -1004,6 +1049,45 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
             splitId: '00000000-0000-4000-8000-000000000099',
           }),
         )
+      })
+    })
+
+    it('refuses to delete a share, or its expense, that still has repayments (#438)', async () => {
+      await inRollback(async (tx) => {
+        const checking = await account(tx)
+        const sam = await contact(tx)
+        const [row] = await tx
+          .insert(transactionsTable)
+          .values(manualRow(checking.id))
+          .returning()
+        const [owed] = await tx
+          .insert(receivablesTable)
+          .values({
+            direction: 'owed_to_me',
+            transactionId: row.id,
+            contactId: sam.id,
+            amountCents: 400,
+          })
+          .returning()
+        await tx.insert(receivablePaymentsTable).values({
+          receivableId: owed.id,
+          amountCents: 100,
+          paidOn: '2026-10-20',
+        })
+        const fk = 'receivable_payments_receivable_id_receivables_id_fk'
+        await refused(tx, fk, (n) =>
+          n.delete(receivablesTable).where(eq(receivablesTable.id, owed.id)),
+        )
+        await refused(tx, fk, (n) =>
+          n.delete(transactionsTable).where(eq(transactionsTable.id, row.id)),
+        )
+        // Without its repayments, the share goes with its expense.
+        await tx
+          .delete(receivablePaymentsTable)
+          .where(eq(receivablePaymentsTable.receivableId, owed.id))
+        await tx
+          .delete(transactionsTable)
+          .where(eq(transactionsTable.id, row.id))
       })
     })
 

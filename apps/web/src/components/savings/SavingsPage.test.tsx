@@ -673,7 +673,7 @@ describe('SavingsPage', () => {
     ).toEqual([`/accounts/${LIVRET_ID}`, `/accounts/${PEA_ID}`])
     expect(
       within(stock).getByRole('link', { name: /PEA test/ }),
-    ).toHaveTextContent(text('PEA testPEA / compte-titres2 300 €+15 %'))
+    ).toHaveTextContent(text('PEA testPEA2 300 €+15 %'))
 
     // Goals: what they need together in the header, one row each.
     await screen.findByText('Fonds de secours', {}, { timeout: 3000 })

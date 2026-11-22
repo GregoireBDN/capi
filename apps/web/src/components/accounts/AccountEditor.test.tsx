@@ -140,6 +140,7 @@ describe('AccountEditor', () => {
       'savings',
       'meal_voucher',
       'brokerage',
+      'securities',
       'life_insurance',
       'employee_savings',
       'crypto',

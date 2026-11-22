@@ -268,7 +268,7 @@ describe('NetWorthPage', () => {
       name: 'Livret d’épargne',
     })
     const peaType = screen.getByRole('listitem', {
-      name: 'PEA / compte-titres',
+      name: 'PEA',
     })
     // i = 20 for 2026-09: 1 200 € checking, 5 000 € livret, 3 500 € PEA.
     expect(checkingType).toHaveTextContent(euros(120_000))

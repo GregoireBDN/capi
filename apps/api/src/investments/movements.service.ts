@@ -17,6 +17,7 @@ import {
   notInArray,
   or,
   type SQL,
+  sql,
 } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { Carried } from '#/crypto/cost-basis'
@@ -25,6 +26,7 @@ import { DatabaseService } from '#/database/database.service'
 import {
   accountsTable,
   cryptoMovementsTable,
+  cryptoTransferLinksTable,
   INVESTMENT_ACCOUNT_TYPES,
   transactionsTable,
 } from '#/database/schema'
@@ -136,6 +138,7 @@ export class MovementsService {
         ownId: own.id,
         ownName: own.name,
         ownType: own.type,
+        ownSource: own.cryptoSource,
         otherId: other.id,
         otherName: other.name,
         otherType: other.type,
@@ -147,6 +150,9 @@ export class MovementsService {
         and(
           inArray(cm.kind, [...CRYPTO_TRANSFER_KINDS]),
           notInArray(cm.asset, [...FIAT_TICKERS]),
+          // A wallet's imported arrival (#426) linked to a withdrawal is
+          // that withdrawal, listed once.
+          sql`not (${cm.kind} = 'deposit' and exists (select 1 from ${cryptoTransferLinksTable} l join ${cryptoMovementsTable} o on o.id = l.out_movement_id where l.in_movement_id = ${cm.id} and o.kind = 'withdrawal'))`,
           gte(cm.occurredAt, parisDayStart(from)),
           lt(cm.occurredAt, parisDayStart(addDays(to, 1))),
           accountId === undefined
@@ -196,7 +202,8 @@ export class MovementsService {
           asset: row.asset,
           quantity: magnitude(row.quantity),
           cryptoKind: withdrawal ? 'withdrawal' : 'deposit',
-          linkable: true,
+          // Named by hand on an exchange only; a wallet's are linked.
+          linkable: row.ownSource === 'exchange',
         }
       }),
     ]

@@ -299,6 +299,10 @@ export class ReceivablesController {
   @ApiParam(ID_PARAM)
   @ApiNoContentResponse()
   @ApiNotFoundResponse({ description: 'Unknown item.' })
+  @ApiConflictResponse({
+    description:
+      'Already repaid, even partly, or let go (#438): unlink its repayments, or claim it again, first.',
+  })
   async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.owed.deleteReceivable(id)
   }

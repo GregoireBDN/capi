@@ -442,7 +442,7 @@ export class AccountPerformanceDto extends PerformanceFiguresDto {
     type: InvestedBaseDto,
     nullable: true,
     description:
-      'PEA, life insurance, employee savings (#360): the invested base typed by the owner.',
+      'PEA, compte-titres, life insurance, employee savings (#360): the invested base typed by the owner.',
   })
   investedBase!: InvestedBaseDto | null
 }

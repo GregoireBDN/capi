@@ -22,6 +22,7 @@ export const STALE_AFTER_DAYS: Record<AccountType, number> = {
   employee_savings: 31,
   crypto: 35,
   meal_voucher: 45,
+  securities: 31,
 }
 
 /**
@@ -46,13 +47,14 @@ export interface InvestedBase {
 /** Types whose invested amount is typed as a base (#360). */
 export const INVESTED_BASE_TYPES: readonly AccountType[] = [
   'brokerage',
+  'securities',
   'life_insurance',
   'employee_savings',
 ]
 
 /**
- * Whether the account takes an invested base: a PEA, a life insurance or
- * employee savings. Not a crypto account (#373: the replay of its coins and
+ * Whether the account takes an invested base: a PEA, a compte-titres, a life
+ * insurance or employee savings. Not a crypto account (#373: the replay of its coins and
  * the owner's answers per movement), nor a cash account.
  */
 export function takesInvestedBase(account: { type: AccountType }): boolean {

@@ -154,7 +154,7 @@ export class AccountDto {
     format: 'date',
     nullable: true,
     description:
-      'The day the account was opened (ADR 0006): a PEA counts its 5 years from it. PEA, life insurance and employee savings only.',
+      'The day the account was opened (ADR 0006): a PEA counts its 5 years from it. PEA, compte-titres, life insurance and employee savings only.',
   })
   openedOn!: string | null
 
@@ -321,7 +321,7 @@ export class UpdateAccountDto {
     format: 'date',
     nullable: true,
     description:
-      'The day the account was opened, not in the future; null clears it. PEA, life insurance and employee savings only.',
+      'The day the account was opened, not in the future; null clears it. PEA, compte-titres, life insurance and employee savings only.',
   })
   @IsOptional()
   @CalendarDate()
@@ -348,8 +348,13 @@ export class AccountDeletionPreviewDto {
   @count('Crypto holding lines (imported, synced or typed by hand).')
   cryptoHoldings!: number
 
-  @count('Position statements of a PEA (ADR 0006), each with its lines.')
+  @count(
+    'Position statements of a PEA or a compte-titres (ADR 0006), each with its lines.',
+  )
   positionStatements!: number
+
+  @count('Dividends typed on a compte-titres (#414).')
+  dividends!: number
 
   @count('Wallet public keys and tokens read for the account.')
   walletKeys!: number

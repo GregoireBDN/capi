@@ -148,7 +148,7 @@ export const addInvestmentSnapshotsTool = defineTool({
   name: 'add_investment_snapshots',
   title: 'Ajouter des valeurs de placement',
   description:
-    "Record dated values of an investment account (PEA, life insurance, employee savings) read from statements: one row per day, upserted on (account, day). Without confirm: preview of new / changed / unchanged days and the effect on the account's current value and net worth. With confirm: true writes only the days that differ (one transaction, all or nothing), so a repeated call changes nothing. A day's value is the account value at the end of that day; use the statement date (or the last day of the quarter / year it covers). Never after today. Not for crypto accounts: their values are computed every day from their holdings and prices (use sync_crypto_holdings for the quantities of a manual one).",
+    "Record dated values of an investment account (PEA, compte-titres, life insurance, employee savings) read from statements: one row per day, upserted on (account, day). Without confirm: preview of new / changed / unchanged days and the effect on the account's current value and net worth. With confirm: true writes only the days that differ (one transaction, all or nothing), so a repeated call changes nothing. A day's value is the account value at the end of that day; use the statement date (or the last day of the quarter / year it covers). Never after today. Not for crypto accounts: their values are computed every day from their holdings and prices (use sync_crypto_holdings for the quantities of a manual one).",
   write: { idempotent: true },
   inputSchema: {
     account: z
@@ -730,7 +730,7 @@ export const setInvestedAmountTool = defineTool({
   name: 'set_invested_amount',
   title: 'Montant investi d’un placement',
   description:
-    'Set what the owner invested in a PEA, a life insurance or employee savings up to a day (« Investi au … »), so its result (latent gain) and rate show. The invested amount is then this base plus the bank transfers linked to the account after that day, until a value typed later with its own invested amount. Not for crypto accounts: their invested amount is the cost of their coins, carried from exchange to wallet and back (#373); coins whose cost is unknown are answered in the app (« À préciser »). Without confirm: preview of the invested amount, result and rate now → after. With confirm: true saves it; a repeated call changes nothing. Removing it is done in the app.',
+    'Set what the owner invested in a PEA, a compte-titres, a life insurance or employee savings up to a day (« Investi au … »), so its result (latent gain) and rate show. The invested amount is then this base plus the bank transfers linked to the account after that day, until a value typed later with its own invested amount. Not for crypto accounts: their invested amount is the cost of their coins, carried from exchange to wallet and back (#373); coins whose cost is unknown are answered in the app (« À préciser »). Without confirm: preview of the invested amount, result and rate now → after. With confirm: true saves it; a repeated call changes nothing. Removing it is done in the app.',
   write: { idempotent: true },
   inputSchema: {
     account: z

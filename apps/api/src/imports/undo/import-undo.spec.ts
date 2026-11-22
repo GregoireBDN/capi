@@ -9,6 +9,7 @@ import {
   accountsTable,
   categoriesTable,
   categorizationRulesTable,
+  receivablePaymentsTable,
   receivablesTable,
   transactionSplitsTable,
   transactionsTable,
@@ -453,11 +454,29 @@ describe.skipIf(!process.env.DATABASE_URL)('Import undo (database)', () => {
             eq(receivablesTable.contactId, (await owed.listContacts())[0].id),
           )
         expect(moved.transactionId).toBe(cinema.id)
-        // A bank row shared by hand is an edit the undo loses.
-        await owed.createShares({
+        // A bank row shared by hand is an edit the undo loses, with the
+        // repayments linked to its share (#438: only there, on purpose).
+        const sharedBar = await owed.createShares({
           transactionId: bar.id,
           shares: [{ contactName: 'Sam', amountCents: 1_000 }],
         })
+        const fromSam = await manual.create(
+          {
+            amountCents: 500,
+            direction: 'in',
+            kind: 'income',
+            bookingDate: '2026-10-29',
+            label: 'Vir Sam',
+          },
+          NOW,
+        )
+        await owed.linkRepayment(
+          {
+            transactionId: fromSam.id,
+            items: [{ receivableId: sharedBar.shares[0].id, amountCents: 500 }],
+          },
+          NOW,
+        )
         expect((await imports.findOne(id)).undo).toEqual({
           editedCount: 1,
           absorbedManualCount: 1,
@@ -466,6 +485,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Import undo (database)', () => {
         await imports.remove(id)
         const [restored] = await stored()
         expect(restored).toMatchObject({ manual: true, rawLabel: 'Ciné' })
+        expect(await tx.select().from(receivablePaymentsTable)).toEqual([])
         const shares = await tx.select().from(receivablesTable)
         expect(shares.map((r) => [r.transactionId, r.amountCents])).toEqual([
           [restored.id, 625],
