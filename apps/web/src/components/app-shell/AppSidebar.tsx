@@ -34,6 +34,7 @@ import {
 } from './nav-items'
 import type { NavItem } from './nav-items'
 import { closeSheetThenNavigate } from './close-then-navigate'
+import { useSidebarSwipe } from './sidebar-swipe'
 
 /**
  * Page icons a little larger than the menu default, the same size open and
@@ -75,8 +76,11 @@ function monthSearch(month: string | undefined): { month?: string } {
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const search = useRouterState({ select: (s) => s.location.search })
-  const { isMobile, open, setOpenMobile, toggleSidebar } = useSidebar()
+  const { isMobile, open, openMobile, setOpenMobile, toggleSidebar } =
+    useSidebar()
   const router = useRouter()
+  // On phones a sideways swipe opens and closes the sheet (#446).
+  useSidebarSwipe(isMobile, openMobile, setOpenMobile)
   const reviewCount = useReviewCount()
   // The badge reads the query cache when the app provides one.
   const queryClient = useContext(QueryClientContext)

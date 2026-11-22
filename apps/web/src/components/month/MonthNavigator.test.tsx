@@ -187,26 +187,14 @@ describe('MonthNavigator', () => {
     expect(within(button).getByText('mai 2026')).toBeInTheDocument()
   })
 
-  it('moves the month with a sideways swipe on a touch screen', () => {
+  it('leaves a sideways swipe alone: on a phone it opens the sidebar (#446)', () => {
     const { onChange } = setup({ initial: '2026-09' })
-    const swipe = (fromX: number, toX: number, target: Element) => {
-      fireEvent.touchStart(target, {
-        touches: [{ clientX: fromX, clientY: 300 }],
-      })
-      fireEvent.touchEnd(target, {
-        changedTouches: [{ clientX: toX, clientY: 310 }],
-      })
-    }
-    // To the right: the month before.
-    swipe(100, 260, document.body)
-    expect(onChange).toHaveBeenLastCalledWith('2026-08')
-    // To the left: the next one.
-    swipe(260, 100, document.body)
-    expect(onChange).toHaveBeenLastCalledWith('2026-09')
-    // Not from a field, nor a short drag.
-    onChange.mockClear()
-    swipe(260, 100, screen.getByLabelText('Champ'))
-    swipe(200, 170, document.body)
+    fireEvent.touchStart(document.body, {
+      touches: [{ clientX: 100, clientY: 300 }],
+    })
+    fireEvent.touchEnd(document.body, {
+      changedTouches: [{ clientX: 260, clientY: 310 }],
+    })
     expect(onChange).not.toHaveBeenCalled()
   })
 
