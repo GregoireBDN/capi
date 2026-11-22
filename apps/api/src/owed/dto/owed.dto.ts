@@ -55,7 +55,7 @@ const STATE_DOC = {
   enum: RECEIVABLE_STATES,
   enumName: 'ReceivableState',
   description:
-    'Computed: `open` (« à rembourser », nothing or part repaid), `repaid` (« remboursé »), `forgiven` (« abandonné »).',
+    'Computed: `open` (« à rembourser », something left to claim), `repaid` (« remboursé », nothing left, nothing let go), `forgiven` (« abandonné », nothing left, some let go).',
 } as const
 const DATE_DOC = {
   type: String,
@@ -257,6 +257,15 @@ export class UpdateReceivableDto {
 }
 
 export class ForgiveReceivableDto {
+  @ApiPropertyOptional(
+    CENTS(
+      'The part to let go, positive cents, at most what is left (#437). Default: everything left.',
+    ),
+  )
+  @IsOptional()
+  @apply(...Cents())
+  amountCents?: number
+
   @ApiPropertyOptional({
     type: String,
     nullable: true,
@@ -560,13 +569,21 @@ export class ReceivableDto {
   @ApiProperty(CENTS('Repaid so far (linked repayments).'))
   repaidCents!: number
 
-  @ApiProperty(CENTS('Still owed: 0 once repaid or let go.'))
+  @ApiProperty(CENTS('Still owed: the share minus what was repaid and let go.'))
   leftCents!: number
 
   @ApiProperty(STATE_DOC)
   state!: ReceivableState
 
-  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  @ApiProperty(CENTS('Let go (#437), 0 when nothing was.'))
+  forgivenCents!: number
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'When some was last let go; null when nothing is.',
+  })
   forgivenAt!: Date | null
 
   @ApiProperty({ type: String, nullable: true })

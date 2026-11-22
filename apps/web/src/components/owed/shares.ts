@@ -41,23 +41,18 @@ export function myPartOf(
 }
 
 /**
- * What others carry of an expense the owner paid: each share, or, once let
- * go, only what was repaid on it (the rest is his again). « Ma part » is the
- * expense minus this.
+ * What others carry of an expense the owner paid: each share minus the part
+ * let go (#437; that part is his again). « Ma part » is the expense minus
+ * this.
  */
 export function othersPartCents(item: {
   shares: readonly {
     direction: string
     amountCents: number
-    repaidCents: number
-    state: string
+    forgivenCents: number
   }[]
 }): number {
   return item.shares
     .filter((s) => s.direction === 'owed_to_me')
-    .reduce(
-      (sum, s) =>
-        sum + (s.state === 'forgiven' ? s.repaidCents : s.amountCents),
-      0,
-    )
+    .reduce((sum, s) => sum + s.amountCents - s.forgivenCents, 0)
 }

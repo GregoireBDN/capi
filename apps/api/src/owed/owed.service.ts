@@ -52,7 +52,6 @@ import {
   type OwedSummaryDto,
   type ReceivableDto,
   type ReceivablePaymentDto,
-  type ReceivableState,
   type RecurringShareInfoDto,
   type RepaymentOptionsDto,
   type RepaymentSuggestionDto,
@@ -69,6 +68,7 @@ import {
 } from './expected'
 import { applyRecurringShares } from './recurring-shares'
 import { SETTLED_SHARE_MESSAGE } from './settled'
+import { leftCents, receivableState } from './state'
 import { labelMatches, suggestRepayment } from './suggest'
 
 type Db = PostgresJsDatabase<typeof schema>
@@ -108,25 +108,6 @@ const paidSubquery = (executor: Executor) =>
     .from(receivablePaymentsTable)
     .groupBy(receivablePaymentsTable.receivableId)
     .as('paid')
-
-export function receivableState(row: {
-  amountCents: number
-  repaidCents: number
-  forgivenAt: Date | null
-}): ReceivableState {
-  if (row.forgivenAt !== null) return 'forgiven'
-  return row.repaidCents >= row.amountCents ? 'repaid' : 'open'
-}
-
-/** What is still owed: nothing once repaid or let go. */
-export function leftCents(row: {
-  amountCents: number
-  repaidCents: number
-  forgivenAt: Date | null
-}): number {
-  if (row.forgivenAt !== null) return 0
-  return Math.max(0, row.amountCents - row.repaidCents)
-}
 
 /**
  * Money owed between the owner and the people around him (#359): contacts,
@@ -289,12 +270,12 @@ export class OwedService {
       for (const row of existing) {
         const amount = wanted.get(row.contactId)
         if (amount === undefined) {
-          if (row.repaidCents > 0 || row.forgivenAt !== null) {
+          if (row.repaidCents > 0 || row.forgivenCents > 0) {
             throw new ConflictException(SETTLED_SHARE_MESSAGE)
           }
-        } else if (amount < row.repaidCents) {
+        } else if (amount < row.repaidCents + row.forgivenCents) {
           throw new BadRequestException(
-            'A share cannot be less than what was repaid on it',
+            'A share cannot be less than what was repaid and let go on it',
           )
         }
       }
@@ -419,9 +400,9 @@ export class OwedService {
         dto.amountCents !== undefined &&
         dto.amountCents !== row.amountCents
       ) {
-        if (dto.amountCents < row.repaidCents) {
+        if (dto.amountCents < row.repaidCents + row.forgivenCents) {
           throw new BadRequestException(
-            'A share cannot be less than what was repaid on it',
+            'A share cannot be less than what was repaid and let go on it',
           )
         }
         if (row.direction === 'i_owe') {
@@ -471,7 +452,7 @@ export class OwedService {
         lock: true,
       })
       if (!row) throw new NotFoundException('Receivable not found')
-      if (row.repaidCents > 0 || row.forgivenAt !== null) {
+      if (row.repaidCents > 0 || row.forgivenCents > 0) {
         throw new ConflictException(SETTLED_SHARE_MESSAGE)
       }
       if (row.direction === 'i_owe') {
@@ -486,7 +467,10 @@ export class OwedService {
 
   /**
    * « Je ne me fais pas rembourser » (or « … ne veut pas être remboursé »):
-   * what was not repaid by now is let go. The item stays in the history.
+   * lets go `amountCents` of what is left, everything left by default, and
+   * the rest is still claimed (#437). Letting go again adds to the part let
+   * go; its day is the latest, its note the latest given. The item stays in
+   * the history.
    */
   async forgive(
     id: string,
@@ -498,25 +482,32 @@ export class OwedService {
         lock: true,
       })
       if (!row) throw new NotFoundException('Receivable not found')
-      if (row.forgivenAt !== null) {
-        throw new ConflictException('Already let go')
+      const left = leftCents(row)
+      if (left === 0) {
+        throw new BadRequestException('Nothing left to let go')
       }
-      if (row.repaidCents >= row.amountCents) {
-        throw new BadRequestException('Already repaid: nothing to let go')
+      const amount = dto.amountCents ?? left
+      if (amount > left) {
+        throw new BadRequestException('amountCents exceeds what is left')
       }
       await tx
         .update(receivablesTable)
-        .set({ forgivenAt: now, forgivenNote: dto.note ?? null })
+        .set({
+          forgivenCents: row.forgivenCents + amount,
+          forgivenAt: now,
+          forgivenNote:
+            dto.note === undefined ? row.forgivenNote : (dto.note ?? null),
+        })
         .where(eq(receivablesTable.id, id))
     })
     return this.findReceivable(id)
   }
 
-  /** « Réclamer à nouveau »: the item is owed again. */
+  /** « Réclamer à nouveau »: what was let go is owed again. */
   async unforgive(id: string): Promise<ReceivableDto> {
     const [row] = await this.db
       .update(receivablesTable)
-      .set({ forgivenAt: null, forgivenNote: null })
+      .set({ forgivenCents: 0, forgivenAt: null, forgivenNote: null })
       .where(eq(receivablesTable.id, id))
       .returning({ id: receivablesTable.id })
     if (!row) throw new NotFoundException('Receivable not found')
@@ -560,9 +551,6 @@ export class OwedService {
       const byId = new Map(rows.map((row) => [row.id, row]))
       for (const item of dto.items) {
         const row = byId.get(item.receivableId)!
-        if (row.forgivenAt !== null) {
-          throw new BadRequestException('This item was let go')
-        }
         if (item.amountCents > leftCents(row)) {
           throw new BadRequestException(
             'The repayment exceeds what is left on an item',
@@ -676,7 +664,6 @@ export class OwedService {
         this.db,
         and(
           eq(receivablesTable.direction, direction),
-          isNull(receivablesTable.forgivenAt),
           ne(receivablesTable.transactionId, transactionId),
         ),
       )
@@ -765,9 +752,9 @@ export class OwedService {
         .where(isNull(contactsTable.archivedAt))
     ).filter((c) => c.matchLabels.length > 0)
     if (contacts.length === 0) return []
-    const open = (
-      await this.receivableRows(this.db, isNull(receivablesTable.forgivenAt))
-    ).filter((row) => leftCents(row) > 0)
+    const open = (await this.receivableRows(this.db)).filter(
+      (row) => leftCents(row) > 0,
+    )
     if (open.length === 0) return []
     const today = todayInParis(now)
     const t = transactionsTable
@@ -863,7 +850,7 @@ export class OwedService {
         accountId: t.accountId,
         bookingDate: t.bookingDate,
         amountCents: r.amountCents,
-        forgivenAt: r.forgivenAt,
+        forgivenCents: r.forgivenCents,
         repaidCents: sql<number>`coalesce(${paid.paidCents}, 0)`.mapWith(
           Number,
         ),
@@ -871,16 +858,11 @@ export class OwedService {
       .from(r)
       .innerJoin(t, eq(t.id, r.transactionId))
       .leftJoin(paid, eq(paid.receivableId, r.id))
-    return rows.map(({ forgivenAt, ...row }) => {
-      // Let go: what was not repaid by then.
-      const forgivenCents =
-        forgivenAt === null ? 0 : Math.max(0, row.amountCents - row.repaidCents)
-      return {
-        ...row,
-        forgivenCents,
-        leftCents: row.amountCents - row.repaidCents - forgivenCents,
-      }
-    })
+    // Unclamped: below 0 is what the integrity check reports (#427).
+    return rows.map((row) => ({
+      ...row,
+      leftCents: row.amountCents - row.repaidCents - row.forgivenCents,
+    }))
   }
 
   /**
@@ -953,11 +935,7 @@ export class OwedService {
         totals: {
           totalCents: sum(mine.map((item) => item.amountCents)),
           repaidCents: sum(mine.map((item) => item.repaidCents)),
-          forgivenCents: sum(
-            mine
-              .filter((item) => item.state === 'forgiven')
-              .map((item) => Math.max(0, item.amountCents - item.repaidCents)),
-          ),
+          forgivenCents: sum(mine.map((item) => item.forgivenCents)),
           openCents: sum(mine.map((item) => item.leftCents)),
         },
         open: mine
@@ -1112,7 +1090,7 @@ export class OwedService {
           id: row.id,
           amountCents: row.amountCents,
           repaidCents: row.repaidCents,
-          forgiven: row.forgivenAt !== null,
+          forgivenCents: row.forgivenCents,
         },
       ]),
     )
@@ -1241,10 +1219,7 @@ export class OwedService {
   private async balances(
     executor: Executor,
   ): Promise<Map<string, { owedToMe: number; iOwe: number }>> {
-    const rows = await this.receivableRows(
-      executor,
-      isNull(receivablesTable.forgivenAt),
-    )
+    const rows = await this.receivableRows(executor)
     const result = new Map<string, { owedToMe: number; iOwe: number }>()
     for (const row of rows) {
       const entry = result.get(row.contactId) ?? { owedToMe: 0, iOwe: 0 }
@@ -1299,6 +1274,7 @@ export class OwedService {
         origin: r.origin,
         recurringItemId: r.recurringItemId,
         note: r.note,
+        forgivenCents: r.forgivenCents,
         forgivenAt: r.forgivenAt,
         forgivenNote: r.forgivenNote,
         repaidCents: sql<number>`coalesce(${paid.paidCents}, 0)`.mapWith(
@@ -1403,6 +1379,7 @@ export class OwedService {
         repaidCents: row.repaidCents,
         leftCents: leftCents(row),
         state: receivableState(row),
+        forgivenCents: row.forgivenCents,
         forgivenAt: row.forgivenAt,
         forgivenNote: row.forgivenNote,
         note: row.note,
@@ -1631,6 +1608,7 @@ type ReceivableRow = {
   origin: 'manual' | 'recurring'
   recurringItemId: string | null
   note: string | null
+  forgivenCents: number
   forgivenAt: Date | null
   forgivenNote: string | null
   repaidCents: number

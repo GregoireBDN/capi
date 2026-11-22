@@ -113,11 +113,18 @@ export const linkRepayment = (body: LinkRepaymentDto) =>
   unwrap(receivablesControllerLink({ body, throwOnError: false }))
 export const unlinkPayment = (id: string) =>
   unwrap(receivablesControllerUnlink({ path: { id }, throwOnError: false }))
-export const forgiveReceivable = (id: string, note?: string | null) =>
+/** Lets go `amountCents` of what is left, everything left when omitted (#437). */
+export const forgiveReceivable = (
+  id: string,
+  { amountCents, note }: { amountCents?: number; note?: string | null } = {},
+) =>
   unwrap(
     receivablesControllerForgive({
       path: { id },
-      body: { note: note ?? null },
+      body: {
+        ...(amountCents !== undefined ? { amountCents } : {}),
+        note: note ?? null,
+      },
       throwOnError: false,
     }),
   )

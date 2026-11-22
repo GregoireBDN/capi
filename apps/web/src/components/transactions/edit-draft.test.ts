@@ -179,6 +179,7 @@ describe('editBody (#435)', () => {
           splitId: null,
           amountCents: 3_000,
           repaidCents: 0,
+          forgivenCents: 0,
           billCents: null,
           state: 'open',
         },

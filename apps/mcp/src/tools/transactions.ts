@@ -18,6 +18,15 @@ import { accountOf } from './write.js'
 import { defineTool, ToolInputError } from './tool.js'
 
 /** One transaction per line, with its id (what the write tools take). */
+/** « (remboursé) », « (abandonné) », or the part let go of an open share (#437). */
+function shareState(s: TransactionDto['shares'][number]): string {
+  if (s.state === 'repaid') return ' (remboursé)'
+  if (s.state === 'forgiven') return ' (abandonné)'
+  return s.forgivenCents > 0
+    ? ` (dont ${euros(s.forgivenCents)} abandonnés)`
+    : ''
+}
+
 export function transactionLine(t: TransactionDto): string {
   const flags = [
     t.kind === 'transfer' ? 'virement interne' : null,
@@ -55,8 +64,8 @@ export function transactionLine(t: TransactionDto): string {
   const owed = [
     ...t.shares.map((s) =>
       s.direction === 'owed_to_me'
-        ? `${s.contactName} doit ${euros(s.amountCents)}${s.state === 'repaid' ? ' (remboursé)' : s.state === 'forgiven' ? ' (abandonné)' : ''}`
-        : `je dois ${euros(s.amountCents)} à ${s.contactName}${s.state === 'repaid' ? ' (remboursé)' : s.state === 'forgiven' ? ' (abandonné)' : ''}`,
+        ? `${s.contactName} doit ${euros(s.amountCents)}${shareState(s)}`
+        : `je dois ${euros(s.amountCents)} à ${s.contactName}${shareState(s)}`,
     ),
     ...t.repayments.map(
       (r) =>

@@ -238,7 +238,7 @@ function ItemRow({
         </span>
       }
       detail={
-        open && item.repaidCents > 0 ? (
+        open && item.repaidCents + item.forgivenCents > 0 ? (
           <span className="text-muted-foreground">
             sur {formatCents(item.amountCents)}
           </span>

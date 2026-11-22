@@ -13665,6 +13665,10 @@
             "type": "integer",
             "description": "Repaid so far."
           },
+          "forgivenCents": {
+            "type": "integer",
+            "description": "Let go (#437), 0 when nothing was."
+          },
           "billCents": {
             "type": "integer",
             "nullable": true,
@@ -13686,6 +13690,7 @@
           "splitId",
           "amountCents",
           "repaidCents",
+          "forgivenCents",
           "billCents",
           "state"
         ]
@@ -14722,20 +14727,25 @@
           },
           "leftCents": {
             "type": "integer",
-            "description": "Still owed: 0 once repaid or let go."
+            "description": "Still owed: the share minus what was repaid and let go."
           },
           "state": {
-            "description": "Computed: `open` (« à rembourser », nothing or part repaid), `repaid` (« remboursé »), `forgiven` (« abandonné »).",
+            "description": "Computed: `open` (« à rembourser », something left to claim), `repaid` (« remboursé », nothing left, nothing let go), `forgiven` (« abandonné », nothing left, some let go).",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ReceivableState"
               }
             ]
           },
+          "forgivenCents": {
+            "type": "integer",
+            "description": "Let go (#437), 0 when nothing was."
+          },
           "forgivenAt": {
             "type": "string",
             "format": "date-time",
-            "nullable": true
+            "nullable": true,
+            "description": "When some was last let go; null when nothing is."
           },
           "forgivenNote": {
             "type": "string",
@@ -14781,6 +14791,7 @@
           "repaidCents",
           "leftCents",
           "state",
+          "forgivenCents",
           "forgivenAt",
           "forgivenNote",
           "note",
@@ -15409,6 +15420,10 @@
       "ForgiveReceivableDto": {
         "type": "object",
         "properties": {
+          "amountCents": {
+            "type": "integer",
+            "description": "The part to let go, positive cents, at most what is left (#437). Default: everything left."
+          },
           "note": {
             "type": "string",
             "nullable": true,

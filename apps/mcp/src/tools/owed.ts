@@ -65,14 +65,20 @@ function expectedLine(item: ExpectedRepaymentDto): string {
 
 /** One open or settled item, with its id (what link_repayment takes). */
 export function itemLine(item: ReceivableDto): string {
+  // What was settled: repaid and the part let go (#437).
+  const settled = [
+    item.repaidCents > 0 ? `reçu ${euros(item.repaidCents)}` : null,
+    item.forgivenCents > 0 ? `abandonné ${euros(item.forgivenCents)}` : null,
+  ].filter(Boolean)
+  const detail = settled.length > 0 ? ` (${settled.join(', ')})` : ''
   const state =
     item.state === 'forgiven'
-      ? 'abandonné'
+      ? item.forgivenCents < item.amountCents
+        ? `abandonné${detail}`
+        : 'abandonné'
       : item.state === 'repaid'
         ? 'remboursé'
-        : item.repaidCents > 0
-          ? `reste ${euros(item.leftCents)} (reçu ${euros(item.repaidCents)})`
-          : `reste ${euros(item.leftCents)}`
+        : `reste ${euros(item.leftCents)}${detail}`
   const bill =
     item.billCents !== null ? ` · addition ${euros(item.billCents)}` : ''
   return `- ${frenchDate(item.bookingDate)} · ${item.label} · ${item.category?.name ?? 'sans catégorie'} · ${euros(item.amountCents)}${bill} · ${state} · id ${item.id}`

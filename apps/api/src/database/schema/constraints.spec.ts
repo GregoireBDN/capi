@@ -1105,6 +1105,73 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
       })
     })
 
+    it('keeps what was repaid and let go within the share, the part let go dated (#437)', async () => {
+      await inRollback(async (tx) => {
+        const checking = await account(tx)
+        const sam = await contact(tx)
+        const [row] = await tx
+          .insert(transactionsTable)
+          .values(manualRow(checking.id))
+          .returning()
+        const [owed] = await tx
+          .insert(receivablesTable)
+          .values({
+            direction: 'owed_to_me',
+            transactionId: row.id,
+            contactId: sam.id,
+            amountCents: 400,
+          })
+          .returning()
+        const letGo = { forgivenAt: new Date('2026-10-21T10:00:00Z') }
+        await refused(tx, 'receivables_forgiven_dated', (n) =>
+          n
+            .update(receivablesTable)
+            .set({ forgivenCents: 100 })
+            .where(eq(receivablesTable.id, owed.id)),
+        )
+        await refused(tx, 'receivables_forgiven_within_share', (n) =>
+          n
+            .update(receivablesTable)
+            .set({ ...letGo, forgivenCents: 500 })
+            .where(eq(receivablesTable.id, owed.id)),
+        )
+        await tx.insert(receivablePaymentsTable).values({
+          receivableId: owed.id,
+          amountCents: 200,
+          paidOn: '2026-10-20',
+        })
+        await tx
+          .update(receivablesTable)
+          .set({ ...letGo, forgivenCents: 100 })
+          .where(eq(receivablesTable.id, owed.id))
+        // 200 repaid + 100 let go: 100 left, no more.
+        await refused(tx, 'receivables_settled_within_share', (n) =>
+          n.insert(receivablePaymentsTable).values({
+            receivableId: owed.id,
+            amountCents: 101,
+            paidOn: '2026-10-22',
+          }),
+        )
+        await refused(tx, 'receivables_settled_within_share', (n) =>
+          n
+            .update(receivablesTable)
+            .set({ forgivenCents: 201 })
+            .where(eq(receivablesTable.id, owed.id)),
+        )
+        await refused(tx, 'receivables_settled_within_share', (n) =>
+          n
+            .update(receivablesTable)
+            .set({ amountCents: 299 })
+            .where(eq(receivablesTable.id, owed.id)),
+        )
+        await tx.insert(receivablePaymentsTable).values({
+          receivableId: owed.id,
+          amountCents: 100,
+          paidOn: '2026-10-22',
+        })
+      })
+    })
+
     it('keeps a recurring share whole: a contact, a start and one of a rate or an amount', async () => {
       await inRollback(async (tx) => {
         const checking = await account(tx)

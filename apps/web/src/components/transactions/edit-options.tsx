@@ -183,7 +183,9 @@ export function EditOptionRows({
               ? 'Remboursé'
               : debt.state === 'forgiven'
                 ? 'Abandonné'
-                : formatCents(debt.amountCents - debt.repaidCents)}
+                : formatCents(
+                    debt.amountCents - debt.repaidCents - debt.forgivenCents,
+                  )}
           </span>
         </span>
         <ChevronRightIcon

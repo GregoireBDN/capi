@@ -150,7 +150,7 @@ function owedLabel(item: TransactionDto): string {
   const states = item.shares
     .map(
       (s) =>
-        `${s.contactName} ${s.state === 'repaid' ? 'remboursé' : s.state === 'forgiven' ? 'abandonné' : `${formatCents(s.repaidCents)} sur ${formatCents(s.amountCents)}`}`,
+        `${s.contactName} ${s.state === 'repaid' ? 'remboursé' : s.state === 'forgiven' ? 'abandonné' : `${formatCents(s.repaidCents)} sur ${formatCents(s.amountCents)}${s.forgivenCents > 0 ? `, ${formatCents(s.forgivenCents)} abandonnés` : ''}`}`,
     )
     .join(', ')
   return `Partagée : ma part ${formatCents(-item.amountCents - shared)} (${states})`
