@@ -173,6 +173,9 @@ export function AccountDetailPage({
   const [pasteOpen, setPasteOpen] = useState(false)
   // An exchange's export, from the page's menu (#447).
   const [exportOpen, setExportOpen] = useState(false)
+  // The wallet's Ledger Live sheet is mounted once first opened (#426): its
+  // page stays as light as before for the many visits that never import.
+  const [exportMounted, setExportMounted] = useState(false)
   // The kind is chosen before adding (#398).
   const [addKind, setAddKind] = useState<TransactionKind | null>(null)
   const [investedOpen, setInvestedOpen] = useState(false)
@@ -325,7 +328,10 @@ export function AccountDetailPage({
           {
             label: 'Importer l’historique Ledger Live',
             icon: <FileUpIcon />,
-            onSelect: () => setExportOpen(true),
+            onSelect: () => {
+              setExportMounted(true)
+              setExportOpen(true)
+            },
           },
         ]
       : mealVoucher
@@ -409,7 +415,7 @@ export function AccountDetailPage({
           refreshing={walletRefresh.isPending}
           onTokensChanged={walletRefresh.refresh}
         />
-        {writable && (
+        {writable && exportMounted && (
           <ExchangeImportSheet
             open={exportOpen}
             onOpenChange={setExportOpen}
