@@ -351,6 +351,13 @@
       "when": 1795343786997,
       "tag": "0049_ledger_live_imports",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795344887201,
+      "tag": "0050_receivable_payments_restrict",
+      "breakpoints": true
     }
   ]
 }
