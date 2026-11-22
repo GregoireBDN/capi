@@ -17,6 +17,8 @@ import { MonthNavigator } from '#/components/month/MonthNavigator'
 import { MonthToolbar } from '#/components/month/MonthToolbar'
 import { transactionsControllerReviewCount } from '#/api'
 import type { UserDto } from '#/api/types.gen'
+import { AppEnvironmentProvider } from '#/lib/app-environment'
+import type { AppEnvironment } from '#/lib/app-environment'
 import { resetReviewCount } from '#/lib/review-count'
 import { parseSidebarOpen } from '#/lib/sidebar-state'
 
@@ -65,21 +67,27 @@ beforeEach(() => {
 afterEach(clearSidebarCookie)
 
 /** The authenticated shell as `routes/_app.tsx` builds it. */
-async function renderShell(defaultOpen: boolean, actions: PageAction[] = []) {
+async function renderShell(
+  defaultOpen: boolean,
+  actions: PageAction[] = [],
+  environment: AppEnvironment = 'production',
+) {
   const rootRoute = createRootRoute({
     component: () => (
-      <SidebarProvider defaultOpen={defaultOpen} className="flex-col">
-        <PageActionsSlotProvider>
-          <AppHeader user={user} />
-          <div className="flex">
-            <AppSidebar />
-            <SidebarInset id="main-content">
-              <MonthBarSlot />
-              <Outlet />
-            </SidebarInset>
-          </div>
-        </PageActionsSlotProvider>
-      </SidebarProvider>
+      <AppEnvironmentProvider value={environment}>
+        <SidebarProvider defaultOpen={defaultOpen} className="flex-col">
+          <PageActionsSlotProvider>
+            <AppHeader user={user} />
+            <div className="flex">
+              <AppSidebar />
+              <SidebarInset id="main-content">
+                <MonthBarSlot />
+                <Outlet />
+              </SidebarInset>
+            </div>
+          </PageActionsSlotProvider>
+        </SidebarProvider>
+      </AppEnvironmentProvider>
     ),
   })
   const dashboard = createRoute({
@@ -180,6 +188,20 @@ describe('App shell sidebar (≥ md)', () => {
     expect(
       within(header()).getByRole('button', { name: 'Compte, Owner Test' }),
     ).toBeInTheDocument()
+  })
+
+  it('is yellow with « Staging » on staging only (#454)', async () => {
+    await renderShell(true, [], 'staging')
+    expect(header()).toHaveClass('env-banner')
+    expect(within(header()).getByTestId('staging-badge')).toHaveTextContent(
+      'Staging',
+    )
+  })
+
+  it('looks as it always did on production (#454)', async () => {
+    await renderShell(true)
+    expect(header()).not.toHaveClass('env-banner')
+    expect(screen.queryByTestId('staging-badge')).not.toBeInTheDocument()
   })
 
   it('opens with a skip link to the page', async () => {
@@ -323,6 +345,27 @@ describe('App shell sidebar (< md)', () => {
     ).not.toBeInTheDocument()
     // The remembered desktop state is left alone.
     expect(document.cookie).not.toContain('sidebar_state')
+  })
+
+  it('gives the sheet a yellow top with « Staging » on staging (#454)', async () => {
+    const ue = userEvent.setup()
+    await renderShell(false, [], 'staging')
+    await ue.click(screen.getByRole('button', { name: 'Ouvrir le menu' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Menu' })
+    const top = sheet.querySelector('[data-sidebar=header]')
+    expect(top).toHaveClass('env-banner')
+    expect(within(sheet).getByTestId('staging-badge')).toBeInTheDocument()
+  })
+
+  it('leaves the sheet’s top as it was on production (#454)', async () => {
+    const ue = userEvent.setup()
+    await renderShell(false)
+    await ue.click(screen.getByRole('button', { name: 'Ouvrir le menu' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Menu' })
+    expect(sheet.querySelector('[data-sidebar=header]')).not.toHaveClass(
+      'env-banner',
+    )
+    expect(within(sheet).queryByTestId('staging-badge')).toBeNull()
   })
 
   it('puts the page actions in the header’s « ⋮ » menu (#386)', async () => {
