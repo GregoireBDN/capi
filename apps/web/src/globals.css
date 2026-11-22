@@ -127,3 +127,15 @@ body:has([data-app-shell]) {
     @apply font-heading font-semibold tracking-tight;
   }
 }
+
+/*
+ * The phone's navigation sheet closes at once for a link (#419,
+ * `closeSheetThenNavigate`): with no closing animation, Radix unmounts it
+ * before the page changes, so Safari's picture of the page left (shown during
+ * its back swipe) never has the sidebar open. Unlayered: it wins over the
+ * animation utilities.
+ */
+[data-sheet-instant-close] [data-slot='sheet-content'],
+[data-sheet-instant-close] [data-slot='sheet-overlay'] {
+  animation: none !important;
+}

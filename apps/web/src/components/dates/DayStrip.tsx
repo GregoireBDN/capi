@@ -341,6 +341,8 @@ export function DayStrip({
         role="radiogroup"
         aria-label="Jour"
         aria-invalid={invalid || undefined}
+        // Its own swipe turns the page, never the month (#419).
+        data-no-swipe
         className="touch-pan-y overflow-hidden"
         onPointerDown={(event) => {
           swipe.current = { x: event.clientX, turned: false }
