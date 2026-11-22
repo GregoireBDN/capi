@@ -1,5 +1,5 @@
 /** Display name of the relying party, shown by the browser's passkey sheet. */
-export const WEBAUTHN_RP_NAME = 'Finances'
+export const WEBAUTHN_RP_NAME = 'Capi'
 
 /** A challenge must be answered within this delay, and only once. */
 export const WEBAUTHN_CHALLENGE_TTL_MS = 5 * 60 * 1000

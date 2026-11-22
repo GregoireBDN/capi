@@ -89,7 +89,7 @@ describe('Swagger UI and OpenAPI document', () => {
     app = created.app
 
     const document = createOpenApiDocument(app)
-    expect(document.info.title).toBe('Finances API')
+    expect(document.info.title).toBe('Capi API')
     expect(Object.keys(document.paths)).toEqual(['/api/probe'])
   })
 })

@@ -7,6 +7,7 @@ import { useReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
 import { AccountMenu } from './AccountMenu'
 import { useSetPageActionsSlot, useSetPageBackSlot } from './page-actions'
+import { CapiWordmark } from '#/components/brand/CapiWordmark'
 import { StagingBadge } from './StagingBadge'
 
 /**
@@ -76,18 +77,13 @@ export function AppHeader({ user }: { user: UserDto }) {
         to={ROUTES.dashboard}
         className="flex h-11 shrink-0 items-center gap-2 rounded-lg px-1 no-underline group-has-[[data-page-back]:not(:empty)]/header:max-md:hidden"
       >
-        <img src="/logo.svg" alt="" className="size-6" />
-        <span
-          className={cn(
-            'font-semibold tracking-tight',
-            // On phones the label takes the name's room (both would push the
-            // avatar out beside a « ⋮ »): the logo, the yellow and « Staging »
-            // say which app it is.
-            staging && 'max-md:sr-only',
-          )}
-        >
-          Finances
-        </span>
+        {/* On staging phones the mark alone: the badge takes the room of
+            « api » (both would push the avatar out at 320px). */}
+        <CapiWordmark
+          className="h-9"
+          onBanner={staging}
+          markOnPhones={staging}
+        />
         {staging && <StagingBadge />}
       </Link>
       <div

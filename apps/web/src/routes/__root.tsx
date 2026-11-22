@@ -36,7 +36,7 @@ export const Route = createRootRoute({
             'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content',
         },
         {
-          title: 'Finances',
+          title: 'Capi',
         },
         // PWA / installed app (see docs/domain/pwa.md); theme-color is in <head>.
         { name: 'application-name', content: env.appName },

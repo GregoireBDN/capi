@@ -40,12 +40,12 @@ function referencedFiles(env: keyof typeof ENVIRONMENT_HEAD): string[] {
 }
 
 describe('ENVIRONMENT_HEAD (#454)', () => {
-  it('keeps production’s head as it always was', () => {
+  it('keeps production’s head, named Capi (#464)', () => {
     expect(ENVIRONMENT_HEAD.production).toEqual({
-      appName: 'Finances',
+      appName: 'Capi',
       manifest: '/manifest.json',
       favicon: '/favicon.ico',
-      svgIcon: '/logo.svg',
+      svgIcon: '/brand/capi-favicon.svg',
       appleTouchIcon: '/icons/apple-touch-icon.png',
       themeColor: { light: '#f4f7fc', dark: '#090c1a' },
     })
@@ -54,7 +54,7 @@ describe('ENVIRONMENT_HEAD (#454)', () => {
   it('gives staging its own manifest, yellow icons and a yellow theme', () => {
     const staging = ENVIRONMENT_HEAD.staging
     const m = manifest(staging.manifest)
-    expect(m.name).toBe('Finances (staging)')
+    expect(m.name).toBe('Capi (staging)')
     expect(m.short_name).toBe(staging.appName)
     expect(m.theme_color).toBe(staging.themeColor.light)
     expect(m.background_color).toBe(staging.themeColor.light)

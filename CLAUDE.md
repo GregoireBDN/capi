@@ -6,7 +6,7 @@ Each feature's details (routes, pages, edge cases, the owner's choices) live in 
 
 ## Product vision
 
-**Finances** is a single-user, self-hosted personal finance tracker. The owner imports bank CSV exports and statements; transactions are parsed, deduplicated, normalized and categorized automatically. Dashboards show:
+**Capi** (named « Finances » until #464: the packages, URLs, images and servers still say `finances` until that issue's later phases) is a single-user, self-hosted personal finance tracker. The owner imports bank CSV exports and statements; transactions are parsed, deduplicated, normalized and categorized automatically. Dashboards show:
 
 - all accounts and net worth;
 - monthly income, expenses and savings;

@@ -22,17 +22,18 @@ export interface EnvironmentHead {
 
 export const ENVIRONMENT_HEAD: Record<AppEnvironment, EnvironmentHead> = {
   production: {
-    appName: 'Finances',
+    appName: 'Capi',
     manifest: '/manifest.json',
     favicon: '/favicon.ico',
-    svgIcon: '/logo.svg',
+    // The mark as large as the tab allows, light on a dark tab bar.
+    svgIcon: '/brand/capi-favicon.svg',
     appleTouchIcon: '/icons/apple-touch-icon.png',
     // Light and dark `--background` (`@finances/ui/globals.css`).
     themeColor: { light: '#f4f7fc', dark: '#090c1a' },
   },
   staging: {
     // The manifest's `short_name`: under the icon on the home screen.
-    appName: 'Finances β',
+    appName: 'Capi β',
     manifest: '/manifest-staging.json',
     favicon: '/icons/staging/favicon.ico',
     // The logo alone would look like production's tab.

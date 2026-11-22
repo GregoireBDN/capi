@@ -4,7 +4,7 @@
 - **Date**: 2026-11-14, on `main` at `5abde73` (after #170, wallet sync). **Revised 2026-11-17** on `main` at `bd67670`: the repository is public, and the remote MCP OAuth server of #78 is merged (shipped disabled); A9–A11, B11–B12 and T19–T22 are new (report §7).
 - **Companions**: [ASVS 4.0 level 2 checklist](asvs-l2-checklist.md), [audit report](audit-2026-11-14.md)
 
-Finances is a single-user, self-hosted personal finance tracker. One owner, one account, no public sign-up. It runs on one VPS reachable only through the owner's tailnet (ADR 0001) and is used mostly from an iPhone as a PWA, plus a local MCP server for Claude. A remote MCP endpoint for the Claude apps (#78, ADR 0003) is in the code but off (`REMOTE_MCP_ENABLED`); once enabled, its adapter is the one public surface.
+Capi (« Finances » until #464) is a single-user, self-hosted personal finance tracker. One owner, one account, no public sign-up. It runs on one VPS reachable only through the owner's tailnet (ADR 0001) and is used mostly from an iPhone as a PWA, plus a local MCP server for Claude. A remote MCP endpoint for the Claude apps (#78, ADR 0003) is in the code but off (`REMOTE_MCP_ENABLED`); once enabled, its adapter is the one public surface.
 
 **The source is public** (since 2026-11-17): every control below is assumed known to the attacker, including this document, the audit report and the pentest scripts. Nothing relies on the code being secret; what must stay secret is in `.env` files, GitHub secrets and the database.
 

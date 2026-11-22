@@ -6,7 +6,7 @@ import { ROUTES } from '#/lib/routes'
 
 export const Route = createFileRoute('/_app/owed/')({
   validateSearch: validateOwedSearch,
-  head: () => ({ meta: [{ title: 'Dépenses partagées · Finances' }] }),
+  head: () => ({ meta: [{ title: 'Dépenses partagées · Capi' }] }),
   component: OwedRoute,
 })
 

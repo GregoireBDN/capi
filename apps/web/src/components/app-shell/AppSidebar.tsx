@@ -36,6 +36,7 @@ import {
 import type { NavItem } from './nav-items'
 import { closeSheetThenNavigate } from './close-then-navigate'
 import { useSidebarSwipe } from './sidebar-swipe'
+import { CapiWordmark } from '#/components/brand/CapiWordmark'
 import { StagingBadge } from './StagingBadge'
 
 /**
@@ -188,10 +189,7 @@ export function AppSidebar() {
               onClick={closeMobileSheet}
               className="flex min-h-11 min-w-0 items-center gap-2 rounded-md p-2 no-underline"
             >
-              <img src="/logo.svg" alt="" className="size-7 shrink-0" />
-              <span className="truncate text-base font-semibold tracking-tight">
-                Finances
-              </span>
+              <CapiWordmark className="h-10" onBanner={staging} />
               {staging && <StagingBadge />}
             </Link>
           </SidebarHeader>

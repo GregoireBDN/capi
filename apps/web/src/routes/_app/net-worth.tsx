@@ -16,7 +16,7 @@ export const Route = createFileRoute('/_app/net-worth')({
     const { period } = searchSchema.parse(search)
     return period && period !== DEFAULT_NET_WORTH_PERIOD ? { period } : {}
   },
-  head: () => ({ meta: [{ title: 'Patrimoine net · Finances' }] }),
+  head: () => ({ meta: [{ title: 'Patrimoine net · Capi' }] }),
   component: NetWorthRoute,
 })
 

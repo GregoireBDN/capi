@@ -149,6 +149,11 @@ function header() {
   return element as HTMLElement
 }
 
+/** The wordmark's dark-mode image (#464), if `container` has one. */
+function lightWordmark(container: Element) {
+  return container.querySelector('img[src="/brand/capi-nom-clair.svg"]')
+}
+
 /** Synthetic queue size for the « À revoir » counter. */
 function reviewQueue(count: number) {
   vi.mocked(transactionsControllerReviewCount).mockReturnValue(
@@ -174,7 +179,7 @@ describe('App shell sidebar (≥ md)', () => {
     ).toHaveClass('md:hidden')
     // Logo and account in the header.
     expect(
-      within(header()).getByRole('link', { name: 'Finances' }),
+      within(header()).getByRole('link', { name: 'Capi' }),
     ).toHaveAttribute('href', '/dashboard')
     // No search: Opérations has its own (#386).
     expect(within(header()).queryByRole('searchbox')).not.toBeInTheDocument()
@@ -196,12 +201,16 @@ describe('App shell sidebar (≥ md)', () => {
     expect(within(header()).getByTestId('staging-badge')).toHaveTextContent(
       'Staging',
     )
+    // The blue wordmark in dark mode too: the light one vanishes on yellow.
+    expect(lightWordmark(header())).toBeNull()
   })
 
   it('looks as it always did on production (#454)', async () => {
     await renderShell(true)
     expect(header()).not.toHaveClass('env-banner')
     expect(screen.queryByTestId('staging-badge')).not.toBeInTheDocument()
+    // The light wordmark for dark mode (#464).
+    expect(lightWordmark(header())).not.toBeNull()
   })
 
   it('opens with a skip link to the page', async () => {
@@ -355,6 +364,7 @@ describe('App shell sidebar (< md)', () => {
     const top = sheet.querySelector('[data-sidebar=header]')
     expect(top).toHaveClass('env-banner')
     expect(within(sheet).getByTestId('staging-badge')).toBeInTheDocument()
+    expect(lightWordmark(sheet)).toBeNull()
   })
 
   it('leaves the sheet’s top as it was on production (#454)', async () => {

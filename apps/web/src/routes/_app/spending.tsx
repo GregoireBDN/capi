@@ -7,7 +7,7 @@ export const Route = createFileRoute('/_app/spending')({
   staticData: { monthBar: true },
   // Filters live in the URL: reload, back/forward and shared links keep them.
   validateSearch: parseSpendingSearch,
-  head: () => ({ meta: [{ title: 'Mouvements · Finances' }] }),
+  head: () => ({ meta: [{ title: 'Mouvements · Capi' }] }),
   component: SpendingRoute,
 })
 

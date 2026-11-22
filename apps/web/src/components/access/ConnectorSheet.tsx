@@ -27,7 +27,7 @@ export function ConnectorSheet({
       }}
       label="Connecter Claude sur le téléphone et claude.ai"
       description="L’adresse du connecteur à coller dans Claude."
-      title="Ajoutez Finances comme connecteur"
+      title="Ajoutez Capi comme connecteur"
       action={
         <Button
           type="button"
@@ -45,7 +45,7 @@ export function ConnectorSheet({
             «&nbsp;Ajouter un connecteur personnalisé&nbsp;». Il sera aussi dans
             l’app Claude du téléphone.
           </li>
-          <li>Nommez-le «&nbsp;Finances&nbsp;» et collez cette adresse.</li>
+          <li>Nommez-le «&nbsp;Capi&nbsp;» et collez cette adresse.</li>
           <li>
             Claude ouvre ensuite cette app&nbsp;: vous validerez l’accès sur
             cette page, en lecture seule ou avec le droit de classer.

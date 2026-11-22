@@ -1,6 +1,6 @@
 # Security
 
-Finances is a single-user, self-hosted app holding personal financial data. Production is only reachable through Tailscale.
+Capi is a single-user, self-hosted app holding personal financial data. Production is only reachable through Tailscale.
 
 ## Reporting a vulnerability
 

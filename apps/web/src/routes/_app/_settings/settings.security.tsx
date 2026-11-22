@@ -6,7 +6,7 @@ import { SessionsCard } from '#/components/sessions/SessionsCard'
 import { useAuth } from '#/lib/auth-context'
 
 export const Route = createFileRoute('/_app/_settings/settings/security')({
-  head: () => ({ meta: [{ title: 'Sécurité · Finances' }] }),
+  head: () => ({ meta: [{ title: 'Sécurité · Capi' }] }),
   component: SecurityRoute,
 })
 

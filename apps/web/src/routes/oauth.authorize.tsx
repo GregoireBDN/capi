@@ -14,7 +14,7 @@ export const Route = createFileRoute('/oauth/authorize')({
   beforeLoad: async ({ location }) => ({
     user: await requireUserForConsent(location.href),
   }),
-  head: () => ({ meta: [{ title: 'Connecter une application · Finances' }] }),
+  head: () => ({ meta: [{ title: 'Connecter une application · Capi' }] }),
   component: AuthorizePage,
 })
 

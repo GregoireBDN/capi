@@ -3,7 +3,7 @@ import { AccountSettings } from '#/components/settings/AccountSettings'
 import { useAuth } from '#/lib/auth-context'
 
 export const Route = createFileRoute('/_app/_settings/settings/account')({
-  head: () => ({ meta: [{ title: 'Compte · Finances' }] }),
+  head: () => ({ meta: [{ title: 'Compte · Capi' }] }),
   component: AccountRoute,
 })
 

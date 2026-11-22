@@ -30,6 +30,12 @@ const api = vi.hoisted(() => ({
   owedControllerSummary: vi.fn(),
 }))
 
+// Each test walks a whole entry sheet (category, amount, details, options)
+// with userEvent: ~0.7 s here, 1.6–3.7 s on CI runners, and past the 5 s
+// default on a busy one (#464's CI). The waits inside keep their own short
+// timeouts; only the whole journey gets more room.
+vi.setConfig({ testTimeout: 15_000 })
+
 vi.mock('#/api', () => api)
 
 // The sheet's kind picker (Radix toggle group) measures itself.

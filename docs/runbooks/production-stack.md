@@ -1,6 +1,6 @@
-# Runbook: Finances production stack
+# Runbook: Capi production stack
 
-This runbook covers how Finances runs on the server: first install, environment, migrations and seed, the owner account, upgrades and logs. The design decisions are in [ADR 0001](../adr/0001-multi-app-hosting.md). Releases, the `deploy` user, GHCR access and rollbacks are covered in the [deploy runbook](deploy.md) (#31). Caddy, the portal, hardening and backups live in the `infra` repo.
+This runbook covers how Capi runs on the server: first install, environment, migrations and seed, the owner account, upgrades and logs. The design decisions are in [ADR 0001](../adr/0001-multi-app-hosting.md). Releases, the `deploy` user, GHCR access and rollbacks are covered in the [deploy runbook](deploy.md) (#31). Caddy, the portal, hardening and backups live in the `infra` repo.
 
 ## Overview
 

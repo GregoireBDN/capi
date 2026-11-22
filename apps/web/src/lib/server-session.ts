@@ -171,7 +171,7 @@ interface RefreshEntry {
 
 /**
  * Rotations keyed by the SHA-256 of the presented refresh token (the raw token
- * is never kept as a key). Process-local: Finances runs a single web instance.
+ * is never kept as a key). Process-local: Capi runs a single web instance.
  */
 const refreshes = new Map<string, RefreshEntry>()
 

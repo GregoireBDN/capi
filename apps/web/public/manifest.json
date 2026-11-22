@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Finances",
-  "short_name": "Finances",
+  "name": "Capi",
+  "short_name": "Capi",
   "description": "Suivi de vos comptes, budgets et épargne.",
   "lang": "fr",
   "dir": "ltr",

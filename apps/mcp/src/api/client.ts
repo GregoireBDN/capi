@@ -1,5 +1,5 @@
 /**
- * Minimal client for the Finances API. Every request carries the
+ * Minimal client for the Capi API. Every request carries the
  * personal access token as `Authorization: Bearer`; nothing here touches the
  * database. Errors become `ApiError`s with a French message the tool returns to
  * the model. Never log responses, query strings or bodies: they hold amounts,
@@ -147,7 +147,7 @@ async function errorMessage(
   mode: 'stdio' | 'http',
 ): Promise<string> {
   if (mode === 'http' && response.status === 401) {
-    return "Connexion refusée par l'API (expirée ou déconnectée depuis le profil). Reconnectez le connecteur Finances dans Claude."
+    return "Connexion refusée par l'API (expirée ou déconnectée depuis le profil). Reconnectez le connecteur Capi dans Claude."
   }
   if (mode === 'http' && response.status === 403) {
     return method === 'GET'

@@ -30,7 +30,7 @@ vi.mock('@simplewebauthn/browser', () => browser)
 const REQUEST_OPTIONS = { challenge: 'Y2hhbGxlbmdl', rpId: 'localhost' }
 const CREATION_OPTIONS = {
   challenge: 'Y2hhbGxlbmdl',
-  rp: { id: 'localhost', name: 'Finances' },
+  rp: { id: 'localhost', name: 'Capi' },
   user: { id: 'dXNlcg', name: 'owner@example.test', displayName: 'Owner' },
   pubKeyCredParams: [],
 }
