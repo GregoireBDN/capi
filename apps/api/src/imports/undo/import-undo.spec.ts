@@ -473,9 +473,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Import undo (database)', () => {
         await owed.linkRepayment(
           {
             transactionId: fromSam.id,
-            items: [
-              { receivableId: sharedBar.shares[0].id, amountCents: 500 },
-            ],
+            items: [{ receivableId: sharedBar.shares[0].id, amountCents: 500 }],
           },
           NOW,
         )
