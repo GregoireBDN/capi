@@ -50,7 +50,7 @@ import type {
 } from '#/api/types.gen'
 import { comparedWithText, comparisonCaption } from './rows'
 import type { Comparison } from './rows'
-import { compactSearch, DEFAULT_AVERAGE_PERIOD, UNCATEGORIZED } from './search'
+import { AVERAGE_MONTHS, compactSearch, UNCATEGORIZED } from './search'
 import type { SpendingSearch } from './search'
 import { SpendingDonut } from './SpendingDonut'
 import { SpendingFilters } from './SpendingFilters'
@@ -163,20 +163,12 @@ function pageActions({
 }
 
 /** What the part's figures leave out or still expect, in one short line. */
-function partNotes(data: SpendingByCategoryDto, includeOneOffs: boolean) {
+function partNotes(data: SpendingByCategoryDto) {
   if (data.kind === 'savings') {
     return 'Virements vers vos livrets et placements, retraits déduits : ni revenu, ni dépense'
   }
   const expense = data.kind === 'expense'
   const parts = ['Virements exclus']
-  if (data.oneOffCents > 0) {
-    const what = expense ? 'dépenses exceptionnelles' : 'revenus exceptionnels'
-    parts.push(
-      includeOneOffs
-        ? `dont ${formatWholeEuros(data.oneOffCents)} de ${what}`
-        : `${formatWholeEuros(data.oneOffCents)} de ${what} non comptés`,
-    )
-  }
   if (expense && data.expectedCents > 0) {
     parts.push(
       `${formatWholeEuros(data.expectedCents)} d’abonnements et charges fixes encore attendus`,
@@ -205,10 +197,10 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
     () => ({
       ...(search.month ? { month: search.month } : {}),
       includeOneOffs,
-      averageMonths: search.avg ?? DEFAULT_AVERAGE_PERIOD,
+      averageMonths: AVERAGE_MONTHS,
       ...(search.account ? { accountId: search.account } : {}),
     }),
-    [search.month, includeOneOffs, search.avg, search.account],
+    [search.month, includeOneOffs, search.account],
   )
   const trendBase = useMemo<TrendFilters>(
     () => ({
@@ -324,7 +316,6 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
         onSearchChange={onSearchChange}
         month={month}
         defaultMonth={data?.period.defaultMonth ?? today}
-        period={data?.period}
         accounts={(accounts.data ?? []).filter(isTransactional)}
       />
 
@@ -438,9 +429,15 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
         {data && data.categories.length > 0 && (
           <>
             <div className="space-y-1.5">
-              <ComparisonBars data={data} accountId={search.account} />
+              <ComparisonBars
+                data={data}
+                accountId={search.account}
+                onIncludeOneOffsChange={(on) =>
+                  set({ oneOffs: on ? true : undefined })
+                }
+              />
               <p className="text-muted-foreground text-xs" data-slot="notes">
-                {partNotes(data, includeOneOffs)}
+                {partNotes(data)}
               </p>
               {kind === 'savings' && (
                 // What is held and how it grew: the Épargne page (#407).

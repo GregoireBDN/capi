@@ -1,4 +1,12 @@
-import { Card, CardContent, cn, formatWholeEuros, Skeleton } from '@finances/ui'
+import {
+  Card,
+  CardContent,
+  cn,
+  formatWholeEuros,
+  Label,
+  Skeleton,
+  Switch,
+} from '@finances/ui'
 import { Link } from '@tanstack/react-router'
 import {
   ChevronRightIcon,
@@ -6,6 +14,7 @@ import {
   TrendingDownIcon,
   TrendingUpIcon,
 } from 'lucide-react'
+import { useId } from 'react'
 import type { ReactNode } from 'react'
 import type {
   CategorySpendingDto,
@@ -45,7 +54,8 @@ export function comparisonLabels(data: SpendingByCategoryDto) {
   return {
     now: `${monthTitle(data.month, data.month)}${partial ? `, jusqu’au ${day(through)}` : ''}`,
     previous: `${monthTitle(data.previousMonth, data.month)}${partial ? `, du 1er au ${previousDay}` : ''}`,
-    average: `Moyenne ${months > 1 ? `des ${months} mois précédents` : 'du mois précédent'}${partial ? `, du 1er au ${through}` : ''}`,
+    // Short (the owner): the first bar already says how far the month goes.
+    average: months > 1 ? `Moyenne sur ${months} mois` : 'Le mois précédent',
   }
 }
 
@@ -229,6 +239,49 @@ export function ComparisonBarsSkeleton() {
 }
 
 /**
+ * « Compter les dépenses exceptionnelles (250 € ce mois-ci) » (#410, the
+ * owner's « A. À sa place »): the switch sits under the bars it changes.
+ * Only where there is something to count (or it is on); never in Épargne,
+ * whose moves all count.
+ */
+function OneOffSwitch({
+  data,
+  onChange,
+}: {
+  data: SpendingByCategoryDto
+  onChange: (on: boolean) => void
+}) {
+  const id = useId()
+  if (data.kind === 'savings') return null
+  if (data.oneOffCents === 0 && !data.includeOneOffs) return null
+  const what =
+    data.kind === 'expense'
+      ? 'dépenses exceptionnelles'
+      : 'revenus exceptionnels'
+  return (
+    <div
+      data-slot="one-off-switch"
+      className="flex min-h-11 items-center gap-3 border-t pt-3"
+    >
+      <Switch
+        id={id}
+        checked={data.includeOneOffs}
+        onCheckedChange={onChange}
+      />
+      <Label htmlFor={id} className="text-sm font-normal break-normal">
+        Compter les {what}
+        {data.oneOffCents > 0 && (
+          <span className="text-muted-foreground">
+            {' '}
+            ({formatWholeEuros(data.oneOffCents)} ce mois-ci)
+          </span>
+        )}
+      </Label>
+    </div>
+  )
+}
+
+/**
  * The part's month against the month before and the average (#410, the
  * owner's « C. Barres »): one bar each, so their lengths compare at a
  * glance, the difference in words beside each, like for like while the
@@ -237,10 +290,13 @@ export function ComparisonBarsSkeleton() {
 export function ComparisonBars({
   data,
   accountId,
+  onIncludeOneOffsChange,
 }: {
   data: SpendingByCategoryDto
   /** Account filter, carried over to the biggest change's operations. */
   accountId?: string
+  /** Counts the one-offs, or not, in every figure of the page. */
+  onIncludeOneOffsChange: (on: boolean) => void
 }) {
   const labels = comparisonLabels(data)
   const good = INCREASE_IS_GOOD[data.kind]
@@ -292,6 +348,7 @@ export function ComparisonBars({
             />
           )}
           <BiggestChange data={data} accountId={accountId} />
+          <OneOffSwitch data={data} onChange={onIncludeOneOffsChange} />
         </CardContent>
       </Card>
     </section>

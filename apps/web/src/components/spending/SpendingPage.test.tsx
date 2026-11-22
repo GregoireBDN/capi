@@ -383,7 +383,7 @@ describe('SpendingPage', () => {
       [
         'Octobre1 000 €',
         'Septembre900 €100 € de plus en octobre',
-        'Moyenne des 6 mois précédents950 €50 € de plus en octobre',
+        'Moyenne sur 6 mois950 €50 € de plus en octobre',
       ],
     )
     // More spending is bad news.
@@ -402,13 +402,19 @@ describe('SpendingPage', () => {
       screen.getByText(
         (_, element) =>
           element?.getAttribute('data-slot') === 'notes' &&
-          element.textContent.replace(/\s/g, ' ') ===
-            'Virements exclus · 250 € de dépenses exceptionnelles non comptés',
+          element.textContent.replace(/\s/g, ' ') === 'Virements exclus',
       ),
     ).toBeInTheDocument()
+    // « Exceptionnelles » under the bars, with what it would add.
+    expect(
+      within(bars).getByRole('switch', {
+        name: /^Compter les dépenses exceptionnelles/,
+      }),
+    ).not.toBeChecked()
+    expect(bars).toHaveTextContent(/250\s€ ce mois-ci/)
 
     expect(api.spendingControllerByCategory).toHaveBeenCalledWith({
-      query: { month: '2026-10', includeOneOffs: false, averageMonths: 6 },
+      query: { month: '2026-10', includeOneOffs: false, averageMonths: 12 },
       throwOnError: false,
     })
     expect(api.spendingControllerTrend).toHaveBeenCalledWith({
@@ -574,31 +580,33 @@ describe('SpendingPage', () => {
     await user.click(screen.getByRole('button', { name: 'Mois précédent' }))
     expect(changes.at(-1)).toEqual({ month: '2026-10' })
 
+    // The switch sits under the bars it changes (#410).
     await user.click(
       screen.getByRole('switch', {
-        name: 'Inclure les opérations exceptionnelles',
+        name: /^Compter les dépenses exceptionnelles/,
       }),
     )
     expect(changes.at(-1)).toEqual({ month: '2026-10', oneOffs: true })
     await waitFor(() =>
       expect(api.spendingControllerByCategory).toHaveBeenCalledWith({
-        query: { month: '2026-10', includeOneOffs: true, averageMonths: 6 },
+        query: { month: '2026-10', includeOneOffs: true, averageMonths: 12 },
         throwOnError: false,
       }),
     )
 
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Compte' }),
-      ACCOUNT_ID,
-    )
-    expect(changes.at(-1)).toMatchObject({ account: ACCOUNT_ID })
+    // « Compte », at the end of the title's row, acts on the whole page.
+    await user.click(screen.getByRole('button', { name: 'Compte, tous' }))
+    const picker = await waitFor(() => {
+      const found = document.querySelector<HTMLElement>(
+        '[role="dialog"][aria-label="Compte"]',
+      )
+      if (!found) throw new Error('No « Compte » picker')
+      return within(found)
+    })
     // Only transactional accounts are offered.
-    expect(screen.queryByRole('option', { name: 'PEA test' })).toBeNull()
-
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Période de la moyenne' }),
-      '12',
-    )
+    expect(picker.queryByRole('radio', { name: 'PEA test' })).toBeNull()
+    await user.click(picker.getByRole('radio', { name: 'Compte test' }))
+    expect(changes.at(-1)).toMatchObject({ account: ACCOUNT_ID })
     await waitFor(() =>
       expect(api.spendingControllerByCategory).toHaveBeenCalledWith({
         query: {
@@ -935,21 +943,16 @@ describe('SpendingPage', () => {
     })
     // The API picks the month: none is sent.
     expect(api.spendingControllerByCategory).toHaveBeenCalledWith({
-      query: { includeOneOffs: false, averageMonths: 6 },
+      query: { includeOneOffs: false, averageMonths: 12 },
       throwOnError: false,
     })
     expect(screen.getByText('Novembre 2026')).toBeInTheDocument()
     // Like for like, said in words.
     expect(within(kpis).getByText('Novembre, jusqu’au 3')).toBeInTheDocument()
     expect(within(kpis).getByText('Octobre, du 1er au 3')).toBeInTheDocument()
-    expect(
-      within(kpis).getByText('Moyenne des 6 mois précédents, du 1er au 3'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        'Mois en cours : données jusqu’au 3 nov., comparées au 1–3 oct.',
-      ),
-    ).toBeInTheDocument()
+    expect(within(kpis).getByText('Moyenne sur 6 mois')).toBeInTheDocument()
+    // No period note (#410): the bars say how far the month goes.
+    expect(screen.queryByText(/^Mois en cours/)).toBeNull()
 
     // Nothing spent in rent yet: folded away with the empty categories.
     const user = userEvent.setup()
