@@ -1,5 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { and, asc, eq, gte, inArray, isNotNull, lte, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import {
@@ -480,8 +492,16 @@ export class IntegrityService {
           sql`${o.accountId} <> ${t.accountId}`,
           eq(o.amountCents, sql`-${t.amountCents}`),
           sql`abs(${o.bookingDate} - ${t.bookingDate}) <= ${INTERNAL_MOVE_DAYS}`,
-          sql`(${o.kind} = 'transfer' and (${o.counterpartAccountId} is null or ${o.counterpartAccountId} = ${t.accountId}))
-            or (${o.kind} in ('income', 'expense') and ${o.kind} <> ${t.kind})`,
+          or(
+            and(
+              eq(o.kind, 'transfer'),
+              or(
+                isNull(o.counterpartAccountId),
+                eq(o.counterpartAccountId, t.accountId),
+              ),
+            ),
+            and(inArray(o.kind, ['income', 'expense']), ne(o.kind, t.kind)),
+          ),
         ),
       )
       .where(

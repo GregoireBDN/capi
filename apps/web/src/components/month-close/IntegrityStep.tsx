@@ -6,6 +6,7 @@ import type {
   IntegrityFindingDto,
 } from '#/api/types.gen'
 import { accountLinkSearch } from '#/components/accounts/account-origin'
+import { formatQuantity } from '#/components/crypto/format'
 import { formatCents } from '#/lib/money'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
@@ -32,6 +33,9 @@ export function integrityDone(data: IntegrityDto): boolean {
   return data.checks.every((check) => check.status === 'ok')
 }
 
+const quantity = (value: string | null) =>
+  value === null ? '?' : formatQuantity(value)
+
 /** French wording of a finding. */
 export function findingText(finding: IntegrityFindingDto): string {
   switch (finding.code) {
@@ -44,7 +48,7 @@ export function findingText(finding: IntegrityFindingDto): string {
     case 'manual_not_reconciled':
       return 'Saisie jamais rapprochée d’une opération de la banque'
     case 'holding_differs_from_read':
-      return `${finding.asset ?? ''} : ${finding.quantity ?? '?'} détenus, ${finding.readQuantity ?? '?'} à la dernière lecture complète`
+      return `${finding.asset ?? ''} : ${quantity(finding.quantity)} détenus, ${quantity(finding.readQuantity)} à la dernière lecture complète`
     case 'owed_negative':
       return 'Remboursé au-delà de la part'
     case 'repayment_over_transfer':
@@ -132,10 +136,12 @@ function FindingRow({ finding }: { finding: IntegrityFindingDto }) {
           </span>
         )}
         {finding.date !== null && (
-          <span className="text-muted-foreground">
+          <>
             {' '}
-            · {formatShortDay(finding.date)}
-          </span>
+            <span className="text-muted-foreground whitespace-nowrap">
+              · {formatShortDay(finding.date)}
+            </span>
+          </>
         )}
         <span className="text-muted-foreground block text-xs">
           {findingText(finding)}

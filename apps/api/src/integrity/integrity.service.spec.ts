@@ -395,6 +395,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
           name: 'Test livret',
           type: 'savings',
         })
+        const third = await accounts.create({
+          name: 'Test LDDS',
+          type: 'savings',
+        })
         const [counted] = await tx
           .insert(transactionsTable)
           .values(
@@ -418,11 +422,24 @@ describe.skipIf(!process.env.DATABASE_URL)(
               kind: 'transfer',
               rawLabel: 'VIR TEST DEPUIS COMPTE',
             }),
-            // An unrelated expense of another amount: not a mirror.
+            // Unrelated rows of other amounts: no mirror.
             transaction(checking.id, {
               bookingDate: '2026-10-04',
               amountCents: -1_999,
               categoryId: category.id,
+            }),
+            transaction(savings.id, {
+              bookingDate: '2026-10-04',
+              amountCents: 1_234,
+              kind: 'income',
+              rawLabel: 'INTERETS TEST',
+            }),
+            // The same amount, but linked to a third account: not a mirror.
+            transaction(savings.id, {
+              bookingDate: '2026-10-04',
+              amountCents: 1_999,
+              kind: 'transfer',
+              counterpartAccountId: third.id,
             }),
           ]),
         )
