@@ -11,18 +11,18 @@ describe('parseSpendingSearch', () => {
         oneOffs: true,
         account: ID,
         trend: ID,
-        avg: 12,
+        vue: 'revenus',
       }),
     ).toEqual({
       month: '2026-10',
       oneOffs: true,
       account: ID,
       trend: ID,
-      avg: 12,
+      vue: 'revenus',
     })
-    expect(parseSpendingSearch({ trend: 'none', avg: 3 })).toEqual({
+    expect(parseSpendingSearch({ trend: 'none', vue: 'epargne' })).toEqual({
       trend: 'none',
-      avg: 3,
+      vue: 'epargne',
     })
   })
 
@@ -33,7 +33,9 @@ describe('parseSpendingSearch', () => {
         oneOffs: false,
         account: 'nope',
         trend: 'groceries',
-        avg: 6,
+        // The average is fixed at 12 months (#410): an old link's is dropped.
+        avg: 12,
+        vue: 'depenses',
         other: 'x',
       }),
     ).toEqual({})

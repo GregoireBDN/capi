@@ -26,9 +26,11 @@ export type ExpectedSeries = Pick<
 
 /**
  * Recurring costs still expected in `month` (subscriptions, rent, ...), per
- * category id (`null` = no category), positive integer cents.
+ * category id (`null` = no category), positive integer cents; with
+ * `direction` `credit`, the recurring income still expected (the salary,
+ * Mouvements' « Revenus », #410).
  *
- * Only confirmed, active debits count, with the forecast's rules
+ * Only confirmed, active series of that direction count, with the forecast's rules
  * (`expectedOccurrences`): an occurrence already booked, or missed (the
  * account's data goes past it by more than the cadence tolerance), is not
  * expected, nor any on or after its cancellation date. `horizons` is the
@@ -41,13 +43,14 @@ export function expectedByCategory(
   items: readonly ExpectedSeries[],
   month: string,
   horizons: ReadonlyMap<string, string>,
+  direction: 'debit' | 'credit' = 'debit',
 ): Map<string | null, number> {
   const start = firstDay(month)
   const window = { today: start, start, monthEnd: monthEnd(month) }
   const result = new Map<string | null, number>()
   for (const item of items) {
     if (item.status !== 'confirmed' || !item.active) continue
-    if (item.direction !== 'debit') continue
+    if (item.direction !== direction) continue
     const occurrences = expectedOccurrences(
       {
         id: item.id,
@@ -72,7 +75,7 @@ export function expectedByCategory(
       if (occurrence.expectedDate < start) continue
       result.set(
         item.categoryId,
-        (result.get(item.categoryId) ?? 0) - occurrence.amountCents,
+        (result.get(item.categoryId) ?? 0) + Math.abs(occurrence.amountCents),
       )
     }
   }

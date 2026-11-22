@@ -5,6 +5,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Transform, Type } from 'class-transformer'
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsOptional,
   IsUUID,
@@ -14,6 +15,15 @@ import {
 } from 'class-validator'
 import { CATEGORY_ICON_DOC } from '#/categories/category-icons'
 import type { CategoryIcon } from '#/categories/category-icons'
+import { ACCOUNT_TYPES, type AccountType } from '#/database/schema'
+
+/**
+ * What a month's movements are read for (#410): `expense` (by category),
+ * `income` (by category) or `savings` (« Mis de côté »: the transfers to the
+ * savings accounts and investments, by account, never income or expense).
+ */
+export const SPENDING_KINDS = ['expense', 'income', 'savings'] as const
+export type SpendingKind = (typeof SPENDING_KINDS)[number]
 
 /** Full months before the selected one that the averages cover by default. */
 export const AVERAGE_MONTHS_DEFAULT = 6
@@ -51,6 +61,17 @@ const QueryInt = (min: number, max: number) =>
 /** Filters shared by both spending endpoints. */
 class SpendingFiltersQueryDto {
   @ApiPropertyOptional({
+    enum: SPENDING_KINDS,
+    enumName: 'SpendingKind',
+    default: 'expense',
+    description:
+      '`expense`: expenses by category (money out positive, refunds netted). `income`: income by category (money in positive, outgoing amounts filed in income netted). `savings`: « Mis de côté », the transfers from the checking accounts to the savings accounts and investments by account (as the Épargne page counts them: deposits positive, withdrawals negative; one-offs always counted). Transfers are never income or expense.',
+  })
+  @IsOptional()
+  @IsIn(SPENDING_KINDS)
+  kind?: SpendingKind
+
+  @ApiPropertyOptional({
     type: String,
     pattern: MONTH_PATTERN.source,
     example: '2026-10',
@@ -73,7 +94,8 @@ class SpendingFiltersQueryDto {
   @ApiPropertyOptional({
     type: String,
     format: 'uuid',
-    description: 'Only this account. Default: every account.',
+    description:
+      'Only this account. Default: every account. With `kind=savings`: the transfers from or to this account.',
   })
   @IsOptional()
   @IsUUID()
@@ -108,7 +130,7 @@ export class SpendingTrendQueryDto extends SpendingFiltersQueryDto {
     type: String,
     format: 'uuid',
     description:
-      'Only this category (one series). Cannot be combined with `uncategorized`.',
+      'Only this category (one series); with `kind=savings`, only this account. Cannot be combined with `uncategorized`.',
   })
   @IsOptional()
   @IsUUID()
@@ -198,12 +220,48 @@ export class CategorySpendingDto {
   @ApiProperty({
     type: 'integer',
     description:
-      'Recurring costs of the category (confirmed subscriptions and fixed costs) still expected later in the month, positive integer cents: not paid yet, so never counted as spent nor as a saving. 0 unless the month is partial.',
+      'Recurring costs of the category (confirmed subscriptions and fixed costs; with `kind=income`, confirmed recurring credits such as the salary) still expected later in the month, positive integer cents: not booked yet, so never counted nor compared. 0 unless the month is partial, and always with `kind=savings`.',
   })
   expectedCents!: number
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      '`kind=savings`: the savings account or investment the money went to; null for a transfer whose account is not known (and for every row of the other kinds).',
+  })
+  accountId!: string | null
+
+  @ApiProperty({
+    enum: ACCOUNT_TYPES,
+    enumName: 'AccountType',
+    nullable: true,
+    description: '`kind=savings`: that account’s type. Null otherwise.',
+  })
+  accountType!: AccountType | null
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      '`kind=savings`: paid into the account in the month (positive cents; `spentCents` = `inCents` - `outCents`). Null for the other kinds.',
+  })
+  inCents!: number | null
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      '`kind=savings`: taken out of the account in the month (positive cents). Null for the other kinds.',
+  })
+  outCents!: number | null
 }
 
 export class SpendingByCategoryDto {
+  @ApiProperty({ enum: SPENDING_KINDS, enumName: 'SpendingKind' })
+  kind!: SpendingKind
+
   @ApiProperty({ type: String, example: '2026-10' })
   month!: string
 
@@ -280,6 +338,7 @@ export class SpendingByCategoryDto {
 export const TREND_SERIES_TYPES = [
   'category',
   'uncategorized',
+  'account',
   'other',
 ] as const
 export type TrendSeriesType = (typeof TREND_SERIES_TYPES)[number]
@@ -288,7 +347,7 @@ export class SpendingTrendSeriesDto {
   @ApiProperty({
     type: String,
     description:
-      'Stable key: the category id, `uncategorized` or `other` (the remaining categories).',
+      'Stable key: the category id (the account id with `kind=savings`), `uncategorized` (no category; no known account with `kind=savings`) or `other` (the remaining ones).',
   })
   key!: string
 
@@ -300,6 +359,14 @@ export class SpendingTrendSeriesDto {
 
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
   categoryId!: string | null
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: '`kind=savings`: the account of the series. Null otherwise.',
+  })
+  accountId!: string | null
 
   @ApiProperty({ type: String, nullable: true })
   slug!: string | null
@@ -375,6 +442,9 @@ export class SpendingTrendMonthDto {
 }
 
 export class SpendingTrendDto {
+  @ApiProperty({ enum: SPENDING_KINDS, enumName: 'SpendingKind' })
+  kind!: SpendingKind
+
   @ApiProperty({
     type: [String],
     example: ['2026-09', '2026-10'],

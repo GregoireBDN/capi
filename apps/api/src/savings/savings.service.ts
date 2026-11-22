@@ -42,6 +42,7 @@ import {
   type SavingsTargetResultDto,
   type UpdateGoalDto,
 } from './dto/savings.dto'
+import { MOVED_CATEGORIES, savingsAccountsHaveRows } from './moved'
 import { averageOver, goalPlan, type MonthFigures } from './savings-math'
 
 type Db = PostgresJsDatabase<typeof schema>
@@ -51,12 +52,6 @@ type Executor = Db | Tx
 
 /** `app_settings` key of the monthly savings target (integer cents). */
 export const MONTHLY_TARGET_KEY = 'savings.monthly_target_cents'
-
-/** Categories of the checking-side transfers to savings / investments. */
-const MOVED_CATEGORIES = {
-  savings: 'savings_transfer',
-  investments: 'investment_transfer',
-} as const
 
 const LONGEST_WINDOW = Math.max(...AVERAGE_WINDOWS)
 
@@ -280,7 +275,7 @@ export class SavingsService {
           ),
         )
         .groupBy(month),
-      this.savingsAccountsHaveRows(executor),
+      savingsAccountsHaveRows(executor),
     ])
 
     return new Map(
@@ -300,18 +295,6 @@ export class SavingsService {
         },
       ]),
     )
-  }
-
-  /** Whether any `savings` account has transaction rows (see the class doc). */
-  private async savingsAccountsHaveRows(executor: Executor): Promise<boolean> {
-    const t = transactionsTable
-    const [row] = await executor
-      .select({ id: t.id })
-      .from(t)
-      .innerJoin(accountsTable, eq(accountsTable.id, t.accountId))
-      .where(eq(accountsTable.type, 'savings'))
-      .limit(1)
-    return row !== undefined
   }
 
   /** Month of the first income or expense transaction, if any. */

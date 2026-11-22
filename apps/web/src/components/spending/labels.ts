@@ -1,6 +1,7 @@
 import type {
   CategorySpendingDto,
   SpendingByCategoryDto,
+  SpendingKind,
   SpendingTrendSeriesDto,
 } from '#/api/types.gen'
 import { formatMonth } from '#/lib/calendar'
@@ -9,6 +10,8 @@ import { UNCATEGORIZED } from './search'
 
 /** Name of the bucket of expenses without a category. */
 export const UNCATEGORIZED_LABEL = 'Non catégorisé'
+/** Épargne's bucket: moves to investments whose account is not known. */
+export const UNKNOWN_ACCOUNT_LABEL = 'Compte non précisé'
 /** Name of the remaining categories folded together. */
 export const OTHER_LABEL = 'Autres'
 
@@ -21,27 +24,46 @@ export const UNCATEGORIZED_COLOR = 'var(--chart-target)'
 /** Colour of « Autres », the remaining categories folded together. */
 export const OTHER_COLOR = 'var(--chart-other)'
 
-/** Stable identifier of a ranked category (`none` for the uncategorized bucket). */
-export function categoryKey(item: { categoryId: string | null }): string {
-  return item.categoryId ?? UNCATEGORIZED
+/**
+ * Stable identifier of a ranked row: its category, its account (Épargne),
+ * or `none` for the bucket without either.
+ */
+export function categoryKey(item: {
+  categoryId: string | null
+  accountId?: string | null
+}): string {
+  return item.categoryId ?? item.accountId ?? UNCATEGORIZED
 }
 
-export function categoryLabel(item: CategorySpendingDto): string {
-  return item.name ?? UNCATEGORIZED_LABEL
+export function categoryLabel(
+  item: Pick<CategorySpendingDto, 'name'>,
+  kind: SpendingKind = 'expense',
+): string {
+  return (
+    item.name ??
+    (kind === 'savings' ? UNKNOWN_ACCOUNT_LABEL : UNCATEGORIZED_LABEL)
+  )
 }
 
-/** Colour of a category; `undefined` lets the chart pick a categorical slot. */
+/** Colour of a row; `undefined` lets the chart pick a categorical slot. */
 export function categoryColor(item: {
   categoryId: string | null
+  accountId?: string | null
   color: string | null
 }): string | undefined {
-  if (item.categoryId === null) return UNCATEGORIZED_COLOR
+  if (item.categoryId === null && !item.accountId) return UNCATEGORIZED_COLOR
   return item.color ?? undefined
 }
 
-export function seriesLabel(series: SpendingTrendSeriesDto): string {
+export function seriesLabel(
+  series: SpendingTrendSeriesDto,
+  kind: SpendingKind = 'expense',
+): string {
   if (series.type === 'other') return OTHER_LABEL
-  return series.name ?? UNCATEGORIZED_LABEL
+  return (
+    series.name ??
+    (kind === 'savings' ? UNKNOWN_ACCOUNT_LABEL : UNCATEGORIZED_LABEL)
+  )
 }
 
 export function seriesColor(

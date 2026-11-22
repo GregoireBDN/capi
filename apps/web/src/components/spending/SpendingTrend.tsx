@@ -18,17 +18,28 @@ import {
 import { ArrowRightIcon } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent, PointerEvent } from 'react'
-import type { SpendingTrendDto, SpendingTrendMonthDto } from '#/api/types.gen'
+import type {
+  SpendingKind,
+  SpendingTrendDto,
+  SpendingTrendMonthDto,
+} from '#/api/types.gen'
 import { formatShortDay } from '#/lib/period'
-import { seriesColor, UNCATEGORIZED_LABEL } from './labels'
+import { FIGURE_LABEL, KIND_COLOR, KIND_LABEL, NOTHING } from './kinds'
+import {
+  seriesColor,
+  seriesLabel,
+  UNCATEGORIZED_LABEL,
+  UNKNOWN_ACCOUNT_LABEL,
+} from './labels'
 import { SpendingCategoryIcon } from './SpendingCategoryIcon'
 
-/** A chip of the trend: one category shown alone. */
+/** A chip of the trend: one category (account, in Épargne) shown alone. */
 export interface TrendChip {
-  /** `?trend=` value: the category id, or `none` for the uncategorized bucket. */
+  /** `?trend=` value: the category or account id, or `none` for the bucket without. */
   value: string
   name: string
   categoryId: string | null
+  accountId: string | null
   icon: string | null
   color: string | null
 }
@@ -46,8 +57,6 @@ interface SpendingTrendProps {
   onOpenMonth: (month: string) => void
 }
 
-/** Colour of the total: money out. */
-const TOTAL_COLOR = 'var(--chart-expense)'
 /** Height of the bars' area: taller on a wide card, where the detail floats over it. */
 const PLOT_HEIGHT = 'h-[168px] @[34rem]:h-[232px]'
 /** Room above the highest bar for the highlighted month's value. */
@@ -90,10 +99,11 @@ export function SpendingTrend({
 }: SpendingTrendProps) {
   const single = selected !== undefined
   const series = single ? data.series.at(0) : undefined
-  const color = (series && seriesColor(series)) ?? TOTAL_COLOR
+  // The total in its part's colour: money out, in, set aside.
+  const color = (series && seriesColor(series)) ?? KIND_COLOR[data.kind]
   const name = single
     ? (chips.find((chip) => chip.value === selected)?.name ??
-      (series ? (series.name ?? UNCATEGORIZED_LABEL) : 'Catégorie'))
+      (series ? seriesLabel(series, data.kind) : 'Catégorie'))
     : 'Tout'
 
   const values = data.totalsCents
@@ -133,7 +143,7 @@ export function SpendingTrend({
   const empty = values.every((value) => value === 0)
   const first = data.months[0]
   const last = data.months.at(-1)
-  const label = `Dépenses par mois, ${single ? name : 'total'}, de ${first ? formatMonthLong(first) : ''} à ${last ? formatMonthLong(last) : ''}`
+  const label = `${KIND_LABEL[data.kind]} par mois, ${single ? name : 'total'}, de ${first ? formatMonthLong(first) : ''} à ${last ? formatMonthLong(last) : ''}`
 
   const monthAt = (target: EventTarget) =>
     (target as HTMLElement).closest<HTMLElement>('[data-month]')?.dataset
@@ -169,7 +179,7 @@ export function SpendingTrend({
 
       {empty ? (
         <div className="text-muted-foreground flex h-[220px] items-center justify-center rounded-lg border border-dashed px-4 text-center text-sm">
-          Aucune dépense sur ces {data.months.length} mois
+          {NOTHING[data.kind]} sur ces {data.months.length} mois
         </div>
       ) : (
         <div
@@ -258,6 +268,7 @@ export function SpendingTrend({
                     name={name}
                     average={average}
                     sameDaysAverage={data.sameDaysAverageCents}
+                    kind={data.kind}
                     current={active === month}
                     onOpen={() => onOpenMonth(active)}
                   />
@@ -272,7 +283,7 @@ export function SpendingTrend({
         <TrendTable
           data={data}
           label={label}
-          name={single ? name : 'Dépensé'}
+          name={single ? name : FIGURE_LABEL[data.kind]}
         />
       )}
     </div>
@@ -504,6 +515,7 @@ function MonthDetail({
   name,
   average,
   sameDaysAverage,
+  kind,
   current,
   onOpen,
 }: {
@@ -514,6 +526,7 @@ function MonthDetail({
   name: string
   average: number | null
   sameDaysAverage: number | null
+  kind: SpendingKind
   current: boolean
   onOpen: () => void
 }) {
@@ -544,7 +557,7 @@ function MonthDetail({
           <div className="space-y-0.5">
             <p className="flex items-baseline justify-between gap-3">
               <span className="text-muted-foreground">
-                {single ? name : 'Dépensé'}
+                {single ? name : FIGURE_LABEL[kind]}
               </span>
               <span className="font-semibold whitespace-nowrap tabular-nums">
                 {formatEuros(value)}
@@ -571,7 +584,10 @@ function MonthDetail({
                 >
                   <SpendingCategoryIcon item={top} size="sm" />
                   <span className="min-w-0 flex-1 truncate">
-                    {top.name ?? UNCATEGORIZED_LABEL}
+                    {top.name ??
+                      (kind === 'savings'
+                        ? UNKNOWN_ACCOUNT_LABEL
+                        : UNCATEGORIZED_LABEL)}
                   </span>
                   <span className="whitespace-nowrap tabular-nums">
                     {formatWholeEuros(top.spentCents)}

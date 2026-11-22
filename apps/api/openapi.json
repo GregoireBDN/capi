@@ -5793,6 +5793,20 @@
         "operationId": "SpendingController_byCategory",
         "parameters": [
           {
+            "description": "`expense`: expenses by category (money out positive, refunds netted). `income`: income by category (money in positive, outgoing amounts filed in income netted). `savings`: « Mis de côté », the transfers from the checking accounts to the savings accounts and investments by account (as the Épargne page counts them: deposits positive, withdrawals negative; one-offs always counted). Transfers are never income or expense.",
+            "required": false,
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "default": "expense",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SpendingKind"
+                }
+              ]
+            }
+          },
+          {
             "description": "Calendar month (YYYY-MM). Default: the current month in Europe/Paris when it has data (in the account filtered on, if any), else the month the data stops in.",
             "required": false,
             "name": "month",
@@ -5814,7 +5828,7 @@
             }
           },
           {
-            "description": "Only this account. Default: every account.",
+            "description": "Only this account. Default: every account. With `kind=savings`: the transfers from or to this account.",
             "required": false,
             "name": "accountId",
             "in": "query",
@@ -5871,6 +5885,20 @@
         "operationId": "SpendingController_trend",
         "parameters": [
           {
+            "description": "`expense`: expenses by category (money out positive, refunds netted). `income`: income by category (money in positive, outgoing amounts filed in income netted). `savings`: « Mis de côté », the transfers from the checking accounts to the savings accounts and investments by account (as the Épargne page counts them: deposits positive, withdrawals negative; one-offs always counted). Transfers are never income or expense.",
+            "required": false,
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "default": "expense",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/SpendingKind"
+                }
+              ]
+            }
+          },
+          {
             "description": "Calendar month (YYYY-MM). Default: the current month in Europe/Paris when it has data (in the account filtered on, if any), else the month the data stops in.",
             "required": false,
             "name": "month",
@@ -5892,7 +5920,7 @@
             }
           },
           {
-            "description": "Only this account. Default: every account.",
+            "description": "Only this account. Default: every account. With `kind=savings`: the transfers from or to this account.",
             "required": false,
             "name": "accountId",
             "in": "query",
@@ -5914,7 +5942,7 @@
             }
           },
           {
-            "description": "Only this category (one series). Cannot be combined with `uncategorized`.",
+            "description": "Only this category (one series); with `kind=savings`, only this account. Cannot be combined with `uncategorized`.",
             "required": false,
             "name": "categoryId",
             "in": "query",
@@ -17050,6 +17078,15 @@
           "missing"
         ]
       },
+      "SpendingKind": {
+        "type": "string",
+        "enum": [
+          "expense",
+          "income",
+          "savings"
+        ],
+        "description": "`expense`: expenses by category (money out positive, refunds netted). `income`: income by category (money in positive, outgoing amounts filed in income netted). `savings`: « Mis de côté », the transfers from the checking accounts to the savings accounts and investments by account (as the Épargne page counts them: deposits positive, withdrawals negative; one-offs always counted). Transfers are never income or expense."
+      },
       "CategorySpendingDto": {
         "type": "object",
         "properties": {
@@ -17116,7 +17153,32 @@
           },
           "expectedCents": {
             "type": "integer",
-            "description": "Recurring costs of the category (confirmed subscriptions and fixed costs) still expected later in the month, positive integer cents: not paid yet, so never counted as spent nor as a saving. 0 unless the month is partial."
+            "description": "Recurring costs of the category (confirmed subscriptions and fixed costs; with `kind=income`, confirmed recurring credits such as the salary) still expected later in the month, positive integer cents: not booked yet, so never counted nor compared. 0 unless the month is partial, and always with `kind=savings`."
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "`kind=savings`: the savings account or investment the money went to; null for a transfer whose account is not known (and for every row of the other kinds)."
+          },
+          "accountType": {
+            "nullable": true,
+            "description": "`kind=savings`: that account’s type. Null otherwise.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountType"
+              }
+            ]
+          },
+          "inCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "`kind=savings`: paid into the account in the month (positive cents; `spentCents` = `inCents` - `outCents`). Null for the other kinds."
+          },
+          "outCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "`kind=savings`: taken out of the account in the month (positive cents). Null for the other kinds."
           }
         },
         "required": [
@@ -17133,12 +17195,23 @@
           "averageCents",
           "notYetThisMonth",
           "targetCents",
-          "expectedCents"
+          "expectedCents",
+          "accountId",
+          "accountType",
+          "inCents",
+          "outCents"
         ]
       },
       "SpendingByCategoryDto": {
         "type": "object",
         "properties": {
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpendingKind"
+              }
+            ]
+          },
           "month": {
             "type": "string",
             "example": "2026-10"
@@ -17200,6 +17273,7 @@
           }
         },
         "required": [
+          "kind",
           "month",
           "previousMonth",
           "period",
@@ -17220,6 +17294,7 @@
         "enum": [
           "category",
           "uncategorized",
+          "account",
           "other"
         ]
       },
@@ -17228,7 +17303,7 @@
         "properties": {
           "key": {
             "type": "string",
-            "description": "Stable key: the category id, `uncategorized` or `other` (the remaining categories)."
+            "description": "Stable key: the category id (the account id with `kind=savings`), `uncategorized` (no category; no known account with `kind=savings`) or `other` (the remaining ones)."
           },
           "type": {
             "allOf": [
@@ -17241,6 +17316,12 @@
             "type": "string",
             "format": "uuid",
             "nullable": true
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "`kind=savings`: the account of the series. Null otherwise."
           },
           "slug": {
             "type": "string",
@@ -17279,6 +17360,7 @@
           "key",
           "type",
           "categoryId",
+          "accountId",
           "slug",
           "name",
           "color",
@@ -17365,6 +17447,13 @@
       "SpendingTrendDto": {
         "type": "object",
         "properties": {
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpendingKind"
+              }
+            ]
+          },
           "months": {
             "example": [
               "2026-09",
@@ -17416,6 +17505,7 @@
           }
         },
         "required": [
+          "kind",
           "months",
           "includeOneOffs",
           "series",
