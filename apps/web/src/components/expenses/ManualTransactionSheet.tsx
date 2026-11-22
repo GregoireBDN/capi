@@ -86,6 +86,7 @@ import type {
   TransactionEditActions,
 } from '#/components/transactions/edit-options'
 import {
+  draftSplitError,
   editBody,
   editDraftOf,
   fieldsOf,
@@ -786,6 +787,15 @@ export function ManualTransactionSheet({
     preview.amountCents < 0 &&
     !split &&
     !shareValid(draft.share, -preview.amountCents)
+  // A split started in the draft that does not add up yet (#435).
+  const editSplitError =
+    preview !== undefined && draft !== null
+      ? draftSplitError(
+          draft.splits,
+          preview.amountCents,
+          categories.data ?? [],
+        )
+      : null
 
   /** Closes the editor; with unsaved changes, asks first (#435). */
   function requestClose(next: boolean) {
@@ -824,6 +834,7 @@ export function ManualTransactionSheet({
     (voucherOver ? 'over' : null) ??
     (!bank && !paidBy && !paidByOther && !accountId ? 'account' : null) ??
     (shareError || editShareError ? 'share' : null) ??
+    (editSplitError ? 'split' : null) ??
     (transferAdd && !toAccountId ? 'to' : null)
 
   // "Suivant" (and Enter) moves on; the last step adds, back
@@ -857,6 +868,8 @@ export function ManualTransactionSheet({
       setDetour(null)
       return setStep('options')
     }
+    // Its screen says what is wrong.
+    if (editSplitError) return setDetour('split')
     if (formError) return
     if (editing) {
       if (dirty) void saveEdit()
@@ -1276,6 +1289,8 @@ export function ManualTransactionSheet({
             saved={item}
             categories={categories.data ?? []}
             draft={draft}
+            initial={initialDraft ?? draft}
+            showErrors={submitted}
             onDraftChange={setDraft}
             onDone={() => setDetour(null)}
           />

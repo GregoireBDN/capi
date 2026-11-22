@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render as baseRender, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { CategoryDto, TransactionDto } from '#/api/types.gen'
 import {
@@ -8,6 +9,7 @@ import {
   chooseCategory,
   pickCategory,
 } from '#/test/category-picker'
+import type { SplitPartDraft } from './edit-draft'
 import { SplitEditor } from './SplitEditor'
 
 /** With a query client: the category picker reads the most used. */
@@ -77,19 +79,48 @@ const payback: TransactionDto = {
   updatedAt: '2026-10-20T00:00:00.000Z',
 }
 
+/** The editor's draft (#435): every change goes into it. */
+function Draft({
+  item,
+  onDraft = () => {},
+  showError = false,
+  initial = [],
+}: {
+  item: TransactionDto
+  onDraft?: (parts: SplitPartDraft[]) => void
+  showError?: boolean
+  initial?: SplitPartDraft[]
+}) {
+  const [parts, setParts] = useState<SplitPartDraft[]>(initial)
+  return (
+    <SplitEditor
+      item={item}
+      parts={parts}
+      categories={categories}
+      showError={showError}
+      onChange={(next) => {
+        setParts(next)
+        onDraft(next)
+      }}
+      onReset={
+        JSON.stringify(parts) !== JSON.stringify(initial)
+          ? () => setParts(initial)
+          : undefined
+      }
+    />
+  )
+}
+
 describe('SplitEditor (#357)', () => {
-  it('labels a part in an expense category of money received a refund', async () => {
+  it('labels a part in an expense category of money received a refund, each change in the draft', async () => {
     const user = userEvent.setup()
-    const onSave = vi.fn()
-    render(
-      <SplitEditor
-        item={payback}
-        categories={categories}
-        onSave={onSave}
-        onCancel={() => {}}
-      />,
-    )
+    const onDraft = vi.fn()
+    render(<Draft item={payback} onDraft={onDraft} />)
     expect(screen.queryByText('Remboursement')).not.toBeInTheDocument()
+    // Nothing to validate here: no « Annuler », no « Valider » (#435).
+    expect(
+      screen.queryByRole('button', { name: /Valider|Annuler/ }),
+    ).not.toBeInTheDocument()
 
     const amount1 = screen.getByLabelText('Montant de la part 1')
     await user.clear(amount1)
@@ -104,20 +135,33 @@ describe('SplitEditor (#357)', () => {
     expect(
       screen.getByText(/déduit des dépenses Restaurants test/),
     ).toBeInTheDocument()
-
-    await user.click(
-      screen.getByRole('button', { name: 'Valider la répartition' }),
-    )
-    expect(onSave).toHaveBeenCalledWith([
-      { categoryId: refunds.id, amountCents: 4_000 },
-      { categoryId: restaurants.id, amountCents: 2_000 },
+    expect(onDraft).toHaveBeenLastCalledWith([
+      { categoryId: refunds.id, amount: '40' },
+      { categoryId: restaurants.id, amount: '20' },
     ])
+  })
+
+  it('puts the parts back as they were with « Réinitialiser »', async () => {
+    const user = userEvent.setup()
+    render(<Draft item={payback} />)
+    expect(
+      screen.queryByRole('button', { name: 'Réinitialiser' }),
+    ).not.toBeInTheDocument()
+    const amount1 = screen.getByLabelText('Montant de la part 1')
+    await user.clear(amount1)
+    await user.type(amount1, '40')
+    await user.click(screen.getByRole('button', { name: 'Réinitialiser' }))
+    // Not split yet: back to the whole amount in its category.
+    expect(screen.getByLabelText('Montant de la part 1')).toHaveValue('60')
+    expect(
+      screen.queryByRole('button', { name: 'Réinitialiser' }),
+    ).not.toBeInTheDocument()
   })
 
   it('never calls a part of money paid out a refund', async () => {
     const user = userEvent.setup()
     render(
-      <SplitEditor
+      <Draft
         item={{
           ...payback,
           amountCents: -6_000,
@@ -125,9 +169,6 @@ describe('SplitEditor (#357)', () => {
           categoryId: restaurants.id,
           category: { ...restaurants },
         }}
-        categories={categories}
-        onSave={() => {}}
-        onCancel={() => {}}
       />,
     )
     await chooseCategory(
@@ -138,29 +179,22 @@ describe('SplitEditor (#357)', () => {
     expect(screen.queryByText('Remboursement')).not.toBeInTheDocument()
   })
 
-  it('refuses a transfer category beside an income one', async () => {
+  it('says a transfer category cannot go beside an income one, once ✓ was tried', async () => {
     const user = userEvent.setup()
-    const onSave = vi.fn()
     render(
-      <SplitEditor
+      <Draft
         item={payback}
-        categories={categories}
-        onSave={onSave}
-        onCancel={() => {}}
+        showError
+        initial={[
+          { categoryId: refunds.id, amount: '40' },
+          { categoryId: '', amount: '20' },
+        ]}
       />,
     )
-    const amount1 = screen.getByLabelText('Montant de la part 1')
-    await user.clear(amount1)
-    await user.type(amount1, '40')
     // The picker opens on the part's kind: the transfers are a tile away.
     await user.click(categoryField('Catégorie de la part 2'))
     await user.click(screen.getByRole('radio', { name: 'Virement' }))
     await pickCategory(user, moves.name)
-    await user.type(screen.getByLabelText('Montant de la part 2'), '20')
-    await user.click(
-      screen.getByRole('button', { name: 'Valider la répartition' }),
-    )
-    expect(onSave).not.toHaveBeenCalled()
     expect(screen.getByText(/mouvement interne/)).toBeInTheDocument()
   })
 })

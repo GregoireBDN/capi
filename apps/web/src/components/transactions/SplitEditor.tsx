@@ -1,30 +1,31 @@
 import { Button, FieldError } from '@finances/ui'
-import { PlusIcon, XIcon } from 'lucide-react'
-import { useId, useState } from 'react'
+import { PlusIcon, RotateCcwIcon, XIcon } from 'lucide-react'
+import { useId } from 'react'
 import { AmountField } from '#/components/amount/AmountField'
 import type { CategoryDto, TransactionDto } from '#/api/types.gen'
-import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
+import { centsToInput } from '#/components/budget/amount'
 import { formatCents } from '#/lib/money'
 import { CategoryField } from '#/components/categories/CategoryPicker'
 import { isRefundPart, remainingCents, splitError } from './edits'
+import { typedSplitParts } from './edit-draft'
+import type { SplitPartDraft } from './edit-draft'
 
 /** Most parts the API accepts. */
 const MAX_PARTS = 20
 
-interface Part {
-  key: number
-  categoryId: string
-  /** Amount typed, in euros, without sign. */
-  amount: string
-}
-
 interface SplitEditorProps {
+  /** The transaction as the draft has it: its amount (and sign). */
   item: TransactionDto
-  /** The parts to start from (the editor's draft, #435), else its split. */
-  parts?: readonly { categoryId: string; amountCents: number }[]
+  /** The parts of the draft; empty when not split. */
+  parts: readonly SplitPartDraft[]
+  onChange: (parts: SplitPartDraft[]) => void
   categories: readonly CategoryDto[]
-  onSave: (parts: { categoryId: string; amountCents: number }[]) => void
-  onCancel: () => void
+  /** Say what is wrong (after ✓ « Enregistrer »). */
+  showError?: boolean
+  /** Back to the parts as the editor opened (shown once they changed). */
+  onReset?: () => void
+  /** Ends a split the transaction had (empty parts). */
+  onUnsplit?: () => void
 }
 
 /**
@@ -34,42 +35,35 @@ interface SplitEditorProps {
  * left to allocate shows as you type. Each part counts with its category's
  * kind (#357): on money received, a part in an expense category is labelled
  * « remboursement », since it is deducted from that category's spending.
+ *
+ * The editor's draft (#435): every change goes into it at once, nothing to
+ * validate here; ‹ keeps it, « Réinitialiser » puts back the parts as the
+ * editor opened, ✓ « Enregistrer » saves it with the rest. Not split yet,
+ * it starts from the whole amount in the transaction's category and a
+ * second part to fill, which become the draft at the first change.
  */
 export function SplitEditor({
   item,
-  parts: initialParts = item.splits,
+  parts: draftParts,
+  onChange,
   categories,
-  onSave,
-  onCancel,
+  showError = false,
+  onReset,
+  onUnsplit,
 }: SplitEditorProps) {
   const id = useId()
-  const sign = Math.sign(item.amountCents)
-  const [parts, setParts] = useState<Part[]>(() =>
-    initialParts.length > 0
-      ? initialParts.map((part, key) => ({
-          key,
-          categoryId: part.categoryId,
-          amount: centsToInput(Math.abs(part.amountCents)),
-        }))
+  const parts: SplitPartDraft[] =
+    draftParts.length > 0
+      ? [...draftParts]
       : [
           {
-            key: 0,
             categoryId: item.categoryId ?? '',
             amount: centsToInput(Math.abs(item.amountCents)),
           },
-          { key: 1, categoryId: '', amount: '' },
-        ],
-  )
-  const [submitted, setSubmitted] = useState(false)
-
-  const typed = parts.map((part) => {
-    const cents =
-      part.amount.trim() === '' ? null : parseEurosToCents(part.amount)
-    return {
-      categoryId: part.categoryId,
-      amountCents: cents === null ? null : cents * sign,
-    }
-  })
+          { categoryId: '', amount: '' },
+        ]
+  const sign = Math.sign(item.amountCents)
+  const typed = typedSplitParts(parts, item.amountCents)
   const byId = new Map(categories.map((category) => [category.id, category]))
   const left = remainingCents(item.amountCents, typed)
   const error = splitError(
@@ -78,17 +72,16 @@ export function SplitEditor({
     (categoryId) => byId.get(categoryId)?.kind,
   )
 
-  function change(key: number, patch: Partial<Part>) {
-    setParts((current) =>
-      current.map((part) => (part.key === key ? { ...part, ...patch } : part)),
+  function change(index: number, patch: Partial<SplitPartDraft>) {
+    onChange(
+      parts.map((part, at) => (at === index ? { ...part, ...patch } : part)),
     )
   }
 
   function addPart() {
-    setParts((current) => [
-      ...current,
+    onChange([
+      ...parts,
       {
-        key: Math.max(...current.map((part) => part.key)) + 1,
         categoryId: '',
         // Offer what is left.
         amount: left * sign > 0 ? centsToInput(Math.abs(left)) : '',
@@ -97,58 +90,50 @@ export function SplitEditor({
   }
 
   return (
-    <form
-      noValidate
+    <div
+      role="group"
       aria-label="Répartir entre catégories"
       className="space-y-3"
-      onSubmit={(event) => {
-        event.preventDefault()
-        setSubmitted(true)
-        if (error) return
-        onSave(
-          typed.map((part) => ({
-            categoryId: part.categoryId,
-            amountCents: part.amountCents!,
-          })),
-        )
-      }}
     >
       <ul className="space-y-2">
         {parts.map((part, index) => {
           const category = byId.get(part.categoryId)
           const refund = category && isRefundPart(item, category.kind)
           return (
-            <li key={part.key} className="flex flex-wrap items-center gap-2">
+            // The parts have no id of their own: their place is theirs.
+            <li key={index} className="flex flex-wrap items-center gap-2">
               <CategoryField
-                id={`${id}-category-${part.key}`}
+                id={`${id}-category-${index}`}
                 categories={categories}
                 value={part.categoryId || null}
-                onPick={(categoryId) => change(part.key, { categoryId })}
+                onPick={(categoryId) => change(index, { categoryId })}
                 label={`Catégorie de la part ${index + 1}`}
                 className="min-w-[8rem] flex-1"
               />
-              <AmountField
-                groupClassName="w-[6.5rem]"
-                aria-label={`Montant de la part ${index + 1}`}
-                placeholder="0,00"
-                value={part.amount}
-                onValueChange={(amount) => change(part.key, { amount })}
-              />
-              <Button
-                type="button"
-                iconOnly
-                ghost
-                variant="secondary"
-                aria-label={`Retirer la part ${index + 1}`}
-                disabled={parts.length <= 2}
-                onClick={() =>
-                  setParts((current) =>
-                    current.filter((other) => other.key !== part.key),
-                  )
-                }
-              >
-                <XIcon />
-              </Button>
+              {/* The amount and its ✕ stay together: under the category
+                  when both don't fit (a phone). */}
+              <span className="ml-auto flex shrink-0 items-center gap-2">
+                <AmountField
+                  groupClassName="w-[6.5rem]"
+                  aria-label={`Montant de la part ${index + 1}`}
+                  placeholder="0,00"
+                  value={part.amount}
+                  onValueChange={(amount) => change(index, { amount })}
+                />
+                <Button
+                  type="button"
+                  iconOnly
+                  ghost
+                  variant="secondary"
+                  aria-label={`Retirer la part ${index + 1}`}
+                  disabled={parts.length <= 2}
+                  onClick={() =>
+                    onChange(parts.filter((_, at) => at !== index))
+                  }
+                >
+                  <XIcon />
+                </Button>
+              </span>
               {refund && (
                 <p className="w-full text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">
@@ -186,21 +171,36 @@ export function SplitEditor({
             : `Reste à répartir : ${formatCents(Math.abs(left))}`}
         </span>
       </div>
-      {submitted && error && <FieldError>{error}</FieldError>}
-      <div className="flex justify-end gap-2">
-        <Button
-          type="button"
-          size="sm"
-          ghost
-          variant="secondary"
-          onClick={onCancel}
-        >
-          Annuler
-        </Button>
-        <Button type="submit" size="sm">
-          Valider la répartition
-        </Button>
-      </div>
-    </form>
+      {showError && error && draftParts.length > 0 && (
+        <FieldError>{error}</FieldError>
+      )}
+      {(onReset || onUnsplit) && (
+        <div className="flex flex-wrap gap-2">
+          {onReset && (
+            <Button
+              type="button"
+              size="sm"
+              ghost
+              variant="secondary"
+              onClick={onReset}
+            >
+              <RotateCcwIcon />
+              Réinitialiser
+            </Button>
+          )}
+          {onUnsplit && (
+            <Button
+              type="button"
+              size="sm"
+              ghost
+              variant="secondary"
+              onClick={onUnsplit}
+            >
+              Ne plus répartir
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

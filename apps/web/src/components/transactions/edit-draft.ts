@@ -1,4 +1,5 @@
 import type {
+  CategoryDto,
   MoneyDirection,
   SaveTransactionEditDto,
   TransactionDto,
@@ -14,7 +15,7 @@ import {
 } from '#/components/owed/ShareScreen'
 import type { ShareDraft } from '#/components/owed/ShareScreen'
 import { manualBody } from '#/components/expenses/queries'
-import { splitParts } from './edits'
+import { splitError, splitParts } from './edits'
 
 /**
  * The transaction editor's draft (#435, the owner's option B): the editor
@@ -54,12 +55,53 @@ export interface RepaymentDraft {
   link: { splitId?: string; items: RepaymentLinkItem[] } | null
 }
 
+/** One part of a split as typed: its category, its amount without sign. */
+export interface SplitPartDraft {
+  categoryId: string
+  amount: string
+}
+
+/**
+ * The parts typed, in signed cents (the transaction's sign), null where an
+ * amount is empty or not valid.
+ */
+export function typedSplitParts(
+  parts: readonly SplitPartDraft[],
+  totalCents: number,
+): { categoryId: string; amountCents: number | null }[] {
+  const sign = Math.sign(totalCents)
+  return parts.map((part) => {
+    const cents =
+      part.amount.trim() === '' ? null : parseEurosToCents(part.amount)
+    return {
+      categoryId: part.categoryId,
+      amountCents: cents === null ? null : cents * sign,
+    }
+  })
+}
+
+/**
+ * What is wrong with the split of the draft, or null when it can be saved
+ * (not split, or parts summing exactly to `totalCents`).
+ */
+export function draftSplitError(
+  parts: readonly SplitPartDraft[],
+  totalCents: number,
+  categories: readonly CategoryDto[],
+): string | null {
+  if (parts.length === 0) return null
+  const kinds = new Map(categories.map((c) => [c.id, c.kind]))
+  return splitError(totalCents, typedSplitParts(parts, totalCents), (id) =>
+    kinds.get(id),
+  )
+}
+
 /** What the screens of an edit's « Options » change (#398, #435). */
 export interface EditDraft {
   /** A transfer's other account (#296). */
   counterpartAccountId: string | null
-  /** The parts of its split (signed cents), empty when not split. */
-  splits: { categoryId: string; amountCents: number }[]
+  /** The parts of its split as typed, empty when not split. */
+  splits: SplitPartDraft[]
   /** Who owes the owner what on it (#359). */
   share: ShareDraft
   /** The prepaid term of the item it pays (#314), null when none. */
@@ -92,7 +134,10 @@ export function fieldsOf(item: TransactionDto): EditFields {
 export function editDraftOf(item: TransactionDto): EditDraft {
   return {
     counterpartAccountId: item.counterpartAccountId,
-    splits: splitParts(item),
+    splits: splitParts(item).map((part) => ({
+      categoryId: part.categoryId,
+      amount: centsToInput(Math.abs(part.amountCents)),
+    })),
     share: shareDraftOf(item),
     prepaidTermMonths: item.prepaidItemId ? item.prepaidTermMonths : null,
     repayment: { unlink: [], link: null },
@@ -190,8 +235,25 @@ export function editBody({
   }
   if (Object.keys(changes).length > 0) body.changes = changes
 
-  if (JSON.stringify(draft.splits) !== JSON.stringify(initial.splits)) {
-    body.split = draft.splits.length > 0 ? { parts: draft.splits } : null
+  // Compared in cents: « 30 » and « 30,00 » are the same part.
+  const parts = typedSplitParts(
+    draft.splits,
+    signedCents(fields) ?? item.amountCents,
+  )
+  if (
+    JSON.stringify(parts) !==
+    JSON.stringify(typedSplitParts(initial.splits, item.amountCents))
+  ) {
+    body.split =
+      parts.length > 0
+        ? {
+            parts: parts.map(({ categoryId, amountCents }) => ({
+              categoryId,
+              // A part not valid yet: ✓ is refused before (`draftSplitError`).
+              amountCents: amountCents ?? 0,
+            })),
+          }
+        : null
   }
 
   // Shares follow the amount when split evenly: compared on the amounts.

@@ -1,5 +1,4 @@
 import {
-  Button,
   cn,
   SETTING_GROUP_CLASS,
   SETTING_ROW_CLASS,
@@ -35,6 +34,7 @@ import { formatCents } from '#/lib/money'
 import { accountsQuery, categoriesQuery } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import type { TransactionChanges } from './changes'
+import { draftSplitError } from './edit-draft'
 import type { EditDraft } from './edit-draft'
 import { counterpartLabel } from './labels'
 import { SplitEditor } from './SplitEditor'
@@ -217,15 +217,19 @@ export function EditOptionRows({
       icon={SplitIcon}
       label={split ? 'Répartition' : 'Répartir'}
       value={
-        split
-          ? [
-              ...new Set(
-                draft.splits.map(
-                  (part) => categoryNames.get(part.categoryId) ?? '…',
+        // Started but not adding up yet: ✓ is refused until it does.
+        split &&
+        draftSplitError(draft.splits, item.amountCents, categories.data ?? [])
+          ? 'À compléter'
+          : split
+            ? [
+                ...new Set(
+                  draft.splits.map(
+                    (part) => categoryNames.get(part.categoryId) ?? '…',
+                  ),
                 ),
-              ),
-            ].join(', ')
-          : 'Non'
+              ].join(', ')
+            : 'Non'
       }
       onClick={() => onOpen('split')}
     />,
@@ -320,6 +324,8 @@ export function EditDetourScreen({
   saved,
   categories,
   draft,
+  initial,
+  showErrors,
   onDraftChange,
   onDone,
 }: {
@@ -330,6 +336,10 @@ export function EditDetourScreen({
   saved: TransactionDto
   categories: readonly CategoryDto[]
   draft: EditDraft
+  /** The draft as the editor opened: what « Réinitialiser » puts back. */
+  initial: EditDraft
+  /** ✓ was tried: say what is wrong. */
+  showErrors: boolean
   onDraftChange: (draft: EditDraft) => void
   /** Back to « Options ». */
   onDone: () => void
@@ -384,34 +394,29 @@ export function EditDetourScreen({
           }}
         />
       )
-    case 'split':
+    case 'split': {
+      const changed =
+        JSON.stringify(draft.splits) !== JSON.stringify(initial.splits)
+      // Changed as typed (#435): ‹ keeps it, ✓ saves it with the rest.
       return (
-        <div className="space-y-3">
-          <SplitEditor
-            item={item}
-            parts={draft.splits}
-            categories={categories}
-            onCancel={onDone}
-            onSave={(splits) => {
-              onDraftChange({ ...draft, splits })
-              onDone()
-            }}
-          />
-          {draft.splits.length > 0 && (
-            <Button
-              type="button"
-              size="sm"
-              ghost
-              variant="secondary"
-              onClick={() => {
-                onDraftChange({ ...draft, splits: [] })
-                onDone()
-              }}
-            >
-              Ne plus répartir
-            </Button>
-          )}
-        </div>
+        <SplitEditor
+          item={item}
+          parts={draft.splits}
+          categories={categories}
+          showError={showErrors}
+          onChange={(splits) => onDraftChange({ ...draft, splits })}
+          onReset={
+            changed
+              ? () => onDraftChange({ ...draft, splits: initial.splits })
+              : undefined
+          }
+          onUnsplit={
+            initial.splits.length > 0 && draft.splits.length > 0
+              ? () => onDraftChange({ ...draft, splits: [] })
+              : undefined
+          }
+        />
       )
+    }
   }
 }

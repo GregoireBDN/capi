@@ -134,9 +134,19 @@ describe('editBody (#435)', () => {
       { categoryId: GROCERIES, amountCents: -4_000 },
       { categoryId: OUTINGS, amountCents: -2_000 },
     ]
-    expect(bodyOf(base, {}, { splits: parts })).toEqual({
-      split: { parts },
-    })
+    // Typed as text, sent in signed cents; « 40,00 » is still 40 €.
+    expect(
+      bodyOf(
+        base,
+        {},
+        {
+          splits: [
+            { categoryId: GROCERIES, amount: '40,00' },
+            { categoryId: OUTINGS, amount: '20' },
+          ],
+        },
+      ),
+    ).toEqual({ split: { parts } })
     const split = {
       ...base,
       splits: parts.map((part, index) => ({

@@ -1672,7 +1672,7 @@ describe('TransactionsPage', () => {
       await user.click(
         within(editor).getByRole('button', { name: /^Répartir/ }),
       )
-      const form = within(editor).getByRole('form', {
+      const form = within(editor).getByRole('group', {
         name: 'Répartir entre catégories',
       })
       // The whole amount starts in the first part.
@@ -1698,10 +1698,9 @@ describe('TransactionsPage', () => {
         '15,5',
       )
       expect(form).toHaveTextContent('Tout est réparti')
+      // Kept as typed (#435): ‹ back to the options, nothing to validate.
       await user.click(
-        within(form).getByRole('button', {
-          name: 'Valider la répartition',
-        }),
+        within(editor).getByRole('button', { name: 'Retour aux options' }),
       )
 
       // Back on the options of the editor, which shows the split, unsaved.
@@ -1763,7 +1762,7 @@ describe('TransactionsPage', () => {
       await user.click(
         within(editor).getByRole('button', { name: /^Répartir/ }),
       )
-      const form = within(editor).getByRole('form', {
+      const form = within(editor).getByRole('group', {
         name: 'Répartir entre catégories',
       })
       await chooseCategory(
@@ -1777,12 +1776,22 @@ describe('TransactionsPage', () => {
         household.name,
       )
       await user.type(within(form).getByLabelText('Montant de la part 2'), '1')
+      // Back on the options it is « À compléter », and ✓ brings its screen
+      // back with what is wrong, saving nothing (#435).
       await user.click(
-        within(form).getByRole('button', {
-          name: 'Valider la répartition',
-        }),
+        within(editor).getByRole('button', { name: 'Retour aux options' }),
       )
-      expect(form).toHaveTextContent(
+      expect(
+        within(editor).getByRole('button', { name: /^Répartition/ }),
+      ).toHaveTextContent('À compléter')
+      await user.click(
+        within(editor).getByRole('button', { name: 'Enregistrer' }),
+      )
+      expect(
+        within(editor).getByRole('group', {
+          name: 'Répartir entre catégories',
+        }),
+      ).toHaveTextContent(
         'Les parts doivent faire exactement le montant de l’opération',
       )
       expect(api.transactionEditControllerSave).not.toHaveBeenCalled()
