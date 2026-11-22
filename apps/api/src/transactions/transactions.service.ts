@@ -24,6 +24,7 @@ import {
 import { alias } from 'drizzle-orm/pg-core'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type { CategoryIcon } from '#/categories/category-icons'
+import { receivableState } from '#/owed/state'
 import type { TransactionKind } from '#/database/schema/domain-enums'
 import { prepaidSuggestions } from '#/recurring/prepaid-suggestions'
 import { DatabaseService } from '#/database/database.service'
@@ -546,7 +547,7 @@ export class TransactionsService {
           splitId: r.splitId,
           amountCents: r.amountCents,
           billCents: r.billCents,
-          forgivenAt: r.forgivenAt,
+          forgivenCents: r.forgivenCents,
           repaidCents:
             sql<number>`coalesce(${paid.paidCents}, 0)::bigint`.mapWith(Number),
         })
@@ -573,17 +574,9 @@ export class TransactionsService {
         .orderBy(asc(p.createdAt), asc(p.id)),
     ])
     const shares = new Map<string, TransactionShareDto[]>()
-    for (const { transactionId, forgivenAt, ...row } of shareRows) {
+    for (const { transactionId, ...row } of shareRows) {
       const list = shares.get(transactionId) ?? []
-      list.push({
-        ...row,
-        state:
-          forgivenAt !== null
-            ? 'forgiven'
-            : row.repaidCents >= row.amountCents
-              ? 'repaid'
-              : 'open',
-      })
+      list.push({ ...row, state: receivableState(row) })
       shares.set(transactionId, list)
     }
     const repayments = new Map<string, TransactionRepaymentDto[]>()

@@ -1,4 +1,5 @@
 import '#/load-env'
+import { sql } from 'drizzle-orm'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -343,7 +344,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
           ])
           .returning()
         // 2 000 + 1 000 linked to a 25 € transfer, and 1 000 too many on
-        // the dinner's 20 € share (written past the service's guards).
+        // the dinner's 20 € share (written past the service's guards, and
+        // past the database rule of #437, switched off in this rolled-back
+        // transaction: the check is for data from before it).
+        await tx.execute(
+          sql`alter table receivable_payments disable trigger receivable_payments_within_share`,
+        )
         await tx.insert(receivablePaymentsTable).values([
           {
             receivableId: owedDinner.id,
@@ -363,6 +369,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
             paidOn: '2026-09-25',
           },
         ])
+        await tx.execute(
+          sql`alter table receivable_payments enable trigger receivable_payments_within_share`,
+        )
 
         const result = await run(service)
         const owed = result.findings.filter((f) => f.check === 'owed')

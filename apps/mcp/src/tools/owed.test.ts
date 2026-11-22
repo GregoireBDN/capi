@@ -13,6 +13,7 @@ import type {
 } from '../api/types.js'
 import { restaurants, salary, transaction } from '../test/fixtures.js'
 import { connect } from '../test/mock-api.js'
+import { itemLine } from './owed.js'
 import { divideHalfEven, shareOf } from './owed-writes.js'
 
 const DINNER = '00000000-0000-4000-8000-0000000000d1'
@@ -60,6 +61,7 @@ const sharedDinner: TransactionDto = {
     splitId: null,
     amountCents: 3167,
     repaidCents: 0,
+    forgivenCents: 0,
     billCents: null,
     state: 'open' as const,
   })),
@@ -106,6 +108,7 @@ const item: ReceivableDto = {
   repaidCents: 0,
   leftCents: 3167,
   state: 'open',
+  forgivenCents: 0,
   forgivenAt: null,
   forgivenNote: null,
   note: null,
@@ -153,6 +156,40 @@ describe('share arithmetic', () => {
     expect(shareOf('parts égales', 10000, 2)).toBe(3333)
     expect(shareOf('moitié', 9000, 1)).toBe(4500)
     expect(shareOf('30', 9000, 2)).toBe(3000)
+  })
+})
+
+describe('itemLine (#437)', () => {
+  it('shows the part let go beside what was received', () => {
+    // 60 €, 20 € repaid, 20 € let go: 20 € still owed.
+    const partly = {
+      ...item,
+      amountCents: 6000,
+      repaidCents: 2000,
+      forgivenCents: 2000,
+      leftCents: 2000,
+      forgivenAt: '2026-11-10T10:00:00.000Z',
+    }
+    expect(itemLine(partly)).toContain(
+      'reste 20,00 € (reçu 20,00 €, abandonné 20,00 €)',
+    )
+    expect(
+      itemLine({
+        ...partly,
+        repaidCents: 4000,
+        leftCents: 0,
+        state: 'forgiven',
+      }),
+    ).toContain('abandonné (reçu 40,00 €, abandonné 20,00 €)')
+    expect(
+      itemLine({
+        ...partly,
+        repaidCents: 0,
+        forgivenCents: 6000,
+        leftCents: 0,
+        state: 'forgiven',
+      }),
+    ).toContain(' · abandonné · ')
   })
 })
 

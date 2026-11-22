@@ -35,7 +35,8 @@ export interface ChargeReceivable {
   id: string
   amountCents: number
   repaidCents: number
-  forgiven: boolean
+  /** The part let go (#437): no longer expected. */
+  forgivenCents: number
 }
 
 export interface ExpectedRepayment {
@@ -95,17 +96,18 @@ export function expectedRepayments(
           occurrence.transactionId,
           item.contactId,
         )
-        if (!receivable || receivable.forgiven) continue
-        const received = Math.min(
-          receivable.repaidCents,
-          receivable.amountCents,
-        )
+        if (!receivable) continue
+        // What is still claimed: the share minus the part let go (#437).
+        const claimed = receivable.amountCents - receivable.forgivenCents
+        const received = Math.min(receivable.repaidCents, claimed)
+        // Let go with nothing left to claim: not expected any more.
+        if (receivable.forgivenCents > 0 && received >= claimed) continue
         result.push({
           ...base,
-          expectedCents: receivable.amountCents,
+          expectedCents: claimed,
           receivedCents: received,
           status:
-            received >= receivable.amountCents
+            received >= claimed
               ? 'received'
               : received > 0
                 ? 'partial'

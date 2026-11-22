@@ -256,6 +256,144 @@ describe.skipIf(!process.env.DATABASE_URL)('OwedService (database)', () => {
     )
   })
 
+  it('lets go part of what is left and still claims the rest (#437, the issue’s example)', async () => {
+    await withFixture(
+      async ({ owed, transactions, row, spent, income, restaurants, refunds }) => {
+        // A 90 € dinner, Sam owes 60 €, repays 20 €.
+        const dinner = await row(
+          '2026-10-05',
+          -9_000,
+          'CB RESTAURANT FICTIF',
+          restaurants,
+        )
+        const shared = await owed.createShares({
+          transactionId: dinner,
+          shares: [{ contactName: 'Sam', amountCents: 6_000 }],
+        })
+        const itemId = shared.shares[0].id
+        const first = await row('2026-10-10', 2_000, 'VIR SAM FICTIF', refunds)
+        await owed.linkRepayment(
+          {
+            transactionId: first,
+            items: [{ receivableId: itemId, amountCents: 2_000 }],
+          },
+          NOW,
+        )
+        expect(await spent(restaurants)).toBe(3_000)
+
+        await expect(
+          owed.forgive(itemId, { amountCents: 4_001 }, NOW),
+        ).rejects.toThrow(BadRequestException)
+        // He lets 20 € go and still claims 20 €.
+        const letGo = await owed.forgive(
+          itemId,
+          { amountCents: 2_000, note: 'sa part du vin' },
+          NOW,
+        )
+        expect(letGo).toMatchObject({
+          state: 'open',
+          repaidCents: 2_000,
+          forgivenCents: 2_000,
+          leftCents: 2_000,
+          forgivenNote: 'sa part du vin',
+        })
+        // His spending: 30 € his part + 20 € let go, on the dinner's day.
+        expect(await spent(restaurants)).toBe(5_000)
+        expect(await spent(restaurants, '2026-11')).toBe(0)
+        const sam = await owed.contactOwed(letGo.contactId, NOW)
+        expect(sam.owedToMe.totals).toEqual({
+          totalCents: 6_000,
+          repaidCents: 2_000,
+          forgivenCents: 2_000,
+          openCents: 2_000,
+        })
+        expect(sam.owedToMe.open.map((i) => i.id)).toEqual([itemId])
+        expect((await owed.summary(NOW)).owedToMe.totalCents).toBe(2_000)
+
+        // A share can't go below what was repaid and let go.
+        await expect(
+          owed.updateReceivable(itemId, { amountCents: 3_999 }),
+        ).rejects.toThrow(BadRequestException)
+
+        // A later 20 € repayment links and settles it.
+        const second = await row('2026-10-25', 2_000, 'VIR SAM FICTIF', refunds)
+        await expect(
+          owed.linkRepayment(
+            {
+              transactionId: second,
+              items: [{ receivableId: itemId, amountCents: 2_001 }],
+            },
+            NOW,
+          ),
+        ).rejects.toThrow('The repayment exceeds what is left on an item')
+        await owed.linkRepayment(
+          {
+            transactionId: second,
+            items: [{ receivableId: itemId, amountCents: 2_000 }],
+          },
+          NOW,
+        )
+        const settled = await owed.findReceivable(itemId)
+        expect(settled).toMatchObject({
+          state: 'forgiven',
+          leftCents: 0,
+          repaidCents: 4_000,
+          forgivenCents: 2_000,
+        })
+        expect(await spent(restaurants)).toBe(5_000)
+        expect(await income()).toBe(0)
+        await expect(owed.forgive(itemId, {}, NOW)).rejects.toThrow(
+          'Nothing left to let go',
+        )
+        const listed = await transactions.findOne(dinner)
+        expect(listed.shares).toMatchObject([
+          { state: 'forgiven', repaidCents: 4_000, forgivenCents: 2_000 },
+        ])
+
+        // « Réclamer à nouveau » gives back what was let go: 20 € owed again.
+        const claimed = await owed.unforgive(itemId)
+        expect(claimed).toMatchObject({
+          state: 'open',
+          forgivenCents: 0,
+          forgivenAt: null,
+          leftCents: 2_000,
+        })
+        expect(await spent(restaurants)).toBe(3_000)
+      },
+    )
+  })
+
+  it('lets go part of what the owner owes: only that part leaves his spending (#437)', async () => {
+    await withFixture(async ({ owed, spent, restaurants }) => {
+      const debt = await owed.createDebt(
+        {
+          contactName: 'Sam',
+          billCents: 9_000,
+          partCents: 3_000,
+          categoryId: restaurants,
+          bookingDate: '2026-10-12',
+        },
+        NOW,
+      )
+      expect(await spent(restaurants)).toBe(3_000)
+      const item = await owed.forgive(
+        debt.shares[0].id,
+        { amountCents: 1_000 },
+        NOW,
+      )
+      expect(item).toMatchObject({ state: 'open', leftCents: 2_000 })
+      expect(await spent(restaurants)).toBe(2_000)
+      // Everything left by default.
+      await owed.forgive(debt.shares[0].id, {}, NOW)
+      expect(await owed.findReceivable(debt.shares[0].id)).toMatchObject({
+        state: 'forgiven',
+        forgivenCents: 3_000,
+        leftCents: 0,
+      })
+      expect(await spent(restaurants)).toBe(0)
+    })
+  })
+
   it('settles several items with one transfer, partly, and leaves the rest of a larger transfer in its category', async () => {
     await withFixture(
       async ({ owed, row, spent, income, housing, energy, refunds }) => {

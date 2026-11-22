@@ -22,20 +22,17 @@ describe('shares', () => {
 })
 
 describe('othersPartCents', () => {
-  it('counts a share let go only for what was repaid on it', () => {
-    const share = (state: string, amountCents: number, repaidCents = 0) => ({
+  it('counts each share minus the part let go (#437)', () => {
+    const share = (amountCents: number, forgivenCents = 0) => ({
       direction: 'owed_to_me',
-      state,
       amountCents,
-      repaidCents,
+      forgivenCents,
     })
-    expect(
-      othersPartCents({
-        shares: [share('repaid', 3000, 3000), share('forgiven', 3000)],
-      }),
-    ).toBe(3000)
-    expect(othersPartCents({ shares: [share('forgiven', 3000, 1000)] })).toBe(
-      1000,
+    // One repaid, one let go entirely.
+    expect(othersPartCents({ shares: [share(3000), share(3000, 3000)] })).toBe(
+      3000,
     )
+    // 60 €, 20 € let go: 40 € still carried by Sam (repaid or claimed).
+    expect(othersPartCents({ shares: [share(6000, 2000)] })).toBe(4000)
   })
 })

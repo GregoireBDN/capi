@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common'
-import { and, inArray, isNotNull, or, type SQLWrapper, sql } from 'drizzle-orm'
+import { and, inArray, or, type SQLWrapper, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type * as schema from '#/database/schema'
 import { receivablePaymentsTable, receivablesTable } from '#/database/schema'
@@ -35,7 +35,7 @@ export async function assertNoSettledShare(
       and(
         inArray(receivablesTable.transactionId, transactionIds),
         or(
-          isNotNull(receivablesTable.forgivenAt),
+          sql`${receivablesTable.forgivenCents} > 0`,
           sql`exists (select 1 from ${receivablePaymentsTable} where ${receivablePaymentsTable.receivableId} = ${receivablesTable.id})`,
         ),
       ),

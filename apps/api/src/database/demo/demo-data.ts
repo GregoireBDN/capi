@@ -1800,7 +1800,16 @@ async function seedMoneyOwed(
         items: [{ receivableId: alex.id, amountCents: 3_000 }],
       })
     }
-    await owed.forgive(sam.id, { note: 'Pour son anniversaire' })
+    // Sam gave 10 € in cash; 10 € let go, 10 € still owed (#437).
+    await owed.linkRepayment({
+      paidOn: dinner.bookingDate,
+      note: 'En espèces',
+      items: [{ receivableId: sam.id, amountCents: 1_000 }],
+    })
+    await owed.forgive(sam.id, {
+      amountCents: 1_000,
+      note: 'Pour son anniversaire',
+    })
   }
 
   // « Quelqu’un a payé pour moi »: Sam paid a concert for three.

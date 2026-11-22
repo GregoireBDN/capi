@@ -36,13 +36,14 @@ export const receivableOriginEnum = pgEnum(
  * What a contact owes the owner on an expense he paid (`owed_to_me`), or
  * what the owner owes a contact who paid for him (`i_owe`, on the manual
  * expense « Payé par … » holding his part), #359. One row per expense and
- * person. Its state is computed, never stored: « à rembourser » while the
- * linked repayments fall short, « remboursé » once they cover it,
- * « abandonné » once `forgivenAt` is set (reversible).
+ * person. Its state is computed, never stored: « à rembourser » while
+ * something is left (the share minus what was repaid and let go),
+ * « remboursé » once nothing is and nothing was let go, « abandonné » once
+ * nothing is and some was let go (#437; reversible).
  *
  * The `transaction_lines` view reads them (ADR 0005, R8): the owner's
  * spending is his part on the day of the expense, a linked repayment is
- * neither income nor spending, a debt let go comes back into (or, for
+ * neither income nor spending, the part let go comes back into (or, for
  * `i_owe`, leaves) his spending.
  */
 export const receivablesTable = pgTable(
@@ -80,8 +81,14 @@ export const receivablesTable = pgTable(
     billCents: bigint('bill_cents', { mode: 'number' }),
     /**
      * « Je ne me fais pas rembourser » (or, for `i_owe`, « … ne veut pas
-     * être remboursé »): what was not repaid by then is let go.
+     * être remboursé »): the part let go, positive cents, 0 when nothing
+     * was (#437). Repaid + let go never exceed the share (the
+     * `receivables_settled_within_share` triggers).
      */
+    forgivenCents: bigint('forgiven_cents', { mode: 'number' })
+      .notNull()
+      .default(0),
+    /** When some was last let go: set iff `forgivenCents > 0`. */
     forgivenAt: timestamp('forgiven_at', { withTimezone: true }),
     forgivenNote: text('forgiven_note'),
   },
@@ -93,6 +100,14 @@ export const receivablesTable = pgTable(
     index().on(t.contactId),
     index().on(t.recurringItemId),
     check('receivables_amount_positive', sql`${t.amountCents} > 0`),
+    check(
+      'receivables_forgiven_within_share',
+      sql`${t.forgivenCents} >= 0 and ${t.forgivenCents} <= ${t.amountCents}`,
+    ),
+    check(
+      'receivables_forgiven_dated',
+      sql`(${t.forgivenCents} > 0) = (${t.forgivenAt} is not null)`,
+    ),
     check(
       'receivables_bill_covers_amount',
       sql`${t.billCents} is null or ${t.billCents} >= ${t.amountCents}`,

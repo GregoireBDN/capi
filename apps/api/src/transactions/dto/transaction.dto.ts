@@ -149,6 +149,12 @@ export class TransactionShareDto {
 
   @ApiProperty({
     type: 'integer',
+    description: 'Let go (#437), 0 when nothing was.',
+  })
+  forgivenCents!: number
+
+  @ApiProperty({
+    type: 'integer',
     nullable: true,
     description: '`i_owe`: the whole bill the contact paid.',
   })

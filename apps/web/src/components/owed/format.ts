@@ -20,9 +20,14 @@ export function directionOf(side: OwedSide): ReceivableDirection {
 /** « Remboursé », « Abandonné »… of a settled item, with its day. */
 export function stateText(item: ReceivableDto): string {
   if (item.state === 'forgiven') {
+    // Part let go, part repaid (#437): say how much was let go.
+    const what =
+      item.forgivenCents < item.amountCents
+        ? `${formatCents(item.forgivenCents)} abandonnés`
+        : 'Abandonné'
     return item.forgivenAt
-      ? `Abandonné le ${formatCalendarDate(item.forgivenAt.slice(0, 10))}`
-      : 'Abandonné'
+      ? `${what} le ${formatCalendarDate(item.forgivenAt.slice(0, 10))}`
+      : what
   }
   if (item.state === 'repaid') {
     const last = item.payments.at(-1)
@@ -30,8 +35,14 @@ export function stateText(item: ReceivableDto): string {
       ? `Remboursé le ${formatCalendarDate(last.paidOn)}`
       : 'Remboursé'
   }
-  return item.repaidCents > 0
-    ? `${formatCents(item.repaidCents)} reçus sur ${formatCents(item.amountCents)}`
+  const settled = [
+    item.repaidCents > 0 ? `${formatCents(item.repaidCents)} reçus` : null,
+    item.forgivenCents > 0
+      ? `${formatCents(item.forgivenCents)} abandonnés`
+      : null,
+  ].filter(Boolean)
+  return settled.length > 0
+    ? `${settled.join(' · ')} sur ${formatCents(item.amountCents)}`
     : 'À rembourser'
 }
 
