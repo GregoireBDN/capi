@@ -28,7 +28,10 @@ import type {
   ImportSummaryDto,
   RecurringItemDto,
 } from '#/api/types.gen'
-import { DashboardCardHeader } from '#/components/dashboard/DashboardCardHeader'
+import {
+  DashboardCardHeader,
+  SeeLink,
+} from '#/components/dashboard/DashboardCardHeader'
 import { FigureTile } from '#/components/dashboard/FigureTile'
 import { importsQuery } from '#/components/import/api'
 import { formatAmountPerPeriod } from '#/components/subscriptions/format'
@@ -44,6 +47,8 @@ import { formatShortDay } from '#/lib/period'
 import { plural } from '#/lib/plural'
 import { categoriesQuery } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
+import { AccountDetails } from './AccountDetails'
+import type { AccountDetail } from './AccountDetails'
 import { daysBetween, todayInParis } from './dates'
 import { formatAge } from './labels'
 import { balanceHistoryQuery, monthFlowsQuery } from './queries'
@@ -73,14 +78,16 @@ interface CashAccountProps {
   today: string
   onImport: () => void
   onAddTransaction: () => void
+  /** More rows of « Plus d’informations » (its statement balances). */
+  details?: (AccountDetail | null)[]
 }
 
 /**
  * A checking or savings account (#293): where it stands and whether it is
  * up to date (balance, freshness, the month's flows), its balance over 12
- * months, its latest transactions, its imports and running-balance gaps,
- * and the recurring debits paid from it; its statement balances are in
- * « Historique des valeurs » (#420).
+ * months, its latest transactions; then « Plus d’informations » (#447):
+ * its imports and running-balance gaps, the recurring debits paid from it
+ * and its statement balances (#420), each on a screen of its own.
  * One column at every width (the owner's choice: full-width strips read
  * top to bottom, as on the dashboard).
  */
@@ -90,9 +97,18 @@ export function CashAccount({
   today,
   onImport,
   onAddTransaction,
+  details,
 }: CashAccountProps) {
   const history = useQuery(balanceHistoryQuery(account.id))
   const flows = useQuery(monthFlowsQuery(account.id))
+  const importsDetail = useImportsDetail({
+    accountId: account.id,
+    writable,
+    history: history.data,
+    today,
+    onImport,
+  })
+  const recurringDetail = useRecurringDebitsDetail(account.id)
 
   return (
     <>
@@ -112,14 +128,9 @@ export function CashAccount({
         writable={writable}
         onImport={onImport}
       />
-      <ImportStatus
-        accountId={account.id}
-        writable={writable}
-        history={history.data}
-        today={today}
-        onImport={onImport}
+      <AccountDetails
+        items={[importsDetail, recurringDetail, ...(details ?? [])]}
       />
-      <RecurringDebits accountId={account.id} />
     </>
   )
 }
@@ -546,10 +557,11 @@ function importPeriod(item: ImportSummaryDto, year: string): string | null {
 
 /**
  * The latest imports of the account (pending ones to validate first) and
- * the running-balance gaps of the last 12 months. How far the data goes is
- * in the balance card.
+ * the running-balance gaps of the last 12 months, a row of « Plus
+ * d’informations » (#447) said in amber while an import waits or a gap
+ * shows. How far the data goes is in the balance card.
  */
-function ImportStatus({
+function useImportsDetail({
   accountId,
   writable,
   history,
@@ -561,7 +573,7 @@ function ImportStatus({
   history: BalanceHistoryDto | undefined
   today: string
   onImport: () => void
-}) {
+}): AccountDetail | null {
   const imports = useQuery(importsQuery)
   const year = today.slice(0, 4)
   const mine = (imports.data ?? []).filter(
@@ -575,22 +587,26 @@ function ImportStatus({
     .slice(0, LATEST_IMPORTS)
   const gaps = history?.gaps ?? []
 
-  return (
-    <Card
-      role="region"
-      className="min-w-0"
-      aria-labelledby="account-imports-title"
-    >
-      <DashboardCardHeader
-        id="account-imports-title"
-        title="Imports"
-        link={
-          mine.length > 0
-            ? { label: 'Historique', to: ROUTES.import }
-            : undefined
-        }
-      />
-      <CardContent className="space-y-3">
+  if (!writable && !imports.isPending && mine.length === 0) return null
+  const summary = imports.isPending
+    ? undefined
+    : pending.length > 0
+      ? plural(pending.length, 'import à valider', 'imports à valider')
+      : gaps.length > 0
+        ? plural(gaps.length, 'écart de solde', 'écarts de solde')
+        : mine.length === 0
+          ? 'aucun'
+          : history?.to
+            ? `à jour au ${formatShortDay(history.to, year)}`
+            : plural(committed.length, 'import')
+  return {
+    id: 'imports',
+    icon: FileUpIcon,
+    label: 'Imports',
+    summary,
+    warning: pending.length > 0 || gaps.length > 0,
+    content: (
+      <div className="space-y-3">
         {imports.isPending ? (
           <Skeleton className="h-16 w-full" />
         ) : mine.length === 0 ? (
@@ -687,15 +703,21 @@ function ImportStatus({
             </p>
           )
         )}
-      </CardContent>
-    </Card>
-  )
+        {mine.length > 0 && (
+          <SeeLink label="Tous les relevés" to={ROUTES.import} />
+        )}
+      </div>
+    ),
+  }
 }
 
 /* ------------------------------------------------------------------------ */
 
-/** Confirmed recurring debits paid from the account, not cancelled. */
-function RecurringDebits({ accountId }: { accountId: string }) {
+/**
+ * Confirmed recurring debits paid from the account, not cancelled: a row of
+ * « Plus d’informations » (#447), absent while there is none.
+ */
+function useRecurringDebitsDetail(accountId: string): AccountDetail | null {
   const recurring = useQuery(recurringListQuery)
   const items = (recurring.data ?? [])
     .filter(
@@ -716,19 +738,14 @@ function RecurringDebits({ accountId }: { accountId: string }) {
     .filter((item) => item.active)
     .reduce((sum, item) => sum + item.monthlyEquivalentCents, 0)
 
-  return (
-    <Card
-      role="region"
-      className="min-w-0"
-      aria-labelledby="account-recurring-title"
-    >
-      <DashboardCardHeader
-        id="account-recurring-title"
-        title="Prélèvements"
-        status={`${formatCents(monthly)} / mois en moyenne`}
-        link={{ label: 'Abonnements', to: ROUTES.subscriptions }}
-      />
-      <CardContent>
+  return {
+    id: 'recurring',
+    icon: RepeatIcon,
+    label: 'Prélèvements',
+    summary: `${items.length} · ${formatCents(monthly)} / mois`,
+    description: `${formatCents(monthly)} / mois en moyenne.`,
+    content: (
+      <div className="space-y-3">
         <ul className="divide-y text-sm" aria-label="Prélèvements réguliers">
           {items.map((item) => (
             <li
@@ -755,7 +772,8 @@ function RecurringDebits({ accountId }: { accountId: string }) {
             </li>
           ))}
         </ul>
-      </CardContent>
-    </Card>
-  )
+        <SeeLink label="Abonnements" to={ROUTES.subscriptions} />
+      </div>
+    ),
+  }
 }
