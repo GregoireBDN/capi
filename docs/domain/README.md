@@ -14,6 +14,7 @@ Each feature's details, moved out of [`CLAUDE.md`](../../CLAUDE.md) by #422 so t
 | [`investments.md`](investments.md)                   | Value snapshots, a PEA's lines, one invested amount per account, the investment summary, Épargne               |
 | [`crypto.md`](crypto.md)                             | Prices, cost basis, observed movements, loading, daily values, wallet sync, the crypto pages, exchange imports |
 | [`imports.md`](imports.md)                           | Undoing an import, reconciliation, the spreadsheet history import                                              |
+| [`import-formats.md`](import-formats.md)             | The standard CSV formats (cash, investments), import profiles per source, unknown files                        |
 | [`categorization.md`](categorization.md)             | Rule order, the review queue, categories and seed data                                                         |
 | [`auth-and-sessions.md`](auth-and-sessions.md)       | Sessions and cookies, passkeys, personal access tokens, remote MCP OAuth, SSR session renewal                  |
 | [`web-conventions.md`](web-conventions.md)           | The app shell, page headers and actions, month pages, sheets, pickers, mobile layout                           |

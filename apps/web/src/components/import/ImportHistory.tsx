@@ -17,12 +17,13 @@ import { importsControllerFindOne, importsControllerRemove } from '#/api'
 import type { ImportDetailDto, ImportSummaryDto } from '#/api'
 import { importKeys, importsQuery, unwrap } from './api'
 import { genericErrorMessage } from './errors'
-import { formatDateTime, formatPeriod, plural, undoDescription } from './format'
-
-const SOURCE_LABEL: Record<string, string> = {
-  cic_csv: 'CSV CIC',
-  spreadsheet: 'Historique (tableur)',
-}
+import {
+  formatDateTime,
+  formatPeriod,
+  plural,
+  sourceLabel,
+  undoDescription,
+} from './format'
 
 interface ImportHistoryProps {
   /** Reopens a pending import's preview. */
@@ -246,7 +247,7 @@ function HistoryItem({
         </div>
         <p className="text-muted-foreground text-xs">
           {formatDateTime(item.committedAt ?? item.createdAt)} ·{' '}
-          {item.accountName} · {SOURCE_LABEL[item.source] ?? item.source}
+          {item.accountName} · {sourceLabel(item)}
         </p>
         <p className="text-muted-foreground text-xs">
           Période {formatPeriod(item.periodStart, item.periodEnd)} ·{' '}

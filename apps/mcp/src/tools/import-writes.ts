@@ -1,7 +1,10 @@
 /**
  * Bank CSV imports from Claude (#103), through the same preview → commit flow
  * as the import page: `preview_bank_import` uploads the file to
- * `POST /api/imports/preview` (parse, dedupe, continuity check, proposed
+ * `POST /api/imports/preview`, which recognises its format from the header
+ * (the CIC export, the app's standard cash format, a saved import profile,
+ * #431; any other statement is converted by Claude into the standard
+ * format) (parse, dedupe, continuity check, proposed
  * categories; a pending import, no transaction written), `commit_bank_import`
  * commits that preview only with `confirm: true`, `list_imports` tells what
  * was imported up to when. Both writes need a `write` token; discarding or
@@ -37,7 +40,18 @@ import { confirmSchema, transactionRef } from './write.js'
 /** Same limit as the API (`IMPORT_FILE_MAX_BYTES`). */
 export const IMPORT_FILE_MAX_BYTES = 5 * 1024 * 1024
 const FILE_NAME_MAX = 255
-const DEFAULT_FILE_NAME = 'releve-cic.csv'
+const DEFAULT_FILE_NAME = 'releve.csv'
+/** Start of the API's 400 for a header no format reads (#431). */
+const UNRECOGNISED = 'Unrecognised CSV format'
+
+/**
+ * The standard cash format (docs/domain/import-formats.md), for the tool
+ * descriptions: what Claude converts any statement into.
+ */
+export const STANDARD_FORMAT_HELP =
+  'Standard format: a header line `date;amount;label;balance` (balance optional, value_date optional; columns in any order, unknown ones are listed and ignored), dates YYYY-MM-DD, amounts signed in euros (negative = money out, `.` or `,` as decimal mark, no thousands separator but a space), one line per bank operation as printed, UTF-8, `;` `,` or tab as separator (quote a label holding the separator).'
+
+const UNRECOGNISED_HELP = `Format non reconnu : ce n'est ni l'export CIC, ni le format standard, ni un format enregistré dans l'application. Convertissez le relevé au format standard et renvoyez-le dans content. ${STANDARD_FORMAT_HELP} Rien n'a été importé.`
 /** New rows listed in a preview; the counts always cover all of them. */
 const NEW_ROWS_SHOWN = 50
 const CONFLICTS_SHOWN = 20
@@ -100,7 +114,7 @@ async function readExport(
   }
   if (extname(path).toLowerCase() !== '.csv') {
     throw new ToolInputError(
-      `« ${basename(path)} » n'est pas un fichier .csv : seul l'export CSV du CIC s'importe.`,
+      `« ${basename(path)} » n'est pas un fichier .csv : seul un CSV s'importe (l'export CIC, ou un relevé converti au format standard et donné dans content).`,
     )
   }
   let size: number
@@ -118,7 +132,7 @@ async function readExport(
     throw new ToolInputError(`Le fichier « ${rawPath} » est vide.`)
   if (size > IMPORT_FILE_MAX_BYTES) {
     throw new ToolInputError(
-      `Le fichier « ${rawPath} » dépasse 5 Mo : un export CIC fait quelques centaines de Ko. Vérifiez le fichier.`,
+      `Le fichier « ${rawPath} » dépasse 5 Mo : un relevé fait quelques centaines de Ko. Vérifiez le fichier.`,
     )
   }
   try {
@@ -145,8 +159,8 @@ function fileError(error: unknown, rawPath: string): ToolInputError {
 }
 
 /**
- * CSV text passed by Claude: sent as UTF-8 with a BOM, which the API's CIC
- * parser reads as UTF-8 (it assumes Windows-1252 otherwise). The dedupe hash
+ * CSV text passed by Claude: sent as UTF-8 with a BOM, which every reader of
+ * the API takes as UTF-8 (the CIC one assumes Windows-1252 otherwise). The dedupe hash
  * is computed on the parsed rows, so the bytes' encoding doesn't matter.
  */
 function encodeContent(content: string): Buffer {
@@ -180,6 +194,22 @@ function gapLine(gap: ContinuityGapDto): string {
   return `- ligne ${gap.lineNumber} : ${where} (solde attendu ${euros(gap.expectedCents)}, solde du fichier ${euros(gap.actualCents)})`
 }
 
+/** How the file was read: the CIC export, the standard format, a saved format. */
+function formatLabel(detail: ImportDetailDto): string {
+  switch (detail.source) {
+    case 'cic_csv':
+      return 'export CIC'
+    case 'standard_csv':
+      return 'format standard'
+    case 'csv_profile':
+      return detail.profileName
+        ? `format enregistré « ${detail.profileName} »`
+        : 'format enregistré'
+    default:
+      return detail.source
+  }
+}
+
 /** Preview text: counts, continuity, rows to write, conflicts, unreadable lines. */
 function describePreview(
   detail: ImportDetailDto,
@@ -187,7 +217,7 @@ function describePreview(
 ): string[] {
   const { counts, preview } = detail
   const lines = [
-    `Compte : ${detail.accountName} · fichier : ${detail.fileName}`,
+    `Compte : ${detail.accountName} · fichier : ${detail.fileName} · format : ${formatLabel(detail)}`,
     `Identifiant de l'aperçu (previewId) : ${detail.id}`,
     `Période du fichier : ${period(detail.periodStart, detail.periodEnd)}`,
     `Lignes lues : ${counts.rows} · nouvelles : ${counts.new} · déjà importées : ${counts.duplicates} · conflits : ${counts.conflicts} · lignes illisibles : ${counts.issues}`,
@@ -295,6 +325,13 @@ function describePreview(
     }
   }
 
+  if (preview.ignoredColumns.length > 0) {
+    lines.push(
+      '',
+      `Colonnes ignorées (non lues, rien n'en est importé) : ${preview.ignoredColumns.map((c) => `« ${c} »`).join(', ')}.`,
+    )
+  }
+
   if (preview.unmatchedManual.length > 0) {
     lines.push(
       '',
@@ -307,7 +344,7 @@ function describePreview(
 export const previewBankImportTool = defineTool({
   name: 'preview_bank_import',
   title: 'Aperçu d’un import de relevé',
-  description: `Preview a CIC bank CSV export for a checking or savings account, exactly like the app's import page: rows already imported are recognized (re-importing a file or an overlapping period adds nothing), probable duplicates from another source are shown as conflicts, the running balance is checked for missing rows and categories are proposed by the rules. Give either filePath (the file on the owner's machine, e.g. ~/Downloads/export.csv) or content (the CSV text). Returns a previewId with counts, the continuity check and the rows that would be added. ${NOTHING_WRITTEN} Show the preview to the owner first. Needs a write token. The preview expires after 24 hours.`,
+  description: `Preview a bank statement for a checking or savings account, exactly like the app's import page. The file is the CIC CSV export as downloaded, a CSV whose header the app already knows (a format saved in the app), or any other statement (PDF, another bank's export, a pasted table) that you first convert into the app's standard format and pass as content. ${STANDARD_FORMAT_HELP} Lines that cannot be read and columns that are not read are listed in the preview, never imported. Rows already imported are recognized (re-importing a file or an overlapping period adds nothing), probable duplicates from another source are shown as conflicts, the running balance is checked for missing rows and categories are proposed by the rules. Give either filePath (the file on the owner's machine, e.g. ~/Downloads/export.csv) or content (the CSV text). Returns a previewId with counts, the continuity check and the rows that would be added. ${NOTHING_WRITTEN} Show the preview to the owner first. Needs a write token. The preview expires after 24 hours.`,
   write: { idempotent: true },
   inputSchema: {
     account: z
@@ -321,27 +358,27 @@ export const previewBankImportTool = defineTool({
       .max(4096)
       .optional()
       .describe(
-        'Absolute path of the .csv export on the owner’s machine (~ allowed), at most 5 MB. Sent as is (CIC exports are Windows-1252).',
+        'Absolute path of the .csv file on the owner’s machine (~ allowed), at most 5 MB, sent as is: the CIC export (Windows-1252), a standard-format file or a file of a format saved in the app.',
       ),
     content: z
       .string()
       .max(IMPORT_FILE_MAX_BYTES)
       .optional()
       .describe(
-        'The CSV text itself, when there is no file path (header line Date;Date de valeur;Débit;Crédit;Libellé;Solde included).',
+        'The CSV text itself, header line included: usually a statement you converted into the standard format (`date;amount;label;balance`), or the text of a CIC export.',
       ),
     fileName: z
       .string()
       .max(FILE_NAME_MAX)
       .optional()
       .describe(
-        'Name shown in the import history. Default: the file name, or releve-cic.csv for content.',
+        'Name shown in the import history. Default: the file name, or releve.csv for content.',
       ),
   },
   async run({ api, remote }, args) {
     if (remote && args.filePath !== undefined) {
       throw new ToolInputError(
-        "Connexion à distance : le serveur ne lit aucun fichier. Donnez le texte du CSV dans content (l'export CIC ouvert ou collé).",
+        "Connexion à distance : le serveur ne lit aucun fichier. Donnez le texte du CSV dans content (l'export CIC collé, ou le relevé converti au format standard).",
       )
     }
     if ((args.filePath === undefined) === (args.content === undefined)) {
@@ -368,7 +405,18 @@ export const previewBankImportTool = defineTool({
       fileName,
     )
     const [detail, categories] = await Promise.all([
-      api.upload<ImportDetailDto>('/api/imports/preview', form),
+      api
+        .upload<ImportDetailDto>('/api/imports/preview', form)
+        .catch((error: unknown) => {
+          if (
+            error instanceof ApiError &&
+            error.status === 400 &&
+            error.message.includes(UNRECOGNISED)
+          ) {
+            throw new ToolInputError(UNRECOGNISED_HELP)
+          }
+          throw error
+        }),
       listCategories(api),
     ])
     const byId = new Map(categories.map((c) => [c.id, c]))

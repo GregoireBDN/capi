@@ -18,6 +18,7 @@ import { plural } from './format'
 import {
   AlreadyImportedBanner,
   ContinuityPanel,
+  IgnoredColumnsPanel,
   ManualExpensesPanel,
   ParseIssuesPanel,
   PreviewSummary,
@@ -117,6 +118,7 @@ export function ImportPreview({
         <>
           <ContinuityPanel report={detail.preview.continuity} />
           <ParseIssuesPanel issues={detail.preview.issues} />
+          <IgnoredColumnsPanel columns={detail.preview.ignoredColumns} />
           <ManualExpensesPanel preview={detail.preview} />
           <PreviewRows
             rows={rows}
