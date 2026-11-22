@@ -1,15 +1,7 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  cn,
-} from '@finances/ui'
+import { cn } from '@finances/ui'
 import { PencilIcon } from 'lucide-react'
 import type { SnapshotDto } from '#/api/types.gen'
 import { formatCalendarDate, formatCents } from '#/lib/money'
-import { plural } from '#/lib/plural'
 import { DIVIDED_LIST, ROW_BUTTON } from '#/lib/row-list'
 
 interface SnapshotListProps {
@@ -49,7 +41,7 @@ function SnapshotDetails({
   return (
     // The amounts go under the date when both don't fit side by side.
     <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-3 gap-y-1">
-      <div className="min-w-[7rem] flex-1">
+      <div className="min-w-[6rem] flex-1">
         <p className="font-medium whitespace-nowrap">
           {formatCalendarDate(snapshot.date)}
         </p>
@@ -128,40 +120,5 @@ export function SnapshotRows({
         )
       })}
     </ul>
-  )
-}
-
-/** Every snapshot, newest first; a tap opens it for correction. */
-export function SnapshotList({
-  snapshots,
-  withContributions,
-  onEdit,
-  invested,
-}: SnapshotListProps) {
-  return (
-    <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle>Valeurs</CardTitle>
-        <CardDescription>
-          {snapshots.length === 0
-            ? 'Aucune valeur enregistrée.'
-            : plural(
-                snapshots.length,
-                'valeur enregistrée',
-                'valeurs enregistrées',
-              )}
-        </CardDescription>
-      </CardHeader>
-      {snapshots.length > 0 && (
-        <CardContent>
-          <SnapshotRows
-            snapshots={snapshots}
-            withContributions={withContributions}
-            onEdit={onEdit}
-            invested={invested}
-          />
-        </CardContent>
-      )}
-    </Card>
   )
 }

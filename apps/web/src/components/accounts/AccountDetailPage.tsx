@@ -18,6 +18,7 @@ import {
   ClipboardPasteIcon,
   ClockAlertIcon,
   FileUpIcon,
+  HistoryIcon,
   ListPlusIcon,
   PencilIcon,
   PencilLineIcon,
@@ -72,8 +73,8 @@ import {
   PriceSheet,
 } from '#/components/positions/PriceAndCashSheets'
 import { positionsQuery } from '#/components/positions/queries'
-import { SnapshotList } from './SnapshotList'
 import { ValueChart } from './ValueChart'
+import { ValueHistorySheet } from './ValueHistorySheet'
 
 type EditorState = { open: false } | { open: true; snapshot?: SnapshotDto }
 
@@ -135,12 +136,14 @@ function AccountHeader({
 /**
  * One account, under one header (name, institution, archived badge) whose
  * page actions are the account's main ones. Investment accounts: their value
- * and performance from their dated snapshots (statement values), the history
- * chart and the snapshots themselves, added one by one or pasted from a
- * statement history; crypto accounts also list their holdings, valued every
- * day at the last known prices. Checking and savings accounts: their balance
- * and its freshness, its evolution, their latest transactions, imports and
- * recurring debits (`CashAccount`, #293).
+ * and performance from their dated snapshots (statement values) and the
+ * history chart; crypto accounts also list their holdings, valued every day
+ * at the last known prices. Checking and savings accounts: their balance and
+ * its freshness, its evolution, their latest transactions, imports and
+ * recurring debits (`CashAccount`, #293). The typed values themselves (an
+ * investment's statement values, a bank account's statement balances, a
+ * meal-voucher card's corrections) are in « Historique des valeurs », a
+ * screen of its own opened from the page's actions (#420).
  */
 export function AccountDetailPage({
   accountId,
@@ -155,6 +158,8 @@ export function AccountDetailPage({
   const performance = useQuery(performanceQuery(accountId))
   const [editor, setEditor] = useState<EditorState>({ open: false })
   const [pasteOpen, setPasteOpen] = useState(false)
+  // The recorded values, in a screen of their own (#420).
+  const [historyOpen, setHistoryOpen] = useState(false)
   // The kind is chosen before adding (#398).
   const [addKind, setAddKind] = useState<TransactionKind | null>(null)
   const [investedOpen, setInvestedOpen] = useState(false)
@@ -256,8 +261,19 @@ export function AccountDetailPage({
     icon: <ClipboardPasteIcon />,
     onSelect: () => setPasteOpen(true),
   })
+  // Crypto values are computed every day, never typed (#366): no list.
+  const hasValueHistory = !crypto && (writable || data.snapshots.length > 0)
+  const historyAction: PageAction[] = hasValueHistory
+    ? [
+        {
+          label: 'Historique des valeurs',
+          icon: <HistoryIcon />,
+          onSelect: () => setHistoryOpen(true),
+        },
+      ]
+    : []
   const headerActions: PageAction[] = !writable
-    ? []
+    ? historyAction
     : wallet
       ? [
           {
@@ -270,8 +286,9 @@ export function AccountDetailPage({
           },
         ]
       : mealVoucher
-        ? // A meal-voucher card has its own entries (#298).
-          []
+        ? // A meal-voucher card has its own entries (#298); its balance
+          // corrections are its values.
+          historyAction
         : crypto
           ? // Holdings are added in their own panel; the values are
             // computed from them every day, never typed (#366).
@@ -291,6 +308,7 @@ export function AccountDetailPage({
                 },
                 ...(pea && !withLines ? [addLineAction(false)] : []),
                 paste('Coller un historique'),
+                ...historyAction,
               ]
             : [
                 {
@@ -314,6 +332,8 @@ export function AccountDetailPage({
                   icon: <ArrowDownUpIcon />,
                   onSelect: () => setAddKind('transfer'),
                 },
+                // Its statement balances (#420).
+                ...historyAction,
               ]
 
   // A wallet (#294): its value, holdings by asset, evolution, then its keys
@@ -436,12 +456,8 @@ export function AccountDetailPage({
           account={current}
           writable={writable}
           today={today}
-          snapshots={data.snapshots}
           onImport={openImport}
           onAddTransaction={() => setAddKind('expense')}
-          onAddStatement={openAdd}
-          onPasteStatements={() => setPasteOpen(true)}
-          onEditStatement={(snapshot) => setEditor({ open: true, snapshot })}
         />
       )}
 
@@ -464,22 +480,31 @@ export function AccountDetailPage({
         />
       )}
 
-      {investment && !crypto && (
-        <SnapshotList
+      {hasValueHistory && (
+        <ValueHistorySheet
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+          kind={investment || mealVoucher ? 'values' : 'statements'}
           snapshots={data.snapshots}
-          withContributions
+          withContributions={investment}
           invested={
-            new Map(
-              data.contributionsHistory.map((p) => [
-                p.date,
-                p.contributionsCents,
-              ]),
-            )
+            investment
+              ? new Map(
+                  data.contributionsHistory.map((p) => [
+                    p.date,
+                    p.contributionsCents,
+                  ]),
+                )
+              : undefined
           }
           onEdit={
             writable
               ? (snapshot) => setEditor({ open: true, snapshot })
               : undefined
+          }
+          onAdd={writable ? openAdd : undefined}
+          onPaste={
+            writable && !mealVoucher ? () => setPasteOpen(true) : undefined
           }
         />
       )}

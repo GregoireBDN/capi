@@ -1,4 +1,3 @@
-import { useRegisterPageAction } from '#/components/app-shell/page-actions'
 import {
   AreaChart,
   Button,
@@ -15,13 +14,10 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   ArrowLeftRightIcon,
-  ChevronDownIcon,
   ChevronRightIcon,
-  ClipboardPasteIcon,
   FileUpIcon,
   PlusIcon,
   RepeatIcon,
-  ScrollTextIcon,
   TriangleAlertIcon,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -31,7 +27,6 @@ import type {
   BalanceHistoryDto,
   ImportSummaryDto,
   RecurringItemDto,
-  SnapshotDto,
 } from '#/api/types.gen'
 import { DashboardCardHeader } from '#/components/dashboard/DashboardCardHeader'
 import { FigureTile } from '#/components/dashboard/FigureTile'
@@ -52,7 +47,6 @@ import { ROUTES } from '#/lib/routes'
 import { daysBetween, todayInParis } from './dates'
 import { formatAge } from './labels'
 import { balanceHistoryQuery, monthFlowsQuery } from './queries'
-import { SnapshotRows } from './SnapshotList'
 
 /** Latest transactions listed on the page. */
 export const LATEST_TRANSACTIONS = 8
@@ -77,19 +71,16 @@ interface CashAccountProps {
   account: AccountDto
   writable: boolean
   today: string
-  snapshots: SnapshotDto[]
   onImport: () => void
   onAddTransaction: () => void
-  onAddStatement: () => void
-  onPasteStatements: () => void
-  onEditStatement: (snapshot: SnapshotDto) => void
 }
 
 /**
  * A checking or savings account (#293): where it stands and whether it is
  * up to date (balance, freshness, the month's flows), its balance over 12
  * months, its latest transactions, its imports and running-balance gaps,
- * the recurring debits paid from it, and its statement balances (folded).
+ * and the recurring debits paid from it; its statement balances are in
+ * « Historique des valeurs » (#420).
  * One column at every width (the owner's choice: full-width strips read
  * top to bottom, as on the dashboard).
  */
@@ -97,12 +88,8 @@ export function CashAccount({
   account,
   writable,
   today,
-  snapshots,
   onImport,
   onAddTransaction,
-  onAddStatement,
-  onPasteStatements,
-  onEditStatement,
 }: CashAccountProps) {
   const history = useQuery(balanceHistoryQuery(account.id))
   const flows = useQuery(monthFlowsQuery(account.id))
@@ -133,13 +120,6 @@ export function CashAccount({
         onImport={onImport}
       />
       <RecurringDebits accountId={account.id} />
-      <StatementBalances
-        snapshots={snapshots}
-        writable={writable}
-        onAdd={onAddStatement}
-        onPaste={onPasteStatements}
-        onEdit={onEditStatement}
-      />
     </>
   )
 }
@@ -776,95 +756,6 @@ function RecurringDebits({ accountId }: { accountId: string }) {
           ))}
         </ul>
       </CardContent>
-    </Card>
-  )
-}
-
-/* ------------------------------------------------------------------------ */
-
-/** Statement balances recorded by hand or pasted, folded by default. */
-function StatementBalances({
-  snapshots,
-  writable,
-  onAdd,
-  onPaste,
-  onEdit,
-}: {
-  snapshots: SnapshotDto[]
-  writable: boolean
-  onAdd: () => void
-  onPaste: () => void
-  onEdit: (snapshot: SnapshotDto) => void
-}) {
-  // In the page's « ⋮ » inside the shell (#386).
-  const inMenu = useRegisterPageAction(
-    writable
-      ? {
-          label: 'Ajouter un solde de relevé',
-          icon: <ScrollTextIcon />,
-          onSelect: onAdd,
-        }
-      : null,
-  )
-  if (!writable && snapshots.length === 0) return null
-  return (
-    <Card size="sm" className="min-w-0">
-      <details className="group space-y-3">
-        <summary className="focus-visible:ring-ring/50 flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 outline-none focus-visible:ring-[3px] [&::-webkit-details-marker]:hidden">
-          <ChevronRightIcon
-            aria-hidden
-            className="text-muted-foreground size-4 shrink-0 group-open:hidden"
-          />
-          <ChevronDownIcon
-            aria-hidden
-            className="text-muted-foreground hidden size-4 shrink-0 group-open:block"
-          />
-          <h2 className="min-w-0 flex-1 font-semibold">Soldes de relevés</h2>
-          <span className="text-muted-foreground shrink-0 text-sm">
-            {snapshots.length === 0
-              ? 'aucun'
-              : plural(snapshots.length, 'solde')}
-          </span>
-        </summary>
-        <CardContent className="space-y-3">
-          <p className="text-muted-foreground text-sm">
-            Le solde indiqué sur un relevé, à sa date : il sert de point de
-            départ quand les opérations n’ont pas de solde (historique saisi à
-            la main).
-          </p>
-          {writable && (
-            <div className="grid gap-2 @md:grid-cols-2">
-              {!inMenu && (
-                <Button
-                  outline
-                  variant="secondary"
-                  iconStart={<PlusIcon />}
-                  onClick={onAdd}
-                >
-                  Ajouter un solde de relevé
-                </Button>
-              )}
-              <Button
-                outline
-                variant="secondary"
-                iconStart={<ClipboardPasteIcon />}
-                onClick={onPaste}
-              >
-                Coller un historique
-              </Button>
-            </div>
-          )}
-          {snapshots.length > 0 && (
-            <SnapshotRows
-              snapshots={snapshots}
-              withContributions={false}
-              onEdit={writable ? onEdit : undefined}
-              label="Soldes de relevés"
-              editLabel="Modifier le solde du"
-            />
-          )}
-        </CardContent>
-      </details>
     </Card>
   )
 }

@@ -282,6 +282,18 @@ const SCENARIOS: Array<Scenario> = [
       while ((await folded.count()) > 0) await folded.first().click()
     },
   },
+  // An account's values, in a screen of their own (#420).
+  ...['checking', 'life_insurance'].map((type) => ({
+    name: `account-${type}-history`,
+    path: '/accounts',
+    account: type,
+    step: async (page: Page) => {
+      await pageAction(/^Historique des valeurs$/)(page)
+      await page
+        .getByRole('dialog', { name: 'Historique des valeurs' })
+        .waitFor()
+    },
+  })),
   // A wallet crypto account has its own page body (#269, #294).
   { name: 'account-wallet', path: '/accounts', account: 'wallet' },
   {

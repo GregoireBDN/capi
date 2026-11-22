@@ -352,14 +352,33 @@ describe('AccountDetailPage', () => {
     expect(content).not.toMatch(/Versements|Plus-value|—/)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
-    const list = screen.getByRole('list', { name: 'Valeurs enregistrées' })
+    expect(
+      screen.getByRole('img', { name: /Valeur et montant investi/ }),
+    ).toBeInTheDocument()
+    // The values are in a screen of their own (#420), not on the page.
+    expect(
+      screen.queryByRole('list', { name: 'Valeurs enregistrées' }),
+    ).not.toBeInTheDocument()
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Historique des valeurs' }),
+    )
+    const history = await screen.findByRole('dialog', {
+      name: 'Historique des valeurs',
+    })
+    expect(text(history.textContent)).toContain('3 valeurs enregistrées')
+    const list = within(history).getByRole('list', {
+      name: 'Valeurs enregistrées',
+    })
     const rows = within(list).getAllByRole('listitem')
     // Newest first.
     expect(text(rows[0].textContent)).toContain('30 sept. 2026')
     expect(text(rows[0].textContent)).toContain('Relevé T3')
     expect(text(rows[0].textContent)).toContain('Investi 10 200,00 €')
     expect(
-      screen.getByRole('img', { name: /Valeur et montant investi/ }),
+      within(history).getByRole('button', { name: 'Ajouter une valeur' }),
+    ).toBeInTheDocument()
+    expect(
+      within(history).getByRole('button', { name: 'Coller un historique' }),
     ).toBeInTheDocument()
   })
 
@@ -547,12 +566,21 @@ describe('AccountDetailPage', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderPage()
 
+    // From the values' own screen (#420), which stays open behind the editor.
     await user.click(
-      await screen.findByRole('button', {
+      await screen.findByRole('button', { name: 'Historique des valeurs' }),
+    )
+    const history = await screen.findByRole('dialog', {
+      name: 'Historique des valeurs',
+    })
+    await user.click(
+      within(history).getByRole('button', {
         name: 'Modifier la valeur du 30 juin 2026',
       }),
     )
-    let dialog = await screen.findByRole('dialog')
+    let dialog = await screen.findByRole('dialog', {
+      name: /^Valeur du/,
+    })
     expect(within(dialog).queryByLabelText('Date')).not.toBeInTheDocument()
     // Opened at once: the value has one.
     const contributions = within(dialog).getByLabelText('Investi à cette date')
@@ -570,15 +598,19 @@ describe('AccountDetailPage', () => {
       ),
     )
     await waitFor(() =>
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+      expect(
+        screen.queryByRole('dialog', { name: /^Valeur du/ }),
+      ).not.toBeInTheDocument(),
     )
 
     await user.click(
-      screen.getByRole('button', {
+      within(
+        screen.getByRole('dialog', { name: 'Historique des valeurs' }),
+      ).getByRole('button', {
         name: 'Modifier la valeur du 30 sept. 2026',
       }),
     )
-    dialog = await screen.findByRole('dialog')
+    dialog = await screen.findByRole('dialog', { name: /^Valeur du/ })
     await user.click(
       within(dialog).getByRole('button', { name: 'Supprimer cette valeur' }),
     )
@@ -857,10 +889,9 @@ describe('AccountDetailPage', () => {
       expect(text(recurring.textContent)).toContain('29,99 € / mois')
       expect(text(recurring.textContent)).toContain('prévu le 12 nov.')
 
-      // Statement balances: their own folded section, no hand-built buttons
-      // beside the header.
-      expect(screen.getByText('Soldes de relevés')).toBeInTheDocument()
-      expect(screen.getByText('1 solde')).toBeInTheDocument()
+      // Statement balances: in « Historique des valeurs » (#420), not on the
+      // page; no hand-built buttons beside the header.
+      expect(screen.queryByText('Soldes de relevés')).toBeNull()
       expect(screen.queryByRole('button', { name: 'Ajouter' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'Coller' })).toBeNull()
       expect(screen.queryByText(/Versé/)).toBeNull()
@@ -906,6 +937,37 @@ describe('AccountDetailPage', () => {
       )
       expect(
         await screen.findByRole('dialog', { name: 'Ajouter un virement' }),
+      ).toBeInTheDocument()
+    })
+
+    it('keeps the statement balances in « Historique des valeurs » (#420)', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      renderPage()
+
+      await user.click(
+        await screen.findByRole('button', { name: 'Historique des valeurs' }),
+      )
+      const valuesScreen = await screen.findByRole('dialog', {
+        name: 'Historique des valeurs',
+      })
+      expect(text(valuesScreen.textContent)).toContain('1 solde de relevé')
+      const list = within(valuesScreen).getByRole('list', {
+        name: 'Soldes de relevés',
+      })
+      expect(within(list).getAllByRole('listitem')).toHaveLength(1)
+      expect(
+        within(valuesScreen).getByRole('button', {
+          name: 'Coller un historique',
+        }),
+      ).toBeInTheDocument()
+
+      await user.click(
+        within(valuesScreen).getByRole('button', {
+          name: 'Ajouter un solde de relevé',
+        }),
+      )
+      expect(
+        await screen.findByRole('dialog', { name: 'Ajouter une valeur' }),
       ).toBeInTheDocument()
     })
 
