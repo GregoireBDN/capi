@@ -20,7 +20,6 @@ import { addDays } from '#/imports/dedupe/calendar-date'
 import { parisToday } from '#/investments/days'
 import { formatQuantity } from '#/imports/crypto/quantity'
 import { PRICE_HISTORY_MAX_DAYS } from '../coingecko.provider'
-import { isObserved } from '../cost-basis'
 import {
   CryptoCostBasisService,
   cryptoInvestedOn,
@@ -244,7 +243,11 @@ export class CryptoDailyCloseService implements OnModuleDestroy {
           ]),
         )
       } else {
-        const observed = observedLines(basis, account.id)
+        // An exchange's lines are rebuilt from its movements above.
+        const observed =
+          account.cryptoSource === 'exchange'
+            ? null
+            : observedLines(basis, account.id)
         if (lines.length === 0 && !observed) continue
         // From the first value, else from when its lines appeared (a
         // wallet's first sync), and at most `CLOSE_CATCH_UP_DAYS` back.
@@ -447,8 +450,9 @@ export class CryptoDailyCloseService implements OnModuleDestroy {
 
 /**
  * A wallet's or manual account's quantities at the end of each day from its
- * observed movements (#373), or null when it has none: the first day it was
- * read and the lines held at a day's end.
+ * observed movements (#373) and, on a wallet, its imported history (#426:
+ * the observed ones are what it does not explain), or null when it has
+ * none: the first day of its movements and the lines held at a day's end.
  */
 function observedLines(
   basis: Pick<LoadedCostBasis, 'movements'>,
@@ -457,9 +461,7 @@ function observedLines(
   const movements = [...basis.movements.values()]
     .filter(
       (movement) =>
-        movement.accountId === accountId &&
-        isObserved(movement.kind) &&
-        movement.assetId !== null,
+        movement.accountId === accountId && movement.assetId !== null,
     )
     .sort((a, b) => a.at - b.at)
   if (movements.length === 0) return null

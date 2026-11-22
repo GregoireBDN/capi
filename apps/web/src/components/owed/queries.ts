@@ -182,7 +182,7 @@ export function owedErrorMessage(error: unknown): string {
     return 'C’est plus que ce qui reste dû.'
   }
   if (message.includes('repaid or let go cannot be removed')) {
-    return 'Une part déjà remboursée ou abandonnée ne peut pas être retirée.'
+    return 'Une part déjà remboursée ou abandonnée ne peut pas être retirée : déliez d’abord ses remboursements, ou réclamez-la à nouveau.'
   }
   if (message.includes('less than what was repaid')) {
     return 'Une part ne peut pas être inférieure à ce qui a été remboursé.'

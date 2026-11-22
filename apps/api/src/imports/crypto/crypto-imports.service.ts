@@ -69,9 +69,12 @@ const FORMATS_BY_PROVIDER: Record<string, readonly CryptoImportFormat[]> = {
   coinbase: ['coinbase_csv'],
   other: ['binance_csv', 'coinbase_csv'],
 }
+/** What a wallet account accepts (#426). */
+const WALLET_FORMATS: readonly CryptoImportFormat[] = ['ledger_live_csv']
 const FORMAT_LABELS: Record<CryptoImportFormat, string> = {
   binance_csv: 'Binance',
   coinbase_csv: 'Coinbase',
+  ledger_live_csv: 'Ledger Live',
 }
 
 export interface CryptoPreviewInput {
@@ -88,6 +91,11 @@ export interface CryptoPreviewInput {
  * Holdings with origin `import` are replaced by every commit or undo; lines
  * typed by hand (`manual`) or synced are never touched. Never logs
  * quantities, values, labels or anything from the file.
+ *
+ * A Ledger Live history (#426) goes the same way into a wallet account, but
+ * its holdings stay what the chain says: its operations are movements only,
+ * and the wallet's observed movements are rewritten around them
+ * (`CryptoCostBasisService.reconcileObserved`) so nothing counts twice.
  */
 @Injectable()
 export class CryptoImportsService {
@@ -117,19 +125,24 @@ export class CryptoImportsService {
     input: CryptoPreviewInput,
     now: Date = new Date(),
   ): Promise<CryptoImportDto> {
-    const account = await this.exchangeAccount(input.accountId)
+    const account = await this.importAccount(input.accountId)
+    const wallet = account.cryptoSource === 'wallet'
     let parsed
     try {
       parsed = parseCryptoExport(input.buffer)
     } catch (error) {
       if (error instanceof UnsupportedCryptoExportError) {
         throw new BadRequestException(
-          'Not a Binance or Coinbase transactions export',
+          wallet
+            ? 'Not a Ledger Live operations export'
+            : 'Not a Binance or Coinbase transactions export',
         )
       }
       throw error
     }
-    const accepted = FORMATS_BY_PROVIDER[account.cryptoProvider ?? 'other']
+    const accepted = wallet
+      ? WALLET_FORMATS
+      : FORMATS_BY_PROVIDER[account.cryptoProvider ?? 'other']
     if (!accepted.includes(parsed.format)) {
       throw new BadRequestException(
         `This is a ${FORMAT_LABELS[parsed.format]} export; the account is not`,
@@ -153,10 +166,13 @@ export class CryptoImportsService {
     )
     const mappings = await this.resolveTickers([...tickers])
     const resolver = resolverOf(mappings)
-    const holdings = computeHoldings(
-      [...existing, ...rows.filter((row) => row.status === 'new')],
-      resolver,
-    )
+    // A wallet's holdings are what the chain says, not its movements.
+    const holdings = wallet
+      ? []
+      : computeHoldings(
+          [...existing, ...rows.filter((row) => row.status === 'new')],
+          resolver,
+        )
     const preview: CryptoImportPreviewData = {
       version: CRYPTO_PREVIEW_VERSION,
       issues: parsed.issues,
@@ -235,7 +251,12 @@ export class CryptoImportsService {
           'This preview is outdated: upload the file again',
         )
       }
-      await this.exchangeAccount(current.accountId, tx)
+      const account = await this.importAccount(current.accountId, tx)
+      const wallet = account.cryptoSource === 'wallet'
+      // What the wallet's reads found, before the new movements (#426).
+      const positions = wallet
+        ? await this.costBasis.readPositions(tx, current.accountId)
+        : null
 
       const choices = dto.assets ?? []
       for (const choice of choices) {
@@ -271,6 +292,7 @@ export class CryptoImportsService {
               quantity: row.quantity,
               eurCents: row.eurCents,
               sourceRef: row.sourceRef,
+              txHashDigest: row.txHashDigest ?? null,
               dedupeHash: row.dedupeHash,
             })),
           )
@@ -280,19 +302,41 @@ export class CryptoImportsService {
         insertedIds.push(...written.map((row) => row.id))
       }
 
-      const { holdings, unmapped, mappings } = await this.recomputeHoldings(
-        tx,
-        current.accountId,
-        now,
-      )
-      // Withdrawals to the Ledger, deposits from it (#296), then the two
-      // sides of each transfer (#373).
-      await linkNewCryptoTransfers(tx, current.accountId, insertedIds, mappings)
+      let holdings = preview.holdings
+      let unmapped = preview.unmappedTickers
+      if (wallet) {
+        // The imported operations replace what the reads observed.
+        if (positions) {
+          await this.costBasis.reconcileObserved(
+            tx,
+            current.accountId,
+            positions,
+            now,
+          )
+        }
+        unmapped = await this.unmappedTickers(tx, current.accountId)
+      } else {
+        const recomputed = await this.recomputeHoldings(
+          tx,
+          current.accountId,
+          now,
+        )
+        holdings = recomputed.holdings
+        unmapped = recomputed.unmapped
+        // Withdrawals to the Ledger, deposits from it (#296).
+        await linkNewCryptoTransfers(
+          tx,
+          current.accountId,
+          insertedIds,
+          recomputed.mappings,
+        )
+        await tx
+          .update(accountsTable)
+          .set({ cryptoSyncedAt: now, updatedAt: now })
+          .where(eq(accountsTable.id, current.accountId))
+      }
+      // The two sides of each transfer (#373), by hash first (#426).
       await this.costBasis.match(tx)
-      await tx
-        .update(accountsTable)
-        .set({ cryptoSyncedAt: now, updatedAt: now })
-        .where(eq(accountsTable.id, current.accountId))
       // The movements are the record now: the preview is dropped, like a bank
       // import's; the answer still gives the holdings after the import.
       const [updated] = await tx
@@ -328,6 +372,7 @@ export class CryptoImportsService {
         .select({
           id: ci.id,
           accountId: ci.accountId,
+          format: ci.format,
           committedAt: ci.committedAt,
         })
         .from(ci)
@@ -338,8 +383,24 @@ export class CryptoImportsService {
         .select({ count: sql<number>`count(*)::int` })
         .from(m)
         .where(eq(m.importId, id))
+      const wallet =
+        !!current.committedAt && WALLET_FORMATS.includes(current.format)
+      const positions = wallet
+        ? await this.costBasis.readPositions(tx, current.accountId)
+        : null
       await tx.delete(ci).where(eq(ci.id, id))
-      if (current.committedAt) {
+      if (wallet) {
+        // The reads explain again what the operations did.
+        if (positions) {
+          await this.costBasis.reconcileObserved(
+            tx,
+            current.accountId,
+            positions,
+            now,
+          )
+          await this.costBasis.match(tx)
+        }
+      } else if (current.committedAt) {
         await this.recomputeHoldings(tx, current.accountId, now)
       }
       return {
@@ -547,11 +608,31 @@ export class CryptoImportsService {
     }
   }
 
-  private async exchangeAccount(accountId: string, executor?: Executor) {
+  /** Tickers of the account's movements without a price id. */
+  private async unmappedTickers(
+    executor: Executor,
+    accountId: string,
+  ): Promise<string[]> {
+    const rows = await executor
+      .selectDistinct({ asset: m.asset })
+      .from(m)
+      .where(and(eq(m.accountId, accountId), isNull(m.assetId)))
+    const tickers = rows
+      .map((row) => row.asset)
+      .filter((ticker) => !FIAT_TICKERS.has(ticker))
+    const mappings = await this.knownMappings(executor, tickers)
+    return tickers.filter((ticker) => !mappings.has(ticker)).sort()
+  }
+
+  /** An exchange account (its exports) or a wallet (Ledger Live, #426). */
+  private async importAccount(accountId: string, executor?: Executor) {
     const account = await this.accounts.findOne(accountId, executor ?? this.db)
-    if (account.type !== 'crypto' || account.cryptoSource !== 'exchange') {
+    if (
+      account.type !== 'crypto' ||
+      (account.cryptoSource !== 'exchange' && account.cryptoSource !== 'wallet')
+    ) {
       throw new BadRequestException(
-        'Exports can only be imported into an exchange crypto account',
+        'Exports can only be imported into an exchange or wallet crypto account',
       )
     }
     if (account.archivedAt) {

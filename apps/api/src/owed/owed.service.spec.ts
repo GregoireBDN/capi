@@ -17,6 +17,7 @@ import {
 } from '#/database/schema'
 import { normalizeLabel } from '#/imports/normalize/label'
 import { RecurringService } from '#/recurring/recurring.service'
+import { ManualTransactionsService } from '#/transactions/manual-transactions.service'
 import { TransactionsService } from '#/transactions/transactions.service'
 import { OwedService } from './owed.service'
 import { applyRecurringShares } from './recurring-shares'
@@ -39,6 +40,7 @@ interface Fixture {
   tx: Tx
   owed: OwedService
   transactions: TransactionsService
+  manual: ManualTransactionsService
   budgets: BudgetsService
   accountId: string
   restaurants: string
@@ -109,6 +111,7 @@ describe.skipIf(!process.env.DATABASE_URL)('OwedService (database)', () => {
           tx,
           owed,
           transactions,
+          manual: new ManualTransactionsService(database, transactions),
           budgets: new BudgetsService(database),
           accountId: account.id,
           restaurants: restaurants.id,
@@ -656,5 +659,169 @@ describe.skipIf(!process.env.DATABASE_URL)('OwedService (database)', () => {
         expect(await spent(restaurants)).toBe(9_000)
       },
     )
+  })
+
+  describe('deleting a share repaid or let go (#438)', () => {
+    /** A share of 60 € on a 90 € dinner, 20 € of it repaid by transfer. */
+    async function repaidShare(
+      f: Fixture,
+      dinner: string,
+      contactName = 'Sam',
+    ) {
+      const shared = await f.owed.createShares({
+        transactionId: dinner,
+        shares: [{ contactName, amountCents: 6_000 }],
+      })
+      const share = shared.shares[0]
+      const transfer = await f.row(
+        '2026-10-15',
+        2_000,
+        `VIR ${contactName.toUpperCase()} FICTIF`,
+        f.refunds,
+      )
+      const { payments } = await f.owed.linkRepayment(
+        {
+          transactionId: transfer,
+          items: [{ receivableId: share.id, amountCents: 2_000 }],
+        },
+        NOW,
+      )
+      return { share, payment: payments[0] }
+    }
+
+    it('refuses to delete a repaid share: the repayment stays neither income nor spending', async () => {
+      await withFixture(async (f) => {
+        const dinner = await f.row(
+          '2026-10-10',
+          -9_000,
+          'CB PIZZERIA FICTIVE',
+          f.restaurants,
+        )
+        const { share, payment } = await repaidShare(f, dinner)
+        expect(await f.income()).toBe(0)
+        expect(await f.spent(f.restaurants)).toBe(3_000)
+
+        await expect(f.owed.deleteReceivable(share.id)).rejects.toThrow(
+          new ConflictException(
+            'A share already repaid or let go cannot be removed',
+          ),
+        )
+        expect(await f.income()).toBe(0)
+        expect(await f.spent(f.restaurants)).toBe(3_000)
+
+        // Once the owner unlinks the repayment, the share can go.
+        await f.owed.deletePayment(payment.id)
+        await f.owed.deleteReceivable(share.id)
+        expect(await f.spent(f.restaurants)).toBe(9_000)
+      })
+    })
+
+    it('refuses to delete a share let go, and deletes an open one', async () => {
+      await withFixture(async (f) => {
+        const dinner = await f.row(
+          '2026-10-10',
+          -9_000,
+          'CB PIZZERIA FICTIVE',
+          f.restaurants,
+        )
+        const shared = await f.owed.createShares({
+          transactionId: dinner,
+          shares: [
+            { contactName: 'Alex', amountCents: 3_000 },
+            { contactName: 'Sam', amountCents: 3_000 },
+          ],
+        })
+        const [alex, sam] = ['Alex', 'Sam'].map(
+          (name) => shared.shares.find((s) => s.contactName === name)!,
+        )
+        await f.owed.forgive(sam.id, {}, NOW)
+        await expect(f.owed.deleteReceivable(sam.id)).rejects.toBeInstanceOf(
+          ConflictException,
+        )
+        // An open share goes, its expense stays.
+        await f.owed.deleteReceivable(alex.id)
+        const after = await f.transactions.findOne(dinner)
+        expect(after.shares.map((s) => s.contactName)).toEqual(['Sam'])
+        expect(await f.spent(f.restaurants)).toBe(9_000)
+      })
+    })
+
+    it('refuses to delete a repaid debt « Quelqu’un a payé pour moi » with its expense', async () => {
+      await withFixture(async (f) => {
+        const debt = await f.owed.createDebt(
+          {
+            contactName: 'Sam',
+            billCents: 9_000,
+            partCents: 3_000,
+            categoryId: f.restaurants,
+            bookingDate: '2026-10-12',
+          },
+          NOW,
+        )
+        const toSam = await f.row('2026-10-20', -3_000, 'VIR SAM', f.misc)
+        await f.owed.linkRepayment(
+          {
+            transactionId: toSam,
+            items: [{ receivableId: debt.shares[0].id, amountCents: 3_000 }],
+          },
+          NOW,
+        )
+        await expect(
+          f.owed.deleteReceivable(debt.shares[0].id),
+        ).rejects.toBeInstanceOf(ConflictException)
+        expect(await f.spent(f.misc)).toBe(0)
+        expect(await f.spent(f.restaurants)).toBe(3_000)
+      })
+    })
+
+    it('refuses to delete a manual expense carrying a repaid or let-go share, and deletes one without', async () => {
+      await withFixture(async (f) => {
+        const entry = (amountCents: number) =>
+          f.manual.create(
+            {
+              amountCents,
+              categoryId: f.restaurants,
+              bookingDate: '2026-10-10',
+              accountId: f.accountId,
+              label: 'Pizzeria fictive',
+            },
+            NOW,
+          )
+        const repaid = await entry(9_000)
+        await repaidShare(f, repaid.id)
+        expect(await f.income()).toBe(0)
+        await expect(f.manual.remove(repaid.id)).rejects.toThrow(
+          new ConflictException(
+            'A share already repaid or let go cannot be removed',
+          ),
+        )
+        expect(await f.income()).toBe(0)
+        expect(await f.spent(f.restaurants)).toBe(3_000)
+
+        const forgiven = await entry(4_000)
+        const shared = await f.owed.createShares({
+          transactionId: forgiven.id,
+          shares: [{ contactName: 'Alex', amountCents: 2_000 }],
+        })
+        await f.owed.forgive(shared.shares[0].id, {}, NOW)
+        await expect(f.manual.remove(forgiven.id)).rejects.toBeInstanceOf(
+          ConflictException,
+        )
+
+        // An open share goes with its expense.
+        const open = await entry(5_000)
+        await f.owed.createShares({
+          transactionId: open.id,
+          shares: [{ contactName: 'Camille', amountCents: 2_500 }],
+        })
+        await f.manual.remove(open.id)
+        const left = await f.tx
+          .select({ id: receivablesTable.id })
+          .from(receivablesTable)
+          .where(eq(receivablesTable.transactionId, open.id))
+        expect(left).toEqual([])
+        expect(await f.spent(f.restaurants)).toBe(3_000 + 4_000)
+      })
+    })
   })
 })

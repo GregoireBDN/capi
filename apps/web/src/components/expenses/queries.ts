@@ -205,6 +205,12 @@ export function manualExpenseErrorMessage(error: unknown): string {
     }
     return 'Opération invalide : vérifiez le montant, la catégorie et le compte.'
   }
+  if (
+    error.status === 409 &&
+    error.apiMessage?.includes('repaid or let go cannot be removed')
+  ) {
+    return 'Une part de cette dépense est déjà remboursée ou abandonnée : déliez d’abord ses remboursements, ou réclamez-la à nouveau, avant de la supprimer.'
+  }
   if (error.status === 429)
     return 'Trop de requêtes. Réessayez dans un instant.'
   return 'Une erreur est survenue. Réessayez.'

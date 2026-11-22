@@ -149,6 +149,13 @@ export const cryptoMovementsTable = pgTable(
      */
     autoMatch: boolean('auto_match').notNull().default(true),
     dedupeHash: varchar('dedupe_hash', { length: 64 }).notNull(),
+    /**
+     * SHA-256 of the on-chain transaction hash, when the export gives one
+     * (a Ledger Live line, #426): the two sides of one transfer carry the
+     * same digest, so they are linked with certainty. Never the hash
+     * itself, never an address. Export lines only.
+     */
+    txHashDigest: varchar('tx_hash_digest', { length: 64 }),
   },
   (t) => [
     unique('crypto_movements_account_hash_unique').on(
@@ -158,6 +165,11 @@ export const cryptoMovementsTable = pgTable(
     index().on(t.accountId, t.occurredAt),
     index().on(t.importId),
     index().on(t.counterpartAccountId),
+    index().on(t.txHashDigest),
+    check(
+      'crypto_movements_tx_hash_digest',
+      sql`${t.txHashDigest} IS NULL OR (${t.importId} IS NOT NULL AND ${t.txHashDigest} ~ '^[0-9a-f]{64}$')`,
+    ),
     check(
       'crypto_movements_observed_shape',
       sql`(${t.kind} IN ('observed_in', 'observed_out')) = (${t.importId} IS NULL) AND (${t.kind} IN ('observed_in', 'observed_out')) = (${t.assetId} IS NOT NULL) AND (${t.observedSince} IS NULL OR ${t.kind} IN ('observed_in', 'observed_out'))`,

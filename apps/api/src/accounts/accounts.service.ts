@@ -54,6 +54,7 @@ import {
 import { endOfDayBalance } from '#/imports/dedupe/continuity'
 import { parisToday } from '#/investments/days'
 import { takesInvestedBase } from '#/investments/performance'
+import { deletePaymentsOfShares } from '#/owed/settled'
 import type {
   ChangeCryptoSourceDto,
   CreateAccountDto,
@@ -408,6 +409,12 @@ export class AccountsService {
       if (!account) throw new NotFoundException('Account not found')
 
       const t = transactionsTable
+      // Shares on its expenses go with them, repayments included; the
+      // database refuses that anywhere else (#438).
+      await deletePaymentsOfShares(
+        tx,
+        tx.select({ id: t.id }).from(t).where(eq(t.accountId, id)),
+      )
       await tx
         .delete(transactionSplitsTable)
         .where(

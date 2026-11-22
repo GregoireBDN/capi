@@ -45,6 +45,7 @@ export function discardExport(importId: string) {
 export const FORMAT_LABELS: Record<CryptoImportDto['format'], string> = {
   binance_csv: 'Binance',
   coinbase_csv: 'Coinbase',
+  ledger_live_csv: 'Ledger Live',
 }
 
 export const KIND_LABELS: Record<CryptoImportRowDto['kind'], string> = {
@@ -114,6 +115,12 @@ export function exchangeImportErrorMessage(error: unknown): string {
   const message = error.apiMessage ?? ''
   switch (error.status) {
     case 400:
+      if (message.startsWith('Not a Ledger Live')) {
+        return 'Ce fichier n’est pas un historique des opérations exporté depuis Ledger Live (CSV).'
+      }
+      if (message.startsWith('This is a Ledger Live export')) {
+        return 'Ce fichier est un historique Ledger Live : importez-le dans le compte du wallet.'
+      }
       if (message.startsWith('Not a Binance or Coinbase')) {
         return 'Ce fichier n’est pas un export « Transactions » Binance ou Coinbase au format CSV.'
       }

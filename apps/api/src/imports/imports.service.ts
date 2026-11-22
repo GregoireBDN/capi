@@ -61,6 +61,7 @@ import {
   type StoredManualExpense,
 } from '#/imports/reconcile/manual-match.repository'
 import { restoreAbsorbedManual, undoImpact } from '#/imports/undo/import-undo'
+import { deletePaymentsOfShares } from '#/owed/settled'
 import { RecurringService } from '#/recurring/recurring.service'
 import { linkMatchingTransfers } from '#/transactions/transfer-links/link-transfers'
 import { buildPreview, periodOf } from '#/imports/preview/build-preview'
@@ -416,6 +417,15 @@ export class ImportsService {
       const restoredManual = record.committedAt
         ? await restoreAbsorbedManual(tx, id)
         : 0
+      // Shares on the rows go with them, repayments included (counted in
+      // the warning); the database refuses that anywhere else (#438).
+      await deletePaymentsOfShares(
+        tx,
+        tx
+          .select({ id: transactionsTable.id })
+          .from(transactionsTable)
+          .where(eq(transactionsTable.importId, id)),
+      )
       // Explicit rather than through the cascade, to count them.
       const removed = await tx
         .delete(transactionsTable)

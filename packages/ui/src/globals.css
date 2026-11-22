@@ -17,6 +17,28 @@
 }
 
 /**
+ * Environment banner (#454)
+ * Paints a bar in the staging yellow (`--env-banner`) and maps the tokens its
+ * content reads (text, muted text, hovers, borders, the header's backdrop)
+ * onto the dark `--env-banner-foreground`, so icons, the breadcrumb and ghost
+ * buttons stay readable (≥ 4.5:1) in light and dark. Portalled menus opened
+ * from it keep the page's colours.
+ * Usage: env-banner (the app header and the phone sheet's top on staging)
+ */
+@utility env-banner {
+  --foreground: var(--env-banner-foreground);
+  --muted-foreground: var(--env-banner-muted-foreground);
+  --secondary: oklch(from var(--env-banner-foreground) l c h / 10%);
+  --secondary-foreground: var(--env-banner-foreground);
+  --sidebar-foreground: var(--env-banner-foreground);
+  --border: oklch(from var(--env-banner-foreground) l c h / 18%);
+  --sidebar-border: var(--border);
+  --header-bg: var(--env-banner);
+  background-color: var(--env-banner);
+  color: var(--env-banner-foreground);
+}
+
+/**
  * Dark Mode Variant
  * Enables dark mode styling via class-based dark mode
  * Usage: dark:bg-background
@@ -48,6 +70,8 @@
 
   /* Base Colors */
   --color-background: var(--background);
+  --color-env-banner: var(--env-banner);
+  --color-env-banner-foreground: var(--env-banner-foreground);
   --color-foreground: var(--foreground);
 
   /* Brand Colors */
@@ -229,6 +253,11 @@
 
   --header-bg: oklch(0.975 0.007 260 / 80%);
   --line: var(--border);
+
+  /* Staging's header (#454, `env-banner`): yellow, dark text 11:1, muted 6:1 */
+  --env-banner: oklch(0.88 0.16 95); /* #f9d544, the staging icons' tile */
+  --env-banner-foreground: oklch(0.25 0.05 80);
+  --env-banner-muted-foreground: oklch(0.42 0.07 80);
 }
 
 /* =============================================================================
@@ -325,6 +354,11 @@
 
   --header-bg: oklch(0.16 0.03 272 / 80%);
   --line: var(--border);
+
+  /* Staging's header: a deeper yellow, dark text 9.7:1, muted 6:1 */
+  --env-banner: oklch(0.8 0.15 90); /* #e3b831 */
+  --env-banner-foreground: oklch(0.2 0.04 80);
+  --env-banner-muted-foreground: oklch(0.35 0.06 80);
 }
 
 /* =============================================================================
@@ -406,6 +440,11 @@
 
     --header-bg: oklch(0.16 0.03 272 / 80%);
     --line: var(--border);
+
+    /* Staging's header: a deeper yellow, dark text 9.7:1, muted 6:1 */
+    --env-banner: oklch(0.8 0.15 90); /* #e3b831 */
+    --env-banner-foreground: oklch(0.2 0.04 80);
+    --env-banner-muted-foreground: oklch(0.35 0.06 80);
   }
 }
 

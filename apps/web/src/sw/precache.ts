@@ -21,6 +21,14 @@ export const PUBLIC_SHELL_FILES = [
   'icons/icon-512.png',
   'icons/icon-maskable-512.png',
   'icons/apple-touch-icon.png',
+  // Staging's (#454, `lib/pwa/environment-head.ts`): one image serves both
+  // deployments, so both sets are in its shell.
+  'manifest-staging.json',
+  'icons/staging/favicon.ico',
+  'icons/staging/icon-192.png',
+  'icons/staging/icon-512.png',
+  'icons/staging/icon-maskable-512.png',
+  'icons/staging/apple-touch-icon.png',
 ] as const
 
 /** True for a client build output that belongs in the precache. */

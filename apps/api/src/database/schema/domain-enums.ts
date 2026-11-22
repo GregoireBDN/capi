@@ -272,8 +272,15 @@ export type CryptoMovementResolution =
 export const CRYPTO_TRANSFER_MATCHES = ['auto', 'manual'] as const
 export type CryptoTransferMatch = (typeof CRYPTO_TRANSFER_MATCHES)[number]
 
-/** Exchange export formats that can be imported. */
-export const CRYPTO_IMPORT_FORMATS = ['binance_csv', 'coinbase_csv'] as const
+/**
+ * Crypto exports that can be imported: an exchange's transactions (#128)
+ * or a Ledger Live operations history, on a wallet account (#426).
+ */
+export const CRYPTO_IMPORT_FORMATS = [
+  'binance_csv',
+  'coinbase_csv',
+  'ledger_live_csv',
+] as const
 export type CryptoImportFormat = (typeof CRYPTO_IMPORT_FORMATS)[number]
 
 /**
