@@ -322,10 +322,12 @@ describe.skipIf(!process.env.DATABASE_URL)('AccountsService.remove', () => {
 
   it('deletes a crypto account with its holdings, keys and exchange imports', async () => {
     await inRollback(async ({ tx, service }) => {
+      // An exchange's imports go into an exchange account (#426).
       const wallet = await service.create({
         name: 'Wallet test',
         type: 'crypto',
-        cryptoSource: 'manual',
+        cryptoSource: 'exchange',
+        cryptoProvider: 'binance',
       })
       await tx.insert(cryptoHoldingsTable).values({
         accountId: wallet.id,

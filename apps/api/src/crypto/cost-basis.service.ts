@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
 import { randomUUID } from 'node:crypto'
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { DatabaseService } from '#/database/database.service'
 import type * as schema from '#/database/schema'
@@ -58,6 +58,27 @@ export interface ObservedPosition {
   symbol: string
   /** Exact decimal string, ≥ 0. */
   quantity: string
+}
+
+/**
+ * What a wallet held of each asset at each of its reads (#426): the sum of
+ * its observed and imported movements up to each read, taken before its
+ * imported movements change, so its observed movements can be rewritten
+ * around the new ones (`reconcileObserved`).
+ */
+export interface ReadPositions {
+  /** The reads (epoch ms), oldest first. */
+  times: number[]
+  /** Per price id, the quantity held at each read (units of 10^-18). */
+  positions: Map<string, bigint[]>
+  symbols: Map<string, string>
+}
+
+interface ImportedQuantity {
+  at: number
+  assetId: string
+  symbol: string
+  units: bigint
 }
 
 /**
@@ -202,6 +223,15 @@ export class CryptoCostBasisService {
         { symbol: row.symbol, units: toUnits(row.quantity) },
       ]),
     )
+    // Operations imported from the wallet's own history (#426) are already
+    // counted: a read records only what neither explains.
+    for (const row of await this.importedQuantities(executor, accountId)) {
+      const known = before.get(row.assetId)
+      before.set(row.assetId, {
+        symbol: known?.symbol ?? row.symbol,
+        units: (known?.units ?? 0n) + row.units,
+      })
+    }
     const after = new Map<string, { symbol: string; units: bigint }>()
     for (const position of positions) {
       const known = after.get(position.assetId)
@@ -245,9 +275,199 @@ export class CryptoCostBasisService {
   }
 
   /**
+   * The account's imported movements (a Ledger Live history, #426) with a
+   * price id, as signed quantities; unmapped tickers and fiat are left out.
+   */
+  private async importedQuantities(
+    executor: Executor,
+    accountId: string,
+  ): Promise<ImportedQuantity[]> {
+    const rows = await executor
+      .select({
+        occurredAt: m.occurredAt,
+        asset: m.asset,
+        quantity: m.quantity,
+      })
+      .from(m)
+      .where(and(eq(m.accountId, accountId), isNotNull(m.importId)))
+    const mappings = await loadAssetMappings(
+      executor,
+      rows.map((row) => row.asset),
+    )
+    const quantities: ImportedQuantity[] = []
+    for (const row of rows) {
+      const mapping = mappings.get(row.asset)
+      if (!mapping) continue
+      quantities.push({
+        at: row.occurredAt.getTime(),
+        assetId: mapping.assetId,
+        symbol: mapping.symbol,
+        units: toUnits(row.quantity),
+      })
+    }
+    return quantities
+  }
+
+  /**
+   * What the account held at each of its reads (#426), from its observed
+   * and imported movements; null when it was never read. Taken before its
+   * imported movements change (an import committed or undone).
+   */
+  async readPositions(
+    executor: Executor,
+    accountId: string,
+  ): Promise<ReadPositions | null> {
+    const [account] = await executor
+      .select({ observedAt: accountsTable.cryptoObservedAt })
+      .from(accountsTable)
+      .where(eq(accountsTable.id, accountId))
+      .for('update')
+    const observed = await this.observedRows(executor, accountId)
+    const times = [
+      ...new Set([
+        ...observed.map((row) => row.occurredAt.getTime()),
+        ...(account?.observedAt ? [account.observedAt.getTime()] : []),
+      ]),
+    ].sort((a, b) => a - b)
+    if (times.length === 0) return null
+    const imported = await this.importedQuantities(executor, accountId)
+    const symbols = new Map<string, string>()
+    const flows: { at: number; assetId: string; units: bigint }[] = []
+    for (const row of observed) {
+      symbols.set(row.assetId!, row.asset)
+      flows.push({
+        at: row.occurredAt.getTime(),
+        assetId: row.assetId!,
+        units: toUnits(row.quantity),
+      })
+    }
+    for (const row of imported) {
+      if (!symbols.has(row.assetId)) symbols.set(row.assetId, row.symbol)
+      flows.push(row)
+    }
+    const positions = new Map<string, bigint[]>()
+    for (const assetId of symbols.keys()) {
+      positions.set(
+        assetId,
+        cumulativeAt(
+          times,
+          flows.filter((flow) => flow.assetId === assetId),
+        ),
+      )
+    }
+    return { times, positions, symbols }
+  }
+
+  /**
+   * Rewrites a wallet's observed movements once its imported movements
+   * changed (#426), so that at each read its observed and imported
+   * movements still add up to what the read found: what an imported
+   * operation explains is no longer observed, so nothing counts twice; what
+   * it does not stays observed. An observed movement whose quantity must
+   * change is replaced (its answer and link with it: the imported
+   * operation now carries them); one that stays the same is kept as it is.
+   * Returns how many observed movements it removed and wrote.
+   */
+  async reconcileObserved(
+    executor: Executor,
+    accountId: string,
+    before: ReadPositions,
+    now: Date,
+  ): Promise<{ removed: number; written: number }> {
+    const imported = await this.importedQuantities(executor, accountId)
+    const observed = await this.observedRows(executor, accountId)
+    const { times } = before
+    const symbols = new Map(before.symbols)
+    for (const row of imported) {
+      if (!symbols.has(row.assetId)) symbols.set(row.assetId, row.symbol)
+    }
+    // The previous read of each read: an existing movement's own, else the
+    // read before it in the list.
+    const sinceOf = new Map<number, Date | null>()
+    for (const row of observed) {
+      sinceOf.set(row.occurredAt.getTime(), row.observedSince)
+    }
+    const removed: string[] = []
+    const rows: (typeof m.$inferInsert)[] = []
+    for (const [assetId, symbol] of symbols) {
+      const held = before.positions.get(assetId) ?? times.map(() => 0n)
+      const explained = cumulativeAt(
+        times,
+        imported.filter((row) => row.assetId === assetId),
+      )
+      let previous = 0n
+      times.forEach((time, i) => {
+        const residue = held[i] - explained[i]
+        const delta = residue - previous
+        previous = residue
+        const existing = observed.filter(
+          (row) => row.assetId === assetId && row.occurredAt.getTime() === time,
+        )
+        const current = existing.reduce(
+          (sum, row) => sum + toUnits(row.quantity),
+          0n,
+        )
+        if (current === delta) return
+        removed.push(...existing.map((row) => row.id))
+        if (delta === 0n) return
+        // The earliest read still known opens the account (the reads whose
+        // movements an import replaced are forgotten).
+        const since =
+          i === 0
+            ? null
+            : sinceOf.has(time)
+              ? sinceOf.get(time)!
+              : new Date(times[i - 1])
+        rows.push({
+          accountId,
+          occurredAt: new Date(time),
+          observedSince: since,
+          operation: since === null ? 'opening' : 'wallet_sync',
+          kind: delta > 0n ? 'observed_in' : 'observed_out',
+          asset: symbol.slice(0, 20),
+          assetId,
+          quantity: formatQuantity(delta),
+          dedupeHash: `observed:${randomUUID()}`,
+          updatedAt: now,
+        })
+      })
+    }
+    for (let i = 0; i < removed.length; i += 500) {
+      await executor.delete(m).where(inArray(m.id, removed.slice(i, i + 500)))
+    }
+    if (rows.length > 0) await executor.insert(m).values(rows)
+    if (removed.length > 0 || rows.length > 0) {
+      this.logger.log(
+        `Observed crypto movements reconciled: ${removed.length} removed, ${rows.length} written`,
+      )
+    }
+    return { removed: removed.length, written: rows.length }
+  }
+
+  private observedRows(executor: Executor, accountId: string) {
+    return executor
+      .select({
+        id: m.id,
+        occurredAt: m.occurredAt,
+        observedSince: m.observedSince,
+        asset: m.asset,
+        assetId: m.assetId,
+        quantity: m.quantity,
+      })
+      .from(m)
+      .where(
+        and(
+          eq(m.accountId, accountId),
+          inArray(m.kind, ['observed_in', 'observed_out']),
+        ),
+      )
+  }
+
+  /**
    * Links the departures and arrivals that match one way only
-   * (`matchTransfers`) among those not linked, answered nor unlinked by
-   * hand, and names each side's account on the other. Run after each wallet
+   * (`matchTransfers`: by transaction hash first, #426) among those not
+   * linked, answered nor unlinked by hand, and names each side's account on
+   * the other. Run after each wallet
    * read and each exchange import commit. Returns how many it linked.
    */
   async match(executor: Executor = this.db): Promise<number> {
@@ -266,6 +486,7 @@ export class CryptoCostBasisService {
         occurredAt: m.occurredAt,
         observedSince: m.observedSince,
         counterpartAccountId: m.counterpartAccountId,
+        txHashDigest: m.txHashDigest,
       })
       .from(m)
       .where(
@@ -301,6 +522,7 @@ export class CryptoCostBasisService {
         at: row.occurredAt.getTime(),
         observedSince: row.observedSince?.getTime() ?? null,
         counterpartAccountId: row.counterpartAccountId,
+        txHashDigest: row.txHashDigest,
       })
     }
     const pairs = matchTransfers(candidates)
@@ -366,4 +588,23 @@ export function cryptoInvestedNow(
   now: Date,
 ): InvestedStep | null {
   return stepBefore(basis, accountId, now.getTime() + 1)
+}
+
+/** The sum of `flows` up to each of `times` (sorted), included. */
+function cumulativeAt(
+  times: readonly number[],
+  flows: readonly { at: number; units: bigint }[],
+): bigint[] {
+  const sorted = [...flows].sort((a, b) => a.at - b.at)
+  const sums: bigint[] = []
+  let sum = 0n
+  let next = 0
+  for (const time of times) {
+    while (next < sorted.length && sorted[next].at <= time) {
+      sum += sorted[next].units
+      next++
+    }
+    sums.push(sum)
+  }
+  return sums
 }

@@ -240,27 +240,36 @@ export function Preview({
         </section>
       )}
 
-      <section aria-labelledby="holdings-title" className="space-y-1">
-        <h3 id="holdings-title" className="text-sm font-semibold">
-          Avoirs après l’import
-        </h3>
-        {holdings.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Aucun avoir.</p>
-        ) : (
-          <ul className="divide-y" aria-label="Avoirs après l’import">
-            {holdings.map((holding) => (
-              <HoldingRow
-                key={holding.assetId ?? holding.symbol}
-                holding={holding}
-              />
-            ))}
-          </ul>
-        )}
-        <p className="text-muted-foreground text-xs">
-          Les euros restés sur la plateforme ne sont pas comptés. Vos avoirs
-          saisis à la main ne changent pas.
+      {detail.format === 'ledger_live_csv' ? (
+        <p className="text-muted-foreground text-sm">
+          Les avoirs du wallet restent ceux lus sur la chaîne. Ces opérations
+          remplacent les mouvements observés entre deux lectures : rien n’est
+          compté deux fois. Les retraits d’une plateforme portant la même
+          transaction y sont reliés.
         </p>
-      </section>
+      ) : (
+        <section aria-labelledby="holdings-title" className="space-y-1">
+          <h3 id="holdings-title" className="text-sm font-semibold">
+            Avoirs après l’import
+          </h3>
+          {holdings.length === 0 ? (
+            <p className="text-muted-foreground text-sm">Aucun avoir.</p>
+          ) : (
+            <ul className="divide-y" aria-label="Avoirs après l’import">
+              {holdings.map((holding) => (
+                <HoldingRow
+                  key={holding.assetId ?? holding.symbol}
+                  holding={holding}
+                />
+              ))}
+            </ul>
+          )}
+          <p className="text-muted-foreground text-xs">
+            Les euros restés sur la plateforme ne sont pas comptés. Vos avoirs
+            saisis à la main ne changent pas.
+          </p>
+        </section>
+      )}
 
       {detail.rows.length > 0 && (
         <details className="text-sm">
@@ -304,22 +313,46 @@ export function Preview({
   )
 }
 
+/** What the sheet says for each kind of account it imports into. */
+const WORDING = {
+  exchange: {
+    title: 'Importer un export',
+    description:
+      'Export « Transactions » de Binance ou de Coinbase, au format CSV.',
+    hint: 'Binance ou Coinbase, 5 Mo maximum',
+    wrongFile: 'Choisissez le fichier .csv exporté depuis la plateforme.',
+    done: 'Export importé',
+  },
+  wallet: {
+    title: 'Importer l’historique Ledger Live',
+    description:
+      'Dans Ledger Live : Paramètres › Comptes › Exporter l’historique des opérations, au format CSV.',
+    hint: 'Historique Ledger Live, 5 Mo maximum',
+    wrongFile: 'Choisissez le fichier .csv exporté depuis Ledger Live.',
+    done: 'Historique importé',
+  },
+} as const
+
 /**
  * "Importer un export" of an exchange account: pick the Binance or Coinbase
  * "Transactions" CSV, check the preview (new and already imported lines,
  * unknown operations, holdings after the import), map the tickers without a
  * price, confirm. Nothing is written before the confirmation; closing the
- * sheet discards the pending import.
+ * sheet discards the pending import. On a wallet account (`source`
+ * `wallet`, #426), the same with a Ledger Live operations history.
  */
 export function ExchangeImportSheet({
   open,
   onOpenChange,
   accountId,
+  source = 'exchange',
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   accountId: string
+  source?: keyof typeof WORDING
 }) {
+  const wording = WORDING[source]
   const isMobile = useIsMobile()
   const queryClient = useQueryClient()
   const [detail, setDetail] = useState<CryptoImportDto>()
@@ -358,8 +391,8 @@ export function ExchangeImportSheet({
     onSuccess: async (result) => {
       toast.success(
         result.counts.inserted === 0
-          ? 'Export importé : rien de nouveau'
-          : `Export importé : ${plural(result.counts.inserted, 'ligne ajoutée', 'lignes ajoutées')}`,
+          ? `${wording.done} : rien de nouveau`
+          : `${wording.done} : ${plural(result.counts.inserted, 'ligne ajoutée', 'lignes ajoutées')}`,
       )
       setDetail(undefined)
       onOpenChange(false)
@@ -374,7 +407,7 @@ export function ExchangeImportSheet({
   function send(file: File) {
     setError(undefined)
     if (!isCsv(file)) {
-      setError('Choisissez le fichier .csv exporté depuis la plateforme.')
+      setError(wording.wrongFile)
       return
     }
     if (file.size > MAX_EXPORT_BYTES) {
@@ -399,12 +432,8 @@ export function ExchangeImportSheet({
         className={isMobile ? FORM_SHEET_SCREEN : 'overflow-y-auto sm:max-w-lg'}
       >
         <EditorHeader
-          title={<>Importer un export</>}
-          description={
-            <>
-              Export « Transactions » de Binance ou de Coinbase, au format CSV.
-            </>
-          }
+          title={<>{wording.title}</>}
+          description={<>{wording.description}</>}
           className="pb-0"
         />
         <SheetScroll className="space-y-4 px-4 pb-6">
@@ -453,7 +482,7 @@ export function ExchangeImportSheet({
             <FileDropzone
               onFile={send}
               busy={upload.isPending}
-              hint="Binance ou Coinbase, 5 Mo maximum"
+              hint={wording.hint}
             />
           )}
         </SheetScroll>

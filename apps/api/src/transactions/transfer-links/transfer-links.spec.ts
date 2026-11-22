@@ -88,7 +88,14 @@ describe.skipIf(!process.env.DATABASE_URL)('transfer links (database)', () => {
           checking: await account('checking', 'Test checking'),
           livret: await account('savings', 'Test livret'),
           pea: await account('brokerage', 'Test PEA'),
-          exchange: await account('crypto', 'Test exchange'),
+          exchange: (
+            await accounts.create({
+              name: 'Test exchange',
+              type: 'crypto',
+              cryptoSource: 'exchange',
+              cryptoProvider: 'binance',
+            })
+          ).id,
           wallet: await account('crypto', 'Test wallet'),
         }
         const category = async (kind: TransactionKind) => {

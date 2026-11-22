@@ -173,6 +173,9 @@ export function AccountDetailPage({
   const [pasteOpen, setPasteOpen] = useState(false)
   // An exchange's export, from the page's menu (#447).
   const [exportOpen, setExportOpen] = useState(false)
+  // The wallet's Ledger Live sheet is mounted once first opened (#426): its
+  // page stays as light as before for the many visits that never import.
+  const [exportMounted, setExportMounted] = useState(false)
   // The kind is chosen before adding (#398).
   const [addKind, setAddKind] = useState<TransactionKind | null>(null)
   const [investedOpen, setInvestedOpen] = useState(false)
@@ -321,6 +324,15 @@ export function AccountDetailPage({
             disabled: walletRefresh.disabled,
             onSelect: walletRefresh.refresh,
           },
+          // Its own history (#426): the cost of what it received.
+          {
+            label: 'Importer l’historique Ledger Live',
+            icon: <FileUpIcon />,
+            onSelect: () => {
+              setExportMounted(true)
+              setExportOpen(true)
+            },
+          },
         ]
       : mealVoucher
         ? // A meal-voucher card has its own entries (#298).
@@ -403,6 +415,14 @@ export function AccountDetailPage({
           refreshing={walletRefresh.isPending}
           onTokensChanged={walletRefresh.refresh}
         />
+        {writable && exportMounted && (
+          <ExchangeImportSheet
+            open={exportOpen}
+            onOpenChange={setExportOpen}
+            accountId={current.id}
+            source="wallet"
+          />
+        )}
       </div>
     )
   }

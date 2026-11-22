@@ -219,3 +219,162 @@ export const COINBASE_2025_BALANCES = {
   ethereum: '0.0051',
   solana: '2',
 }
+
+/**
+ * Ledger Live operations history (#426): the columns of Ledger Live's
+ * `csvExport.ts`, comma separated, never quoted, CRLF. Transaction hashes
+ * are made up (`fakeHash`), the xpub column holds a placeholder that the
+ * parser never reads.
+ */
+export const LEDGER_LIVE_HEADER =
+  'Operation Date,Status,Currency Ticker,Operation Type,Operation Amount,Operation Fees,Operation Hash,Account Name,Account xpub,Countervalue Ticker,Countervalue at Operation Date,Countervalue at CSV Export'
+
+/** A fake transaction hash, 64 hex characters, from a seed. */
+export function fakeHash(seed: number): string {
+  return seed.toString(16).padStart(8, '0').repeat(8)
+}
+
+/** A placeholder for the xpub column (never read nor stored). */
+export const LEDGER_XPUB_PLACEHOLDER = 'xpubPLACEHOLDERNEVERREAD'
+
+/** date, status, ticker, type, amount, fees, hash, account name. */
+export type LedgerLiveLine = [
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+]
+
+export function ledgerLiveCsv(lines: LedgerLiveLine[]): string {
+  const body = lines.map(
+    ([date, status, ticker, type, amount, fees, hash, account]) =>
+      [
+        date,
+        status,
+        ticker,
+        type,
+        amount,
+        fees,
+        hash,
+        account,
+        LEDGER_XPUB_PLACEHOLDER,
+        'EUR',
+        '123.45',
+        '678.90',
+      ].join(','),
+  )
+  // Ledger Live writes no trailing newline.
+  return [LEDGER_LIVE_HEADER, ...body].join('\r\n')
+}
+
+/**
+ * A Bitcoin account fed from an exchange, a payment out, a move to a second
+ * Bitcoin account of the same export, and an Ethereum account with a token.
+ */
+export const LEDGER_LIVE_LINES: LedgerLiveLine[] = [
+  [
+    '2025-03-01T10:00:00.000Z',
+    'Confirmed',
+    'BTC',
+    'IN',
+    '0.01',
+    '0.00002',
+    fakeHash(1),
+    'Bitcoin 1',
+  ],
+  [
+    '2025-03-10T08:30:00.000Z',
+    'Confirmed',
+    'BTC',
+    'OUT',
+    '0.002',
+    '0.00001',
+    fakeHash(2),
+    'Bitcoin 1',
+  ],
+  // From Bitcoin 1 to Bitcoin 2: one transaction, two lines.
+  [
+    '2025-03-12T12:00:00.000Z',
+    'Confirmed',
+    'BTC',
+    'OUT',
+    '0.003',
+    '0.00001',
+    fakeHash(3),
+    'Bitcoin 1',
+  ],
+  [
+    '2025-03-12T12:00:00.000Z',
+    'Confirmed',
+    'BTC',
+    'IN',
+    '0.00299',
+    '0.00001',
+    fakeHash(3),
+    'Bitcoin 2',
+  ],
+  [
+    '2025-03-15T09:00:00.000Z',
+    'Confirmed',
+    'ETH',
+    'IN',
+    '0.5',
+    '0.0001',
+    fakeHash(4),
+    'Ethereum 1',
+  ],
+  [
+    '2025-03-16T09:00:00.000Z',
+    'Confirmed',
+    'USDT',
+    'IN',
+    '25',
+    '',
+    fakeHash(5),
+    'Ethereum 1',
+  ],
+  [
+    '2025-03-16T09:05:00.000Z',
+    'Confirmed',
+    'ETH',
+    'FEES',
+    '0.0002',
+    '0.0002',
+    fakeHash(6),
+    'Ethereum 1',
+  ],
+  [
+    '2025-03-20T09:00:00.000Z',
+    'Failed',
+    'ETH',
+    'OUT',
+    '0.0001',
+    '0.0001',
+    fakeHash(7),
+    'Ethereum 1',
+  ],
+  [
+    '2025-03-21T09:00:00.000Z',
+    'Confirmed',
+    'ETH',
+    'NFT_IN',
+    '0',
+    '0',
+    fakeHash(8),
+    'Ethereum 1',
+  ],
+  [
+    '2025-03-22T09:00:00.000Z',
+    'Confirmed',
+    'ETH',
+    'MYSTERY_OP',
+    '0.001',
+    '0',
+    fakeHash(9),
+    'Ethereum 1',
+  ],
+]

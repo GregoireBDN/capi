@@ -617,6 +617,51 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
       })
     })
 
+    it('keeps a transaction hash digest on export lines only, as hex SHA-256 (#426)', async () => {
+      await inRollback(async (tx) => {
+        const { line, observedIn, insert } = await setup(tx)
+        const digest = 'a'.repeat(64)
+        await refused(tx, 'crypto_movements_tx_hash_digest', (nested) =>
+          insert(nested, observedIn({ txHashDigest: digest })),
+        )
+        await refused(tx, 'crypto_movements_tx_hash_digest', (nested) =>
+          insert(nested, line({ txHashDigest: 'not-a-digest' })),
+        )
+        await refused(tx, 'crypto_movements_tx_hash_digest', (nested) =>
+          insert(nested, line({ txHashDigest: 'A'.repeat(64) })),
+        )
+        await insert(tx, line({ txHashDigest: digest }))
+      })
+    })
+
+    it('puts an exchange export on an exchange, a Ledger Live history on a wallet (#426)', async () => {
+      await inRollback(async (tx) => {
+        const { exchange, wallet } = await setup(tx)
+        const values = (
+          accountId: string,
+          format: 'coinbase_csv' | 'ledger_live_csv',
+        ) => ({
+          accountId,
+          format,
+          fileName: 'export-fictif.csv',
+          fileHash: 'fixture',
+        })
+        await refused(tx, 'crypto_imports_account_source', (nested) =>
+          nested
+            .insert(cryptoImportsTable)
+            .values(values(exchange.id, 'ledger_live_csv')),
+        )
+        await refused(tx, 'crypto_imports_account_source', (nested) =>
+          nested
+            .insert(cryptoImportsTable)
+            .values(values(wallet.id, 'coinbase_csv')),
+        )
+        await tx
+          .insert(cryptoImportsTable)
+          .values(values(wallet.id, 'ledger_live_csv'))
+      })
+    })
+
     it('links a departure to an arrival of another account, once, never answered otherwise', async () => {
       await inRollback(async (tx) => {
         const { line, observedIn, insert } = await setup(tx)

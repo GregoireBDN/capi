@@ -5,7 +5,8 @@ import type {
 import type { ParseIssue } from '#/imports/parsers/parsed-row'
 
 /**
- * One line of an exchange export, as the parsers return it. Holds quantities:
+ * One line of an exchange export (or a Ledger Live history), as the parsers
+ * return it. Holds quantities:
  * never log it. Nothing else from the file is kept: account holder names and
  * user ids, notes, remarks and addresses are dropped by the parsers.
  */
@@ -29,6 +30,11 @@ export interface ParsedMovement {
   eurCents: number | null
   /** Exchange id of the line, when the export has one. */
   sourceRef: string | null
+  /**
+   * SHA-256 of the on-chain transaction hash (`txHashDigest`), when the
+   * export gives one (Ledger Live, #426). The hash itself is never kept.
+   */
+  txHashDigest?: string | null
 }
 
 export interface CryptoParseResult {
