@@ -16,4 +16,4 @@ Closes #
 - [ ] `pnpm check-types` passes
 - [ ] `pnpm test` passes
 - [ ] No real financial data (CSV rows, labels, amounts, balances, account numbers) in code, fixtures, logs or this description
-- [ ] Docs updated if behaviour or conventions changed (`CLAUDE.md`, `README.md`)
+- [ ] Docs updated if behaviour or conventions changed (`CLAUDE.md`, `docs/domain/`, `README.md`)

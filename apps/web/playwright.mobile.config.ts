@@ -12,7 +12,8 @@ import { defineConfig, devices } from '@playwright/test'
  * nothing about real iOS Safari quirks. The API's global rate limit (60
  * requests/min per IP) throttles a full run: run a page or a project at a time
  * (`-g dashboard`, `--project=w320`) or use a throwaway API instance whose
- * limit is raised. See "Mobile layout conventions" in CLAUDE.md.
+ * limit is raised. See "Mobile layout conventions" in
+ * docs/domain/web-conventions.md.
  */
 const WEB_URL = process.env['WEB_URL'] ?? 'http://localhost:3000'
 

@@ -285,7 +285,7 @@ erDiagram
   oauth_grants ||--o{ oauth_audit : "cascade"
 ```
 
-These 13 tables are covered by `CLAUDE.md` (Auth, Passkeys, Personal access tokens) and ADR 0003; the audit found nothing to change in them beyond the hygiene points of § 6 (time zones).
+These 13 tables are covered by [`docs/domain/auth-and-sessions.md`](../domain/auth-and-sessions.md) (Auth, Passkeys, Personal access tokens) and ADR 0003; the audit found nothing to change in them beyond the hygiene points of § 6 (time zones).
 
 ## 3. Tables
 

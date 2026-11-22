@@ -132,7 +132,7 @@ services:
     environment:
       # The web server proxies /api/* to the API and calls it during SSR, so the
       # browser only talks to the web origin and the session cookies are
-      # first-party (see CLAUDE.md, Auth).
+      # first-party (see docs/domain/auth-and-sessions.md).
       API_URL: http://api:4000
       # Peers allowed to set the client IP (X-Forwarded-For): Caddy only, by
       # its service name on the `proxy` network (infra repo, caddy/compose.yml),
