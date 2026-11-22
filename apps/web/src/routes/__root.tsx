@@ -28,7 +28,7 @@ export const Route = createRootRoute({
       {
         title: 'Finances',
       },
-      // PWA / installed app (see CLAUDE.md, "PWA"); theme-color is in <head>.
+      // PWA / installed app (see docs/domain/pwa.md); theme-color is in <head>.
       { name: 'application-name', content: 'Finances' },
       { name: 'mobile-web-app-capable', content: 'yes' },
       { name: 'apple-mobile-web-app-capable', content: 'yes' },

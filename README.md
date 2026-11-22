@@ -118,7 +118,7 @@ Re-running is safe (nothing is inserted twice). `--help` lists the options, incl
 
 ## Installing on the phone (PWA)
 
-The production build is an installable PWA: open the app over HTTPS (or `localhost`), then **Share → Sur l'écran d'accueil** in Safari (iOS) or **Installer l'application** in Chrome (Android). A service worker caches only the static app shell (code, icons, offline page) — never API responses or rendered pages — and shows an offline page when the server can't be reached. Icons are regenerated from `apps/web/public/logo.svg` with `pnpm --filter @finances/web icons`. Details in [`CLAUDE.md`](./CLAUDE.md#pwa).
+The production build is an installable PWA: open the app over HTTPS (or `localhost`), then **Share → Sur l'écran d'accueil** in Safari (iOS) or **Installer l'application** in Chrome (Android). A service worker caches only the static app shell (code, icons, offline page) — never API responses or rendered pages — and shows an offline page when the server can't be reached. Icons are regenerated from `apps/web/public/logo.svg` with `pnpm --filter @finances/web icons`. Details in [`docs/domain/pwa.md`](./docs/domain/pwa.md).
 
 ## Asking Claude about your finances (MCP)
 
@@ -141,4 +141,4 @@ docs/                  project documentation (roadmap, ...)
 
 ## Contributing
 
-Architecture, domain rules (money in cents, transfers, import idempotency, privacy) and workflow conventions (GitHub Flow, branch naming, conventional commits, squash merge) are documented in [`CLAUDE.md`](./CLAUDE.md). Issues and PRs use the templates in [`.github/`](./.github/).
+Architecture, domain rules (money in cents, transfers, import idempotency, privacy) and workflow conventions (GitHub Flow, branch naming, conventional commits, squash merge) are documented in [`CLAUDE.md`](./CLAUDE.md), each feature's details in [`docs/domain/`](./docs/domain/README.md). Issues and PRs use the templates in [`.github/`](./.github/).
