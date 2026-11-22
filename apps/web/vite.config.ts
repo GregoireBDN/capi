@@ -41,6 +41,7 @@ const config = defineConfig({
         '/**': { headers: { 'cross-origin-resource-policy': 'same-origin' } },
         '/sw.js': { headers: { 'cache-control': 'no-cache' } },
         '/manifest.json': { headers: { 'cache-control': 'no-cache' } },
+        '/manifest-staging.json': { headers: { 'cache-control': 'no-cache' } },
         '/offline.html': { headers: offlinePageHeaders() },
       },
       // Keep the workspace's build and test tooling out of the traced

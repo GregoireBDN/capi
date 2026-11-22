@@ -32,6 +32,9 @@ What the override fixes, whatever `.env` says:
 | `SMTP_HOST`                                | empty                                                 | no email                                                            |
 | `REMOTE_MCP_ENABLED`                       | `false`                                               | no OAuth routes, no connector                                       |
 | `PRICE_API_ENABLED`, `WALLET_SYNC_ENABLED` | `false`                                               | the demo's seeded prices; no outbound call                          |
+| `APP_ENVIRONMENT` (`web`)                  | `staging`                                             | yellow header, icons and manifest (#454), see below                 |
+
+**Staging looks like staging** (#454): the same `web` image reads `APP_ENVIRONMENT=staging` at runtime (unset or anything else is production, which needs nothing), so on staging the header and the top of the phone's menu are yellow with a « Staging » label (on phones the label takes the place of the word « Finances »), and the page links its own manifest (`/manifest-staging.json`: « Finances (staging) », short name « Finances β »), yellow icons (`/icons/staging/`), a yellow favicon and a yellow `theme-color`. A home-screen install of staging shows the yellow icon and its own name. iOS reads the icon when the app is added to the home screen: a staging install made before #454 keeps the old icon until it is removed and added again.
 
 Staging and production share **no database, cookie origin or secret**: staging has its own volume and `POSTGRES_PASSWORD`, its own `JWT_SECRET` (a production session is never valid there), and its own host (`APP_URL`), so its `__Host-` session cookies and its passkeys belong to that host only. There is no backup of staging: everything in it is rebuilt by the next deploy.
 

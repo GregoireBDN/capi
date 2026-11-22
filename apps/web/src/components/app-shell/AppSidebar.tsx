@@ -23,6 +23,7 @@ import {
   useSidebar,
 } from '@finances/ui'
 import { REVIEW_SEARCH } from '#/components/transactions/search'
+import { useAppEnvironment } from '#/lib/app-environment'
 import { plural } from '#/lib/plural'
 import { useReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
@@ -35,6 +36,7 @@ import {
 import type { NavItem } from './nav-items'
 import { closeSheetThenNavigate } from './close-then-navigate'
 import { useSidebarSwipe } from './sidebar-swipe'
+import { StagingBadge } from './StagingBadge'
 
 /**
  * Page icons a little larger than the menu default, the same size open and
@@ -86,6 +88,8 @@ export function AppSidebar() {
   const queryClient = useContext(QueryClientContext)
 
   const onSettings = isSettingsPage(pathname)
+  // Staging's top in yellow, like its header (#454).
+  const staging = useAppEnvironment() === 'staging'
 
   // The mobile sheet stays open across navigations unless we close it, and
   // it is closed before the page changes (#419, `closeSheetThenNavigate`).
@@ -178,7 +182,7 @@ export function AppSidebar() {
         {/* The sheet has no header above it: its top links to the
             dashboard. From md up the logo is in the header. */}
         {isMobile && (
-          <SidebarHeader>
+          <SidebarHeader className={cn(staging && 'env-banner')}>
             <Link
               to={ROUTES.dashboard}
               onClick={closeMobileSheet}
@@ -188,6 +192,7 @@ export function AppSidebar() {
               <span className="truncate text-base font-semibold tracking-tight">
                 Finances
               </span>
+              {staging && <StagingBadge />}
             </Link>
           </SidebarHeader>
         )}

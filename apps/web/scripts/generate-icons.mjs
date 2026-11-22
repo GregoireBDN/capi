@@ -1,4 +1,5 @@
-// Regenerates the PWA icons and favicon from `public/logo.svg`.
+// Regenerates the PWA icons and favicon from `public/logo.svg`, and their
+// staging variants on a yellow tile (#454, `public/icons/staging/`).
 //
 //   pnpm --filter @finances/web icons
 //
@@ -14,6 +15,12 @@ const logo = path.join(publicDir, 'logo.svg')
 
 /** Light theme `--background` (oklch(0.975 0.007 260)), as in manifest.json. */
 const BACKGROUND = '#f4f7fc'
+
+/**
+ * Staging's yellow (#454): light `--env-banner` (oklch(0.88 0.16 95),
+ * `@finances/ui/globals.css`), as in manifest-staging.json.
+ */
+const STAGING_BACKGROUND = '#f9d544'
 
 /**
  * Renders the logo at `size * scale` and centres it on a `size` square.
@@ -72,22 +79,64 @@ function ico(pngs) {
   return Buffer.concat([header, ...entries, ...pngs.map((p) => p.data)])
 }
 
-await mkdir(iconsDir, { recursive: true })
+await mkdir(path.join(iconsDir, 'staging'), { recursive: true })
+
+/** The app icons (`any`, maskable, iOS) on `background`, under `dir`. */
+async function appIcons(dir, background) {
+  return {
+    // `any` icons: rounded tile, the launcher shows them as-is.
+    [`${dir}/icon-192.png`]: await tile({
+      size: 192,
+      scale: 0.72,
+      radius: 0.22,
+      background,
+    }),
+    [`${dir}/icon-512.png`]: await tile({
+      size: 512,
+      scale: 0.72,
+      radius: 0.22,
+      background,
+    }),
+    // Maskable: full bleed, the mark fits inside the 80 % safe-zone circle
+    // (0.56 × √2 ≈ 0.79 of the size, so even its corners stay inside).
+    [`${dir}/icon-maskable-512.png`]: await tile({
+      size: 512,
+      scale: 0.56,
+      background,
+    }),
+    // iOS ignores transparency (fills it with black) and rounds corners itself.
+    [`${dir}/apple-touch-icon.png`]: await tile({
+      size: 180,
+      scale: 0.7,
+      background,
+    }),
+  }
+}
 
 const outputs = {
-  // `any` icons: rounded light tile, the launcher shows them as-is.
-  'icons/icon-192.png': await tile({ size: 192, scale: 0.72, radius: 0.22 }),
-  'icons/icon-512.png': await tile({ size: 512, scale: 0.72, radius: 0.22 }),
-  // Maskable: full bleed, the mark fits inside the 80 % safe-zone circle
-  // (0.56 × √2 ≈ 0.79 of the size, so even its corners stay inside).
-  'icons/icon-maskable-512.png': await tile({ size: 512, scale: 0.56 }),
-  // iOS ignores transparency (fills it with black) and rounds corners itself.
-  'icons/apple-touch-icon.png': await tile({ size: 180, scale: 0.7 }),
+  ...(await appIcons('icons', BACKGROUND)),
   'favicon.ico': ico([
     { size: 16, data: await tile({ size: 16, scale: 1, background: null }) },
     { size: 32, data: await tile({ size: 32, scale: 1, background: null }) },
     { size: 48, data: await tile({ size: 48, scale: 1, background: null }) },
   ]),
+  // Staging (#454): the same icons on a yellow tile, so its home-screen
+  // install and its browser tab never pass for production's. Its favicon
+  // keeps a tile too: a bare mark would look like production's.
+  ...(await appIcons('icons/staging', STAGING_BACKGROUND)),
+  'icons/staging/favicon.ico': ico(
+    await Promise.all(
+      [16, 32, 48].map(async (size) => ({
+        size,
+        data: await tile({
+          size,
+          scale: 0.8,
+          radius: 0.22,
+          background: STAGING_BACKGROUND,
+        }),
+      })),
+    ),
+  ),
 }
 
 for (const [file, data] of Object.entries(outputs)) {

@@ -1,11 +1,13 @@
 import { Link } from '@tanstack/react-router'
-import { Button, useSidebar } from '@finances/ui'
+import { Button, cn, useSidebar } from '@finances/ui'
 import { MenuIcon } from 'lucide-react'
 import type { UserDto } from '#/api/types.gen'
+import { useAppEnvironment } from '#/lib/app-environment'
 import { useReviewCount } from '#/lib/review-count'
 import { ROUTES } from '#/lib/routes'
 import { AccountMenu } from './AccountMenu'
 import { useSetPageActionsSlot, useSetPageBackSlot } from './page-actions'
+import { StagingBadge } from './StagingBadge'
 
 /**
  * Header of the authenticated layout, on every width (#386, the owner's
@@ -29,6 +31,9 @@ import { useSetPageActionsSlot, useSetPageBackSlot } from './page-actions'
  * `h-12` on every width (`--app-header`, `globals.css`), out of the
  * scrolling area (#418): the page scrolls under it in its own area, so a
  * page's sticky elements stick to that area's top (`top-0`).
+ *
+ * On staging (#454, `APP_ENVIRONMENT`) it is yellow (`env-banner`) with
+ * « Staging » beside the name, so it is never taken for production.
  */
 export function AppHeader({ user }: { user: UserDto }) {
   const { openMobile, setOpenMobile } = useSidebar()
@@ -38,11 +43,15 @@ export function AppHeader({ user }: { user: UserDto }) {
   // not mounted until opened, and Mouvements' « ⋮ » and Opérations' chip read
   // it (`useKnownReviewCount`). ☰ shows no dot (the owner, #393).
   useReviewCount()
+  const staging = useAppEnvironment() === 'staging'
 
   return (
     <header
       data-app-header
-      className="bg-(--header-bg) group/header relative z-20 flex h-12 shrink-0 items-center gap-1 border-b px-2 backdrop-blur-lg md:gap-2 md:px-3"
+      className={cn(
+        'bg-(--header-bg) group/header relative z-20 flex h-12 shrink-0 items-center gap-1 border-b px-2 backdrop-blur-lg md:gap-2 md:px-3',
+        staging && 'env-banner',
+      )}
     >
       <a
         href="#main-content"
@@ -68,7 +77,18 @@ export function AppHeader({ user }: { user: UserDto }) {
         className="flex h-11 shrink-0 items-center gap-2 rounded-lg px-1 no-underline group-has-[[data-page-back]:not(:empty)]/header:max-md:hidden"
       >
         <img src="/logo.svg" alt="" className="size-6" />
-        <span className="font-semibold tracking-tight">Finances</span>
+        <span
+          className={cn(
+            'font-semibold tracking-tight',
+            // On phones the label takes the name's room (both would push the
+            // avatar out beside a « ⋮ »): the logo, the yellow and « Staging »
+            // say which app it is.
+            staging && 'max-md:sr-only',
+          )}
+        >
+          Finances
+        </span>
+        {staging && <StagingBadge />}
       </Link>
       <div
         ref={setBackSlot}
