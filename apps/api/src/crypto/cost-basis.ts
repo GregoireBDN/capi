@@ -334,8 +334,19 @@ export function replayCosts(
       firstReadAt.set(account.id, account.observedAt)
     }
   }
+  // A wallet's own history (a Ledger Live import, #426): its arrivals
+  // carry the cost of the coins sent to it, an account-level link no more.
+  const importedAt = new Map<string, number>()
   for (const movement of byId.values()) {
-    if (!isObserved(movement.kind)) continue
+    if (!isObserved(movement.kind)) {
+      if (sourceOf.get(movement.accountId) === 'exchange') continue
+      const key = `${movement.accountId}|${keyOf(movement)}`
+      const known = importedAt.get(key)
+      if (known === undefined || movement.at < known) {
+        importedAt.set(key, movement.at)
+      }
+      continue
+    }
     const readAt = movement.observedSince ?? movement.at
     const first = firstReadAt.get(movement.accountId)
     if (first === undefined || readAt < first) {
@@ -353,8 +364,15 @@ export function replayCosts(
     if (accountId === null) return false
     const source = sourceOf.get(accountId)
     if (source === undefined || source === 'exchange') return false
-    const limit =
+    const read =
       openingAt.get(`${accountId}|${key}`) ?? firstReadAt.get(accountId)
+    const imported = importedAt.get(`${accountId}|${key}`)
+    const limit =
+      read === undefined
+        ? imported
+        : imported === undefined
+          ? read
+          : Math.min(read, imported)
     return limit === undefined || at < limit
   }
 

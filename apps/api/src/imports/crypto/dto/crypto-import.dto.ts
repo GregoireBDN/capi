@@ -28,7 +28,7 @@ export class CryptoImportUploadDto {
     type: 'string',
     format: 'binary',
     description:
-      'Binance or Coinbase "Transactions" CSV export (UTF-8), at most 5 MB.',
+      'Binance or Coinbase "Transactions" CSV export, or Ledger Live operations history (UTF-8), at most 5 MB.',
   })
   file!: unknown
 }

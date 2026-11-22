@@ -73,7 +73,9 @@ Details (meal vouchers, archive or delete, a cash account's page, account lists)
 - Crypto accounts hold **holdings** (`crypto_holdings`: asset, location label such as a wallet or exchange, quantity, optional invested cents). Quantities (`numeric(38, 18)`) and EUR prices (`numeric(38, 12)`) are **exact decimal strings** handled with the BigInt helper in `apps/api/src/common/decimal.ts` (shared with a PEA's lines, #413); never `parseFloat` them. Value = round half to even of quantity × price, in cents.
 - Prices come from a key-less public API, **server-side only**, cached and kept as last known price when the API fails (flagged stale, never a 500). The crypto reads answer from the database only; the live step is a separate request.
 
-Details (prices, cost basis, observed movements, wallet sync, exchange imports, daily values, the crypto pages): [`docs/domain/crypto.md`](docs/domain/crypto.md).
+- **Ledger Live imports** (#426): a wallet takes its Ledger Live operations history like an exchange its export (preview, dedupe hash with occurrence index, nothing written before the commit, session only); its holdings stay the chain's, its observed movements are rewritten around the imported ones so **observed and imported movements never both count**; transfers are matched **by transaction hash** first, then by the rules. Only a SHA-256 of the transaction hash is stored (`tx_hash_digest`), never the hash, an address or the xpub column.
+
+Details (prices, cost basis, observed movements, wallet sync, exchange and Ledger Live imports, daily values, the crypto pages): [`docs/domain/crypto.md`](docs/domain/crypto.md).
 
 ### CIC CSV import format
 

@@ -321,6 +321,12 @@ export function AccountDetailPage({
             disabled: walletRefresh.disabled,
             onSelect: walletRefresh.refresh,
           },
+          // Its own history (#426): the cost of what it received.
+          {
+            label: 'Importer l’historique Ledger Live',
+            icon: <FileUpIcon />,
+            onSelect: () => setExportOpen(true),
+          },
         ]
       : mealVoucher
         ? // A meal-voucher card has its own entries (#298).
@@ -403,6 +409,14 @@ export function AccountDetailPage({
           refreshing={walletRefresh.isPending}
           onTokensChanged={walletRefresh.refresh}
         />
+        {writable && (
+          <ExchangeImportSheet
+            open={exportOpen}
+            onOpenChange={setExportOpen}
+            accountId={current.id}
+            source="wallet"
+          />
+        )}
       </div>
     )
   }

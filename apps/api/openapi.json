@@ -8399,7 +8399,7 @@
     },
     "/api/accounts/{id}/crypto-imports": {
       "post": {
-        "description": "Parses a Binance or Coinbase \"Transactions\" CSV export (detected from its headers), marks every line new or already imported, lists unknown operation types and tickers without a price id, and computes the holdings the account will have. Stores a pending import; nothing else is written until `POST /crypto-imports/{id}/commit`.",
+        "description": "Parses a Binance or Coinbase \"Transactions\" CSV export into an exchange account, or a Ledger Live operations history into a wallet account (#426; its holdings stay the chain's, no holdings are projected), detected from its headers; marks every line new or already imported, lists unknown operation types and tickers without a price id, and computes the holdings the account will have. Stores a pending import; nothing else is written until `POST /crypto-imports/{id}/commit`.",
         "operationId": "AccountCryptoImportsController_preview",
         "parameters": [
           {
@@ -8434,7 +8434,7 @@
             }
           },
           "400": {
-            "description": "Missing file, not a Binance or Coinbase export, export of another exchange, not an exchange crypto account, archived account."
+            "description": "Missing file, not a Binance, Coinbase or Ledger Live export, export of another exchange or source, not an exchange or wallet crypto account, archived account."
           },
           "401": {
             "description": ""
@@ -8454,7 +8454,7 @@
             "token": []
           }
         ],
-        "summary": "Upload an exchange export and preview it",
+        "summary": "Upload an exchange export or a Ledger Live history and preview it",
         "tags": [
           "Crypto imports"
         ]
@@ -20307,7 +20307,7 @@
           "file": {
             "type": "string",
             "format": "binary",
-            "description": "Binance or Coinbase \"Transactions\" CSV export (UTF-8), at most 5 MB."
+            "description": "Binance or Coinbase \"Transactions\" CSV export, or Ledger Live operations history (UTF-8), at most 5 MB."
           }
         },
         "required": [
@@ -20318,7 +20318,8 @@
         "type": "string",
         "enum": [
           "binance_csv",
-          "coinbase_csv"
+          "coinbase_csv",
+          "ledger_live_csv"
         ]
       },
       "CryptoImportCountsDto": {

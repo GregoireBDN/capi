@@ -55,9 +55,10 @@ export class AccountCryptoImportsController {
 
   @Post()
   @ApiOperation({
-    summary: 'Upload an exchange export and preview it',
+    summary:
+      'Upload an exchange export or a Ledger Live history and preview it',
     description:
-      'Parses a Binance or Coinbase "Transactions" CSV export (detected from its headers), marks every line new or already imported, lists unknown operation types and tickers without a price id, and computes the holdings the account will have. Stores a pending import; nothing else is written until `POST /crypto-imports/{id}/commit`.',
+      'Parses a Binance or Coinbase "Transactions" CSV export into an exchange account, or a Ledger Live operations history into a wallet account (#426; its holdings stay the chain\'s, no holdings are projected), detected from its headers; marks every line new or already imported, lists unknown operation types and tickers without a price id, and computes the holdings the account will have. Stores a pending import; nothing else is written until `POST /crypto-imports/{id}/commit`.',
   })
   @ApiParam(ID_PARAM)
   @ApiConsumes('multipart/form-data')
@@ -65,7 +66,7 @@ export class AccountCryptoImportsController {
   @ApiCreatedResponse({ type: CryptoImportDto })
   @ApiBadRequestResponse({
     description:
-      'Missing file, not a Binance or Coinbase export, export of another exchange, not an exchange crypto account, archived account.',
+      'Missing file, not a Binance, Coinbase or Ledger Live export, export of another exchange or source, not an exchange or wallet crypto account, archived account.',
   })
   @ApiNotFoundResponse()
   @ApiPayloadTooLargeResponse({ description: 'The file exceeds 5 MB.' })
