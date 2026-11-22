@@ -37,11 +37,9 @@ function archivedGroup() {
   return screen.queryByRole('region', { name: 'Archivés' })
 }
 
-async function open(name: string) {
+async function open(name: RegExp) {
   const user = userEvent.setup()
-  await user.click(
-    await screen.findByRole('button', { name: new RegExp(name) }),
-  )
+  await user.click(await screen.findByRole('button', { name }))
   await screen.findByRole('heading', { name: 'Modifier le contact' })
   return user
 }
@@ -103,7 +101,7 @@ describe('ContactsSettings (#359, #440)', () => {
 
   it('keeps a contact with a history when « Supprimer » is refused, and archives them', async () => {
     renderWithClient(<ContactsSettings />)
-    const user = await open('Sam')
+    const user = await open(/Sam/)
     expect(
       screen.getByText(/qui a un historique s’archive/),
     ).toBeInTheDocument()
@@ -141,7 +139,7 @@ describe('ContactsSettings (#359, #440)', () => {
 
   it('deletes a contact never used', async () => {
     renderWithClient(<ContactsSettings />)
-    const user = await open('Dominique')
+    const user = await open(/Dominique/)
     await user.click(screen.getByRole('button', { name: 'Supprimer' }))
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith('Contact supprimé'),
