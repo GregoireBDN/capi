@@ -4,13 +4,13 @@
     {
       "name": "api",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@finances/api", "dev"],
+      "runtimeArgs": ["--filter", "@capi/api", "dev"],
       "port": 4000
     },
     {
       "name": "web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@finances/web", "dev"],
+      "runtimeArgs": ["--filter", "@capi/web", "dev"],
       "port": 3000
     }
   ]

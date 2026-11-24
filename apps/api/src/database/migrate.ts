@@ -13,7 +13,7 @@ import { env } from '#/config/env'
  *
  * - production image: `node dist/database/migrate.js` (the image ships the
  *   `drizzle/` folder next to `dist/`);
- * - from a checkout: `pnpm --filter @finances/api exec tsx src/database/migrate.ts`.
+ * - from a checkout: `pnpm --filter @capi/api exec tsx src/database/migrate.ts`.
  *
  * Idempotent: already applied migrations are skipped. Prints no data, only
  * the counts a migration reports.

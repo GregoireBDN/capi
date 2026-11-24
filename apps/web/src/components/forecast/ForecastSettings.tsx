@@ -8,7 +8,7 @@ import {
   FieldLabel,
   Label,
   Switch,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useEffect, useId, useState } from 'react'
 import type { AccountDto } from '#/api/types.gen'
 import { AmountField } from '#/components/amount/AmountField'

@@ -6,7 +6,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import {
   CalendarIcon,

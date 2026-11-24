@@ -1,4 +1,4 @@
-import { Card, cn, formatWholeEuros, Skeleton } from '@finances/ui'
+import { Card, cn, formatWholeEuros, Skeleton } from '@capi/ui'
 import type { SpendingByCategoryDto, SpendingKind } from '#/api/types.gen'
 import { Delta } from './Delta'
 import { INCREASE_IS_GOOD, KIND_COLOR, KIND_LABEL, KINDS } from './kinds'

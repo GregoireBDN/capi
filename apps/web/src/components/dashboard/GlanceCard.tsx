@@ -1,4 +1,4 @@
-import { Card, cn } from '@finances/ui'
+import { Card, cn } from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import {
   CalendarCheckIcon,

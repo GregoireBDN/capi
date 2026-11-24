@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { Outlet, createFileRoute } from '@tanstack/react-router'
-import { SidebarInset, SidebarProvider } from '@finances/ui'
+import { SidebarInset, SidebarProvider } from '@capi/ui'
 import { AppSidebar } from '#/components/app-shell/AppSidebar'
 import { AppHeader } from '#/components/app-shell/AppHeader'
 import { MonthBarSlot } from '#/components/app-shell/MonthBarSlot'

@@ -1,4 +1,4 @@
-import { Button } from '@finances/ui'
+import { Button } from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import type { ComponentProps } from 'react'
 import { formatMonth } from '#/lib/calendar'

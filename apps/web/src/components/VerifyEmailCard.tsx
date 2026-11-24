@@ -14,7 +14,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@finances/ui'
+} from '@capi/ui'
 import { authControllerResendVerification } from '#/api'
 import { isRateLimited, rateLimitMessage } from '#/lib/api-errors'
 import { ROUTES } from '#/lib/routes'

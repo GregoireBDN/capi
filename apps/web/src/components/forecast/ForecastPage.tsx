@@ -12,7 +12,7 @@ import {
   formatWholeEuros,
   Skeleton,
   StatCard,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {

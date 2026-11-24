@@ -28,7 +28,7 @@ See the [roadmap](./docs/roadmap.md) for the milestones.
 - **Monorepo**: pnpm + Turborepo
 - **API**: NestJS (Fastify), Drizzle ORM, PostgreSQL, cookie-based JWT auth (single user, password only)
 - **Web**: React 19, TanStack Start (SSR) + TanStack Router, Tailwind CSS v4
-- **UI**: `@finances/ui` (Radix + Tailwind), documented in Storybook
+- **UI**: `@capi/ui` (Radix + Tailwind), documented in Storybook
 - **Typed API client**: OpenAPI spec generated from the API, fetch client generated with `@hey-api/openapi-ts`
 - **Tests**: Vitest, Testing Library, Playwright
 - **Infra**: Docker Compose (dev: PostgreSQL + Mailpit; prod: multi-stage builds), GitHub Actions CI
@@ -66,7 +66,7 @@ pnpm dev
 | Mailpit (mails) | http://localhost:8025     |
 | PostgreSQL      | localhost:5432            |
 
-The browser reaches the API through the web origin: the web server proxies `/api/*` to `API_URL` (default `http://localhost:4000`, see `apps/web/.env.example`), so the session cookies are first-party. To run the web app against an API on another port: `API_URL=http://localhost:4100 pnpm --filter @finances/web dev`.
+The browser reaches the API through the web origin: the web server proxies `/api/*` to `API_URL` (default `http://localhost:4000`, see `apps/web/.env.example`), so the session cookies are first-party. To run the web app against an API on another port: `API_URL=http://localhost:4100 pnpm --filter @capi/web dev`.
 
 Common commands (from the repo root):
 
@@ -97,8 +97,8 @@ pnpm db:migrate
 pnpm db:demo --reset          # --reset wipes the database first; re-run it to start over
 
 # API and web against it (the shell's DATABASE_URL wins over apps/api/.env)
-PRICE_API_ENABLED=false pnpm --filter @finances/api dev   # keeps the seeded crypto prices, no network
-pnpm --filter @finances/web dev                           # in another terminal
+PRICE_API_ENABLED=false pnpm --filter @capi/api dev   # keeps the seeded crypto prices, no network
+pnpm --filter @capi/web dev                           # in another terminal
 ```
 
 Then sign in on http://localhost:3000 with `usertest@finances.test` / `usertest` (printed by the command). Cookies ignore ports: if another local stack is signed in on `localhost` in the same browser, open the demo at http://demo.localhost:3000 instead so the two sessions don't overwrite each other. Where `tsx` is missing, run `node dist/database/seed-demo.js --reset` from `apps/api`.
@@ -109,12 +109,12 @@ The pre-app history kept in a Google Sheet is imported once from its CSV exports
 
 ```bash
 # Dry run: prints counts only, writes nothing
-pnpm --filter @finances/api import:history -- \
+pnpm --filter @capi/api import:history -- \
   --transactions data/transactions.csv --balances data/soldes.csv \
   --report data/history-report.json
 
 # Review the counts and data/history-report.json, then write for real
-pnpm --filter @finances/api import:history -- \
+pnpm --filter @capi/api import:history -- \
   --transactions data/transactions.csv --balances data/soldes.csv \
   --commit --create-rules
 ```
@@ -123,7 +123,7 @@ Re-running is safe (nothing is inserted twice). `--help` lists the options, incl
 
 ## Installing on the phone (PWA)
 
-The production build is an installable PWA: open the app over HTTPS (or `localhost`), then **Share → Sur l'écran d'accueil** in Safari (iOS) or **Installer l'application** in Chrome (Android). A service worker caches only the static app shell (code, icons, offline page) — never API responses or rendered pages — and shows an offline page when the server can't be reached. Icons are regenerated from `apps/web/public/logo.svg` with `pnpm --filter @finances/web icons`. Details in [`docs/domain/pwa.md`](./docs/domain/pwa.md).
+The production build is an installable PWA: open the app over HTTPS (or `localhost`), then **Share → Sur l'écran d'accueil** in Safari (iOS) or **Installer l'application** in Chrome (Android). A service worker caches only the static app shell (code, icons, offline page) — never API responses or rendered pages — and shows an offline page when the server can't be reached. Icons are regenerated from `apps/web/public/logo.svg` with `pnpm --filter @capi/web icons`. Details in [`docs/domain/pwa.md`](./docs/domain/pwa.md).
 
 ## Asking Claude about your finances (MCP)
 
@@ -135,11 +135,11 @@ The production build is an installable PWA: open the app over HTTPS (or `localho
 apps/
   api/       NestJS (Fastify), port 4000, routes prefixed with /api
   web/       React 19 + TanStack Start (SSR), port 3000
-  ui-docs/   Storybook v9 for @finances/ui, port 6006
+  ui-docs/   Storybook v9 for @capi/ui, port 6006
   mcp/       local MCP server (stdio) for Claude, read-only, over the API
 packages/
-  shared/              @finances/shared — shared Zod schemas
-  ui/                  @finances/ui — Radix + Tailwind components
+  shared/              @capi/shared — shared Zod schemas
+  ui/                  @capi/ui — Radix + Tailwind components
   config-typescript/   shared TS configs (base / nestjs / react)
 docs/                  project documentation (roadmap, ...)
 ```

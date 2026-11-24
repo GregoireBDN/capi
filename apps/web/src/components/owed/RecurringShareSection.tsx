@@ -1,4 +1,4 @@
-import { Button, SegmentedControl, SegmentedControlItem } from '@finances/ui'
+import { Button, SegmentedControl, SegmentedControlItem } from '@capi/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { toast } from 'sonner'

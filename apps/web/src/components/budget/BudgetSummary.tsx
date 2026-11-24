@@ -1,4 +1,4 @@
-import { Card, CardContent, ProgressMeter } from '@finances/ui'
+import { Card, CardContent, ProgressMeter } from '@capi/ui'
 import type { BudgetMonthDto } from '#/api/types.gen'
 import { formatCents } from '#/lib/money'
 import { formatBudgetAmount } from './amount'

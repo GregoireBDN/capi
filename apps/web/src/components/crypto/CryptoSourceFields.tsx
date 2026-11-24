@@ -8,7 +8,7 @@ import {
   Input,
   RadioCard,
   RadioCardGroup,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'

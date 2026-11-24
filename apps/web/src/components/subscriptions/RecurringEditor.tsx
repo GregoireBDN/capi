@@ -19,7 +19,7 @@ import {
   ToggleGroup,
   ToggleGroupItem,
   useIsMobile,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   BanIcon,

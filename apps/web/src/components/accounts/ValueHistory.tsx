@@ -1,4 +1,4 @@
-import { Button } from '@finances/ui'
+import { Button } from '@capi/ui'
 import { ClipboardPasteIcon, HistoryIcon, PlusIcon } from 'lucide-react'
 import type { SnapshotDto } from '#/api/types.gen'
 import { plural } from '#/lib/plural'

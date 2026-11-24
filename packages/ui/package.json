@@ -1,5 +1,5 @@
 {
-  "name": "@finances/ui",
+  "name": "@capi/ui",
   "version": "0.0.1",
   "private": true,
   "exports": {
@@ -26,7 +26,7 @@
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "@finances/config-typescript": "workspace:*",
+    "@capi/config-typescript": "workspace:*",
     "@storybook/react-vite": "^9.0.0",
     "@types/react": "^19.2.0",
     "storybook": "^9.0.0",

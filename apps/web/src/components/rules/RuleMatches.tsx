@@ -1,4 +1,4 @@
-import { Button, CategoryIcon, Skeleton } from '@finances/ui'
+import { Button, CategoryIcon, Skeleton } from '@capi/ui'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import type {

@@ -117,12 +117,12 @@ From a machine **outside** Anthropic's range the allowed paths answer 403 and th
 ## Local test (no internet exposure)
 
 ```bash
-createdb finances_scratch_78 && DATABASE_URL=postgres://…/finances_scratch_78 pnpm --filter @finances/api db:migrate
-pnpm --filter @finances/api build && pnpm --filter @finances/mcp build
+createdb finances_scratch_78 && DATABASE_URL=postgres://…/finances_scratch_78 pnpm --filter @capi/api db:migrate
+pnpm --filter @capi/api build && pnpm --filter @capi/mcp build
 # API (compiled: decorator metadata is needed)
 DATABASE_URL=…/finances_scratch_78 REMOTE_MCP_ENABLED=true REMOTE_MCP_PUBLIC_URL=http://localhost:4100 node apps/api/dist/main.js
 # Adapter
-REMOTE_MCP_ENABLED=true FINANCES_API_URL=http://localhost:4000 REMOTE_MCP_PUBLIC_URL=http://localhost:4100 node apps/mcp/dist/index.js --http
+REMOTE_MCP_ENABLED=true CAPI_API_URL=http://localhost:4000 REMOTE_MCP_PUBLIC_URL=http://localhost:4100 node apps/mcp/dist/index.js --http
 ```
 
 Or the production image and service: `docs/security/pentest/stack.sh up`, `run`, `oauth` (throwaway `finances-audit` stack, nothing published).

@@ -1,11 +1,5 @@
-import {
-  CategoryIcon,
-  cn,
-  OptionGroup,
-  OptionRow,
-  SearchField,
-} from '@finances/ui'
-import type { FilterValue } from '@finances/ui'
+import { CategoryIcon, cn, OptionGroup, OptionRow, SearchField } from '@capi/ui'
+import type { FilterValue } from '@capi/ui'
 import {
   ArrowDownLeftIcon,
   ArrowDownUpIcon,

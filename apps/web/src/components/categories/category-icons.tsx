@@ -1,16 +1,16 @@
 import {
   CATEGORY_ICON_NAMES,
   categoryIconComponent as sharedIconComponent,
-} from '@finances/ui'
-import { cn } from '@finances/ui/lib/utils'
+} from '@capi/ui'
+import { cn } from '@capi/ui/lib/utils'
 import { CheckIcon, CircleHelpIcon, SplitIcon } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import type { CategoryIcon } from '#/api/types.gen'
 
-// The icons and their names live in `@finances/ui` (`category-icon.tsx`,
+// The icons and their names live in `@capi/ui` (`category-icon.tsx`,
 // #287), shared by the picker and `CategoryIcon`.
-export { CATEGORY_ICONS } from '@finances/ui'
+export { CATEGORY_ICONS } from '@capi/ui'
 
 /** Icon keys in the order the picker shows them. */
 export const CATEGORY_ICON_KEYS: readonly CategoryIcon[] = CATEGORY_ICON_NAMES

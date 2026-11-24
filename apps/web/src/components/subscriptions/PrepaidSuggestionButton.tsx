@@ -1,4 +1,4 @@
-import { Button, cn } from '@finances/ui'
+import { Button, cn } from '@capi/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarClockIcon } from 'lucide-react'
 import { toast } from 'sonner'

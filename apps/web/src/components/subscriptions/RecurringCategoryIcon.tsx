@@ -1,4 +1,4 @@
-import { CategoryIcon } from '@finances/ui'
+import { CategoryIcon } from '@capi/ui'
 import { CircleHelpIcon } from 'lucide-react'
 import type { ForecastItemDto, RecurringItemDto } from '#/api/types.gen'
 

@@ -6,7 +6,7 @@ Each feature's details (routes, pages, edge cases, the owner's choices) live in 
 
 ## Product vision
 
-**Capi** (named « Finances » until #464: the packages, URLs, images and servers still say `finances` until that issue's later phases) is a single-user, self-hosted personal finance tracker. The owner imports bank CSV exports and statements; transactions are parsed, deduplicated, normalized and categorized automatically. Dashboards show:
+**Capi** (named « Finances » until #464: the packages are `@capi/*` since its phase 2, the URLs, images, servers and databases still say `finances` until its phase 3) is a single-user, self-hosted personal finance tracker. The owner imports bank CSV exports and statements; transactions are parsed, deduplicated, normalized and categorized automatically. Dashboards show:
 
 - all accounts and net worth;
 - monthly income, expenses and savings;
@@ -147,10 +147,10 @@ pnpm + Turborepo monorepo with four apps and three shared packages:
 
 - `apps/api` — NestJS backend (Fastify adapter), port 4000, all routes prefixed with `/api`
 - `apps/web` — React 19 + TanStack Start (SSR), port 3000
-- `apps/ui-docs` — Storybook v9 for the `@finances/ui` component library, port 6006
-- `apps/mcp` — `@finances/mcp`, local MCP server (stdio) for Claude Desktop / Claude Code, see MCP server below
-- `packages/shared` — `@finances/shared`, shared Zod schemas used by both apps
-- `packages/ui` — `@finances/ui`, the Radix + Tailwind component library consumed by `apps/web` and documented by `apps/ui-docs`
+- `apps/ui-docs` — Storybook v9 for the `@capi/ui` component library, port 6006
+- `apps/mcp` — `@capi/mcp`, local MCP server (stdio) for Claude Desktop / Claude Code, see MCP server below
+- `packages/shared` — `@capi/shared`, shared Zod schemas used by both apps
+- `packages/ui` — `@capi/ui`, the Radix + Tailwind component library consumed by `apps/web` and documented by `apps/ui-docs`
 - `packages/config-typescript` — shared TypeScript configs (`base.json`, `nestjs.json`, `react.json`)
 
 ## Commands
@@ -165,11 +165,11 @@ pnpm check-types
 pnpm generate        # regenerate OpenAPI spec + typed web client (see "Typed API client")
 
 # Scoped to a single app
-pnpm --filter @finances/api dev
-pnpm --filter @finances/web dev
-pnpm --filter @finances/ui-docs dev   # Storybook
+pnpm --filter @capi/api dev
+pnpm --filter @capi/web dev
+pnpm --filter @capi/ui-docs dev   # Storybook
 
-# Database (root shortcuts for the @finances/api scripts)
+# Database (root shortcuts for the @capi/api scripts)
 pnpm db:generate   # generate Drizzle migrations
 pnpm db:migrate    # apply migrations
 pnpm db:seed       # seed reference data (default categories); idempotent, safe to re-run
@@ -187,7 +187,7 @@ Pre-commit hook runs `lint-staged`: ESLint + Prettier on `.ts`/`.tsx`, Prettier 
 
 **Demo data** (#219, `apps/api/src/database/seed-demo.ts`, logic in `database/demo/`): `pnpm db:demo [--reset]` seeds the default categories, a verified owner `usertest@finances.test` / `usertest` (hashed directly, so the 12-character sign-up rule doesn't apply; sign-in accepts it) and ~14 months of deterministic synthetic data built through the app's own helpers (CIC-format labels, `normalizeLabel`, ordered rules + `categorize`, `computeDedupeHashes`, running balances, one committed `cic_csv` import per account and month, `RecurringService.detect`, then one subscription cancelled after its last charge and one ending next month, and two prepaid plans declared from their payment: a 24-month VPS and a 12-month antivirus renewing this month), bank data ending 10 days before today (Europe/Paris). It refuses the `finances` database and `NODE_ENV=production`, except on the staging database named by `DEMO_STAGING_DATABASE` (a `…_staging` name, #421) (`demo/guard.ts`), and without `--reset` a database that already has users or accounts; `--reset` truncates every `public` table. Prints counts and the credentials only. Use it for manual and UX checks: `createdb finances_demo`, then with `DATABASE_URL=postgres://user:password@localhost:5432/finances_demo` run `pnpm db:migrate && pnpm db:demo --reset` and start the API (`PRICE_API_ENABLED=false` keeps the seeded crypto prices) and the web app against it; `node dist/database/seed-demo.js` where `tsx` is missing. Keep it in step with the schema when a migration adds data the pages rely on.
 
-**Testing note**: both apps use **Vitest**. The API's `vitest.config.ts` runs in a Node environment and picks up `src/**/*.spec.ts`; use `pnpm --filter @finances/api test` (or the single-file form above). The web app uses Vitest + Testing Library (`jsdom`), plus Playwright for E2E (`pnpm --filter @finances/web test:e2e`).
+**Testing note**: both apps use **Vitest**. The API's `vitest.config.ts` runs in a Node environment and picks up `src/**/*.spec.ts`; use `pnpm --filter @capi/api test` (or the single-file form above). The web app uses Vitest + Testing Library (`jsdom`), plus Playwright for E2E (`pnpm --filter @capi/web test:e2e`).
 
 **Test database**: API specs never touch the app database. `apps/api/vitest.config.ts` gives the workers `DATABASE_URL` = `TEST_DATABASE_URL`, or the app database name + `_test` (`finances` → `finances_test`), and refuses to run if both point at the same database. Its global setup (`apps/api/vitest.test-database.ts`) creates that database if missing and applies the migrations, so Postgres must be running (`docker compose up -d`). Database specs run inside transactions that are rolled back; never connect them to another URL. When running servers by hand for manual checks, use a throwaway database too (e.g. `createdb finances_scratch`), never `finances`.
 
@@ -195,7 +195,7 @@ Pre-commit hook runs `lint-staged`: ESLint + Prettier on `.ts`/`.tsx`, Prettier 
 
 The web app talks to the API through a **generated, type-safe client** — do not hand-write fetch calls or edit the generated output.
 
-1. `apps/api` generates `apps/api/openapi.json` via `pnpm --filter @finances/api generate` (`src/generate-spec.ts` boots the Nest app in-memory and dumps the Swagger document), built by `createOpenApiDocument` in `src/config/swagger.ts`). The live Swagger UI (`/api/docs`) and document (`/api/docs-json`) are served **outside production only** (`setupSwagger`, #180): production answers 404, and nothing needs them at runtime.
+1. `apps/api` generates `apps/api/openapi.json` via `pnpm --filter @capi/api generate` (`src/generate-spec.ts` boots the Nest app in-memory and dumps the Swagger document), built by `createOpenApiDocument` in `src/config/swagger.ts`). The live Swagger UI (`/api/docs`) and document (`/api/docs-json`) are served **outside production only** (`setupSwagger`, #180): production answers 404, and nothing needs them at runtime.
 2. `apps/web` consumes that spec via `@hey-api/openapi-ts` (`apps/web/openapi-ts.config.ts`), emitting a typed fetch client into `apps/web/src/api/` (`client.gen.ts`, `sdk.gen.ts`, `types.gen.ts`).
 3. Turborepo's `generate` task chains these, so `pnpm generate` from the root runs API spec generation before web client generation. `build` and `check-types` depend on `generate`.
 
@@ -223,7 +223,7 @@ Standard NestJS module structure: each domain has a `*.module.ts`, `*.controller
 
 File-based routing via TanStack Router — routes live in `apps/web/src/routes/`. `routeTree.gen.ts` is auto-generated; never edit it manually. The root layout is `routes/__root.tsx`.
 
-**UI components**: live in the shared `@finances/ui` package (`packages/ui/src/components/`), Radix UI primitives styled with Tailwind CSS v4. Import them from `@finances/ui`. Use the `cn()` helper (`@finances/ui/lib/utils`, clsx + tailwind-merge) for class merging. App-specific composite components stay under `apps/web/src/components/`.
+**UI components**: live in the shared `@capi/ui` package (`packages/ui/src/components/`), Radix UI primitives styled with Tailwind CSS v4. Import them from `@capi/ui`. Use the `cn()` helper (`@capi/ui/lib/utils`, clsx + tailwind-merge) for class merging. App-specific composite components stay under `apps/web/src/components/`.
 
 **Auth state**: client auth context in `apps/web/src/lib/auth-context.tsx`; theme via `apps/web/src/lib/use-theme.ts`.
 
@@ -233,14 +233,14 @@ File-based routing via TanStack Router — routes live in `apps/web/src/routes/`
 
 **Authenticated layout**: every signed-in page lives under `routes/_app.tsx` (files in `routes/_app/`), guarded during SSR. The shell, page headers, page actions, sheets, month bar and every other web convention: [`docs/domain/web-conventions.md`](docs/domain/web-conventions.md).
 
-**Styling**: Tailwind CSS v4 via `@tailwindcss/vite`. Global styles in `apps/web/src/globals.css`; shared design tokens come from `@finances/ui/globals.css`. Theme (light/dark/auto) is initialized via an inline script in `__root.tsx` before hydration to avoid a flash.
+**Styling**: Tailwind CSS v4 via `@tailwindcss/vite`. Global styles in `apps/web/src/globals.css`; shared design tokens come from `@capi/ui/globals.css`. Theme (light/dark/auto) is initialized via an inline script in `__root.tsx` before hydration to avoid a flash.
 
 **Mobile**: the app is mainly used from the phone — design mobile-first. It is installable as a PWA (see below); `viewport-fit=cover` is set, and `body` is padded with `env(safe-area-inset-*)` in `globals.css`.
 
 **Mobile layout conventions** (remember the 22px root: `rem` is ~1.4× the usual, while media-query breakpoints stay in 16px units, so `md` is still 768px):
 
-- **Touch targets ≥ 44×44 px.** The `touch-hitbox` utility (`@finances/ui/globals.css`) grows a small, positioned control's hit area with an invisible `::after`; `Button`, `Toggle`, `AlertAction` and chart data `summary`s use it on `pointer: coarse`, `Checkbox`/`Switch`/`RadioGroupItem` always; dropdown items and `size="sm"` native selects are 44px high on touch screens. Keep adjacent targets far enough apart that their hit areas don't overlap (e.g. `min-h-11` rows for radios).
-- **No horizontal page scroll down to 320px.** Amounts never break inside (`whitespace-nowrap`); the body's `overflow-wrap: anywhere` lets a squeezed flex item break its words, so labels beside a value keep theirs (`break-normal`, the value cut with « … »: `SettingRow` / `SettingSwitchRow` in `@finances/ui`, #325) and an email wraps only after its `@`; in list rows the amounts go under the label when both don't fit (`flex-wrap`, label `min-w-[7rem] flex-1`, amounts `ml-auto`). Button labels wrap rather than overflow. KPI tiles size their value on the tile (`@container` + `cqi`); they stack one per row on phones (`grid-cols-1 @lg:grid-cols-2 @2xl:grid-cols-4`) and `StatCard` puts its sparkline beside the figures when the tile is at least 260px wide, so a tile stays wider than tall; its value never wraps and is sized on its own column and on the length of the text (#211). Genuinely tabular data scrolls inside its card: `Table` shows a fade on the clipped edge and becomes focusable.
+- **Touch targets ≥ 44×44 px.** The `touch-hitbox` utility (`@capi/ui/globals.css`) grows a small, positioned control's hit area with an invisible `::after`; `Button`, `Toggle`, `AlertAction` and chart data `summary`s use it on `pointer: coarse`, `Checkbox`/`Switch`/`RadioGroupItem` always; dropdown items and `size="sm"` native selects are 44px high on touch screens. Keep adjacent targets far enough apart that their hit areas don't overlap (e.g. `min-h-11` rows for radios).
+- **No horizontal page scroll down to 320px.** Amounts never break inside (`whitespace-nowrap`); the body's `overflow-wrap: anywhere` lets a squeezed flex item break its words, so labels beside a value keep theirs (`break-normal`, the value cut with « … »: `SettingRow` / `SettingSwitchRow` in `@capi/ui`, #325) and an email wraps only after its `@`; in list rows the amounts go under the label when both don't fit (`flex-wrap`, label `min-w-[7rem] flex-1`, amounts `ml-auto`). Button labels wrap rather than overflow. KPI tiles size their value on the tile (`@container` + `cqi`); they stack one per row on phones (`grid-cols-1 @lg:grid-cols-2 @2xl:grid-cols-4`) and `StatCard` puts its sparkline beside the figures when the tile is at least 260px wide, so a tile stays wider than tall; its value never wraps and is sized on its own column and on the length of the text (#211). Genuinely tabular data scrolls inside its card: `Table` shows a fade on the clipped edge and becomes focusable.
 - **Cards in a row keep their own height.** Page grids that put different cards side by side use `items-start` (or stack short cards in one column), so no card is stretched to its neighbour's height with an empty area below its content; only KPI tiles share a row height (#210).
 - The rest (month pages, page header and actions, account lists, amounts, single choices, the category picker, one-hand use, safe areas and keyboard, full-screen panels on phones, empty states, the mobile audit): [`docs/domain/web-conventions.md`](docs/domain/web-conventions.md).
 
@@ -250,7 +250,7 @@ Installable PWA with a small hand-written service worker that caches only the st
 
 ## MCP server (`apps/mcp`)
 
-Local MCP server for Claude Desktop / Claude Code (official TypeScript SDK, stdio transport, setup in [`apps/mcp/README.md`](apps/mcp/README.md)). Configured with `FINANCES_API_URL` and `FINANCES_API_TOKEN` (a personal access token: `read` for the read tools, `write` for the write tools). Rules:
+Local MCP server for Claude Desktop / Claude Code (official TypeScript SDK, stdio transport, setup in [`apps/mcp/README.md`](apps/mcp/README.md)). Configured with `CAPI_API_URL` and `CAPI_API_TOKEN` (a personal access token: `read` for the read tools, `write` for the write tools); the names before #464, `FINANCES_API_URL` / `FINANCES_API_TOKEN`, are still read when the new ones are unset. Rules:
 
 - **API only**: tools call `/api/*` with `Authorization: Bearer`, never the database or `apps/web` code. Read tools (`GET`, plus the read-only `POST /budgets/suggest`) keep working with a `read` token; write tools get a clear "lecture seule" error with one.
 - **Write tools** never change anything without `confirm: true` (a preview first) and there are no delete tools.
@@ -258,9 +258,9 @@ Local MCP server for Claude Desktop / Claude Code (official TypeScript SDK, stdi
 
 Details (every tool, imports, month close, money owed, investments, output format, remote transport, tests): [`docs/domain/mcp.md`](docs/domain/mcp.md).
 
-## Component library (`@finances/ui` + `apps/ui-docs`)
+## Component library (`@capi/ui` + `apps/ui-docs`)
 
-`packages/ui` is the single source of truth for primitives. It exports components individually (`@finances/ui/components/*`), the barrel (`@finances/ui`), `./globals.css` and `./lib/utils`. `apps/ui-docs` is a Storybook v9 (react-vite) instance documenting these components, with `@storybook/addon-vitest` for component tests (`pnpm --filter @finances/ui-docs test-storybook`). When adding or changing a primitive, update it in `packages/ui` (not `apps/web`) and add or adjust its story in `apps/ui-docs`.
+`packages/ui` is the single source of truth for primitives. It exports components individually (`@capi/ui/components/*`), the barrel (`@capi/ui`), `./globals.css` and `./lib/utils`. `apps/ui-docs` is a Storybook v9 (react-vite) instance documenting these components, with `@storybook/addon-vitest` for component tests (`pnpm --filter @capi/ui-docs test-storybook`). When adding or changing a primitive, update it in `packages/ui` (not `apps/web`) and add or adjust its story in `apps/ui-docs`.
 
 **Prototypes** (#351): stories written to let the owner choose a direction live in `apps/ui-docs/src/prototypes/` only until the owner chooses. The PR that builds the chosen direction deletes them (and anything used only by them) and puts its screenshots in the PR or the issue instead; code comments and this file name the issue that holds the decision, never a prototype file.
 

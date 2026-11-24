@@ -1,4 +1,4 @@
-import { cn } from '@finances/ui'
+import { cn } from '@capi/ui'
 
 /**
  * « Staging » beside the app's name on the staging deployment (#454), in the

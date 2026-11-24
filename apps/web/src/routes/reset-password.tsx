@@ -22,7 +22,7 @@ import {
   FieldLabel,
   Label,
   PasswordInput,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useHydrated } from '#/lib/use-hydrated'
 
 export const Route = createFileRoute('/reset-password')({

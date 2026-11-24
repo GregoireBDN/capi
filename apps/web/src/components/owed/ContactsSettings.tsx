@@ -16,7 +16,7 @@ import {
   SheetTitle,
   Skeleton,
   useIsMobile,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { UserPlusIcon, UsersIcon } from 'lucide-react'
 import { useState } from 'react'

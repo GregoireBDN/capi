@@ -30,7 +30,7 @@ import {
   FieldLabel,
   Input,
   PasswordInput,
-} from '@finances/ui'
+} from '@capi/ui'
 import { loginSchema } from './auth.schemas'
 import type { LoginValues } from './auth.schemas'
 import { useHydrated } from '#/lib/use-hydrated'

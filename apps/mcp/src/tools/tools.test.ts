@@ -272,7 +272,7 @@ describe('API errors', () => {
       expect(result.isError).toBe(true)
       expect(result.text).toMatch(message)
       expect(stderr).toHaveBeenCalledWith(
-        `[finances-mcp] month_review: API error ${status}`,
+        `[capi-mcp] month_review: API error ${status}`,
       )
       expect(stderr.mock.calls.flat().join(' ')).not.toContain('1234')
     },

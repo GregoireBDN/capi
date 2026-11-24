@@ -1,4 +1,4 @@
-import { cn } from '@finances/ui'
+import { cn } from '@capi/ui'
 
 interface CapiWordmarkProps {
   /** Sets the height (e.g. `h-8`); the width follows the wordmark. */

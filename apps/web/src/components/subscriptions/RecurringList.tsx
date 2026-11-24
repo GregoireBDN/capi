@@ -1,4 +1,4 @@
-import { Badge, cn } from '@finances/ui'
+import { Badge, cn } from '@capi/ui'
 import {
   BanIcon,
   ChevronRightIcon,

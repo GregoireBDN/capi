@@ -1,4 +1,4 @@
-# @finances/mcp — MCP server (local stdio, remote HTTP)
+# @capi/mcp — MCP server (local stdio, remote HTTP)
 
 Lets Claude (Claude Desktop or Claude Code, on the owner's machine) answer questions about the finances, and help with the month-end routine, by calling the app's API with a **personal access token** (read-only, or write for the write tools). It runs locally over **stdio**: the MCP client starts it as a child process; nothing listens on a port. A remote HTTP transport with OAuth exists for claude.ai and the Claude apps, **disabled** (see [Remote access](#remote-access-claudeai-claude-apps--78-disabled)).
 
@@ -92,7 +92,7 @@ API errors come back as readable tool errors: 401 (token invalid, expired or rev
 
 ```bash
 pnpm install
-pnpm --filter @finances/mcp build
+pnpm --filter @capi/mcp build
 ```
 
 The entry point is `apps/mcp/dist/index.js` (Node ≥ 22). Rebuild after pulling changes. `pnpm build` from the root builds it too (it first regenerates the API types from `apps/api/openapi.json`).
@@ -105,12 +105,14 @@ In the app, open **Réglages → Claude et accès → Claude sur ce Mac**, choos
 
 Two environment variables:
 
-| Variable             | Example                                                           |
-| -------------------- | ----------------------------------------------------------------- |
-| `FINANCES_API_URL`   | `http://localhost:4000` (local API) or the app URL on the tailnet |
-| `FINANCES_API_TOKEN` | `fin_pat_…` (read scope, or write for the write tools)            |
+| Variable         | Example                                                           |
+| ---------------- | ----------------------------------------------------------------- |
+| `CAPI_API_URL`   | `http://localhost:4000` (local API) or the app URL on the tailnet |
+| `CAPI_API_TOKEN` | `fin_pat_…` (read scope, or write for the write tools)            |
 
-`FINANCES_API_URL` can be the API origin or the web origin (the web server proxies `/api/*` with the `Authorization` header); a trailing `/api` is ignored. In production use the app's address on the tailnet: the API port is never published.
+The names these variables had before the app was renamed Capi (#464), `FINANCES_API_URL` and `FINANCES_API_TOKEN`, are still read when the new ones are unset, so an older configuration keeps working.
+
+`CAPI_API_URL` can be the API origin or the web origin (the web server proxies `/api/*` with the `Authorization` header); a trailing `/api` is ignored. In production use the app's address on the tailnet: the API port is never published.
 
 ### Claude Code
 
@@ -118,12 +120,12 @@ Register it for your user (outside any repository, so the token never lands in a
 
 ```bash
 claude mcp add finances --scope user \
-  -e FINANCES_API_URL=http://localhost:4000 \
-  -e FINANCES_API_TOKEN=fin_pat_REPLACE_ME \
+  -e CAPI_API_URL=http://localhost:4000 \
+  -e CAPI_API_TOKEN=fin_pat_REPLACE_ME \
   -- node /absolute/path/to/finances/apps/mcp/dist/index.js
 ```
 
-Or with a project `.mcp.json` that reads the token from your shell environment (`export FINANCES_API_TOKEN=…` in a file that is not committed), so the file itself holds no secret:
+Or with a project `.mcp.json` that reads the token from your shell environment (`export CAPI_API_TOKEN=…` in a file that is not committed), so the file itself holds no secret:
 
 ```json
 {
@@ -132,8 +134,8 @@ Or with a project `.mcp.json` that reads the token from your shell environment (
       "command": "node",
       "args": ["/absolute/path/to/finances/apps/mcp/dist/index.js"],
       "env": {
-        "FINANCES_API_URL": "${FINANCES_API_URL:-http://localhost:4000}",
-        "FINANCES_API_TOKEN": "${FINANCES_API_TOKEN}"
+        "CAPI_API_URL": "${CAPI_API_URL:-http://localhost:4000}",
+        "CAPI_API_TOKEN": "${CAPI_API_TOKEN}"
       }
     }
   }
@@ -153,8 +155,8 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (Settings
       "command": "node",
       "args": ["/absolute/path/to/finances/apps/mcp/dist/index.js"],
       "env": {
-        "FINANCES_API_URL": "http://localhost:4000",
-        "FINANCES_API_TOKEN": "fin_pat_REPLACE_ME"
+        "CAPI_API_URL": "http://localhost:4000",
+        "CAPI_API_TOKEN": "fin_pat_REPLACE_ME"
       }
     }
   }
@@ -165,7 +167,7 @@ Claude Desktop doesn't expand variables, so the token sits in that file: keep it
 
 ## Remote access (claude.ai, Claude apps) — #78, #328
 
-`node dist/index.js --http` (`pnpm --filter @finances/mcp start:http`) runs the same tools as a **remote MCP server** over Streamable HTTP, for claude.ai and the Claude mobile and desktop connectors, authorized with **OAuth 2.1**. It is **off by default**: it refuses to start unless `REMOTE_MCP_ENABLED=true`, and the API mounts no OAuth route without it. In production it is the `finances-mcp` service of `docker-compose.prod.yml` (image `ghcr.io/gregoirebdn/finances-mcp`, built by `apps/mcp/Dockerfile`, started only with the `remote-mcp` compose profile, #328); design in [ADR 0003](../../docs/adr/0003-remote-mcp-oauth.md), enabling in [the runbook](../../docs/runbooks/remote-mcp.md).
+`node dist/index.js --http` (`pnpm --filter @capi/mcp start:http`) runs the same tools as a **remote MCP server** over Streamable HTTP, for claude.ai and the Claude mobile and desktop connectors, authorized with **OAuth 2.1**. It is **off by default**: it refuses to start unless `REMOTE_MCP_ENABLED=true`, and the API mounts no OAuth route without it. In production it is the `finances-mcp` service of `docker-compose.prod.yml` (image `ghcr.io/gregoirebdn/finances-mcp`, built by `apps/mcp/Dockerfile`, started only with the `remote-mcp` compose profile, #328); design in [ADR 0003](../../docs/adr/0003-remote-mcp-oauth.md), enabling in [the runbook](../../docs/runbooks/remote-mcp.md).
 
 - **Public surface, nothing else**: `POST /mcp` (stateless: one MCP server per request, JSON responses; `GET` / `DELETE` → 405), `/.well-known/oauth-protected-resource[/mcp]`, and `/.well-known/oauth-authorization-server`, `/oauth/register`, `/oauth/token`, `/oauth/revoke` relayed to the API's `/api/oauth/*` (form bodies converted to JSON, 16 KB at most). Any other path is 404: the API stays private.
 - **Tokens**: `/mcp` takes only OAuth access tokens (`fin_oat_…`) issued by the API for this resource, checked with `GET /api/oauth/token-info` (cached 30 s) and forwarded to the API, which applies the same scope rules as a personal access token. Without a valid token: `401` with `WWW-Authenticate: Bearer resource_metadata="…"`, which starts Claude's OAuth flow. A personal access token never works here.
@@ -176,7 +178,7 @@ Claude Desktop doesn't expand variables, so the token sits in that file: keep it
 | Variable                | Example                                                                                          |
 | ----------------------- | ------------------------------------------------------------------------------------------------ |
 | `REMOTE_MCP_ENABLED`    | `true` (anything else: refuses to start)                                                         |
-| `FINANCES_API_URL`      | `http://api:4000` (the API, from this process)                                                   |
+| `CAPI_API_URL`          | `http://api:4000` (the API, from this process)                                                   |
 | `REMOTE_MCP_PUBLIC_URL` | `https://finances-mcp.example.com` (origin, https)                                               |
 | `MCP_HTTP_HOST`         | `127.0.0.1` (default), `0.0.0.0` in a container                                                  |
 | `MCP_HTTP_PORT`         | `4100` (default)                                                                                 |
@@ -185,10 +187,10 @@ Claude Desktop doesn't expand variables, so the token sits in that file: keep it
 ## Development
 
 ```bash
-pnpm --filter @finances/mcp test          # Vitest, mocked API (no database)
-pnpm --filter @finances/mcp generate      # API types from apps/api/openapi.json
-npx @modelcontextprotocol/inspector -e FINANCES_API_URL=http://localhost:4000 \
-  -e FINANCES_API_TOKEN=fin_pat_REPLACE_ME node apps/mcp/dist/index.js
+pnpm --filter @capi/mcp test          # Vitest, mocked API (no database)
+pnpm --filter @capi/mcp generate      # API types from apps/api/openapi.json
+npx @modelcontextprotocol/inspector -e CAPI_API_URL=http://localhost:4000 \
+  -e CAPI_API_TOKEN=fin_pat_REPLACE_ME node apps/mcp/dist/index.js
 ```
 
 - `src/api/generated/` holds types generated from `apps/api/openapi.json` (git-ignored, like the web client); `src/api/client.ts` is the small fetch client (bearer token, timeouts, error messages).

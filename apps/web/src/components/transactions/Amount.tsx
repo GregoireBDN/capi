@@ -1,4 +1,4 @@
-import { cn } from '@finances/ui'
+import { cn } from '@capi/ui'
 import { ArrowLeftRightIcon } from 'lucide-react'
 import { formatCents } from '#/lib/money'
 

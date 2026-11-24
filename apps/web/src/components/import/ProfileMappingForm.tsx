@@ -19,7 +19,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@finances/ui'
+} from '@capi/ui'
 import { CircleAlertIcon } from 'lucide-react'
 import { useId, useRef, useState } from 'react'
 import { importProfilesControllerCreate, importsControllerPreview } from '#/api'

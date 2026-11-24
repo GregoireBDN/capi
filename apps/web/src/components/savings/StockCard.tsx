@@ -6,7 +6,7 @@ import {
   cn,
   formatSignedPercent,
   formatWholeEuros,
-} from '@finances/ui'
+} from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import { ChevronRightIcon } from 'lucide-react'
 import type { ReactNode } from 'react'

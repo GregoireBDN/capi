@@ -11,7 +11,7 @@ import {
   SheetContent,
   Textarea,
   useIsMobile,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useId, useMemo, useState } from 'react'
 import { toast } from 'sonner'

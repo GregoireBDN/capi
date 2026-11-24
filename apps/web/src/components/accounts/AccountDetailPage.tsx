@@ -10,7 +10,7 @@ import {
   EmptyHeader,
   EmptyTitle,
   Skeleton,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {

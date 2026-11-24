@@ -1,4 +1,4 @@
-import { Button } from '@finances/ui'
+import { Button } from '@capi/ui'
 import { CheckIcon, CopyIcon } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'

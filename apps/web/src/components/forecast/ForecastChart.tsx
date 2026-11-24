@@ -6,8 +6,8 @@ import {
   CardTitle,
   formatDay,
   LineChart,
-} from '@finances/ui'
-import type { ChartConfig } from '@finances/ui'
+} from '@capi/ui'
+import type { ChartConfig } from '@capi/ui'
 import type { ForecastDto } from '#/api/types.gen'
 import { formatDay as formatLongDay } from '#/lib/calendar'
 import { formatCents } from '#/lib/money'

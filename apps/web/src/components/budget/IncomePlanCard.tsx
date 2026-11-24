@@ -7,7 +7,7 @@ import {
   CategoryIcon,
   cn,
   EmptyState,
-} from '@finances/ui'
+} from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import { HandCoinsIcon, PencilIcon, PlusIcon, SparklesIcon } from 'lucide-react'
 import type {

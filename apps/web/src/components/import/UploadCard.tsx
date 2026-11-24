@@ -12,7 +12,7 @@ import {
   FieldLabel,
   NativeSelect,
   NativeSelectOption,
-} from '@finances/ui'
+} from '@capi/ui'
 import { CircleAlertIcon, UploadIcon } from 'lucide-react'
 import { useState } from 'react'
 import {

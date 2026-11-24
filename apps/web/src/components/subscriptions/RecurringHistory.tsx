@@ -1,4 +1,4 @@
-import { Button } from '@finances/ui'
+import { Button } from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import { ListIcon } from 'lucide-react'
 import type { RecurringItemDto } from '#/api/types.gen'

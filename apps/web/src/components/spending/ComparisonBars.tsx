@@ -6,7 +6,7 @@ import {
   Label,
   Skeleton,
   Switch,
-} from '@finances/ui'
+} from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import {
   ChevronRightIcon,

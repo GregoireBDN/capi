@@ -1,4 +1,4 @@
-import { Skeleton } from '@finances/ui'
+import { Skeleton } from '@capi/ui'
 
 /**
  * Router pending component (`defaultPendingComponent`): a generic page

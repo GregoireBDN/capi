@@ -6,7 +6,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@finances/ui'
+} from '@capi/ui'
 import { ChevronDownIcon } from 'lucide-react'
 import { Fragment } from 'react'
 import type { CategoryDto } from '#/api/types.gen'

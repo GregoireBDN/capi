@@ -1,4 +1,4 @@
-import { NativeSelect, NativeSelectOption } from '@finances/ui'
+import { NativeSelect, NativeSelectOption } from '@capi/ui'
 import {
   queryOptions,
   useMutation,

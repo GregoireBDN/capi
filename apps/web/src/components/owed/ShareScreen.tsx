@@ -1,9 +1,4 @@
-import {
-  Button,
-  cn,
-  SegmentedControl,
-  SegmentedControlItem,
-} from '@finances/ui'
+import { Button, cn, SegmentedControl, SegmentedControlItem } from '@capi/ui'
 import { XIcon } from 'lucide-react'
 import type { ContactDto, TransactionDto } from '#/api/types.gen'
 import { AmountField } from '#/components/amount/AmountField'

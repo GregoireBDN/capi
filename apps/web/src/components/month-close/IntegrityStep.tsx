@@ -1,4 +1,4 @@
-import { Button, cn } from '@finances/ui'
+import { Button, cn } from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import type {
   IntegrityCheck,

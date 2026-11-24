@@ -9,7 +9,7 @@ import {
   RadioGroup,
   RadioGroupItem,
   Textarea,
-} from '@finances/ui'
+} from '@capi/ui'
 import type { ReactNode } from 'react'
 import type {
   CryptoChain,

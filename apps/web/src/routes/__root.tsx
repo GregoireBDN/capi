@@ -1,7 +1,7 @@
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
-import { Toaster } from '@finances/ui'
+import { Toaster } from '@capi/ui'
 import NotFound from '../components/NotFound'
 import { NavigationProgress } from '../components/app-shell/NavigationProgress'
 import { ServiceWorkerUpdates } from '../components/pwa/ServiceWorkerUpdates'

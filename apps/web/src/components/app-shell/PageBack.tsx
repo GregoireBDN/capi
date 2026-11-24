@@ -7,7 +7,7 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from '@finances/ui'
+} from '@capi/ui'
 import { createContext, useContext } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'

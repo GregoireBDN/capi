@@ -97,4 +97,12 @@ describe('staleCaches', () => {
       staleCaches([shellCacheName('old456'), current, 'unexpected'], current),
     ).toEqual([shellCacheName('old456'), 'unexpected'])
   })
+
+  it('deletes the shell caches named before #464 (finances-shell-)', () => {
+    const current = shellCacheName('new123')
+    expect(current.startsWith('capi-shell-')).toBe(true)
+    expect(staleCaches(['finances-shell-old456', current], current)).toEqual([
+      'finances-shell-old456',
+    ])
+  })
 })

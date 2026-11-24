@@ -18,8 +18,8 @@ import {
   Spinner,
   Textarea,
   useIsMobile,
-} from '@finances/ui'
-import { cn } from '@finances/ui/lib/utils'
+} from '@capi/ui'
+import { cn } from '@capi/ui/lib/utils'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ChevronRightIcon,

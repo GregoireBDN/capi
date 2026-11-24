@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
   ConfirmDialog,
-} from '@finances/ui'
+} from '@capi/ui'
 import { TriangleAlertIcon } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'

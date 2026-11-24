@@ -29,7 +29,7 @@ export interface PrecacheManifest {
 export const OFFLINE_URL = '/offline.html'
 
 /** Prefix of the precache name; the suffix is the build's content hash. */
-export const CACHE_PREFIX = 'finances-shell-'
+export const CACHE_PREFIX = 'capi-shell-'
 
 export function shellCacheName(version: string): string {
   return `${CACHE_PREFIX}${version}`

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Button, Card, CardContent, Skeleton } from '@finances/ui'
+import { Button, Card, CardContent, Skeleton } from '@capi/ui'
 import { useState } from 'react'
 import type { ImportDetailDto } from '#/api'
 import { PageHeader } from '#/components/app-shell/PageHeader'

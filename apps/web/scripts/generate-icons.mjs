@@ -8,7 +8,7 @@
 // - the PWA icons and favicons on the tile, and their staging variants on a
 //   yellow tile (#454, `public/icons/staging/`).
 //
-//   pnpm --filter @finances/web icons
+//   pnpm --filter @capi/web icons
 //
 // Outputs are committed: re-run this only when the logo or the colours change.
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -84,7 +84,7 @@ const TILE_RADIUS = 112 / 512
 
 /**
  * Staging's yellow (#454): light `--env-banner` (oklch(0.88 0.16 95),
- * `@finances/ui/globals.css`), as in manifest-staging.json.
+ * `@capi/ui/globals.css`), as in manifest-staging.json.
  */
 const STAGING_BACKGROUND = '#f9d544'
 

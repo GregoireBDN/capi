@@ -1,4 +1,4 @@
-import { cn } from '@finances/ui'
+import { cn } from '@capi/ui'
 import { PencilIcon } from 'lucide-react'
 import type { SnapshotDto } from '#/api/types.gen'
 import { formatCalendarDate, formatCents } from '#/lib/money'

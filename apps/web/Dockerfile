@@ -10,7 +10,7 @@ RUN pnpm install --frozen-lockfile
 # The typed API client (apps/web/src/api) is generated and git-ignored: build
 # it from the API's OpenAPI spec before bundling the web app.
 RUN pnpm generate
-RUN pnpm --filter @finances/web build
+RUN pnpm --filter @capi/web build
 
 FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS runner
 # The runtime only runs `node`: drop the package managers bundled with the base

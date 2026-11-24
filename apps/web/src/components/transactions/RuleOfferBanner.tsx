@@ -1,4 +1,4 @@
-import { Button } from '@finances/ui'
+import { Button } from '@capi/ui'
 import { SparklesIcon, XIcon } from 'lucide-react'
 import type { CategoryDto, TransactionDto } from '#/api/types.gen'
 import { CategoryBadge } from './CategoryBadge'

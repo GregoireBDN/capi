@@ -7,13 +7,13 @@ FROM base AS builder
 WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @finances/api build
+RUN pnpm --filter @capi/api build
 # Copies the package's `files` (dist/ and the drizzle/ migrations, read by
 # `node dist/database/migrate.js` as /app/drizzle) plus production
 # dependencies. `--legacy`: pnpm 10 otherwise only deploys injected workspace
 # packages (ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE); the API uses
-# `@finances/shared` for types only, so nothing from it is needed at runtime.
-RUN pnpm --filter @finances/api deploy --prod --legacy /prod/api
+# `@capi/shared` for types only, so nothing from it is needed at runtime.
+RUN pnpm --filter @capi/api deploy --prod --legacy /prod/api
 
 FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS runner
 # The runtime only runs `node`: drop the package managers bundled with the base

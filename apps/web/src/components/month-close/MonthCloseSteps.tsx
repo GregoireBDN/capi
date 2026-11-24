@@ -12,7 +12,7 @@ import {
   Label,
   ProgressMeter,
   Textarea,
-} from '@finances/ui'
+} from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import { ChevronRightIcon, CircleCheckIcon } from 'lucide-react'
 import { useId } from 'react'

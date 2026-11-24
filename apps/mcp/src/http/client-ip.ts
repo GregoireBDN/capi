@@ -143,7 +143,7 @@ export class TrustedProxies {
         } else if (!this.failing.has(hostName)) {
           this.failing.add(hostName)
           this.warn(
-            `[finances-mcp] trusted proxy "${hostName}" does not resolve: X-Forwarded-For from it is ignored until it does`,
+            `[capi-mcp] trusted proxy "${hostName}" does not resolve: X-Forwarded-For from it is ignored until it does`,
           )
         }
       }),

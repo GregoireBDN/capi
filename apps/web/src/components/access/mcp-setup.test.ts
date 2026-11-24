@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   claudeCodeCommand,
   desktopConfig,
+  loadServerPath,
   scriptExample,
   shellQuote,
   uniqueName,
@@ -22,8 +23,8 @@ describe('desktopConfig', () => {
           command: 'node',
           args: [SETUP.serverPath],
           env: {
-            FINANCES_API_URL: SETUP.apiUrl,
-            FINANCES_API_TOKEN: SETUP.token,
+            CAPI_API_URL: SETUP.apiUrl,
+            CAPI_API_TOKEN: SETUP.token,
           },
         },
       },
@@ -44,8 +45,8 @@ describe('claudeCodeCommand', () => {
     expect(claudeCodeCommand(SETUP)).toBe(
       [
         'claude mcp add finances --scope user',
-        `  -e FINANCES_API_URL=${SETUP.apiUrl}`,
-        `  -e FINANCES_API_TOKEN=${SETUP.token}`,
+        `  -e CAPI_API_URL=${SETUP.apiUrl}`,
+        `  -e CAPI_API_TOKEN=${SETUP.token}`,
         `  -- node ${SETUP.serverPath}`,
       ].join(' \\\n'),
     )
@@ -86,5 +87,22 @@ describe('uniqueName', () => {
     expect(
       uniqueName('Claude sur Mac', ['Claude sur Mac', 'Claude sur Mac 2']),
     ).toBe('Claude sur Mac 3')
+  })
+})
+
+describe('loadServerPath', () => {
+  afterEach(() => localStorage.clear())
+
+  it('moves the path saved under the key before #464 once', () => {
+    localStorage.setItem('finances.mcp-server-path', SETUP.serverPath)
+    expect(loadServerPath()).toBe(SETUP.serverPath)
+    expect(localStorage.getItem('capi.mcp-server-path')).toBe(SETUP.serverPath)
+    expect(localStorage.getItem('finances.mcp-server-path')).toBeNull()
+  })
+
+  it('prefers the current key', () => {
+    localStorage.setItem('capi.mcp-server-path', '/new/index.js')
+    localStorage.setItem('finances.mcp-server-path', '/old/index.js')
+    expect(loadServerPath()).toBe('/new/index.js')
   })
 })

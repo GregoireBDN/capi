@@ -10,7 +10,7 @@ import {
   TableRow,
   SegmentedControl,
   SegmentedControlItem,
-} from '@finances/ui'
+} from '@capi/ui'
 import { Fragment, useEffect, useState } from 'react'
 import type { CategoryDto, ConflictAction, ImportPreviewRowDto } from '#/api'
 import {

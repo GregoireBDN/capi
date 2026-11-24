@@ -13,7 +13,7 @@ import {
   SheetContent,
   SheetSteps,
   useIsMobile,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarDaysIcon, ChevronRightIcon, EuroIcon } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'

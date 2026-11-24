@@ -1,11 +1,11 @@
 {
-  "extends": "@finances/config-typescript/nestjs",
+  "extends": "@capi/config-typescript/nestjs",
   "compilerOptions": {
     "jsx": "react-jsx",
     "outDir": "./dist",
     "paths": {
       "#/*": ["./src/*"],
-      "@finances/shared": ["../../packages/shared/src/index.ts"]
+      "@capi/shared": ["../../packages/shared/src/index.ts"]
     }
   },
   "include": ["src", "drizzle.config.ts"],

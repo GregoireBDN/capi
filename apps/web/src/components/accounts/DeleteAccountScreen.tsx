@@ -7,7 +7,7 @@ import {
   FieldLabel,
   Input,
   Skeleton,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import { TriangleAlertIcon } from 'lucide-react'
 import { useId, useState } from 'react'

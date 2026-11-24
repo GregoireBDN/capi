@@ -7,7 +7,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@finances/ui'
+} from '@capi/ui'
 import { CapiWordmark } from '#/components/brand/CapiWordmark'
 import { ForgotForm } from './ForgotForm'
 import { LoginForm } from './LoginForm'

@@ -19,7 +19,7 @@ import {
   Skeleton,
   Switch,
   useIsMobile,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ChevronDownIcon,

@@ -1,6 +1,6 @@
 /**
  * Swatches offered for a category: the chart palette (`--chart-1` … `--chart-8`
- * and `--chart-other` of `@finances/ui/globals.css`, light values), so
+ * and `--chart-other` of `@capi/ui/globals.css`, light values), so
  * categories match the charts.
  */
 export const CATEGORY_PALETTE = [

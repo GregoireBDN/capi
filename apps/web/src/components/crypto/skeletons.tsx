@@ -1,4 +1,4 @@
-import { Card, CardContent, Skeleton } from '@finances/ui'
+import { Card, CardContent, Skeleton } from '@capi/ui'
 import { DashboardCardHeader } from '#/components/dashboard/DashboardCardHeader'
 
 /*

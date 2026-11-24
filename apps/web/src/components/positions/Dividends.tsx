@@ -14,7 +14,7 @@ import {
   SheetBarAction,
   SheetContent,
   useIsMobile,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CoinsIcon, InfoIcon, PencilIcon, PlusIcon } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'

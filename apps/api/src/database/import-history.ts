@@ -31,7 +31,7 @@ import * as schema from './schema'
 /**
  * One-shot import of the spreadsheet history (#13):
  *
- *     pnpm --filter @finances/api import:history -- \
+ *     pnpm --filter @capi/api import:history -- \
  *       --transactions ../../data/transactions.csv --balances ../../data/soldes.csv
  *
  * Dry run unless `--commit` is given. Prints counts only; see `--help`.

@@ -5,7 +5,7 @@ import {
   PopoverTrigger,
   cn,
   useIsMobile,
-} from '@finances/ui'
+} from '@capi/ui'
 import { LoaderCircleIcon, LogOutIcon } from 'lucide-react'
 import { useId, useState } from 'react'
 import type { UserDto } from '#/api/types.gen'

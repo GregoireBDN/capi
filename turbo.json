@@ -12,13 +12,13 @@
       "inputs": ["src/**/*.ts", "openapi.json", "openapi-ts.config.ts"],
       "outputs": ["openapi.json", "src/api/**"]
     },
-    "@finances/web#generate": {
-      "dependsOn": ["@finances/api#generate"],
+    "@capi/web#generate": {
+      "dependsOn": ["@capi/api#generate"],
       "inputs": ["openapi.json", "openapi-ts.config.ts"],
       "outputs": ["src/api/**"]
     },
-    "@finances/mcp#generate": {
-      "dependsOn": ["@finances/api#generate"],
+    "@capi/mcp#generate": {
+      "dependsOn": ["@capi/api#generate"],
       "inputs": ["openapi.json", "openapi-ts.config.ts"],
       "outputs": ["src/api/generated/**"]
     },

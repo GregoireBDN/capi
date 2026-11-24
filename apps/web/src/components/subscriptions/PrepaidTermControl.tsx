@@ -1,4 +1,4 @@
-import { OptionRow } from '@finances/ui'
+import { OptionRow } from '@capi/ui'
 import { useId } from 'react'
 import { formatCents } from '#/lib/money'
 import { PREPAID_TERMS, prepaidMonthlyCents } from './format'

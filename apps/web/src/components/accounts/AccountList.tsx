@@ -4,7 +4,7 @@ import {
   ItemList,
   ItemListGroup,
   ItemListRow,
-} from '@finances/ui'
+} from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import { LandmarkIcon, TrendingUpIcon } from 'lucide-react'
 import type { ReactNode } from 'react'

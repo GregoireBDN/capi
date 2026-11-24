@@ -4,6 +4,7 @@ import {
   splitSignedCents,
 } from '#/components/amount/signed-amount'
 import type { AmountSign } from '#/components/amount/signed-amount'
+import { getMovedItem } from '#/lib/legacy-storage'
 
 /**
  * Low-balance threshold of the forecast: a per-browser convenience kept in
@@ -11,15 +12,17 @@ import type { AmountSign } from '#/components/amount/signed-amount'
  * unavailable (private mode, quota): every access is guarded.
  */
 
-export const THRESHOLD_STORAGE_KEY = 'finances.forecast.thresholdCents'
+export const THRESHOLD_STORAGE_KEY = 'capi.forecast.thresholdCents'
 export const DEFAULT_THRESHOLD_CENTS = 0
 /** The API's bound: ±1 000 000 000 €. */
 export const THRESHOLD_LIMIT = 100_000_000_000
-const CHANGE_EVENT = 'finances:forecast-threshold'
+const CHANGE_EVENT = 'capi:forecast-threshold'
 
 export function readStoredThreshold(): number {
   try {
-    const value = Number(window.localStorage.getItem(THRESHOLD_STORAGE_KEY))
+    const value = Number(
+      getMovedItem(THRESHOLD_STORAGE_KEY, 'finances.forecast.thresholdCents'),
+    )
     return Number.isSafeInteger(value) && Math.abs(value) <= THRESHOLD_LIMIT
       ? value
       : DEFAULT_THRESHOLD_CENTS

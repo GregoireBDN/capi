@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import type { LinkProps } from '@tanstack/react-router'
-import { cn } from '@finances/ui/lib/utils'
+import { cn } from '@capi/ui/lib/utils'
 import { ChevronRightIcon } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'

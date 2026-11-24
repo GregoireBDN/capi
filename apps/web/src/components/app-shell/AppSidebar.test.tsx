@@ -9,7 +9,7 @@ import {
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { SidebarProvider } from '@finances/ui'
+import { SidebarProvider } from '@capi/ui'
 import { transactionsControllerReviewCount } from '#/api'
 import { resetReviewCount, setReviewCount } from '#/lib/review-count'
 

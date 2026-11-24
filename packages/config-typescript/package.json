@@ -1,5 +1,5 @@
 {
-  "name": "@finances/config-typescript",
+  "name": "@capi/config-typescript",
   "version": "0.0.1",
   "private": true,
   "exports": {

@@ -1,4 +1,4 @@
-import { cn, formatWholeEuros } from '@finances/ui'
+import { cn, formatWholeEuros } from '@capi/ui'
 import type { ReactNode } from 'react'
 
 /**

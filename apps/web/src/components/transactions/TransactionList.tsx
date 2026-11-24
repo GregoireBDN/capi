@@ -1,4 +1,4 @@
-import { Button } from '@finances/ui'
+import { Button } from '@capi/ui'
 import { useEffect, useRef } from 'react'
 import type { CategoryDto, TransactionDto } from '#/api/types.gen'
 import { formatDay } from '#/lib/calendar'

@@ -4,7 +4,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@finances/ui'
+} from '@capi/ui'
 import type { RecurringItemDto } from '#/api/types.gen'
 import { RecurringCategoryIcon } from './RecurringCategoryIcon'
 import { formatCents } from '#/lib/money'
