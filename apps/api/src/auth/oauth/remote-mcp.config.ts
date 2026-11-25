@@ -18,7 +18,7 @@ export const MCP_ENDPOINT_PATH = '/mcp'
 export interface RemoteMcpConfig {
   /** `REMOTE_MCP_ENABLED=true`. Off: no OAuth route is mounted and OAuth tokens are refused. */
   enabled: boolean
-  /** OAuth issuer: the adapter's public origin (`https://finances-mcp.example.com`). */
+  /** OAuth issuer: the adapter's public origin (`https://capi-mcp.example.com`). */
   issuer: string
   /** The MCP endpoint, the only audience OAuth tokens are issued for (RFC 8707). */
   resource: string

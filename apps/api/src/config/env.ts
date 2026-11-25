@@ -116,7 +116,7 @@ const envSchema = z.object({
     .transform((value) => value === 'true'),
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
-  EMAIL_FROM: z.string().default('noreply@finances.app'),
+  EMAIL_FROM: z.string().default('noreply@capi.app'),
 
   // Crypto prices (CoinGecko public API, key-less). Only asset ids are sent.
   // Anything but the literal "false" keeps it enabled.

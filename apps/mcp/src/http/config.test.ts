@@ -5,14 +5,14 @@ import { loadHttpConfig } from './config.js'
 const env = {
   REMOTE_MCP_ENABLED: 'true',
   CAPI_API_URL: 'http://api:4000',
-  REMOTE_MCP_PUBLIC_URL: 'https://finances-mcp.example.com',
+  REMOTE_MCP_PUBLIC_URL: 'https://capi-mcp.example.com',
 }
 
 describe('loadHttpConfig', () => {
   it('reads the adapter settings', () => {
     expect(loadHttpConfig(env)).toEqual({
       apiUrl: 'http://api:4000',
-      publicUrl: 'https://finances-mcp.example.com',
+      publicUrl: 'https://capi-mcp.example.com',
       host: '127.0.0.1',
       port: 4100,
       trustedProxies: ['loopback'],
@@ -29,9 +29,9 @@ describe('loadHttpConfig', () => {
   )
 
   it.each([
-    [{ REMOTE_MCP_PUBLIC_URL: 'http://finances-mcp.example.com' }, /https/],
+    [{ REMOTE_MCP_PUBLIC_URL: 'http://capi-mcp.example.com' }, /https/],
     [
-      { REMOTE_MCP_PUBLIC_URL: 'https://finances-mcp.example.com/mcp' },
+      { REMOTE_MCP_PUBLIC_URL: 'https://capi-mcp.example.com/mcp' },
       /without a path/,
     ],
     [{ REMOTE_MCP_PUBLIC_URL: undefined }, /not set/],

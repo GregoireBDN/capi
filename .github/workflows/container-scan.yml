@@ -71,7 +71,7 @@ jobs:
           file: apps/${{ matrix.app }}/Dockerfile
           platforms: linux/amd64
           outputs: type=docker,dest=${{ runner.temp }}/image.tar
-          cache-from: type=gha,scope=finances-${{ matrix.app }}
+          cache-from: type=gha,scope=capi-${{ matrix.app }}
 
       - name: Trivy
         env:

@@ -6,7 +6,7 @@
 #
 #   docker compose -p finances-staging -f docker-compose.prod.yml -f docker-compose.staging.yml ...
 #
-# Same images as production (FINANCES_VERSION=sha-<commit>), own database
+# Same images as production (CAPI_VERSION=sha-<commit>), own database
 # volume (finances-staging_db_data), own secrets and host name, no published
 # port. It only ever holds the demo data: each deploy wipes the database and
 # seeds it again (seed-demo.js --reset). What must never differ from that is
@@ -40,8 +40,10 @@ services:
     networks:
       default: {}
       proxy:
-        # Replaces production's `finances-web` (a plain list would be merged
-        # with it, and Caddy would send production traffic here too).
-        # Caddy (infra repo) targets finances-staging-web:3000.
+        # Replaces production's `capi-web` and `finances-web` (a plain list
+        # would be merged with them, and Caddy would send production traffic
+        # here too). Caddy (infra repo) targets capi-staging-web:3000, and
+        # finances-staging-web:3000 until #464's step B.
         aliases: !override
+          - capi-staging-web
           - finances-staging-web

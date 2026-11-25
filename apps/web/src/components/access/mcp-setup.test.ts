@@ -10,7 +10,7 @@ import {
 
 /** Synthetic values only. */
 const SETUP = {
-  apiUrl: 'https://finances.example.test',
+  apiUrl: 'https://capi.example.test',
   token: `fin_pat_${'Z'.repeat(43)}`,
   serverPath: '/Users/owner/finances/apps/mcp/dist/index.js',
 }

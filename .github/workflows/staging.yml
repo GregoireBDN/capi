@@ -59,7 +59,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: ${{ env.REGISTRY }}/finances-${{ matrix.app }}
+          images: ${{ env.REGISTRY }}/capi-${{ matrix.app }}
           flavor: latest=false
           tags: |
             type=sha,format=short,prefix=sha-
@@ -74,8 +74,8 @@ jobs:
           outputs: type=docker,dest=${{ runner.temp }}/image.tar
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=finances-${{ matrix.app }}
-          cache-to: type=gha,mode=max,scope=finances-${{ matrix.app }}
+          cache-from: type=gha,scope=capi-${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=capi-${{ matrix.app }}
 
       - name: Trivy (fixable high/critical, secrets)
         env:
@@ -95,7 +95,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=finances-${{ matrix.app }}
+          cache-from: type=gha,scope=capi-${{ matrix.app }}
 
   deploy:
     name: Deploy to staging

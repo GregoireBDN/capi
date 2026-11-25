@@ -1,33 +1,39 @@
 #!/usr/bin/env bash
-# Deploy a Finances release on the server (see docs/runbooks/deploy.md).
+# Deploy a Capi release on the server (see docs/runbooks/deploy.md).
 #
 #   deploy.sh vX.Y.Z [compose-file]
 #   deploy.sh --staging sha-<commit> [compose-file]
 #
-# Runs as the `deploy` user in FINANCES_DIR (default /srv/finances), next to
-# docker-compose.prod.yml and .env. Steps: install the release's compose file
-# (when given), set FINANCES_VERSION in .env, pull the images, run the
+# Runs as the `deploy` user in CAPI_DIR (FINANCES_DIR before #464; default
+# /srv/finances), next to docker-compose.prod.yml and .env. Steps: install the
+# release's compose file (when given), set CAPI_VERSION in .env, pull the images, run the
 # migrations then the seed from the new API image, `up -d`, and poll the health
 # endpoint through `web`. If any step fails after .env was changed, the previous
 # version (and compose file) is restored and brought back up, and the script
 # exits non-zero. Concurrent runs are refused (flock).
 #
-# The remote MCP adapter (`finances-mcp`, #328) is part of the release only
+# The app was named « Finances » until #464 (docs/runbooks/rename.md): a
+# release before it names the version FINANCES_VERSION and the adapter's
+# service `finances-mcp`. So that a rollback to one of them works, .env gets
+# both CAPI_VERSION and FINANCES_VERSION, with the same value, and the adapter
+# is found under either name.
+#
+# The remote MCP adapter (`capi-mcp`, #328) is part of the release only
 # when the compose file has it and its profile is on (COMPOSE_PROFILES in
 # .env): it is then pulled and health-checked too, and a rollback to a version
 # without it removes its container (`--remove-orphans`).
 #
 # --staging (#421, docs/runbooks/staging.md) deploys a commit of main to the
-# staging project instead: FINANCES_DIR defaults to /srv/finances-staging, the
+# staging project instead: the directory defaults to /srv/finances-staging, the
 # version is an image tag sha-<commit>, the compose project is always
 # `finances-staging` and runs docker-compose.prod.yml with the
 # docker-compose.staging.yml override (installed from the compose file's
 # directory along with it). After the seed it wipes the database and fills it
 # with the demo data (seed-demo.js --reset), so staging never holds anything
 # else. It refuses to run the MCP adapter, and refuses a configuration that
-# would answer on `web`'s production alias on the `proxy` network.
+# would answer on one of `web`'s production aliases on the `proxy` network.
 #
-# The output is also appended to FINANCES_DIR/deploy.log, and SIGHUP is ignored,
+# The output is also appended to deploy.log in that directory, and SIGHUP is ignored,
 # so a dropped SSH connection (cancelled CI job) doesn't stop a deploy halfway.
 set -euo pipefail
 
@@ -38,12 +44,12 @@ if [[ ${1:-} == --staging ]]; then
 fi
 
 if [[ $mode == staging ]]; then
-  FINANCES_DIR=${FINANCES_DIR:-/srv/finances-staging}
+  DEPLOY_DIR=${CAPI_DIR:-${FINANCES_DIR:-/srv/finances-staging}}
   VERSION_PATTERN='^sha-[0-9a-f]{7,40}$'
   PROJECT=finances-staging
   COMPOSE_FILES=(docker-compose.prod.yml docker-compose.staging.yml)
 else
-  FINANCES_DIR=${FINANCES_DIR:-/srv/finances}
+  DEPLOY_DIR=${CAPI_DIR:-${FINANCES_DIR:-/srv/finances}}
   VERSION_PATTERN='^v[0-9]+\.[0-9]+\.[0-9]+$'
   PROJECT=
   COMPOSE_FILES=(docker-compose.prod.yml)
@@ -51,12 +57,16 @@ fi
 HEALTH_RETRIES=${HEALTH_RETRIES:-36}
 HEALTH_INTERVAL=${HEALTH_INTERVAL:-5}
 HEALTH_URL=http://localhost:3000/api/health
-MCP_SERVICE=finances-mcp
+# The adapter's service: capi-mcp, or finances-mcp in a compose file before
+# #464. Set by mcp_enabled from the compose file in place.
+MCP_SERVICE=capi-mcp
+MCP_SERVICES=(capi-mcp finances-mcp)
 # Served by the adapter from its configuration: no API call, one log line.
 MCP_HEALTH_URL=http://localhost:4100/.well-known/oauth-protected-resource
 
-# web's alias on the shared `proxy` network, Caddy's production upstream.
-PRODUCTION_WEB_ALIAS=finances-web
+# web's aliases on the shared `proxy` network, Caddy's production upstream
+# (finances-web before #464).
+PRODUCTION_WEB_ALIASES=(capi-web finances-web)
 ENV_FILE=.env
 LOCK_FILE=.deploy.lock
 LOG_FILE=deploy.log
@@ -86,8 +96,8 @@ if [[ -n $new_compose ]]; then
   fi
 fi
 
-cd "$FINANCES_DIR"
-[[ -f $ENV_FILE ]] || { echo "$FINANCES_DIR/$ENV_FILE is missing" >&2; exit 1; }
+cd "$DEPLOY_DIR"
+[[ -f $ENV_FILE ]] || { echo "$DEPLOY_DIR/$ENV_FILE is missing" >&2; exit 1; }
 
 exec 9>"$LOCK_FILE"
 flock -n 9 || { echo "another deploy is already running" >&2; exit 1; }
@@ -108,22 +118,38 @@ read_env() {
   sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1 | tr -d "\"' \r"
 }
 
-read_version() { read_env FINANCES_VERSION; }
-
-# Whether the current compose file and .env run the MCP adapter.
-mcp_enabled() {
-  local services
-  services=$(compose config --services) || return 1
-  grep -qx "$MCP_SERVICE" <<<"$services"
+# The running version. FINANCES_VERSION first: this script writes both names
+# with the same value, and a deploy.sh from before #464 (a rollback by tag)
+# only rewrites FINANCES_VERSION, leaving CAPI_VERSION behind.
+read_version() {
+  local version
+  version=$(read_env FINANCES_VERSION)
+  [[ -n $version ]] || version=$(read_env CAPI_VERSION)
+  printf '%s\n' "$version"
 }
 
-# Rewrite .env with FINANCES_VERSION=$1, keeping every other line. The file is
-# replaced atomically and stays private (umask 077).
+# Whether the current compose file and .env run the MCP adapter; sets
+# MCP_SERVICE to its name in that compose file.
+mcp_enabled() {
+  local services name
+  services=$(compose config --services) || return 1
+  for name in "${MCP_SERVICES[@]}"; do
+    if grep -qx "$name" <<<"$services"; then
+      MCP_SERVICE=$name
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Rewrite .env with CAPI_VERSION=$1 and FINANCES_VERSION=$1 (read by compose
+# files before #464), keeping every other line. The file is replaced
+# atomically and stays private (umask 077).
 set_version() {
   local tmp
   tmp=$(umask 077 && mktemp "$ENV_FILE.XXXXXX")
-  grep -v '^FINANCES_VERSION=' "$ENV_FILE" >"$tmp" || true
-  printf 'FINANCES_VERSION=%s\n' "$1" >>"$tmp"
+  grep -v -e '^CAPI_VERSION=' -e '^FINANCES_VERSION=' "$ENV_FILE" >"$tmp" || true
+  printf 'CAPI_VERSION=%s\nFINANCES_VERSION=%s\n' "$1" "$1" >>"$tmp"
   mv -f "$tmp" "$ENV_FILE"
 }
 
@@ -168,7 +194,7 @@ rollback() {
     done
     if [[ -n $previous ]]; then
       set_version "$previous"
-      log "restored FINANCES_VERSION=$previous"
+      log "restored CAPI_VERSION=$previous"
     fi
     # The previous compose file may not have the adapter.
     with_mcp=false
@@ -207,9 +233,11 @@ if [[ $mode == staging ]]; then
   # The override replaces web's alias (`!override`): a Compose that merged the
   # two lists instead would put staging behind Caddy's production upstream.
   config=$(compose config) || rollback "invalid compose configuration"
-  if grep -Eq "^[[:space:]]*- ${PRODUCTION_WEB_ALIAS}\$" <<<"$config"; then
-    rollback "the staging configuration keeps web's production alias ($PRODUCTION_WEB_ALIAS)"
-  fi
+  for alias in "${PRODUCTION_WEB_ALIASES[@]}"; do
+    if grep -Eq "^[[:space:]]*- ${alias}\$" <<<"$config"; then
+      rollback "the staging configuration keeps web's production alias ($alias)"
+    fi
+  done
   if mcp_enabled; then
     rollback "the remote MCP adapter never runs on staging: empty COMPOSE_PROFILES in .env"
   fi

@@ -85,7 +85,7 @@ describe('API request log', () => {
       url: `/api/transactions?q=${SEARCH}&accountId=${ACCOUNT}&minAmount=4242`,
       headers: {
         'x-request-id': '18181818-1818-4181-8181-181818181818',
-        referer: `https://finances.example.test/transactions?q=${SEARCH}`,
+        referer: `https://capi.example.test/transactions?q=${SEARCH}`,
       },
     })
     expect(response.statusCode).toBe(200)
@@ -102,7 +102,7 @@ describe('API request log', () => {
         method: 'GET',
         url: '/api/transactions',
         headers: {
-          referer: 'https://finances.example.test/transactions',
+          referer: 'https://capi.example.test/transactions',
         },
       },
       res: { statusCode: 200 },
@@ -120,7 +120,7 @@ describe('API request log', () => {
   })
 
   it('leaves the request itself untouched', async () => {
-    const headers = { referer: `https://finances.example.test/x?q=${SEARCH}` }
+    const headers = { referer: `https://capi.example.test/x?q=${SEARCH}` }
     const req = {
       url: `/api/transactions?q=${SEARCH}`,
       query: { q: SEARCH },
@@ -130,7 +130,7 @@ describe('API request log', () => {
     const serialized = logSerializers.req(req)
 
     expect(serialized.url).toBe('/api/transactions')
-    expect(serialized.headers?.referer).toBe('https://finances.example.test/x')
+    expect(serialized.headers?.referer).toBe('https://capi.example.test/x')
     expect(headers.referer).toContain(SEARCH)
   })
 })

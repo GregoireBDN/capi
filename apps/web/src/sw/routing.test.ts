@@ -7,7 +7,7 @@ import {
 } from './routing'
 import type { SwRequest } from './routing'
 
-const origin = 'https://finances.example.test'
+const origin = 'https://capi.example.test'
 const precached = new Set([
   '/assets/main-abc123.js',
   '/assets/globals-def456.css',

@@ -76,18 +76,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Releases before #328 have no MCP adapter image (nor its service).
+      # Releases before #328 have no MCP adapter image (nor its service); before #464 the images are finances-*.
       - name: Check the images exist
         if: github.event_name == 'workflow_dispatch'
         env:
           VERSION: ${{ steps.resolve.outputs.version }}
         run: |
-          apps=(api web)
-          if git show "refs/tags/$VERSION:docker-compose.prod.yml" | grep -q '^  finances-mcp:$'; then
+          apps=(api web); prefix=capi; if git show "refs/tags/$VERSION:docker-compose.prod.yml" | grep -q "$REGISTRY/finances-"; then prefix=finances; fi
+          if git show "refs/tags/$VERSION:docker-compose.prod.yml" | grep -Eq '^  (capi|finances)-mcp:$'; then
             apps+=(mcp)
           fi
           for app in "${apps[@]}"; do
-            docker buildx imagetools inspect "$REGISTRY/finances-$app:$VERSION" >/dev/null
+            docker buildx imagetools inspect "$REGISTRY/$prefix-$app:$VERSION" >/dev/null
           done
 
   ci:
@@ -140,7 +140,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: ${{ env.REGISTRY }}/finances-${{ matrix.app }}
+          images: ${{ env.REGISTRY }}/capi-${{ matrix.app }}
           flavor: latest=false
           tags: |
             type=raw,value=${{ needs.version.outputs.version }}
@@ -157,8 +157,8 @@ jobs:
           outputs: type=docker,dest=${{ runner.temp }}/image.tar
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=finances-${{ matrix.app }}
-          cache-to: type=gha,mode=max,scope=finances-${{ matrix.app }}
+          cache-from: type=gha,scope=capi-${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=capi-${{ matrix.app }}
 
       - name: Trivy (fixable high/critical, secrets)
         env:
@@ -179,7 +179,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=finances-${{ matrix.app }}
+          cache-from: type=gha,scope=capi-${{ matrix.app }}
 
   deploy:
     name: Deploy to production
