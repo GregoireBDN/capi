@@ -1,4 +1,4 @@
-import { DonutChart, formatWholeEuros } from '@finances/ui'
+import { DonutChart, formatWholeEuros } from '@capi/ui'
 import type { SpendingByCategoryDto } from '#/api/types.gen'
 import {
   categoryColor,

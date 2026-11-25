@@ -1,4 +1,4 @@
-import { OptionRow, cn } from '@finances/ui'
+import { OptionRow, cn } from '@capi/ui'
 import type { ReactNode } from 'react'
 import type { AccountDto } from '#/api/types.gen'
 import { ACCOUNT_TYPE_ICONS } from '#/components/accounts/labels'

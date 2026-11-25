@@ -4,7 +4,7 @@ import { loadHttpConfig } from './config.js'
 
 const env = {
   REMOTE_MCP_ENABLED: 'true',
-  FINANCES_API_URL: 'http://api:4000',
+  CAPI_API_URL: 'http://api:4000',
   REMOTE_MCP_PUBLIC_URL: 'https://finances-mcp.example.com',
 }
 
@@ -35,11 +35,21 @@ describe('loadHttpConfig', () => {
       /without a path/,
     ],
     [{ REMOTE_MCP_PUBLIC_URL: undefined }, /not set/],
-    [{ FINANCES_API_URL: undefined }, /not set/],
+    [{ CAPI_API_URL: undefined }, /not set/],
     [{ MCP_HTTP_PORT: 'abc' }, /port/],
   ])('refuses %o', (override, message) => {
     expect(() => loadHttpConfig({ ...env, ...override })).toThrow(ConfigError)
     expect(() => loadHttpConfig({ ...env, ...override })).toThrow(message)
+  })
+
+  it('still reads FINANCES_API_URL, the name before #464', () => {
+    expect(
+      loadHttpConfig({
+        ...env,
+        CAPI_API_URL: undefined,
+        FINANCES_API_URL: 'http://api:4000',
+      }).apiUrl,
+    ).toBe('http://api:4000')
   })
 
   it('accepts http on localhost for local tests', () => {

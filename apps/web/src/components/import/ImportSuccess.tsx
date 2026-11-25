@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { Button, Card, CardContent } from '@finances/ui'
+import { Button, Card, CardContent } from '@capi/ui'
 import { CircleCheckIcon } from 'lucide-react'
 import { ROUTES } from '#/lib/routes'
 import { REVIEW_SEARCH } from '#/components/transactions/search'

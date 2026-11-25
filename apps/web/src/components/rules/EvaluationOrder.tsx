@@ -1,4 +1,4 @@
-import { Badge, Button, Card, CategoryIcon, cn } from '@finances/ui'
+import { Badge, Button, Card, CategoryIcon, cn } from '@capi/ui'
 import {
   ChevronDownIcon,
   ChevronRightIcon,

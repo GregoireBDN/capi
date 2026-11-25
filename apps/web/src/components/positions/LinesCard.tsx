@@ -7,7 +7,7 @@ import {
   ConfirmDialog,
   EmptyState,
   formatSignedPercent,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   BanknoteIcon,

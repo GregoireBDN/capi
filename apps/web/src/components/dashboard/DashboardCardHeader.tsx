@@ -1,4 +1,4 @@
-import { CardHeader, CardTitle } from '@finances/ui'
+import { CardHeader, CardTitle } from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import type { LinkProps } from '@tanstack/react-router'
 import { ChevronRightIcon } from 'lucide-react'

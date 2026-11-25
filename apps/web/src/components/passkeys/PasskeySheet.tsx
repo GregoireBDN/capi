@@ -1,4 +1,4 @@
-import { Sheet, SheetContent, useIsMobile } from '@finances/ui'
+import { Sheet, SheetContent, useIsMobile } from '@capi/ui'
 import {
   EditorHeader,
   editorSide,

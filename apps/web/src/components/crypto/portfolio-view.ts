@@ -1,4 +1,4 @@
-import { formatSignedPercent } from '@finances/ui'
+import { formatSignedPercent } from '@capi/ui'
 import type { PortfolioAccountDto } from '#/api/types.gen'
 import { formatPriceAge } from './format'
 

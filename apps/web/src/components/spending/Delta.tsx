@@ -1,4 +1,4 @@
-import { cn, formatSignedEuros } from '@finances/ui'
+import { cn, formatSignedEuros } from '@capi/ui'
 import { formatSignedWholeEuros } from '#/lib/money'
 import { MinusIcon, TrendingDownIcon, TrendingUpIcon } from 'lucide-react'
 

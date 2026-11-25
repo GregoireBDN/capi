@@ -1,4 +1,4 @@
-import { cn } from '@finances/ui/lib/utils'
+import { cn } from '@capi/ui/lib/utils'
 import type { CategoryIcon } from '#/api/types.gen'
 import { CATEGORY_ICON_KEYS, CATEGORY_ICONS } from './category-icons'
 

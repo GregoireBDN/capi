@@ -1,4 +1,4 @@
-import { Input } from '@finances/ui'
+import { Input } from '@capi/ui'
 import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { profileControllerUpdate } from '#/api'

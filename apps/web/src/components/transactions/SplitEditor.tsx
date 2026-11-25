@@ -1,4 +1,4 @@
-import { Button, FieldError } from '@finances/ui'
+import { Button, FieldError } from '@capi/ui'
 import { PlusIcon, RotateCcwIcon, XIcon } from 'lucide-react'
 import { useId } from 'react'
 import { AmountField } from '#/components/amount/AmountField'

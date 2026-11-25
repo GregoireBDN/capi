@@ -1,5 +1,5 @@
 {
-  "extends": "@finances/config-typescript/base",
+  "extends": "@capi/config-typescript/base",
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "bundler",

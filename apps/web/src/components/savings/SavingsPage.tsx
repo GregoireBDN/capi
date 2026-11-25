@@ -10,7 +10,7 @@ import {
   EmptyMedia,
   EmptyTitle,
   Skeleton,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useRef } from 'react'
 import { Link } from '@tanstack/react-router'

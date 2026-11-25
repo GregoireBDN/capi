@@ -12,7 +12,7 @@ import {
   FieldLabel,
   Input,
   Spinner,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import {

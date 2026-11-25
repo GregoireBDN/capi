@@ -1,4 +1,4 @@
-import { Card, ItemList, ItemListRow } from '@finances/ui'
+import { Card, ItemList, ItemListRow } from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import {
   ChevronDownIcon,

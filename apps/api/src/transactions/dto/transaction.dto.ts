@@ -33,7 +33,7 @@ import {
 } from '#/database/schema/domain-enums'
 import { RECEIVABLE_STATES, type ReceivableState } from '#/owed/dto/owed.dto'
 
-/** Same bounds as `paginationSchema` in `@finances/shared`. */
+/** Same bounds as `paginationSchema` in `@capi/shared`. */
 export const TRANSACTIONS_PAGE_LIMIT_DEFAULT = 20
 export const TRANSACTIONS_PAGE_LIMIT_MAX = 100
 /** Most transactions one bulk update may touch. */

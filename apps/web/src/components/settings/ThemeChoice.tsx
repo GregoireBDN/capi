@@ -1,4 +1,4 @@
-import { SegmentedControl, SegmentedControlItem } from '@finances/ui'
+import { SegmentedControl, SegmentedControlItem } from '@capi/ui'
 import type { ThemeMode } from '#/lib/use-theme'
 import { useThemePreference } from '#/lib/use-theme-preference'
 

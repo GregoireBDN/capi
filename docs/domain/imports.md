@@ -16,7 +16,7 @@ A bank file is read by a saved import profile, the CIC export's parser or the ap
 
 ## Spreadsheet history import (one-shot)
 
-The owner's pre-app history (a Google Sheet, ~3,250 categorized rows since 07/2023) is imported once from its CSV exports with `pnpm --filter @finances/api import:history` (code in `apps/api/src/imports/history/`, entry `apps/api/src/database/import-history.ts`; `node dist/database/import-history.js` where `tsx` is missing).
+The owner's pre-app history (a Google Sheet, ~3,250 categorized rows since 07/2023) is imported once from its CSV exports with `pnpm --filter @capi/api import:history` (code in `apps/api/src/imports/history/`, entry `apps/api/src/database/import-history.ts`; `node dist/database/import-history.js` where `tsx` is missing).
 
 - **Dry run by default**: everything runs in one DB transaction that is rolled back unless `--commit` is passed. It prints counts only; `--report <path>` writes a detailed JSON report (merchant keys, line numbers, conflicts) and refuses any path inside the repo outside `data/`.
 - **Inputs**: `Transactions` tab (`Date,Mois,Compte,Libellé,Montant (€),Catégorie,Groupe,Relevé,Ponctuel`, UTF-8, `,`-separated, `-1 234,56 €` amounts) and optionally the `Soldes` tab (`Fin de mois` + one column per account) → `balance_snapshots` on the last day of each month, upserted on (account, date). Columns are matched by name; bad rows are reported, never fatal.

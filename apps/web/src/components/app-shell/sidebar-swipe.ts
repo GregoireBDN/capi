@@ -6,7 +6,7 @@ import { flushSync } from 'react-dom'
  * the sidebar opens without tapping ☰, and the sheet follows the finger).
  * A swipe to the right anywhere on the page opens it, a swipe to the left on
  * the open sheet (or its backdrop) closes it; on release it settles open or
- * shut with the curve of the sheet's own animation (`@finances/ui`
+ * shut with the curve of the sheet's own animation (`@capi/ui`
  * `globals.css`, `--sidebar-sheet-duration` / `--sidebar-sheet-ease`).
  */
 

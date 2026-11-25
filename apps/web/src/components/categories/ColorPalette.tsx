@@ -1,4 +1,4 @@
-import { cn } from '@finances/ui/lib/utils'
+import { cn } from '@capi/ui/lib/utils'
 import { CheckIcon } from 'lucide-react'
 import { CATEGORY_PALETTE } from './palette'
 

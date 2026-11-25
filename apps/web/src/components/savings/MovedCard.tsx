@@ -5,7 +5,7 @@ import {
   CardTitle,
   cn,
   formatWholeEuros,
-} from '@finances/ui'
+} from '@capi/ui'
 import type { SavingsOverviewDto } from '#/api/types.gen'
 import { formatMonth } from '#/lib/calendar'
 import {

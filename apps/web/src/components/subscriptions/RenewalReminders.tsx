@@ -1,4 +1,4 @@
-import { Button, Card, CardContent } from '@finances/ui'
+import { Button, Card, CardContent } from '@capi/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { BanIcon, CheckIcon, RefreshCwIcon } from 'lucide-react'
 import { toast } from 'sonner'

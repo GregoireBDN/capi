@@ -1,4 +1,4 @@
-import { Badge, cn, SegmentedControl, SegmentedControlItem } from '@finances/ui'
+import { Badge, cn, SegmentedControl, SegmentedControlItem } from '@capi/ui'
 import type {
   CategoryDto,
   ConflictAction,

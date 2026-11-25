@@ -1,4 +1,4 @@
-import { cn } from '@finances/ui'
+import { cn } from '@capi/ui'
 
 /** Discs for contacts: one per name, never a meaning (#359). */
 const COLORS = [

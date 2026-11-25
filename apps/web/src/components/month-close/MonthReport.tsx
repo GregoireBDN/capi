@@ -13,7 +13,7 @@ import {
   cn,
   formatPercent,
   formatWholeEuros,
-} from '@finances/ui'
+} from '@capi/ui'
 import { CircleHelpIcon, DownloadIcon, TriangleAlertIcon } from 'lucide-react'
 import type {
   MonthCloseDto,

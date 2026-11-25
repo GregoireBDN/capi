@@ -3,7 +3,7 @@ import {
   SETTING_GROUP_CLASS,
   SETTING_ROW_CLASS,
   SettingRow,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {

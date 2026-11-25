@@ -9,8 +9,8 @@ import {
   SheetBar,
   SheetContent,
   useIsMobile,
-} from '@finances/ui'
-import type { ChoiceTileOption } from '@finances/ui'
+} from '@capi/ui'
+import type { ChoiceTileOption } from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import {
   ArrowDownLeftIcon,

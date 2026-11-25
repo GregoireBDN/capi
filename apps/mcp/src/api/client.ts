@@ -29,7 +29,7 @@ export interface ApiClientOptions {
   /**
    * `stdio` (default): a personal access token from the environment.
    * `http`: the OAuth access token of a remote connection (#78); the error
-   * messages then talk about the connector instead of FINANCES_API_TOKEN.
+   * messages then talk about the connector instead of CAPI_API_TOKEN.
    */
   mode?: 'stdio' | 'http'
   /** Remote transport: the client IP, sent as `X-Forwarded-For` for the API's rate limits. */
@@ -127,7 +127,7 @@ export class ApiClient {
         0,
         this.mode === 'http'
           ? 'API injoignable depuis le serveur MCP. Réessayez dans un instant.'
-          : `API injoignable (${new URL(this.baseUrl).origin}) : vérifiez FINANCES_API_URL et que l'application tourne.`,
+          : `API injoignable (${new URL(this.baseUrl).origin}) : vérifiez CAPI_API_URL et que l'application tourne.`,
       )
     }
     if (!response.ok) {
@@ -156,11 +156,11 @@ async function errorMessage(
   }
   switch (response.status) {
     case 401:
-      return "Token refusé par l'API (invalide, expiré ou révoqué). Créez un token sur la page Profil de l'application (portée « Lecture seule », ou « Lecture et écriture » pour les modifications) et mettez à jour FINANCES_API_TOKEN."
+      return "Token refusé par l'API (invalide, expiré ou révoqué). Créez un token sur la page Profil de l'application (portée « Lecture seule », ou « Lecture et écriture » pour les modifications) et mettez à jour CAPI_API_TOKEN."
     case 403:
       return method === 'GET'
         ? "Accès refusé pour ce token : cette donnée n'est pas accessible avec un token."
-        : "Modification refusée : le token configuré est en lecture seule. Pour les outils d'écriture, créez un token de portée « Lecture et écriture » sur la page Profil et mettez à jour FINANCES_API_TOKEN. Rien n'a été modifié."
+        : "Modification refusée : le token configuré est en lecture seule. Pour les outils d'écriture, créez un token de portée « Lecture et écriture » sur la page Profil et mettez à jour CAPI_API_TOKEN. Rien n'a été modifié."
     case 404:
       return "Introuvable : l'élément demandé n'existe pas (ou plus)."
     case 409:

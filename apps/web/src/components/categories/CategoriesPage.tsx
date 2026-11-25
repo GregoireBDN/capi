@@ -8,7 +8,7 @@ import {
   CardTitle,
   Skeleton,
   cn,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import { PlusIcon, TagIcon } from 'lucide-react'
 import { useState } from 'react'

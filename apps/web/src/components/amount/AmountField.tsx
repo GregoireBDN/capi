@@ -5,7 +5,7 @@ import {
   InputGroupButton,
   InputGroupInput,
   InputGroupText,
-} from '@finances/ui'
+} from '@capi/ui'
 import type { ComponentProps } from 'react'
 import { readAmountInput } from './signed-amount'
 import type { AmountSign } from './signed-amount'

@@ -23,8 +23,8 @@
 /* Tailwind Animate CSS - Animation utilities */
 @import 'tw-animate-css';
 
-/* Theme (variants, tokens, light/dark) shared with @finances/ui and Storybook */
-@import '@finances/ui/globals.css';
+/* Theme (variants, tokens, light/dark) shared with @capi/ui and Storybook */
+@import '@capi/ui/globals.css';
 
 /* Short viewports (a phone held in landscape, small phones): keep docked
  * bars to one row. */

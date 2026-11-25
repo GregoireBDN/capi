@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 export type ThemeMode = 'light' | 'dark' | 'auto'
 
 /** Fired on `window` whenever the stored theme changes, so every `useTheme` stays in sync. */
-const THEME_CHANGE_EVENT = 'finances:theme-change'
+const THEME_CHANGE_EVENT = 'capi:theme-change'
 
 function getStoredMode(): ThemeMode {
   if (typeof window === 'undefined') return 'auto'

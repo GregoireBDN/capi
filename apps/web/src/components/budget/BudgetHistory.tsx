@@ -15,7 +15,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@finances/ui'
+} from '@capi/ui'
 import { CircleAlertIcon } from 'lucide-react'
 import type { BudgetHistoryDto, BudgetStatus } from '#/api/types.gen'
 import { formatCents } from '#/lib/money'

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, Card, CardContent } from '@finances/ui'
+import { Button, Card, CardContent } from '@capi/ui'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { importsControllerCommit, importsControllerRemove } from '#/api'

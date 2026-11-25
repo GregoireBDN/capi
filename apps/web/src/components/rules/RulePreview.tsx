@@ -1,4 +1,4 @@
-import { Button } from '@finances/ui'
+import { Button } from '@capi/ui'
 import type {
   CategorizationRuleDto,
   CategorizationRulePreviewDto,

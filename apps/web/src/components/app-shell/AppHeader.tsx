@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { Button, cn, useSidebar } from '@finances/ui'
+import { Button, cn, useSidebar } from '@capi/ui'
 import { MenuIcon } from 'lucide-react'
 import type { UserDto } from '#/api/types.gen'
 import { useAppEnvironment } from '#/lib/app-environment'

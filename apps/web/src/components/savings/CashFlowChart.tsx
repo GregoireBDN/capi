@@ -5,8 +5,8 @@ import {
   formatMonthLong,
   formatMonthShort,
   Skeleton,
-} from '@finances/ui'
-import type { ChartConfig } from '@finances/ui'
+} from '@capi/ui'
+import type { ChartConfig } from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import type { HistoryMonthDto } from '#/api/types.gen'

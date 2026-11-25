@@ -1,5 +1,5 @@
 {
-  "name": "@finances/shared",
+  "name": "@capi/shared",
   "version": "0.0.1",
   "private": true,
   "exports": {
@@ -9,7 +9,7 @@
     }
   },
   "devDependencies": {
-    "@finances/config-typescript": "workspace:*",
+    "@capi/config-typescript": "workspace:*",
     "typescript": "^6.0.2",
     "zod": "4.6.6"
   },

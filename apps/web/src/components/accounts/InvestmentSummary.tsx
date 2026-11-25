@@ -5,7 +5,7 @@ import {
   cn,
   formatSignedPercent,
   formatWholeEuros,
-} from '@finances/ui'
+} from '@capi/ui'
 import { PencilIcon } from 'lucide-react'
 import { useId } from 'react'
 import type { ReactNode } from 'react'

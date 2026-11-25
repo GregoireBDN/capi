@@ -1,3 +1,5 @@
+import { getMovedItem } from '#/lib/legacy-storage'
+
 /**
  * The ready-to-paste setup of the local MCP server (#329): the Claude
  * Desktop config, the `claude mcp add` command and a script example, filled
@@ -26,7 +28,7 @@ export function desktopConfig({ apiUrl, token, serverPath }: McpSetup): string {
         finances: {
           command: 'node',
           args: [serverPath],
-          env: { FINANCES_API_URL: apiUrl, FINANCES_API_TOKEN: token },
+          env: { CAPI_API_URL: apiUrl, CAPI_API_TOKEN: token },
         },
       },
     },
@@ -49,8 +51,8 @@ export function claudeCodeCommand({
 }: McpSetup): string {
   return [
     'claude mcp add finances --scope user',
-    `  -e ${shellQuote(`FINANCES_API_URL=${apiUrl}`)}`,
-    `  -e ${shellQuote(`FINANCES_API_TOKEN=${token}`)}`,
+    `  -e ${shellQuote(`CAPI_API_URL=${apiUrl}`)}`,
+    `  -e ${shellQuote(`CAPI_API_TOKEN=${token}`)}`,
     `  -- node ${shellQuote(serverPath)}`,
   ].join(' \\\n')
 }
@@ -67,11 +69,11 @@ export function scriptExample({
 }
 
 /** Where the MCP server is on this device, remembered once typed. */
-const SERVER_PATH_KEY = 'finances.mcp-server-path'
+const SERVER_PATH_KEY = 'capi.mcp-server-path'
 
 export function loadServerPath(): string {
   try {
-    return localStorage.getItem(SERVER_PATH_KEY) ?? ''
+    return getMovedItem(SERVER_PATH_KEY, 'finances.mcp-server-path') ?? ''
   } catch {
     return ''
   }

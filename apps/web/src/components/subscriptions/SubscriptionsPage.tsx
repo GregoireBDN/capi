@@ -7,7 +7,7 @@ import {
   Skeleton,
   Spinner,
   cn,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {

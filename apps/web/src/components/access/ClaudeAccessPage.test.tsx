@@ -188,14 +188,14 @@ describe('ClaudeAccessPage', () => {
       mcpServers: { finances: { env: Record<string, string> } }
     }
     expect(parsed.mcpServers.finances.env).toEqual({
-      FINANCES_API_URL: window.location.origin,
-      FINANCES_API_TOKEN: PLAIN_TOKEN,
+      CAPI_API_URL: window.location.origin,
+      CAPI_API_TOKEN: PLAIN_TOKEN,
     })
 
     await user.click(within(dialog).getByRole('radio', { name: 'Claude Code' }))
     const command = within(dialog).getByRole('figure', { name: 'Commande' })
     expect(command).toHaveTextContent(`claude mcp add finances --scope user`)
-    expect(command).toHaveTextContent(`FINANCES_API_TOKEN=${PLAIN_TOKEN}`)
+    expect(command).toHaveTextContent(`CAPI_API_TOKEN=${PLAIN_TOKEN}`)
 
     // The path typed once is in the snippet and remembered on this device.
     const path = within(dialog).getByLabelText(/Chemin de apps\/mcp/)
@@ -204,7 +204,7 @@ describe('ClaudeAccessPage', () => {
     expect(command).toHaveTextContent(
       '-- node /Users/owner/finances/apps/mcp/dist/index.js',
     )
-    expect(localStorage.getItem('finances.mcp-server-path')).toBe(
+    expect(localStorage.getItem('capi.mcp-server-path')).toBe(
       '/Users/owner/finances/apps/mcp/dist/index.js',
     )
     expect(JSON.stringify(localStorage)).not.toContain(PLAIN_TOKEN)

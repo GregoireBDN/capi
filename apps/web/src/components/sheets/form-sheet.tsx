@@ -1,6 +1,6 @@
-import { SheetBar, SheetBarAction } from '@finances/ui'
-import type { SheetBarActionProps } from '@finances/ui'
-import { cn } from '@finances/ui/lib/utils'
+import { SheetBar, SheetBarAction } from '@capi/ui'
+import type { SheetBarActionProps } from '@capi/ui'
+import { cn } from '@capi/ui/lib/utils'
 import type { ComponentProps, ReactNode } from 'react'
 
 /*

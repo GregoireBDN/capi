@@ -188,7 +188,7 @@ describe('remote MCP adapter', () => {
     // Logs never carry a token.
     expect(logs.length).toBeGreaterThan(0)
     expect(logs.join('\n')).not.toContain('fin_oat_')
-    expect(logs).toContain('[finances-mcp] POST mcp 200')
+    expect(logs).toContain('[capi-mcp] POST mcp 200')
   })
 
   it('never reads a file on the server for a bank import', async () => {

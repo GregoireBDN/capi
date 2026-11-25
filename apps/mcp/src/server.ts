@@ -46,12 +46,12 @@ export async function runTool<Shape extends z.ZodRawShape>(
     } else if (error instanceof ApiError) {
       message = error.message
       console.error(
-        `[finances-mcp] ${tool.name}: API error ${error.status || 'unreachable'}`,
+        `[capi-mcp] ${tool.name}: API error ${error.status || 'unreachable'}`,
       )
     } else {
       message = 'Erreur inattendue du serveur MCP Capi.'
       console.error(
-        `[finances-mcp] ${tool.name}: unexpected ${error instanceof Error ? error.name : 'error'}`,
+        `[capi-mcp] ${tool.name}: unexpected ${error instanceof Error ? error.name : 'error'}`,
       )
     }
     return { content: [{ type: 'text', text: message }], isError: true }

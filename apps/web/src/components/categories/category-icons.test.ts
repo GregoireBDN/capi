@@ -1,4 +1,4 @@
-import { CATEGORY_ICON_NAMES } from '@finances/ui'
+import { CATEGORY_ICON_NAMES } from '@capi/ui'
 import { describe, expect, it } from 'vitest'
 import { CategoryIcon } from '#/api/types.gen'
 

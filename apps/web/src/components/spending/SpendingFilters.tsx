@@ -1,4 +1,4 @@
-import { FilterControl } from '@finances/ui'
+import { FilterControl } from '@capi/ui'
 import { LandmarkIcon } from 'lucide-react'
 import { useState } from 'react'
 import type { AccountDto } from '#/api/types.gen'

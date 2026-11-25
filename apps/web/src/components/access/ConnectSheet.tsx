@@ -8,7 +8,7 @@ import {
   Input,
   SegmentedControl,
   SegmentedControlItem,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ClockIcon, KeyRoundIcon, PlugIcon, ShieldIcon } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
@@ -308,7 +308,7 @@ function Setup({ target, token }: { target: TokenTarget; token: string }) {
                 <FieldDescription>
                   Retenu sur cet appareil. Dans le dossier du projet&nbsp;:{' '}
                   <code className="font-mono">
-                    pnpm --filter @finances/mcp build
+                    pnpm --filter @capi/mcp build
                   </code>
                   , puis{' '}
                   <code className="font-mono">

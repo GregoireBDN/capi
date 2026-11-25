@@ -1,10 +1,4 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  cn,
-} from '@finances/ui'
+import { Card, CardContent, CardDescription, CardHeader, cn } from '@capi/ui'
 import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react'
 import type { RecurringItemDto } from '#/api/types.gen'
 import { RecurringCategoryIcon } from './RecurringCategoryIcon'

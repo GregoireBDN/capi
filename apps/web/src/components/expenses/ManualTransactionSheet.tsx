@@ -20,7 +20,7 @@ import {
   SheetSteps,
   Textarea,
   useIsMobile,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { transactionsControllerUpdate } from '#/api'
 import type { LucideIcon } from 'lucide-react'

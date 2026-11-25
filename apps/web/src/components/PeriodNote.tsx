@@ -1,4 +1,4 @@
-import { cn } from '@finances/ui'
+import { cn } from '@capi/ui'
 import { CalendarClockIcon } from 'lucide-react'
 import type { MonthPeriodDto } from '#/api/types.gen'
 import { currentMonth } from '#/lib/calendar'

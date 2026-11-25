@@ -9,7 +9,7 @@ import {
   CardTitle,
   ConfirmDialog,
   Skeleton,
-} from '@finances/ui'
+} from '@capi/ui'
 import { HistoryIcon } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'

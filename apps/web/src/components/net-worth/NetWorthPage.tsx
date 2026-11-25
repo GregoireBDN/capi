@@ -23,8 +23,8 @@ import {
   SegmentedControl,
   SegmentedControlItem,
   Skeleton,
-} from '@finances/ui'
-import type { ChartConfig } from '@finances/ui'
+} from '@capi/ui'
+import type { ChartConfig } from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {

@@ -1,4 +1,4 @@
-import { Button, Field, FieldError, FieldLabel } from '@finances/ui'
+import { Button, Field, FieldError, FieldLabel } from '@capi/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useId, useState } from 'react'
 import { toast } from 'sonner'

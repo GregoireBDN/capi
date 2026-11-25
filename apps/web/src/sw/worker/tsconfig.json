@@ -1,5 +1,5 @@
 {
-  "extends": "@finances/config-typescript/base",
+  "extends": "@capi/config-typescript/base",
   "compilerOptions": {
     "lib": ["ES2022", "WebWorker"],
     "types": [],

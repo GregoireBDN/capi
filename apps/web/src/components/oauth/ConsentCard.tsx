@@ -10,7 +10,7 @@ import {
   CardTitle,
   Label,
   Switch,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { ShieldCheckIcon } from 'lucide-react'
 import { useId, useState } from 'react'

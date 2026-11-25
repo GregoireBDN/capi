@@ -12,7 +12,7 @@ import {
   Sheet,
   SheetContent,
   useIsMobile,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { PlusIcon } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'

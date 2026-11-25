@@ -7,9 +7,9 @@ import {
   CardHeader,
   CardTitle,
   EmptyState,
-} from '@finances/ui'
+} from '@capi/ui'
 import { LineChartIcon, PlusIcon } from 'lucide-react'
-import type { ChartConfig } from '@finances/ui'
+import type { ChartConfig } from '@capi/ui'
 import type { SnapshotDto } from '#/api/types.gen'
 import { formatCalendarDate } from '#/lib/money'
 

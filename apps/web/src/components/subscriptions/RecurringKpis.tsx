@@ -1,4 +1,4 @@
-import { Card, CardContent, cn } from '@finances/ui'
+import { Card, CardContent, cn } from '@capi/ui'
 import type { RecurringItemDto } from '#/api/types.gen'
 import { formatCents } from '#/lib/money'
 import { plural } from '#/lib/plural'

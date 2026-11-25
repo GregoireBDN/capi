@@ -5,7 +5,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@finances/ui'
+} from '@capi/ui'
 import { ChevronDownIcon } from 'lucide-react'
 import { useState } from 'react'
 import type {

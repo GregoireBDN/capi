@@ -1,4 +1,4 @@
-import { Button, NativeSelect, NativeSelectOption } from '@finances/ui'
+import { Button, NativeSelect, NativeSelectOption } from '@capi/ui'
 import { CheckIcon, TagIcon } from 'lucide-react'
 import { useState } from 'react'
 import type {

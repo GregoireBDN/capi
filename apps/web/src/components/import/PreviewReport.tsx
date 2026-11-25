@@ -5,7 +5,7 @@ import {
   Card,
   CardContent,
   cn,
-} from '@finances/ui'
+} from '@capi/ui'
 import {
   CircleCheckIcon,
   Columns3Icon,

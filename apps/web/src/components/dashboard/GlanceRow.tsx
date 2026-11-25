@@ -1,4 +1,4 @@
-import { cn } from '@finances/ui'
+import { cn } from '@capi/ui'
 import { Slot } from 'radix-ui'
 import { ChevronRightIcon } from 'lucide-react'
 import type { ReactNode } from 'react'

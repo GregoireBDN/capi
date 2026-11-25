@@ -24,7 +24,7 @@ async function startStdio(): Promise<void> {
   const api = new ApiClient({ baseUrl: config.apiUrl, token: config.token })
   const server = createServer({ api, now: () => new Date() })
   await server.connect(new StdioServerTransport())
-  console.error(`[finances-mcp] ready (API ${new URL(config.apiUrl).origin})`)
+  console.error(`[capi-mcp] ready (API ${new URL(config.apiUrl).origin})`)
 }
 
 async function startHttp(): Promise<void> {
@@ -36,7 +36,7 @@ async function startHttp(): Promise<void> {
       ? `${address.address}:${address.port}`
       : `${config.host}:${config.port}`
   console.error(
-    `[finances-mcp] remote MCP listening on ${where} (public ${config.publicUrl}/mcp)`,
+    `[capi-mcp] remote MCP listening on ${where} (public ${config.publicUrl}/mcp)`,
   )
   const stop = () => server.close(() => process.exit(0))
   process.once('SIGTERM', stop)
@@ -46,8 +46,8 @@ async function startHttp(): Promise<void> {
 ;(httpMode ? startHttp() : startStdio()).catch((error: unknown) => {
   console.error(
     error instanceof ConfigError
-      ? `[finances-mcp] configuration: ${error.message}`
-      : `[finances-mcp] failed to start: ${error instanceof Error ? error.name : 'error'}`,
+      ? `[capi-mcp] configuration: ${error.message}`
+      : `[capi-mcp] failed to start: ${error instanceof Error ? error.name : 'error'}`,
   )
   process.exit(1)
 })

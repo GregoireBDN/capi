@@ -338,7 +338,7 @@ describe('preview_bank_import', () => {
     expect(result.isError).toBe(true)
     expect(result.text).toContain('lecture seule')
     const logged = stderr.mock.calls.flat().join('\n')
-    expect(logged).toBe('[finances-mcp] preview_bank_import: API error 403')
+    expect(logged).toBe('[capi-mcp] preview_bank_import: API error 403')
     expect(logged).not.toContain('cic-releve')
   })
 
@@ -584,7 +584,7 @@ describe('commit_bank_import', () => {
     expect(result.isError).toBe(true)
     expect(result.text).toContain('lecture seule')
     expect(stderr.mock.calls.flat().join('\n')).toBe(
-      '[finances-mcp] commit_bank_import: API error 403',
+      '[capi-mcp] commit_bank_import: API error 403',
     )
   })
 })

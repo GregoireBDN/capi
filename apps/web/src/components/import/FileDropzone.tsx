@@ -1,4 +1,4 @@
-import { cn, Spinner } from '@finances/ui'
+import { cn, Spinner } from '@capi/ui'
 import { FileUpIcon } from 'lucide-react'
 import { useId, useState } from 'react'
 

@@ -5,7 +5,7 @@ import {
   CardHeader,
   CardTitle,
   CategoryIcon,
-} from '@finances/ui'
+} from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import { CircleHelpIcon, PlusIcon } from 'lucide-react'
 import type { UnbudgetedSpendingDto } from '#/api/types.gen'

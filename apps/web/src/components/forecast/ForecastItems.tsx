@@ -5,7 +5,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@finances/ui'
+} from '@capi/ui'
 import type { ForecastDto, ForecastItemDto } from '#/api/types.gen'
 import {
   formatRelativeDay,

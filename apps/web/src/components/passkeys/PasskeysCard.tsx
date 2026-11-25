@@ -12,7 +12,7 @@ import {
   FieldError,
   FieldLabel,
   Input,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FingerprintIcon, PlusIcon } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'

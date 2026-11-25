@@ -1,5 +1,5 @@
 {
-  "extends": "@finances/config-typescript/react",
+  "extends": "@capi/config-typescript/react",
   "include": [
     "**/*.ts",
     "**/*.tsx",
@@ -12,7 +12,7 @@
     "paths": {
       "#/*": ["./src/*"],
       "@/*": ["./src/*"],
-      "@finances/shared": ["../../packages/shared/src/index.ts"]
+      "@capi/shared": ["../../packages/shared/src/index.ts"]
     }
   }
 }

@@ -10,7 +10,7 @@ import {
   Sheet,
   SheetContent,
   useIsMobile,
-} from '@finances/ui'
+} from '@capi/ui'
 import type { LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'

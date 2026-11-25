@@ -1,5 +1,5 @@
-import { Button, EmptyState, Skeleton } from '@finances/ui'
-import { cn } from '@finances/ui/lib/utils'
+import { Button, EmptyState, Skeleton } from '@capi/ui'
+import { cn } from '@capi/ui/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import {
   BanIcon,

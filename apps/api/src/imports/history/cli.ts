@@ -4,14 +4,14 @@ import { parseArgs } from 'node:util'
 import type { HistoryImportResult } from './history-import'
 
 /**
- * Command-line plumbing of `pnpm --filter @finances/api import:history`:
+ * Command-line plumbing of `pnpm --filter @capi/api import:history`:
  * argument parsing, path checks and the printed summary. The summary holds
  * counts, codes and slugs only; merchant keys, line numbers and conflict
  * details go to the optional JSON report, meant for the git-ignored `data/`
  * folder.
  */
 
-export const USAGE = `Usage: pnpm --filter @finances/api import:history -- --transactions <file.csv> [options]
+export const USAGE = `Usage: pnpm --filter @capi/api import:history -- --transactions <file.csv> [options]
 
 Imports the spreadsheet history export. Dry run unless --commit is given.
 

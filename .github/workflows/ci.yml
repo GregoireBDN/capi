@@ -81,7 +81,7 @@ jobs:
         run: echo "DATABASE_URL=${DATABASE_URL}" > apps/api/.env
 
       - name: Apply database migrations
-        run: pnpm --filter @finances/api db:migrate
+        run: pnpm --filter @capi/api db:migrate
 
       # Turbo reads the cache location from the TURBO_CACHE_DIR env var set above.
       # Don't pass --cache-dir here: `pnpm <script> -- …` forwards the flag past

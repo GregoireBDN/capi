@@ -1,4 +1,4 @@
-import { Button, cn } from '@finances/ui'
+import { Button, cn } from '@capi/ui'
 import {
   CalendarClockIcon,
   CheckIcon,

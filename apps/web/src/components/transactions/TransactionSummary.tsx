@@ -1,4 +1,4 @@
-import { cn, Skeleton } from '@finances/ui'
+import { cn, Skeleton } from '@capi/ui'
 import { ArrowLeftRightIcon } from 'lucide-react'
 import type { TransactionSummaryDto } from '#/api/types.gen'
 import { formatCents } from '#/lib/money'

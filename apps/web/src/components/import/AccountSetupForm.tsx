@@ -13,7 +13,7 @@ import {
   Input,
   NativeSelect,
   NativeSelectOption,
-} from '@finances/ui'
+} from '@capi/ui'
 import { LandmarkIcon } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'

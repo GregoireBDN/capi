@@ -1,4 +1,4 @@
-import { cn, OptionRow, SearchField } from '@finances/ui'
+import { cn, OptionRow, SearchField } from '@capi/ui'
 import { PlusIcon } from 'lucide-react'
 import { useId, useState } from 'react'
 import type { ContactDto } from '#/api/types.gen'

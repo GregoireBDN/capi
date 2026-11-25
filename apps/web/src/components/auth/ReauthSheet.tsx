@@ -5,7 +5,7 @@ import {
   Field,
   FieldLabel,
   PasswordInput,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import { KeyRoundIcon } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'

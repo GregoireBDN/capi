@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
   ConfirmDialog,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { MonitorSmartphoneIcon } from 'lucide-react'
 import { useState } from 'react'

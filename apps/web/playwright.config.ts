@@ -30,14 +30,14 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [
     {
-      command: 'pnpm --filter @finances/api dev',
+      command: 'pnpm --filter @capi/api dev',
       url: `${API_URL}/api/health`,
       reuseExistingServer: !process.env['CI'],
       timeout: 120_000,
       cwd: '../..',
     },
     {
-      command: 'pnpm --filter @finances/web dev',
+      command: 'pnpm --filter @capi/web dev',
       url: WEB_URL,
       reuseExistingServer: !process.env['CI'],
       timeout: 120_000,

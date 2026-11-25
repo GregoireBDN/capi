@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import type { ErrorComponentProps } from '@tanstack/react-router'
 import { TriangleAlert, WifiOff } from 'lucide-react'
-import { Button } from '@finances/ui'
+import { Button } from '@capi/ui'
 import { isNetworkError } from '#/lib/network-error'
 
 /**

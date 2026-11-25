@@ -1,4 +1,4 @@
-import { Button, CategoryIcon, Checkbox, cn, Skeleton } from '@finances/ui'
+import { Button, CategoryIcon, Checkbox, cn, Skeleton } from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import type { RepaymentOptionsDto, TransactionDto } from '#/api/types.gen'

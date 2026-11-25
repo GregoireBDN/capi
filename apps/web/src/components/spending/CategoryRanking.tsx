@@ -1,4 +1,4 @@
-import { Button, cn, formatEuros, formatPercent } from '@finances/ui'
+import { Button, cn, formatEuros, formatPercent } from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import { ChevronDownIcon, ChevronRightIcon, ClockIcon } from 'lucide-react'
 import { useState } from 'react'

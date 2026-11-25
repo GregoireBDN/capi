@@ -1,4 +1,4 @@
-import { CategoryIcon } from '@finances/ui'
+import { CategoryIcon } from '@capi/ui'
 import { CircleHelpIcon, EllipsisIcon } from 'lucide-react'
 import { OTHER_COLOR, UNCATEGORIZED_COLOR } from './labels'
 

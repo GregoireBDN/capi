@@ -180,7 +180,7 @@ services:
       REMOTE_MCP_ENABLED: ${REMOTE_MCP_ENABLED:-false}
       # Public origin (https): the OAuth issuer; MCP at <origin>/mcp.
       REMOTE_MCP_PUBLIC_URL: ${REMOTE_MCP_PUBLIC_URL:-}
-      FINANCES_API_URL: http://api:4000
+      CAPI_API_URL: http://api:4000
       MCP_HTTP_HOST: 0.0.0.0
       MCP_HTTP_PORT: '4100'
       # Peers allowed to set the client IP (X-Forwarded-For): Caddy only, by

@@ -21,7 +21,7 @@ import {
   TooltipProvider,
   cn,
   useSidebar,
-} from '@finances/ui'
+} from '@capi/ui'
 import { REVIEW_SEARCH } from '#/components/transactions/search'
 import { useAppEnvironment } from '#/lib/app-environment'
 import { plural } from '#/lib/plural'
@@ -72,7 +72,7 @@ function monthSearch(month: string | undefined): { month?: string } {
  * column under the header (`AppHeader`), folded down to its icons and back
  * by that button (or Cmd/Ctrl+B); folded, the page names show as tooltips
  * and a short rule replaces each group's title. Below `md` the
- * `@finances/ui` Sidebar renders it inside a sheet, opened from the
+ * `@capi/ui` Sidebar renders it inside a sheet, opened from the
  * header's ☰, whose top links to the dashboard. Who is signed in, the theme
  * and the sign-out are in the header's account menu (`AccountMenu`).
  */

@@ -1,4 +1,5 @@
 import { ConfigError } from '../config.js'
+import { readEnv } from '../env.js'
 
 /**
  * Configuration of the remote (Streamable HTTP) transport (#78, ADR 0003).
@@ -49,7 +50,7 @@ export function loadHttpConfig(
       'remote access is off (REMOTE_MCP_ENABLED is not "true"). See docs/runbooks/remote-mcp.md before enabling it.',
     )
   }
-  const api = plainOrigin('FINANCES_API_URL', env.FINANCES_API_URL)
+  const api = plainOrigin('CAPI_API_URL', readEnv(env, 'CAPI_API_URL'))
   const publicUrl = plainOrigin(
     'REMOTE_MCP_PUBLIC_URL',
     env.REMOTE_MCP_PUBLIC_URL,

@@ -11,7 +11,7 @@ import {
   NotificationDot,
   Spinner,
   cn,
-} from '@finances/ui'
+} from '@capi/ui'
 import { EllipsisVerticalIcon } from 'lucide-react'
 import { PageBack, useDefaultPageBack } from './PageBack'
 import type { PageBackLink } from './PageBack'

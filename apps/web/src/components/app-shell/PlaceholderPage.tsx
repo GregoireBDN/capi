@@ -4,7 +4,7 @@ import {
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@finances/ui'
+} from '@capi/ui'
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { PageHeader } from './PageHeader'

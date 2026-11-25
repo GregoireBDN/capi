@@ -1,4 +1,4 @@
-import { cn } from '@finances/ui'
+import { cn } from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import type { DashboardCardLink } from './DashboardCardHeader'

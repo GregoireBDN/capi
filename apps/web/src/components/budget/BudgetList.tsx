@@ -1,4 +1,4 @@
-import { Button, CategoryIcon, cn, ProgressMeter } from '@finances/ui'
+import { Button, CategoryIcon, cn, ProgressMeter } from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import { PencilIcon } from 'lucide-react'
 import type { BudgetLineDto } from '#/api/types.gen'

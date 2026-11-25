@@ -1,4 +1,4 @@
-import { Badge, Button } from '@finances/ui'
+import { Badge, Button } from '@capi/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CheckCheckIcon, CheckIcon, XIcon } from 'lucide-react'
 import { toast } from 'sonner'

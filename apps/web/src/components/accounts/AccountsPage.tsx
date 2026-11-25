@@ -11,7 +11,7 @@ import {
   formatSignedPercent,
   Skeleton,
   EmptyState,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { FileUpIcon, LandmarkIcon, TrendingUpIcon } from 'lucide-react'

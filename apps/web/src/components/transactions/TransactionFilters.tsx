@@ -8,7 +8,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
   Switch,
-} from '@finances/ui'
+} from '@capi/ui'
 import {
   ChevronRightIcon,
   InboxIcon,

@@ -1,4 +1,4 @@
-import { Button } from '@finances/ui'
+import { Button } from '@capi/ui'
 import { PencilLineIcon } from 'lucide-react'
 import { useState } from 'react'
 import type { AccountType } from '#/api/types.gen'

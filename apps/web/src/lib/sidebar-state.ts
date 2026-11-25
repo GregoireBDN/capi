@@ -1,6 +1,6 @@
 import { createIsomorphicFn } from '@tanstack/react-start'
 import { getRequestHeader } from '@tanstack/react-start/server'
-import { SIDEBAR_COOKIE_NAME } from '@finances/ui'
+import { SIDEBAR_COOKIE_NAME } from '@capi/ui'
 
 /**
  * Whether the fixed sidebar (≥ md) is shown, from a `Cookie` header or

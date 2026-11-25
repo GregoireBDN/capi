@@ -10,7 +10,7 @@ import {
 import { postLoginReturnPath } from '#/lib/post-login'
 import { ROUTES } from '#/lib/routes'
 import { FaceIdIcon } from './FaceIdIcon'
-import { Alert, AlertAction, AlertDescription, Button } from '@finances/ui'
+import { Alert, AlertAction, AlertDescription, Button } from '@capi/ui'
 
 /**
  * Shown once signed in with the password, when the account has no passkey and

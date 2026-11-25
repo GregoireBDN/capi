@@ -8,8 +8,8 @@ import {
   SheetContent,
   SheetSteps,
   useIsMobile,
-} from '@finances/ui'
-import type { SheetStepsProps } from '@finances/ui'
+} from '@capi/ui'
+import type { SheetStepsProps } from '@capi/ui'
 import { ChevronRightIcon } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'

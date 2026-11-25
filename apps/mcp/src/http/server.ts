@@ -383,14 +383,12 @@ export function createHttpHandler(options: HttpServerOptions) {
         send(res, error.status, error.body, error.headers)
       } else {
         log(
-          `[finances-mcp] http: unexpected ${error instanceof Error ? error.name : 'error'}`,
+          `[capi-mcp] http: unexpected ${error instanceof Error ? error.name : 'error'}`,
         )
         send(res, 500, { error: 'server_error' })
       }
     } finally {
-      log(
-        `[finances-mcp] ${req.method ?? '?'} ${labelOf(path)} ${res.statusCode}`,
-      )
+      log(`[capi-mcp] ${req.method ?? '?'} ${labelOf(path)} ${res.statusCode}`)
     }
   }
 }

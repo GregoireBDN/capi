@@ -1,5 +1,5 @@
 {
-  "name": "@finances/web",
+  "name": "@capi/web",
   "private": true,
   "type": "module",
   "imports": {
@@ -20,8 +20,8 @@
   },
   "dependencies": {
     "@fastify/proxy-addr": "^5.1.0",
-    "@finances/shared": "workspace:*",
-    "@finances/ui": "workspace:*",
+    "@capi/shared": "workspace:*",
+    "@capi/ui": "workspace:*",
     "@hookform/resolvers": "^5.2.2",
     "@simplewebauthn/browser": "14.0.0",
     "@tanstack/react-query": "^5.107.1",
@@ -48,7 +48,7 @@
     "zod": "4.6.6"
   },
   "devDependencies": {
-    "@finances/config-typescript": "workspace:*",
+    "@capi/config-typescript": "workspace:*",
     "@hey-api/openapi-ts": "^0.97.1",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/typography": "^0.5.16",

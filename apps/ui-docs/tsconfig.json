@@ -1,10 +1,10 @@
 {
-  "extends": "@finances/config-typescript/react",
+  "extends": "@capi/config-typescript/react",
   "include": [".storybook/**/*.ts", ".storybook/**/*.tsx", "src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
   "compilerOptions": {
     "paths": {
-      "@finances/ui": ["../../packages/ui/src/index.ts"],
-      "@finances/ui/*": ["../../packages/ui/src/*"]
+      "@capi/ui": ["../../packages/ui/src/index.ts"],
+      "@capi/ui/*": ["../../packages/ui/src/*"]
     }
   }
 }

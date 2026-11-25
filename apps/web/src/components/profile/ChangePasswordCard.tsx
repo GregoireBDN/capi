@@ -14,7 +14,7 @@ import {
   FieldLabel,
   Label,
   PasswordInput,
-} from '@finances/ui'
+} from '@capi/ui'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
 import { LockKeyholeIcon } from 'lucide-react'

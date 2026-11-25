@@ -1,4 +1,4 @@
-import { Button, Skeleton } from '@finances/ui'
+import { Button, Skeleton } from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import { connectorUrlQuery } from '#/components/oauth/queries'
 import { CopyBlock } from './CopyBlock'

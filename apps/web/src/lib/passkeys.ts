@@ -20,6 +20,7 @@ import {
 import type { PasskeyDto } from '#/api/types.gen'
 import { rateLimitMessage } from '#/lib/api-errors'
 import { REAUTH_API_MESSAGE } from '#/lib/reauth'
+import { getMovedItem } from '#/lib/legacy-storage'
 
 /**
  * Passkeys (WebAuthn) on the web side: the browser ceremony with
@@ -220,7 +221,7 @@ export async function listPasskeys(): Promise<PasskeyDto[] | null> {
   return result.response?.ok && result.data ? result.data : null
 }
 
-const OFFER_DISMISSED_KEY = 'finances.passkey-offer-dismissed-at'
+const OFFER_DISMISSED_KEY = 'capi.passkey-offer-dismissed-at'
 const OFFER_SNOOZE_MS = 30 * 24 * 60 * 60 * 1000
 
 /** Remembers "Plus tard" on this device for 30 days. */
@@ -234,7 +235,9 @@ export function dismissPasskeyOffer(now = Date.now()): void {
 
 function offerSnoozed(now: number): boolean {
   try {
-    const at = Number(localStorage.getItem(OFFER_DISMISSED_KEY))
+    const at = Number(
+      getMovedItem(OFFER_DISMISSED_KEY, 'finances.passkey-offer-dismissed-at'),
+    )
     return Number.isFinite(at) && at > 0 && now - at < OFFER_SNOOZE_MS
   } catch {
     return false

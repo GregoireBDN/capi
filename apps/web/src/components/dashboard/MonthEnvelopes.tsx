@@ -1,12 +1,5 @@
 import { useRegisterPageAction } from '#/components/app-shell/page-actions'
-import {
-  Button,
-  Card,
-  CategoryIcon,
-  cn,
-  Skeleton,
-  EmptyState,
-} from '@finances/ui'
+import { Button, Card, CategoryIcon, cn, Skeleton, EmptyState } from '@capi/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { PlusIcon, ReceiptEuroIcon, WalletCardsIcon } from 'lucide-react'

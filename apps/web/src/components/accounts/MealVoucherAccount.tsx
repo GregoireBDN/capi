@@ -8,7 +8,7 @@ import {
   EmptyState,
   Skeleton,
   StatCard,
-} from '@finances/ui'
+} from '@capi/ui'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
