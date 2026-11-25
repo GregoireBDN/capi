@@ -109,7 +109,7 @@ setup() {
   } >"$srv/.env"
   chmod 600 "$srv/.env"
   local old_mcp=capi-mcp
-  [[ -z ${OLD_LEGACY:-} ]] || old_mcp=finances-mcp
+  [[ -z ${OLD_LEGACY:-} ]] || old_mcp="finances-mcp"
   echo "# compose old${OLD_LEGACY:+ legacy}${OLD_MCP:+ $old_mcp}" >"$srv/docker-compose.prod.yml"
   echo "# compose new${NEW_MCP:+ capi-mcp}" >"$work/new-compose.yml"
   if [[ -n $running ]]; then
