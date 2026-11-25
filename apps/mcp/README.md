@@ -167,7 +167,7 @@ Claude Desktop doesn't expand variables, so the token sits in that file: keep it
 
 ## Remote access (claude.ai, Claude apps) — #78, #328
 
-`node dist/index.js --http` (`pnpm --filter @capi/mcp start:http`) runs the same tools as a **remote MCP server** over Streamable HTTP, for claude.ai and the Claude mobile and desktop connectors, authorized with **OAuth 2.1**. It is **off by default**: it refuses to start unless `REMOTE_MCP_ENABLED=true`, and the API mounts no OAuth route without it. In production it is the `finances-mcp` service of `docker-compose.prod.yml` (image `ghcr.io/gregoirebdn/finances-mcp`, built by `apps/mcp/Dockerfile`, started only with the `remote-mcp` compose profile, #328); design in [ADR 0003](../../docs/adr/0003-remote-mcp-oauth.md), enabling in [the runbook](../../docs/runbooks/remote-mcp.md).
+`node dist/index.js --http` (`pnpm --filter @capi/mcp start:http`) runs the same tools as a **remote MCP server** over Streamable HTTP, for claude.ai and the Claude mobile and desktop connectors, authorized with **OAuth 2.1**. It is **off by default**: it refuses to start unless `REMOTE_MCP_ENABLED=true`, and the API mounts no OAuth route without it. In production it is the `capi-mcp` service of `docker-compose.prod.yml` (image `ghcr.io/gregoirebdn/capi-mcp`, built by `apps/mcp/Dockerfile`, started only with the `remote-mcp` compose profile, #328); design in [ADR 0003](../../docs/adr/0003-remote-mcp-oauth.md), enabling in [the runbook](../../docs/runbooks/remote-mcp.md).
 
 - **Public surface, nothing else**: `POST /mcp` (stateless: one MCP server per request, JSON responses; `GET` / `DELETE` → 405), `/.well-known/oauth-protected-resource[/mcp]`, and `/.well-known/oauth-authorization-server`, `/oauth/register`, `/oauth/token`, `/oauth/revoke` relayed to the API's `/api/oauth/*` (form bodies converted to JSON, 16 KB at most). Any other path is 404: the API stays private.
 - **Tokens**: `/mcp` takes only OAuth access tokens (`fin_oat_…`) issued by the API for this resource, checked with `GET /api/oauth/token-info` (cached 30 s) and forwarded to the API, which applies the same scope rules as a personal access token. Without a valid token: `401` with `WWW-Authenticate: Bearer resource_metadata="…"`, which starts Claude's OAuth flow. A personal access token never works here.
@@ -179,7 +179,7 @@ Claude Desktop doesn't expand variables, so the token sits in that file: keep it
 | ----------------------- | ------------------------------------------------------------------------------------------------ |
 | `REMOTE_MCP_ENABLED`    | `true` (anything else: refuses to start)                                                         |
 | `CAPI_API_URL`          | `http://api:4000` (the API, from this process)                                                   |
-| `REMOTE_MCP_PUBLIC_URL` | `https://finances-mcp.example.com` (origin, https)                                               |
+| `REMOTE_MCP_PUBLIC_URL` | `https://capi-mcp.example.com` (origin, https)                                                   |
 | `MCP_HTTP_HOST`         | `127.0.0.1` (default), `0.0.0.0` in a container                                                  |
 | `MCP_HTTP_PORT`         | `4100` (default)                                                                                 |
 | `MCP_TRUSTED_PROXIES`   | `loopback` (default; `caddy` in production); IPs, CIDR ranges, host names, `uniquelocal`, `none` |

@@ -2,7 +2,7 @@
 
 Lets claude.ai, Claude Desktop's connectors and the Claude mobile apps use the Capi tools without a local MCP server. Design and threat model: [ADR 0003](../adr/0003-remote-mcp-oauth.md) (#78).
 
-> **Status: ready, off in production.** The #102 findings are fixed and the OAuth server and the production adapter service passed `docs/security/pentest/stack.sh oauth` (#328). The image (`ghcr.io/gregoirebdn/finances-mcp`), the `finances-mcp` service (profile `remote-mcp`) and the deploy are in this repository; the public host (DNS, Caddy) is in the `infra` repo. Turning it on is the owner's step: [Enabling](#enabling).
+> **Status: ready, off in production.** The #102 findings are fixed and the OAuth server and the production adapter service passed `docs/security/pentest/stack.sh oauth` (#328). The image (`ghcr.io/gregoirebdn/capi-mcp`), the `capi-mcp` service (profile `remote-mcp`) and the deploy are in this repository; the public host (DNS, Caddy) is in the `infra` repo. Turning it on is the owner's step: [Enabling](#enabling).
 
 ```
 Claude's servers (160.79.104.0/21, 153.61.208.0/20)
@@ -10,7 +10,7 @@ Claude's servers (160.79.104.0/21, 153.61.208.0/20)
    ▼
 Caddy (infra repo) ── only /mcp, /.well-known/oauth-*, /oauth/register|token|revoke
    ▼
-finances-mcp (apps/mcp --http) ──▶ api (/api/oauth/*, /api/*) ──▶ db
+capi-mcp (apps/mcp --http) ──▶ api (/api/oauth/*, /api/*) ──▶ db
                                     ▲
 owner's browser (on the tailnet) ───┘ via web: /oauth/authorize (consent page)
 ```
@@ -35,10 +35,10 @@ In this order: the adapter must not be reachable before the API serves its OAuth
 
 ### 1. Ship a release with the adapter
 
-A release from #328 onwards builds, scans and pushes `ghcr.io/gregoirebdn/finances-mcp:vX.Y.Z` with the API and web images, and its `docker-compose.prod.yml` has the `finances-mcp` service. Deployed with the profile off, nothing changes on the server. After the first such release, check that the package `finances-mcp` exists under GitHub › Packages and that the server's GHCR token (classic, `read:packages`, deploy runbook § 2) can pull it:
+A release from #328 onwards builds, scans and pushes `ghcr.io/gregoirebdn/capi-mcp:vX.Y.Z` with the API and web images, and its `docker-compose.prod.yml` has the `capi-mcp` service. Deployed with the profile off, nothing changes on the server. After the first such release, check that the package `capi-mcp` exists under GitHub › Packages and that the server's GHCR token (classic, `read:packages`, deploy runbook § 2) can pull it:
 
 ```bash
-ssh -t ops@vps 'sudo -iu deploy docker pull ghcr.io/gregoirebdn/finances-mcp:vX.Y.Z'
+ssh -t ops@vps 'sudo -iu deploy docker pull ghcr.io/gregoirebdn/capi-mcp:vX.Y.Z'
 ```
 
 ### 2. Public host name (DNS)
@@ -51,7 +51,7 @@ Done in the `infra` repo (GregoireBDN/infra#7, its `docs/runbooks/caddy-portal.m
 
 - **Hostinger firewall**: two accept rules, TCP 443 from those ranges.
 - **Docker guard**: `DOCKER-USER` exceptions from `/etc/infra-public-allow`, applied by the infra `bootstrap.sh`. Docker forwards published ports past `ufw`, so a `ufw allow` alone would do nothing.
-- **Caddy**: the public IPv4 `:443` is mapped to container port `8443` (`compose.public.yml`), where only the `finances-mcp.gbodin.cloud` site listens. That site answers 403 outside the ranges and 404 outside the adapter's seven paths, caps bodies at 8 MB and keeps streaming (`flush_interval -1`). It reaches the adapter as `finances-mcp:4100` on the `proxy` network: the adapter believes `X-Forwarded-For` only from the service named `caddy` (keep that name, or set `MCP_TRUSTED_PROXIES`).
+- **Caddy**: the public IPv4 `:443` is mapped to container port `8443` (`compose.public.yml`), where only the `finances-mcp.gbodin.cloud` site listens. That site answers 403 outside the ranges and 404 outside the adapter's seven paths, caps bodies at 8 MB and keeps streaming (`flush_interval -1`). It reaches the adapter as `capi-mcp:4100` on the `proxy` network: the adapter believes `X-Forwarded-For` only from the service named `caddy` (keep that name, or set `MCP_TRUSTED_PROXIES`).
 
 Anthropic publishes its ranges at [platform.claude.com/docs/en/api/ip-addresses](https://platform.claude.com/docs/en/api/ip-addresses) (« Outbound IP addresses »; checked 2026-11-19, no outbound IPv6). If the connector's calls time out or get 403, check that page first and update the three layers together rather than dropping the filter.
 
@@ -70,10 +70,10 @@ REMOTE_MCP_PUBLIC_URL=https://finances-mcp.gbodin.cloud
 `APP_URL` must stay the tailnet URL of the web app: the consent page is `${APP_URL}/oauth/authorize`. The API refuses to boot with `REMOTE_MCP_ENABLED=true` and no https `REMOTE_MCP_PUBLIC_URL`; the adapter refuses to start without both; `deploy.sh` refuses the profile without `REMOTE_MCP_ENABLED=true`. Then, as `deploy` in `/srv/finances` (`dc` = `docker compose -f docker-compose.prod.yml`, production stack runbook):
 
 ```bash
-dc config --services                 # db api web finances-mcp
-dc up -d api finances-mcp            # recreates api with the new variables, starts the adapter
-dc ps                                # finances-mcp healthy
-dc logs --tail=5 finances-mcp        # "remote MCP listening on 0.0.0.0:4100 (public https://…/mcp)"
+dc config --services                 # db api web capi-mcp
+dc up -d api capi-mcp            # recreates api with the new variables, starts the adapter
+dc ps                                # capi-mcp healthy
+dc logs --tail=5 capi-mcp        # "remote MCP listening on 0.0.0.0:4100 (public https://…/mcp)"
 ```
 
 From then on every deploy pulls, health-checks and rolls back the adapter with the rest.
@@ -104,15 +104,15 @@ From a machine **outside** Anthropic's range the allowed paths answer 403 and th
 - **Everything, now** (as `deploy` in `/srv/finances`):
 
   ```bash
-  dc stop finances-mcp      # the public host answers 502 at once
+  dc stop capi-mcp      # the public host answers 502 at once
   sed -i 's/^REMOTE_MCP_ENABLED=.*/REMOTE_MCP_ENABLED=false/; s/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=/' .env
   dc up -d api              # no /api/oauth route, every OAuth token refused
-  dc rm -f finances-mcp
+  dc rm -f capi-mcp
   ```
 
-  Grants are kept but refused; setting both lines back and `dc up -d api finances-mcp` restores them unless revoked. With the API switched off but the adapter still running, a call within 30 s of the token's last check reaches the API and gets a tool error, later calls 503: no data either way (`stack.sh oauth`, « kill switch with the adapter running »). Optionally remove the Caddy site and the DNS record (infra repo).
+  Grants are kept but refused; setting both lines back and `dc up -d api capi-mcp` restores them unless revoked. With the API switched off but the adapter still running, a call within 30 s of the token's last check reaches the API and gets a tool error, later calls 503: no data either way (`stack.sh oauth`, « kill switch with the adapter running »). Optionally remove the Caddy site and the DNS record (infra repo).
 
-- **Suspected leak**: disconnect every application, then look at what each one did in its detail. The adapter logs carry only method, route label and status (`dc logs finances-mcp`).
+- **Suspected leak**: disconnect every application, then look at what each one did in its detail. The adapter logs carry only method, route label and status (`dc logs capi-mcp`).
 
 ## Local test (no internet exposure)
 

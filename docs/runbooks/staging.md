@@ -8,7 +8,7 @@ Staging (#421) runs `main` between a merge and a release: every merge to `main` 
 merge to main
   └─ .github/workflows/staging.yml
        ├─ ci        the CI workflow (lint, types, tests, build), called as a reusable workflow
-       ├─ images    build, Trivy, push ghcr.io/gregoirebdn/finances-{api,web,mcp}:sha-<short>
+       ├─ images    build, Trivy, push ghcr.io/gregoirebdn/capi-{api,web,mcp}:sha-<short>
        └─ deploy    environment `staging` (no required reviewer)
             ├─ join the tailnet as an ephemeral `tag:ci` node
             ├─ upload deploy/deploy.sh, docker-compose.prod.yml and docker-compose.staging.yml
@@ -16,23 +16,23 @@ merge to main
             └─ ssh deploy@vps → deploy.sh --staging sha-<short> <compose file>
 ```
 
-`deploy.sh --staging` runs the same steps as a production deploy (see the [deploy runbook](deploy.md#how-it-works): install the compose files, set `FINANCES_VERSION`, pull, migrate, seed, `up -d`, health check through `web`, automatic rollback), with these differences:
+`deploy.sh --staging` runs the same steps as a production deploy (see the [deploy runbook](deploy.md#how-it-works): install the compose files, set `CAPI_VERSION`, pull, migrate, seed, `up -d`, health check through `web`, automatic rollback), with these differences:
 
-- **Project and directory**: always the compose project `finances-staging` (`-p`), in `/srv/finances-staging` (`FINANCES_DIR`), with `docker-compose.prod.yml` **and** the override [`docker-compose.staging.yml`](../../docker-compose.staging.yml). Its lock, `.env` and `deploy.log` are its own, so a staging deploy never waits for, nor touches, a production one.
+- **Project and directory**: always the compose project `finances-staging` (`-p`), in `/srv/finances-staging` (`CAPI_DIR`, or `FINANCES_DIR` before #464), with `docker-compose.prod.yml` **and** the override [`docker-compose.staging.yml`](../../docker-compose.staging.yml). Its lock, `.env` and `deploy.log` are its own, so a staging deploy never waits for, nor touches, a production one.
 - **Version**: an image tag `sha-<commit>` (7 to 40 lowercase hex characters); `vX.Y.Z` is refused, as production refuses `sha-…`.
 - **Demo data**: after the seed, `node dist/database/seed-demo.js --reset` wipes every table and seeds the demo data again (one transaction: if it fails, the previous data stays and the deploy rolls back). The demo seed refuses `NODE_ENV=production`, which the images set, except on the database the override names in `DEMO_STAGING_DATABASE` (`finances_staging`, a name ending in `_staging`); it refuses `finances` whatever that variable says (`apps/api/src/database/demo/guard.ts`).
-- **Safety checks** before anything is pulled: the merged configuration must not give `web` production's `finances-web` alias on the `proxy` network (Caddy would send production traffic to staging), and the remote MCP adapter must not be in the stack (`COMPOSE_PROFILES` empty).
+- **Safety checks** before anything is pulled: the merged configuration must not give `web` production's `capi-web` or `finances-web` alias on the `proxy` network (Caddy would send production traffic to staging), and the remote MCP adapter must not be in the stack (`COMPOSE_PROFILES` empty).
 
 What the override fixes, whatever `.env` says:
 
-| Setting                                    | Staging                                               | Why                                                                 |
-| ------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------- |
-| Database                                   | `finances_staging`, volume `finances-staging_db_data` | own data; the only name the demo seed may wipe in production images |
-| `web` on `proxy`                           | alias `finances-staging-web` only (`!override`)       | Caddy's staging upstream, never production's                        |
-| `SMTP_HOST`                                | empty                                                 | no email                                                            |
-| `REMOTE_MCP_ENABLED`                       | `false`                                               | no OAuth routes, no connector                                       |
-| `PRICE_API_ENABLED`, `WALLET_SYNC_ENABLED` | `false`                                               | the demo's seeded prices; no outbound call                          |
-| `APP_ENVIRONMENT` (`web`)                  | `staging`                                             | yellow header, icons and manifest (#454), see below                 |
+| Setting                                    | Staging                                                                  | Why                                                                 |
+| ------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| Database                                   | `finances_staging`, volume `finances-staging_db_data`                    | own data; the only name the demo seed may wipe in production images |
+| `web` on `proxy`                           | aliases `capi-staging-web` and `finances-staging-web` only (`!override`) | Caddy's staging upstream, never production's                        |
+| `SMTP_HOST`                                | empty                                                                    | no email                                                            |
+| `REMOTE_MCP_ENABLED`                       | `false`                                                                  | no OAuth routes, no connector                                       |
+| `PRICE_API_ENABLED`, `WALLET_SYNC_ENABLED` | `false`                                                                  | the demo's seeded prices; no outbound call                          |
+| `APP_ENVIRONMENT` (`web`)                  | `staging`                                                                | yellow header, icons and manifest (#454), see below                 |
 
 **Staging looks like staging** (#454): the same `web` image reads `APP_ENVIRONMENT=staging` at runtime (unset or anything else is production, which needs nothing), so on staging the header and the top of the phone's menu are yellow with a « Staging » label beside the blue wordmark, and the page links its own manifest (`/manifest-staging.json`: « Capi (staging) », short name « Capi β »), yellow icons (`/icons/staging/`), a yellow favicon and a yellow `theme-color`. A home-screen install of staging shows the yellow icon and its own name. iOS reads the icon when the app is added to the home screen: a staging install made before #454 keeps the old icon until it is removed and added again.
 
@@ -62,9 +62,9 @@ Nothing here is done by the workflow or an agent; nothing in the repo holds a se
   ls -l .env                              # -rw------- deploy deploy
   ```
 
-  `FINANCES_VERSION` stays empty: the first deploy sets it. No copy in the password manager is needed (losing them only means wiping the volume: `docker volume rm finances-staging_db_data`).
+  `CAPI_VERSION` stays empty: the first deploy sets it. No copy in the password manager is needed (losing them only means wiping the volume: `docker volume rm finances-staging_db_data`).
 
-- [ ] **Caddy** (`infra` repo): a site block for the staging host, e.g. `finances-staging.gbodin.cloud → finances-staging-web:3000`, like production's. The wildcard record `*.gbodin.cloud` and the wildcard certificate already cover it (ADR 0001 §3), so it is reachable from the tailnet only. Reload Caddy.
+- [ ] **Caddy** (`infra` repo): a site block for the staging host, e.g. `finances-staging.gbodin.cloud → capi-staging-web:3000`, like production's. The wildcard record `*.gbodin.cloud` and the wildcard certificate already cover it (ADR 0001 §3), so it is reachable from the tailnet only. Reload Caddy.
 - [ ] **Memory**: staging adds an API, a web server and a Postgres to the server (`APP_MEM_LIMIT=384m` each for `api` and `web`). Check `free -h` leaves room for both stacks.
 - [ ] **GitHub** › Settings › Environments › **New environment** `staging`:
   - **no** required reviewer, **Deployment branches**: the branch `main` only;
@@ -96,5 +96,5 @@ Merges in a row: the deploy job runs one at a time (`concurrency: deploy-staging
 - **`the staging configuration keeps web's production alias`**: the server's Docker Compose is older than 2.24.4 and doesn't know `!override`; upgrade the compose plugin. Nothing was started.
 - **`the remote MCP adapter never runs on staging`**: empty `COMPOSE_PROFILES` in `/srv/finances-staging/.env`.
 - **`FAILED: demo data`**: `dcs run --rm -T api node dist/database/seed-demo.js --reset` shows the error; `Refusing to seed demo data …` means the override's database name or `DEMO_STAGING_DATABASE` was changed.
-- **Caddy answers 502 on the staging host**: `dcs ps`; `docker network inspect proxy` should list `finances-staging-web`.
+- **Caddy answers 502 on the staging host**: `dcs ps`; `docker network inspect proxy` should list `capi-staging-web`.
 - Everything else is as in production: [production stack runbook § Troubleshooting](production-stack.md#troubleshooting), [deploy runbook § Troubleshooting](deploy.md#troubleshooting).

@@ -32,8 +32,8 @@ import {
  * with a form post, so unsafe requests from another origin are refused.
  */
 
-const APP = 'https://finances.example.test'
-const PASSKEY_ORIGIN = 'https://app.finances.example.test'
+const APP = 'https://capi.example.test'
+const PASSKEY_ORIGIN = 'https://app.capi.example.test'
 const SIBLING = 'https://portal.example.test'
 const ELSEWHERE = 'https://attacker.example.net'
 const WRITE_TOKEN = 'fin_pat_synthetic-write-token'
@@ -195,10 +195,10 @@ describe('addressedOrigin', () => {
     expect(
       addressedOrigin({
         host: 'api:4000',
-        'x-forwarded-host': 'finances.example.test',
+        'x-forwarded-host': 'capi.example.test',
         'x-forwarded-proto': 'https',
       }),
-    ).toBe('https://finances.example.test')
+    ).toBe('https://capi.example.test')
     expect(addressedOrigin({ host: 'localhost:4000' })).toBe(
       'http://localhost:4000',
     )

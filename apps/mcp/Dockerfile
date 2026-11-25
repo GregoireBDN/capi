@@ -25,7 +25,7 @@ RUN rm -rf /usr/local/lib/node_modules /opt/yarn-* \
 WORKDIR /app
 ENV NODE_ENV=production
 # The remote adapter (#78, ADR 0003) listens on every interface of the
-# container, so Caddy reaches it as finances-mcp:4100 on the `proxy` network.
+# container, so Caddy reaches it as capi-mcp:4100 on the `proxy` network.
 # Never publish this port: the public host is Caddy's (infra repo).
 ENV MCP_HTTP_HOST=0.0.0.0
 ENV MCP_HTTP_PORT=4100

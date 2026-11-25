@@ -6,7 +6,7 @@ import {
 } from './remote-mcp.config'
 
 const base = {
-  APP_URL: 'https://finances.tailnet.example',
+  APP_URL: 'https://capi.tailnet.example',
   REMOTE_MCP_ENABLED: false,
   isProduction: false,
 }
@@ -17,7 +17,7 @@ describe('resolveRemoteMcp', () => {
       enabled: false,
       issuer: 'http://localhost:4100',
       resource: 'http://localhost:4100/mcp',
-      authorizationEndpoint: 'https://finances.tailnet.example/oauth/authorize',
+      authorizationEndpoint: 'https://capi.tailnet.example/oauth/authorize',
       redirectUris: [...DEFAULT_REMOTE_MCP_REDIRECT_URIS],
     })
   })
@@ -27,10 +27,10 @@ describe('resolveRemoteMcp', () => {
       ...base,
       REMOTE_MCP_ENABLED: true,
       isProduction: true,
-      REMOTE_MCP_PUBLIC_URL: 'https://finances-mcp.example.com',
+      REMOTE_MCP_PUBLIC_URL: 'https://capi-mcp.example.com',
     })
-    expect(config.issuer).toBe('https://finances-mcp.example.com')
-    expect(config.resource).toBe('https://finances-mcp.example.com/mcp')
+    expect(config.issuer).toBe('https://capi-mcp.example.com')
+    expect(config.resource).toBe('https://capi-mcp.example.com/mcp')
   })
 
   it.each([
@@ -39,7 +39,7 @@ describe('resolveRemoteMcp', () => {
       {
         REMOTE_MCP_ENABLED: true,
         isProduction: true,
-        REMOTE_MCP_PUBLIC_URL: 'http://finances-mcp.example.com',
+        REMOTE_MCP_PUBLIC_URL: 'http://capi-mcp.example.com',
       },
       /https/,
     ],

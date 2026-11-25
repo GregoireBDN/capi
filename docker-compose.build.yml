@@ -1,11 +1,11 @@
 # Build the production images from this checkout instead of pulling them from
 # GHCR. Use on top of docker-compose.prod.yml, from the repo root:
 #
-#   FINANCES_VERSION=local docker compose -p finances-local \
+#   CAPI_VERSION=local docker compose -p finances-local \
 #     -f docker-compose.prod.yml -f docker-compose.build.yml build
 #
-# The images are tagged like the GHCR ones (ghcr.io/gregoirebdn/finances-*:
-# ${FINANCES_VERSION}); `pull_policy: build` keeps `up` from pulling them.
+# The images are tagged like the GHCR ones (ghcr.io/gregoirebdn/capi-*:
+# ${CAPI_VERSION}); `pull_policy: build` keeps `up` from pulling them.
 services:
   api:
     build:
@@ -21,7 +21,7 @@ services:
 
   # Built only when the `remote-mcp` profile is on (COMPOSE_PROFILES or
   # --profile remote-mcp).
-  finances-mcp:
+  capi-mcp:
     build:
       context: .
       dockerfile: apps/mcp/Dockerfile

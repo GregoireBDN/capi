@@ -121,7 +121,7 @@ describe('env', () => {
     expect(env.SMTP_HOST).toBe('localhost')
     expect(env.SMTP_PORT).toBe(1025)
     expect(env.SMTP_SECURE).toBe(false)
-    expect(env.EMAIL_FROM).toBe('noreply@finances.app')
+    expect(env.EMAIL_FROM).toBe('noreply@capi.app')
     expect(env.isProduction).toBe(false)
   })
 
@@ -182,13 +182,13 @@ describe('env', () => {
   describe('passkeys (WebAuthn)', () => {
     it('defaults the RP id and origin to APP_URL', async () => {
       const { env } = await importEnv({
-        APP_URL: 'https://finances.example.ts.net/some/path',
+        APP_URL: 'https://capi.example.ts.net/some/path',
         WEBAUTHN_RP_ID: undefined,
         WEBAUTHN_ORIGIN: undefined,
       })
       expect(env.webauthn).toEqual({
-        rpId: 'finances.example.ts.net',
-        origin: 'https://finances.example.ts.net',
+        rpId: 'capi.example.ts.net',
+        origin: 'https://capi.example.ts.net',
       })
     })
 
@@ -219,13 +219,13 @@ describe('env', () => {
     it('refuses an RP id that does not cover the origin', async () => {
       await expect(
         importEnv({
-          APP_URL: 'https://finances.example.test',
+          APP_URL: 'https://capi.example.test',
           WEBAUTHN_RP_ID: 'other.test',
         }),
       ).rejects.toThrow(/WEBAUTHN_RP_ID/)
       await expect(
         importEnv({
-          APP_URL: 'https://finances.example.test',
+          APP_URL: 'https://capi.example.test',
           WEBAUTHN_RP_ID: 'ances.example.test',
         }),
       ).rejects.toThrow(/WEBAUTHN_RP_ID/)

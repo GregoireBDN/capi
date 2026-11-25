@@ -2,12 +2,16 @@
 #
 # Deployed in /srv/finances with a root-only `.env` next to this file (template:
 # .env.production.example). No service publishes a port: Caddy (infra repo)
-# reaches `web` on the external `proxy` network as `finances-web:3000`, and
+# reaches `web` on the external `proxy` network as `capi-web:3000`, and
 # `api`/`db` stay on this project's internal network. The remote MCP adapter
-# (`finances-mcp`, ADR 0003, #328) only runs with the `remote-mcp` profile
-# (COMPOSE_PROFILES=remote-mcp in .env); Caddy reaches it as finances-mcp:4100.
+# (`capi-mcp`, ADR 0003, #328) only runs with the `remote-mcp` profile
+# (COMPOSE_PROFILES=remote-mcp in .env); Caddy reaches it as capi-mcp:4100.
+# Until Caddy has moved to the new names (#464, docs/runbooks/rename.md), both
+# services also answer to their names before the rename (`finances-web`,
+# `finances-mcp`); the project, its volume and the folder are renamed later.
 #
-# Images come from GHCR, pinned by FINANCES_VERSION. To build them locally
+# Images come from GHCR, pinned by CAPI_VERSION (deploy/deploy.sh writes it,
+# and FINANCES_VERSION with the same value for compose files before #464). To build them locally
 # instead, add docker-compose.build.yml (see the runbook), and on a dev machine
 # always pass `-p finances-local`: the dev stack (docker-compose.yml) is also
 # named `finances`.
@@ -19,7 +23,7 @@ x-logging: &logging
     max-size: 10m
     max-file: '5'
 
-# Container hardening for `api`, `web` and `finances-mcp` (#183): they run as the image's
+# Container hardening for `api`, `web` and `capi-mcp` (#183): they run as the image's
 # unprivileged `node` user on a read-only root filesystem (only a small /tmp
 # is writable), with no Linux capabilities, no privilege escalation through
 # setuid binaries, and bounded memory and process counts. `docker compose run`
@@ -70,7 +74,7 @@ services:
     logging: *logging
 
   api:
-    image: ghcr.io/gregoirebdn/finances-api:${FINANCES_VERSION:?set FINANCES_VERSION in .env}
+    image: ghcr.io/gregoirebdn/capi-api:${CAPI_VERSION:?set CAPI_VERSION in .env}
     <<: *hardening
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-finances}
@@ -89,7 +93,7 @@ services:
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      EMAIL_FROM: ${EMAIL_FROM:-noreply@finances.app}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@capi.app}
       PRICE_API_ENABLED: ${PRICE_API_ENABLED:-true}
       PRICE_API_URL: ${PRICE_API_URL:-https://api.coingecko.com/api/v3}
       PRICE_CACHE_TTL_SECONDS: ${PRICE_CACHE_TTL_SECONDS:-600}
@@ -127,7 +131,7 @@ services:
     logging: *logging
 
   web:
-    image: ghcr.io/gregoirebdn/finances-web:${FINANCES_VERSION:?set FINANCES_VERSION in .env}
+    image: ghcr.io/gregoirebdn/capi-web:${CAPI_VERSION:?set CAPI_VERSION in .env}
     <<: *hardening
     environment:
       # The web server proxies /api/* to the API and calls it during SSR, so the
@@ -142,8 +146,9 @@ services:
     networks:
       default: {}
       proxy:
-        # Caddy's upstream: finances-web:3000.
+        # Caddy's upstream: capi-web:3000 (finances-web until #464's step B).
         aliases:
+          - capi-web
           - finances-web
     depends_on:
       api:
@@ -169,8 +174,8 @@ services:
   # range). It holds no secret and no database access; it checks OAuth tokens
   # with the API and calls it with them. Only started with the `remote-mcp`
   # profile, and refuses to start unless REMOTE_MCP_ENABLED=true.
-  finances-mcp:
-    image: ghcr.io/gregoirebdn/finances-mcp:${FINANCES_VERSION:?set FINANCES_VERSION in .env}
+  capi-mcp:
+    image: ghcr.io/gregoirebdn/capi-mcp:${CAPI_VERSION:?set CAPI_VERSION in .env}
     profiles: [remote-mcp]
     <<: *hardening
     mem_limit: ${MCP_MEM_LIMIT:-256m}
@@ -189,10 +194,12 @@ services:
       # per-IP limits on the OAuth routes then apply to the real client.
       MCP_TRUSTED_PROXIES: ${MCP_TRUSTED_PROXIES:-caddy}
     networks:
-      # `default` to reach api:4000; `proxy` for Caddy (finances-mcp:4100).
+      # `default` to reach api:4000; `proxy` for Caddy (capi-mcp:4100,
+      # finances-mcp until #464's step B).
       default: {}
       proxy:
         aliases:
+          - capi-mcp
           - finances-mcp
     depends_on:
       api:

@@ -6,28 +6,28 @@ This runbook covers how Capi runs on the server: first install, environment, mig
 
 ```text
 phone / laptop ──tailnet──▶ Caddy (infra, 443 on the Tailscale IP, network `proxy`)
-                              │  finances.gbodin.cloud → finances-web:3000
+                              │  finances.gbodin.cloud → capi-web:3000 (or finances-web)
                               ▼
                  ┌──────── project `finances` (/srv/finances) ─────────┐
-                 │ web  (proxy + default networks, alias finances-web) │
+                 │ web  (proxy + default networks, alias capi-web) │
                  │  │  /api/* and SSR → http://api:4000                │
                  │ api  (default network only)                         │
                  │  │                                                  │
                  │ db   postgres:17-alpine, volume finances_db_data    │
-                 │ finances-mcp (profile remote-mcp, proxy + default)  │
+                 │ capi-mcp (profile remote-mcp, proxy + default)  │
                  │  │  → http://api:4000 with the connector's token    │
                  └─────────────────────────────────────────────────────┘
 Claude's servers ──internet──▶ Caddy, public host finances-mcp.<domain>
-                              (seven paths only) → finances-mcp:4100
+                              (seven paths only) → capi-mcp:4100
 ```
 
 - **No service publishes a port.** Only Caddy publishes 80/443, bound to the Tailscale IP. Never add `ports:` to this stack: Docker-published ports bypass `ufw`, and the API trusts `X-Forwarded-For` from private addresses (#49).
-- **Images**: `ghcr.io/gregoirebdn/finances-api`, `finances-web` and `finances-mcp`, tag pinned by `FINANCES_VERSION` in `.env` (`vX.Y.Z` or `sha-<shortsha>`).
-- **Remote MCP adapter** (`finances-mcp`, #78, #328): only started with `COMPOSE_PROFILES=remote-mcp` in `.env`, and refuses to start unless `REMOTE_MCP_ENABLED=true`. It is the only part of the app on a public host; enabling, checks and the kill switch are in the [remote MCP runbook](remote-mcp.md).
+- **Images**: `ghcr.io/gregoirebdn/capi-api`, `capi-web` and `capi-mcp`, tag pinned by `CAPI_VERSION` in `.env` (`vX.Y.Z` or `sha-<shortsha>`).
+- **Remote MCP adapter** (`capi-mcp`, #78, #328): only started with `COMPOSE_PROFILES=remote-mcp` in `.env`, and refuses to start unless `REMOTE_MCP_ENABLED=true`. It is the only part of the app on a public host; enabling, checks and the kill switch are in the [remote MCP runbook](remote-mcp.md).
 - **Files on the server**: `/srv/finances/docker-compose.prod.yml` (copied from the release tag by each deploy) and `/srv/finances/.env`. Both are owned by `deploy`, and `.env` has mode `600`. Nothing else from the repo is needed there.
 - **Restart policy**: every service is `restart: unless-stopped`. After a reboot, Docker starts the stack again on its own (Docker is enabled at boot and ordered after `tailscaled`, see the `infra` bootstrap). Containers stopped by hand stay stopped.
-- **Container hardening** (#183): `api`, `web` and `finances-mcp` run as the image's `node` user on a read-only root filesystem (only a 16 MB `/tmp` tmpfs is writable), with every Linux capability dropped, `no-new-privileges`, a memory limit (`APP_MEM_LIMIT`, default `512m`, no swap; `finances-mcp`: `MCP_MEM_LIMIT`, default `256m`) and at most 256 processes (`finances-mcp`: 128). `db` keeps only the capabilities its entrypoint needs to fix the data directory's ownership and drop to `postgres`, with `no-new-privileges`. `dc run` (migrations, seed) gets the same settings as the service.
-- **Health**: `GET /api/health` checks the database, and SMTP only when SMTP is configured (see [Email](#email-smtp)). The `api` and `web` containers have healthchecks. `web` checks the whole chain (web → API → database). `finances-mcp` checks that its port accepts connections (no request, no log line).
+- **Container hardening** (#183): `api`, `web` and `capi-mcp` run as the image's `node` user on a read-only root filesystem (only a 16 MB `/tmp` tmpfs is writable), with every Linux capability dropped, `no-new-privileges`, a memory limit (`APP_MEM_LIMIT`, default `512m`, no swap; `capi-mcp`: `MCP_MEM_LIMIT`, default `256m`) and at most 256 processes (`capi-mcp`: 128). `db` keeps only the capabilities its entrypoint needs to fix the data directory's ownership and drop to `postgres`, with `no-new-privileges`. `dc run` (migrations, seed) gets the same settings as the service.
+- **Health**: `GET /api/health` checks the database, and SMTP only when SMTP is configured (see [Email](#email-smtp)). The `api` and `web` containers have healthchecks. `web` checks the whole chain (web → API → database). `capi-mcp` checks that its port accepts connections (no request, no log line).
 
 Every command below runs as `deploy` in `/srv/finances` (`sudo -iu deploy`, then `cd /srv/finances`). To keep commands short:
 
@@ -41,7 +41,7 @@ Before the first install, make sure of the following:
 
 - Docker Engine and the compose plugin are installed, and the external network `proxy` exists (`docker network ls | grep proxy`). The `infra` bootstrap sets both up.
 - The `deploy` user exists, owns `/srv/finances` and is logged in to GHCR with a `read:packages` token. See [deploy runbook § One-time setup](deploy.md#one-time-setup), steps 1 and 2.
-- Caddy has the `finances.gbodin.cloud → finances-web:3000` site block (`infra` repo), and `*.gbodin.cloud` resolves to the server's Tailscale IP.
+- Caddy has the `finances.gbodin.cloud → capi-web:3000` site block (`infra` repo; `web` also answers to `finances-web` until #464's step B, [rename runbook](rename.md)), and `*.gbodin.cloud` resolves to the server's Tailscale IP.
 - At least one release exists in GHCR (`vX.Y.Z`, pushed by the release workflow).
 
 ## First install
@@ -70,14 +70,14 @@ cat .env.production.example > .env && rm .env.production.example
 # Secrets: generated on the server, URL-safe (POSTGRES_PASSWORD goes into a URL)
 sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 32)/" .env
 sed -i "s/^JWT_SECRET=.*/JWT_SECRET=$(openssl rand -hex 32)/" .env
-sed -i "s/^FINANCES_VERSION=.*/FINANCES_VERSION=v1.0.0/" .env
+sed -i "s/^CAPI_VERSION=.*/CAPI_VERSION=v1.0.0/" .env
 ${EDITOR:-nano} .env                    # review APP_URL, SMTP_*, ...
 ls -l .env                              # -rw------- deploy deploy
 ```
 
 Copy `POSTGRES_PASSWORD` and `JWT_SECRET` into the password manager. The backups of the `.env` and the database are covered by #30.
 
-Required values: `FINANCES_VERSION`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `JWT_SECRET` and `APP_URL` (`https://finances.gbodin.cloud`). `docker compose` refuses to run while any of them is empty. The API also refuses to start with a `JWT_SECRET` shorter than 32 characters (`openssl rand -hex 32` gives 64); if an older `.env` has a shorter one, replace it before deploying (everyone is signed out). Validate the file without printing the secrets:
+Required values: `CAPI_VERSION`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `JWT_SECRET` and `APP_URL` (`https://finances.gbodin.cloud`). `docker compose` refuses to run while any of them is empty. The API also refuses to start with a `JWT_SECRET` shorter than 32 characters (`openssl rand -hex 32` gives 64); if an older `.env` has a shorter one, replace it before deploying (everyone is signed out). Validate the file without printing the secrets:
 
 ```bash
 dc config -q && echo OK
@@ -124,7 +124,7 @@ To upgrade by hand (e.g. the pipeline is unavailable):
 cd /srv/finances
 # 1. New compose file of the tag (from the laptop, as in First install § 1), if it changed
 # 2. New variables from .env.production.example of the tag, if any
-sed -i 's/^FINANCES_VERSION=.*/FINANCES_VERSION=v1.1.0/' .env
+sed -i 's/^CAPI_VERSION=.*/CAPI_VERSION=v1.1.0/' .env
 dc pull api web
 dc run --rm api node dist/database/migrate.js
 dc run --rm api node dist/database/seed.js
@@ -186,9 +186,9 @@ Wallet crypto accounts can be read on chain from their public keys (#129). It is
 Caddy sets `X-Forwarded-For`. `web` believes it only from Caddy and forwards a clean header to `api`, which believes it only from `web` (#49):
 
 - **Caddy** (infra repo) must see the device itself: its `100.x` Tailscale IPv4 or its `fd7a:115c:a1e0::…` Tailscale IPv6 (both are published, with `A` and `AAAA` records). That needs the shared `proxy` network to be **dual-stack**: on an IPv4-only `proxy`, Docker relays the IPv6 connections through `docker-proxy` from the bridge gateway, so every device on IPv6 arrives as `172.18.0.1` and shares one rate-limit bucket (#251; the sign-in throttle of one device locks out the others). The infra repo's `bootstrap.sh` creates `proxy` with `--ipv6`, and `scripts/proxy-network-ipv6.sh` converts an existing one (infra runbook `caddy-portal.md`, Client IP). A device that uses both families counts as two clients, one per address.
-- **`web`** (`WEB_TRUSTED_PROXIES`, default `caddy`): Caddy's service name on the shared `proxy` network (`caddy` in the infra repo's `caddy/compose.yml`). `web` resolves it through Docker's DNS at start-up and every 30 s, so a restarted Caddy with a new IP is followed within 30 s. Any other container on `proxy` (the portal, another app) that calls `finances-web:3000` gets its own address as client IP, whatever header it sends (#183). While the name doesn't resolve (Caddy renamed or off `proxy`), `web` trusts nobody: the site still works, but every request counts against the address it comes from (Caddy's) for rate limits, and the `web` logs say `Trusted proxy "caddy" does not resolve` once.
-- **`api`** (`TRUSTED_PROXIES`, default `loopback,uniquelocal`): `web` on the project network, and `finances-mcp` when it runs, which forwards the client IP it believes.
-- **`finances-mcp`** (`MCP_TRUSTED_PROXIES`, default `caddy`, #328): like `web`, Caddy's service name resolved every 30 s; its per-IP limit and the API's limits on the OAuth routes then apply to the real caller (Anthropic's servers). While the name doesn't resolve it trusts nobody and logs `trusted proxy "caddy" does not resolve` once.
+- **`web`** (`WEB_TRUSTED_PROXIES`, default `caddy`): Caddy's service name on the shared `proxy` network (`caddy` in the infra repo's `caddy/compose.yml`). `web` resolves it through Docker's DNS at start-up and every 30 s, so a restarted Caddy with a new IP is followed within 30 s. Any other container on `proxy` (the portal, another app) that calls `capi-web:3000` gets its own address as client IP, whatever header it sends (#183). While the name doesn't resolve (Caddy renamed or off `proxy`), `web` trusts nobody: the site still works, but every request counts against the address it comes from (Caddy's) for rate limits, and the `web` logs say `Trusted proxy "caddy" does not resolve` once.
+- **`api`** (`TRUSTED_PROXIES`, default `loopback,uniquelocal`): `web` on the project network, and `capi-mcp` when it runs, which forwards the client IP it believes.
+- **`capi-mcp`** (`MCP_TRUSTED_PROXIES`, default `caddy`, #328): like `web`, Caddy's service name resolved every 30 s; its per-IP limit and the API's limits on the OAuth routes then apply to the real caller (Anthropic's servers). While the name doesn't resolve it trusts nobody and logs `trusted proxy "caddy" does not resolve` once.
 
 Check what `web` resolves: `dc exec -T web node -e "require('dns').promises.lookup('caddy',{all:true}).then(r=>console.log(r))"` (it should be Caddy's addresses in `docker network inspect proxy`: an IPv4 and, on the dual-stack network, an IPv6).
 
@@ -214,11 +214,11 @@ To check the images and the compose file on a laptop, use a throwaway project na
 ```bash
 docker network create proxy                       # only if missing; remove it afterwards
 cat > /tmp/finances-local.env <<EOF
-FINANCES_VERSION=local
+CAPI_VERSION=local
 POSTGRES_USER=finances
 POSTGRES_PASSWORD=$(openssl rand -hex 16)
 JWT_SECRET=$(openssl rand -hex 32)
-APP_URL=https://finances.example.test
+APP_URL=https://capi.example.test
 EOF
 c="docker compose -p finances-local --env-file /tmp/finances-local.env -f docker-compose.prod.yml -f docker-compose.build.yml"
 $c build
@@ -229,7 +229,7 @@ $c exec -T web node -e "fetch('http://localhost:3000/api/health').then(async r=>
 $c down -v                                         # removes the throwaway volume too
 ```
 
-`docker-compose.build.yml` builds the images from the checkout (monorepo root as context) and tags them like the GHCR images, with `FINANCES_VERSION`; the MCP adapter only with its profile (`COMPOSE_PROFILES=remote-mcp` in the env file, plus `REMOTE_MCP_ENABLED=true` and `REMOTE_MCP_PUBLIC_URL=https://finances-mcp.example.test`, https in production images). `docs/security/pentest/stack.sh oauth` runs it that way.
+`docker-compose.build.yml` builds the images from the checkout (monorepo root as context) and tags them like the GHCR images, with `CAPI_VERSION`; the MCP adapter only with its profile (`COMPOSE_PROFILES=remote-mcp` in the env file, plus `REMOTE_MCP_ENABLED=true` and `REMOTE_MCP_PUBLIC_URL=https://capi-mcp.example.test`, https in production images). `docs/security/pentest/stack.sh oauth` runs it that way.
 
 ## Troubleshooting
 
@@ -240,7 +240,7 @@ $c down -v                                         # removes the throwaway volum
 | `pull access denied` / `unauthorized`               | GHCR login of `deploy` missing or expired ([deploy runbook](deploy.md)).                                                                                                             |
 | Sign-in rate limited on every device at once        | Every device has the same client IP: run the end-to-end check in [Client IPs and trusted proxies](#client-ips-and-trusted-proxies) (`172.18.0.1` = IPv4-only `proxy` network, #251). |
 | `api` unhealthy                                     | `dc logs api`. Most often the database isn't ready or migrated, or SMTP is configured but unreachable.                                                                               |
-| Caddy answers 502                                   | `web` isn't running or healthy (`dc ps`), or isn't on `proxy` (`docker network inspect proxy` should list `finances-web`).                                                           |
+| Caddy answers 502                                   | `web` isn't running or healthy (`dc ps`), or isn't on `proxy` (`docker network inspect proxy` should list `capi-web`).                                                               |
 | Signed out on every request                         | `APP_URL` isn't the HTTPS origin, or the site is opened over plain HTTP (the cookies are `Secure`).                                                                                  |
 | Passkey sign-in or creation fails at once           | The page origin isn't `APP_URL` (or `WEBAUTHN_ORIGIN`), or `WEBAUTHN_RP_ID` doesn't match it. The password always works.                                                             |
 | `api` or `web` restarts with exit code 137          | Out of memory (`docker inspect <container> --format '{{.State.OOMKilled}}'`): raise `APP_MEM_LIMIT` in `.env`, then `dc up -d`.                                                      |
