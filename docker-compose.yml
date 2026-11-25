@@ -1,4 +1,8 @@
-name: finances
+# Dev stack: PostgreSQL and Mailpit, the apps run on the host. The project
+# was `finances` before #464's step B; the database volume keeps that name so
+# the local data stays. Before the first `up` under the new name, stop the
+# old project once: `docker compose -p finances down` (never -v).
+name: capi
 
 services:
   db:
@@ -8,11 +12,11 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d finances"]
+      test: ['CMD-SHELL', 'pg_isready -U user -d finances']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -20,8 +24,8 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - '1025:1025'
+      - '8025:8025'
     environment:
       MP_MAX_MESSAGES: 5000
       MP_SMTP_AUTH_ACCEPT_ANY: 1
@@ -29,3 +33,4 @@ services:
 
 volumes:
   postgres_data:
+    name: finances_postgres_data

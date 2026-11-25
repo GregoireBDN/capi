@@ -40,9 +40,9 @@ A release of A changes nothing visible: same project, same volume, same folder, 
 
 ### B. Projects and folders (one release, about 15 minutes of downtime)
 
-**Two Postgres must never run on the same volume.** As soon as the project name changes, `docker compose` no longer sees the old containers: a deploy that starts `capi` while `finances` still runs would start a second database on the same data directory. So the project rename ships with a `deploy.sh` that, before the migrations, stops the project it replaces (`docker compose -p finances down`, **never** `-v`) and, on rollback, stops `capi` before starting the previous compose file. `test-deploy.sh` covers both, plus the staging pair. The PR:
+**Two Postgres must never run on the same volume.** As soon as the project name changes, `docker compose` no longer sees the old containers: a deploy that starts `capi` while `finances` still runs would start a second database on the same data directory. So the project rename ships with a `deploy.sh` that reads the project of the compose files in place and of the release (`name:`), and when they differ checks that `DB_VOLUME` exists, stops the old project just before the migrations (`docker compose -p finances down`, **never** `-v`) and, on a failure, stops `capi` before starting the previous compose file again. It works both ways (a rollback across B stops `capi` before `finances`), refuses a staging project in production and any other in staging. `test-deploy.sh` covers each case with a fake Docker that fails when two projects' databases run at once. The PR:
 
-- `name: capi` / `capi-staging`; `deploy.sh` defaults `/srv/capi`, `/srv/capi-staging` and its `LEGACY_PROJECT=finances` / `finances-staging`;
+- `name: capi` / `capi-staging`; `deploy.sh` defaults `/srv/capi`, `/srv/capi-staging`, and passes the project of the compose files with `-p`;
 - the volume keeps its name, given by `.env` so that no other stack built from this file (a local `-p capi-local`, the `finances-audit` pentest stack) can open production's data by default:
 
   ```yaml
@@ -54,15 +54,27 @@ A release of A changes nothing visible: same project, same volume, same folder, 
   `DB_VOLUME=finances_db_data` in `/srv/capi/.env`, `finances-staging_db_data` in staging's, the templates and `deploy.sh` (it refuses to run without it). Compose may warn that the volume "was created for project finances": expected, the data is the point;
 
 - `docker-compose.yml` (dev): `name: capi`, `postgres_data` named `finances_postgres_data`, so the owner's local database stays;
-- the workflows' `RELEASE_DIR` / `STAGING_DIR` under `/srv/capi*` (owner push again).
+- the workflows' `RELEASE_DIR` / `STAGING_DIR` under `/srv/capi*`, and a manual rollback run refusing a tag whose compose file still says `name: finances` (its `deploy.sh` can't move projects; see [Rolling back](#rolling-back-after-the-rename)) (owner push again).
 
-Merging it deploys staging at once (its data is rebuilt anyway), so first, on the server: `sudo mv /srv/finances-staging /srv/capi-staging`. For production, in one window:
+Merging it deploys staging at once (its data is rebuilt anyway), so first, on the server, as `deploy` (staging keeps running meanwhile; `deploy.sh` stops `finances-staging` itself):
+
+```bash
+sudo mv /srv/finances-staging /srv/capi-staging
+echo 'DB_VOLUME=finances-staging_db_data' >> /srv/capi-staging/.env
+docker volume inspect finances-staging_db_data >/dev/null && echo ok
+```
+
+After the staging run: `docker ps --format '{{.Names}}' | grep staging` lists only `capi-staging-*`, and `docker volume ls` has no `capi-staging_db_data`.
+
+For production, in one window (about 15 minutes; Caddy already targets `capi-web`, served by both projects):
 
 1. Backup (#423): run the restic job by hand and check the snapshot (`infra` backups runbook).
-2. `cd /srv/finances && docker compose -p finances down` (no `-v`), then `sudo mv /srv/finances /srv/capi`.
+2. `cd /srv/finances && docker compose -p finances down` (no `-v`; `deploy.sh` would also do it, but stopping first makes the backup the last write), then `sudo mv /srv/finances /srv/capi` and `echo 'DB_VOLUME=finances_db_data' >> /srv/capi/.env`.
 3. `infra`: the restic paths now under `/srv/capi`; Caddy is unchanged (it already targets `capi-*`).
-4. Tag the release; `deploy.sh` runs in `/srv/capi` under the project `capi`, on the pinned volume.
+4. Tag the release; `deploy.sh` runs in `/srv/capi` under the project `capi`, on the pinned volume (the log says `moving from project finances to capi (volume finances_db_data kept)`).
 5. Check: `docker volume ls` shows **no** new `capi_db_data`; `https://finances.gbodin.cloud/api/health` answers `200`; sign in; a page with data.
+
+On the Mac, once: `docker compose -p finances down` (no `-v`) in the repository, then `docker compose up -d` starts `capi` on the same local volume (`finances_postgres_data`).
 
 ### C. Repository rename (any time after B)
 
@@ -87,7 +99,7 @@ Steps: DNS records and Caddy site blocks for the new hosts (`infra`, TLS issued 
 ## Rolling back after the rename
 
 - Rolling back within step A: nothing to do, the project and the volume are unchanged.
-- Rolling back across step B (to a version whose compose file says `finances`): `deploy.sh` stops `capi` before it starts the old project, on the same volume, so the data follows; but an old `deploy.sh` looks for `/srv/finances`, so run it by hand from `/srv/capi` with `FINANCES_DIR=/srv/capi`. Images built before step A exist only as `finances-*`, which is why the old packages are kept.
+- Rolling back across step B (to a version whose compose file says `finances`): run the **current** `deploy.sh` with the old tag's compose file, `/srv/capi/deploy.sh v0.2.19 /srv/capi/releases/v0.2.19/docker-compose.prod.yml`: it stops `capi` before it starts the old project, on the same volume, so the data follows. **Never** run the old tag's own `deploy.sh` (for instance with `FINANCES_DIR=/srv/capi`): it doesn't know the project changed and would start a second Postgres on the volume; the Release workflow refuses such a tag for that reason. Images built before step A exist only as `finances-*`, which is why the old packages are kept.
 - A failed step B is undone by moving the folder back and redeploying the previous tag; nothing in B writes to the database except the release's own migrations.
 
 ## Not changed by this runbook
