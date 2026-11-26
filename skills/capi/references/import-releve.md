@@ -1,18 +1,18 @@
-# Importer un relevé bancaire
+# Importing a bank statement
 
-Pour un compte courant ou un livret (les comptes bancaires). Deux temps, comme la page Relevés de l'application : `preview_bank_import` (n'écrit aucune opération) puis `commit_bank_import` avec `confirm: true` après l'accord du propriétaire.
+For a checking or savings account (the bank accounts). Two steps, like the app's « Relevés » page: `preview_bank_import` (writes no transaction), then `commit_bank_import` with `confirm: true` once the owner agrees.
 
-## 1. Savoir ce qui manque
+## 1. What is missing
 
-`list_imports` : pour chaque compte, le dernier import et le jour jusqu'où vont ses relevés, plus les aperçus en attente. Repère la période à importer.
+`list_imports`: for each account, the last import and the day its statements go up to, plus the pending previews. Work out the period to import.
 
-## 2. Le fichier
+## 2. The file
 
-- **Export CSV du CIC** tel que téléchargé : passe-le tel quel. Sur la connexion locale (Claude Desktop, Claude Code), `filePath` avec le chemin du fichier sur la machine (`~/Downloads/export.csv`, 5 Mo au plus). Sur la connexion distante (claude.ai, téléphone), `content` avec le texte du fichier : jamais `filePath`.
-- **CSV d'un format déjà enregistré** dans l'application (une autre banque mappée une fois sur la page Relevés) : tel quel, l'application reconnaît son en-tête.
-- **Tout autre relevé** (PDF, export d'une autre banque, tableau collé dans la conversation) : convertis-le au **format standard** ci-dessous et passe-le dans `content`. Le propriétaire le valide dans l'aperçu habituel.
+- **CIC CSV export** as downloaded: pass it as is. On the local connection (Claude Desktop, Claude Code), `filePath` with the file's path on the machine (`~/Downloads/export.csv`, 5 MB at most). On the remote connection (claude.ai, phone), `content` with the file's text: never `filePath`.
+- **CSV in a format already saved** in the app (another bank mapped once on the « Relevés » page): as is, the app recognises its header.
+- **Any other statement** (PDF, another bank's export, a table pasted in the conversation): convert it to the **standard format** below and pass it in `content`. The owner checks it in the usual preview.
 
-## 3. Le format standard
+## 3. The standard format
 
 ```csv
 date;amount;label;balance
@@ -20,27 +20,27 @@ date;amount;label;balance
 2026-10-03;2000.00;VIR SALAIRE EMPLOYEUR FICTIF;2987.50
 ```
 
-- En-tête obligatoire : `date;amount;label`, plus `balance` (solde après la ligne, recommandé : il permet le contrôle de continuité) et `value_date` (date de valeur), facultatives. Colonnes dans n'importe quel ordre ; une colonne inconnue est listée dans l'aperçu et ignorée.
-- `date` : `AAAA-MM-JJ`, la date d'opération du relevé.
-- `amount` : euros signés, **négatif = sortie d'argent**. `.` ou `,` comme séparateur décimal, au plus 2 décimales, pas de séparateur de milliers sauf l'espace (`-1 234,56`). `1.234,56` est refusé.
-- `label` : le libellé **tel que la banque l'imprime** (il sert au dédoublonnage et à la catégorisation) : ne le reformule pas, ne le traduis pas.
-- **Une ligne par opération du relevé, dans l'ordre du relevé.** Deux paiements identiques le même jour font deux lignes : ne fusionne rien, ne supprime rien.
-- UTF-8 ; séparateur `;` (ou `,`, ou tabulation) ; mets entre guillemets un libellé qui contient le séparateur (`"CAFE; FICTIF"`).
-- Recopie les montants chiffre pour chiffre. Si une ligne d'un PDF est illisible, dis-le plutôt que de deviner.
+- Required header: `date;amount;label`, plus `balance` (the balance after the line; recommended, it allows the continuity check) and `value_date`, both optional. Columns in any order; an unknown column is listed in the preview and ignored.
+- `date`: `YYYY-MM-DD`, the transaction date on the statement.
+- `amount`: signed euros, **negative = money going out**. `.` or `,` as the decimal mark, at most 2 decimals, no thousands separator except a space (`-1 234,56`). `1.234,56` is refused.
+- `label`: the label **as the bank prints it** (it drives deduplication and categorization): do not rephrase or translate it.
+- **One line per transaction on the statement, in the statement's order.** Two identical payments on the same day are two lines: merge nothing, drop nothing.
+- UTF-8; separator `;` (or `,`, or a tab); quote a label that contains the separator (`"CAFE; FICTIF"`).
+- Copy the amounts digit for digit. If a line of a PDF is unreadable, say so rather than guess.
 
-Avant d'envoyer une conversion, vérifie : premier solde − montant de la première ligne = solde précédent du relevé, et la somme des montants = solde final − solde initial. Signale un écart.
+Before sending a conversion, check: first balance − first line's amount = the statement's previous balance, and the sum of the amounts = closing balance − opening balance. Point out any gap.
 
-## 4. L'aperçu
+## 4. The preview
 
-`preview_bank_import` (account, filePath ou content, fileName facultatif) renvoie un `previewId` et :
+`preview_bank_import` (account, `filePath` or `content`, optional `fileName`) returns a `previewId` and:
 
-- les lignes nouvelles, déjà importées (réimporter un fichier ou une période qui chevauche n'ajoute rien), en conflit (doublon probable venant d'une autre source, par ex. une opération saisie à la main) ;
-- le contrôle de continuité du solde (une ligne manquante se voit ici) ;
-- les catégories proposées par les règles ;
-- les colonnes ignorées et les lignes illisibles : jamais importées.
+- the new lines, the ones already imported (re-importing a file or an overlapping period adds nothing), the conflicting ones (a probable duplicate from another source, e.g. a transaction entered by hand);
+- the balance continuity check (a missing line shows here);
+- the categories proposed by the rules;
+- ignored columns and unreadable lines: never imported.
 
-Montre-le au propriétaire, résume les conflits et les trous de solde. Un « Format non reconnu » donne le format standard : convertis et renvoie dans `content`.
+Show it to the owner, sum up the conflicts and the balance gaps. A « Format non reconnu » answer gives the standard format: convert and send again in `content`.
 
-## 5. Valider
+## 5. Committing
 
-Après son accord : `commit_bank_import` (previewId, `confirm: true`). Les conflits restent de côté, sauf s'il dit que ce ne sont pas des doublons (`includeConflicts: true`). La réponse liste les opérations parties dans la file « À revoir », avec leur id : enchaîne sur leur classement ([operations.md](operations.md)). Un aperçu expire après 24 heures ; valider deux fois ne change rien. Annuler un import se fait dans l'application (page Relevés).
+Once the owner agrees: `commit_bank_import` (`previewId`, `confirm: true`). Conflicts stay aside, unless the owner says they are not duplicates (`includeConflicts: true`). The answer lists the transactions that went to « À revoir », with their id: go on with filing them ([operations.md](operations.md)). A preview expires after 24 hours; committing twice changes nothing. Undoing an import is done in the app (« Relevés » page).

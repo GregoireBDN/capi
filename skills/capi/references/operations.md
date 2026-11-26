@@ -1,39 +1,40 @@
-# Opérations, règles et dépenses partagées
+# Transactions, rules and shared expenses
 
-## Saisir une opération
+The tools describe their own arguments; this file says when to use which, and what to watch out for.
 
-`add_transaction` pour une dépense, un revenu ou un virement que le relevé n'a pas encore (« 12,50 € à la boulangerie hier »).
+## Entering a transaction
 
-- `amount` en texte, sans signe : une sortie, sauf pour un revenu. Un signe force le sens (`"+20"` pour un remboursement classé en dépense).
-- `category` : son type (dépense, revenu, virement) est celui de l'opération ; `kind` seulement sans catégorie. Sans catégorie, l'opération part dans « À revoir » et a besoin d'un libellé.
-- `account` : par défaut le compte courant principal. Un paiement avec la carte titres-restaurant va sur le compte Titres-restaurant, son crédit mensuel aussi (revenu, catégorie Titres-restaurant).
-- `date` : par défaut aujourd'hui (Europe/Paris), jamais dans le futur.
-- L'aperçu montre les opérations du même jour et du même montant déjà là : une telle opération bloque la création, sauf `allowDuplicate: true` quand le propriétaire confirme que c'en est une autre.
-- À l'import du relevé, la ligne de la banque remplace l'opération saisie et garde sa catégorie et sa note.
+`add_transaction` for an expense, an income or a transfer the statement does not have yet (« 12,50 € à la boulangerie hier »).
 
-## Classer
+- The category decides the kind (expense, income, transfer): pick the category, not the kind. Without a category the transaction goes to « À revoir ».
+- Paid with the meal-voucher card: the meal-voucher account (« Titres-restaurant »), and its monthly credit too (income).
+- The date is today in Europe/Paris unless the owner says otherwise, never in the future.
+- The preview shows transactions already there on the same day with the same amount: one blocks the entry until the owner confirms it is a different one.
+- When the statement is imported, the bank's line replaces the entered one and keeps its category and note.
 
-- `categorize_transactions` (ids, category) : classée à la main, une règle ne la réécrira pas ; elle sort de « À revoir » et prend le type de la catégorie. Pour changer de type, choisis une catégorie de ce type. `"uncategorized"` enlève la catégorie (et seulement alors `kind`).
-- Un virement entre ses comptes : catégorie de type virement, ou `uncategorized` avec `kind: transfer`. Jamais une catégorie de dépense ou de revenu.
-- `mark_one_off` : exceptionnel (hors moyennes et détection d'abonnements), ou retour à la normale avec `oneOff: false`.
-- `set_transaction_note` : une note libre (`""` l'efface).
+## Filing
 
-## Règles
+- `categorize_transactions`: filed by hand, a rule will not rewrite it; it leaves « À revoir » and takes the category's kind. To change the kind, choose a category of that kind.
+- A move between the owner's accounts: a transfer-kind category, or no category with `kind: transfer`. Never an expense or income category.
+- `mark_one_off`: an exceptional expense or income (left out of averages and subscription detection), or back to normal.
+- `set_transaction_note`: a free note.
 
-`create_rule` (pattern, category, account facultatif) : les opérations dont le libellé contient `pattern` reçoivent `category`.
+## Rules
 
-- Prends la partie stable du libellé (le nom du commerçant), jamais une date, un numéro de carte ou de mandat.
-- La règle la plus précise gagne (regex, puis motif le plus long, puis conditions de compte / montant). Les opérations classées à la main ne sont jamais réécrites.
-- L'aperçu dit combien d'opérations correspondent et les conflits avec les règles existantes : résume-les.
-- `applyToExisting: true` réapplique aussi les règles aux opérations existantes (non classées ou classées par une règle) ; par défaut, seulement les prochains imports.
+`create_rule`: transactions whose label contains the pattern get the category.
 
-## Répartir une opération
+- Take the stable part of the label (the merchant's name), never a date, a card number or a mandate reference.
+- The most precise rule wins; transactions filed by hand are never rewritten.
+- The preview says how many transactions match and the conflicts with existing rules: sum them up.
+- By default a rule applies to the next imports only; ask before applying it to existing transactions.
 
-`split_transaction` (id, parts) : 2 à 20 parts par catégorie, montants en texte sans signe, qui font exactement le montant de l'opération. Chaque part a le type de sa catégorie : une part entrante dans une catégorie de dépense est un remboursement de cette catégorie. Une catégorie de virement ne se mélange pas aux autres. Ex. : un virement reçu de 60 € qui rembourse 20 € de restaurant et garde 40 € de revenu. Défaire : dans l'application, ou `categorize_transactions` avec une seule catégorie.
+## Splitting a transaction
 
-## Dépenses partagées
+`split_transaction`: parts by category that add up exactly to the transaction's amount. Each part has its category's kind: an incoming part in an expense category is a refund of that category (e.g. a 60 € transfer received that repays 20 € of restaurant and keeps 40 € of income). A transfer category does not mix with the others. Undoing it: in the app, or `categorize_transactions` with a single category.
 
-- **J'ai payé pour quelqu'un** : `share_expense` (id de la dépense, contacts, share = « moitié », « parts égales » ou un montant chacun). Ses dépenses ne comptent alors que sa part ; chaque part apparaît dans `owed_to_me` jusqu'au remboursement. Un nouveau nom devient un contact.
-- **On me rembourse / je rembourse** : `link_repayment` (id du virement, `items: "auto"` ou des ids d'`owed_to_me` avec `contact`). La part liée n'est ni un revenu ni une dépense ; le reste du virement garde sa catégorie.
-- **Où on en est** : `owed_to_me` (avec `contact` pour le détail et les ids). Les compensations (« Compenser » : le même montant soldé de chaque côté sans virement) et ce qui est laissé tomber se font dans l'application.
-- Ce qu'on lui doit n'entre jamais dans le patrimoine : c'est montré à côté.
+## Shared expenses
+
+- **I paid for someone**: `share_expense` (half, equal parts or an amount each). The owner's spending then counts only their part; each share shows in `owed_to_me` until it is repaid. A new name becomes a contact.
+- **Someone repays me / I repay someone**: `link_repayment` on the transfer. The linked part is neither income nor an expense; the rest of the transfer keeps its category.
+- **Where things stand**: `owed_to_me` (with a contact for the detail and the ids). Offsetting (« Compenser »: the same amount settled on each side without a transfer) and letting a debt go are done in the app.
+- What others owe never counts in net worth: it is shown beside it.

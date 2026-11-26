@@ -8,6 +8,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { connect } from './test/mock-api.js'
+import { SKILL_FILES, skillBundle } from './skill.js'
 import { tools } from './tools/index.js'
 
 const SKILL_DIR = join(
@@ -84,6 +85,18 @@ describe('Capi skill', () => {
       expect(all).toContain(`\`${name}\``)
     expect(all).toContain('date;amount;label;balance')
     expect(all).toContain('confirm: true')
+  })
+
+  it('is sent whole by the prompts, every file once, without frontmatter', () => {
+    expect([...SKILL_FILES].sort()).toEqual(
+      skillFiles()
+        .map((f) => f.path)
+        .sort(),
+    )
+    const bundle = skillBundle()
+    for (const file of SKILL_FILES)
+      expect(bundle.split(`=== Fichier ${file} ===`)).toHaveLength(2)
+    expect(bundle).not.toMatch(/^description: /m)
   })
 
   it('carries no token, URL or address', () => {

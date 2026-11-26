@@ -1,31 +1,31 @@
-# Mettre à jour les placements
+# Updating investments
 
-Enregistrer les valeurs des placements (PEA, compte-titres, assurance vie, épargne salariale, crypto) à partir des relevés du propriétaire. Souvent ses documents sont dans un dossier Google Drive (par défaut « Finances ») lu avec le connecteur Google Drive du client ; il peut aussi coller un relevé ou joindre un PDF.
+Recording the values of the investments (PEA, compte-titres, life insurance « assurance vie », employee savings « épargne salariale », crypto) from the owner's statements. Their documents are often in a Google Drive folder (by default « Finances ») read with the client's Google Drive connector; they may also paste a statement or attach a PDF.
 
-## Règles propres aux placements
+## Rules for investments
 
-- Le connecteur Google Drive sert **uniquement à lire** : ne crée, ne déplace, ne modifie ni ne partage aucun fichier.
-- Seules les valeurs extraites (dates, montants, quantités) passent aux outils Capi : jamais un numéro de contrat ou de compte, un nom, une adresse, le contenu d'un document.
-- Recopie chiffre pour chiffre ; n'arrondis pas, ne convertis pas, ne calcule pas une valeur que le document ne donne pas.
-- Ne crée jamais de compte : `create_investment_account` vérifie le nom et dit quoi créer dans l'application, le propriétaire le crée lui-même.
+- The Google Drive connector is **for reading only**: create, move, change or share no file.
+- Only the extracted values (dates, amounts, quantities) go to the Capi tools: never a contract or account number, a name, an address, the content of a document.
+- Copy digit for digit; do not round, convert, or compute a value the document does not give.
+- Never create an account: `create_investment_account` checks the name and says what to create in the app; the owner creates it.
 
-## Étapes
+## Steps
 
-1. **État actuel** : `list_investment_accounts`. Note pour chaque compte la date de sa dernière valeur.
-2. **Documents** : un sous-dossier par support (PEA, compte-titres, assurance vie, épargne salariale, plateformes et portefeuilles crypto). Associe chacun à un compte (nom, établissement). Support sans compte : `create_investment_account`, puis demande au propriétaire de le créer et reprends quand il apparaît dans `list_investment_accounts`.
-3. **Quels documents** : nommés `<Support>_<Document>_<AAAA-MM[-JJ]>` (ex. `PEA_Releve_2026-09-30.pdf`). Ne traite que ceux datés après la dernière valeur du compte, sauf s'il demande de compléter l'historique. Nom hors convention : lis la date dans le document.
-4. **Date de la valeur** : la date d'évaluation imprimée (« valorisation au… », « situation au… »). À défaut, la date du relevé ; pour un relevé trimestriel sans date, le dernier jour du trimestre ; pour un relevé annuel d'assurance vie, le 31/12. Si le nom du fichier et le document diffèrent, signale-le et prends celle du document. Jamais une date future.
-5. **Que relever** : la valeur totale du support à cette date et, s'il les donne, les versements nets cumulés (versements − rachats). Les avis d'opéré, arbitrages et confirmations d'ordre ne donnent pas de valeur de compte : ignore-les.
-6. **PEA ou compte-titres avec ses lignes** (« relevé de portefeuille ») : relève chaque ligne (ISIN, nom, quantité, PRU, cours du relevé) et les liquidités, pour `sync_security_positions` à la date du relevé. **Toutes** les lignes : une ligne absente est considérée comme vendue. La valeur du compte suit alors ses lignes : pas besoin d'`add_investment_snapshots` pour ce jour-là.
-7. **Crypto** : un export Binance ou Coinbase s'importe mieux dans l'application (compte crypto de type plateforme) : dis-le plutôt que de recopier. Un portefeuille Ledger se synchronise ou s'importe dans l'application. Pour un autre relevé, relève la quantité détenue par actif ; si le fichier ne donne que des opérations, additionne-les par actif sans arrondi et montre le détail du calcul. Puis `sync_crypto_holdings` (compte crypto en saisie manuelle uniquement) avec le nom du portefeuille comme `location`, toujours écrit pareil. La valeur en euros se calcule dans l'application.
-8. **Documents illisibles** (PDF scanné, page coupée, chiffre douteux) : essaie de lire l'image ; si tu n'es pas sûr de chaque chiffre, ne l'enregistre pas : liste le document et demande au propriétaire de taper la valeur.
-9. **Récapitulatif avant d'écrire** : un tableau | Compte | Document | Date de la valeur | Valeur | Investi | Action (nouvelle, remplacée, déjà là) |, plus les documents ignorés ou illisibles et pourquoi.
-10. **Aperçus** : un `add_investment_snapshots` par compte (toutes ses dates en un appel), un `sync_security_positions` par relevé de lignes, un `sync_crypto_holdings` par portefeuille, sans `confirm`. Montre les aperçus (dont l'effet sur le patrimoine), puis, après accord, les mêmes appels avec `confirm: true`.
-11. **Fin** : `list_investment_accounts` de nouveau, et ce qui reste (comptes à créer, documents illisibles, comptes pas à jour). Relancer sur les mêmes documents ne change rien.
+1. **Current state**: `list_investment_accounts`. Note each account's last value date.
+2. **Documents**: one sub-folder per vehicle (PEA, compte-titres, life insurance, employee savings, crypto exchanges and wallets). Match each to an account (name, institution). A vehicle without an account: `create_investment_account`, then ask the owner to create it and resume once it shows in `list_investment_accounts`.
+3. **Which documents**: named `<Support>_<Document>_<AAAA-MM[-JJ]>` (vehicle, document, date; e.g. `PEA_Releve_2026-09-30.pdf`). Handle only those dated after the account's last value, unless the owner asks to fill in the history. A name outside the convention: read the date in the document.
+4. **The value's date**: the valuation date printed (« valorisation au… », « situation au… »). Failing that, the statement's date; for a quarterly statement without a date, the last day of the quarter; for a yearly life insurance statement, 31/12. If the file name and the document disagree, say so and take the document's. Never a future date.
+5. **What to record**: the vehicle's total value on that date and, if given, the cumulative net contributions (payments in − withdrawals). Trade confirmations, switches and order confirmations give no account value: ignore them.
+6. **PEA or compte-titres with its lines** (« relevé de portefeuille »): record every line (ISIN, name, quantity, average cost « PRU », the statement's price) and the cash, for `sync_security_positions` on the statement's date. **Every** line: a missing line is taken as sold. The account's value then follows its lines: no `add_investment_snapshots` needed for that day.
+7. **Crypto**: a Binance or Coinbase export is better imported in the app (an exchange-type crypto account): say so rather than copy it. A Ledger wallet is synced or imported in the app. For another statement, record the quantity held per asset; if the file only gives transactions, add them up per asset without rounding and show the calculation. Then `sync_crypto_holdings` (manual crypto accounts only) with the wallet's name as `location`, always written the same way. The euro value is computed in the app.
+8. **Unreadable documents** (scanned PDF, cut page, doubtful figure): try reading the image; if you are not sure of every digit, do not record it: list the document and ask the owner to type the value.
+9. **Summary before writing**: a table | Account | Document | Value date | Value | Invested | Action (new, replaced, already there) |, plus the documents ignored or unreadable and why.
+10. **Previews**: one `add_investment_snapshots` per account (all its dates in one call), one `sync_security_positions` per statement with lines, one `sync_crypto_holdings` per wallet, without `confirm`. Show the previews (including the effect on net worth), then, once the owner agrees, the same calls with `confirm: true`.
+11. **End**: `list_investment_accounts` again, and what is left (accounts to create, unreadable documents, accounts not up to date). Running again on the same documents changes nothing.
 
-## Montant investi : versements ou base ?
+## Invested amount: contributions or a base?
 
-- Le relevé donne les **versements nets** à côté de chaque valeur : passe-les avec la valeur (`contributions` d'`add_investment_snapshots`).
-- Le relevé donne une valeur **sans versements** (beaucoup de PEA et d'épargne salariale) : `set_invested_amount` une fois, avec ce qu'il a investi jusqu'au jour où il le sait. Les virements liés au compte après ce jour s'y ajoutent seuls.
-- Pas de crypto ici : le montant investi d'un compte crypto est le coût de ses pièces, réglé dans l'application.
-- Un chiffre illisible ne se recopie pas : demande, ou laisse le montant investi inconnu.
+- The statement gives **net contributions** next to each value: pass them with the value (`contributions` of `add_investment_snapshots`).
+- The statement gives a value **without contributions** (many PEAs and employee savings plans): `set_invested_amount` once, with what was invested up to the day the owner knows it. Transfers linked to the account after that day add up on their own.
+- Not for crypto: a crypto account's invested amount is the cost of its coins, set in the app.
+- An unreadable figure is never copied: ask, or leave the invested amount unknown.

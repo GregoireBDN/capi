@@ -1,40 +1,64 @@
 ---
 name: capi
-description: Méthodes pour utiliser les outils MCP de Capi, l'application de finances personnelles du propriétaire (comptes, opérations, budget, bilan du mois, import de relevé bancaire, placements, dépenses partagées). À lire dès qu'une demande touche ses finances et que les outils Capi (accounts_overview, search_transactions, month_close_status…) sont disponibles.
+description: Methods for the MCP tools of Capi, the owner's personal finance app (accounts, transactions, budget, month-end review, bank statement import, investments, shared expenses). Read it as soon as a request touches their money and the Capi tools (accounts_overview, search_transactions, month_close_status…) are available, whatever the language, e.g. « fais le bilan du mois », « importe ce relevé », « combien j'ai dépensé en restaurants », « où en est mon budget », « mets à jour mon PEA ».
 ---
 
 # Capi
 
-Capi est l'application de finances personnelles du propriétaire (un seul utilisateur, euros, fuseau Europe/Paris). Claude y accède par le serveur MCP de Capi : ses outils lisent et écrivent via l'API de l'application, jamais la base de données. Les outils portent parfois un préfixe selon le client (`mcp__capi__…`, nom du connecteur) : ce Skill les nomme sans préfixe.
+Capi is the owner's personal finance app (one user, euros, Europe/Paris time zone). You reach it through the Capi MCP server: its tools read and write through the app's API, never the database. Depending on the client the tools carry a prefix (`mcp__capi__…`, the connector's name); this Skill names them without it.
 
-Réponds en français, de façon concise.
+The app is in French: its screens and labels are quoted here as they appear (« Bilan du mois », « À revoir »…). Quote them the same way when you send the owner to the app. **Reply in the user's language**, concisely.
 
-## Règles permanentes
+## Before anything
 
-1. **Les chiffres viennent des outils.** Ne les invente pas, ne les arrondis pas, ne les recalcule pas quand un outil les donne. Un montant négatif est une sortie d'argent.
-2. **Les virements entre les comptes du propriétaire ne sont jamais des revenus ni des dépenses** (compte courant → Livret A, → PEA…). Ils ont le type `transfer` ; ne les additionne jamais aux dépenses ou aux revenus.
-3. **Aperçu d'abord, toujours.** Chaque outil d'écriture s'appelle d'abord sans `confirm` : il ne fait que lire et renvoie l'aperçu exact de ce qui changerait. Montre cet aperçu au propriétaire et attends son accord explicite (« oui », « vas-y ») avant de rappeler le même outil avec les mêmes arguments et `confirm: true`. Un accord vaut pour l'aperçu montré, pas pour la suite. Un appel répété ne change rien de plus (les outils sont idempotents).
-4. **Montants en texte.** Les montants se passent en euros sous forme de texte (`"12,50"`, `"1 234,56"`), les quantités crypto en texte décimal exact (`"0.01234567"`), chiffre pour chiffre depuis le document. Jamais de nombre à virgule flottante, jamais d'arrondi.
-5. **Pas de suppression.** Aucun outil ne supprime ni ne rouvre quoi que ce soit. Supprimer une opération, une règle, un import, une ligne, rouvrir un mois, créer un compte, cocher une étape du bilan : dis au propriétaire quoi faire dans l'application.
-6. **Mois partiels.** Les relevés sont importés à la main, donc le mois en cours est souvent partiel : les outils disent jusqu'où vont les données et comparent à jours égaux. Reprends leurs précisions (« données jusqu'au 18/11 ») au lieu de conclure sur un mois incomplet.
-7. **Confidentialité.** Ne recopie jamais ailleurs (autre outil, fichier, message hors de la conversation) un numéro de compte ou de contrat, un nom, une adresse ou le contenu d'un document du propriétaire. Seules les valeurs extraites passent aux outils Capi.
-8. **Jeton en lecture seule.** Si un outil d'écriture répond « lecture seule », dis-le : il faut un jeton ou une connexion avec écriture (« Autoriser les modifications »). Ne réessaie pas.
+If no Capi tool is available in this conversation, or a tool answers that the connection or the token was refused (expired, revoked, disconnected), say so and stop there: the owner reconnects the Capi connector (claude.ai) or updates the token (Claude Desktop, Claude Code) from « Réglages › Claude et accès » in the app. Never answer a question about their money without the tools.
 
-## Bien démarrer
+## Standing rules
 
-- Noms acceptés par les filtres : `accounts_overview` (comptes) et `list_categories` (catégories). Les noms se comparent sans accents ni casse ; un nom ambigu revient avec la liste des choix.
-- Mois `AAAA-MM`, jours `AAAA-MM-JJ`, jamais dans le futur.
-- Les opérations ont un `id` (dans `search_transactions` et `review_queue`) que prennent les outils d'écriture.
+1. **Figures come from the tools.** Never invent, round or recompute a figure a tool gives. A negative amount is money going out.
+2. **Moves between the owner's own accounts are never income or expenses** (checking → Livret A, → PEA…). Their kind is `transfer`; never add them to spending or income.
+3. **Preview first, always.** Call every write tool first without `confirm`: it only reads and returns the exact preview of what would change. Show that preview and wait for the owner's explicit agreement (« oui », « vas-y », "yes") before calling the same tool again with the same arguments and `confirm: true`. An agreement covers the preview shown, nothing after it. Calling again changes nothing more (the tools are idempotent).
+4. **Amounts as text.** Pass amounts in euros as text (`"12,50"`, `"1 234,56"`) and crypto quantities as exact decimal text (`"0.01234567"`), digit for digit from the document. Never a floating-point number, never rounded.
+5. **No deleting.** No tool deletes or reopens anything. Deleting a transaction, a rule, an import or a line, reopening a month, creating an account, ticking a step of the review: tell the owner what to do in the app.
+6. **Partial months.** Statements are imported by hand, so the current month is often partial: the tools say how far the data goes and compare like for like. Repeat what they say (« données jusqu'au 18/11 ») instead of drawing conclusions from an incomplete month.
+7. **Privacy.** Never copy elsewhere (another tool, a file, a message outside the conversation) an account or contract number, a name, an address or the content of one of the owner's documents. Only the extracted values go to the Capi tools.
+8. **Read-only access.** If a write tool answers « lecture seule », say so: it takes a token or a connection allowed to write (« Autoriser les modifications »). Do not retry.
 
-## Méthodes
+## Getting started
 
-Lis le fichier de la tâche avant de commencer :
+- Names the filters accept: `accounts_overview` (accounts) and `list_categories` (categories). Names are compared ignoring accents and case; an ambiguous name comes back with the choices.
+- Months `YYYY-MM`, days `YYYY-MM-DD`, never in the future.
+- Transactions have an `id` (in `search_transactions` and `review_queue`) that the write tools take.
 
-| Tâche                                                                                       | Fichier                                                    |
-| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Bilan du mois (revue guidée et clôture)                                                     | [references/bilan-du-mois.md](references/bilan-du-mois.md) |
-| Importer un relevé bancaire (CSV CIC, autre banque, PDF, tableau collé)                     | [references/import-releve.md](references/import-releve.md) |
-| Mettre à jour les placements (PEA, compte-titres, assurance vie, épargne salariale, crypto) | [references/placements.md](references/placements.md)       |
-| Saisir, classer, répartir une opération ; règles ; dépenses partagées et remboursements     | [references/operations.md](references/operations.md)       |
+## Simple questions
 
-Pour une simple question (« combien j'ai dépensé en restaurants ce mois-ci ? », « où en est mon budget ? »), appelle directement l'outil de lecture qui convient (`spending_by_category`, `budget_status`, `search_transactions`, `savings_and_goals`, `month_end_forecast`, `subscriptions`…) sans charger de fichier.
+For a plain question, call the read tool that fits, without loading a method file:
+
+| Question                                         | Tool                       |
+| ------------------------------------------------ | -------------------------- |
+| A month's spending, by category                  | `spending_by_category`     |
+| A trend over several months, a monthly average   | `spending_history`         |
+| Where the budget stands                          | `budget_status`            |
+| Finding transactions (a shop, an amount, a note) | `search_transactions`      |
+| Balances, net worth                              | `accounts_overview`        |
+| Savings, envelopes, goals                        | `savings_and_goals`        |
+| How the month will end                           | `month_end_forecast`       |
+| Subscriptions, fixed costs, renewals             | `subscriptions`            |
+| Who owes what                                    | `owed_to_me`               |
+| Investments                                      | `list_investment_accounts` |
+| What was imported, up to when                    | `list_imports`             |
+
+Answer in a few lines: the figure, its period and how far the data goes, and the comparison the tool gives. For example (synthetic figures):
+
+> Restaurants en novembre : 142,30 € (données jusqu'au 16/11), contre 118,00 € sur les 16 premiers jours d'octobre.
+
+## Methods
+
+Read the task's file before starting:
+
+| Task                                                                                | File                                                       |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Month-end review (« Bilan du mois »: guided review, then closing the month)         | [references/bilan-du-mois.md](references/bilan-du-mois.md) |
+| Importing a bank statement (CIC CSV, another bank, a PDF, a pasted table)           | [references/import-releve.md](references/import-releve.md) |
+| Updating investments (PEA, compte-titres, life insurance, employee savings, crypto) | [references/placements.md](references/placements.md)       |
+| Entering, filing, splitting a transaction; rules; shared expenses and repayments    | [references/operations.md](references/operations.md)       |

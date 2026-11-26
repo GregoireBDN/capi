@@ -919,7 +919,8 @@ describe('prompt importer_mes_investissements', () => {
       expect(text).toContain(tool)
     }
     expect(text).toContain('<Support>_<Document>_<AAAA-MM[-JJ]>')
-    expect(text).toContain('scanné')
-    expect(text).toContain('Récapitulatif avant')
+    expect(text).toContain('=== Fichier references/placements.md ===')
+    expect(text).toContain('Unreadable documents')
+    expect(text).toContain('Summary before writing')
   })
 })
