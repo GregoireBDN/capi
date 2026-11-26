@@ -26,7 +26,7 @@
   },
   "devDependencies": {
     "@capi/config-typescript": "workspace:*",
-    "@hey-api/openapi-ts": "0.97.1",
+    "@hey-api/openapi-ts": "0.97.3",
     "@types/node": "22.19.19",
     "eslint": "9.39.4",
     "tsx": "4.22.0",
