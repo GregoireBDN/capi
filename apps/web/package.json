@@ -49,7 +49,7 @@
   },
   "devDependencies": {
     "@capi/config-typescript": "workspace:*",
-    "@hey-api/openapi-ts": "^0.97.1",
+    "@hey-api/openapi-ts": "^0.97.3",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/typography": "^0.5.16",
     "@tailwindcss/vite": "^4.1.18",
