@@ -180,11 +180,11 @@ describe('MonthNavigator', () => {
   })
 
   it('has a short label for narrow containers', () => {
-    setup({ initial: '2026-05' })
-    const button = trigger('Mai 2026')
-    // Both forms are rendered; a container query picks one (< 300px: short).
-    expect(within(button).getByText('Mai 2026')).toBeInTheDocument()
-    expect(within(button).getByText('mai 2026')).toBeInTheDocument()
+    setup({ initial: '2026-11' })
+    const button = trigger('Novembre 2026')
+    // Both forms are rendered; a container query picks one (< 420px: short).
+    expect(within(button).getByText('Novembre 2026')).toBeInTheDocument()
+    expect(within(button).getByText('Nov. 2026')).toBeInTheDocument()
   })
 
   it('leaves a sideways swipe alone: on a phone it opens the sidebar (#446)', () => {
