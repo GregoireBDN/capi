@@ -67,6 +67,8 @@ export function MovementsTabs({
               reviewCount !== null &&
               reviewCount > 0 && (
                 <CountPill
+                  // A round disc, not a tag (the owner, #434).
+                  className="h-[24px] min-w-[24px] px-0 text-[12px]"
                   value={reviewCount}
                   label={plural(
                     reviewCount,
