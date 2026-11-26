@@ -52,7 +52,7 @@ export const createRuleTool = defineTool({
   name: 'create_rule',
   title: 'Créer une règle de catégorisation',
   description:
-    'Create a categorization rule: transactions whose label contains `pattern` (or matches it as a regex) get `category`. The first matching rule wins and the order is computed: most specific first (regex, then the longer pattern, then account / amount conditions), unless the owner gave a rule priority in the app; transactions filed by hand are never overwritten. Without confirm: preview with how many transactions match, what re-applying the rules would change (samples) and the conflicts with existing rules (transactions another rule also matches but files differently, and which rule wins). With confirm: true it creates the rule, once (an identical rule is not created again), and with applyToExisting also re-applies the rules to existing transactions.',
+    'Create a categorization rule: transactions whose label contains `pattern` (or matches it as a regex) get `category`. The most specific rule wins; transactions filed by hand are never overwritten. The preview shows the matches, what re-applying would change and the conflicts with existing rules. An identical rule is not created twice.',
   write: { idempotent: true },
   inputSchema: {
     pattern: z

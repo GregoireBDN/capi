@@ -37,6 +37,20 @@
     },
     "test": {
       "dependsOn": ["^build"]
+    },
+    "@capi/web#build": {
+      "dependsOn": ["generate", "^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "../../skills/capi/**"],
+      "outputs": [".output/**", "dist/**"]
+    },
+    "@capi/mcp#build": {
+      "dependsOn": ["generate", "^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "../../skills/capi/**"],
+      "outputs": ["dist/**"]
+    },
+    "@capi/mcp#test": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "../../skills/capi/**"]
     }
   }
 }

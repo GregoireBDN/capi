@@ -35,7 +35,7 @@ export const setBudgetTargetsTool = defineTool({
   name: 'set_budget_targets',
   title: 'Fixer des cibles de budget',
   description:
-    'Set the monthly budget of one or several categories from `month` on (later months that already have their own amount keep it; earlier months are untouched): a spending target for an expense category, the planned income for an income category (salary, benefits; never tracked). Transfer categories are refused. Use budget_status (the planned income carried over or proposed from the confirmed recurring credits), budget_suggestions and budget_history to prepare them. Without confirm: preview per category (current → new, unchanged ones skipped) and what the plan leaves to save. With confirm: true applies only the amounts that differ.',
+    'Set the monthly budget of one or several categories from `month` on (later months with their own amount keep it): a spending target for an expense category, the planned income for an income category. Transfer categories are refused. Prepare with budget_status, budget_suggestions and budget_history. The preview says what the plan leaves to save.',
   write: { idempotent: true },
   inputSchema: {
     month: z
