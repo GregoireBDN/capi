@@ -56,14 +56,6 @@ body:has([data-app-shell]) {
 [data-page-month]:not(:empty) ~ [data-month-placeholder] {
   display: none;
 }
-/* On phones, with the month bar, the header and the bar are one glass block
-   (#434): no line between them, the bar's shadow ends it. From `md` up the
-   header keeps its shadow on every page (#505, « A · Bandeau fixe »). */
-@media (width < 48rem) {
-  body:has([data-month-bar]) [data-app-header] {
-    box-shadow: none;
-  }
-}
 
 /* =============================================================================
  * BASE LAYER STYLES

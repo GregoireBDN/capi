@@ -211,7 +211,7 @@ export interface MonthNavigatorProps {
  * (months with transactions marked, months after `max` off, shortcuts to the
  * current month and to the month the data stops in) and ← / → on a
  * keyboard. It is part of the app's frame:
- * the bar at the top of the page's column, fixed under the header, on every
+ * the bar at the top of the page's column, at the top of the page, scrolling with it (#505), on every
  * width (`MonthBarSlot`, beside the sidebar on a computer); rendered where
  * it stands outside the shell. Place it with `MonthToolbar` (or alone, like the
  * dashboard's review).

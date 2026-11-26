@@ -2,14 +2,12 @@ import { cn } from '@capi/ui'
 import { useMatches } from '@tanstack/react-router'
 import { useSetPageMonthSlot } from './page-actions'
 import { MovementsTabs } from '#/components/spending/MovementsTabs'
-import { useAppEnvironment } from '#/lib/app-environment'
 
 /**
  * Where a month page's month goes (#401, the owner's « B. Barre du mois »,
- * then « dans l'interface, pas dans le header » on a computer): a bar at
- * the top of the page's column, in the header's colours, out of the
- * scrolling area like the header (#418), on every width (beside the sidebar from
- * `md` up). `MonthNavigator` renders into it through a portal. A month
+ * then « barre d'outils + état », #505): white bars at the top of the page,
+ * above its title, scrolling with it, not part of the header (the owner,
+ * #505). `MonthNavigator` renders into it through a portal. A month
  * page's route declares `staticData.monthBar`, so the bar's room is kept
  * from the first render until its month is in (`data-month-placeholder`,
  * hidden by `globals.css` then): nothing moves on load. On Mouvements
@@ -19,9 +17,6 @@ import { useAppEnvironment } from '#/lib/app-environment'
  */
 export function MonthBarSlot() {
   const setMonthSlot = useSetPageMonthSlot()
-  // On staging the bar is yellow like the header, its tab and month band a
-  // pale yellow, so the two stay one block (#504).
-  const staging = useAppEnvironment() === 'staging'
   const monthPage = useMatches({
     select: (matches) => matches.some((match) => match.staticData.monthBar),
   })
@@ -40,23 +35,18 @@ export function MonthBarSlot() {
   return (
     <div
       data-month-bar={monthPage || undefined}
-      className={cn(
-        // Shown on a month page only: once its month is in, or keeping its
-        // room until then. Glass chrome on phones (#434, #504): the header's
-        // colour and blur, a shadow below instead of a line, one block with
-        // the header. From `md` up it belongs to the page's column, under
-        // the header and its shadow (the owner's « A · Bandeau fixe », #505):
-        // no chrome of its own, so every page has the same frame.
-        'glass-chrome relative z-10 hidden shrink-0 has-[[data-month-placeholder]]:block has-[[data-page-month]:not(:empty)]:block md:bg-transparent! md:shadow-none! md:backdrop-blur-none!',
-        staging && 'env-banner',
-      )}
+      // Shown on a month page only: once its month is in, or keeping its
+      // room until then. Not part of the header (the owner, #505): the
+      // toolbar's white bars are the top of the page, above its title, and
+      // scroll with it.
+      className="relative z-10 hidden shrink-0 has-[[data-month-placeholder]]:block has-[[data-page-month]:not(:empty)]:block"
     >
       {/* The month's toolbar (#505, the owner's « barre d'outils + état »),
           as wide as the page's content: on a computer one white bar, the
           tabs, then ‹ · the month and its state · ›; on a phone the tabs and
           the month each a white bar of their own, the month without its
           state (too much room, the owner). */}
-      <div className="mx-auto w-full max-w-5xl px-2 py-2 sm:px-4 md:px-6 md:pt-3 md:pb-1">
+      <div className="mx-auto w-full max-w-5xl px-4 pt-4 sm:px-6">
         <div
           data-slot="month-toolbar-bar"
           className={cn(

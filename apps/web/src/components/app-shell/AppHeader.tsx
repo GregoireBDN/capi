@@ -27,7 +27,7 @@ import { StagingBadge } from './StagingBadge'
  * - The avatar: the account menu (`AccountMenu`).
  *
  * A month page's month is not in it: it is the bar at the top of the page's
- * column (`MonthBarSlot`, #401), fixed under the header.
+ * column (`MonthBarSlot`, #401), at the top of the page (#505).
  *
  * `h-12` on every width (`--app-header`, `globals.css`), out of the
  * scrolling area (#418): the page scrolls under it in its own area, so a

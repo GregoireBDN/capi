@@ -155,9 +155,10 @@ function PeriodBarLabel({
       )}
       {...props}
     >
+      {/* Only where there is room: on a phone the ⌄ says it opens a list. */}
       <CalendarDaysIcon
         aria-hidden
-        className="text-muted-foreground size-[1.1rem]! shrink-0"
+        className="text-muted-foreground hidden size-[1.1rem]! shrink-0 @[400px]:block"
       />
       <span aria-live="polite" className="min-w-0 truncate">
         <span className={shortText ? 'hidden @[300px]:inline' : undefined}>
