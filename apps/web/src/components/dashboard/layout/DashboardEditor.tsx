@@ -15,9 +15,8 @@ import {
 } from '@capi/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowDownIcon,
-  ArrowUpIcon,
   ColumnsIcon,
+  GripVerticalIcon,
   PlusIcon,
   RotateCcwIcon,
   SquareIcon,
@@ -36,6 +35,7 @@ import { accountsQuery } from '#/lib/queries'
 import { CATALOGUE_ORDER, ELEMENTS, newElement } from './catalogue'
 import { envelopeSummariesQuery } from './elements'
 import { resetDashboardLayout, saveDashboardLayout } from './queries'
+import { reorder, useSortable } from './sortable'
 
 /** An element's badge: its icon on its tone. */
 export function ElementBadge({ type }: { type: DashboardWidgetType }) {
@@ -53,17 +53,10 @@ export function ElementBadge({ type }: { type: DashboardWidgetType }) {
   )
 }
 
-function move<T>(list: T[], index: number, by: -1 | 1): T[] {
-  const target = index + by
-  if (target < 0 || target >= list.length) return list
-  const next = [...list]
-  ;[next[index], next[target]] = [next[target], next[index]]
-  return next
-}
-
 /**
  * « Personnaliser » (#495, the owner's direction « B. Une liste »): one row
- * per element in its order, ↑ ↓ to move it, a switch to show it, its
+ * per element in its order, dragged by its handle to move it (↑ ↓ from
+ * the keyboard), a switch to show it, its
  * accounts as icons; a tap opens its settings. « Ajouter » lists the
  * elements not placed, « Par défaut » brings today's dashboard back. Like
  * every editor, it edits one draft and ✓ saves it all at once; ✕ with
@@ -128,6 +121,17 @@ function Editor({
   )
   const [saving, setSaving] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [moved, setMoved] = useState('')
+  const sortable = useSortable({
+    count: draft.length,
+    onMove: (from, to) => {
+      setReset(false)
+      setMoved(
+        `${ELEMENTS[draft[from].type].name} : position ${to + 1} sur ${draft.length}`,
+      )
+      setDraft((list) => reorder(list, from, to))
+    },
+  })
   const changed =
     reset || JSON.stringify(draft) !== JSON.stringify(layout.widgets)
   useEffect(() => {
@@ -202,24 +206,34 @@ function Editor({
     <>
       <SheetBar title="Personnaliser" closeLabel="Fermer" action={saveAction} />
       <SheetScroll className="space-y-3 px-3 pb-6">
+        <p
+          id="dashboard-drag-help"
+          className="text-muted-foreground flex items-center gap-1 px-1 text-xs"
+        >
+          <GripVerticalIcon aria-hidden className="size-3.5" />
+          Glissez pour changer l’ordre
+          <span className="sr-only">, ou flèches haut et bas</span>
+        </p>
         <Card className="gap-0 px-1 py-1">
-          <ul className="divide-y" aria-label="Éléments affichés">
+          <ul
+            className={cn('divide-y', sortable.dragging && 'select-none')}
+            aria-label="Éléments affichés"
+          >
             {draft.map((widget, index) => (
               <ElementRow
                 key={widget.type}
                 widget={widget}
-                first={index === 0}
-                last={index === draft.length - 1}
-                onMove={(by) => {
-                  setReset(false)
-                  setDraft((list) => move(list, index, by))
-                }}
+                sortable={sortable.item(index)}
+                handle={sortable.handle(index)}
                 onShow={(shown) => update(widget.type, { hidden: !shown })}
                 onOpen={() => setEditing(widget.type)}
               />
             ))}
           </ul>
         </Card>
+        <p className="sr-only" aria-live="polite">
+          {moved}
+        </p>
         {missing.length > 0 && (
           <>
             <h3 className="text-muted-foreground px-1 pt-1 text-xs font-normal">
@@ -298,38 +312,40 @@ function defaultLayout(): DashboardWidgetDto[] {
 
 function ElementRow({
   widget,
-  first,
-  last,
-  onMove,
+  sortable,
+  handle,
   onShow,
   onOpen,
 }: {
   widget: DashboardWidgetDto
-  first: boolean
-  last: boolean
-  onMove: (by: -1 | 1) => void
+  sortable: ReturnType<ReturnType<typeof useSortable>['item']>
+  handle: ReturnType<ReturnType<typeof useSortable>['handle']>
   onShow: (shown: boolean) => void
   onOpen: () => void
 }) {
   const { name } = ELEMENTS[widget.type]
   return (
-    <li className="flex min-h-[3.2rem] items-center gap-1.5 px-1">
-      <span className="flex flex-col">
-        <MoveButton
-          label={`Monter ${name}`}
-          disabled={first}
-          onClick={() => onMove(-1)}
-        >
-          <ArrowUpIcon />
-        </MoveButton>
-        <MoveButton
-          label={`Descendre ${name}`}
-          disabled={last}
-          onClick={() => onMove(1)}
-        >
-          <ArrowDownIcon />
-        </MoveButton>
-      </span>
+    <li
+      ref={sortable.ref}
+      style={sortable.style}
+      className={cn(
+        'bg-card flex min-h-[3.2rem] items-center gap-1.5 rounded-lg px-1',
+        sortable.dragging &&
+          'ring-primary/30 shadow-lg ring-2 [&+li]:border-transparent',
+      )}
+    >
+      <button
+        type="button"
+        aria-label={`Déplacer ${name}`}
+        aria-describedby="dashboard-drag-help"
+        {...handle}
+        className={cn(
+          'text-muted-foreground hover:text-foreground focus-visible:ring-ring grid h-11 w-8 shrink-0 cursor-grab touch-none place-items-center rounded-md outline-none focus-visible:ring-2 [&_svg]:size-[20px]',
+          sortable.dragging && 'text-primary cursor-grabbing',
+        )}
+      >
+        <GripVerticalIcon aria-hidden />
+      </button>
       <button
         type="button"
         onClick={onOpen}
@@ -351,30 +367,6 @@ function ElementRow({
         onCheckedChange={onShow}
       />
     </li>
-  )
-}
-
-function MoveButton({
-  label,
-  disabled,
-  onClick,
-  children,
-}: {
-  label: string
-  disabled: boolean
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
-      className="text-muted-foreground hover:text-foreground focus-visible:ring-ring grid h-[1.6rem] w-[2rem] place-items-center rounded-md outline-none focus-visible:ring-2 disabled:opacity-25 [&_svg]:size-[18px]"
-    >
-      {children}
-    </button>
   )
 }
 

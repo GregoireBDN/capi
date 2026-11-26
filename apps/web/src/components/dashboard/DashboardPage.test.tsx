@@ -674,9 +674,9 @@ describe('DashboardPage', () => {
     await user.click(
       within(editor).getByRole('button', { name: 'Personnaliser' }),
     )
-    await user.click(
-      within(editor).getByRole('button', { name: 'Monter Soldes' }),
-    )
+    // ↑ on the focused handle moves the element, like a drag.
+    within(editor).getByRole('button', { name: 'Déplacer Soldes' }).focus()
+    await user.keyboard('{ArrowUp}')
     await user.click(
       within(editor).getByRole('switch', { name: 'Afficher Argent dû' }),
     )
