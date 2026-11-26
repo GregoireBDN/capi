@@ -259,6 +259,7 @@ Local MCP server for Claude Desktop / Claude Code (official TypeScript SDK, stdi
 - **API only**: tools call `/api/*` with `Authorization: Bearer`, never the database or `apps/web` code. Read tools (`GET`, plus the read-only `POST /budgets/suggest`) keep working with a `read` token; write tools get a clear "lecture seule" error with one.
 - **Write tools** never change anything without `confirm: true` (a preview first) and there are no delete tools.
 - **Privacy**: stdout is the MCP channel (ESLint forbids `console.log`); stderr gets only a tool name and an HTTP status, never arguments, outputs, amounts, labels or the token.
+- **Skill** `skills/capi/` (#497): the methods (bilan du mois, statement import, investments…) live there, not in tool descriptions; `src/skill.test.ts` checks the tools it names and keeps the definitions under a size budget.
 
 Details (every tool, imports, month close, money owed, investments, output format, remote transport, tests): [`docs/domain/mcp.md`](docs/domain/mcp.md).
 

@@ -132,7 +132,7 @@ export const splitTransactionTool = defineTool({
   name: 'split_transaction',
   title: 'Répartir une opération',
   description:
-    "Split one transaction (by id) between 2 to 20 categories, e.g. a 60 € transfer received that pays back 20 € of a restaurant bill and keeps 40 € as income. Each part counts with its category's kind: an incoming part in an expense category is a refund of that category (it lowers its spending and budget), an incoming part in an income category is income; a part in a transfer category is an internal transfer, and a transfer category cannot be mixed with income or expense ones. Amounts are euros as text without sign (the transaction's sign applies) and must add up exactly to the transaction's amount. Without confirm: preview (the parts, their kind, the effect on the month's budget). With confirm: true the split replaces any previous one; the same parts again change nothing. Undoing a split is done in the app, or with categorize_transactions (one category for the whole transaction).",
+    "Split one transaction between 2 to 20 categories; the parts (euros as text, without sign) add up exactly to its amount. Each part has its category's kind: an incoming part in an expense category is a refund of it. A transfer category cannot be mixed with others. Replaces any previous split; undone in the app or by categorize_transactions.",
   write: { idempotent: true },
   inputSchema: {
     id: z
