@@ -65,21 +65,26 @@ export function MovementsTabs({
                 : 'text-foreground/80 hover:bg-foreground/[0.05] hover:text-foreground',
             )}
           >
-            {label}
-            {key === 'operations' &&
-              reviewCount !== null &&
-              reviewCount > 0 && (
-                <CountPill
-                  // A round disc, not a tag (the owner, #434).
-                  className="h-[20px] min-w-[20px] px-0 text-[11px] normal-nums [&>span]:[text-box:trim-both_cap_alphabetic]"
-                  value={reviewCount}
-                  label={plural(
-                    reviewCount,
-                    'opération à revoir',
-                    'opérations à revoir',
-                  )}
-                />
-              )}
+            {/* The label alone is centred in its half, as « Résumé » is; the
+                count hangs after it (the owner, #505). */}
+            <span className="relative">
+              {label}
+              {key === 'operations' &&
+                reviewCount !== null &&
+                reviewCount > 0 && (
+                  <CountPill
+                    // A round disc, not a tag (the owner, #434), on the
+                    // label's capitals.
+                    className="absolute top-1/2 left-full ml-1.5 h-[20px] min-w-[20px] -translate-y-[calc(50%+1px)] px-0 text-[11px] tabular-nums [&>span]:[text-box:trim-both_cap_alphabetic]"
+                    value={reviewCount}
+                    label={plural(
+                      reviewCount,
+                      'opération à revoir',
+                      'opérations à revoir',
+                    )}
+                  />
+                )}
+            </span>
           </Link>
         )
       })}
