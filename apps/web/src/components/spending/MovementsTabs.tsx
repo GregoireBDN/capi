@@ -44,7 +44,7 @@ export function MovementsTabs({
       aria-label="Mouvements"
       data-slot="movements-tabs"
       // On the month's white toolbar (#505, the owner's « barre d'outils +
-      // état »), the current page a grey pill like the month's buttons (not
+      // état »), the current page a grey key in relief like the month's buttons (not
       // blue, the owner): two equal halves of the bar on a phone, as wide as
       // their names before the month on a computer.
       className="grid grid-cols-2 gap-1 md:flex"
@@ -62,7 +62,7 @@ export function MovementsTabs({
               'relative flex h-[calc(2rem-8px)] min-w-0 items-center justify-center gap-2 rounded-full text-sm leading-none font-medium whitespace-nowrap no-underline transition-[color,background-color] outline-none pointer-coarse:touch-hitbox md:px-4',
               'focus-visible:ring-ring/85 focus-visible:ring-[3px]',
               active
-                ? 'bg-foreground/[0.07] text-foreground font-semibold dark:bg-foreground/[0.1]'
+                ? 'glass-key text-foreground font-semibold'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >

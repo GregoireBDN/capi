@@ -53,18 +53,17 @@ type PeriodBarStatusProps = Omit<React.ComponentProps<'div'>, 'children'> & {
  * STYLES
  * ========================================================================= */
 
-/** A grey piece of the white toolbar (#505, the owner: a white bar, grey
- * buttons), like the toolbar's open tab. */
+/** A grey key of the white toolbar, in relief (#505, the owner: a white bar,
+ * grey buttons « un peu en relief »), like the toolbar's open tab. */
 const PIECE = cn(
-  'bg-foreground/[0.07] text-foreground hover:bg-foreground/[0.11]',
-  'dark:bg-foreground/[0.1] dark:hover:bg-foreground/[0.15]',
+  'glass-key text-foreground bg-transparent hover:bg-transparent',
 )
 
 /** A round arrow, 44px to the touch; off, a pale arrow without its disc. */
 const ARROW = cn(
   PIECE,
   'size-[calc(2rem-8px)] min-h-0 min-w-0 shrink-0 rounded-full pointer-coarse:touch-hitbox [&_svg]:size-[1.1rem]',
-  'disabled:bg-transparent disabled:opacity-35 dark:disabled:bg-transparent',
+  'disabled:bg-none disabled:opacity-35 disabled:shadow-none',
 )
 
 /* ============================================================================

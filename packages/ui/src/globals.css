@@ -88,6 +88,47 @@
   box-shadow: var(--glass-edge), var(--glass-shadow-sm);
 }
 
+/* A grey key on a white bar (#505, the owner: « de vrais boutons, un peu
+   en relief », after Apple): lighter at the top than at the bottom, the
+   sheen on its top edge, a hairline and a small shadow below. Pressed, it
+   sinks: the gradient and shadow go, an inner shade comes. */
+@utility glass-key {
+  background-image: linear-gradient(
+    to bottom,
+    oklch(from var(--foreground) l c h / 4%),
+    oklch(from var(--foreground) l c h / 10%)
+  );
+  box-shadow:
+    var(--glass-edge),
+    0 0 0 0.5px oklch(from var(--foreground) l c h / 10%),
+    0 1px 2px oklch(0 0 0 / 14%);
+  &:hover {
+    background-image: linear-gradient(
+      to bottom,
+      oklch(from var(--foreground) l c h / 6%),
+      oklch(from var(--foreground) l c h / 13%)
+    );
+  }
+  &:active:not(:disabled) {
+    background-image: none;
+    background-color: oklch(from var(--foreground) l c h / 12%);
+    box-shadow: inset 0 1px 2px oklch(0 0 0 / 14%);
+    translate: 0 0.5px;
+  }
+  /* Dark: the light still comes from above, so the top is the lighter. */
+  @variant dark {
+    background-image: linear-gradient(
+      to bottom,
+      oklch(from var(--foreground) l c h / 13%),
+      oklch(from var(--foreground) l c h / 7%)
+    );
+    box-shadow:
+      var(--glass-edge),
+      0 0 0 0.5px oklch(from var(--foreground) l c h / 8%),
+      0 1px 2px oklch(0 0 0 / 40%);
+  }
+}
+
 /* A field (#507, the owner's « B · Creusé »): a faint hollow, no border. On
    focus it turns the card's colour with a 1.5px primary edge (≥ 3:1) and a
    soft glow; invalid, a red tint, a 2px destructive edge and glow (beside an
