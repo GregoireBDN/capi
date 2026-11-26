@@ -14,12 +14,7 @@ import {
   type Locale,
 } from 'react-day-picker'
 
-import {
-  Button,
-  buttonBase,
-  getVariantClasses,
-  type ButtonProps,
-} from './button'
+import { buttonBase, getVariantClasses, type ButtonProps } from './button'
 import { cn } from '../lib/utils'
 
 /* ============================================================================
@@ -202,7 +197,7 @@ function Calendar({
           'flex-1 rounded-(--cell-radius) text-[0.8rem] font-normal text-muted-foreground select-none',
           defaultClassNames.weekday,
         ),
-        week: cn('mt-2 flex w-full', defaultClassNames.week),
+        week: cn('mt-1 flex w-full', defaultClassNames.week),
         week_number_header: cn(
           'w-(--cell-size) select-none',
           defaultClassNames.week_number_header,
@@ -211,34 +206,25 @@ function Calendar({
           'text-[0.8rem] text-muted-foreground select-none',
           defaultClassNames.week_number,
         ),
+        // A day's cell: the whole cell is the target, its round pastille
+        // drawn by `CalendarDayButton` (#488), whose states it carries.
         day: cn(
-          'group/day relative aspect-square h-full w-full rounded-(--cell-radius) p-0 text-center select-none [&:last-child[data-selected=true]_button]:rounded-r-(--cell-radius)',
-          props.showWeekNumber
-            ? '[&:nth-child(2)[data-selected=true]_button]:rounded-l-(--cell-radius)'
-            : '[&:first-child[data-selected=true]_button]:rounded-l-(--cell-radius)',
+          'flex flex-1 items-center justify-center p-0 text-center select-none',
           defaultClassNames.day,
         ),
+        // A range: a band behind the days between its ends.
         range_start: cn(
-          'relative isolate z-0 rounded-l-(--cell-radius) bg-muted after:absolute after:inset-y-0 after:right-0 after:w-4 after:bg-muted',
+          'rounded-l-full bg-primary/10',
           defaultClassNames.range_start,
         ),
-        range_middle: cn('rounded-none', defaultClassNames.range_middle),
+        range_middle: cn('bg-primary/10', defaultClassNames.range_middle),
         range_end: cn(
-          'relative isolate z-0 rounded-r-(--cell-radius) bg-muted after:absolute after:inset-y-0 after:left-0 after:w-4 after:bg-muted',
+          'rounded-r-full bg-primary/10',
           defaultClassNames.range_end,
         ),
-        today: cn(
-          'rounded-(--cell-radius) bg-muted text-foreground data-[selected=true]:rounded-none',
-          defaultClassNames.today,
-        ),
-        outside: cn(
-          'text-muted-foreground aria-selected:text-muted-foreground',
-          defaultClassNames.outside,
-        ),
-        disabled: cn(
-          'text-muted-foreground opacity-50',
-          defaultClassNames.disabled,
-        ),
+        today: defaultClassNames.today,
+        outside: defaultClassNames.outside,
+        disabled: defaultClassNames.disabled,
         hidden: cn('invisible', defaultClassNames.hidden),
         ...classNames,
       }}
@@ -248,13 +234,7 @@ function Calendar({
         // losing the focus as soon as they change, #488).
         Root: CalendarRoot,
         Chevron: CalendarChevron,
-        DayButton: ({ ...props }) => (
-          <CalendarDayButton
-            locale={locale}
-            variant={buttonVariant}
-            {...props}
-          />
-        ),
+        DayButton: CalendarDayButton,
         WeekNumber: CalendarWeekNumber,
         ...components,
       }}
@@ -267,83 +247,86 @@ function Calendar({
  * CALENDAR DAY BUTTON
  * ========================================================================= */
 
+/**
+ * A day (#488, the owner: « des pastilles toujours rondes » and the days one
+ * can pick plainly told from the others). The whole cell is the button; the
+ * day is a round pastille inside it, as wide as the cell allows up to
+ * `--cell-size`, square by its width so it is never an oval:
+ * - a day to pick: a soft filled pastille, the figure in the text colour;
+ * - a day of the month before or after: a fainter pastille, a muted figure;
+ * - today: a ring and the figure in the primary colour;
+ * - the chosen day: filled with the primary colour;
+ * - a day that can't be picked: no pastille, the figure faded and struck
+ *   through, no hover.
+ * `--day-text` sets the figures' size (15px by default).
+ */
 function CalendarDayButton({
   className,
-  day,
+  day: _day,
   modifiers,
-  locale,
-  variant = 'secondary',
+  locale: _locale,
+  variant: _variant,
+  children,
   ...props
 }: CalendarDayButtonProps) {
-  const defaultClassNames = getDefaultClassNames()
-
   const ref = React.useRef<HTMLButtonElement>(null)
   React.useEffect(() => {
     if (modifiers.focused) ref.current?.focus()
   }, [modifiers.focused])
 
+  const inRange =
+    modifiers.range_start || modifiers.range_end || modifiers.range_middle
+  const chosen =
+    modifiers.selected &&
+    (!inRange || modifiers.range_start || modifiers.range_end)
+
   return (
-    <Button
+    <button
       ref={ref}
-      variant={variant}
-      ghost
-      iconOnly
-      data-day={day.date.toLocaleDateString(locale?.code)}
-      data-selected-single={
-        modifiers.selected &&
-        !modifiers.range_start &&
-        !modifiers.range_end &&
-        !modifiers.range_middle
-      }
-      data-range-start={modifiers.range_start}
-      data-range-end={modifiers.range_end}
-      data-range-middle={modifiers.range_middle}
+      {...props}
+      data-selected={chosen || undefined}
+      data-range-middle={(modifiers.range_middle && !chosen) || undefined}
+      data-today={modifiers.today || undefined}
+      data-outside={modifiers.outside || undefined}
+      data-disabled={modifiers.disabled || undefined}
       className={cn(
-        [
-          // Base layout
-          'relative isolate z-10 flex aspect-square size-auto w-full',
-          'min-w-(--cell-size) flex-col gap-1',
-          'border-0 leading-none font-normal',
-
-          // Focused state
-          'group-data-[focused=true]/day:relative',
-          'group-data-[focused=true]/day:z-10',
-          'group-data-[focused=true]/day:border-ring',
-          'group-data-[focused=true]/day:ring-[3px]',
-          'group-data-[focused=true]/day:ring-ring/50',
-
-          // Range end styles
-          'data-[range-end=true]:rounded-(--cell-radius)',
-          'data-[range-end=true]:rounded-r-(--cell-radius)',
-          'data-[range-end=true]:bg-primary',
-          'data-[range-end=true]:text-primary-foreground',
-
-          // Range middle styles
-          'data-[range-middle=true]:rounded-none',
-          'data-[range-middle=true]:bg-muted',
-          'data-[range-middle=true]:text-foreground',
-
-          // Range start styles
-          'data-[range-start=true]:rounded-(--cell-radius)',
-          'data-[range-start=true]:rounded-l-(--cell-radius)',
-          'data-[range-start=true]:bg-primary',
-          'data-[range-start=true]:text-primary-foreground',
-
-          // Selected single day
-          'data-[selected-single=true]:bg-primary',
-          'data-[selected-single=true]:text-primary-foreground',
-
-          // Dark mode hover
-          'dark:hover:text-foreground',
-
-          // Span children styling
-          '[&>span]:text-xs [&>span]:opacity-70',
-        ].join(' '),
-        defaultClassNames.day,
+        'group/day flex w-full items-center justify-center p-[2px] outline-none',
+        'disabled:cursor-not-allowed data-disabled:cursor-not-allowed',
         className,
       )}
-      {...props}
-    />
+    >
+      <span
+        className={cn(
+          // Round, always: square by its width, at most `--cell-size`
+          'flex aspect-square w-full max-w-(--cell-size) items-center justify-center rounded-full',
+          'text-[length:var(--day-text,15px)] leading-none tabular-nums',
+          'transition-colors motion-reduce:transition-none',
+          // Keyboard focus
+          'group-focus-visible/day:ring-3 group-focus-visible/day:ring-ring/60',
+          modifiers.disabled
+            ? // A day that can't be picked: no pastille, faded, struck through
+              'font-normal text-muted-foreground/45 line-through decoration-muted-foreground/45'
+            : chosen
+              ? // The chosen day
+                'bg-primary font-bold text-primary-foreground shadow-sm'
+              : cn(
+                  'font-medium group-hover/day:bg-primary/15 group-hover/day:text-primary',
+                  modifiers.range_middle
+                    ? 'text-primary'
+                    : modifiers.outside
+                      ? // The month before or after: still to pick, fainter
+                        'bg-muted/45 text-muted-foreground'
+                      : // A day to pick
+                        'bg-muted text-foreground',
+                  // Today: a ring in the primary colour
+                  modifiers.today &&
+                    'font-bold text-primary ring-2 ring-primary ring-inset',
+                ),
+        )}
+      >
+        {children}
+      </span>
+    </button>
   )
 }
 

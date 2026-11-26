@@ -13,7 +13,7 @@ import {
 } from '../lib/calendar-day'
 import { cn } from '../lib/utils'
 import { Button } from './button'
-import { Calendar, CalendarDayButton } from './calendar'
+import { Calendar } from './calendar'
 import { Popover, PopoverContent, PopoverTrigger } from './popover'
 import {
   Sheet,
@@ -73,26 +73,6 @@ function clamp(day: string, min?: string, max?: string): string {
   return day
 }
 
-/** A day: round, `--cell-size` wide, the figures readable. Defined once, so
- * the days are not remounted on each render. */
-function DateFieldDayButton({
-  className,
-  ...props
-}: React.ComponentProps<typeof CalendarDayButton>) {
-  return (
-    <CalendarDayButton
-      {...props}
-      locale={fr}
-      className={cn(
-        className,
-        'size-(--cell-size) min-w-0 rounded-full p-0 text-[15px] tabular-nums',
-        'data-[selected-single=true]:hover:bg-primary',
-        'focus-visible:ring-[3px] focus-visible:ring-ring/50',
-      )}
-    />
-  )
-}
-
 /* ============================================================================
  * CALENDAR PANEL (shared by the popover and the bottom sheet)
  * ========================================================================= */
@@ -143,10 +123,9 @@ function DateFieldPanel({
         }}
         className={cn(
           'w-full bg-transparent p-0',
-          // Days of 44px at least (touch targets), 40px with a mouse.
-          large
-            ? '[--cell-size:44px] [--cell-radius:9999px]'
-            : '[--cell-size:40px] [--cell-radius:9999px]',
+          // Days of 44px at least on phones (touch targets), 40px with a
+          // mouse; the whole cell is the target.
+          large ? '[--cell-size:46px]' : '[--cell-size:40px]',
         )}
         classNames={{
           root: 'rdp-root w-full',
@@ -160,15 +139,7 @@ function DateFieldPanel({
             'rdp-caption_label flex h-(--cell-size) items-center gap-1 rounded-md px-2 text-[15px] font-semibold first-letter:uppercase [&>svg]:size-3.5 [&>svg]:text-muted-foreground',
           weekday:
             'rdp-weekday flex-1 text-center text-[12px] font-semibold uppercase text-muted-foreground select-none',
-          week: 'rdp-week mt-1 flex w-full',
-          day: 'rdp-day flex flex-1 items-center justify-center p-0 select-none',
-          today:
-            'rdp-today [&_button]:font-bold [&_button:not([data-selected-single=true])]:text-primary',
-          outside: 'rdp-outside [&_button]:text-muted-foreground/70',
-          disabled:
-            'rdp-disabled [&_button]:cursor-not-allowed [&_button]:text-muted-foreground/35 [&_button]:hover:bg-transparent',
         }}
-        components={{ DayButton: DateFieldDayButton }}
       />
       {(todayAllowed || (clearable && value)) && (
         <div className="flex items-center justify-between gap-2 border-t pt-2">
