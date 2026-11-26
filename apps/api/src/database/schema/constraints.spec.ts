@@ -8,6 +8,10 @@ import {
   accountsTable,
   balanceSnapshotsTable,
   contactsTable,
+  dashboardWidgetAccountsTable,
+  dashboardWidgetEnvelopesTable,
+  dashboardWidgetsTable,
+  envelopesTable,
   cryptoImportsTable,
   cryptoMovementsTable,
   cryptoTransferLinksTable,
@@ -1349,6 +1353,100 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
         await refused(tx, 'contacts_name_unique', (n) =>
           n.insert(contactsTable).values({ name: 'camille' }),
         )
+      })
+    })
+  })
+
+  describe('dashboard layout (#495)', () => {
+    async function widget(
+      tx: Tx,
+      values: Partial<typeof dashboardWidgetsTable.$inferInsert> = {},
+    ) {
+      const [created] = await tx
+        .insert(dashboardWidgetsTable)
+        .values({ type: 'balances', position: 0, size: 'small', ...values })
+        .returning()
+      return created
+    }
+
+    it('takes each element once, at one place each, from 0', async () => {
+      await inRollback(async (tx) => {
+        await widget(tx)
+        await refused(tx, 'dashboard_widgets_type_unique', (n) =>
+          widget(n, { position: 1 }),
+        )
+        await refused(tx, 'dashboard_widgets_position_unique', (n) =>
+          widget(n, { type: 'owed' }),
+        )
+        await refused(tx, 'dashboard_widgets_position_positive', (n) =>
+          widget(n, { type: 'owed', position: -1 }),
+        )
+      })
+    })
+
+    it('keeps settings an object', async () => {
+      await inRollback(async (tx) => {
+        await refused(tx, 'dashboard_widgets_settings_object', (n) =>
+          n.execute(
+            sql`insert into dashboard_widgets (type, position, size, settings)
+                values ('owed', 0, 'small', '[]'::jsonb)`,
+          ),
+        )
+      })
+    })
+
+    it('chooses accounts only on the elements that show them, envelopes only on Enveloppes', async () => {
+      await inRollback(async (tx) => {
+        await refused(tx, 'dashboard_widgets_accounts_chosen_type', (n) =>
+          widget(n, { type: 'owed', accountsChosen: true }),
+        )
+        await refused(tx, 'dashboard_widgets_envelopes_chosen_type', (n) =>
+          widget(n, { envelopesChosen: true }),
+        )
+      })
+    })
+
+    it('names accounts and envelopes only while chosen ones are shown', async () => {
+      await inRollback(async (tx) => {
+        const checking = await account(tx)
+        const [trip] = await tx
+          .insert(envelopesTable)
+          .values({ name: 'Voyage fictif' })
+          .returning()
+        const all = await widget(tx)
+        const envelopes = await widget(tx, { type: 'envelopes', position: 1 })
+        await refused(tx, 'dashboard_widget_accounts_chosen', (n) =>
+          n
+            .insert(dashboardWidgetAccountsTable)
+            .values({ widgetId: all.id, accountId: checking.id }),
+        )
+        await refused(tx, 'dashboard_widget_envelopes_chosen', (n) =>
+          n
+            .insert(dashboardWidgetEnvelopesTable)
+            .values({ widgetId: envelopes.id, envelopeId: trip.id }),
+        )
+
+        await tx
+          .update(dashboardWidgetsTable)
+          .set({ accountsChosen: true })
+          .where(eq(dashboardWidgetsTable.id, all.id))
+        await tx
+          .insert(dashboardWidgetAccountsTable)
+          .values({ widgetId: all.id, accountId: checking.id })
+        // Back to « tous » without clearing them: refused.
+        await refused(tx, 'dashboard_widget_accounts_chosen', (n) =>
+          n
+            .update(dashboardWidgetsTable)
+            .set({ accountsChosen: false })
+            .where(eq(dashboardWidgetsTable.id, all.id)),
+        )
+        // A deleted account leaves the element by itself.
+        await tx.delete(accountsTable).where(eq(accountsTable.id, checking.id))
+        const left = await tx
+          .select()
+          .from(dashboardWidgetAccountsTable)
+          .where(eq(dashboardWidgetAccountsTable.widgetId, all.id))
+        expect(left).toEqual([])
       })
     })
   })
