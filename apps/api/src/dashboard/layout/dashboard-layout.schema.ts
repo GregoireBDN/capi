@@ -76,7 +76,7 @@ export const dashboardWidgetsTable = pgTable(
   ],
 )
 
-/** The accounts an element shows when it shows chosen ones. */
+/** The accounts an element shows when it shows chosen ones, in their order. */
 export const dashboardWidgetAccountsTable = pgTable(
   'dashboard_widget_accounts',
   {
@@ -87,9 +87,16 @@ export const dashboardWidgetAccountsTable = pgTable(
     accountId: uuid('account_id')
       .notNull()
       .references(() => accountsTable.id, { onDelete: 'cascade' }),
+    /** The account's place in the element (« Mon ordre »), from 0. */
+    position: integer('position').notNull(),
   },
   (t) => [
     unique('dashboard_widget_accounts_unique').on(t.widgetId, t.accountId),
+    unique('dashboard_widget_accounts_position_unique').on(
+      t.widgetId,
+      t.position,
+    ),
+    check('dashboard_widget_accounts_position', sql`${t.position} >= 0`),
     index().on(t.accountId),
   ],
 )

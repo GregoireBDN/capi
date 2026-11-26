@@ -12,10 +12,10 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowDownWideNarrowIcon,
+  ArrowUpNarrowWideIcon,
   EyeIcon,
   EyeOffIcon,
   CalendarIcon,
-  ListIcon,
   GripVerticalIcon,
   PlusIcon,
   RotateCcwIcon,
@@ -446,37 +446,31 @@ function ElementSettings({
   const info = ELEMENTS[widget.type]
   const setting = (values: DashboardWidgetDto['settings']) =>
     onChange({ settings: { ...widget.settings, ...values } })
+  const sort = widget.settings.balancesSort ?? 'order'
+  // How it shows first, then what it shows.
   return (
     <>
-      {info.accountTypes && (
-        <Section icon={<WalletIcon />} title="Comptes">
-          <AccountChoice
-            types={info.accountTypes}
-            value={widget.accountIds}
-            onChange={(accountIds) => onChange({ accountIds })}
-          />
-        </Section>
-      )}
-      {info.envelopes && (
-        <Section icon={<PiggyBankIcon />} title="Enveloppes">
-          <EnvelopeChoice
-            value={widget.envelopeIds}
-            onChange={(envelopeIds) => onChange({ envelopeIds })}
-          />
-        </Section>
-      )}
       {widget.type === 'balances' && (
         <Section icon={<ArrowDownWideNarrowIcon />} title="Ordre">
           <ChoiceCards
             label="Ordre"
-            value={widget.settings.balancesSort ?? 'order'}
+            value={sort}
             onChange={(balancesSort) => setting({ balancesSort })}
             options={[
-              { value: 'order', label: 'Mon ordre', icon: <ListIcon /> },
               {
-                value: 'amount',
-                label: 'Montant',
+                value: 'order',
+                label: 'Mon ordre',
+                icon: <GripVerticalIcon />,
+              },
+              {
+                value: 'desc',
+                label: 'Décroissant',
                 icon: <ArrowDownWideNarrowIcon />,
+              },
+              {
+                value: 'asc',
+                label: 'Croissant',
+                icon: <ArrowUpNarrowWideIcon />,
               },
             ]}
           />
@@ -534,6 +528,25 @@ function ElementSettings({
           ]}
         />
       </Section>
+      {info.accountTypes && (
+        <Section icon={<WalletIcon />} title="Comptes">
+          <AccountChoice
+            types={info.accountTypes}
+            value={widget.accountIds}
+            // « Mon ordre » on Soldes: the accounts are dragged in order.
+            sortable={widget.type === 'balances' && sort === 'order'}
+            onChange={(accountIds) => onChange({ accountIds })}
+          />
+        </Section>
+      )}
+      {info.envelopes && (
+        <Section icon={<PiggyBankIcon />} title="Enveloppes">
+          <EnvelopeChoice
+            value={widget.envelopeIds}
+            onChange={(envelopeIds) => onChange({ envelopeIds })}
+          />
+        </Section>
+      )}
     </>
   )
 }
@@ -635,10 +648,12 @@ function SizePicture({ half = false }: { half?: boolean }) {
 function AccountChoice({
   types,
   value,
+  sortable = false,
   onChange,
 }: {
   types: readonly string[]
   value: string[] | null
+  sortable?: boolean
   onChange: (value: string[] | null) => void
 }) {
   const { data } = useQuery(accountsQuery)
@@ -651,6 +666,7 @@ function AccountChoice({
   return (
     <Choice
       value={value}
+      sortable={sortable}
       onChange={onChange}
       items={accounts.map((account) => ({
         id: account.id,
@@ -694,38 +710,77 @@ function EnvelopeChoice({
 }
 
 /**
- * Every item as a tile with an eye. All eyes open is « all » (`null`, so a
- * new account shows by itself); closing one keeps the others chosen.
+ * Every item as a tile with an eye. All eyes open in the usual order is
+ * « all » (`null`, so a new account shows by itself); closing one, or
+ * dragging one elsewhere (`sortable`), keeps the shown ones chosen, in the
+ * order of the list.
  */
 function Choice({
   value,
+  sortable = false,
   onChange,
   items,
 }: {
   value: string[] | null
+  sortable?: boolean
   onChange: (value: string[] | null) => void
   items: { id: string; name: string; badge: ReactNode }[]
 }) {
   const shown = (id: string) => value === null || value.includes(id)
+  // The chosen ones in their order, then the hidden ones.
+  const ordered =
+    value === null
+      ? items
+      : [
+          ...value.flatMap((id) => items.find((item) => item.id === id) ?? []),
+          ...items.filter((item) => !value.includes(item.id)),
+        ]
+  function save(list: typeof items, isShown: (id: string) => boolean) {
+    const ids = list.map((item) => item.id).filter(isShown)
+    const usual = items.map((item) => item.id).join()
+    onChange(ids.length === items.length && ids.join() === usual ? null : ids)
+  }
+  const drag = useSortable({
+    count: ordered.length,
+    onMove: (from, to) => save(reorder(ordered, from, to), shown),
+  })
   function toggle(id: string) {
-    const ids = items
-      .map((item) => item.id)
-      .filter((itemId) => (itemId === id ? !shown(id) : shown(itemId)))
-    onChange(ids.length === items.length ? null : ids)
+    save(ordered, (itemId) => (itemId === id ? !shown(id) : shown(itemId)))
   }
   return (
-    <ul className="space-y-1.5">
-      {items.map((item) => {
+    <ul className={cn('space-y-1.5', drag.dragging && 'select-none')}>
+      {ordered.map((item, index) => {
         const on = shown(item.id)
+        const row = drag.item(index)
         return (
           <li
             key={item.id}
+            ref={sortable ? row.ref : undefined}
+            style={sortable ? row.style : undefined}
             onClick={() => toggle(item.id)}
             className={cn(
               'bg-card flex min-h-[3.2rem] cursor-pointer items-center gap-2 rounded-xl border py-1 pr-0.5 pl-2.5 transition-opacity',
+              sortable && 'pl-0.5',
               !on && 'bg-card/60 border-dashed',
+              sortable &&
+                row.dragging &&
+                'border-primary/60 ring-primary/20 shadow-lg ring-2',
             )}
           >
+            {sortable && (
+              <button
+                type="button"
+                aria-label={`Déplacer ${item.name}`}
+                {...drag.handle(index)}
+                onClick={(event) => event.stopPropagation()}
+                className={cn(
+                  'text-muted-foreground hover:text-foreground focus-visible:ring-ring grid h-[44px] w-[28px] shrink-0 cursor-grab touch-none place-items-center rounded-md outline-none focus-visible:ring-2 [&_svg]:size-[20px]',
+                  row.dragging && 'text-primary cursor-grabbing',
+                )}
+              >
+                <GripVerticalIcon aria-hidden />
+              </button>
+            )}
             <span
               className={cn(
                 'flex min-w-0 flex-1 items-center gap-2.5',

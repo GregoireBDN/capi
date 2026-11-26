@@ -22,8 +22,12 @@ export const UPCOMING_DAYS = [7, 30] as const
 /** Which side of the money owed the « Argent dû » element shows. */
 export const OWED_SIDES = ['both', 'owed_to_me', 'i_owe'] as const
 export type OwedSide = (typeof OWED_SIDES)[number]
-/** How « Soldes » orders its accounts: the accounts' order, or by balance. */
-export const BALANCES_SORTS = ['order', 'amount'] as const
+/**
+ * How « Soldes » orders its accounts: the owner's order (its chosen
+ * accounts' order, else the accounts'), or by balance, largest or smallest
+ * first.
+ */
+export const BALANCES_SORTS = ['order', 'desc', 'asc'] as const
 export type BalancesSort = (typeof BALANCES_SORTS)[number]
 
 /** At most this many accounts or envelopes chosen per element. */
@@ -56,7 +60,7 @@ export class DashboardWidgetSettingsDto {
     enum: BALANCES_SORTS,
     enumName: 'DashboardBalancesSort',
     description:
-      '`balances`: the accounts in their order, or the largest balance first.',
+      '`balances`: the owner’s order, or by balance (`desc` largest first, `asc` smallest first).',
   })
   @IsOptional()
   @IsIn(BALANCES_SORTS)

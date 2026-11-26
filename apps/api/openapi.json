@@ -17843,9 +17843,10 @@
         "type": "string",
         "enum": [
           "order",
-          "amount"
+          "desc",
+          "asc"
         ],
-        "description": "`balances`: the accounts in their order, or the largest balance first."
+        "description": "`balances`: the owner’s order, or by balance (`desc` largest first, `asc` smallest first)."
       },
       "DashboardWidgetSettingsDto": {
         "type": "object",
@@ -17867,7 +17868,7 @@
             ]
           },
           "balancesSort": {
-            "description": "`balances`: the accounts in their order, or the largest balance first.",
+            "description": "`balances`: the owner’s order, or by balance (`desc` largest first, `asc` smallest first).",
             "allOf": [
               {
                 "$ref": "#/components/schemas/DashboardBalancesSort"

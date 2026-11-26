@@ -658,7 +658,7 @@ describe('DashboardPage', () => {
         widgets: [
           widget('balances', {
             accountIds: [checking.id, pea.id],
-            settings: { balancesSort: 'amount' },
+            settings: { balancesSort: 'desc' },
           }),
         ],
       }),
@@ -722,6 +722,42 @@ describe('DashboardPage', () => {
             widget('owed', { hidden: true }),
             widget('month_flows', { size: 'large' }),
           ],
+        },
+      }),
+    )
+  })
+
+  it('drags the accounts of « Soldes » in « Mon ordre »', async () => {
+    vi.useRealTimers()
+    const user = userEvent.setup()
+    api.dashboardLayoutControllerGet.mockImplementation(() =>
+      ok({
+        custom: true,
+        widgets: [widget('balances', { accountIds: [] })],
+      }),
+    )
+    api.dashboardLayoutControllerReplace.mockImplementation(
+      (options: { body: { widgets: DashboardWidgetDto[] } }) =>
+        ok({ custom: true, widgets: options.body.widgets }),
+    )
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Choisir' }))
+    const editor = await screen.findByRole('dialog')
+    for (const name of ['Compte test', 'PEA test']) {
+      await user.click(
+        within(editor).getByRole('switch', { name: `Afficher ${name}` }),
+      )
+    }
+    // « Mon ordre »: PEA moved up, every account still shown, now in order.
+    within(editor).getByRole('button', { name: 'Déplacer PEA test' }).focus()
+    await user.keyboard('{ArrowUp}')
+    await user.click(
+      within(editor).getByRole('button', { name: 'Enregistrer' }),
+    )
+    expect(api.dashboardLayoutControllerReplace).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        body: {
+          widgets: [widget('balances', { accountIds: [pea.id, checking.id] })],
         },
       }),
     )

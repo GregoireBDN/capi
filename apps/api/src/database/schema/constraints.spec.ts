@@ -1418,7 +1418,7 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
         await refused(tx, 'dashboard_widget_accounts_chosen', (n) =>
           n
             .insert(dashboardWidgetAccountsTable)
-            .values({ widgetId: all.id, accountId: checking.id }),
+            .values({ widgetId: all.id, accountId: checking.id, position: 0 }),
         )
         await refused(tx, 'dashboard_widget_envelopes_chosen', (n) =>
           n
@@ -1432,7 +1432,7 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
           .where(eq(dashboardWidgetsTable.id, all.id))
         await tx
           .insert(dashboardWidgetAccountsTable)
-          .values({ widgetId: all.id, accountId: checking.id })
+          .values({ widgetId: all.id, accountId: checking.id, position: 0 })
         // Back to « tous » without clearing them: refused.
         await refused(tx, 'dashboard_widget_accounts_chosen', (n) =>
           n
@@ -1447,6 +1447,34 @@ describe.skipIf(!process.env.DATABASE_URL)('database rules (#367)', () => {
           .from(dashboardWidgetAccountsTable)
           .where(eq(dashboardWidgetAccountsTable.widgetId, all.id))
         expect(left).toEqual([])
+      })
+    })
+
+    it('gives each chosen account its own place, from 0', async () => {
+      await inRollback(async (tx) => {
+        const checking = await account(tx)
+        const savings = await account(tx, {
+          name: 'Livret fictif',
+          type: 'savings',
+        })
+        const chosen = await widget(tx, { accountsChosen: true })
+        await tx
+          .insert(dashboardWidgetAccountsTable)
+          .values({ widgetId: chosen.id, accountId: checking.id, position: 0 })
+        await refused(tx, 'dashboard_widget_accounts_position_unique', (n) =>
+          n.insert(dashboardWidgetAccountsTable).values({
+            widgetId: chosen.id,
+            accountId: savings.id,
+            position: 0,
+          }),
+        )
+        await refused(tx, 'dashboard_widget_accounts_position', (n) =>
+          n.insert(dashboardWidgetAccountsTable).values({
+            widgetId: chosen.id,
+            accountId: savings.id,
+            position: -1,
+          }),
+        )
       })
     })
   })

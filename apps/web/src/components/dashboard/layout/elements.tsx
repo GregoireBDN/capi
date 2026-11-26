@@ -152,8 +152,9 @@ export function pickAccounts<T extends { id: string }>(
   chosen: string[] | null,
 ): T[] {
   if (chosen === null) return accounts
-  const ids = new Set(chosen)
-  return accounts.filter((account) => ids.has(account.id))
+  // In the chosen order (« Mon ordre »).
+  const byId = new Map(accounts.map((account) => [account.id, account]))
+  return chosen.flatMap((id) => byId.get(id) ?? [])
 }
 
 /* ---------------------------------------------------------------------------
@@ -196,11 +197,9 @@ export function BalancesElement({
   const picked = pickAccounts(overview.accounts, widget.accountIds)
   // « Montant »: the largest balance first, an unknown one last.
   const accounts =
-    widget.settings.balancesSort === 'amount'
-      ? [...picked].sort(
-          (a, b) =>
-            (b.balanceCents ?? -Infinity) - (a.balanceCents ?? -Infinity),
-        )
+    widget.settings.balancesSort === 'desc' ||
+    widget.settings.balancesSort === 'asc'
+      ? sortByBalance(picked, widget.settings.balancesSort)
       : picked
   return (
     <ElementCard title="Soldes" to={ROUTES.accounts} className="@container">
@@ -230,6 +229,19 @@ export function BalancesElement({
       )}
     </ElementCard>
   )
+}
+
+/** By balance, largest or smallest first; an unknown balance last. */
+function sortByBalance<T extends { balanceCents: number | null }>(
+  accounts: T[],
+  direction: 'desc' | 'asc',
+): T[] {
+  const sign = direction === 'desc' ? -1 : 1
+  return [...accounts].sort((a, b) => {
+    if (a.balanceCents === null) return b.balanceCents === null ? 0 : 1
+    if (b.balanceCents === null) return -1
+    return sign * (a.balanceCents - b.balanceCents)
+  })
 }
 
 function balanceDetail(

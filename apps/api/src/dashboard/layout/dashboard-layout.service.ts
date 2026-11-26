@@ -89,7 +89,8 @@ export class DashboardLayoutService {
       this.db
         .select()
         .from(dashboardWidgetAccountsTable)
-        .where(inArray(dashboardWidgetAccountsTable.widgetId, ids)),
+        .where(inArray(dashboardWidgetAccountsTable.widgetId, ids))
+        .orderBy(asc(dashboardWidgetAccountsTable.position)),
       this.db
         .select()
         .from(dashboardWidgetEnvelopesTable)
@@ -141,9 +142,10 @@ export class DashboardLayoutService {
           .returning({ id: dashboardWidgetsTable.id })
         if (item.accountIds?.length) {
           await tx.insert(dashboardWidgetAccountsTable).values(
-            item.accountIds.map((accountId) => ({
+            item.accountIds.map((accountId, position) => ({
               widgetId: row.id,
               accountId,
+              position,
             })),
           )
         }

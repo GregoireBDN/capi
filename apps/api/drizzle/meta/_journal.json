@@ -393,6 +393,13 @@
       "when": 1795695480952,
       "tag": "0055_dashboard_layout",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1795701200249,
+      "tag": "0056_dashboard_account_order",
+      "breakpoints": true
     }
   ]
 }
