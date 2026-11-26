@@ -603,7 +603,9 @@ function ChoiceCards<T extends string>({
             aria-checked={selected}
             onClick={() => onChange(option.value)}
             className={cn(
-              'bg-card focus-visible:ring-ring flex min-h-[4.2rem] flex-col items-center justify-center gap-1.5 rounded-xl border px-1.5 py-2.5 text-center text-xs leading-tight font-medium outline-none focus-visible:ring-2 [&_svg]:size-[22px]',
+              'bg-card focus-visible:ring-ring flex min-h-[4.2rem] flex-col items-center justify-center gap-1.5 rounded-xl border px-1.5 py-2.5 text-center text-xs leading-tight font-medium break-normal outline-none focus-visible:ring-2 [&_svg]:size-[22px]',
+              // A word never breaks inside (« Décroissant »): smaller on three.
+              options.length === 3 && 'text-[0.68rem]',
               selected
                 ? 'border-primary bg-primary/5 text-primary ring-primary/20 ring-2'
                 : 'text-muted-foreground hover:bg-muted/50',
