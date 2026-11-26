@@ -463,12 +463,15 @@ export function TransactionFilters({
                 />
               )
             })}
+            {/* Read like the other filters once set: its name above, a ×
+                (#507, the owner found the check box out of place here). */}
             {search.oneOff === true && (
-              <FilterToggle
-                label="Exceptionnelles"
+              <FilterControl
+                label="Seulement"
                 icon={<ZapIcon />}
-                pressed
-                onPressedChange={(on) => set('oneOff', on || undefined)}
+                value={{ label: 'Exceptionnelles' }}
+                onClear={() => set('oneOff', undefined)}
+                onOpen={() => openSheet()}
                 className="w-full"
               />
             )}
