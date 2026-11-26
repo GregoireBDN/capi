@@ -344,7 +344,7 @@ export function TransactionFilters({
           className="flex flex-wrap items-center gap-2"
         >
           {/* The search fills its row; the filters follow on the next. */}
-          <InputGroup className="bg-card h-[44px] min-w-0 flex-[1_1_320px] shadow-xs dark:bg-card">
+          <InputGroup className="h-[44px] min-w-0 flex-[1_1_320px]">
             <InputGroupAddon>
               <SearchIcon />
             </InputGroupAddon>
@@ -361,7 +361,6 @@ export function TransactionFilters({
             {/* Phones: « Filtres » inside the search, its word from 330px
                 of toolbar (#406, the owner's 1a·A). */}
             <InputGroupAddon align="inline-end" className="@[672px]:hidden">
-              <span aria-hidden className="bg-border h-6 w-px shrink-0" />
               <button
                 type="button"
                 aria-label={
@@ -370,7 +369,7 @@ export function TransactionFilters({
                     : 'Filtres'
                 }
                 onClick={() => openSheet()}
-                className="text-foreground hover:bg-muted focus-visible:ring-ring/50 pointer-coarse:touch-hitbox relative -mr-1 flex h-[38px] items-center gap-1.5 rounded-md px-2 text-[15px] font-medium outline-none focus-visible:ring-[3px]"
+                className="text-foreground bg-glass-fill hover:bg-foreground/10 focus-visible:ring-ring/50 pointer-coarse:touch-hitbox relative -mr-1 flex h-[36px] items-center gap-1.5 rounded-full px-3 text-[15px] font-medium outline-none focus-visible:ring-[3px]"
               >
                 <SlidersHorizontalIcon aria-hidden className="size-[18px]" />
                 <span className="hidden @[330px]:inline">Filtres</span>
@@ -466,12 +465,15 @@ export function TransactionFilters({
                 />
               )
             })}
+            {/* Read like the other filters once set: its name above, a ×
+                (#507, the owner found the check box out of place here). */}
             {search.oneOff === true && (
-              <FilterToggle
-                label="Exceptionnelles"
+              <FilterControl
+                label="Seulement"
                 icon={<ZapIcon />}
-                pressed
-                onPressedChange={(on) => set('oneOff', on || undefined)}
+                value={{ label: 'Exceptionnelles' }}
+                onClear={() => set('oneOff', undefined)}
+                onOpen={() => openSheet()}
                 className="w-full"
               />
             )}

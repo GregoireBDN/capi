@@ -1,23 +1,23 @@
-"use client";
+'use client'
 
-import { OTPInput, OTPInputContext } from "input-otp";
-import { MinusIcon } from "lucide-react";
-import * as React from "react";
+import { OTPInput, OTPInputContext } from 'input-otp'
+import { MinusIcon } from 'lucide-react'
+import * as React from 'react'
 
-import { cn } from "../lib/utils";
+import { cn } from '../lib/utils'
 
 /* ============================================================================
  * TYPES
  * ========================================================================= */
 
 type InputOTPProps = React.ComponentProps<typeof OTPInput> & {
-  containerClassName?: string;
-};
-type InputOTPGroupProps = React.ComponentProps<"div">;
-type InputOTPSlotProps = React.ComponentProps<"div"> & {
-  index: number;
-};
-type InputOTPSeparatorProps = React.ComponentProps<"div">;
+  containerClassName?: string
+}
+type InputOTPGroupProps = React.ComponentProps<'div'>
+type InputOTPSlotProps = React.ComponentProps<'div'> & {
+  index: number
+}
+type InputOTPSeparatorProps = React.ComponentProps<'div'>
 
 /* ============================================================================
  * COMPONENTS
@@ -35,21 +35,21 @@ function InputOTP({ className, containerClassName, ...props }: InputOTPProps) {
       containerClassName={cn(
         [
           // Base Class (required by input-otp library)
-          "cn-input-otp",
+          'cn-input-otp',
 
           // Layout
-          "flex items-center",
+          'flex items-center',
 
           // Disabled State
-          "has-disabled:opacity-50",
-        ].join(" "),
+          'has-disabled:opacity-50',
+        ].join(' '),
         containerClassName,
       )}
       spellCheck={false}
-      className={cn("disabled:cursor-not-allowed", className)}
+      className={cn('disabled:cursor-not-allowed', className)}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -63,25 +63,14 @@ function InputOTPGroup({ className, ...props }: InputOTPGroupProps) {
       data-slot="input-otp-group"
       className={cn(
         [
-          // Layout
-          "flex items-center",
-
-          // Styling
-          "rounded-lg",
-
-          // Invalid States (Light)
-          "has-aria-invalid:border-destructive",
-          "has-aria-invalid:ring-3",
-          "has-aria-invalid:ring-destructive/20",
-
-          // Invalid States (Dark)
-          "dark:has-aria-invalid:ring-destructive/40",
-        ].join(" "),
+          // Layout: one hollow per character, apart (#507)
+          'flex items-center gap-1.5',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -90,8 +79,8 @@ function InputOTPGroup({ className, ...props }: InputOTPGroupProps) {
  * Shows active state with ring, displays fake caret during input
  */
 function InputOTPSlot({ index, className, ...props }: InputOTPSlotProps) {
-  const inputOTPContext = React.useContext(OTPInputContext);
-  const { char, hasFakeCaret, isActive } = inputOTPContext?.slots[index] ?? {};
+  const inputOTPContext = React.useContext(OTPInputContext)
+  const { char, hasFakeCaret, isActive } = inputOTPContext?.slots[index] ?? {}
 
   return (
     <div
@@ -100,38 +89,23 @@ function InputOTPSlot({ index, className, ...props }: InputOTPSlotProps) {
       className={cn(
         [
           // Layout
-          "relative flex size-8 items-center justify-center",
+          'relative flex size-8 items-center justify-center',
 
-          // Borders
-          "border-y border-r border-input",
-          "first:rounded-l-lg first:border-l",
-          "last:rounded-r-lg",
+          // The glass hollow (#507)
+          'glass-field rounded-control',
+          char ? 'glass-field-filled' : '',
 
           // Typography
-          "text-sm",
+          'text-sm',
 
           // Transitions
-          "transition-all outline-none",
+          'transition-all outline-none',
 
-          // Background (Dark)
-          "dark:bg-input/30",
-
-          // Invalid States
-          "aria-invalid:border-destructive",
-
-          // Active State
-          "data-[active=true]:z-10",
-          "data-[active=true]:border-ring",
-          "data-[active=true]:ring-3",
-          "data-[active=true]:ring-ring/50",
-
-          // Active + Invalid States (Light)
-          "data-[active=true]:aria-invalid:border-destructive",
-          "data-[active=true]:aria-invalid:ring-destructive/20",
-
-          // Active + Invalid States (Dark)
-          "dark:data-[active=true]:aria-invalid:ring-destructive/40",
-        ].join(" "),
+          // Active, then invalid (wins)
+          'data-[active=true]:z-10',
+          'data-[active=true]:glass-field-focus',
+          'aria-invalid:glass-field-invalid',
+        ].join(' '),
         className,
       )}
       {...props}
@@ -143,7 +117,7 @@ function InputOTPSlot({ index, className, ...props }: InputOTPSlotProps) {
         </div>
       )}
     </div>
-  );
+  )
 }
 
 /**
@@ -159,17 +133,17 @@ function InputOTPSeparator({ ...props }: InputOTPSeparatorProps) {
       className={cn(
         [
           // Layout
-          "flex items-center",
+          'flex items-center',
 
           // Icon Styling
           "[&_svg:not([class*='size-'])]:size-4",
-        ].join(" "),
+        ].join(' '),
       )}
       {...props}
     >
       <MinusIcon />
     </div>
-  );
+  )
 }
 
 /* ============================================================================
@@ -185,4 +159,4 @@ export {
   type InputOTPProps,
   type InputOTPSeparatorProps,
   type InputOTPSlotProps,
-};
+}

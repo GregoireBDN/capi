@@ -24,17 +24,20 @@ Feature details moved out of [`CLAUDE.md`](../../CLAUDE.md) (#422). The domain r
 
 The look the owner chose for the whole app (#503, recipe « A · Givré », the month bar of #502 extended). Tokens and utilities in `packages/ui/src/globals.css` (#504), shown over a busy page in Storybook « Foundations / Verre ». Each redesign issue (#505–#510) moves its family onto them.
 
-| Utility                       | Where                                         | What                                                                                              |
-| ----------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `glass-chrome`                | header, month bar, sidebar                    | `--glass-chrome` (90 %), blur `--glass-blur`, shadow below, no sheen, no line                     |
-| `glass-panel`                 | sheets, dialogs, popovers, menus, toasts      | `--glass-panel` (`--popover` at 94 %), blur, sheen, `shadow-glass-lg`                             |
-| `glass-card`                  | cards on the page                             | opaque `--card`, sheen, `shadow-glass-md`, no ring, rows separated by space                       |
-| `glass-well`                  | fields, a segmented control's thumb           | opaque `--card`, sheen, `shadow-glass-sm`                                                         |
-| `glass-overlay`               | behind a sheet or a dialog                    | light veil, 2px blur                                                                              |
-| `bg-glass-fill`               | secondary and icon buttons, a segmented track | `--foreground` at 6 %, no border                                                                  |
-| `shadow-glass-primary`        | the solid primary button                      | a soft shadow in the primary colour                                                               |
-| `glass-solid`                 | every solid button (#506)                     | sheen on top + a soft shadow in its own colour (`--glass-tint`), composes with focus rings        |
-| `text-glass-muted-foreground` | muted text on the chrome and on panels        | `--foreground` at 75 % (`muted-foreground` drops to 3.7:1 when black content is under the chrome) |
+| Utility                       | Where                                         | What                                                                                                                  |
+| ----------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `glass-chrome`                | header, month bar, sidebar                    | `--glass-chrome` (90 %), blur `--glass-blur`, shadow below, no sheen, no line                                         |
+| `glass-panel`                 | sheets, dialogs, popovers, menus, toasts      | `--glass-panel` (`--popover` at 94 %), blur, sheen, `shadow-glass-lg`                                                 |
+| `glass-card`                  | cards on the page                             | opaque `--card`, sheen, `shadow-glass-md`, no ring, rows separated by space                                           |
+| `glass-well`                  | a segmented control's thumb                   | opaque `--card`, sheen, `shadow-glass-sm`                                                                             |
+| `glass-field`                 | fields, search bars, pickers (#507)           | a faint hollow, no border; `-filled` raised once filled, `-focus` primary edge and glow, `-invalid` red tint and edge |
+| `glass-overlay`               | behind a sheet or a dialog                    | light veil, 2px blur                                                                                                  |
+| `bg-glass-fill`               | secondary and icon buttons, a segmented track | `--foreground` at 6 %, no border                                                                                      |
+| `shadow-glass-primary`        | the solid primary button                      | a soft shadow in the primary colour                                                                                   |
+| `glass-solid`                 | every solid button (#506)                     | sheen on top + a soft shadow in its own colour (`--glass-tint`), composes with focus rings                            |
+| `text-glass-muted-foreground` | muted text on the chrome and on panels        | `--foreground` at 75 % (`muted-foreground` drops to 3.7:1 when black content is under the chrome)                     |
+
+**Fields** (#507, the owner's « B · Creusé »): every field of `@capi/ui` (`Input`, `SearchField`, `InputGroup`, `Textarea`, `PasswordInput`, `InputOTP`, `DateField`, `NativeSelect`, `FilterControl` / `FilterToggle`) is a `glass-field` hollow while empty and rises once filled (`glass-field-filled`; `:placeholder-shown`, so a field without placeholder gets « »); a field-like button hand-rolled in `apps/web` (e.g. `CategoryPicker`'s trigger) takes the same classes from `fieldSurface` (or `fieldGroupSurface` for a box around its control, `@capi/ui`) and `glass-field-focus` while its list is open. Focus and invalid are box shadows only (no layout jump), the edge ≥ 3:1; an error also shows an icon (`FieldError`). A chosen filter is tinted with its value's colour, its name small above the value inside the control. Check boxes and radios: `--card` with an inner edge, primary with `shadow-glass-primary` when on; switches and sliders: a hollow track, a white knob. Storybook « Foundations / Champs en verre ».
 
 Radii: `rounded-card` (1.1rem), `rounded-sheet` (1.4rem, a sheet's top corners), `rounded-control` (0.8rem, fields and buttons; icon buttons round).
 

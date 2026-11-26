@@ -1,15 +1,15 @@
-"use client";
+'use client'
 
-import { Slider as SliderPrimitive } from "radix-ui";
-import * as React from "react";
+import { Slider as SliderPrimitive } from 'radix-ui'
+import * as React from 'react'
 
-import { cn } from "../lib/utils";
+import { cn } from '../lib/utils'
 
 /* ============================================================================
  * TYPES
  * ========================================================================= */
 
-type SliderProps = React.ComponentProps<typeof SliderPrimitive.Root>;
+type SliderProps = React.ComponentProps<typeof SliderPrimitive.Root>
 
 /* ============================================================================
  * COMPONENT
@@ -37,7 +37,7 @@ function Slider({
           ? defaultValue
           : [min, max],
     [value, defaultValue, min, max],
-  );
+  )
 
   return (
     <SliderPrimitive.Root
@@ -49,21 +49,21 @@ function Slider({
       className={cn(
         [
           // Layout
-          "relative flex items-center",
-          "w-full",
+          'relative flex items-center',
+          'w-full',
 
           // Interactivity
-          "touch-none select-none",
+          'touch-none select-none',
 
           // Disabled State
-          "data-[disabled]:opacity-50",
+          'data-[disabled]:opacity-50',
 
           // Vertical Orientation
-          "data-[orientation=vertical]:h-full",
-          "data-[orientation=vertical]:min-h-40",
-          "data-[orientation=vertical]:w-auto",
-          "data-[orientation=vertical]:flex-col",
-        ].join(" "),
+          'data-[orientation=vertical]:h-full',
+          'data-[orientation=vertical]:min-h-40',
+          'data-[orientation=vertical]:w-auto',
+          'data-[orientation=vertical]:flex-col',
+        ].join(' '),
         className,
       )}
       {...props}
@@ -73,19 +73,19 @@ function Slider({
         className={cn(
           [
             // Layout
-            "relative grow",
+            'relative grow',
 
             // Styling
-            "overflow-hidden rounded-full bg-muted",
+            'overflow-hidden rounded-full glass-field',
 
             // Horizontal Orientation
-            "data-[orientation=horizontal]:h-1",
-            "data-[orientation=horizontal]:w-full",
+            'data-[orientation=horizontal]:h-1',
+            'data-[orientation=horizontal]:w-full',
 
             // Vertical Orientation
-            "data-[orientation=vertical]:h-full",
-            "data-[orientation=vertical]:w-1",
-          ].join(" "),
+            'data-[orientation=vertical]:h-full',
+            'data-[orientation=vertical]:w-1',
+          ].join(' '),
         )}
       >
         <SliderPrimitive.Range
@@ -93,20 +93,20 @@ function Slider({
           className={cn(
             [
               // Layout
-              "absolute",
+              'absolute',
 
               // Styling
-              "bg-primary",
+              'bg-primary',
 
               // Interactivity
-              "select-none",
+              'select-none',
 
               // Horizontal Orientation
-              "data-[orientation=horizontal]:h-full",
+              'data-[orientation=horizontal]:h-full',
 
               // Vertical Orientation
-              "data-[orientation=vertical]:w-full",
-            ].join(" "),
+              'data-[orientation=vertical]:w-full',
+            ].join(' '),
           )}
         />
       </SliderPrimitive.Track>
@@ -117,45 +117,41 @@ function Slider({
           className={cn(
             [
               // Layout
-              "relative block shrink-0",
-              "size-3",
+              'relative block shrink-0',
+              'size-3',
 
-              // Styling
-              "rounded-full border border-ring bg-white",
-
-              // Ring
-              "ring-ring/50",
+              // Styling: a white glass knob (#507)
+              'rounded-full bg-white',
+              'shadow-[0_1px_3px_rgb(15_23_42/30%),0_0_0_0.5px_rgb(15_23_42/8%)]',
 
               // Transitions
-              "transition-[color,box-shadow]",
+              'transition-[color,box-shadow]',
 
               // Interactivity
-              "select-none",
+              'select-none',
 
               // Expanded clickable area
-              "after:absolute after:-inset-2",
+              'after:absolute after:-inset-2',
 
-              // Hover & Focus States
-              "hover:ring-3",
-              "focus-visible:ring-3",
-              "focus-visible:outline-hidden",
-
-              // Active State
-              "active:ring-3",
+              // Hover, Focus & Active States: the fields' glow
+              'hover:shadow-(--glass-focus)',
+              'focus-visible:shadow-(--glass-focus)',
+              'focus-visible:outline-hidden',
+              'active:shadow-(--glass-focus)',
 
               // Disabled State
-              "disabled:pointer-events-none",
-              "disabled:opacity-50",
-            ].join(" "),
+              'disabled:pointer-events-none',
+              'disabled:opacity-50',
+            ].join(' '),
           )}
         />
       ))}
     </SliderPrimitive.Root>
-  );
+  )
 }
 
 /* ============================================================================
  * EXPORTS
  * ========================================================================= */
 
-export { Slider, type SliderProps };
+export { Slider, type SliderProps }

@@ -3,6 +3,7 @@
 import { SearchIcon, XIcon } from 'lucide-react'
 import * as React from 'react'
 
+import { fieldSurface } from '../lib/field'
 import { cn } from '../lib/utils'
 
 /* ============================================================================
@@ -37,6 +38,7 @@ function SearchField({
   clearLabel = 'Effacer la recherche',
   className,
   containerClassName,
+  placeholder = ' ',
   ref,
   ...props
 }: SearchFieldProps) {
@@ -54,16 +56,15 @@ function SearchField({
       <input
         ref={inputRef}
         type="search"
+        placeholder={placeholder}
         value={value}
         onChange={(event) => onValueChange(event.target.value)}
         className={cn(
           [
-            'h-[44px] w-full min-w-0 rounded-lg border border-input bg-transparent',
+            'h-[44px] w-full min-w-0',
+            fieldSurface,
             'pr-[44px] pl-[40px] text-[16px]',
-            'placeholder:text-muted-foreground transition-colors outline-none',
-            'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
             '[&::-webkit-search-cancel-button]:appearance-none',
-            'dark:bg-input/30',
           ].join(' '),
           className,
         )}
@@ -77,7 +78,7 @@ function SearchField({
             onValueChange('')
             inputRef.current?.focus()
           }}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 absolute top-1/2 right-[4px] flex size-[36px] -translate-y-1/2 items-center justify-center rounded-full outline-none focus-visible:ring-[3px] pointer-coarse:touch-hitbox"
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 absolute top-1/2 right-[4px] flex size-[36px] -translate-y-1/2 items-center justify-center rounded-full outline-none focus-visible:ring-[3px] hover:bg-glass-fill pointer-coarse:touch-hitbox"
         >
           <XIcon aria-hidden className="size-[16px]" />
         </button>
