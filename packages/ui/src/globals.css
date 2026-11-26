@@ -81,10 +81,27 @@
   box-shadow: var(--glass-edge), var(--glass-shadow-md);
 }
 
-/* A field's well (inputs, pickers) and the segmented control's thumb. */
+/* A raised well: the segmented control's thumb. */
 @utility glass-well {
   background-color: var(--card);
   box-shadow: var(--glass-edge), var(--glass-shadow-sm);
+}
+
+/* A field (#507, the owner's « B · Creusé »): a faint hollow, no border. On
+   focus it turns the card's colour with a 1.5px primary edge (≥ 3:1) and a
+   soft glow; invalid, the same in the destructive colour (beside an icon or
+   a message, never colour alone). Box shadows only: nothing moves. */
+@utility glass-field {
+  background-color: var(--glass-fill);
+  box-shadow: var(--glass-field-inset);
+}
+@utility glass-field-focus {
+  background-color: var(--card);
+  box-shadow: var(--glass-edge), var(--glass-focus);
+}
+@utility glass-field-invalid {
+  background-color: color-mix(in oklch, var(--destructive) 5%, var(--card));
+  box-shadow: var(--glass-edge), var(--glass-invalid);
 }
 
 /* Behind a sheet or a dialog. */
@@ -342,6 +359,12 @@
   --glass-shadow-lg: 0 16px 40px -12px rgb(15 23 42 / 30%);
   --glass-shadow-primary: 0 6px 14px -8px oklch(from var(--primary) l c h / 70%);
   --glass-fill: oklch(from var(--foreground) l c h / 6%);
+  --glass-field-inset: inset 0 1px 2px rgb(15 23 42 / 10%);
+  --glass-focus:
+    0 0 0 1.5px var(--ring), 0 0 0 5px oklch(from var(--ring) l c h / 16%);
+  --glass-invalid:
+    0 0 0 1.5px var(--destructive),
+    0 0 0 5px oklch(from var(--destructive) l c h / 12%);
   --glass-overlay: rgb(15 23 42 / 18%);
   --glass-overlay-blur: 2px;
   /* #502's folder tab and the month's band under it: the app's light blue
@@ -460,6 +483,7 @@
   --glass-shadow-sm: 0 0 0 1px rgb(255 255 255 / 7%);
   --glass-shadow-md: 0 10px 24px -12px rgb(0 0 0 / 60%);
   --glass-shadow-lg: 0 16px 40px -12px rgb(0 0 0 / 70%);
+  --glass-field-inset: inset 0 1px 2px rgb(0 0 0 / 45%);
   --glass-overlay: rgb(0 0 0 / 40%);
   --line: var(--border);
 
@@ -552,6 +576,7 @@
     --glass-shadow-sm: 0 0 0 1px rgb(255 255 255 / 7%);
     --glass-shadow-md: 0 10px 24px -12px rgb(0 0 0 / 60%);
     --glass-shadow-lg: 0 16px 40px -12px rgb(0 0 0 / 70%);
+    --glass-field-inset: inset 0 1px 2px rgb(0 0 0 / 45%);
     --glass-overlay: rgb(0 0 0 / 40%);
     --line: var(--border);
 

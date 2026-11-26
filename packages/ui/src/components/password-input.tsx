@@ -1,5 +1,6 @@
 import { EyeIcon, EyeOffIcon } from 'lucide-react'
 import * as React from 'react'
+import { fieldSurface } from '../lib/field'
 import { cn } from '../lib/utils'
 
 type PasswordInputProps = Omit<React.ComponentProps<'input'>, 'type'>
@@ -18,14 +19,9 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
             [
               'h-9 w-full min-w-0',
               'px-3 py-1 pr-11',
-              'rounded-lg border border-input bg-transparent',
+              fieldSurface,
               'text-base md:text-sm',
-              'transition-colors outline-none',
-              'placeholder:text-muted-foreground',
-              'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
-              'disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50',
-              'aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20',
-              'dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40',
+              'disabled:pointer-events-none',
             ].join(' '),
             className,
           )}
@@ -37,7 +33,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
           aria-label={
             visible ? 'Masquer le mot de passe' : 'Afficher le mot de passe'
           }
-          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-muted-foreground hover:text-foreground transition-colors"
+          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-control text-muted-foreground hover:text-foreground transition-colors"
           tabIndex={-1}
         >
           {visible ? (

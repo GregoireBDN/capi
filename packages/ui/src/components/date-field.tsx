@@ -11,6 +11,7 @@ import {
   localDateToDay,
   todayInParis,
 } from '../lib/calendar-day'
+import { fieldSurface } from '../lib/field'
 import { cn } from '../lib/utils'
 import { Button } from './button'
 import { Calendar } from './calendar'
@@ -238,17 +239,14 @@ function DateField({
         .join(' ')}
       className={cn(
         [
-          // Like `Input`: same height, border, focus and invalid states
+          // Like `Input`: same height, hollow, focus and invalid states;
+          // lit while its calendar is open
           'flex h-9 w-full min-w-0 items-center justify-between gap-2',
           'px-3 py-1',
-          'rounded-lg border border-input bg-transparent',
+          fieldSurface,
+          'aria-expanded:glass-field-focus data-[state=open]:glass-field-focus',
           'text-left text-base text-foreground md:text-sm',
-          'transition-colors outline-none',
-          'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
-          'disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50',
-          'aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20',
-          'dark:bg-input/30 dark:disabled:bg-input/80',
-          'dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40',
+          'disabled:pointer-events-none',
         ].join(' '),
         className,
       )}
