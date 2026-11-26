@@ -9,7 +9,7 @@ Money set aside for a goal (#429, [ADR 0008](../adr/0008-envelopes.md), decision
 - **Split key** (`PUT /api/accounts/:id/envelope-key`, the whole key): basis points per envelope (1–10 000, at most 10 000 in all, the rest « libre »; archived envelopes take none). Kept rows keep their creation time, which dates the key.
 - **Offers** (`GET /api/envelopes/offers`), nothing attached without the owner:
   - `savings`: an incoming income or transfer row created after the account's key, not split, not answered, and not the arriving side of a transfer that already carries an envelope (same amount, linked back, `TRANSFER_MATCH_TOLERANCE_DAYS` apart), with each envelope's share by the key (rounded down to the cent). Confirmed with `POST /api/envelopes/splits/:transactionId` (the key, or `shares` given, at most the saving), once.
-  - `transfers`: a transfer out with a counterpart, booked since envelopes hold money on the account, with the envelopes holding money there (most first).
+  - `transfers`: a transfer out with a counterpart, with the envelopes holding money on its account that existed on its booking day (most first): like expenses, counted from each envelope's creation (the owner, 26 Nov), so attaching an old transfer brings no older ones.
   - `expenses`: an expense in an envelope's categories (any of its lines), booked since the envelope was created (Paris day), on an account where it holds money.
   - « Non »: `POST /api/envelopes/offers/:transactionId/dismiss` (`envelope_offer_dismissals`), for every offer on that transaction.
 - **Attaching** (`POST /api/envelopes/:id/transactions`, one envelope per transaction, 409 otherwise):

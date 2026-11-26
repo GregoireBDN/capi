@@ -532,6 +532,18 @@ describe.skipIf(!process.env.DATABASE_URL)(
             },
             { now: EARLY },
           )
+          await tx
+            .update(envelopesTable)
+            .set({ createdAt: EARLY })
+            .where(eq(envelopesTable.id, lisbon.id))
+          // Booked before the envelope existed: never offered.
+          const [older] = await insert(
+            tx,
+            row(livret, '2026-10-20', -5_000, 'transfer', {
+              categoryId: move,
+              counterpartAccountId: checking,
+            }),
+          )
           const [out] = await insert(
             tx,
             row(livret, '2026-11-04', -100_000, 'transfer', {
@@ -553,6 +565,11 @@ describe.skipIf(!process.env.DATABASE_URL)(
           ).toEqual([
             { envelopeId: lisbon.id, name: 'Lisbonne', amountCents: 30_000 },
           ])
+          expect(
+            offers.transfers.some(
+              (o) => o.transaction.transactionId === older.id,
+            ),
+          ).toBe(false)
 
           const before = await netWorth(accounts)
           const after = await envelopes.attach(lisbon.id, {

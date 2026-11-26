@@ -281,16 +281,26 @@ export class EnvelopesService {
     const [holdings, names, keys] = await Promise.all([
       this.holdings(executor),
       executor
-        .select({ id: e.id, name: e.name, archivedAt: e.archivedAt })
+        .select({
+          id: e.id,
+          name: e.name,
+          archivedAt: e.archivedAt,
+          createdOn: sql<string>`(${e.createdAt} at time zone 'Europe/Paris')::date::text`,
+        })
         .from(e),
       executor.select().from(envelopeSplitKeysTable),
     ])
     const active = new Map(
       names.filter((n) => n.archivedAt === null).map((n) => [n.id, n.name]),
     )
-    /** Active envelopes holding money on an account, most first. */
-    const holdersOn = (accountId: string) =>
+    const createdOn = new Map(names.map((n) => [n.id, n.createdOn]))
+    /**
+     * Active envelopes holding money on an account, most first; with
+     * `since`, only those that existed on that day (ADR 0008 §7).
+     */
+    const holdersOn = (accountId: string, since?: string) =>
       [...active]
+        .filter(([envelopeId]) => !since || createdOn.get(envelopeId)! <= since)
         .map(([envelopeId, name]) => ({
           envelopeId,
           name,
@@ -332,14 +342,14 @@ export class EnvelopesService {
         )
         .orderBy(desc(t.bookingDate), desc(t.id))
         .limit(OFFERS_LIMIT),
-      // Transfers out, booked since envelopes hold money on the account.
+      // Transfers out, booked once an envelope existed (per envelope below).
       executor
         .select(columns)
         .from(t)
         .where(
           sql`${t.kind} = 'transfer' and ${t.amountCents} < 0 and ${t.counterpartAccountId} is not null and ${open}
               and not ${attached("'transfer'")}
-              and ${t.bookingDate} >= (select min(x.on_date) from ${m} x where x.account_id = ${t.accountId})`,
+              and ${t.bookingDate} >= (select min((y.created_at at time zone 'Europe/Paris')::date) from ${e} y where y.archived_at is null)`,
         )
         .orderBy(desc(t.bookingDate), desc(t.id))
         .limit(OFFERS_LIMIT),
@@ -406,14 +416,14 @@ export class EnvelopesService {
       ]
     })
     const transferOffers: EnvelopeOfferDto[] = transfers.flatMap((row) => {
-      const holders = holdersOn(row.accountId!)
+      const holders = holdersOn(row.accountId!, row.bookingDate)
       return holders.length === 0
         ? []
         : [{ transaction: toTransaction(row), envelopes: holders }]
     })
     const byExpense = new Map<string, EnvelopeOfferDto>()
     for (const row of expenses) {
-      const holder = holdersOn(row.accountId!).find(
+      const holder = holdersOn(row.accountId!, row.bookingDate).find(
         (h) => h.envelopeId === row.envelopeId,
       )
       if (!holder) continue
