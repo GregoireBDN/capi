@@ -96,6 +96,31 @@ function Amount({
   )
 }
 
+/** A few words above a value, muted. */
+function Labeled({
+  label,
+  children,
+  center = false,
+}: {
+  label: string
+  children: ReactNode
+  center?: boolean
+}) {
+  return (
+    <span
+      className={cn(
+        'inline-flex flex-col gap-0.5',
+        center ? 'items-center' : 'items-start',
+      )}
+    >
+      <span className="text-muted-foreground text-xs whitespace-nowrap">
+        {label}
+      </span>
+      {children}
+    </span>
+  )
+}
+
 function Toggle({ on }: { on: boolean }) {
   return (
     <div className="flex items-center gap-2 text-sm">
@@ -132,9 +157,13 @@ function ChipsOffer() {
         <div className="flex items-center gap-3">
           <Avatar name="Sam" />
           <div className="flex flex-1 items-center gap-1.5">
-            <Amount cents={1000} dir="in" />
-            <ArrowLeftRightIcon className="text-muted-foreground size-4" />
-            <Amount cents={3000} dir="out" />
+            <Labeled label="Sam te doit">
+              <Amount cents={1000} dir="in" />
+            </Labeled>
+            <ArrowLeftRightIcon className="text-muted-foreground mt-4 size-4" />
+            <Labeled label="Tu lui dois">
+              <Amount cents={3000} dir="out" />
+            </Labeled>
           </div>
           <Button
             size="sm"
@@ -145,12 +174,14 @@ function ChipsOffer() {
             iconStart={<XIcon />}
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-end gap-2">
           <Button className="flex-1" iconStart={<ArrowLeftRightIcon />}>
             Compenser
           </Button>
-          <ArrowRightIcon className="text-muted-foreground size-4" />
-          <Amount cents={2000} dir="out" />
+          <ArrowRightIcon className="text-muted-foreground mt-4 size-4" />
+          <Labeled label="Il restera">
+            <Amount cents={2000} dir="out" />
+          </Labeled>
         </div>
       </CardContent>
     </Card>
@@ -168,11 +199,17 @@ export const A_Pastilles: Story = {
         <Card size="sm">
           <CardContent className="flex flex-col items-center gap-3 py-2">
             <Avatar name="Sam" size="lg" />
-            <Amount cents={2000} dir="out" big />
+            <Labeled label="Tu dois à Sam" center>
+              <Amount cents={2000} dir="out" big />
+            </Labeled>
             <div className="flex items-center gap-2">
-              <Amount cents={1000} dir="in" />
-              <ArrowLeftRightIcon className="text-muted-foreground size-4" />
-              <Amount cents={3000} dir="out" />
+              <Labeled label="Sam te doit" center>
+                <Amount cents={1000} dir="in" />
+              </Labeled>
+              <ArrowLeftRightIcon className="text-muted-foreground mt-4 size-4" />
+              <Labeled label="Tu lui dois" center>
+                <Amount cents={3000} dir="out" />
+              </Labeled>
             </div>
             <Button className="w-full" iconStart={<ArrowLeftRightIcon />}>
               Compenser
@@ -184,7 +221,9 @@ export const A_Pastilles: Story = {
         <Card size="sm">
           <CardContent className="flex flex-col items-center gap-3 py-2">
             <Avatar name="Sam" size="lg" auto />
-            <Amount cents={2000} dir="out" big />
+            <Labeled label="Tu dois à Sam" center>
+              <Amount cents={2000} dir="out" big />
+            </Labeled>
             <div className="w-full space-y-2 border-t pt-2">
               <Toggle on />
               <Done />
@@ -220,6 +259,9 @@ function Arrows({ owed, owe }: { owed: number; owe: number }) {
           <ArrowDownLeftIcon className="size-4 -scale-x-100 rotate-45" />
         )}
         {cents / 100} €{dir === 'out' && <ArrowRightIcon className="size-4" />}
+        <span className="text-muted-foreground text-xs font-normal">
+          {dir === 'in' ? 'Sam te doit' : 'tu lui dois'}
+        </span>
       </span>
       <div
         className={cn(
@@ -269,7 +311,10 @@ export const B_Fleches: Story = {
           <CardContent className="flex flex-col gap-3">
             <Arrows owed={1000} owe={3000} />
             <div className="text-muted-foreground flex justify-center">
-              <ArrowLeftRightIcon className="size-5 rotate-90" />
+              <span className="inline-flex items-center gap-1 text-xs">
+                <ArrowLeftRightIcon className="size-4 rotate-90" />
+                Après compensation
+              </span>
             </div>
             <Arrows owed={0} owe={2000} />
           </CardContent>
@@ -346,17 +391,26 @@ export const C_Balance: Story = {
       <Phone title="Dans la liste">
         <Card size="sm">
           <CardContent className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <Amount cents={1000} dir="in" />
-              <Amount cents={3000} dir="out" />
+            <div className="flex items-end justify-between">
+              <Labeled label="Sam te doit">
+                <Amount cents={1000} dir="in" />
+              </Labeled>
+              <span className="text-muted-foreground text-xs">
+                s'annulent ⇄
+              </span>
+              <Labeled label="Tu lui dois">
+                <Amount cents={3000} dir="out" />
+              </Labeled>
             </div>
             <Cancels />
-            <div className="flex items-center gap-2">
+            <div className="flex items-end gap-2">
               <Button className="flex-1" iconStart={<ArrowLeftRightIcon />}>
                 Compenser
               </Button>
-              <ArrowRightIcon className="text-muted-foreground size-4" />
-              <Amount cents={2000} dir="out" />
+              <ArrowRightIcon className="text-muted-foreground mt-4 size-4" />
+              <Labeled label="Il restera">
+                <Amount cents={2000} dir="out" />
+              </Labeled>
             </div>
           </CardContent>
         </Card>
@@ -373,9 +427,16 @@ export const C_Balance: Story = {
             >
               20 €
             </p>
-            <div className="flex justify-center gap-2">
-              <Amount cents={1000} dir="in" />
-              <Amount cents={3000} dir="out" />
+            <p className="text-muted-foreground -mt-2 text-center text-xs">
+              Tu dois à Sam
+            </p>
+            <div className="flex justify-center gap-3">
+              <Labeled label="Sam te doit" center>
+                <Amount cents={1000} dir="in" />
+              </Labeled>
+              <Labeled label="Tu lui dois" center>
+                <Amount cents={3000} dir="out" />
+              </Labeled>
             </div>
           </CardContent>
         </Card>
@@ -391,6 +452,9 @@ export const C_Balance: Story = {
               )}
             >
               20 €
+            </p>
+            <p className="text-muted-foreground -mt-2 text-center text-xs">
+              Tu dois à Sam
             </p>
             <div className="space-y-2 border-t pt-2">
               <Toggle on />
