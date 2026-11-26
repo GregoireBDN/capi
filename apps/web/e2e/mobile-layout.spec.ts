@@ -206,14 +206,6 @@ const SCENARIOS: Array<Scenario> = [
   { name: 'month-review', path: '/month-review' },
   { name: 'subscriptions', path: '/subscriptions' },
   { name: 'savings', path: '/savings' },
-  {
-    name: 'savings-goal-editor',
-    path: '/savings',
-    step: async (page) => {
-      await clickFirst(/^Modifier l’objectif/)(page)
-      await page.getByRole('dialog').waitFor()
-    },
-  },
   { name: 'crypto', path: '/crypto' },
   {
     name: 'crypto-holding-editor',

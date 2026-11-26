@@ -576,7 +576,6 @@ describe('AccountEditor', () => {
       walletKeys: 0,
       recurringItems: 1,
       rules: 0,
-      savingsGoals: 1,
       closedMonths: 3,
     }
 
@@ -609,7 +608,6 @@ describe('AccountEditor', () => {
         '12 imports',
         '30 soldes enregistrés',
         '1 abonnement détecté',
-        'son lien avec 1 objectif d’épargne',
       ])
         expect(screen.getByText(line)).toBeInTheDocument()
       expect(
@@ -651,7 +649,6 @@ describe('AccountEditor', () => {
           imports: 0,
           snapshots: 0,
           recurringItems: 0,
-          savingsGoals: 0,
           closedMonths: 0,
         }),
       )
