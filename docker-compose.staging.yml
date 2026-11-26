@@ -8,8 +8,9 @@
 #
 # Same images as production (CAPI_VERSION=sha-<commit>), own database
 # volume (DB_VOLUME=finances-staging_db_data, its name before step B), own secrets and host name, no published
-# port. It only ever holds the demo data: each deploy wipes the database and
-# seeds it again (seed-demo.js --reset). What must never differ from that is
+# port. It starts from the demo data (seed-demo.js --if-empty on an empty
+# database), keeps its data between deploys and is reset only on demand
+# (deploy.sh --staging --reset-demo, #494). What must never differ from that is
 # fixed here rather than in `.env`: the database name, the switches below,
 # web's `APP_ENVIRONMENT` (#454) and its alias on the `proxy` network.
 name: capi-staging

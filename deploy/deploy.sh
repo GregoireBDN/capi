@@ -2,7 +2,7 @@
 # Deploy a Capi release on the server (see docs/runbooks/deploy.md).
 #
 #   deploy.sh vX.Y.Z [compose-file]
-#   deploy.sh --staging sha-<commit> [compose-file]
+#   deploy.sh --staging [--reset-demo] sha-<commit> [compose-file]
 #
 # Runs as the `deploy` user in CAPI_DIR (FINANCES_DIR before #464; default
 # /srv/capi), next to docker-compose.prod.yml and .env. Steps: install the
@@ -37,9 +37,10 @@
 # version is an image tag sha-<commit>, the compose project must end in
 # `-staging` (and must not in production), and it runs docker-compose.prod.yml with the
 # docker-compose.staging.yml override (installed from the compose file's
-# directory along with it). After the seed it wipes the database and fills it
-# with the demo data (seed-demo.js --reset), so staging never holds anything
-# else. It refuses to run the MCP adapter, and refuses a configuration that
+# directory along with it). After the seed it fills an empty database with the
+# demo data (seed-demo.js --if-empty) and keeps one that has data, so staging's
+# data survives a deploy (#494); --reset-demo wipes it and seeds the demo data
+# again (seed-demo.js --reset). It refuses to run the MCP adapter, and refuses a configuration that
 # would answer on one of `web`'s production aliases on the `proxy` network.
 #
 # The output is also appended to deploy.log in that directory, and SIGHUP is ignored,
@@ -47,9 +48,14 @@
 set -euo pipefail
 
 mode=production
+reset_demo=false
 if [[ ${1:-} == --staging ]]; then
   mode=staging
   shift
+  if [[ ${1:-} == --reset-demo ]]; then
+    reset_demo=true
+    shift
+  fi
 fi
 
 if [[ $mode == staging ]]; then
@@ -82,7 +88,7 @@ log() { printf '[deploy %s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 
 usage() {
   echo "usage: $0 vX.Y.Z [compose-file]" >&2
-  echo "       $0 --staging sha-<commit> [compose-file]" >&2
+  echo "       $0 --staging [--reset-demo] sha-<commit> [compose-file]" >&2
   exit 2
 }
 
@@ -332,8 +338,13 @@ compose run --rm -T api node dist/database/seed.js || rollback "seed"
 
 if [[ $mode == staging ]]; then
   # One transaction: a failure leaves the previous data in place.
-  log "resetting the demo data"
-  compose run --rm -T api node dist/database/seed-demo.js --reset || rollback "demo data"
+  if [[ $reset_demo == true ]]; then
+    log "resetting the demo data"
+    compose run --rm -T api node dist/database/seed-demo.js --reset || rollback "demo data"
+  else
+    log "demo data on an empty database, existing data kept"
+    compose run --rm -T api node dist/database/seed-demo.js --if-empty || rollback "demo data"
+  fi
 fi
 
 log "starting $version"

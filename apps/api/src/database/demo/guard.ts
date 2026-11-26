@@ -5,8 +5,9 @@
  * specs' `finances_test`): never production, never the owner's `finances`.
  *
  * The one exception is staging (#421): it runs the production images
- * (`NODE_ENV=production`) and is reset with the demo data on every deploy.
- * There the seed runs only on the database its compose override names in
+ * (`NODE_ENV=production`), gets the demo data when its database is empty
+ * and keeps its data between deploys, reset only on demand (#494). There the
+ * seed runs only on the database its compose override names in
  * `DEMO_STAGING_DATABASE`, a name ending in `_staging`; `finances` stays
  * refused whatever the variable says.
  */
