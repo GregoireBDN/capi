@@ -159,7 +159,7 @@ function ShareBar({
 }) {
   const percent = Math.round(share * 100)
   return (
-    <span className="grid grid-cols-[4.5rem_1fr_auto] items-center gap-3 text-xs">
+    <span className="contents">
       <span className="text-muted-foreground">{label}</span>
       <span
         role="meter"
@@ -175,7 +175,7 @@ function ShareBar({
           style={{ width: `${Math.min(share, 1) * 100}%` }}
         />
       </span>
-      <span className="min-w-10 text-right font-medium whitespace-nowrap tabular-nums">
+      <span className="text-right font-medium whitespace-nowrap tabular-nums">
         {percent} %
       </span>
     </span>
@@ -203,7 +203,8 @@ function MonthVsBudget({
 }) {
   const spent = targetCents > 0 ? spentCents / targetCents : 0
   return (
-    <span className="block space-y-2">
+    // One grid for both bars, so they start and end at the same place.
+    <span className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-2 text-xs">
       <ShareBar
         label="Mois"
         share={days > 0 ? day / days : 0}
