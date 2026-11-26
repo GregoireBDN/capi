@@ -28,21 +28,18 @@ export function SkillSheet({
       title="Le Skill Capi"
       action={
         <Button
-          type="button"
+          asChild
+          variant="primary"
           className="min-h-11 flex-1 font-medium"
-          onClick={onClose}
         >
-          Terminé
-        </Button>
-      }
-    >
-      <div className="space-y-4 text-sm">
-        <Button asChild variant="primary" fullWidth className="min-h-11">
           <a href={SKILL_ZIP_URL} download="capi-skill.zip">
             <DownloadIcon aria-hidden className="size-4" />
             Télécharger le Skill
           </a>
         </Button>
+      }
+    >
+      <div className="space-y-4 text-sm">
         <ol className="list-decimal space-y-1 pl-5">
           <li>claude.ai › Paramètres › Fonctionnalités</li>
           <li>Skills › «&nbsp;Importer un skill&nbsp;» › ce fichier</li>
