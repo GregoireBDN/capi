@@ -11,7 +11,10 @@ import {
   Settings2Icon,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { categoryIconComponent } from '#/components/categories/category-icons'
+import {
+  CategoryAvatar,
+  categoryIconComponent,
+} from '#/components/categories/category-icons'
 import { envelopeColor } from '#/components/envelopes/format'
 import { envelopesQuery } from '#/components/envelopes/queries'
 import type {
@@ -557,14 +560,31 @@ export function addDays(day: string, days: number): string {
     .slice(0, 10)
 }
 
-const dayMonth = new Intl.DateTimeFormat('fr-FR', {
-  month: 'short',
+const weekdayDay = new Intl.DateTimeFormat('fr-FR', {
+  weekday: 'short',
+  day: 'numeric',
   timeZone: 'UTC',
 })
 
 /**
- * « Prélèvements »: the confirmed debits expected in the next 7 or 30 days
- * (subscriptions, fixed costs, prepaid renewals), soonest first.
+ * When a debit falls, in a few letters: « Aujourd’hui », « Demain », else
+ * the short weekday and the day (« Sam. 28 », « Mar. 1er »).
+ */
+export function debitDay(date: string, today: string): string {
+  if (date === today) return 'Aujourd’hui'
+  if (date === addDays(today, 1)) return 'Demain'
+  const label = weekdayDay
+    .format(new Date(`${date}T00:00:00Z`))
+    .replace(/ 1$/, ' 1er')
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
+
+/**
+ * « Prélèvements » (#495, the owner's « A. Total en tête »): what the
+ * confirmed debits expected in the next 7 or 30 days (subscriptions, fixed
+ * costs, prepaid renewals) add up to, in large, then each one with its
+ * category's icon and its day, soonest first. A debit is always money out:
+ * no minus sign.
  */
 export function UpcomingElement({
   widget,
@@ -606,6 +626,10 @@ export function UpcomingElement({
         (chosen === null || chosen.has(item.accountId)),
     )
     .sort((a, b) => a.nextExpectedDate!.localeCompare(b.nextExpectedDate!))
+  const total = debits.reduce(
+    (sum, item) => sum + Math.abs(item.typicalAmountCents),
+    0,
+  )
   return (
     <ElementCard title={title} to={ROUTES.subscriptions}>
       {debits.length === 0 ? (
@@ -614,32 +638,42 @@ export function UpcomingElement({
           Rien de prévu
         </Quiet>
       ) : (
-        <ul>
-          {debits.slice(0, UPCOMING_ROWS).map((item) => {
-            const date = item.nextExpectedDate!
-            return (
+        <>
+          <p
+            data-testid="upcoming-total"
+            className="px-2 pb-2 text-[2rem] leading-tight font-semibold tracking-tight whitespace-nowrap tabular-nums"
+          >
+            {formatWholeEuros(total)}
+          </p>
+          <ul className="border-t pt-1">
+            {debits.slice(0, UPCOMING_ROWS).map((item) => (
               <ElementRow
                 key={item.id}
                 badge={
-                  <span
-                    aria-hidden
-                    className="bg-info/15 text-info-foreground dark:text-info flex size-[34px] shrink-0 flex-col items-center justify-center rounded-lg leading-none"
-                  >
-                    <span className="text-sm font-bold">
-                      {Number(date.slice(8, 10))}
-                    </span>
-                    <span className="text-[0.5rem]">
-                      {dayMonth.format(new Date(`${date}T00:00:00Z`))}
-                    </span>
-                  </span>
+                  <CategoryAvatar
+                    category={
+                      item.categoryId === null
+                        ? null
+                        : { color: item.categoryColor, icon: item.categoryIcon }
+                    }
+                    className="size-[34px]"
+                  />
                 }
                 title={item.name}
-                value={`−${formatWholeEuros(item.typicalAmountCents)}`}
+                detail={debitDay(item.nextExpectedDate!, today)}
+                value={formatWholeEuros(Math.abs(item.typicalAmountCents))}
                 link={{ to: ROUTES.subscriptions }}
               />
-            )
-          })}
-        </ul>
+            ))}
+          </ul>
+          {debits.length > UPCOMING_ROWS && (
+            <p className="text-muted-foreground px-2 pt-1 text-xs">
+              {debits.length - UPCOMING_ROWS === 1
+                ? '1 autre'
+                : `${debits.length - UPCOMING_ROWS} autres`}
+            </p>
+          )}
+        </>
       )}
     </ElementCard>
   )

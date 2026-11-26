@@ -655,6 +655,49 @@ describe('DashboardPage', () => {
     ).toEqual(['balances', 'owed', 'net_worth'])
   })
 
+  it('adds up the week’s debits, each with its day and no minus sign', async () => {
+    api.dashboardLayoutControllerGet.mockImplementation(() =>
+      ok({ custom: true, widgets: [widget('upcoming_debits')] }),
+    )
+    api.recurringControllerList.mockImplementation(() =>
+      ok([
+        recurring({
+          id: '30000000-0000-4000-8000-000000000011',
+          name: 'Loyer test',
+          nextExpectedDate: '2026-11-24',
+          typicalAmountCents: 95_000,
+        }),
+        recurring({
+          id: '30000000-0000-4000-8000-000000000012',
+          name: 'Eau test',
+          nextExpectedDate: '2026-11-22',
+          typicalAmountCents: 8_400,
+        }),
+        // After the 7 days: left out of the total.
+        recurring({
+          id: '30000000-0000-4000-8000-000000000013',
+          name: 'Plus tard test',
+          nextExpectedDate: '2026-12-05',
+          typicalAmountCents: 1_000,
+        }),
+      ]),
+    )
+    renderPage()
+    expect(await screen.findByTestId('upcoming-total')).toHaveTextContent(
+      euros(103_400),
+    )
+    const rows = screen
+      .getAllByRole('link')
+      .filter((link) => /Eau test|Loyer test/.test(link.textContent))
+    expect(rows.map((row) => row.textContent.replace(/\s/g, ' '))).toEqual([
+      expect.stringContaining('Demain'),
+      expect.stringContaining('Mar. 24'),
+    ])
+    expect(rows[0]).toHaveTextContent(euros(8_400))
+    expect(screen.queryByText(/−/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Plus tard test')).not.toBeInTheDocument()
+  })
+
   it('orders « Soldes » by balance when asked, the largest first', async () => {
     api.dashboardLayoutControllerGet.mockImplementation(() =>
       ok({
