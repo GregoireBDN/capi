@@ -148,13 +148,6 @@ export type PositionStatementSource =
   (typeof POSITION_STATEMENT_SOURCES)[number]
 
 /**
- * Where a savings goal's current amount comes from: the balances of its
- * linked accounts, or an amount entered by hand.
- */
-export const SAVINGS_GOAL_SOURCES = ['accounts', 'manual'] as const
-export type SavingsGoalSource = (typeof SAVINGS_GOAL_SOURCES)[number]
-
-/**
  * Where a crypto account's holdings come from: an exchange's exports
  * (`exchange`), a self-custody wallet read from its public keys (`wallet`), or
  * typed by hand (`manual`, the only source before #127).
