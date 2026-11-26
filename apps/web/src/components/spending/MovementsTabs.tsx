@@ -59,7 +59,7 @@ export function MovementsTabs({
               'focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:ring-inset',
               active
                 ? 'bg-primary/9 text-foreground font-semibold'
-                : 'text-muted-foreground hover:text-foreground',
+                : 'text-glass-muted-foreground hover:text-foreground',
             )}
           >
             {label}

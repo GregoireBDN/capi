@@ -39,9 +39,9 @@ export function MonthBarSlot() {
       data-month-bar={monthPage || undefined}
       className={
         // Shown on a month page only: once its month is in, or keeping its
-        // room until then. Glass (#434): the header's colour and blur, a
-        // shadow below instead of a line, one block with the header.
-        'relative z-10 hidden shrink-0 bg-(--header-bg) shadow-[0_10px_24px_-14px_var(--glass-shadow)] backdrop-blur-lg has-[[data-month-placeholder]]:block has-[[data-page-month]:not(:empty)]:block'
+        // room until then. Glass chrome (#434, #504): the header's colour and
+        // blur, a shadow below instead of a line, one block with the header.
+        'glass-chrome relative z-10 hidden shrink-0 has-[[data-month-placeholder]]:block has-[[data-page-month]:not(:empty)]:block'
       }
     >
       {tabs && (

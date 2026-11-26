@@ -52,7 +52,7 @@ export function AppHeader({ user }: { user: UserDto }) {
       className={cn(
         // Its line drawn inside (no border), so its 3rem stay whole and the
         // 44px buttons sit on whole pixels (#434).
-        'bg-(--header-bg) group/header relative z-20 flex h-12 shrink-0 items-center gap-1 px-2 shadow-[inset_0_-1px_0_var(--border)] backdrop-blur-lg md:gap-2 md:px-3',
+        'bg-glass-chrome group/header relative z-20 flex h-12 shrink-0 items-center gap-1 px-2 shadow-[inset_0_-1px_0_var(--border)] backdrop-blur-(--glass-blur) md:gap-2 md:px-3',
         staging && 'env-banner',
       )}
     >

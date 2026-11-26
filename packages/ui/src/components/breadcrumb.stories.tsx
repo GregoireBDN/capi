@@ -59,7 +59,7 @@ function Trail({
 function Bar({ width, children }: { width: number; children: ReactNode }) {
   return (
     <div
-      className="flex h-12 items-center border-y bg-(--header-bg) px-2"
+      className="flex h-12 items-center border-y bg-glass-chrome px-2"
       style={{ width }}
     >
       {children}
