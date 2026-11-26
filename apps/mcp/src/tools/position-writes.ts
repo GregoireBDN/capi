@@ -107,7 +107,7 @@ export const syncSecurityPositionsTool = defineTool({
   name: 'sync_security_positions',
   title: 'Synchroniser les lignes d’un PEA ou d’un compte-titres',
   description:
-    "Record the lines of a PEA or a compte-titres read from a broker's statement (« relevé de portefeuille ») on its day: every security held that day by ISIN with its quantity, PRU (average cost per unit) and price, and the cash (« liquidités »). The statement is the whole account: a line left out was sold. Without confirm: preview of new / changed / removed / unchanged lines, the cash and the account's value that day before → after. With confirm: true writes the statement and its prices (a price typed by hand that day is kept); the account's value then follows its lines, except on a day with a value typed by hand, which keeps its day. A repeated call changes nothing. Copy the digits from the document; never compute or round them. PEA and compte-titres accounts only; deleting a statement is done in the app.",
+    "Record every line of a PEA or compte-titres from a broker's statement (« relevé de portefeuille ») on its day: ISIN, quantity, PRU, price, and the cash. The statement is the whole account: a line left out was sold. The account's value then follows its lines, except on a day with a value typed by hand. Copy the digits; never compute or round. Method: Capi skill, « placements ».",
   write: { idempotent: true },
   inputSchema: {
     account: z

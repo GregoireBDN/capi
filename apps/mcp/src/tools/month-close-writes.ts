@@ -74,7 +74,7 @@ export const closeMonthsTool = defineTool({
   name: 'close_months',
   title: 'Clôturer des mois',
   description:
-    'Close months of the guided month-end review ("Bilan du mois"): freezes each month’s report (totals per category, income, expenses, savings, net worth) as the data stands now. Only months before the current one (Europe/Paris) can be closed. `month` closes one month; `allBefore: true` closes every past month left open since the first month ever closed, up to the previous month (with `from` when no month was ever closed). Steps still open do not prevent a close: the preview lists them. Without confirm: preview per month (already closed / to close, what is still open). With confirm: true closes the months still open, oldest first; already closed months are skipped. Reopening is done in the app.',
+    'Close months of the « Bilan du mois »: freezes each report as the data stands now. Past months only. `month` closes one; `allBefore: true` every past month left open since the first one ever closed (`from` when none was). Open steps do not block a close: the preview lists them. Reopening is done in the app.',
   write: { idempotent: true },
   inputSchema: {
     month: z

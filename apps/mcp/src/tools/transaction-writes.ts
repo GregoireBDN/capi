@@ -57,7 +57,7 @@ export const addTransactionTool = defineTool({
   name: 'add_transaction',
   title: 'Ajouter une opération',
   description:
-    'Enter a transaction by hand (expense, income or internal transfer), e.g. "12,50 € at the bakery yesterday". It counts in statistics and budgets at once; when the bank export is imported, the matching bank row replaces it, keeping its category and note. Without confirm: preview (resolved account, category, day, sign and same-day same-amount transactions already there). With confirm: true it is created once; a same-day same-amount transaction on the account blocks it unless allowDuplicate is true (so a repeated call never adds it twice).',
+    'Enter a transaction by hand (expense, income or internal transfer), e.g. "12,50 € at the bakery yesterday". It counts at once; the bank row replaces it on import, keeping its category and note. The preview shows same-day same-amount transactions already there: one blocks the create unless allowDuplicate.',
   write: { idempotent: true },
   inputSchema: {
     amount: z
@@ -241,7 +241,7 @@ export const categorizeTransactionsTool = defineTool({
   name: 'categorize_transactions',
   title: 'Catégoriser des opérations',
   description:
-    'Set the category of one or several transactions (by id), filed by hand so rules never overwrite it; it takes them out of the review queue and gives them the category\'s kind (a categorized transaction always has it: to change the kind, choose a category of that kind). "uncategorized" removes the category. Without confirm: preview of each change (current → new), transactions already right are skipped. With confirm: true applies only what is still needed. Splits are ended by a category for the whole transaction.',
+    'Set the category of one or several transactions (by id), filed by hand so rules never overwrite it; they leave the review queue and take the category\'s kind (to change a kind, choose a category of that kind). "uncategorized" removes the category. A category for the whole transaction ends a split.',
   write: { idempotent: true },
   inputSchema: {
     ids: transactionIdsSchema,

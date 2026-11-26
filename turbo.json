@@ -37,6 +37,10 @@
     },
     "test": {
       "dependsOn": ["^build"]
+    },
+    "@capi/mcp#test": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "../../skills/capi/**"]
     }
   }
 }

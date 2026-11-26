@@ -72,7 +72,7 @@ export const shareExpenseTool = defineTool({
   name: 'share_expense',
   title: 'J’ai payé pour quelqu’un',
   description:
-    'Say who owes the owner what on an expense he paid (a restaurant, a rent, tickets): « moitié » with one person, « parts égales » between the people and the owner (rounded half to even, the remainder on the owner), or an amount each as text. The owner’s spending then counts only his part, in the expense’s category and month, and each person’s share shows in owed_to_me until it is repaid (link_repayment) or let go (in the app). Without confirm: preview (each share, the owner’s part, the category affected, what each person owes before → after). With confirm: true the shares are saved; people who already have that share are left as they are, so a repeated call changes nothing. New names become contacts. Changing or removing a share is done in the app.',
+    "Say who owes the owner what on an expense he paid: « moitié » with one person, « parts égales » with the owner, or an amount each. The owner's spending then counts only his part; each share shows in owed_to_me until repaid (link_repayment) or let go (in the app). New names become contacts. Changing a share is done in the app.",
   write: { idempotent: true },
   inputSchema: {
     id: z
@@ -198,7 +198,7 @@ export const linkRepaymentTool = defineTool({
   name: 'link_repayment',
   title: 'Lier un remboursement',
   description:
-    'Link a transfer to what it repays: money in from someone who owed the owner (shared expenses), or money out the owner sent to repay someone who paid for him. The linked part is neither income nor spending; what is left of the transfer stays in its own category. `items`: "auto" takes the suggestion (the oldest open items adding up to the transfer exactly, else the closest without going over), or list item ids from owed_to_me with an optional amount each (default: what is left on it). `contact` picks whose items (default: the person whose bank words match the label, else the one owed the most). Without confirm: preview (the items, what stays in the category, what the person owes before → after). With confirm: true the links are saved; items already linked to this transfer are not linked again, so a repeated call changes nothing. Never past the transfer nor past what is left on an item. Unlinking is done in the app.',
+    'Link a transfer to what it repays: money in from someone who owed the owner, or money out repaying someone who paid for him. The linked part is neither income nor spending. `items`: "auto" (the oldest open items adding up to the transfer, else the closest without going over) or item ids from owed_to_me with optional amounts. Never past the transfer or what is left on an item. Unlinking is done in the app.',
   write: { idempotent: true },
   inputSchema: {
     id: z

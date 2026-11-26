@@ -45,8 +45,9 @@ const DEFAULT_FILE_NAME = 'releve.csv'
 const UNRECOGNISED = 'Unrecognised CSV format'
 
 /**
- * The standard cash format (docs/domain/import-formats.md), for the tool
- * descriptions: what Claude converts any statement into.
+ * The standard cash format (docs/domain/import-formats.md), told in the
+ * « Format non reconnu » error: what Claude converts any statement into. The
+ * tool description only names it; the method lives in the Capi skill (#497).
  */
 export const STANDARD_FORMAT_HELP =
   'Standard format: a header line `date;amount;label;balance` (balance optional, value_date optional; columns in any order, unknown ones are listed and ignored), dates YYYY-MM-DD, amounts signed in euros (negative = money out, `.` or `,` as decimal mark, no thousands separator but a space), one line per bank operation as printed, UTF-8, `;` `,` or tab as separator (quote a label holding the separator).'
@@ -344,7 +345,7 @@ function describePreview(
 export const previewBankImportTool = defineTool({
   name: 'preview_bank_import',
   title: 'Aperçu d’un import de relevé',
-  description: `Preview a bank statement for a checking or savings account, exactly like the app's import page. The file is the CIC CSV export as downloaded, a CSV whose header the app already knows (a format saved in the app), or any other statement (PDF, another bank's export, a pasted table) that you first convert into the app's standard format and pass as content. ${STANDARD_FORMAT_HELP} Lines that cannot be read and columns that are not read are listed in the preview, never imported. Rows already imported are recognized (re-importing a file or an overlapping period adds nothing), probable duplicates from another source are shown as conflicts, the running balance is checked for missing rows and categories are proposed by the rules. Give either filePath (the file on the owner's machine, e.g. ~/Downloads/export.csv) or content (the CSV text). Returns a previewId with counts, the continuity check and the rows that would be added. ${NOTHING_WRITTEN} Show the preview to the owner first. Needs a write token. The preview expires after 24 hours.`,
+  description: `Preview a bank statement for a checking or savings account, like the app's import page: new, already imported and conflicting rows, the running balance check, proposed categories. The file is the CIC CSV export, a CSV of a format saved in the app, or any other statement converted into the standard format (header \`date;amount;label;balance\`, signed euros, YYYY-MM-DD; full method: Capi skill, « import de relevé »). Give filePath (owner's machine) or content (the CSV text). ${NOTHING_WRITTEN} The previewId expires after 24 hours.`,
   write: { idempotent: true },
   inputSchema: {
     account: z
@@ -517,7 +518,7 @@ export const commitBankImportTool = defineTool({
   name: 'commit_bank_import',
   title: 'Valider un import de relevé',
   description:
-    'Commit a preview made by preview_bank_import: writes its new rows (atomically) after the owner agreed. Without confirm: shows again what would be written. With confirm: true: imports the new rows, leaves out the conflicts unless includeConflicts is true, and returns how many were added and the rows that went to the review queue, with their ids for categorize_transactions. Rows imported by another import since the preview count as already there; committing an already committed preview changes nothing. Needs a write token; undoing an import is done in the app.',
+    'Commit a preview made by preview_bank_import, once the owner agreed: writes its new rows at once (conflicts only with includeConflicts) and returns the rows that went to the review queue, with their ids. Committing twice changes nothing. Undoing an import is done in the app.',
   write: { idempotent: true },
   inputSchema: {
     previewId: z
