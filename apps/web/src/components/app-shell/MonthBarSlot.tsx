@@ -5,15 +5,15 @@ import { MovementsTabs } from '#/components/spending/MovementsTabs'
 
 /**
  * Where a month page's month goes (#401, the owner's « B. Barre du mois »,
- * then « barre d'outils + état », #505): glass bars at the top of the page,
+ * then « barre d'outils + état », #505): white bars at the top of the page,
  * above its title, scrolling with it, not part of the header (the owner,
  * #505). `MonthNavigator` renders into it through a portal. A month
  * page's route declares `staticData.monthBar`, so the bar's room is kept
  * from the first render until its month is in (`data-month-placeholder`,
  * hidden by `globals.css` then): nothing moves on load. On Mouvements
  * and Opérations, the two tabs « Résumé · Opérations » come first
- * (#498, `staticData.movementsTab`): before the month in the same glass bar
- * on a computer, a glass bar of their own above it on a phone (#505).
+ * (#498, `staticData.movementsTab`): before the month in the same white bar
+ * on a computer, a white bar of their own above it on a phone (#505).
  */
 export function MonthBarSlot() {
   const setMonthSlot = useSetPageMonthSlot()
@@ -37,14 +37,14 @@ export function MonthBarSlot() {
       data-month-bar={monthPage || undefined}
       // Shown on a month page only: once its month is in, or keeping its
       // room until then. Not part of the header (the owner, #505): the
-      // toolbar's glass bars are the top of the page, above its title, and
+      // toolbar's white bars are the top of the page, above its title, and
       // scroll with it.
       className="relative z-10 hidden shrink-0 has-[[data-month-placeholder]]:block has-[[data-page-month]:not(:empty)]:block"
     >
       {/* The month's toolbar (#505, the owner's « barre d'outils + état »),
-          as wide as the page's content: on a computer one glass bar, the
+          as wide as the page's content: on a computer one white bar, the
           tabs, then ‹ · the month and its state · ›; on a phone the tabs and
-          the month each a glass bar of their own, the month without its
+          the month each a white bar of their own, the month without its
           state (too much room, the owner). */}
       <div className="mx-auto w-full max-w-5xl px-4 pt-4 sm:px-6">
         <div
@@ -52,7 +52,7 @@ export function MonthBarSlot() {
           className={cn(
             'flex flex-col gap-2',
             'md:flex-row md:items-center md:gap-1.5',
-            'md:bg-glass-fill md:rounded-full md:p-[4px]',
+            'md:bg-card md:rounded-full md:p-[4px] md:shadow-[var(--glass-edge),var(--glass-shadow-md)] md:dark:bg-[oklch(from_var(--card)_calc(l+0.04)_c_h)]',
           )}
         >
           {tabs && (
@@ -84,9 +84,11 @@ export function MonthBarSlot() {
   )
 }
 
-/** A glass track like a segmented control's (#506), 44px high with its 36px
- * raised white buttons (the owner, #505: buttons that stand out). */
-const BAR = 'bg-glass-fill rounded-full p-[4px]'
+/** A white bar with the sheen and a soft shadow, 44px high with its 36px
+ * grey buttons (the owner, #505). */
+const BAR =
+  'bg-card rounded-full p-[4px] shadow-[var(--glass-edge),var(--glass-shadow-md)] dark:bg-[oklch(from_var(--card)_calc(l+0.04)_c_h)]'
 
 /** Undoes `BAR` from `md` up, where the whole toolbar is one bar. */
-const PHONE_ONLY = 'md:rounded-none md:bg-transparent md:p-0'
+const PHONE_ONLY =
+  'md:rounded-none md:bg-transparent md:p-0 md:shadow-none md:dark:bg-transparent'

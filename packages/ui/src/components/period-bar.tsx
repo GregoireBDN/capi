@@ -53,19 +53,18 @@ type PeriodBarStatusProps = Omit<React.ComponentProps<'div'>, 'children'> & {
  * STYLES
  * ========================================================================= */
 
-/** The period's button (#505, the owner's « barre d'outils + état »): a
- * raised white piece with the sheen and a small shadow, like a segmented
- * control's thumb. */
+/** A grey piece of the white toolbar (#505, the owner: a white bar, grey
+ * buttons), like the toolbar's open tab. */
 const PIECE = cn(
-  'bg-card text-foreground shadow-[var(--glass-edge),var(--glass-shadow-sm)] hover:bg-card',
-  'dark:bg-[oklch(from_var(--card)_calc(l+0.08)_c_h)] dark:hover:bg-[oklch(from_var(--card)_calc(l+0.08)_c_h)]',
+  'bg-foreground/[0.07] text-foreground hover:bg-foreground/[0.11]',
+  'dark:bg-foreground/[0.1] dark:hover:bg-foreground/[0.15]',
 )
 
-/** A round arrow, a raised white piece like the period, 44px to the touch. */
+/** A round arrow, 44px to the touch; off, a pale arrow without its disc. */
 const ARROW = cn(
   PIECE,
   'size-[calc(2rem-8px)] min-h-0 min-w-0 shrink-0 rounded-full pointer-coarse:touch-hitbox [&_svg]:size-[1.1rem]',
-  'disabled:bg-transparent disabled:opacity-45 disabled:shadow-none dark:disabled:bg-transparent',
+  'disabled:bg-transparent disabled:opacity-35 dark:disabled:bg-transparent',
 )
 
 /* ============================================================================
@@ -75,9 +74,8 @@ const ARROW = cn(
 /**
  * The period of a page, part of the app's frame (#401, the owner's « B.
  * Barre du mois », then « barre d'outils + état », #505): ‹ · 📅 period ·
- * ›. The arrows and the period are raised white buttons on the toolbar's
- * glass track, like a segmented control's thumb (the owner, #505); the
- * period opens a picker. Between the period and › a `PeriodBarStatus` can say how far its
+ * ›. The arrows and the period are grey buttons on the toolbar's white
+ * bar (the owner, #505); the period opens a picker. Between the period and › a `PeriodBarStatus` can say how far its
  * data goes (the app shows it on a computer only). The app lays it on a
  * white toolbar at the top of the page, fixed under its header.
  * `PeriodBarLabel` switches to its short text when its container (put the
@@ -96,7 +94,7 @@ function PeriodBar({
       role="group"
       className={cn(
         // As wide as its container (#505): ‹ · the period (and its state) · ›,
-        // raised white pieces laid on the app's glass toolbar.
+        // grey pieces laid on the app's white toolbar.
         'flex w-full min-w-0 items-center gap-1.5',
         className,
       )}
