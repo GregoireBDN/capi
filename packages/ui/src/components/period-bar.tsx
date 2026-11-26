@@ -32,7 +32,7 @@ type PeriodBarProps = Omit<React.ComponentProps<'div'>, 'children'> & {
 type PeriodBarLabelProps = Omit<React.ComponentProps<'button'>, 'children'> & {
   /** The period shown ("Novembre 2026"). */
   text: string
-  /** Shown instead of `text` in containers under 300px ("nov. 2026"). */
+  /** Shown instead of `text` in containers under 420px ("nov. 2026"): a phone. */
   shortText?: string
 }
 
@@ -61,7 +61,7 @@ const PIECE = 'glass-key text-primary-foreground hover:text-primary-foreground'
  * key faded, so it keeps its shape (the owner). */
 const ARROW = cn(
   PIECE,
-  'size-[calc(2rem-8px)] min-h-0 min-w-0 shrink-0 rounded-full pointer-coarse:touch-hitbox [&_svg]:size-[1.1rem]',
+  'size-[calc(2rem+4px)] md:size-[calc(2rem-8px)] min-h-0 min-w-0 shrink-0 rounded-full pointer-coarse:touch-hitbox [&_svg]:size-[1.2rem]',
   'disabled:opacity-40',
 )
 
@@ -78,7 +78,8 @@ const ARROW = cn(
  * data goes (the app shows it on a computer only). The app lays it on a
  * white toolbar at the top of the page, fixed under its header.
  * `PeriodBarLabel` switches to its short text when its container (put the
- * bar in a `@container`) is under 300px.
+ * bar in a `@container`) is under 420px: on a phone, where its keys are
+ * 48px to be easy to tap (the owner, #505).
  */
 function PeriodBar({
   previous,
@@ -147,21 +148,22 @@ function PeriodBarLabel({
       ghost
       className={cn(
         PIECE,
-        'h-[calc(2rem-8px)] min-h-0 min-w-0 flex-1 gap-1.5 rounded-full px-3 text-base leading-none font-semibold',
+        'h-[calc(2rem+4px)] md:h-[calc(2rem-8px)] min-h-0 min-w-0 flex-1 gap-1.5 rounded-full px-3 text-base leading-none font-semibold',
         className,
       )}
       {...props}
     >
       <CalendarDaysIcon
         aria-hidden
-        // In the text's colour, as high as its capitals (the owner, #505).
-        className="size-[1.05em]! shrink-0"
+        // In the text's colour, as high as its capitals (the owner, #505);
+        // left out on the narrowest phones, so the month stays whole.
+        className="hidden size-[1.05em]! shrink-0 @[300px]:block"
       />
       <span aria-live="polite" className="min-w-0 truncate">
-        <span className={shortText ? 'hidden @[300px]:inline' : undefined}>
+        <span className={shortText ? 'hidden @[420px]:inline' : undefined}>
           {text}
         </span>
-        {shortText && <span className="@[300px]:hidden">{shortText}</span>}
+        {shortText && <span className="@[420px]:hidden">{shortText}</span>}
       </span>
     </Button>
   )

@@ -42,6 +42,11 @@ function monthAbbreviation(monthNumber: number): string {
   return shortMonth.format(new Date(Date.UTC(2000, monthNumber - 1, 1)))
 }
 
+/** "nov. 2026" → "Nov. 2026" (the short month on a phone, #505). */
+function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
 /** Oldest year the picker offers when there is no data before it. */
 const YEARS_BACK = 5
 
@@ -306,7 +311,7 @@ export function MonthNavigator({
           <PeriodBarLabel
             aria-label={`${name}, choisir un mois`}
             text={name}
-            shortText={label ?? formatShortMonth(month)}
+            shortText={label ?? capitalise(formatShortMonth(month))}
             // As wide as its name beside the state on a computer.
             className="md:flex-none"
           />

@@ -61,13 +61,13 @@ export function MonthBarSlot() {
             <div
               ref={setMonthSlot}
               data-page-month
-              className="@container flex h-[calc(2rem-8px)] items-center empty:hidden"
+              className="@container flex h-[calc(2rem+4px)] items-center empty:hidden md:h-[calc(2rem-8px)]"
             />
             {monthPage && (
               <div
                 data-month-placeholder
                 aria-hidden
-                className="h-[calc(2rem-8px)]"
+                className="h-[calc(2rem+4px)] md:h-[calc(2rem-8px)]"
               />
             )}
           </div>
@@ -77,6 +77,6 @@ export function MonthBarSlot() {
   )
 }
 
-/** A white bar, slightly hollow (`glass-bar`), 44px high with its 36px
- * keys (the owner's « piste 4 », #505). */
+/** A white bar, slightly hollow (`glass-bar`), 56px high with its 48px keys on a phone, 44px with 36px
+ * keys on a computer (the owner's « piste 4 », #505). */
 const BAR = 'glass-bar rounded-full p-[4px]'

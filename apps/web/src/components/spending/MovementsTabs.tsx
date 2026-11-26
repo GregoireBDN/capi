@@ -58,7 +58,7 @@ export function MovementsTabs({
             aria-current={active ? 'page' : undefined}
             data-active={active || undefined}
             className={cn(
-              'relative flex h-[calc(2rem-8px)] min-w-0 items-center justify-center gap-2 rounded-full text-sm leading-none font-medium whitespace-nowrap no-underline transition-[color,background-color] outline-none pointer-coarse:touch-hitbox',
+              'relative flex h-[calc(2rem+4px)] md:h-[calc(2rem-8px)] min-w-0 items-center justify-center gap-2 rounded-full text-sm leading-none font-medium whitespace-nowrap no-underline transition-[color,background-color] outline-none pointer-coarse:touch-hitbox',
               'focus-visible:ring-ring/85 focus-visible:ring-[3px]',
               active
                 ? 'glass-key font-semibold'
@@ -66,16 +66,18 @@ export function MovementsTabs({
             )}
           >
             {/* The label alone is centred in its half, as « Résumé » is; the
-                count hangs after it (the owner, #505). */}
+                count is a small badge on its top right corner on a phone,
+                beside it on a computer (the owner, #505). */}
             <span className="relative">
               {label}
               {key === 'operations' &&
                 reviewCount !== null &&
                 reviewCount > 0 && (
                   <CountPill
-                    // A round disc, not a tag (the owner, #434), on the
-                    // label's capitals.
-                    className="absolute top-1/2 left-full ml-1.5 h-[20px] min-w-[20px] -translate-y-[calc(50%+1px)] px-0 text-[11px] tabular-nums [&>span]:[text-box:trim-both_cap_alphabetic]"
+                    // A round disc, not a tag (the owner, #434), like a
+                    // notification on a phone, on the label's capitals on a
+                    // computer.
+                    className="absolute bottom-[calc(100%-0.45em)] left-[calc(100%-0.1em)] h-[18px] min-w-[18px] px-0.5 text-[10px] tabular-nums md:top-1/2 md:bottom-auto md:left-full md:ml-1.5 md:h-[20px] md:min-w-[20px] md:-translate-y-[calc(50%+1px)] md:px-0 md:text-[11px] [&>span]:[text-box:trim-both_cap_alphabetic]"
                     value={reviewCount}
                     label={plural(
                       reviewCount,
