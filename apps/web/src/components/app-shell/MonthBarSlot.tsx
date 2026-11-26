@@ -44,10 +44,11 @@ export function MonthBarSlot() {
       className={cn(
         // Shown on a month page only: once its month is in, or keeping its
         // room until then. Glass chrome (#434, #504): the header's colour and
-        // blur, a shadow below instead of a line, one block with the header.
-        // Above the header from `md` up, where its tabs rise into the
-        // header's row (`MovementsTabs`, #505).
-        'glass-chrome relative z-10 hidden shrink-0 md:has-[[data-slot=movements-tabs]]:z-30 has-[[data-month-placeholder]]:block has-[[data-page-month]:not(:empty)]:block',
+        // blur, a shadow below instead of a line, one block with the header,
+        // on phones. From `md` up it belongs to the page's column, under
+        // the header and its shadow (the owner's « A · Bandeau fixe », #505):
+        // no chrome of its own, so every page has the same frame.
+        'glass-chrome relative z-10 hidden shrink-0 has-[[data-month-placeholder]]:block has-[[data-page-month]:not(:empty)]:block md:bg-transparent! md:shadow-none! md:backdrop-blur-none!',
         staging && 'env-banner',
       )}
     >
@@ -58,9 +59,10 @@ export function MonthBarSlot() {
           <MovementsTabs current={tabs.current} month={tabs.month} />
         </div>
       )}
-      {/* Under the tabs, the month is in the current tab's tint: the tab
-          opens onto it like a folder's (#434). */}
-      <div className={cn(tabs && 'bg-month-band')}>
+      {/* The month is always on its light blue band, with or without tabs
+          (#505); under tabs, the current one opens onto it like a folder's
+          (#434). */}
+      <div className="bg-month-band">
         {/* The bar fills the page's column, as wide as its content. */}
         <div
           ref={setMonthSlot}
