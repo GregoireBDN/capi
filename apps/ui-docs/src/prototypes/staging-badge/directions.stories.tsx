@@ -9,7 +9,7 @@ import {
   TrainFrontIcon,
   UtensilsIcon,
 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 
 import { cn } from '@capi/ui/lib/utils'
 
@@ -77,13 +77,16 @@ function Wordmark({
 
 function Header({
   banner,
+  style,
   children,
 }: {
   banner?: boolean
+  style?: CSSProperties
   children: ReactNode
 }) {
   return (
     <div
+      style={style}
       className={cn(
         'bg-glass-chrome relative z-20 flex h-12 items-center gap-2 px-2 shadow-[inset_0_-1px_0_var(--border)]',
         banner && 'env-banner',
@@ -183,11 +186,13 @@ function Phone({
   banner,
   top,
   floating,
+  headerStyle,
 }: {
   title: string
   note: string
   header: ReactNode
   banner?: boolean
+  headerStyle?: CSSProperties
   top?: ReactNode
   floating?: ReactNode
 }) {
@@ -202,7 +207,9 @@ function Phone({
         className="bg-background text-foreground relative h-[560px] overflow-hidden rounded-[1.6rem] shadow-[0_0_0_1px_rgb(0_0_0/8%)]"
       >
         {top}
-        <Header banner={banner}>{header}</Header>
+        <Header banner={banner} style={headerStyle}>
+          {header}
+        </Header>
         <MonthBar banner={banner} />
         <Page />
         {floating}
@@ -358,6 +365,120 @@ export const Directions: Story = {
       <SignedLogo />
       <FloatingTag />
       <Icon />
+    </div>
+  ),
+}
+
+/* ------------------------------------------- the flask, in other colours */
+
+/**
+ * The owner liked F (the flask) but not the yellow (#504's PR): the normal
+ * header, the flask in a colour of its own, never the app's blue.
+ */
+const FLASKS: {
+  title: string
+  note: string
+  badge: string
+  glow: string
+  word?: boolean
+  tint?: string
+  ink?: string
+}[] = [
+  {
+    title: 'F1 · Améthyste',
+    note: 'Dégradé violet → rose, petit halo.',
+    badge: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+    glow: 'rgb(168 85 247 / 45%)',
+  },
+  {
+    title: 'F2 · Coucher de soleil',
+    note: 'Dégradé corail → orange → rose.',
+    badge: 'linear-gradient(135deg, #fb7185, #f97316 55%, #f472b6)',
+    glow: 'rgb(249 115 22 / 40%)',
+  },
+  {
+    title: 'F3 · Menthe',
+    note: 'Dégradé émeraude → turquoise, frais.',
+    badge: 'linear-gradient(135deg, #10b981, #2dd4bf)',
+    glow: 'rgb(16 185 129 / 40%)',
+  },
+  {
+    title: 'F4 · Holographique',
+    note: 'Reflet irisé, comme une carte holo.',
+    badge:
+      'conic-gradient(from 210deg, #f0abfc, #a5b4fc, #67e8f9, #86efac, #fde68a, #fca5a5, #f0abfc)',
+    glow: 'rgb(192 132 252 / 40%)',
+    ink: '#3b0764',
+  },
+  {
+    title: 'F5 · Améthyste + mot',
+    note: 'La fiole et « staging » dans une pastille violette.',
+    badge: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+    glow: 'rgb(168 85 247 / 45%)',
+    word: true,
+  },
+  {
+    title: 'F6 · Améthyste + voile',
+    note: 'La fiole violette et un léger voile violet sur le header.',
+    badge: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+    glow: 'rgb(168 85 247 / 45%)',
+    tint: 'linear-gradient(90deg, rgb(139 92 246 / 14%), rgb(236 72 153 / 10%))',
+  },
+]
+
+function Flask({
+  badge,
+  glow,
+  word,
+  ink,
+}: {
+  badge: string
+  glow: string
+  word?: boolean
+  ink?: string
+}) {
+  return (
+    <span
+      aria-label="Staging"
+      className={cn(
+        'grid shrink-0 place-items-center rounded-full text-white',
+        word ? 'flex h-7 items-center gap-1 px-2.5' : 'size-7',
+      )}
+      style={{
+        background: badge,
+        color: ink,
+        boxShadow: `0 2px 8px ${glow}, inset 0 1px 0 rgb(255 255 255 / 35%)`,
+      }}
+    >
+      <FlaskConicalIcon
+        className="size-[0.75rem] drop-shadow-[0_1px_1px_rgb(0_0_0/25%)]"
+        strokeWidth={2.4}
+      />
+      {word && (
+        <span className="text-xs leading-none font-semibold">staging</span>
+      )}
+    </span>
+  )
+}
+
+/** The flask on the normal header, in six colours. */
+export const Fiole: Story = {
+  render: () => (
+    <div className="flex flex-wrap gap-6 p-4">
+      {FLASKS.map(({ title, note, badge, glow, word, tint, ink }) => (
+        <Phone
+          key={title}
+          title={title}
+          note={note}
+          headerStyle={tint ? { backgroundImage: tint } : undefined}
+          header={
+            <>
+              <Wordmark />
+              <Flask badge={badge} glow={glow} word={word} ink={ink} />
+            </>
+          }
+        />
+      ))}
     </div>
   ),
 }
