@@ -53,14 +53,9 @@ export function deletionLines(
       'règles de catégorisation propres à ce compte',
     ],
   ]
-  const result = lines
+  return lines
     .filter(([n]) => n > 0)
     .map(([n, one, many]) => count(n, one, many))
-  if (preview.savingsGoals > 0)
-    result.push(
-      `son lien avec ${count(preview.savingsGoals, 'objectif d’épargne', 'objectifs d’épargne')}`,
-    )
-  return result
 }
 
 /** Typed names match whatever the case and spacing (iOS capitalises). */
