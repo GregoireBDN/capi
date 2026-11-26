@@ -2,6 +2,7 @@ import { act, fireEvent, render } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  BACK_SWIPE_EDGE,
   GESTURE_ATTRIBUTE,
   SWIPE_EDGE,
   dragProgress,
@@ -16,9 +17,12 @@ describe('swipeIntent', () => {
     expect(swipeIntent(4, 3)).toBeNull()
     expect(swipeIntent(40, 5)).toBe('sideways')
     expect(swipeIntent(-40, 10)).toBe('sideways')
-    // Mostly vertical, or slanting: the page's scroll.
+    // Slanting, up to 45°: still a swipe (the owner).
+    expect(swipeIntent(30, 25)).toBe('sideways')
+    expect(swipeIntent(20, -20)).toBe('sideways')
+    // Steeper: the page's scroll.
     expect(swipeIntent(5, 40)).toBe('vertical')
-    expect(swipeIntent(30, 25)).toBe('vertical')
+    expect(swipeIntent(20, 30)).toBe('vertical')
   })
 })
 
@@ -110,17 +114,31 @@ function Harness({ initial = false }: { initial?: boolean }) {
   )
 }
 
+/** Fires a touch event; false when the hook cancelled it. */
 function touch(
   type: 'touchStart' | 'touchMove' | 'touchEnd',
   target: Element,
   x: number,
   y = 300,
-) {
+): boolean {
   const point = [{ clientX: x, clientY: y }]
-  fireEvent[type](target, {
+  return fireEvent[type](target, {
     touches: type === 'touchEnd' ? [] : point,
     changedTouches: point,
   })
+}
+
+/** Media queries matching `matching` (the installed app, reduced motion). */
+function mediaMatching(...matching: string[]) {
+  vi.spyOn(window, 'matchMedia').mockImplementation(
+    (query: string) =>
+      ({
+        matches: matching.some((part) => query.includes(part)),
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }) as unknown as MediaQueryList,
+  )
 }
 
 describe('useSidebarSwipe (#446)', () => {
@@ -153,6 +171,71 @@ describe('useSidebarSwipe (#446)', () => {
     expect(sheet.style.transform).toBe('')
     expect(sheet.hasAttribute('data-gesture-opened')).toBe(true)
     expect(document.documentElement.hasAttribute(GESTURE_ATTRIBUTE)).toBe(false)
+  })
+
+  it('opens for a slanting swipe and follows the finger back and forth', () => {
+    const view = render(<Harness />)
+    const page = view.getByTestId('page')
+    touch('touchStart', page, 100, 300)
+    // 40° from horizontal: a swipe, and the page no longer scrolls.
+    expect(touch('touchMove', page, 112, 310)).toBe(false)
+    const sheet = view.getByTestId('sheet')
+    touch('touchMove', page, 250, 360)
+    expect(sheet.style.transform).toBe('translateX(-50%)')
+    // Pulled back, then out again, before letting go.
+    touch('touchMove', page, 130, 370)
+    expect(sheet.style.transform).toBe('translateX(-90%)')
+    touch('touchMove', page, 220, 380)
+    expect(sheet.style.transform).toBe('translateX(-60%)')
+  })
+
+  it('leaves a scroll to the page', () => {
+    const view = render(<Harness />)
+    const page = view.getByTestId('page')
+    touch('touchStart', page, 100, 300)
+    expect(touch('touchMove', page, 106, 340)).toBe(true)
+    expect(touch('touchMove', page, 140, 380)).toBe(true)
+    expect(view.queryByTestId('sheet')).toBeNull()
+  })
+
+  it('follows the finger with reduced motion too, then settles at once', () => {
+    mediaMatching('prefers-reduced-motion')
+    const view = render(<Harness />)
+    const page = view.getByTestId('page')
+    touch('touchStart', page, 100)
+    touch('touchMove', page, 160)
+    const sheet = view.getByTestId('sheet')
+    expect(sheet.style.transform).toBe('translateX(-80%)')
+    touch('touchMove', page, 280)
+    touch('touchEnd', page, 280)
+    expect(sheet.style.transform).toBe('')
+    expect(sheet.hasAttribute('data-gesture-opened')).toBe(true)
+  })
+
+  it('keeps the installed app edge from iOS, a tap there still clicks', () => {
+    mediaMatching('display-mode: standalone')
+    const onClick = vi.fn()
+    const view = render(
+      <>
+        <button type="button" onClick={onClick}>
+          ☰
+        </button>
+        <Harness />
+      </>,
+    )
+    const button = view.getByRole('button')
+    // At the edge: cancelled (no back swipe), and clicked once let go.
+    expect(touch('touchStart', button, BACK_SWIPE_EDGE - 4)).toBe(false)
+    touch('touchEnd', button, BACK_SWIPE_EDGE - 4)
+    expect(onClick).toHaveBeenCalledTimes(1)
+    // A swipe from there opens the sheet, and is no click.
+    touch('touchStart', button, 10)
+    touch('touchMove', button, 160)
+    expect(view.getByTestId('sheet')).toBeInTheDocument()
+    touch('touchEnd', button, 160)
+    expect(onClick).toHaveBeenCalledTimes(1)
+    // Further in: left alone.
+    expect(touch('touchStart', view.getByTestId('page'), 100)).toBe(true)
   })
 
   it('never opens for a scroll nor a swipe to the left', () => {
