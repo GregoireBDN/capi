@@ -390,14 +390,16 @@ describe('DashboardPage', () => {
     expect(screen.getByTestId('per-day')).toHaveTextContent(
       `${euros(9_000)}par jour · 11 j`,
     )
-    // Behind the pace of 2 000 € × 19 / 30: a pill, no sentence.
-    expect(screen.getByTestId('pace')).toHaveTextContent('Bon rythme')
-    expect(card).toHaveTextContent(`sur ${euros(200_000)}`)
+    // The month read to the 19th against the budget spent: two bars.
+    expect(within(card).getByRole('meter', { name: 'Mois' })).toHaveAttribute(
+      'aria-valuenow',
+      '63',
+    )
+    expect(
+      within(card).getByRole('meter', { name: 'Budget' }),
+    ).toHaveAttribute('aria-valuenow', '50')
     expect(card).not.toHaveTextContent('hors budget')
     expect(screen.getByTestId('data-until')).toHaveTextContent('au 19 nov.')
-    expect(
-      within(card).getByRole('meter', { name: 'Budget du mois' }),
-    ).toHaveAttribute('aria-valuenow', '100000')
   })
 
   it('says when the budget is spent past its target', async () => {
@@ -413,7 +415,10 @@ describe('DashboardPage', () => {
     const amount = await screen.findByTestId('left-to-spend')
     expect(amount).toHaveTextContent(euros(12_000))
     expect(screen.getByText('Dépassé · novembre')).toBeInTheDocument()
-    expect(screen.getByTestId('pace')).toHaveTextContent('Dépassé')
+    expect(screen.getByRole('meter', { name: 'Budget' })).toHaveAttribute(
+      'aria-valuenow',
+      '106',
+    )
     expect(screen.queryByTestId('per-day')).not.toBeInTheDocument()
   })
 

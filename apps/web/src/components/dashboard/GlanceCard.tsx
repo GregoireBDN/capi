@@ -1,9 +1,7 @@
 import { Card, cn } from '@capi/ui'
 import { Link } from '@tanstack/react-router'
 import {
-  CheckIcon,
   ChevronRightIcon,
-  GaugeIcon,
   TriangleAlertIcon,
 } from 'lucide-react'
 import type { MonthReviewDto } from '#/api/types.gen'
@@ -28,41 +26,6 @@ export function readDay(review: MonthReviewDto, today: string): number {
   }
   if (period.status === 'empty') return 0
   return Number(today.slice(8, 10))
-}
-
-/** How the spending holds against the pace, as a pill: a word, no sentence. */
-function PacePill({ pace }: { pace: Pace }) {
-  const { label, className, Icon } =
-    pace.state === 'over'
-      ? {
-          label: 'Dépassé',
-          className: 'bg-chart-delta-bad/10 text-chart-delta-bad',
-          Icon: TriangleAlertIcon,
-        }
-      : pace.state === 'ahead'
-        ? {
-            label: 'Rythme rapide',
-            className:
-              'bg-warning/20 text-warning-foreground dark:text-warning',
-            Icon: GaugeIcon,
-          }
-        : {
-            label: 'Bon rythme',
-            className: 'bg-chart-delta-good/10 text-chart-delta-good',
-            Icon: CheckIcon,
-          }
-  return (
-    <span
-      data-testid="pace"
-      className={cn(
-        'flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap',
-        className,
-      )}
-    >
-      <Icon aria-hidden className="size-3.5 shrink-0" />
-      {label}
-    </span>
-  )
 }
 
 /**
@@ -158,17 +121,13 @@ export function GlanceCard({
                 </span>
               )}
             </span>
-            <PaceBar
+            <MonthVsBudget
+              day={day}
+              days={days}
               spentCents={budget.spentCents}
               targetCents={budget.targetCents}
-              paceCents={pace.paceCents}
+              pace={pace}
             />
-            <span className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground text-xs whitespace-nowrap tabular-nums">
-                sur {formatWholeEuros(budget.targetCents)}
-              </span>
-              <PacePill pace={pace} />
-            </span>
           </Link>
         )}
         {budget.budgetCount === 0 && (
@@ -186,43 +145,88 @@ export function GlanceCard({
   )
 }
 
-/** Spent against the target, with the even pace as a mark. */
-function PaceBar({
+/**
+ * One labelled bar of « Mois vs budget »: its label, the bar, the share in
+ * whole percent. Spans: it sits inside the link to Budget.
+ */
+function ShareBar({
+  label,
+  share,
+  barClassName,
+  valueText,
+}: {
+  label: string
+  share: number
+  barClassName: string
+  valueText: string
+}) {
+  const percent = Math.round(share * 100)
+  return (
+    <span className="grid grid-cols-[4.5rem_1fr_auto] items-center gap-3 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span
+        role="meter"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        aria-valuetext={valueText}
+        className="bg-muted relative block h-2 rounded-full"
+      >
+        <span
+          className={cn(
+            'absolute inset-y-0 left-0 rounded-full',
+            barClassName,
+          )}
+          style={{ width: `${Math.min(share, 1) * 100}%` }}
+        />
+      </span>
+      <span className="min-w-10 text-right font-medium whitespace-nowrap tabular-nums">
+        {percent} %
+      </span>
+    </span>
+  )
+}
+
+/**
+ * « Mois vs budget » (#495, the owner's « B »; a mark on one bar read as a
+ * mystery line): how much of the month is gone (to the day the data goes
+ * to) over how much of the budget is spent. A budget bar shorter than the
+ * month's is on pace: green, orange ahead of it, red once over.
+ */
+function MonthVsBudget({
+  day,
+  days,
   spentCents,
   targetCents,
-  paceCents,
+  pace,
 }: {
+  day: number
+  days: number
   spentCents: number
   targetCents: number
-  paceCents: number
+  pace: Pace
 }) {
-  const ratio = targetCents > 0 ? spentCents / targetCents : 0
-  const over = ratio > 1
-  const ahead = !over && spentCents > paceCents && ratio >= 0.8
+  const spent = targetCents > 0 ? spentCents / targetCents : 0
   return (
-    // Spans: it sits inside the link to Budget.
-    <span
-      role="meter"
-      aria-label="Budget du mois"
-      aria-valuemin={0}
-      aria-valuemax={targetCents}
-      aria-valuenow={spentCents}
-      aria-valuetext={`${formatWholeEuros(spentCents)} dépensés sur ${formatWholeEuros(targetCents)}, rythme du mois : ${formatWholeEuros(paceCents)}`}
-      className="bg-muted relative block h-3 rounded-full"
-    >
-      <span
-        className={cn(
-          'absolute inset-y-0 left-0 rounded-full',
-          over ? 'bg-chart-over' : ahead ? 'bg-chart-warning' : 'bg-primary',
-        )}
-        style={{ width: `${Math.min(ratio, 1) * 100}%` }}
+    <span className="block space-y-2">
+      <ShareBar
+        label="Mois"
+        share={days > 0 ? day / days : 0}
+        barClassName="bg-muted-foreground/50"
+        valueText={`Jour ${day} sur ${days}`}
       />
-      <span
-        aria-hidden
-        className="bg-foreground absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded"
-        style={{
-          left: `${targetCents > 0 ? Math.min(paceCents / targetCents, 1) * 100 : 0}%`,
-        }}
+      <ShareBar
+        label="Budget"
+        share={spent}
+        barClassName={
+          pace.state === 'over'
+            ? 'bg-chart-over'
+            : pace.state === 'ahead'
+              ? 'bg-chart-warning'
+              : 'bg-chart-delta-good'
+        }
+        valueText={`${formatWholeEuros(spentCents)} dépensés sur ${formatWholeEuros(targetCents)}`}
       />
     </span>
   )
