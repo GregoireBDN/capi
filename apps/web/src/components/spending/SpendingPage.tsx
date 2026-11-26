@@ -61,7 +61,6 @@ import {
   viewOf,
 } from './kinds'
 import { MonthFlow, PANEL_ID, tabId } from './MonthFlow'
-import { MovementsTabs } from './MovementsTabs'
 import type { MonthParts } from './MonthFlow'
 import { SpendingTrend } from './SpendingTrend'
 import type { TrendChip } from './SpendingTrend'
@@ -274,7 +273,6 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
         description="Où est passé l’argent ?"
         actions={pageActions({ kind, add: setAdding })}
       />
-      <MovementsTabs current="summary" month={search.month} />
       <ManualTransactionSheet
         open={adding !== null}
         onOpenChange={(open) => {

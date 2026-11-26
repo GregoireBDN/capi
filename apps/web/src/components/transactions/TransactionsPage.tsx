@@ -62,7 +62,6 @@ import { TransactionFilters } from './TransactionFilters'
 import type { SearchChangeOptions } from './TransactionFilters'
 import { TransactionList } from './TransactionList'
 import { FilterSum, ReviewAnswer } from './TransactionSummary'
-import { MovementsTabs } from '#/components/spending/MovementsTabs'
 import { useTransactionActions } from './use-transaction-actions'
 
 interface TransactionsPageProps {
@@ -361,7 +360,6 @@ export function TransactionsPage({
           },
         ]}
       />
-      <MovementsTabs current="operations" month={search.month} />
       <ManualTransactionSheet
         open={addKind !== null}
         onOpenChange={(open) => {

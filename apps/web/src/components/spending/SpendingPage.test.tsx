@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
-import { resetReviewCount, setReviewCount } from '#/lib/review-count'
+import { resetReviewCount } from '#/lib/review-count'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
@@ -429,13 +429,12 @@ describe('SpendingPage', () => {
     })
   })
 
-  it('opens Opérations, its second tab, on the month shown (#498)', async () => {
-    setReviewCount(7)
+  it('offers only the adds in its « ⋮ »: Opérations is a tab (#498)', async () => {
     renderPage()
     await screen.findByRole('region', { name: 'Comparaisons du mois' })
 
     // Outside the shell the page actions are buttons beside the title.
-    // The kind is chosen before adding (#398); Opérations is no longer one.
+    // The kind is chosen before adding (#398).
     for (const name of [
       'Ajouter une dépense',
       'Ajouter un revenu',
@@ -446,26 +445,6 @@ describe('SpendingPage', () => {
     expect(
       screen.queryByRole('button', { name: 'Voir les opérations' }),
     ).not.toBeInTheDocument()
-    const tabs = within(screen.getByRole('navigation', { name: 'Mouvements' }))
-    expect(tabs.getByRole('link', { name: 'Résumé' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    )
-    expect(
-      tabs.getByRole('link', {
-        name: /^Opérations\s*, 7 opérations à revoir$/,
-      }),
-    ).toHaveAttribute('href', '/transactions?month=2026-10')
-  })
-
-  it('opens Opérations on its default month without one in the URL (#498)', async () => {
-    renderPage({})
-    await screen.findByRole('region', { name: 'Comparaisons du mois' })
-    const tabs = within(screen.getByRole('navigation', { name: 'Mouvements' }))
-    expect(tabs.getByRole('link', { name: /^Opérations/ })).toHaveAttribute(
-      'href',
-      '/transactions',
-    )
   })
 
   it('ranks the categories with drill-down links to the transactions', async () => {

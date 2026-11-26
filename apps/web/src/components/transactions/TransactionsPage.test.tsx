@@ -672,31 +672,15 @@ describe('TransactionsPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('goes back to Mouvements, its first tab, on the month shown (#498)', async () => {
+  it('has no breadcrumb back to Mouvements: the tabs are (#498)', async () => {
     setup({ month: '2026-10', review: true })
     await waitForRows()
-    const tabs = within(screen.getByRole('navigation', { name: 'Mouvements' }))
-    expect(tabs.getByRole('link', { name: 'Résumé' })).toHaveAttribute(
-      'href',
-      '/spending?month=2026-10',
-    )
-    expect(tabs.getByRole('link', { name: /^Opérations/ })).toHaveAttribute(
-      'aria-current',
-      'page',
-    )
+    expect(
+      screen.queryByRole('link', { name: 'Mouvements' }),
+    ).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Ajouter une dépense' }),
     ).toBeInTheDocument()
-  })
-
-  it('goes back to Mouvements on its default month from every date (#498)', async () => {
-    setup({ month: 'all' })
-    await waitForRows()
-    const tabs = within(screen.getByRole('navigation', { name: 'Mouvements' }))
-    expect(tabs.getByRole('link', { name: 'Résumé' })).toHaveAttribute(
-      'href',
-      '/spending',
-    )
   })
 
   it('moves back to the default month, then to the whole history', async () => {
