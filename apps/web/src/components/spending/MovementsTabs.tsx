@@ -43,10 +43,10 @@ export function MovementsTabs({
     <nav
       aria-label="Mouvements"
       data-slot="movements-tabs"
-      // On a computer (#505): tabs of their own size, on the left like the
-      // page's title (the owner); they sit in the header's row, so no empty band
+      // On a computer (#505): tabs of their own size, at the start of the
+      // month's band (the owner); they sit in the header's row, so no empty band
       // is left above them.
-      className="grid grid-cols-2 gap-[6px] pt-[12px] md:-mt-12 md:ml-2 md:w-[17rem] md:pt-0 lg:w-[20rem]"
+      className="grid grid-cols-2 gap-[6px] pt-[12px] md:-mt-12 md:w-[17rem] md:pt-0 lg:w-[20rem]"
     >
       {TABS.map(({ key, to, label }) => {
         const active = key === current

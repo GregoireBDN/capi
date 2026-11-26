@@ -52,7 +52,9 @@ export function MonthBarSlot() {
       )}
     >
       {tabs && (
-        <div className="mx-auto w-full max-w-5xl px-2 sm:px-4">
+        // On a computer the tabs start where the band starts (the owner,
+        // #505).
+        <div className="mx-auto w-full max-w-5xl px-2 sm:px-4 md:max-w-none md:px-0">
           <MovementsTabs current={tabs.current} month={tabs.month} />
         </div>
       )}
