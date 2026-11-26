@@ -31,9 +31,9 @@ import type {
 } from '#/api/types.gen'
 import { SheetScroll, editorSide } from '#/components/sheets/form-sheet'
 import { AccountTypeBadge } from '#/components/transactions/filter-options'
+import { envelopesQuery } from '#/components/envelopes/queries'
 import { accountsQuery } from '#/lib/queries'
 import { CATALOGUE_ORDER, ELEMENTS, newElement } from './catalogue'
-import { envelopeSummariesQuery } from './elements'
 import { resetDashboardLayout, saveDashboardLayout } from './queries'
 import { reorder, useSortable } from './sortable'
 
@@ -506,7 +506,7 @@ function EnvelopeChoice({
   value: string[] | null
   onChange: (value: string[] | null) => void
 }) {
-  const { data } = useQuery(envelopeSummariesQuery)
+  const { data } = useQuery(envelopesQuery())
   const envelopes = (data ?? []).filter((envelope) => !envelope.archived)
   return (
     <Choice

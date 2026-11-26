@@ -104,7 +104,6 @@ const PUBLIC_ROUTES = [
 const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
   'PATCH /api/categorization-rules/:id': 'write',
   'PATCH /api/recurring/:id': 'write',
-  'PATCH /api/savings/goals/:id': 'write',
   'PATCH /api/transactions/:id': 'write',
   'PATCH /api/transactions/manual/:id': 'write',
   // #104: sync_crypto_holdings (MCP) adds and replaces hand-entered holdings;
@@ -135,7 +134,6 @@ const TOKEN_MUTATING_ROUTES: Record<string, TokenAccessLevel> = {
   'POST /api/receivables/payments': 'write',
   'POST /api/recurring/confirm': 'write',
   'POST /api/recurring/detect': 'write',
-  'POST /api/savings/goals': 'write',
   'POST /api/transactions/bulk-update': 'write',
   'POST /api/transactions/manual': 'write',
   'PUT /api/accounts/:id/holdings/:holdingId': 'write',

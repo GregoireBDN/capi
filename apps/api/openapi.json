@@ -9293,183 +9293,6 @@
         ]
       }
     },
-    "/api/savings/goals": {
-      "get": {
-        "description": "Each goal comes with its current amount (linked accounts’ balances or manual amount), progress, the saving needed per month to reach it by its date, and the date it would be reached at the average monthly savings (6 full months, one-offs excluded).",
-        "operationId": "SavingsController_listGoals",
-        "parameters": [
-          {
-            "description": "Also return archived goals (after the active ones).",
-            "required": false,
-            "name": "includeArchived",
-            "in": "query",
-            "schema": {
-              "default": false,
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SavingsGoalDto"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "token": []
-          }
-        ],
-        "summary": "Savings goals with progress and projection",
-        "tags": [
-          "Savings"
-        ]
-      },
-      "post": {
-        "operationId": "SavingsController_createGoal",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateGoalDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SavingsGoalDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid body, unknown account, or `source = accounts` without accounts."
-          },
-          "401": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "token": []
-          }
-        ],
-        "summary": "Create a savings goal",
-        "tags": [
-          "Savings"
-        ]
-      }
-    },
-    "/api/savings/goals/{id}": {
-      "patch": {
-        "description": "Omitted fields keep their value; `accountIds` replaces the linked accounts.",
-        "operationId": "SavingsController_updateGoal",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateGoalDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SavingsGoalDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid body, unknown account, or `source = accounts` without accounts."
-          },
-          "401": {
-            "description": ""
-          },
-          "404": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "token": []
-          }
-        ],
-        "summary": "Change, archive or restore a savings goal",
-        "tags": [
-          "Savings"
-        ]
-      },
-      "delete": {
-        "operationId": "SavingsController_removeGoal",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": ""
-          },
-          "401": {
-            "description": ""
-          },
-          "404": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "token": []
-          }
-        ],
-        "summary": "Delete a savings goal",
-        "tags": [
-          "Savings"
-        ]
-      }
-    },
     "/api/envelopes": {
       "get": {
         "description": "Money set aside for a goal: never a transaction, so net worth and statistics are untouched. Each envelope comes with its total, what it paid, its amount per account and the monthly amount needed to reach its target by its due date.",
@@ -15078,6 +14901,17 @@
             "nullable": true,
             "description": "Term in months of that prepaid subscription."
           },
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Envelope that paid this expense or carried its money with this transfer (#430, ADR 0008)."
+          },
+          "envelopeAmountCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "What that envelope paid of the expense, or carried with the transfer (positive)."
+          },
           "prepaidSuggestion": {
             "nullable": true,
             "description": "Rows of the review queue only (#439): a large debit that may be a fee paid for a year, offered as « Prépayé 12 mois ? ».",
@@ -15153,6 +14987,8 @@
           "manual",
           "prepaidItemId",
           "prepaidTermMonths",
+          "envelopeId",
+          "envelopeAmountCents",
           "originalAmountCents",
           "originalBookingDate",
           "splits",
@@ -15587,6 +15423,23 @@
           "shares"
         ]
       },
+      "EditEnvelopeDto": {
+        "type": "object",
+        "properties": {
+          "envelopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "What it pays of the expense or carries with the transfer; omitted = all it can (`POST /envelopes/{id}/transactions`)."
+          }
+        },
+        "required": [
+          "envelopeId"
+        ]
+      },
       "LinkItemDto": {
         "type": "object",
         "properties": {
@@ -15691,6 +15544,16 @@
             "minimum": 2,
             "maximum": 60,
             "description": "Prepaid term in months (#314): declares this expense as an upfront payment, or changes the term of the item it pays; `null` makes that item an ordinary one again."
+          },
+          "envelope": {
+            "nullable": true,
+            "description": "The envelope that pays this expense or carries this transfer’s money (#430): detached first when it changes, attached after the other fields; `null` detaches it.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EditEnvelopeDto"
+              }
+            ]
           },
           "repayments": {
             "$ref": "#/components/schemas/EditRepaymentsDto"
@@ -23246,257 +23109,6 @@
           "monthlyTargetCents"
         ]
       },
-      "SavingsGoalSource": {
-        "type": "string",
-        "enum": [
-          "accounts",
-          "manual"
-        ]
-      },
-      "GoalProjectionDto": {
-        "type": "object",
-        "properties": {
-          "averageMonthlyCents": {
-            "type": "integer",
-            "nullable": true,
-            "description": "Average monthly savings the projection uses."
-          },
-          "reachable": {
-            "type": "boolean",
-            "description": "False when the average is unknown or ≤ 0."
-          },
-          "monthsNeeded": {
-            "type": "integer",
-            "nullable": true
-          },
-          "projectedDate": {
-            "type": "string",
-            "format": "date",
-            "nullable": true,
-            "description": "Month end at which the target would be reached."
-          },
-          "onTrack": {
-            "type": "boolean",
-            "nullable": true,
-            "description": "Projected date ≤ target date; null without a target date, true once reached."
-          }
-        },
-        "required": [
-          "averageMonthlyCents",
-          "reachable",
-          "monthsNeeded",
-          "projectedDate",
-          "onTrack"
-        ]
-      },
-      "SavingsGoalDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string"
-          },
-          "targetCents": {
-            "type": "integer"
-          },
-          "targetDate": {
-            "type": "string",
-            "format": "date",
-            "nullable": true
-          },
-          "source": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SavingsGoalSource"
-              }
-            ]
-          },
-          "manualAmountCents": {
-            "type": "integer",
-            "nullable": true
-          },
-          "accountIds": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          "color": {
-            "type": "string",
-            "nullable": true
-          },
-          "archived": {
-            "type": "boolean"
-          },
-          "currentCents": {
-            "type": "integer",
-            "description": "Saved so far: the linked accounts’ known balances, or the manual amount."
-          },
-          "progressRatio": {
-            "type": "number",
-            "description": "`currentCents / targetCents` (may exceed 1)."
-          },
-          "remainingCents": {
-            "type": "integer"
-          },
-          "reached": {
-            "type": "boolean"
-          },
-          "monthsLeft": {
-            "type": "integer",
-            "nullable": true,
-            "description": "Month ends left until the target date (today’s month end included; 0 once passed), null without a date."
-          },
-          "targetDatePassed": {
-            "type": "boolean"
-          },
-          "requiredMonthlyCents": {
-            "type": "integer",
-            "nullable": true,
-            "description": "Saving needed per month to reach the target by its date; null without a date or once it has passed."
-          },
-          "projection": {
-            "$ref": "#/components/schemas/GoalProjectionDto"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "targetCents",
-          "targetDate",
-          "source",
-          "manualAmountCents",
-          "accountIds",
-          "color",
-          "archived",
-          "currentCents",
-          "progressRatio",
-          "remainingCents",
-          "reached",
-          "monthsLeft",
-          "targetDatePassed",
-          "requiredMonthlyCents",
-          "projection"
-        ]
-      },
-      "CreateGoalDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 100
-          },
-          "targetCents": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 1000000000,
-            "description": "Target amount in cents."
-          },
-          "targetDate": {
-            "type": "string",
-            "format": "date",
-            "nullable": true,
-            "description": "Calendar date to reach the target by; null = no deadline."
-          },
-          "source": {
-            "default": "accounts",
-            "description": "`accounts`: the current amount is the sum of the linked accounts’ balances (at least one account). `manual`: `manualAmountCents`.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SavingsGoalSource"
-              }
-            ]
-          },
-          "manualAmountCents": {
-            "type": "integer",
-            "nullable": true,
-            "minimum": 0,
-            "maximum": 1000000000,
-            "description": "Amount saved so far when `source = manual` (default 0)."
-          },
-          "accountIds": {
-            "maxItems": 20,
-            "description": "Linked accounts (any type, archived ones included).",
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          "color": {
-            "type": "string",
-            "nullable": true,
-            "pattern": "^#[0-9a-fA-F]{6}$",
-            "example": "#0284c7"
-          }
-        },
-        "required": [
-          "name",
-          "targetCents"
-        ]
-      },
-      "UpdateGoalDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 100
-          },
-          "targetCents": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 1000000000,
-            "description": "Target amount in cents."
-          },
-          "targetDate": {
-            "type": "string",
-            "format": "date",
-            "nullable": true,
-            "description": "Calendar date to reach the target by; null = no deadline."
-          },
-          "source": {
-            "default": "accounts",
-            "description": "`accounts`: the current amount is the sum of the linked accounts’ balances (at least one account). `manual`: `manualAmountCents`.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SavingsGoalSource"
-              }
-            ]
-          },
-          "manualAmountCents": {
-            "type": "integer",
-            "nullable": true,
-            "minimum": 0,
-            "maximum": 1000000000,
-            "description": "Amount saved so far when `source = manual` (default 0)."
-          },
-          "accountIds": {
-            "maxItems": 20,
-            "description": "Linked accounts (any type, archived ones included).",
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          "color": {
-            "type": "string",
-            "nullable": true,
-            "pattern": "^#[0-9a-fA-F]{6}$",
-            "example": "#0284c7"
-          },
-          "archived": {
-            "type": "boolean",
-            "description": "Archive (true) or restore (false) the goal."
-          }
-        }
-      },
       "EnvelopeAccountAmountDto": {
         "type": "object",
         "properties": {
@@ -24732,7 +24344,7 @@
           "shortfalls"
         ]
       },
-      "CloseGoalDto": {
+      "CloseEnvelopeDto": {
         "type": "object",
         "properties": {
           "id": {
@@ -24742,19 +24354,30 @@
           "name": {
             "type": "string"
           },
-          "targetCents": {
-            "type": "integer"
+          "icon": {
+            "type": "string",
+            "nullable": true
           },
-          "currentCents": {
-            "type": "integer"
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "totalCents": {
+            "type": "integer",
+            "description": "What it holds, all accounts."
           },
           "progressRatio": {
-            "type": "number"
+            "type": "number",
+            "nullable": true
           },
           "reached": {
             "type": "boolean"
           },
-          "targetDate": {
+          "dueDate": {
             "type": "string",
             "format": "date",
             "nullable": true
@@ -24763,11 +24386,13 @@
         "required": [
           "id",
           "name",
+          "icon",
+          "color",
           "targetCents",
-          "currentCents",
+          "totalCents",
           "progressRatio",
           "reached",
-          "targetDate"
+          "dueDate"
         ]
       },
       "CloseSavingsDto": {
@@ -24786,11 +24411,11 @@
             "nullable": true,
             "description": "`netCents` − `targetCents`; null without a target."
           },
-          "goals": {
-            "description": "Active goals.",
+          "envelopes": {
+            "description": "Active envelopes.",
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/CloseGoalDto"
+              "$ref": "#/components/schemas/CloseEnvelopeDto"
             }
           }
         },
@@ -24798,7 +24423,7 @@
           "netCents",
           "targetCents",
           "gapCents",
-          "goals"
+          "envelopes"
         ]
       },
       "CloseInvestmentsDto": {

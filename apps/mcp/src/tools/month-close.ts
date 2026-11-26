@@ -34,7 +34,7 @@ export const monthCloseStatusTool = defineTool({
   name: 'month_close_status',
   title: 'Bilan du mois : étapes',
   description:
-    'Steps of the guided month-end review ("Bilan du mois", default: the previous calendar month) and what is left in each: accounts whose statement is not imported up to the month end or with running-balance gaps, transactions of the month in review, recurring items to confirm and price changes, budget, savings target and goals, investment values missing at the month end, and whether the month is closed. Ticking steps is done in the app; close_months closes the month.',
+    'Steps of the guided month-end review ("Bilan du mois", default: the previous calendar month) and what is left in each: accounts whose statement is not imported up to the month end or with running-balance gaps, transactions of the month in review, recurring items to confirm and price changes, budget, savings target and envelopes, investment values missing at the month end, and whether the month is closed. Ticking steps is done in the app; close_months closes the month.',
   inputSchema: {
     month: z
       .string()
@@ -93,9 +93,9 @@ export const monthCloseStatusTool = defineTool({
         : '  - Aucun budget pour ce mois.',
       mark('savings'),
       `  - Épargné ${signedEuros(close.savings.netCents)}${close.savings.targetCents !== null ? ` pour un objectif de ${euros(close.savings.targetCents)}` : ''}.`,
-      ...close.savings.goals.map(
-        (g) =>
-          `  - Objectif ${g.name} : ${euros(g.currentCents)} / ${euros(g.targetCents)}${g.reached ? ' (atteint)' : ''}`,
+      ...close.savings.envelopes.map(
+        (e) =>
+          `  - Enveloppe ${e.name} : ${euros(e.totalCents)}${e.targetCents === null ? '' : ` / ${euros(e.targetCents)}`}${e.reached ? ' (atteint)' : ''}`,
       ),
       mark('investments'),
       ...close.investments.accounts.map(

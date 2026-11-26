@@ -13,6 +13,7 @@ import {
   ChevronRightIcon,
   HandCoinsIcon,
   HandshakeIcon,
+  MailIcon,
   ReceiptTextIcon,
   SplitIcon,
 } from 'lucide-react'
@@ -29,6 +30,8 @@ import {
 } from '#/components/owed/RepaymentScreen'
 import { contactsQuery, owedSummaryQuery } from '#/components/owed/queries'
 import { ShareFields } from '#/components/owed/ShareScreen'
+import { EnvelopeScreen } from '#/components/envelopes/EnvelopeScreen'
+import { envelopesQuery } from '#/components/envelopes/queries'
 import { PrepaidScreen } from '#/components/subscriptions/PrepaidScreen'
 import { formatCents } from '#/lib/money'
 import { accountsQuery, categoriesQuery } from '#/lib/queries'
@@ -51,6 +54,7 @@ export type EditDetour =
   | 'repayment'
   | 'split'
   | 'prepaid'
+  | 'envelope'
 
 /**
  * What a transaction's row applies (`useTransactionActions`): one change at
@@ -77,6 +81,8 @@ export function detourTitle(detour: EditDetour, item: TransactionDto): string {
       return 'Répartir'
     case 'prepaid':
       return 'Abonnement prépayé'
+    case 'envelope':
+      return 'Enveloppe'
   }
 }
 
@@ -128,6 +134,18 @@ export function EditOptionRows({
         (draft.counterpartAccountId === saved.counterpartAccountId
           ? saved.counterpartAccountName
           : null))
+  const envelopes = useQuery(envelopesQuery())
+  // An expense the owner paid, or a transfer out to another account of his
+  // (#430): an envelope can pay it or follow its money.
+  const envelopeable =
+    onAccount &&
+    out &&
+    (item.kind === 'expense' ||
+      (item.kind === 'transfer' && draft.counterpartAccountId !== null))
+  const envelopeName = draft.envelope
+    ? ((envelopes.data ?? []).find((e) => e.id === draft.envelope?.envelopeId)
+        ?.name ?? '…')
+    : null
   const categories = useQuery(categoriesQuery)
   const categoryNames = new Map(
     (categories.data ?? []).map((category) => [category.id, category.name]),
@@ -250,6 +268,15 @@ export function EditOptionRows({
               : 'Non'
         }
         onClick={() => onOpen('prepaid')}
+      />
+    ),
+    envelopeable && ((envelopes.data ?? []).length > 0 || draft.envelope) && (
+      <SettingRow
+        key="envelope"
+        icon={MailIcon}
+        label="Enveloppe"
+        value={envelopeName ?? 'Non'}
+        onClick={() => onOpen('envelope')}
       />
     ),
   ].filter(Boolean)
@@ -399,6 +426,15 @@ export function EditDetourScreen({
             onDraftChange({ ...draft, prepaidTermMonths })
             onDone()
           }}
+        />
+      )
+    case 'envelope':
+      return (
+        <EnvelopeScreen
+          item={item}
+          value={draft.envelope}
+          onChange={(envelope) => onDraftChange({ ...draft, envelope })}
+          onDone={onDone}
         />
       )
     case 'split': {

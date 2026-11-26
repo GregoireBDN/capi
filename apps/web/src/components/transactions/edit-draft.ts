@@ -109,6 +109,11 @@ export interface EditDraft {
   repayment: RepaymentDraft
   /** « Rétablir les valeurs de la banque » of a row corrected before #398. */
   restoreBank: boolean
+  /**
+   * The envelope paying this expense or carrying this transfer's money
+   * (#430), with the amount as typed (empty: all it can), null when none.
+   */
+  envelope: { envelopeId: string; amount: string } | null
 }
 
 /** A transaction's fields as the editor shows them. */
@@ -142,6 +147,15 @@ export function editDraftOf(item: TransactionDto): EditDraft {
     prepaidTermMonths: item.prepaidItemId ? item.prepaidTermMonths : null,
     repayment: { unlink: [], link: null },
     restoreBank: false,
+    envelope: item.envelopeId
+      ? {
+          envelopeId: item.envelopeId,
+          amount:
+            item.envelopeAmountCents === null
+              ? ''
+              : centsToInput(item.envelopeAmountCents),
+        }
+      : null,
   }
 }
 
@@ -287,8 +301,31 @@ export function editBody({
     }
   }
 
+  const envelope = envelopeBody(initial.envelope, draft.envelope)
+  if (envelope !== undefined) body.envelope = envelope
+
   if (draft.restoreBank) body.restoreBankValues = true
   return body
+}
+
+/** The envelope part of an edit (#430): undefined when it did not change. */
+function envelopeBody(
+  was: EditDraft['envelope'],
+  now: EditDraft['envelope'],
+): SaveTransactionEditDto['envelope'] {
+  if (now === null) return was === null ? undefined : null
+  const cents = now.amount.trim() === '' ? null : parseEurosToCents(now.amount)
+  const wasCents =
+    was === null || was.amount.trim() === ''
+      ? null
+      : parseEurosToCents(was.amount)
+  if (was !== null && was.envelopeId === now.envelopeId && cents === wasCents) {
+    return undefined
+  }
+  return {
+    envelopeId: now.envelopeId,
+    ...(cents !== null && cents > 0 ? { amountCents: cents } : {}),
+  }
 }
 
 /**
@@ -364,6 +401,17 @@ export function undoBody(
 
   if (edit.prepaidTermMonths !== undefined) {
     undo.prepaidTermMonths = previous.prepaidTermMonths
+  }
+
+  if (edit.envelope !== undefined) {
+    undo.envelope = previous.envelopeId
+      ? {
+          envelopeId: previous.envelopeId,
+          ...(previous.envelopeAmountCents
+            ? { amountCents: previous.envelopeAmountCents }
+            : {}),
+        }
+      : null
   }
 
   if (edit.repayments) {

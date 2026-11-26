@@ -26,6 +26,7 @@ import { categoriesQuery } from '#/lib/queries'
 import { BudgetEditor } from './BudgetEditor'
 import type { EditedBudget } from './BudgetEditor'
 import { BudgetHistory } from './BudgetHistory'
+import { EnvelopeMonthLines } from '#/components/envelopes/EnvelopeMonthLines'
 import { BudgetList } from './BudgetList'
 import { BudgetSummary } from './BudgetSummary'
 import { MonthNavigator } from '#/components/month/MonthNavigator'
@@ -251,6 +252,8 @@ export function BudgetPage({
             Dépenses prévues
           </h2>
           <BudgetSummary data={budget.data} />
+          {/* What envelopes paid this month (#430): a line each. */}
+          <EnvelopeMonthLines month={month} />
           <BudgetList
             month={month}
             items={budget.data.items}

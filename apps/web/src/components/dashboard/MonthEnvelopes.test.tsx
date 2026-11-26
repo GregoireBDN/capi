@@ -241,7 +241,7 @@ describe('MonthEnvelopes', () => {
   it('shows each envelope against its target and the month’s pace', async () => {
     renderCard()
 
-    const card = await screen.findByRole('region', { name: 'Enveloppes' })
+    const card = await screen.findByRole('region', { name: 'Budgets suivis' })
     const outings = await within(card).findByRole('meter', { name: 'Sorties' })
     expect(outings).toHaveAttribute('aria-valuenow', '9000')
     expect(text(outings.getAttribute('aria-valuetext')!)).toBe(
@@ -829,7 +829,7 @@ describe('MonthEnvelopes', () => {
     renderCard()
 
     expect(
-      await screen.findByRole('link', { name: 'Choisir les enveloppes' }),
+      await screen.findByRole('link', { name: 'Choisir les budgets suivis' }),
     ).toHaveAttribute('href', '/budget')
     expect(screen.queryByText(/Jour 13/)).not.toBeInTheDocument()
   })
@@ -858,6 +858,8 @@ describe('ManualTransactionSheet (editing)', () => {
     manual: true,
     prepaidItemId: null,
     prepaidTermMonths: null,
+    envelopeId: null,
+    envelopeAmountCents: null,
     originalAmountCents: null,
     originalBookingDate: null,
     counterpartAccountId: null,

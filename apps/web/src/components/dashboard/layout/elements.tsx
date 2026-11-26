@@ -1,5 +1,5 @@
 import { Card, cn, Skeleton } from '@capi/ui'
-import { queryOptions, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import type { LinkProps } from '@tanstack/react-router'
 import {
@@ -10,7 +10,7 @@ import {
   Settings2Icon,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { envelopesControllerList } from '#/api'
+import { envelopesQuery } from '#/components/envelopes/queries'
 import type {
   DashboardAccountDto,
   DashboardOverviewDto,
@@ -24,7 +24,6 @@ import { recurringListQuery } from '#/components/subscriptions/queries'
 import { AccountTypeBadge } from '#/components/transactions/filter-options'
 import { formatSignedWholeEuros, formatWholeEuros } from '#/lib/money'
 import { formatShortDay } from '#/lib/period'
-import { unwrap } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
 import { ForecastRow } from '../ForecastCard'
 import { NetWorthRow } from '../GlanceCard'
@@ -35,13 +34,6 @@ import { dashboardHistoryQuery } from '../queries'
  * one card, few words, its figures from the endpoint its page uses (and
  * that page's rules), the card's title opening the page.
  */
-
-/** The envelopes with their amount per account (#429). */
-export const envelopeSummariesQuery = queryOptions({
-  queryKey: ['envelopes', 'list'] as const,
-  queryFn: () => unwrap(envelopesControllerList({ throwOnError: false })),
-  staleTime: 0,
-})
 
 export function ElementCard({
   title,
@@ -199,7 +191,7 @@ export function BalancesElement({
   year: string
   onEdit?: () => void
 }) {
-  const envelopes = useQuery(envelopeSummariesQuery)
+  const envelopes = useQuery(envelopesQuery())
   const held = envelopeAmounts(envelopes.data)
   const accounts = pickAccounts(overview.accounts, widget.accountIds)
   return (
@@ -704,7 +696,7 @@ const ENVELOPE_ROWS = 4
  * still needed each month; money set aside, never a balance.
  */
 export function EnvelopesElement({ widget }: { widget: DashboardWidgetDto }) {
-  const { data } = useQuery(envelopeSummariesQuery)
+  const { data } = useQuery(envelopesQuery())
   if (!data) {
     return (
       <ElementCard title="Enveloppes" to={ROUTES.savings}>

@@ -39,6 +39,8 @@ function tx(overrides: Partial<TransactionDto> = {}): TransactionDto {
     manual: false,
     prepaidItemId: null,
     prepaidTermMonths: null,
+    envelopeId: null,
+    envelopeAmountCents: null,
     originalAmountCents: null,
     originalBookingDate: null,
     counterpartAccountId: null,

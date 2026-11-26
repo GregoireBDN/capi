@@ -16,7 +16,7 @@ import { SeeLink } from './DashboardCardHeader'
 const WARNING_THRESHOLD = 0.8
 
 /**
- * « Enveloppes » (#262, #321, compact since #405): the current month's
+ * « Budgets suivis » (#262, #321, compact since #405; « Enveloppes » until #430): the current month's
  * envelopes (budget lines flagged « suivre pendant le mois »), one line
  * each: its category, what's left, a bar with the mark where an even pace
  * would be today and a « + »; a tap on the line notes an expense in it
@@ -41,7 +41,7 @@ export function MonthEnvelopes() {
       <Card className="min-w-0 gap-1 px-2 pt-3 pb-2">
         <div className="flex items-baseline justify-between gap-3 px-2">
           <h2 id="month-envelopes-title" className="text-sm font-semibold">
-            Enveloppes
+            Budgets suivis
           </h2>
           <SeeLink label="Budget" to={ROUTES.budget} />
         </div>
@@ -53,7 +53,7 @@ export function MonthEnvelopes() {
         ) : envelopes.isError ? (
           <div className="flex flex-wrap items-center justify-between gap-2 px-2">
             <p className="text-muted-foreground text-sm">
-              Enveloppes indisponibles.
+              Budgets suivis indisponibles.
             </p>
             <Button
               outline
@@ -67,7 +67,7 @@ export function MonthEnvelopes() {
         ) : (
           <div
             aria-busy="true"
-            aria-label="Chargement des enveloppes"
+            aria-label="Chargement des budgets suivis"
             className="px-2"
           >
             <Skeleton className="h-11 w-full" />
@@ -104,18 +104,18 @@ function EnvelopeList({
       <EmptyState
         variant="inline"
         icon={<WalletCardsIcon />}
-        title="Aucune enveloppe suivie"
+        title="Aucun budget suivi"
         description="Sur la page Budget, activez « Suivre pendant le mois » pour les catégories à surveiller, comme les sorties."
         actions={
           <Button asChild size="sm" outline variant="secondary">
-            <Link to={ROUTES.budget}>Choisir les enveloppes</Link>
+            <Link to={ROUTES.budget}>Choisir les budgets suivis</Link>
           </Button>
         }
       />
     )
   }
   return (
-    <ul className="space-y-0.5" aria-label="Enveloppes du mois">
+    <ul className="space-y-0.5" aria-label="Budgets suivis du mois">
       {data.items.map((item) => (
         <EnvelopeRow
           key={item.categoryId}
