@@ -53,18 +53,16 @@ type PeriodBarStatusProps = Omit<React.ComponentProps<'div'>, 'children'> & {
  * STYLES
  * ========================================================================= */
 
-/** A key in relief on the toolbar's hollow bar (`glass-raised`, the owner,
- * #505). */
-const PIECE = cn(
-  'glass-raised text-foreground hover:bg-card dark:hover:bg-[oklch(from_var(--card)_calc(l+0.11)_c_h)]',
-)
+/** A key of the toolbar: the primary colour, white text, a shadow of its
+ * colour (`glass-key`, the owner's « piste 4 », #505). */
+const PIECE = 'glass-key text-primary-foreground hover:text-primary-foreground'
 
 /** A round arrow, a key like the period, 44px to the touch; off, the same
  * key faded, so it keeps its shape (the owner). */
 const ARROW = cn(
   PIECE,
   'size-[calc(2rem-8px)] min-h-0 min-w-0 shrink-0 rounded-full pointer-coarse:touch-hitbox [&_svg]:size-[1.1rem]',
-  'disabled:opacity-50 disabled:shadow-[var(--glass-edge),0_0_0_0.5px_oklch(from_var(--foreground)_l_c_h/10%)]',
+  'disabled:opacity-40',
 )
 
 /* ============================================================================
@@ -74,8 +72,9 @@ const ARROW = cn(
 /**
  * The period of a page, part of the app's frame (#401, the owner's « B.
  * Barre du mois », then « barre d'outils + état », #505): ‹ · 📅 period ·
- * ›. The arrows and the period are keys in relief on the toolbar's hollow
- * bar (the owner, #505); the period opens a picker. Between the period and › a `PeriodBarStatus` can say how far its
+ * ›. The arrows and the period are keys in the primary colour on the
+ * toolbar's white bar (the owner's « piste 4 », #505); the period opens a
+ * picker. Between the period and › a `PeriodBarStatus` can say how far its
  * data goes (the app shows it on a computer only). The app lays it on a
  * white toolbar at the top of the page, fixed under its header.
  * `PeriodBarLabel` switches to its short text when its container (put the
@@ -94,7 +93,7 @@ function PeriodBar({
       role="group"
       className={cn(
         // As wide as its container (#505): ‹ · the period (and its state) · ›,
-        // keys laid on the app's hollow toolbar.
+        // keys laid on the app's white toolbar.
         'flex w-full min-w-0 items-center gap-1.5',
         className,
       )}

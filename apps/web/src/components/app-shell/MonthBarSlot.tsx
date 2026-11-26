@@ -5,7 +5,7 @@ import { MovementsTabs } from '#/components/spending/MovementsTabs'
 
 /**
  * Where a month page's month goes (#401, the owner's « B. Barre du mois »,
- * then « barre d'outils + état », #505): hollow bars at the top of the page,
+ * then « barre d'outils + état », #505): white bars at the top of the page,
  * above its title, scrolling with it, not part of the header (the owner,
  * #505). `MonthNavigator` renders into it through a portal. A month
  * page's route declares `staticData.monthBar`, so the bar's room is kept
@@ -42,7 +42,7 @@ export function MonthBarSlot() {
       className="relative z-10 hidden shrink-0 has-[[data-month-placeholder]]:block has-[[data-page-month]:not(:empty)]:block"
     >
       {/* The month's toolbar (#505, the owner's « barre d'outils + état »),
-          as wide as the page's content: two hollow bars, the page's tabs then
+          as wide as the page's content: two white bars, the page's tabs then
           ‹ · the month · ›, side by side on a computer (the month with its
           state), one under the other on a phone (without it: too much room,
           the owner). A gap tells « which page » from « which month », not a
@@ -77,6 +77,6 @@ export function MonthBarSlot() {
   )
 }
 
-/** A hollow bar like a field (`glass-field`, the fields' « B · Creusé »),
- * 44px high with its 36px buttons in relief on it (the owner, #505). */
-const BAR = 'glass-field rounded-full p-[4px]'
+/** A white bar, slightly hollow (`glass-bar`), 44px high with its 36px
+ * keys (the owner's « piste 4 », #505). */
+const BAR = 'glass-bar rounded-full p-[4px]'

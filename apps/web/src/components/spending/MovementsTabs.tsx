@@ -22,7 +22,7 @@ const TABS = [
 /**
  * « Résumé · Opérations » (#498, then #505: pills on the month's toolbar,
  * before the month on a computer, a bar of their own above it on a phone,
- * the current one raised on a hollow bar): Mouvements and Opérations as two
+ * the current one a key in the primary colour): Mouvements and Opérations as two
  * tabs of one page, each its own URL, one tap between them both ways (they
  * were a « ⋮ » item and a breadcrumb, #393). Rendered by `MonthBarSlot` on
  * the routes that declare `staticData.movementsTab`. The month shown
@@ -43,9 +43,9 @@ export function MovementsTabs({
     <nav
       aria-label="Mouvements"
       data-slot="movements-tabs"
-      // On the month's hollow bar (#505, the owner), two equal halves: the
-      // current page a key in relief (`glass-raised`), the other flat in the
-      // text's colour, tinted on hover, so it reads as a choice.
+      // On the month's white bar (#505, the owner's « piste 4 »), two equal
+      // halves: the current page a key in the primary colour (`glass-key`),
+      // the other flat in the text's colour, tinted on hover.
       className="grid grid-cols-2 gap-1"
     >
       {TABS.map(({ key, to, label }) => {
@@ -61,7 +61,7 @@ export function MovementsTabs({
               'relative flex h-[calc(2rem-8px)] min-w-0 items-center justify-center gap-2 rounded-full text-sm leading-none font-medium whitespace-nowrap no-underline transition-[color,background-color] outline-none pointer-coarse:touch-hitbox',
               'focus-visible:ring-ring/85 focus-visible:ring-[3px]',
               active
-                ? 'glass-raised text-foreground font-semibold'
+                ? 'glass-key font-semibold'
                 : 'text-foreground/80 hover:bg-foreground/[0.05] hover:text-foreground',
             )}
           >
