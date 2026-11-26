@@ -1,10 +1,7 @@
 import {
   Button,
   Card,
-  Checkbox,
   ConfirmDialog,
-  SegmentedControl,
-  SegmentedControlItem,
   Sheet,
   SheetBar,
   SheetBarAction,
@@ -17,13 +14,16 @@ import {
   ArrowDownWideNarrowIcon,
   EyeIcon,
   EyeOffIcon,
-  ColumnsIcon,
+  CalendarIcon,
   ListIcon,
   GripVerticalIcon,
   PlusIcon,
   RotateCcwIcon,
   SettingsIcon,
-  SquareIcon,
+  MonitorIcon,
+  PiggyBankIcon,
+  UsersIcon,
+  WalletIcon,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -444,93 +444,194 @@ function ElementSettings({
   onChange: (values: Partial<DashboardWidgetDto>) => void
 }) {
   const info = ELEMENTS[widget.type]
+  const setting = (values: DashboardWidgetDto['settings']) =>
+    onChange({ settings: { ...widget.settings, ...values } })
   return (
     <>
-      {widget.type === 'balances' && (
-        <SegmentedControl
-          aria-label="Ordre"
-          value={widget.settings.balancesSort ?? 'order'}
-          onValueChange={(value) =>
-            onChange({ settings: { ...widget.settings, balancesSort: value } })
-          }
-        >
-          <SegmentedControlItem value="order">
-            <ListIcon aria-hidden className="size-4" />
-            Mon ordre
-          </SegmentedControlItem>
-          <SegmentedControlItem value="amount">
-            <ArrowDownWideNarrowIcon aria-hidden className="size-4" />
-            Montant
-          </SegmentedControlItem>
-        </SegmentedControl>
-      )}
-      {widget.type === 'upcoming_debits' && (
-        <SegmentedControl
-          aria-label="Jours"
-          value={String(widget.settings.upcomingDays ?? 7)}
-          onValueChange={(value) =>
-            onChange({
-              settings: {
-                ...widget.settings,
-                upcomingDays: Number(value) as 7 | 30,
-              },
-            })
-          }
-        >
-          <SegmentedControlItem value="7">7 jours</SegmentedControlItem>
-          <SegmentedControlItem value="30">30 jours</SegmentedControlItem>
-        </SegmentedControl>
-      )}
-      {widget.type === 'owed' && (
-        <SegmentedControl
-          aria-label="Côté"
-          value={widget.settings.owedSide ?? 'both'}
-          onValueChange={(value) =>
-            onChange({ settings: { ...widget.settings, owedSide: value } })
-          }
-        >
-          <SegmentedControlItem value="both">Les deux</SegmentedControlItem>
-          <SegmentedControlItem value="owed_to_me">
-            On me doit
-          </SegmentedControlItem>
-          <SegmentedControlItem value="i_owe">Je dois</SegmentedControlItem>
-        </SegmentedControl>
-      )}
       {info.accountTypes && (
-        <AccountChoice
-          types={info.accountTypes}
-          value={widget.accountIds}
-          onChange={(accountIds) => onChange({ accountIds })}
-        />
+        <Section icon={<WalletIcon />} title="Comptes">
+          <AccountChoice
+            types={info.accountTypes}
+            value={widget.accountIds}
+            onChange={(accountIds) => onChange({ accountIds })}
+          />
+        </Section>
       )}
       {info.envelopes && (
-        <EnvelopeChoice
-          value={widget.envelopeIds}
-          onChange={(envelopeIds) => onChange({ envelopeIds })}
-        />
+        <Section icon={<PiggyBankIcon />} title="Enveloppes">
+          <EnvelopeChoice
+            value={widget.envelopeIds}
+            onChange={(envelopeIds) => onChange({ envelopeIds })}
+          />
+        </Section>
       )}
-      <div className="flex items-center gap-3">
-        <span className="text-muted-foreground flex-1 text-sm">
-          Sur ordinateur
-        </span>
-        <SegmentedControl
-          aria-label="Taille sur ordinateur"
+      {widget.type === 'balances' && (
+        <Section icon={<ArrowDownWideNarrowIcon />} title="Ordre">
+          <ChoiceCards
+            label="Ordre"
+            value={widget.settings.balancesSort ?? 'order'}
+            onChange={(balancesSort) => setting({ balancesSort })}
+            options={[
+              { value: 'order', label: 'Mon ordre', icon: <ListIcon /> },
+              {
+                value: 'amount',
+                label: 'Montant',
+                icon: <ArrowDownWideNarrowIcon />,
+              },
+            ]}
+          />
+        </Section>
+      )}
+      {widget.type === 'upcoming_debits' && (
+        <Section icon={<CalendarIcon />} title="Période">
+          <ChoiceCards
+            label="Jours"
+            value={String(widget.settings.upcomingDays ?? 7)}
+            onChange={(days) =>
+              setting({ upcomingDays: Number(days) as 7 | 30 })
+            }
+            options={[
+              { value: '7', label: '7 jours', icon: <Big>7</Big> },
+              { value: '30', label: '30 jours', icon: <Big>30</Big> },
+            ]}
+          />
+        </Section>
+      )}
+      {widget.type === 'owed' && (
+        <Section icon={<UsersIcon />} title="Côté">
+          <ChoiceCards
+            label="Côté"
+            value={widget.settings.owedSide ?? 'both'}
+            onChange={(owedSide) => setting({ owedSide })}
+            options={[
+              {
+                value: 'both',
+                label: 'Les deux',
+                icon: <Dots colors={['bg-success', 'bg-warning']} />,
+              },
+              {
+                value: 'owed_to_me',
+                label: 'On me doit',
+                icon: <Dots colors={['bg-success']} />,
+              },
+              {
+                value: 'i_owe',
+                label: 'Je dois',
+                icon: <Dots colors={['bg-warning']} />,
+              },
+            ]}
+          />
+        </Section>
+      )}
+      <Section icon={<MonitorIcon />} title="Sur ordinateur">
+        <ChoiceCards
+          label="Taille sur ordinateur"
           value={widget.size}
-          onValueChange={(size) => onChange({ size })}
-        >
-          <SegmentedControlItem value="small" aria-label="Petit">
-            <SquareIcon aria-hidden className="size-4" />
-          </SegmentedControlItem>
-          <SegmentedControlItem value="large" aria-label="Large">
-            <ColumnsIcon aria-hidden className="size-4" />
-          </SegmentedControlItem>
-        </SegmentedControl>
-      </div>
+          onChange={(size) => onChange({ size })}
+          options={[
+            { value: 'small', label: 'Moitié', icon: <SizePicture half /> },
+            { value: 'large', label: 'Pleine largeur', icon: <SizePicture /> },
+          ]}
+        />
+      </Section>
     </>
   )
 }
 
-/** « Tous les comptes » or the ones ticked, with their type icons. */
+/** A group of settings: a small icon and a word above it. */
+function Section({
+  icon,
+  title,
+  children,
+}: {
+  icon: ReactNode
+  title: string
+  children: ReactNode
+}) {
+  return (
+    <section className="space-y-2">
+      <h3 className="text-muted-foreground flex items-center gap-1.5 px-1 text-xs font-medium [&_svg]:size-3.5">
+        <span aria-hidden>{icon}</span>
+        {title}
+      </h3>
+      {children}
+    </section>
+  )
+}
+
+/** One choice among a few, as big cards: a picture and a word. */
+function ChoiceCards<T extends string>({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string
+  value: T
+  onChange: (value: T) => void
+  options: { value: T; label: string; icon: ReactNode }[]
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={cn(
+        'grid gap-2',
+        options.length === 3 ? 'grid-cols-3' : 'grid-cols-2',
+      )}
+    >
+      {options.map((option) => {
+        const selected = option.value === value
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              'bg-card focus-visible:ring-ring flex min-h-[4.2rem] flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-xs font-medium outline-none focus-visible:ring-2 [&_svg]:size-[22px]',
+              selected
+                ? 'border-primary bg-primary/5 text-primary ring-primary/20 ring-2'
+                : 'text-muted-foreground hover:bg-muted/50',
+            )}
+          >
+            <span aria-hidden className="grid h-[26px] place-items-center">
+              {option.icon}
+            </span>
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function Big({ children }: { children: ReactNode }) {
+  return <span className="text-lg leading-none font-semibold">{children}</span>
+}
+
+function Dots({ colors }: { colors: string[] }) {
+  return (
+    <span className="flex gap-1">
+      {colors.map((color) => (
+        <span key={color} className={cn('size-3.5 rounded-full', color)} />
+      ))}
+    </span>
+  )
+}
+
+/** A screen with the element on half of it or across it. */
+function SizePicture({ half = false }: { half?: boolean }) {
+  return (
+    <span className="grid h-[22px] w-[40px] grid-cols-2 gap-[3px] rounded-[4px] border border-current p-[3px] opacity-90">
+      <span className={cn('rounded-[2px] bg-current', !half && 'col-span-2')} />
+      {half && <span className="rounded-[2px] bg-current opacity-25" />}
+    </span>
+  )
+}
+
+/** The accounts an element may show, each with its eye. */
 function AccountChoice({
   types,
   value,
@@ -549,7 +650,6 @@ function AccountChoice({
   )
   return (
     <Choice
-      allLabel="Tous les comptes"
       value={value}
       onChange={onChange}
       items={accounts.map((account) => ({
@@ -572,7 +672,6 @@ function EnvelopeChoice({
   const envelopes = (data ?? []).filter((envelope) => !envelope.archived)
   return (
     <Choice
-      allLabel="Toutes"
       value={value}
       onChange={onChange}
       items={envelopes.map((envelope) => ({
@@ -581,66 +680,75 @@ function EnvelopeChoice({
         badge: (
           <span
             aria-hidden
-            className="size-3 shrink-0 rounded-full"
-            style={{ background: envelope.color ?? 'var(--primary)' }}
-          />
+            className="grid size-[32px] shrink-0 place-items-center"
+          >
+            <span
+              className="size-3.5 rounded-full"
+              style={{ background: envelope.color ?? 'var(--primary)' }}
+            />
+          </span>
         ),
       }))}
     />
   )
 }
 
+/**
+ * Every item as a tile with an eye. All eyes open is « all » (`null`, so a
+ * new account shows by itself); closing one keeps the others chosen.
+ */
 function Choice({
-  allLabel,
   value,
   onChange,
   items,
 }: {
-  allLabel: string
   value: string[] | null
   onChange: (value: string[] | null) => void
   items: { id: string; name: string; badge: ReactNode }[]
 }) {
-  const all = value === null
+  const shown = (id: string) => value === null || value.includes(id)
+  function toggle(id: string) {
+    const ids = items
+      .map((item) => item.id)
+      .filter((itemId) => (itemId === id ? !shown(id) : shown(itemId)))
+    onChange(ids.length === items.length ? null : ids)
+  }
   return (
-    <div className="space-y-1">
-      <SegmentedControl
-        aria-label={allLabel}
-        value={all ? 'all' : 'chosen'}
-        onValueChange={(mode) =>
-          // Choosing starts from what is shown now: every item.
-          onChange(mode === 'all' ? null : items.map((item) => item.id))
-        }
-      >
-        <SegmentedControlItem value="all">{allLabel}</SegmentedControlItem>
-        <SegmentedControlItem value="chosen">Choisis</SegmentedControlItem>
-      </SegmentedControl>
-      <ul className={cn('pt-1', all && 'opacity-45')}>
-        {items.map((item) => {
-          const checked = all || value.includes(item.id)
-          return (
-            <li key={item.id}>
-              <label className="flex min-h-11 items-center gap-3 text-sm">
-                {item.badge}
-                <span className="min-w-0 flex-1 truncate font-medium">
-                  {item.name}
-                </span>
-                <Checkbox
-                  checked={checked}
-                  disabled={all}
-                  onCheckedChange={(on) =>
-                    onChange(
-                      on
-                        ? [...(value ?? []), item.id]
-                        : (value ?? []).filter((id) => id !== item.id),
-                    )
-                  }
-                />
-              </label>
-            </li>
-          )
-        })}
-      </ul>
-    </div>
+    <ul className="space-y-1.5">
+      {items.map((item) => {
+        const on = shown(item.id)
+        return (
+          <li
+            key={item.id}
+            onClick={() => toggle(item.id)}
+            className={cn(
+              'bg-card flex min-h-[3.2rem] cursor-pointer items-center gap-2 rounded-xl border py-1 pr-0.5 pl-2.5 transition-opacity',
+              !on && 'bg-card/60 border-dashed',
+            )}
+          >
+            <span
+              className={cn(
+                'flex min-w-0 flex-1 items-center gap-2.5',
+                !on && 'opacity-45',
+              )}
+            >
+              {item.badge}
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                {item.name}
+              </span>
+            </span>
+            <span onClick={(event) => event.stopPropagation()}>
+              <IconToggle
+                label={`Afficher ${item.name}`}
+                checked={on}
+                onClick={() => toggle(item.id)}
+              >
+                {on ? <EyeIcon /> : <EyeOffIcon />}
+              </IconToggle>
+            </span>
+          </li>
+        )
+      })}
+    </ul>
   )
 }

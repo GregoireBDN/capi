@@ -694,7 +694,9 @@ describe('DashboardPage', () => {
 
     const editor = await screen.findByRole('dialog')
     // The chosen list is empty: tick one.
-    await user.click(within(editor).getByRole('checkbox', { name: /PEA test/ }))
+    await user.click(
+      within(editor).getByRole('switch', { name: 'Afficher PEA test' }),
+    )
     await user.click(
       within(editor).getByRole('button', { name: 'Personnaliser' }),
     )
