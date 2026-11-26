@@ -1,21 +1,27 @@
 # Production stack (ADR 0001, runbook: docs/runbooks/production-stack.md).
 #
-# Deployed in /srv/finances with a root-only `.env` next to this file (template:
+# Deployed in /srv/capi with a root-only `.env` next to this file (template:
 # .env.production.example). No service publishes a port: Caddy (infra repo)
 # reaches `web` on the external `proxy` network as `capi-web:3000`, and
 # `api`/`db` stay on this project's internal network. The remote MCP adapter
 # (`capi-mcp`, ADR 0003, #328) only runs with the `remote-mcp` profile
 # (COMPOSE_PROFILES=remote-mcp in .env); Caddy reaches it as capi-mcp:4100.
-# Until Caddy has moved to the new names (#464, docs/runbooks/rename.md), both
-# services also answer to their names before the rename (`finances-web`,
-# `finances-mcp`); the project, its volume and the folder are renamed later.
+# Until #464's cleanup (docs/runbooks/rename.md, step D), both services also
+# answer to their names before the rename (`finances-web`, `finances-mcp`), so
+# that a rollback to an older release still reaches Caddy.
+#
+# The project is `capi` (`finances` before #464's step B), but the database
+# volume keeps the name the `finances` project gave it: DB_VOLUME in .env
+# (finances_db_data in production), required, so that no other stack built
+# from this file opens production's data by default. deploy/deploy.sh stops
+# the `finances` project before `capi` first starts on that volume.
 #
 # Images come from GHCR, pinned by CAPI_VERSION (deploy/deploy.sh writes it,
 # and FINANCES_VERSION with the same value for compose files before #464). To build them locally
 # instead, add docker-compose.build.yml (see the runbook), and on a dev machine
-# always pass `-p finances-local`: the dev stack (docker-compose.yml) is also
-# named `finances`.
-name: finances
+# always pass `-p capi-local` and a DB_VOLUME of its own: the dev stack
+# (docker-compose.yml) is also named `capi`.
+name: capi
 
 x-logging: &logging
   driver: json-file
@@ -146,7 +152,7 @@ services:
     networks:
       default: {}
       proxy:
-        # Caddy's upstream: capi-web:3000 (finances-web until #464's step B).
+        # Caddy's upstream: capi-web:3000 (finances-web for older releases).
         aliases:
           - capi-web
           - finances-web
@@ -195,7 +201,7 @@ services:
       MCP_TRUSTED_PROXIES: ${MCP_TRUSTED_PROXIES:-caddy}
     networks:
       # `default` to reach api:4000; `proxy` for Caddy (capi-mcp:4100,
-      # finances-mcp until #464's step B).
+      # finances-mcp for older releases).
       default: {}
       proxy:
         aliases:
@@ -227,3 +233,6 @@ networks:
 
 volumes:
   db_data:
+    # finances_db_data in production: created by the `finances` project
+    # before #464's step B, kept so that no data is copied.
+    name: ${DB_VOLUME:?set DB_VOLUME in .env}

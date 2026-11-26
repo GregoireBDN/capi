@@ -12,13 +12,13 @@ merge to main
        └─ deploy    environment `staging` (no required reviewer)
             ├─ join the tailnet as an ephemeral `tag:ci` node
             ├─ upload deploy/deploy.sh, docker-compose.prod.yml and docker-compose.staging.yml
-            │  of the commit to /srv/finances-staging/releases/sha-<short>/ (the last 10 kept)
+            │  of the commit to /srv/capi-staging/releases/sha-<short>/ (the last 10 kept)
             └─ ssh deploy@vps → deploy.sh --staging sha-<short> <compose file>
 ```
 
 `deploy.sh --staging` runs the same steps as a production deploy (see the [deploy runbook](deploy.md#how-it-works): install the compose files, set `CAPI_VERSION`, pull, migrate, seed, `up -d`, health check through `web`, automatic rollback), with these differences:
 
-- **Project and directory**: always the compose project `finances-staging` (`-p`), in `/srv/finances-staging` (`CAPI_DIR`, or `FINANCES_DIR` before #464), with `docker-compose.prod.yml` **and** the override [`docker-compose.staging.yml`](../../docker-compose.staging.yml). Its lock, `.env` and `deploy.log` are its own, so a staging deploy never waits for, nor touches, a production one.
+- **Project and directory**: the compose project `capi-staging` (the override's `name:`, `finances-staging` before #464's step B; `deploy.sh` refuses a name that doesn't end in `-staging`), in `/srv/capi-staging` (`CAPI_DIR`, or `FINANCES_DIR` before #464), with `docker-compose.prod.yml` **and** the override [`docker-compose.staging.yml`](../../docker-compose.staging.yml). Its lock, `.env` and `deploy.log` are its own, so a staging deploy never waits for, nor touches, a production one.
 - **Version**: an image tag `sha-<commit>` (7 to 40 lowercase hex characters); `vX.Y.Z` is refused, as production refuses `sha-…`.
 - **Demo data**: after the seed, `node dist/database/seed-demo.js --reset` wipes every table and seeds the demo data again (one transaction: if it fails, the previous data stays and the deploy rolls back). The demo seed refuses `NODE_ENV=production`, which the images set, except on the database the override names in `DEMO_STAGING_DATABASE` (`finances_staging`, a name ending in `_staging`); it refuses `finances` whatever that variable says (`apps/api/src/database/demo/guard.ts`).
 - **Safety checks** before anything is pulled: the merged configuration must not give `web` production's `capi-web` or `finances-web` alias on the `proxy` network (Caddy would send production traffic to staging), and the remote MCP adapter must not be in the stack (`COMPOSE_PROFILES` empty).
@@ -27,7 +27,7 @@ What the override fixes, whatever `.env` says:
 
 | Setting                                    | Staging                                                                  | Why                                                                 |
 | ------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------- |
-| Database                                   | `finances_staging`, volume `finances-staging_db_data`                    | own data; the only name the demo seed may wipe in production images |
+| Database                                   | `finances_staging`, volume `finances-staging_db_data` (`DB_VOLUME`)      | own data; the only name the demo seed may wipe in production images |
 | `web` on `proxy`                           | aliases `capi-staging-web` and `finances-staging-web` only (`!override`) | Caddy's staging upstream, never production's                        |
 | `SMTP_HOST`                                | empty                                                                    | no email                                                            |
 | `REMOTE_MCP_ENABLED`                       | `false`                                                                  | no OAuth routes, no connector                                       |
@@ -47,13 +47,13 @@ Nothing here is done by the workflow or an agent; nothing in the repo holds a se
 - [ ] **Server directory** (as `ops`):
 
   ```bash
-  sudo install -d -o deploy -g deploy -m 750 /srv/finances-staging
+  sudo install -d -o deploy -g deploy -m 750 /srv/capi-staging
   ```
 
-- [ ] **Environment** (as `deploy`, `sudo -iu deploy`): copy [`.env.staging.example`](../../.env.staging.example) from the laptop (`git show origin/main:.env.staging.example`), then generate staging's **own** secrets on the server; never copy one from `/srv/finances/.env`:
+- [ ] **Environment** (as `deploy`, `sudo -iu deploy`): copy [`.env.staging.example`](../../.env.staging.example) from the laptop (`git show origin/main:.env.staging.example`), then generate staging's **own** secrets on the server; never copy one from `/srv/capi/.env`:
 
   ```bash
-  cd /srv/finances-staging
+  cd /srv/capi-staging
   install -m 600 /dev/null .env
   cat .env.staging.example > .env && rm .env.staging.example
   sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 32)/" .env
@@ -75,18 +75,18 @@ Nothing here is done by the workflow or an agent; nothing in the repo holds a se
 
 ## Operations
 
-As `deploy` in `/srv/finances-staging`:
+As `deploy` in `/srv/capi-staging`:
 
 ```bash
-alias dcs='docker compose -p finances-staging -f docker-compose.prod.yml -f docker-compose.staging.yml'
+alias dcs='docker compose -f docker-compose.prod.yml -f docker-compose.staging.yml'
 dcs ps                                  # db, api, web healthy, PORTS empty
 dcs logs -f --tail=200 api
 tail -50 deploy.log
 ```
 
-- **Redeploy** the latest `main`: Actions › Staging › Run workflow (`gh workflow run staging.yml`). An older commit: `/srv/finances-staging/releases/sha-<short>/deploy/deploy.sh --staging sha-<short> /srv/finances-staging/releases/sha-<short>/docker-compose.prod.yml` (the last 10 are kept), as long as its images are still in GHCR.
+- **Redeploy** the latest `main`: Actions › Staging › Run workflow (`gh workflow run staging.yml`). An older commit: `/srv/capi-staging/releases/sha-<short>/deploy/deploy.sh --staging sha-<short> /srv/capi-staging/releases/sha-<short>/docker-compose.prod.yml` (the last 10 are kept), as long as its images are still in GHCR.
 - **Reset the demo data without a deploy**: `dcs run --rm -T api node dist/database/seed-demo.js --reset`.
-- **Start over**: `dcs down -v` (removes the staging volume only; the project name keeps production's `finances_db_data` out of reach), then redeploy.
+- **Start over**: `dcs down -v` (removes the staging volume only, the one `DB_VOLUME` names in staging's `.env`; never set it to production's `finances_db_data`), then redeploy.
 - **Stop staging**: `dcs down`, and disable the workflow (Actions › Staging › ⋯ › Disable workflow) so merges don't start it again.
 
 Merges in a row: the deploy job runs one at a time (`concurrency: deploy-staging`); of the merges waiting, only the latest is deployed. A failed staging deploy only fails its run: production is never touched.
@@ -94,7 +94,7 @@ Merges in a row: the deploy job runs one at a time (`concurrency: deploy-staging
 ## Troubleshooting
 
 - **`the staging configuration keeps web's production alias`**: the server's Docker Compose is older than 2.24.4 and doesn't know `!override`; upgrade the compose plugin. Nothing was started.
-- **`the remote MCP adapter never runs on staging`**: empty `COMPOSE_PROFILES` in `/srv/finances-staging/.env`.
+- **`the remote MCP adapter never runs on staging`**: empty `COMPOSE_PROFILES` in `/srv/capi-staging/.env`.
 - **`FAILED: demo data`**: `dcs run --rm -T api node dist/database/seed-demo.js --reset` shows the error; `Refusing to seed demo data …` means the override's database name or `DEMO_STAGING_DATABASE` was changed.
 - **Caddy answers 502 on the staging host**: `dcs ps`; `docker network inspect proxy` should list `capi-staging-web`.
 - Everything else is as in production: [production stack runbook § Troubleshooting](production-stack.md#troubleshooting), [deploy runbook § Troubleshooting](deploy.md#troubleshooting).
