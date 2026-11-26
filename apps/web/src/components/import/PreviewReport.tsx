@@ -46,13 +46,13 @@ const TILES: {
   {
     kind: 'conflict',
     title: 'À confirmer',
-    hint: 'doublons probables',
+    hint: 'doublons',
     count: (c) => c.conflicts,
   },
   {
     kind: 'new',
     title: 'Nouvelles',
-    hint: 'seront importées',
+    hint: 'à importer',
     count: (c) => c.new,
   },
   {
@@ -79,34 +79,39 @@ function CountTile({
   // Nothing to correct or confirm: the tile steps back.
   const idle = value === 0 && kind !== 'new'
   return (
-    <li className={cn('min-w-0 rounded-2xl p-3', idle ? 'bg-muted/50' : tint)}>
-      <p
+    <li
+      className={cn(
+        'flex min-w-0 items-center gap-2 rounded-xl px-3 py-2',
+        idle ? 'bg-muted/50' : tint,
+      )}
+    >
+      <Icon
+        aria-hidden
         className={cn(
-          'text-sm font-medium break-normal',
-          idle ? 'text-muted-foreground' : text,
+          'size-4 shrink-0',
+          idle ? 'text-muted-foreground/60' : text,
+        )}
+      />
+      <p
+        data-slot="count"
+        className={cn(
+          'text-xl leading-none font-semibold tabular-nums',
+          idle && 'text-muted-foreground',
         )}
       >
-        {title}
+        {value}
       </p>
-      <div className="mt-1 flex items-center justify-between gap-2">
+      <div className="min-w-0 leading-tight">
         <p
-          data-slot="count"
           className={cn(
-            'text-3xl leading-tight font-semibold tabular-nums',
-            idle && 'text-muted-foreground',
+            'truncate text-sm font-medium break-normal',
+            idle ? 'text-muted-foreground' : text,
           )}
         >
-          {value}
+          {title}
         </p>
-        <Icon
-          aria-hidden
-          className={cn(
-            'size-6 shrink-0',
-            idle ? 'text-muted-foreground/60' : text,
-          )}
-        />
+        <p className="text-muted-foreground truncate text-xs">{hint}</p>
       </div>
-      <p className="text-muted-foreground text-xs">{hint}</p>
     </li>
   )
 }
@@ -130,7 +135,7 @@ export function PreviewSummary({ detail }: { detail: ImportDetailDto }) {
           </p>
         </CardContent>
       </Card>
-      <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <ul className="grid grid-cols-2 gap-2 md:grid-cols-4">
         {TILES.map((tile) => (
           <CountTile
             key={tile.kind}

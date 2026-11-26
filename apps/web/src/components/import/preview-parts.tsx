@@ -1,9 +1,11 @@
 import { Link } from '@tanstack/react-router'
-import { Badge, Button, cn } from '@capi/ui'
+import { Badge, cn } from '@capi/ui'
 import {
   ArrowDownIcon,
   ArrowRightIcon,
   CheckIcon,
+  CopyCheckIcon,
+  CopyPlusIcon,
   FileWarningIcon,
   PlusIcon,
   TriangleAlertIcon,
@@ -219,9 +221,30 @@ interface ConflictChoiceProps {
  * imported, the default) or two transactions (imported).
  */
 export function ConflictChoice({ row, value, onChange }: ConflictChoiceProps) {
-  const options: { action: ConflictAction; label: string }[] = [
-    { action: 'skip', label: 'C’est la même' },
-    { action: 'import', label: 'Ce sont deux opérations' },
+  const options: {
+    action: ConflictAction
+    kind: LineKind
+    icon: typeof PlusIcon
+    label: string
+    hint: string
+    ring: string
+  }[] = [
+    {
+      action: 'skip',
+      kind: 'duplicate',
+      icon: CopyCheckIcon,
+      label: 'C’est la même',
+      hint: 'Pas importée',
+      ring: 'border-muted-foreground/60',
+    },
+    {
+      action: 'import',
+      kind: 'new',
+      icon: CopyPlusIcon,
+      label: 'Ce sont deux opérations',
+      hint: 'Importée en plus',
+      ring: 'border-success',
+    },
   ]
   return (
     <div
@@ -229,20 +252,52 @@ export function ConflictChoice({ row, value, onChange }: ConflictChoiceProps) {
       aria-label={`Décision pour « ${row.rawLabel} »`}
       className="grid gap-2 @sm:grid-cols-2"
     >
-      {options.map(({ action, label }) => (
-        <Button
-          key={action}
-          type="button"
-          variant="secondary"
-          outline={value !== action}
-          aria-pressed={value === action}
-          className="h-auto min-h-9 min-w-0 py-1.5 break-normal whitespace-normal"
-          onClick={() => onChange(action)}
-        >
-          {value === action && <CheckIcon />}
-          {label}
-        </Button>
-      ))}
+      {options.map(({ action, kind, icon: Icon, label, hint, ring }) => {
+        const selected = value === action
+        const { tint, text } = LINE_KIND[kind]
+        return (
+          <button
+            key={action}
+            type="button"
+            aria-pressed={selected}
+            aria-label={label}
+            className={cn(
+              'touch-hitbox relative flex min-h-11 min-w-0 items-center gap-3 rounded-xl border-2 px-3 py-2 text-left transition-colors',
+              'focus-visible:ring-ring/50 outline-none focus-visible:ring-3',
+              selected ? cn(tint, ring) : 'border-border hover:bg-muted/50',
+            )}
+            onClick={() => onChange(action)}
+          >
+            <span
+              aria-hidden
+              className={cn(
+                'grid size-8 shrink-0 place-items-center rounded-full',
+                selected
+                  ? LINE_KIND[kind].solid
+                  : cn('bg-muted', 'text-muted-foreground'),
+              )}
+            >
+              <Icon className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span
+                className={cn(
+                  'block text-sm font-medium break-normal',
+                  selected && text,
+                )}
+              >
+                {label}
+              </span>
+              <span className="text-muted-foreground block text-xs">
+                {hint}
+              </span>
+            </span>
+            {selected && (
+              <CheckIcon aria-hidden className={cn('size-4 shrink-0', text)} />
+            )}
+          </button>
+        )
+      })}
     </div>
   )
 }

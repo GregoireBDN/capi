@@ -79,7 +79,7 @@ export function PreviewRows(props: PreviewRowsProps) {
       kind: 'invalid',
       title: `Corriger ${plural(issues.length, 'ligne illisible', 'lignes illisibles')}`,
       body: (
-        <ul className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+        <ul className="space-y-3">
           {issues.map((issue) => (
             <IssueCard key={issue.lineNumber} {...lineProps} issue={issue} />
           ))}

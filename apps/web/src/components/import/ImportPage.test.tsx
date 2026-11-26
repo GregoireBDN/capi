@@ -382,10 +382,10 @@ describe('ImportPage — preview', () => {
         .getAllByRole('listitem')
         .map((tile) => tile.textContent),
     ).toEqual([
-      'À corriger1illisibles',
-      'À confirmer1doublons probables',
-      'Nouvelles2seront importées',
-      'Déjà là1ignorées',
+      '1À corrigerillisibles',
+      '1À confirmerdoublons',
+      '2Nouvellesà importer',
+      '1Déjà làignorées',
     ])
     expect(summary).toHaveTextContent('du 02/03/2026 au 05/03/2026')
 
