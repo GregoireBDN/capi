@@ -158,7 +158,7 @@ export function SessionsCard({ email }: { email: string }) {
         ) : list.length === 0 ? (
           <p className="text-muted-foreground text-sm">Aucune session.</p>
         ) : (
-          <ul className="divide-y" aria-label="Sessions">
+          <ul className="space-y-1" aria-label="Sessions">
             {list.map((session) => (
               <SessionRow
                 key={session.id}

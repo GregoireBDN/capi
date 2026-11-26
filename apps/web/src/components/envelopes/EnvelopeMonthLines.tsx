@@ -40,7 +40,7 @@ export function EnvelopeMonthLines({ month }: { month: string }) {
               type="button"
               onClick={() => setOpen(item)}
               aria-label={`Enveloppe ${item.name}`}
-              className="bg-card hover:bg-muted/50 focus-visible:ring-ring/50 flex w-full items-center gap-2.5 rounded-xl border p-3 text-left outline-none focus-visible:ring-[3px]"
+              className="glass-card hover:bg-muted/50 focus-visible:ring-ring/50 flex w-full items-center gap-2.5 rounded-card p-3 text-left outline-none focus-visible:ring-[3px]"
             >
               <EnvelopeAvatar envelope={item} size="sm" />
               <span className="min-w-0 flex-1 space-y-1.5">
@@ -149,7 +149,7 @@ function EnvelopeMonthSheet({
         })}
       </ul>
       {item.leftCents > 0 && (
-        <div className="space-y-3 rounded-xl border p-3">
+        <div className="glass-card rounded-card space-y-3 p-3">
           <p className="text-lg font-semibold">
             Il reste {formatWholeEuros(item.leftCents)}
           </p>

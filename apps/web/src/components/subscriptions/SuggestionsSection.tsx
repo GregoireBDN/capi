@@ -99,7 +99,7 @@ export function SuggestionsSection({
       </p>
       <ul className="space-y-2" aria-label="Suggestions">
         {suggestions.map((item) => (
-          <li key={item.id} className="bg-card rounded-xl border p-3">
+          <li key={item.id} className="glass-card rounded-card p-3">
             <button
               type="button"
               className="hover:bg-muted/50 focus-visible:ring-ring/50 -m-1 flex w-[calc(100%+0.5rem)] min-w-0 items-start gap-2 rounded-lg p-1 text-left outline-none focus-visible:ring-[3px]"

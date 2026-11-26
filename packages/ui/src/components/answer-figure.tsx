@@ -52,7 +52,7 @@ function AnswerFigure({
     <section
       data-slot="answer-figure"
       className={cn(
-        'bg-card text-card-foreground @container space-y-3 rounded-xl border p-4',
+        'glass-card text-card-foreground @container rounded-card space-y-3 p-4',
         className,
       )}
       {...props}

@@ -186,7 +186,7 @@ function MainScreen({
         }
       />
       <SheetScroll className="space-y-5 px-4 pb-6">
-        <dl className="bg-card divide-y rounded-xl border">
+        <dl className="bg-muted/40 rounded-control space-y-1 py-1">
           <Fact label="Peut" value={SCOPE_LABELS[access.scope]} />
           <Fact
             label="Dernière utilisation"
@@ -221,7 +221,7 @@ function MainScreen({
           ) : (
             <ul
               aria-label="Derniers appels"
-              className="bg-card divide-y rounded-xl border text-sm"
+              className="bg-muted/40 rounded-control space-y-1 py-1 text-sm"
             >
               {lines.map((line) => (
                 <li

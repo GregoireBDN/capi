@@ -90,7 +90,7 @@ function MovedCard({
           />
         </div>
         {checking && (
-          <div className="border-t pt-3">
+          <div className="pt-3">
             <FigureRow
               label="Compte courant"
               value={signedWholeEuros(rest)}

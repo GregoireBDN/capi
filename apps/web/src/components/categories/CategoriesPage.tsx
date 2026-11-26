@@ -34,7 +34,7 @@ function CategoryList({
   onDelete: (category: CategoryDto) => void
 }) {
   return (
-    <ul aria-label={label} className="divide-border -mx-3 divide-y">
+    <ul aria-label={label} className="divide-border -mx-3 space-y-1">
       {categories.map((category) => (
         <CategoryRow
           key={category.id}

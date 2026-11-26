@@ -212,7 +212,7 @@ function ImportsStep({ review }: { review: MonthCloseDto }) {
       {accounts.length === 0 ? (
         <p className="text-muted-foreground">Aucun compte courant ou livret.</p>
       ) : (
-        <ul className="divide-y">
+        <ul className="space-y-1">
           {accounts.map((account) => (
             <li
               key={account.id}
@@ -508,7 +508,7 @@ function InvestmentsStep({ review }: { review: MonthCloseDto }) {
     )
   }
   return (
-    <ul className="divide-y">
+    <ul className="space-y-1">
       {accounts.map((account) => (
         <li
           key={account.id}

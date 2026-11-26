@@ -182,7 +182,7 @@ export function SuggestionsSheet({
             </p>
           )}
           {items.length > 0 && (
-            <ul className="divide-y" aria-label="Propositions">
+            <ul className="space-y-1" aria-label="Propositions">
               {items.map((item) => {
                 const draft = draftOf(item.categoryId)
                 const error = draft.accepted ? targetError(draft.amount) : null

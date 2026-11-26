@@ -337,7 +337,7 @@ function StatementsList({
   })
   return (
     <div>
-      <ul className="divide-y" aria-label="Relevés de portefeuille">
+      <ul className="space-y-1" aria-label="Relevés de portefeuille">
         {data.statements.map((statement) => (
           <li
             key={statement.asOf}
@@ -530,7 +530,7 @@ export function LinesCard({
             {/* What the lines are worth, what they cost and the difference
                 (#413, the owner: « prix de revient » said plainly). */}
             {data.totals.costCents > 0 && (
-              <div className="grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-0.5 border-t px-2 pt-3 text-sm">
+              <div className="grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-0.5 px-2 pt-3 text-sm">
                 <span className="min-w-0 truncate font-medium">Total</span>
                 <span className="text-right font-medium whitespace-nowrap tabular-nums">
                   {formatCents(data.totals.costCents + data.totals.gainCents)}

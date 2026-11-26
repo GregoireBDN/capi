@@ -53,8 +53,8 @@ export function AccountRows({
   children?: ReactNode
 }) {
   return (
-    <div className="bg-muted/40 divide-y overflow-hidden rounded-md">
-      <div role="radiogroup" aria-labelledby={labelId} className="divide-y">
+    <div className="bg-muted/40 overflow-hidden rounded-control py-1">
+      <div role="radiogroup" aria-labelledby={labelId} className="space-y-1">
         {accounts.map((account) => {
           const { icon: Icon, className } = ACCOUNT_TYPE_ICONS[account.type]
           return (

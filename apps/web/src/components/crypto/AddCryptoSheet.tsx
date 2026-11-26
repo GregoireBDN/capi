@@ -250,9 +250,9 @@ function ChoiceTile({
         onClick={onSelect}
         aria-current={selected ? 'true' : undefined}
         className={cn(
-          'hover:bg-muted/60 focus-visible:ring-ring flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left outline-none focus-visible:ring-2',
+          'hover:bg-muted/60 focus-visible:ring-ring flex min-h-14 w-full items-center gap-3 rounded-control glass-well px-3 py-2.5 text-left outline-none focus-visible:ring-2',
           selected &&
-            'border-primary bg-[color-mix(in_srgb,var(--primary)_8%,var(--popover))]',
+            'ring-primary ring-2 bg-[color-mix(in_srgb,var(--primary)_8%,var(--popover))]',
         )}
       >
         {icon && (
@@ -289,7 +289,7 @@ function ChoiceTile({
 /** The summary of step 3: what will be created, one line per fact. */
 function Recap({ rows }: { rows: [label: string, value: ReactNode][] }) {
   return (
-    <dl className="divide-y rounded-lg border text-sm">
+    <dl className="bg-muted/40 rounded-control space-y-1 py-1 text-sm">
       {rows.map(([label, value]) => (
         <div
           key={label}
