@@ -195,40 +195,72 @@ export function BalancesElement({
   const envelopes = useQuery(envelopesQuery())
   const held = envelopeAmounts(envelopes.data)
   const picked = pickAccounts(overview.accounts, widget.accountIds)
-  // « Montant »: the largest balance first, an unknown one last.
+  // « Décroissant » / « Croissant »: by balance, an unknown one last.
   const accounts =
     widget.settings.balancesSort === 'desc' ||
     widget.settings.balancesSort === 'asc'
       ? sortByBalance(picked, widget.settings.balancesSort)
       : picked
+  const largest = Math.max(
+    0,
+    ...accounts.map((account) => account.balanceCents ?? 0),
+  )
   return (
     <ElementCard title="Soldes" to={ROUTES.accounts} className="@container">
       {accounts.length === 0 ? (
         <NoAccountLeft onEdit={onEdit} />
       ) : (
-        // Two columns once the card is wide (a « large » one on a computer).
-        <ul className="grid grid-cols-1 gap-x-6 @lg:grid-cols-2">
+        // A row each on a phone; once the card is wide (« large » on a
+        // computer), a tile each, side by side (#495).
+        <ul className="grid grid-cols-1 @lg:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] @lg:gap-2 @lg:pt-1">
           {accounts.map((account) => (
-            <ElementRow
-              key={account.id}
-              badge={<AccountTypeBadge type={account.type} />}
-              title={account.name}
-              detail={balanceDetail(account, held.get(account.id), year)}
-              value={
-                account.balanceCents === null
-                  ? '—'
-                  : formatWholeEuros(account.balanceCents)
-              }
-              link={{
-                to: ROUTES.account,
-                params: { accountId: account.id },
-              }}
-            />
+            <li key={account.id}>
+              <Link
+                to={ROUTES.account}
+                params={{ accountId: account.id }}
+                className="hover:bg-muted/60 focus-visible:ring-ring @lg:bg-muted/40 @lg:hover:bg-muted/70 flex min-h-11 flex-wrap items-center gap-x-3 rounded-lg px-2 py-1 text-sm outline-none focus-visible:ring-2 @lg:h-full @lg:content-start @lg:gap-y-2 @lg:rounded-xl @lg:p-3"
+              >
+                <AccountTypeBadge type={account.type} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">
+                    {account.name}
+                  </span>
+                  {balanceDetail(account, held.get(account.id), year) && (
+                    <span className="text-muted-foreground block text-xs">
+                      {balanceDetail(account, held.get(account.id), year)}
+                    </span>
+                  )}
+                </span>
+                <span className="shrink-0 font-semibold whitespace-nowrap tabular-nums @lg:basis-full @lg:text-lg">
+                  {account.balanceCents === null
+                    ? '—'
+                    : formatWholeEuros(account.balanceCents)}
+                </span>
+                {/* On a tile, its share of the largest balance. */}
+                <span
+                  aria-hidden
+                  className="bg-muted hidden h-1 basis-full overflow-hidden rounded-full @lg:block"
+                >
+                  <span
+                    className="bg-primary/60 block h-full rounded-full"
+                    style={{
+                      width: `${share(account.balanceCents, largest)}%`,
+                    }}
+                  />
+                </span>
+              </Link>
+            </li>
           ))}
         </ul>
       )}
     </ElementCard>
   )
+}
+
+/** A balance as a percentage of the largest one, 0 when not positive. */
+function share(balance: number | null, largest: number): number {
+  if (balance === null || balance <= 0 || largest <= 0) return 0
+  return Math.max(2, Math.round((balance / largest) * 100))
 }
 
 /** By balance, largest or smallest first; an unknown balance last. */
