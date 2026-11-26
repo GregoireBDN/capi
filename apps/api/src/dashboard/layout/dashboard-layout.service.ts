@@ -59,6 +59,7 @@ const SETTINGS: Partial<
 > = {
   upcoming_debits: ['upcomingDays'],
   owed: ['owedSide'],
+  balances: ['balancesSort'],
 }
 
 /**

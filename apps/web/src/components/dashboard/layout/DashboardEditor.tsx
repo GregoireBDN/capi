@@ -9,16 +9,20 @@ import {
   SheetBar,
   SheetBarAction,
   SheetContent,
-  Switch,
   cn,
   useIsMobile,
 } from '@capi/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  ArrowDownWideNarrowIcon,
+  EyeIcon,
+  EyeOffIcon,
   ColumnsIcon,
+  ListIcon,
   GripVerticalIcon,
   PlusIcon,
   RotateCcwIcon,
+  SettingsIcon,
   SquareIcon,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -345,12 +349,11 @@ function ElementRow({
       >
         <GripVerticalIcon aria-hidden />
       </button>
-      <button
-        type="button"
+      {/* The name opens the settings too; ⚙ is the button that says so. */}
+      <div
         onClick={onOpen}
-        aria-label={`Réglages de ${name}`}
         className={cn(
-          'hover:bg-muted/50 focus-visible:ring-ring flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-lg px-1.5 py-1.5 text-left outline-none focus-visible:ring-2',
+          'flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-3 py-1.5 pl-1',
           widget.hidden && 'opacity-45',
         )}
       >
@@ -359,13 +362,54 @@ function ElementRow({
           <span className="block truncate text-sm font-medium">{name}</span>
           <ChosenAccounts ids={widget.accountIds} />
         </span>
-      </button>
-      <Switch
-        aria-label={`Afficher ${name}`}
+      </div>
+      <IconToggle
+        label={`Afficher ${name}`}
         checked={!widget.hidden}
-        onCheckedChange={onShow}
-      />
+        onClick={() => onShow(widget.hidden)}
+      >
+        {widget.hidden ? <EyeOffIcon /> : <EyeIcon />}
+      </IconToggle>
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`Réglages de ${name}`}
+        className="text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring grid size-11 shrink-0 place-items-center rounded-full outline-none focus-visible:ring-2 [&_svg]:size-[20px]"
+      >
+        <SettingsIcon aria-hidden />
+      </button>
     </li>
+  )
+}
+
+/** Shown or hidden: an eye, open in the primary colour, crossed out greyed. */
+function IconToggle({
+  label,
+  checked,
+  onClick,
+  children,
+}: {
+  label: string
+  checked: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onClick}
+      className={cn(
+        'focus-visible:ring-ring grid size-11 shrink-0 place-items-center rounded-full outline-none focus-visible:ring-2 [&_svg]:size-[20px]',
+        checked
+          ? 'text-primary hover:bg-primary/10'
+          : 'text-muted-foreground/60 hover:bg-muted/60',
+      )}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -402,6 +446,24 @@ function ElementSettings({
   const info = ELEMENTS[widget.type]
   return (
     <>
+      {widget.type === 'balances' && (
+        <SegmentedControl
+          aria-label="Ordre"
+          value={widget.settings.balancesSort ?? 'order'}
+          onValueChange={(value) =>
+            onChange({ settings: { ...widget.settings, balancesSort: value } })
+          }
+        >
+          <SegmentedControlItem value="order">
+            <ListIcon aria-hidden className="size-4" />
+            Mon ordre
+          </SegmentedControlItem>
+          <SegmentedControlItem value="amount">
+            <ArrowDownWideNarrowIcon aria-hidden className="size-4" />
+            Montant
+          </SegmentedControlItem>
+        </SegmentedControl>
+      )}
       {widget.type === 'upcoming_debits' && (
         <SegmentedControl
           aria-label="Jours"

@@ -193,13 +193,22 @@ export function BalancesElement({
 }) {
   const envelopes = useQuery(envelopesQuery())
   const held = envelopeAmounts(envelopes.data)
-  const accounts = pickAccounts(overview.accounts, widget.accountIds)
+  const picked = pickAccounts(overview.accounts, widget.accountIds)
+  // « Montant »: the largest balance first, an unknown one last.
+  const accounts =
+    widget.settings.balancesSort === 'amount'
+      ? [...picked].sort(
+          (a, b) =>
+            (b.balanceCents ?? -Infinity) - (a.balanceCents ?? -Infinity),
+        )
+      : picked
   return (
-    <ElementCard title="Soldes" to={ROUTES.accounts}>
+    <ElementCard title="Soldes" to={ROUTES.accounts} className="@container">
       {accounts.length === 0 ? (
         <NoAccountLeft onEdit={onEdit} />
       ) : (
-        <ul>
+        // Two columns once the card is wide (a « large » one on a computer).
+        <ul className="grid grid-cols-1 gap-x-6 @lg:grid-cols-2">
           {accounts.map((account) => (
             <ElementRow
               key={account.id}

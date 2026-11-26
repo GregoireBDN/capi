@@ -17839,6 +17839,14 @@
         ],
         "description": "`owed`: both sides, what I am owed or what I owe."
       },
+      "DashboardBalancesSort": {
+        "type": "string",
+        "enum": [
+          "order",
+          "amount"
+        ],
+        "description": "`balances`: the accounts in their order, or the largest balance first."
+      },
       "DashboardWidgetSettingsDto": {
         "type": "object",
         "properties": {
@@ -17855,6 +17863,14 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/DashboardOwedSide"
+              }
+            ]
+          },
+          "balancesSort": {
+            "description": "`balances`: the accounts in their order, or the largest balance first.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DashboardBalancesSort"
               }
             ]
           }

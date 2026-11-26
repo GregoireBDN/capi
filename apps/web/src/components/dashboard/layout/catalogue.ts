@@ -97,7 +97,8 @@ export const ELEMENTS: Record<DashboardWidgetType, ElementInfo> = {
     icon: WalletIcon,
     tone: 'bg-chart-1/15 text-chart-1',
     accountTypes: ['checking', 'savings', 'meal_voucher', ...INVESTMENTS],
-    size: 'small',
+    // The whole row on a computer, its accounts in two columns (#495).
+    size: 'large',
   },
   net_worth: {
     type: 'net_worth',

@@ -651,6 +651,30 @@ describe('DashboardPage', () => {
     ).toEqual(['balances', 'owed', 'net_worth'])
   })
 
+  it('orders « Soldes » by balance when asked, the largest first', async () => {
+    api.dashboardLayoutControllerGet.mockImplementation(() =>
+      ok({
+        custom: true,
+        widgets: [
+          widget('balances', {
+            accountIds: [checking.id, pea.id],
+            settings: { balancesSort: 'amount' },
+          }),
+        ],
+      }),
+    )
+    renderPage()
+    const balances = (
+      await screen.findByRole('link', { name: 'Soldes' })
+    ).closest('[data-element]') as HTMLElement
+    const names = within(balances)
+      .getAllByRole('link')
+      .map((link) => link.textContent)
+      .filter((text) => text.includes('test'))
+    expect(names[0]).toContain('PEA test')
+    expect(names[1]).toContain('Compte test')
+  })
+
   it('says when every chosen account is gone and opens its settings, saved at once', async () => {
     vi.useRealTimers()
     const user = userEvent.setup()

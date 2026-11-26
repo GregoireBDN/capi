@@ -100,7 +100,10 @@ describe.skipIf(!process.env.DATABASE_URL)('DashboardLayoutService', () => {
         .values({ name: 'Voyage fictif' })
         .returning()
       const saved = await layout.replace([
-        item('balances', { accountIds: [checking.id, savings.id] }),
+        item('balances', {
+          accountIds: [checking.id, savings.id],
+          settings: { balancesSort: 'amount' },
+        }),
         item('owed', { settings: { owedSide: 'i_owe' } }),
         item('upcoming_debits', { settings: { upcomingDays: 30 } }),
         item('envelopes', { envelopeIds: [trip.id], size: 'large' }),
@@ -117,6 +120,7 @@ describe.skipIf(!process.env.DATABASE_URL)('DashboardLayoutService', () => {
       expect(saved.widgets[0].accountIds?.sort()).toEqual(
         [checking.id, savings.id].sort(),
       )
+      expect(saved.widgets[0].settings).toEqual({ balancesSort: 'amount' })
       expect(saved.widgets[1].settings).toEqual({ owedSide: 'i_owe' })
       expect(saved.widgets[2].settings).toEqual({ upcomingDays: 30 })
       expect(saved.widgets[3]).toMatchObject({

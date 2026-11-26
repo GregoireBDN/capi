@@ -22,13 +22,16 @@ export const UPCOMING_DAYS = [7, 30] as const
 /** Which side of the money owed the « Argent dû » element shows. */
 export const OWED_SIDES = ['both', 'owed_to_me', 'i_owe'] as const
 export type OwedSide = (typeof OWED_SIDES)[number]
+/** How « Soldes » orders its accounts: the accounts' order, or by balance. */
+export const BALANCES_SORTS = ['order', 'amount'] as const
+export type BalancesSort = (typeof BALANCES_SORTS)[number]
 
 /** At most this many accounts or envelopes chosen per element. */
 export const DASHBOARD_CHOICES_MAX = 100
 
 /**
  * An element's own scalars. Each type takes only its own: `upcomingDays`
- * on `upcoming_debits`, `owedSide` on `owed`.
+ * on `upcoming_debits`, `owedSide` on `owed`, `balancesSort` on `balances`.
  */
 export class DashboardWidgetSettingsDto {
   @ApiPropertyOptional({
@@ -48,6 +51,16 @@ export class DashboardWidgetSettingsDto {
   @IsOptional()
   @IsIn(OWED_SIDES)
   owedSide?: OwedSide
+
+  @ApiPropertyOptional({
+    enum: BALANCES_SORTS,
+    enumName: 'DashboardBalancesSort',
+    description:
+      '`balances`: the accounts in their order, or the largest balance first.',
+  })
+  @IsOptional()
+  @IsIn(BALANCES_SORTS)
+  balancesSort?: BalancesSort
 }
 
 export class DashboardWidgetDto {
