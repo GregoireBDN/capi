@@ -7,9 +7,12 @@ import {
   ArrowUpRightIcon,
   CheckIcon,
   ChevronRightIcon,
+  PiggyBankIcon,
   Settings2Icon,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { categoryIconComponent } from '#/components/categories/category-icons'
+import { envelopeColor } from '#/components/envelopes/format'
 import { envelopesQuery } from '#/components/envelopes/queries'
 import type {
   DashboardAccountDto,
@@ -25,7 +28,7 @@ import { AccountTypeBadge } from '#/components/transactions/filter-options'
 import { formatSignedWholeEuros, formatWholeEuros } from '#/lib/money'
 import { formatShortDay } from '#/lib/period'
 import { ROUTES } from '#/lib/routes'
-import { ForecastRow } from '../ForecastCard'
+import { ForecastPath } from '../ForecastCard'
 import { NetWorthRow } from '../GlanceCard'
 import { dashboardHistoryQuery } from '../queries'
 
@@ -363,7 +366,7 @@ export function ForecastElement({
   }
   return (
     <Card className="min-w-0 px-2 py-1.5 empty:hidden">
-      <ForecastRow accountIds={widget.accountIds} />
+      <ForecastPath accountIds={widget.accountIds} />
     </Card>
   )
 }
@@ -647,75 +650,102 @@ export function UpcomingElement({
  * ------------------------------------------------------------------------- */
 
 /**
- * « Le mois »: Revenus · Dépenses · Épargne of the current month (transfers
- * excluded) against the month before, like for like while it is partial;
- * nothing compared while it is empty.
+ * « Le mois » (#495, the owner's « B. Grand chiffre », without the
+ * comparison with the month before: it cluttered more than it helped): what
+ * was saved this month (transfers excluded) in large, green or red, under a
+ * piggy bank; income and expenses in two tinted tiles under it. Nothing
+ * while the month is empty.
  */
 export function MonthFlowsElement({
   overview,
 }: {
   overview: DashboardOverviewDto
 }) {
-  const { current, previous, period } = overview
-  const empty = period.status === 'empty'
-  const tiles = [
-    {
-      label: 'Revenus',
-      value: current.incomeCents,
-      before: previous.incomeCents,
-      better: 'up' as const,
-    },
-    {
-      label: 'Dépenses',
-      // Expenses are negative cents: shown and compared as amounts spent.
-      value: Math.abs(current.expenseCents),
-      before: Math.abs(previous.expenseCents),
-      better: 'down' as const,
-    },
-    {
-      label: 'Épargne',
-      value: current.netCents,
-      before: previous.netCents,
-      better: 'up' as const,
-    },
-  ]
+  const { current, period } = overview
+  const saved = current.netCents
+  const tone =
+    saved > 0
+      ? 'text-chart-delta-good'
+      : saved < 0
+        ? 'text-chart-delta-bad'
+        : 'text-foreground'
   return (
     <ElementCard title="Le mois" to={ROUTES.spending}>
-      {empty ? (
+      {period.status === 'empty' ? (
         <Quiet>Pas encore d’opérations</Quiet>
       ) : (
-        <dl className="grid grid-cols-3 gap-2 px-2 pb-1">
-          {tiles.map((tile) => {
-            const delta = tile.value - tile.before
-            const good =
-              delta === 0 ? null : delta > 0 === (tile.better === 'up')
-            return (
-              <div
-                key={tile.label}
-                className="bg-muted/50 min-w-0 rounded-xl px-2.5 py-2"
-              >
-                <dt className="text-muted-foreground text-xs">{tile.label}</dt>
-                <dd className="text-[clamp(0.8rem,4.5cqi,1.1rem)] font-semibold whitespace-nowrap tabular-nums">
-                  {formatWholeEuros(tile.value)}
-                </dd>
-                <dd
-                  className={cn(
-                    'text-xs whitespace-nowrap tabular-nums',
-                    good === null
-                      ? 'text-muted-foreground'
-                      : good
-                        ? 'text-chart-delta-good'
-                        : 'text-chart-delta-bad',
-                  )}
-                >
-                  {formatSignedWholeEuros(delta)}
-                </dd>
-              </div>
-            )
-          })}
+        <dl className="@container px-2 pb-1">
+          <div className="flex flex-col items-center pb-3 text-center">
+            <span
+              aria-hidden
+              className={cn(
+                'grid size-[48px] place-items-center rounded-2xl [&_svg]:size-6',
+                saved > 0
+                  ? 'bg-chart-income/15'
+                  : saved < 0
+                    ? 'bg-chart-expense/15'
+                    : 'bg-muted',
+                tone,
+              )}
+            >
+              <PiggyBankIcon />
+            </span>
+            <dt className="sr-only">Épargne</dt>
+            <dd
+              className={cn(
+                'mt-1.5 text-[clamp(1.6rem,12cqi,2.2rem)] leading-tight font-bold whitespace-nowrap tabular-nums',
+                tone,
+              )}
+            >
+              {formatSignedWholeEuros(saved)}
+            </dd>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <FlowTile
+              label="Revenus"
+              cents={current.incomeCents}
+              icon={<ArrowDownLeftIcon />}
+              className="bg-chart-income/10 [&_svg]:text-chart-delta-good"
+            />
+            <FlowTile
+              label="Dépenses"
+              // Negative cents: shown as an amount spent.
+              cents={Math.abs(current.expenseCents)}
+              icon={<ArrowUpRightIcon />}
+              className="bg-chart-expense/10 [&_svg]:text-chart-delta-bad"
+            />
+          </div>
         </dl>
       )}
     </ElementCard>
+  )
+}
+
+/** Income or expenses of « Le mois »: an arrow and the amount, tinted. */
+function FlowTile({
+  label,
+  cents,
+  icon,
+  className,
+}: {
+  label: string
+  cents: number
+  icon: ReactNode
+  className: string
+}) {
+  return (
+    <div
+      className={cn(
+        'flex min-w-0 items-center gap-2 rounded-xl px-3 py-2.5 [&_svg]:size-5 [&_svg]:shrink-0',
+        className,
+      )}
+    >
+      <span aria-hidden>{icon}</span>
+      <dt className="sr-only">{label}</dt>
+      <dd className="font-bold whitespace-nowrap tabular-nums">
+        {formatWholeEuros(cents)}
+      </dd>
+    </div>
   )
 }
 
@@ -723,11 +753,14 @@ export function MonthFlowsElement({
  * Enveloppes
  * ------------------------------------------------------------------------- */
 
-const ENVELOPE_ROWS = 4
+const ENVELOPE_JARS = 6
 
 /**
- * « Enveloppes » (#429): what each holds against its target and what is
- * still needed each month; money set aside, never a balance.
+ * « Enveloppes » (#429; #495, the owner's « C. Bocaux »): one jar each,
+ * three a row, filled to the share of its target in its colour, its icon at
+ * the top and that share at the bottom (no fill and no share without a
+ * target); under it its name, readable on two lines, then what it holds.
+ * Money set aside, never a balance.
  */
 export function EnvelopesElement({ widget }: { widget: DashboardWidgetDto }) {
   const { data } = useQuery(envelopesQuery())
@@ -749,43 +782,71 @@ export function EnvelopesElement({ widget }: { widget: DashboardWidgetDto }) {
       {envelopes.length === 0 ? (
         <Quiet>Aucune enveloppe</Quiet>
       ) : (
-        <ul className="space-y-2 px-2 pt-1">
-          {envelopes.slice(0, ENVELOPE_ROWS).map((envelope) => {
-            const ratio = envelope.plan.progressRatio
-            return (
-              <li key={envelope.id} className="space-y-1">
-                <p className="flex items-baseline gap-2 text-sm">
-                  <span className="min-w-0 flex-1 truncate font-medium">
-                    {envelope.name}
-                  </span>
-                  <span className="font-semibold whitespace-nowrap tabular-nums">
-                    {formatWholeEuros(envelope.totalCents)}
-                  </span>
-                </p>
-                {ratio !== null && (
-                  <span className="bg-muted block h-2 rounded-full">
-                    <span
-                      className="block h-2 rounded-full"
-                      style={{
-                        width: `${Math.min(ratio, 1) * 100}%`,
-                        background: envelope.color ?? 'var(--primary)',
-                      }}
-                    />
-                  </span>
-                )}
-                {envelope.plan.requiredMonthlyCents !== null &&
-                  !envelope.plan.reached && (
-                    <p className="text-muted-foreground text-xs tabular-nums">
-                      {formatWholeEuros(envelope.plan.requiredMonthlyCents)} /
-                      mois
-                    </p>
-                  )}
-              </li>
-            )
-          })}
+        <ul className="grid grid-cols-3 gap-x-3 gap-y-4 px-2 pt-1 pb-2">
+          {envelopes.slice(0, ENVELOPE_JARS).map((envelope) => (
+            <EnvelopeJar key={envelope.id} envelope={envelope} />
+          ))}
         </ul>
       )}
     </ElementCard>
+  )
+}
+
+function EnvelopeJar({ envelope }: { envelope: EnvelopeSummaryDto }) {
+  const color = envelopeColor(envelope)
+  const Icon = categoryIconComponent(envelope.icon ?? 'piggy-bank')
+  const ratio = envelope.plan.progressRatio
+  const share = ratio === null ? null : Math.round(Math.min(ratio, 1) * 100)
+  return (
+    <li className="flex min-w-0 flex-col items-center gap-1 text-center">
+      <span
+        role={share === null ? undefined : 'meter'}
+        aria-label={share === null ? undefined : envelope.name}
+        aria-valuemin={share === null ? undefined : 0}
+        aria-valuemax={share === null ? undefined : 100}
+        aria-valuenow={share ?? undefined}
+        aria-valuetext={share === null ? undefined : `${share} %`}
+        className="relative block h-[84px] w-full overflow-hidden rounded-2xl"
+        style={{
+          backgroundColor: `color-mix(in srgb, ${color} 10%, transparent)`,
+        }}
+      >
+        {share !== null && (
+          <span
+            aria-hidden
+            className="absolute inset-x-0 bottom-0"
+            style={{
+              // A sliver even near 0 %, so the jar reads as one.
+              height: `${Math.max(share, 6)}%`,
+              backgroundColor: `color-mix(in srgb, ${color} 55%, transparent)`,
+            }}
+          />
+        )}
+        <Icon
+          aria-hidden
+          className="absolute top-2 left-1/2 size-5 -translate-x-1/2"
+          style={{ color }}
+        />
+        {share !== null && (
+          <span
+            aria-hidden
+            className="absolute inset-x-0 bottom-1.5 text-xs font-bold tabular-nums"
+          >
+            {envelope.plan.reached ? (
+              <CheckIcon className="mx-auto size-4" />
+            ) : (
+              `${share} %`
+            )}
+          </span>
+        )}
+      </span>
+      <span className="line-clamp-2 min-h-[2.5em] text-xs leading-tight font-semibold break-normal">
+        {envelope.name}
+      </span>
+      <span className="text-muted-foreground text-xs whitespace-nowrap tabular-nums">
+        {formatWholeEuros(envelope.totalCents)}
+      </span>
+    </li>
   )
 }
 
