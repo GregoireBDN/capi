@@ -1,3 +1,4 @@
+import { cn } from '@capi/ui'
 import { useMatches } from '@tanstack/react-router'
 import { useSetPageMonthSlot } from './page-actions'
 import { MovementsTabs } from '#/components/spending/MovementsTabs'
@@ -12,8 +13,9 @@ import { MovementsTabs } from '#/components/spending/MovementsTabs'
  * from the first render until its month is in (`data-month-placeholder`,
  * hidden by `globals.css` then): nothing moves on load. On Mouvements
  * and Opérations, the two tabs « Résumé · Opérations » come above the month
- * in the same bar (#498, `staticData.movementsTab`). The bar is glass, one
- * block with the header, no line between them (#434, the owner's choice).
+ * in the same bar (#498, `staticData.movementsTab`), folder tabs opening onto
+ * the month in their light blue. The bar is glass, one block with the
+ * header, no line anywhere (#434, the owner's choices).
  */
 export function MonthBarSlot() {
   const setMonthSlot = useSetPageMonthSlot()
@@ -47,13 +49,19 @@ export function MonthBarSlot() {
           <MovementsTabs current={tabs.current} month={tabs.month} />
         </div>
       )}
-      {/* The bar fills the page's column, as wide as its content. */}
-      <div
-        ref={setMonthSlot}
-        data-page-month
-        className="@container mx-auto flex h-12 w-full max-w-5xl items-center px-2 empty:hidden sm:px-4"
-      />
-      {monthPage && <div data-month-placeholder aria-hidden className="h-12" />}
+      {/* Under the tabs, the month is in the current tab's tint: the tab
+          opens onto it like a folder's (#434). */}
+      <div className={cn(tabs && 'bg-primary/9')}>
+        {/* The bar fills the page's column, as wide as its content. */}
+        <div
+          ref={setMonthSlot}
+          data-page-month
+          className="@container mx-auto flex h-12 w-full max-w-5xl items-center px-2 empty:hidden sm:px-4"
+        />
+        {monthPage && (
+          <div data-month-placeholder aria-hidden className="h-12" />
+        )}
+      </div>
     </div>
   )
 }
