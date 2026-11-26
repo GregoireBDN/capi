@@ -175,7 +175,7 @@ function PageActionsMenu({ actions }: { actions: readonly PageAction[] }) {
           aria-label="Actions de la page"
           aria-describedby={waiting ? countId : undefined}
           title="Actions de la page"
-          className="bg-foreground/10 hover:bg-foreground/15 text-foreground relative rounded-full [&_svg]:size-[1.1rem]"
+          className="bg-foreground/10 hover:bg-foreground/15 text-foreground relative rounded-full bg-clip-border [&_svg]:size-[24px]"
         >
           {busy ? <Spinner /> : <EllipsisVerticalIcon />}
           {waiting && (
