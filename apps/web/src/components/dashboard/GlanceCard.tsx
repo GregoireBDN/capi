@@ -1,9 +1,6 @@
 import { Card, cn } from '@capi/ui'
 import { Link } from '@tanstack/react-router'
-import {
-  ChevronRightIcon,
-  TriangleAlertIcon,
-} from 'lucide-react'
+import { ChevronRightIcon, TriangleAlertIcon } from 'lucide-react'
 import type { MonthReviewDto } from '#/api/types.gen'
 import { formatWholeEuros } from '#/lib/money'
 import { formatShortDay } from '#/lib/period'
@@ -174,10 +171,7 @@ function ShareBar({
         className="bg-muted relative block h-2 rounded-full"
       >
         <span
-          className={cn(
-            'absolute inset-y-0 left-0 rounded-full',
-            barClassName,
-          )}
+          className={cn('absolute inset-y-0 left-0 rounded-full', barClassName)}
           style={{ width: `${Math.min(share, 1) * 100}%` }}
         />
       </span>

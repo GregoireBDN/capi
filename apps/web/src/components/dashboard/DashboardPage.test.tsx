@@ -395,9 +395,10 @@ describe('DashboardPage', () => {
       'aria-valuenow',
       '63',
     )
-    expect(
-      within(card).getByRole('meter', { name: 'Budget' }),
-    ).toHaveAttribute('aria-valuenow', '50')
+    expect(within(card).getByRole('meter', { name: 'Budget' })).toHaveAttribute(
+      'aria-valuenow',
+      '50',
+    )
     expect(card).not.toHaveTextContent('hors budget')
     expect(screen.getByTestId('data-until')).toHaveTextContent('au 19 nov.')
   })
