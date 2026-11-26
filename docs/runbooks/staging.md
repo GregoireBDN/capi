@@ -64,12 +64,12 @@ Nothing here is done by the workflow or an agent; nothing in the repo holds a se
 
   `CAPI_VERSION` stays empty: the first deploy sets it. No copy in the password manager is needed (losing them only means wiping the volume: `docker volume rm finances-staging_db_data`).
 
-- [ ] **Caddy** (`infra` repo): a site block for the staging host, e.g. `finances-staging.gbodin.cloud → capi-staging-web:3000`, like production's. The wildcard record `*.gbodin.cloud` and the wildcard certificate already cover it (ADR 0001 §3), so it is reachable from the tailnet only. Reload Caddy.
+- [ ] **Caddy** (`infra` repo): a site block for the staging host, e.g. `capi-staging.gbodin.cloud → capi-staging-web:3000`, like production's. The wildcard record `*.gbodin.cloud` and the wildcard certificate already cover it (ADR 0001 §3), so it is reachable from the tailnet only. Reload Caddy.
 - [ ] **Memory**: staging adds an API, a web server and a Postgres to the server (`APP_MEM_LIMIT=384m` each for `api` and `web`). Check `free -h` leaves room for both stacks.
 - [ ] **GitHub** › Settings › Environments › **New environment** `staging`:
   - **no** required reviewer, **Deployment branches**: the branch `main` only;
   - environment secrets `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET` (the same OAuth client as production's, or a second one with the same `tag:ci` tag), and `DEPLOY_SSH_KEY` only for the OpenSSH fallback;
-  - optional variables: `STAGING_URL` if the host is not `https://finances-staging.gbodin.cloud`, `DEPLOY_HOST` if the server is not `vps`.
+  - optional variables: `STAGING_URL` if the host is not `https://capi-staging.gbodin.cloud`, `DEPLOY_HOST` if the server is not `vps`.
 - [ ] **Tailscale**: nothing to change; `tag:ci` already reaches the server's SSH as `deploy` only.
 - [ ] **First deploy**: Actions › **Staging** › **Run workflow** on `main` (or merge anything). Then, from the phone on the tailnet, open the staging host and sign in with the demo account. Installing it as a PWA beside production is fine: it is another origin.
 
