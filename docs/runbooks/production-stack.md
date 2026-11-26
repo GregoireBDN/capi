@@ -6,7 +6,7 @@ This runbook covers how Capi runs on the server: first install, environment, mig
 
 ```text
 phone / laptop ──tailnet──▶ Caddy (infra, 443 on the Tailscale IP, network `proxy`)
-                              │  finances.gbodin.cloud → capi-web:3000 (or finances-web)
+                              │  capi.gbodin.cloud → capi-web:3000
                               ▼
                  ┌──────── project `capi` (/srv/capi) ─────────────┐
                  │ web  (proxy + default networks, alias capi-web) │
@@ -17,7 +17,7 @@ phone / laptop ──tailnet──▶ Caddy (infra, 443 on the Tailscale IP, net
                  │ capi-mcp (profile remote-mcp, proxy + default)  │
                  │  │  → http://api:4000 with the connector's token    │
                  └─────────────────────────────────────────────────────┘
-Claude's servers ──internet──▶ Caddy, public host finances-mcp.<domain>
+Claude's servers ──internet──▶ Caddy, public host capi-mcp.<domain>
                               (seven paths only) → capi-mcp:4100
 ```
 
@@ -41,7 +41,7 @@ Before the first install, make sure of the following:
 
 - Docker Engine and the compose plugin are installed, and the external network `proxy` exists (`docker network ls | grep proxy`). The `infra` bootstrap sets both up.
 - The `deploy` user exists, owns `/srv/capi` and is logged in to GHCR with a `read:packages` token. See [deploy runbook § One-time setup](deploy.md#one-time-setup), steps 1 and 2.
-- Caddy has the `finances.gbodin.cloud → capi-web:3000` site block (`infra` repo; `web` also answers to `finances-web` until #464's step B, [rename runbook](rename.md)), and `*.gbodin.cloud` resolves to the server's Tailscale IP.
+- Caddy has the `capi.gbodin.cloud → capi-web:3000` site block (`infra` repo; `web` also answers to `finances-web` until #464's cleanup, and `finances.gbodin.cloud` redirects to it until 2027-02-26, [rename runbook](rename.md)), and `*.gbodin.cloud` resolves to the server's Tailscale IP.
 - At least one release exists in GHCR (`vX.Y.Z`, pushed by the release workflow).
 
 ## First install
@@ -77,7 +77,7 @@ ls -l .env                              # -rw------- deploy deploy
 
 Copy `POSTGRES_PASSWORD` and `JWT_SECRET` into the password manager. The backups of the `.env` and the database are covered by #30.
 
-Required values: `CAPI_VERSION`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `JWT_SECRET` and `APP_URL` (`https://finances.gbodin.cloud`). `docker compose` refuses to run while any of them is empty. The API also refuses to start with a `JWT_SECRET` shorter than 32 characters (`openssl rand -hex 32` gives 64); if an older `.env` has a shorter one, replace it before deploying (everyone is signed out). Validate the file without printing the secrets:
+Required values: `CAPI_VERSION`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `JWT_SECRET` and `APP_URL` (`https://capi.gbodin.cloud`). `docker compose` refuses to run while any of them is empty. The API also refuses to start with a `JWT_SECRET` shorter than 32 characters (`openssl rand -hex 32` gives 64); if an older `.env` has a shorter one, replace it before deploying (everyone is signed out). Validate the file without printing the secrets:
 
 ```bash
 dc config -q && echo OK
@@ -104,13 +104,13 @@ dc exec -T web node -e "fetch('http://localhost:3000/api/health').then(async r=>
 docker ps --filter label=com.docker.compose.project=finances --format '{{.Names}} {{.Ports}}' | grep -- '->'
 ```
 
-From a device on the tailnet, open `https://finances.gbodin.cloud/api/health`. It should return `200` with `"status":"ok"`.
+From a device on the tailnet, open `https://capi.gbodin.cloud/api/health`. It should return `200` with `"status":"ok"`.
 
 ### 5. Create the owner account
 
-Open `https://finances.gbodin.cloud` and sign up. Registration is open only while no user exists. Once the owner account is created, `POST /api/auth/register` returns 403 and the sign-up form is hidden. Do this right after the first start: until then, anyone on the tailnet could take the account.
+Open `https://capi.gbodin.cloud` and sign up. Registration is open only while no user exists. Once the owner account is created, `POST /api/auth/register` returns 403 and the sign-up form is hidden. Do this right after the first start: until then, anyone on the tailnet could take the account.
 
-The session cookies are `Secure` (the API sets them with `secure: true` when `NODE_ENV=production`, which the image sets) and `httpOnly`, so they only travel over HTTPS. In the browser's dev tools, the `token` and `refresh_token` cookies of `finances.gbodin.cloud` should show `Secure` and `HttpOnly`.
+The session cookies are `Secure` (the API sets them with `secure: true` when `NODE_ENV=production`, which the image sets) and `httpOnly`, so they only travel over HTTPS. In the browser's dev tools, the `token` and `refresh_token` cookies of `capi.gbodin.cloud` should show `Secure` and `HttpOnly`.
 
 If SMTP is not configured, the verification email is skipped (a warning is logged) and the account still works.
 
@@ -195,8 +195,8 @@ Check what `web` resolves: `dc exec -T web node -e "require('dns').promises.look
 **End-to-end check** (after a change to Caddy, the `proxy` network or `TRUSTED_PROXIES`): from a device on the tailnet, call the site over each family, then read the client IPs the API logged.
 
 ```bash
-curl -4 -s -o /dev/null https://finances.gbodin.cloud/api/health
-curl -6 -s -o /dev/null https://finances.gbodin.cloud/api/health
+curl -4 -s -o /dev/null https://capi.gbodin.cloud/api/health
+curl -6 -s -o /dev/null https://capi.gbodin.cloud/api/health
 ```
 
 ```bash

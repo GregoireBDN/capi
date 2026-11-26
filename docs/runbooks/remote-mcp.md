@@ -6,7 +6,7 @@ Lets claude.ai, Claude Desktop's connectors and the Claude mobile apps use the C
 
 ```
 Claude's servers (160.79.104.0/21, 153.61.208.0/20)
-   │  HTTPS, public host finances-mcp.<domain>
+   │  HTTPS, public host capi-mcp.<domain>
    ▼
 Caddy (infra repo) ── only /mcp, /.well-known/oauth-*, /oauth/register|token|revoke
    ▼
@@ -43,7 +43,7 @@ ssh -t ops@vps 'sudo -iu deploy docker pull ghcr.io/gregoirebdn/capi-mcp:vX.Y.Z'
 
 ### 2. Public host name (DNS)
 
-A dedicated name, `finances-mcp.gbodin.cloud`: an `A` record to the VPS's **public** IPv4, **DNS only** in Cloudflare (grey cloud). A proxied record would put Cloudflare's addresses in front of Caddy and break the `remote_ip` allow-list. No `AAAA`: Anthropic calls over IPv4 only, and nothing listens on the public IPv6. The app's tailnet name (`finances.gbodin.cloud`) stays as it is: nothing else gets a public record.
+A dedicated name, `capi-mcp.gbodin.cloud`: an `A` record to the VPS's **public** IPv4, **DNS only** in Cloudflare (grey cloud). A proxied record would put Cloudflare's addresses in front of Caddy and break the `remote_ip` allow-list. No `AAAA`: Anthropic calls over IPv4 only, and nothing listens on the public IPv6. The app's tailnet name (`capi.gbodin.cloud`) stays as it is: nothing else gets a public record.
 
 ### 3. Public listener and Caddy site (infra repo)
 
@@ -51,7 +51,7 @@ Done in the `infra` repo (GregoireBDN/infra#7, its `docs/runbooks/caddy-portal.m
 
 - **Hostinger firewall**: two accept rules, TCP 443 from those ranges.
 - **Docker guard**: `DOCKER-USER` exceptions from `/etc/infra-public-allow`, applied by the infra `bootstrap.sh`. Docker forwards published ports past `ufw`, so a `ufw allow` alone would do nothing.
-- **Caddy**: the public IPv4 `:443` is mapped to container port `8443` (`compose.public.yml`), where only the `finances-mcp.gbodin.cloud` site listens. That site answers 403 outside the ranges and 404 outside the adapter's seven paths, caps bodies at 8 MB and keeps streaming (`flush_interval -1`). It reaches the adapter as `capi-mcp:4100` on the `proxy` network: the adapter believes `X-Forwarded-For` only from the service named `caddy` (keep that name, or set `MCP_TRUSTED_PROXIES`).
+- **Caddy**: the public IPv4 `:443` is mapped to container port `8443` (`compose.public.yml`), where only the `capi-mcp.gbodin.cloud` site listens. That site answers 403 outside the ranges and 404 outside the adapter's seven paths, caps bodies at 8 MB and keeps streaming (`flush_interval -1`). It reaches the adapter as `capi-mcp:4100` on the `proxy` network: the adapter believes `X-Forwarded-For` only from the service named `caddy` (keep that name, or set `MCP_TRUSTED_PROXIES`).
 
 Anthropic publishes its ranges at [platform.claude.com/docs/en/api/ip-addresses](https://platform.claude.com/docs/en/api/ip-addresses) (« Outbound IP addresses »; checked 2026-11-19, no outbound IPv6). If the connector's calls time out or get 403, check that page first and update the three layers together rather than dropping the filter.
 
@@ -60,7 +60,7 @@ Anthropic publishes its ranges at [platform.claude.com/docs/en/api/ip-addresses]
 ```bash
 COMPOSE_PROFILES=remote-mcp
 REMOTE_MCP_ENABLED=true
-REMOTE_MCP_PUBLIC_URL=https://finances-mcp.gbodin.cloud
+REMOTE_MCP_PUBLIC_URL=https://capi-mcp.gbodin.cloud
 # Optional, the defaults:
 # REMOTE_MCP_REDIRECT_URIS=        (claude.ai and claude.com callbacks)
 # MCP_TRUSTED_PROXIES=caddy
@@ -80,7 +80,7 @@ From then on every deploy pulls, health-checks and rolls back the adapter with t
 
 ### 5. Connect Claude
 
-1. claude.ai → Settings → Connectors → **Add custom connector**: name `Capi`, URL `https://finances-mcp.gbodin.cloud/mcp`. Leave the OAuth client fields empty (Claude registers itself).
+1. claude.ai → Settings → Connectors → **Add custom connector**: name `Capi`, URL `https://capi-mcp.gbodin.cloud/mcp`. Leave the OAuth client fields empty (Claude registers itself).
 2. Claude opens the consent page on the tailnet: sign in if asked (password or passkey; approving needs a sign-in in the last 5 minutes), check that the return host is **claude.ai**, tick "Autoriser les modifications" only if you want the write tools, then **Autoriser**.
 3. The connector appears in the Claude apps signed in with the same account (iPhone included). Your phone must be on the tailnet only when (re)connecting, for the consent page.
 4. From the iPhone app: « Quels sont mes comptes ? » (`accounts_overview`), then a write tool without `confirm` to see its preview.
@@ -89,14 +89,14 @@ From then on every deploy pulls, health-checks and rolls back the adapter with t
 
 ```bash
 # Public: only the adapter answers, and asks for a token
-curl -si https://finances-mcp.gbodin.cloud/mcp -X POST | head -5        # 401 + WWW-Authenticate resource_metadata (403 from outside Anthropic's range)
-curl -s https://finances-mcp.gbodin.cloud/.well-known/oauth-protected-resource/mcp
-curl -s https://finances-mcp.gbodin.cloud/.well-known/oauth-authorization-server
-curl -si https://finances-mcp.gbodin.cloud/api/health | head -1       # 404: the API is not public
-curl -si https://finances-mcp.gbodin.cloud/dashboard | head -1        # 404
+curl -si https://capi-mcp.gbodin.cloud/mcp -X POST | head -5        # 401 + WWW-Authenticate resource_metadata (403 from outside Anthropic's range)
+curl -s https://capi-mcp.gbodin.cloud/.well-known/oauth-protected-resource/mcp
+curl -s https://capi-mcp.gbodin.cloud/.well-known/oauth-authorization-server
+curl -si https://capi-mcp.gbodin.cloud/api/health | head -1       # 404: the API is not public
+curl -si https://capi-mcp.gbodin.cloud/dashboard | head -1        # 404
 ```
 
-From a machine **outside** Anthropic's range the allowed paths answer 403 and the others 404 (so from your laptop, expect 403 on the first three: that is the allow-list working; run them from the server with `--resolve` to Caddy, or trust the connector's own calls). From a machine **outside** the tailnet, `finances.gbodin.cloud` must still not answer. Réglages › Claude et accès shows the connection under « Accès actifs », and its detail lists the calls.
+From a machine **outside** Anthropic's range the allowed paths answer 403 and the others 404 (so from your laptop, expect 403 on the first three: that is the allow-list working; run them from the server with `--resolve` to Caddy, or trust the connector's own calls). From a machine **outside** the tailnet, `capi.gbodin.cloud` must still not answer. Réglages › Claude et accès shows the connection under « Accès actifs », and its detail lists the calls.
 
 ## Disconnecting, kill switch
 

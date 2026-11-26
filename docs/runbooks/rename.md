@@ -96,7 +96,15 @@ New hosts `capi.gbodin.cloud`, `capi-staging.gbodin.cloud`, `capi-mcp.gbodin.clo
 - **The Claude connector** (remote MCP, only if it was enabled) must be removed and added again with the new URL; `REMOTE_MCP_REDIRECT_URIS` doesn't change. Personal access tokens keep working, but the MCP config's `CAPI_API_URL` must point at the new host.
 - Staging: only `STAGING_URL` and its Caddy block; demo data is rebuilt anyway.
 
-Steps: DNS records and Caddy site blocks for the new hosts (`infra`, TLS issued on first request), then in `/srv/capi/.env` `APP_URL`, `WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGIN` (or empty to follow `APP_URL`), `REMOTE_MCP_PUBLIC_URL`; the workflows' `url:`; redeploy; then the old hosts become `redir https://capi.gbodin.cloud{uri} permanent` in Caddy for 3 months. The tailnet ACLs name the server, not the host, so they don't change.
+Steps, in this order (each one harmless without the next):
+
+1. **`infra` PR 1** (no visible change): Caddy serves the `capi-*` names beside the old ones, on the `capi-*` aliases; the backups read `/srv/capi`; the portal tiles. The tailnet names are covered by the wildcard record and certificate; the MCP host needs its own record: Cloudflare, `A capi-mcp` → the server's public IPv4, **DNS only** (grey cloud), no `AAAA`. Check `https://capi.gbodin.cloud/api/health` answers `200` from the tailnet.
+2. **This repository**: `.env.*.example`, the docs, and the workflows' `url:` (owner push: the Claude GitHub App has no `workflows` permission). Only links: merging changes nothing on the server.
+3. **The window** (about a minute of downtime, password at hand): in `/srv/capi/.env` set `APP_URL=https://capi.gbodin.cloud`, leave `WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGIN` empty (they follow `APP_URL`), and if remote MCP is on `REMOTE_MCP_PUBLIC_URL=https://capi-mcp.gbodin.cloud`; then `docker compose -f docker-compose.prod.yml up -d` from `/srv/capi` (recreates the services whose environment changed). In `/srv/capi-staging/.env`, `APP_URL=https://capi-staging.gbodin.cloud` (the next staging deploy applies it).
+4. **The owner, on each device**: sign in on `https://capi.gbodin.cloud` with the password, add a passkey, reinstall the PWA; remove the Claude connector and add it again with `https://capi-mcp.gbodin.cloud/mcp`; local MCP configs get `CAPI_API_URL=https://capi.gbodin.cloud`. Then delete the old passkeys (Profil → Passkeys).
+5. **`infra` PR 2**: the old hosts become `redir https://capi.gbodin.cloud{uri} permanent` (and the staging one to `capi-staging`) until **2027-02-26**; the old MCP host is dropped from `@mcpHost` (a connector can't follow a redirect, it is added again in 4). The `A finances-mcp` record is deleted in Cloudflare (no dangling public name).
+
+The tailnet ACLs name the server, not the host, so they don't change.
 
 ## Rolling back after the rename
 
