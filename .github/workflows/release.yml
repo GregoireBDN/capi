@@ -203,7 +203,7 @@ jobs:
     env:
       VERSION: ${{ needs.version.outputs.version }}
       DEPLOY_HOST: ${{ vars.DEPLOY_HOST || 'vps' }}
-      RELEASE_DIR: /srv/finances/releases/${{ needs.version.outputs.version }}
+      RELEASE_DIR: /srv/capi/releases/${{ needs.version.outputs.version }}
     steps:
       # The deploy script and compose file come from the release being deployed.
       - name: Checkout ${{ needs.version.outputs.version }}
@@ -241,13 +241,24 @@ jobs:
             ServerAliveCountMax 8
           EOF
 
+      # A release from before #464's step B (compose project `finances`) ships a
+      # deploy.sh that neither knows /srv/capi nor stops the `capi` project: it
+      # would start a second Postgres on the volume. Roll back to one by hand
+      # with the current /srv/capi/deploy.sh (docs/runbooks/rename.md).
+      - name: Refuse a release from before the project rename
+        run: |
+          if grep -qx 'name: finances' docker-compose.prod.yml; then
+            echo "::error::$VERSION runs the compose project 'finances': roll back by hand with /srv/capi/deploy.sh $VERSION /srv/capi/releases/$VERSION/docker-compose.prod.yml (docs/runbooks/rename.md)"
+            exit 1
+          fi
+
       # VERSION is validated (vX.Y.Z), so expanding it client-side is safe.
       - name: Upload the release files
         run: |
           # shellcheck disable=SC2029
           tar -cf - deploy/deploy.sh docker-compose.prod.yml |
             ssh "$DEPLOY_HOST" "rm -rf '$RELEASE_DIR' && mkdir -p '$RELEASE_DIR' && tar -xf - -C '$RELEASE_DIR' &&
-              cp '$RELEASE_DIR/deploy/deploy.sh' /srv/finances/deploy.sh.new && mv -f /srv/finances/deploy.sh.new /srv/finances/deploy.sh"
+              cp '$RELEASE_DIR/deploy/deploy.sh' /srv/capi/deploy.sh.new && mv -f /srv/capi/deploy.sh.new /srv/capi/deploy.sh"
 
       - name: Deploy ${{ needs.version.outputs.version }}
         run: |
