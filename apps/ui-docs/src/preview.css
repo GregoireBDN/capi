@@ -7,6 +7,11 @@
 /* Prototypes use classes the library doesn't. */
 @source './prototypes';
 
+/* Foundations/Verre draws phone frames: the app's 22px root. */
+:root:has([data-glass-frame]) {
+  font-size: 22px;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

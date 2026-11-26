@@ -138,7 +138,7 @@ export function ImportHistory({ onResume, activeId }: ImportHistoryProps) {
             Aucun import pour le moment.
           </p>
         ) : (
-          <ul className="divide-y">
+          <ul className="space-y-1">
             {history.data.map((item) => (
               <HistoryItem
                 key={item.id}

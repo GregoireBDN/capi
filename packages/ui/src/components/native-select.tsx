@@ -1,6 +1,7 @@
 import { ChevronDownIcon } from 'lucide-react'
 import * as React from 'react'
 
+import { fieldSurface } from '../lib/field'
 import { cn } from '../lib/utils'
 
 /* ============================================================================
@@ -58,51 +59,27 @@ function NativeSelect({
             // Spacing
             'py-1 pr-8 pl-2.5',
 
-            // Styling
-            'appearance-none rounded-lg border border-input bg-transparent',
+            // Styling: the glass hollow, focus glow, invalid (#507)
+            'appearance-none',
+            fieldSurface,
 
             // Typography
             'text-sm',
-
-            // Transitions
-            'transition-colors outline-none',
 
             // Selection
             'select-none',
             'selection:bg-primary',
             'selection:text-primary-foreground',
 
-            // Placeholder
-            'placeholder:text-muted-foreground',
-
-            // Focus States
-            'focus-visible:border-ring',
-            'focus-visible:ring-3',
-            'focus-visible:ring-ring/50',
-
-            // Disabled States
+            // Disabled
             'disabled:pointer-events-none',
-            'disabled:cursor-not-allowed',
-
-            // Invalid States (Light)
-            'aria-invalid:border-destructive',
-            'aria-invalid:ring-3',
-            'aria-invalid:ring-destructive/20',
 
             // Small Size Variant
             'data-[size=sm]:h-7',
             // Touch screens: 44px high whatever the size
             'pointer-coarse:data-[size=sm]:h-8',
-            'data-[size=sm]:rounded-[min(var(--radius-md),10px)]',
+            'data-[size=sm]:rounded-[min(var(--radius-control),10px)]',
             'data-[size=sm]:py-0.5',
-
-            // Dark Mode - Background
-            'dark:bg-input/30',
-            'dark:hover:bg-input/50',
-
-            // Dark Mode - Invalid
-            'dark:aria-invalid:border-destructive/50',
-            'dark:aria-invalid:ring-destructive/40',
           ].join(' '),
         )}
         {...props}

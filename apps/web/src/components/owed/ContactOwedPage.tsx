@@ -283,7 +283,7 @@ function OffsetsCard({
         />
 
         {offsets.length > 0 && (
-          <ul className="divide-y text-sm">
+          <ul className="space-y-1 text-sm">
             {offsets.map((offset) => (
               <li key={offset.id} className="flex min-h-11 items-center gap-2">
                 <CheckIcon

@@ -4,28 +4,28 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../lib/utils'
 
 const alertVariants = cva(
-  "group/alert relative grid w-full gap-0.5 rounded-lg border px-3 py-2.5 text-left text-sm has-data-[slot=alert-action]:pr-10 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2 *:[svg]:self-start *:[svg]:mt-0.5 *:[svg]:text-current *:[svg:not([class*='size-'])]:size-4",
+  "group/alert relative grid w-full gap-0.5 rounded-control px-3 py-2.5 text-left text-sm has-data-[slot=alert-action]:pr-10 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2 *:[svg]:self-start *:[svg]:mt-0.5 *:[svg]:text-current *:[svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: 'bg-card text-card-foreground',
+        default: 'bg-muted/60 text-card-foreground',
         // Text on the tinted background must reach 4.5:1 in both themes
         // (computed against `bg-*/10` over the page and card surfaces). Light:
         // a darkened ink of the tone; dark: the tone itself. The description
         // follows the title's colour at 90 %.
         destructive: [
-          'border-destructive/50 bg-destructive/10 text-[oklch(from_var(--destructive)_calc(l_-_0.12)_c_h)]',
-          'dark:border-destructive/40 dark:text-destructive',
+          'bg-destructive/10 text-[oklch(from_var(--destructive)_calc(l_-_0.12)_c_h)]',
+          'dark:text-destructive',
           '*:data-[slot=alert-description]:text-current/90',
         ].join(' '),
         warning: [
-          'border-warning/50 bg-warning/10 text-warning-foreground',
-          'dark:border-warning/40 dark:text-warning',
+          'bg-warning/10 text-warning-foreground',
+          'dark:text-warning',
           '*:data-[slot=alert-description]:text-current/90',
         ].join(' '),
         success: [
-          'border-success/50 bg-success/10 text-success-foreground',
-          'dark:border-success/40 dark:text-success',
+          'bg-success/10 text-success-foreground',
+          'dark:text-success',
           '*:data-[slot=alert-description]:text-current/90',
         ].join(' '),
       },

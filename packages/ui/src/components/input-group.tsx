@@ -1,32 +1,31 @@
-"use client";
+'use client'
 
-import { cva, type VariantProps } from "class-variance-authority";
-import * as React from "react";
+import { cva, type VariantProps } from 'class-variance-authority'
+import * as React from 'react'
 
-import { Button, type ButtonProps } from "./button";
-import { Input } from "./input";
-import { Textarea } from "./textarea";
-import { cn } from "../lib/utils";
+import { Button, type ButtonProps } from './button'
+import { fieldGroupSurface } from '../lib/field'
+import { cn } from '../lib/utils'
 
 /* ============================================================================
  * TYPES
  * ========================================================================= */
 
 type InputGroupAddonAlign =
-  | "inline-start"
-  | "inline-end"
-  | "block-start"
-  | "block-end";
-type InputGroupButtonSize = "xs" | "sm" | "icon-xs" | "icon-sm";
+  | 'inline-start'
+  | 'inline-end'
+  | 'block-start'
+  | 'block-end'
+type InputGroupButtonSize = 'xs' | 'sm' | 'icon-xs' | 'icon-sm'
 
-type InputGroupProps = React.ComponentProps<"div">;
-type InputGroupAddonProps = React.ComponentProps<"div"> &
-  VariantProps<typeof inputGroupAddonVariants>;
-type InputGroupButtonProps = Omit<ButtonProps, "size"> &
-  VariantProps<typeof inputGroupButtonVariants>;
-type InputGroupTextProps = React.ComponentProps<"span">;
-type InputGroupInputProps = React.ComponentProps<"input">;
-type InputGroupTextareaProps = React.ComponentProps<"textarea">;
+type InputGroupProps = React.ComponentProps<'div'>
+type InputGroupAddonProps = React.ComponentProps<'div'> &
+  VariantProps<typeof inputGroupAddonVariants>
+type InputGroupButtonProps = Omit<ButtonProps, 'size'> &
+  VariantProps<typeof inputGroupButtonVariants>
+type InputGroupTextProps = React.ComponentProps<'span'>
+type InputGroupInputProps = React.ComponentProps<'input'>
+type InputGroupTextareaProps = React.ComponentProps<'textarea'>
 
 /* ============================================================================
  * VARIANTS (CVA)
@@ -42,59 +41,59 @@ type InputGroupTextareaProps = React.ComponentProps<"textarea">;
 const inputGroupAddonVariants = cva(
   [
     // Layout
-    "flex h-auto items-center justify-center gap-2",
+    'flex h-auto items-center justify-center gap-2',
 
     // Spacing
-    "py-1.5",
+    'py-1.5',
 
     // Typography
-    "text-sm font-medium text-muted-foreground",
+    'text-sm font-medium text-muted-foreground',
 
     // Interactivity
-    "cursor-text select-none",
+    'cursor-text select-none',
 
     // Disabled State
-    "group-data-[disabled=true]/input-group:opacity-50",
+    'group-data-[disabled=true]/input-group:opacity-50',
 
     // Child Element Styling
-    "[&>kbd]:rounded-[calc(var(--radius)-5px)]",
+    '[&>kbd]:rounded-[calc(var(--radius)-5px)]',
     "[&>svg:not([class*='size-'])]:size-4",
-  ].join(" "),
+  ].join(' '),
   {
     variants: {
       align: {
-        "inline-start": [
-          "order-first pl-2",
-          "has-[>button]:ml-[-0.3rem]",
-          "has-[>kbd]:ml-[-0.15rem]",
-        ].join(" "),
+        'inline-start': [
+          'order-first pl-2',
+          'has-[>button]:ml-[-0.3rem]',
+          'has-[>kbd]:ml-[-0.15rem]',
+        ].join(' '),
 
-        "inline-end": [
-          "order-last pr-2",
-          "has-[>button]:mr-[-0.3rem]",
-          "has-[>kbd]:mr-[-0.15rem]",
-        ].join(" "),
+        'inline-end': [
+          'order-last pr-2',
+          'has-[>button]:mr-[-0.3rem]',
+          'has-[>kbd]:mr-[-0.15rem]',
+        ].join(' '),
 
-        "block-start": [
-          "order-first w-full justify-start",
-          "px-2.5 pt-2",
-          "group-has-[>input]/input-group:pt-2",
-          "[.border-b]:pb-2",
-        ].join(" "),
+        'block-start': [
+          'order-first w-full justify-start',
+          'px-2.5 pt-2',
+          'group-has-[>input]/input-group:pt-2',
+          '[.border-b]:pb-2',
+        ].join(' '),
 
-        "block-end": [
-          "order-last w-full justify-start",
-          "px-2.5 pb-2",
-          "group-has-[>input]/input-group:pb-2",
-          "[.border-t]:pt-2",
-        ].join(" "),
+        'block-end': [
+          'order-last w-full justify-start',
+          'px-2.5 pb-2',
+          'group-has-[>input]/input-group:pb-2',
+          '[.border-t]:pt-2',
+        ].join(' '),
       },
     },
     defaultVariants: {
-      align: "inline-start",
+      align: 'inline-start',
     },
   },
-);
+)
 
 /**
  * Input Group Button size variants
@@ -103,39 +102,39 @@ const inputGroupAddonVariants = cva(
 const inputGroupButtonVariants = cva(
   [
     // Layout
-    "flex items-center gap-2",
+    'flex items-center gap-2',
 
     // Typography
-    "text-sm",
+    'text-sm',
 
     // Remove default button shadow
-    "shadow-none",
-  ].join(" "),
+    'shadow-none',
+  ].join(' '),
   {
     variants: {
       size: {
         xs: [
-          "h-6 gap-1 px-1.5",
-          "rounded-[calc(var(--radius)-3px)]",
+          'h-6 gap-1 px-1.5',
+          'rounded-[calc(var(--radius)-3px)]',
           "[&>svg:not([class*='size-'])]:size-3.5",
-        ].join(" "),
+        ].join(' '),
 
-        sm: "",
+        sm: '',
 
-        "icon-xs": [
-          "size-6 p-0",
-          "rounded-[calc(var(--radius)-3px)]",
-          "has-[>svg]:p-0",
-        ].join(" "),
+        'icon-xs': [
+          'size-6 p-0',
+          'rounded-[calc(var(--radius)-3px)]',
+          'has-[>svg]:p-0',
+        ].join(' '),
 
-        "icon-sm": ["size-8 p-0", "has-[>svg]:p-0"].join(" "),
+        'icon-sm': ['size-8 p-0', 'has-[>svg]:p-0'].join(' '),
       },
     },
     defaultVariants: {
-      size: "xs",
+      size: 'xs',
     },
   },
-);
+)
 
 /* ============================================================================
  * COMPONENTS
@@ -154,60 +153,33 @@ function InputGroup({ className, ...props }: InputGroupProps) {
       className={cn(
         [
           // Grouping & Layout
-          "group/input-group relative flex items-center",
-          "h-8 w-full min-w-0",
+          'group/input-group relative flex items-center',
+          'h-8 w-full min-w-0',
 
-          // Styling
-          "rounded-lg border border-input",
-
-          // Background
-          "dark:bg-input/30",
-
-          // Transitions
-          "transition-colors outline-none",
-
-          // Combobox Integration
-          "in-data-[slot=combobox-content]:focus-within:border-inherit",
-          "in-data-[slot=combobox-content]:focus-within:ring-0",
-
-          // Disabled States
-          "has-disabled:bg-input/50",
-          "has-disabled:opacity-50",
-          "dark:has-disabled:bg-input/80",
-
-          // Focus States
-          "has-[[data-slot=input-group-control]:focus-visible]:border-ring",
-          "has-[[data-slot=input-group-control]:focus-visible]:ring-3",
-          "has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50",
-
-          // Invalid States (Light)
-          "has-[[data-slot][aria-invalid=true]]:border-destructive",
-          "has-[[data-slot][aria-invalid=true]]:ring-3",
-          "has-[[data-slot][aria-invalid=true]]:ring-destructive/20",
-
-          // Invalid States (Dark)
-          "dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40",
+          // Styling: the glass hollow, lit while its input has the focus,
+          // red when it is invalid (#507)
+          fieldGroupSurface,
 
           // Block Alignment - Vertical Layout
-          "has-[>[data-align=block-end]]:h-auto",
-          "has-[>[data-align=block-end]]:flex-col",
-          "has-[>[data-align=block-start]]:h-auto",
-          "has-[>[data-align=block-start]]:flex-col",
+          'has-[>[data-align=block-end]]:h-auto',
+          'has-[>[data-align=block-end]]:flex-col',
+          'has-[>[data-align=block-start]]:h-auto',
+          'has-[>[data-align=block-start]]:flex-col',
 
           // Textarea Support
-          "has-[>textarea]:h-auto",
+          'has-[>textarea]:h-auto',
 
           // Input Padding Adjustments
-          "has-[>[data-align=block-end]]:[&>input]:pt-3",
-          "has-[>[data-align=block-start]]:[&>input]:pb-3",
-          "has-[>[data-align=inline-end]]:[&>input]:pr-1.5",
-          "has-[>[data-align=inline-start]]:[&>input]:pl-1.5",
-        ].join(" "),
+          'has-[>[data-align=block-end]]:[&>input]:pt-3',
+          'has-[>[data-align=block-start]]:[&>input]:pb-3',
+          'has-[>[data-align=inline-end]]:[&>input]:pr-1.5',
+          'has-[>[data-align=inline-start]]:[&>input]:pl-1.5',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -217,7 +189,7 @@ function InputGroup({ className, ...props }: InputGroupProps) {
  */
 function InputGroupAddon({
   className,
-  align = "inline-start",
+  align = 'inline-start',
   ...props
 }: InputGroupAddonProps) {
   return (
@@ -228,14 +200,14 @@ function InputGroupAddon({
       className={cn(inputGroupAddonVariants({ align }), className)}
       onClick={(e) => {
         // Don't focus input if clicking on a button
-        if ((e.target as HTMLElement).closest("button")) {
-          return;
+        if ((e.target as HTMLElement).closest('button')) {
+          return
         }
-        e.currentTarget.parentElement?.querySelector("input")?.focus();
+        e.currentTarget.parentElement?.querySelector('input')?.focus()
       }}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -245,8 +217,8 @@ function InputGroupAddon({
  */
 function InputGroupButton({
   className,
-  type = "button",
-  size = "xs",
+  type = 'button',
+  size = 'xs',
   ...props
 }: InputGroupButtonProps) {
   return (
@@ -257,7 +229,7 @@ function InputGroupButton({
       className={cn(inputGroupButtonVariants({ size }), className)}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -270,20 +242,20 @@ function InputGroupText({ className, ...props }: InputGroupTextProps) {
       className={cn(
         [
           // Layout
-          "flex items-center gap-2",
+          'flex items-center gap-2',
 
           // Typography
-          "text-sm text-muted-foreground",
+          'text-sm text-muted-foreground',
 
           // Icon Styling
-          "[&_svg]:pointer-events-none",
+          '[&_svg]:pointer-events-none',
           "[&_svg:not([class*='size-'])]:size-4",
-        ].join(" "),
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -291,70 +263,61 @@ function InputGroupText({ className, ...props }: InputGroupTextProps) {
  * Input element styled to integrate seamlessly within input group
  * Removes individual borders and focus rings (handled by container)
  */
-function InputGroupInput({ className, ...props }: InputGroupInputProps) {
+function InputGroupInput({
+  className,
+  placeholder = ' ',
+  ...props
+}: InputGroupInputProps) {
   return (
-    <Input
+    <input
       data-slot="input-group-control"
+      placeholder={placeholder}
       className={cn(
         [
-          // Layout
-          "flex-1",
-
-          // Remove Individual Styling (handled by container)
-          "rounded-none border-0 shadow-none ring-0",
-          "focus-visible:ring-0",
-          "aria-invalid:ring-0",
-
-          // Background
-          "bg-transparent",
-          "dark:bg-transparent",
-
-          // Disabled States
-          "disabled:bg-transparent",
-          "dark:disabled:bg-transparent",
-        ].join(" "),
+          // Layout: the group draws the hollow, the focus and the invalid
+          // state (#507), the input none of them
+          'h-9 w-full min-w-0 flex-1 px-3 py-1',
+          'bg-transparent outline-none',
+          'text-base md:text-sm',
+          'placeholder:text-muted-foreground',
+          'disabled:cursor-not-allowed',
+          '[&::-webkit-search-cancel-button]:appearance-none',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
  * Input Group Textarea
  * Textarea element styled to integrate seamlessly within input group
- * Removes individual borders and focus rings (handled by container)
+ * The group draws the hollow, the focus and the invalid state
  */
-function InputGroupTextarea({ className, ...props }: InputGroupTextareaProps) {
+function InputGroupTextarea({
+  className,
+  placeholder = ' ',
+  ...props
+}: InputGroupTextareaProps) {
   return (
-    <Textarea
+    <textarea
       data-slot="input-group-control"
+      placeholder={placeholder}
       className={cn(
         [
-          // Layout
-          "flex-1 resize-none",
-
-          // Spacing
-          "py-2",
-
-          // Remove Individual Styling (handled by container)
-          "rounded-none border-0 shadow-none ring-0",
-          "focus-visible:ring-0",
-          "aria-invalid:ring-0",
-
-          // Background
-          "bg-transparent",
-          "dark:bg-transparent",
-
-          // Disabled States
-          "disabled:bg-transparent",
-          "dark:disabled:bg-transparent",
-        ].join(" "),
+          'flex field-sizing-content min-h-16 w-full flex-1 resize-none',
+          'px-3 py-2',
+          'bg-transparent outline-none',
+          'text-base md:text-sm',
+          'placeholder:text-muted-foreground',
+          'disabled:cursor-not-allowed',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -378,4 +341,4 @@ export {
   type InputGroupProps,
   type InputGroupTextareaProps,
   type InputGroupTextProps,
-};
+}

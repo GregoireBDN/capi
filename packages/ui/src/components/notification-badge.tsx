@@ -105,7 +105,7 @@ function NotificationDot({
   label,
   labelId,
   box = '2rem',
-  radius = 'var(--radius-lg)',
+  radius,
   className,
   style,
   ...props
@@ -116,12 +116,12 @@ function NotificationDot({
   labelId?: string
   /** The button's side (44px: `size-8`). */
   box?: string
-  /** The button's corner radius (`Button`: `--radius-lg`; sidebar: `--radius-md`). */
+  /** The button's corner radius (default round, like `Button`'s icon buttons since #506; sidebar: `--radius-md`). */
   radius?: string
 } & Omit<ComponentProps<'span'>, 'children'>) {
   // From the centre: half the box out to the corner, back in along the arc,
   // then half the dot so its centre lands on the arc.
-  const toArc = `${box} / 2 - ${radius} * ${CORNER_INSET}`
+  const toArc = `${box} / 2 - (${radius ?? `${box} / 2`}) * ${CORNER_INSET}`
   return (
     <span
       data-slot="notification-dot"

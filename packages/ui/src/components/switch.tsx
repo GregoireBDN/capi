@@ -37,8 +37,8 @@ function Switch({ className, size = 'default', ...props }: SwitchProps) {
           // Layout
           'relative inline-flex shrink-0 items-center',
 
-          // Styling
-          'rounded-full border border-transparent',
+          // Styling: a glass hollow track (#507)
+          'rounded-full',
 
           // Transitions
           'transition-all outline-none',
@@ -46,19 +46,9 @@ function Switch({ className, size = 'default', ...props }: SwitchProps) {
           // Expanded clickable area
           'touch-hitbox',
 
-          // Focus States
-          'focus-visible:border-ring',
-          'focus-visible:ring-3',
-          'focus-visible:ring-ring/50',
-
-          // Invalid States (Light)
-          'aria-invalid:border-destructive',
-          'aria-invalid:ring-3',
-          'aria-invalid:ring-destructive/20',
-
-          // Invalid States (Dark)
-          'dark:aria-invalid:border-destructive/50',
-          'dark:aria-invalid:ring-destructive/40',
+          // Focus and invalid States: the fields' glow
+          'focus-visible:shadow-(--glass-focus)',
+          'aria-invalid:shadow-(--glass-invalid)',
 
           // Size: Default
           'data-[size=default]:h-[18.4px]',
@@ -70,12 +60,11 @@ function Switch({ className, size = 'default', ...props }: SwitchProps) {
 
           // Checked State
           'data-[state=checked]:bg-primary',
+          'data-[state=checked]:not-focus-visible:not-aria-invalid:shadow-glass-primary',
 
-          // Unchecked State (Light)
-          'data-[state=unchecked]:bg-input',
-
-          // Unchecked State (Dark)
-          'dark:data-[state=unchecked]:bg-input/80',
+          // Unchecked State: a hollow
+          'data-[state=unchecked]:bg-foreground/14',
+          'data-[state=unchecked]:not-focus-visible:not-aria-invalid:shadow-(--glass-field-inset)',
 
           // Disabled State
           'data-[disabled]:cursor-not-allowed',
@@ -96,7 +85,7 @@ function Switch({ className, size = 'default', ...props }: SwitchProps) {
             'pointer-events-none',
 
             // Styling
-            'rounded-full bg-background shadow-md ring-1 ring-border/25',
+            'rounded-full bg-white shadow-[0_1px_3px_rgb(15_23_42/30%),0_0_0_0.5px_rgb(15_23_42/8%)]',
 
             // Transitions
             'transition-transform',
@@ -113,17 +102,11 @@ function Switch({ className, size = 'default', ...props }: SwitchProps) {
             // Checked - Small Size
             'group-data-[size=sm]/switch:data-[state=checked]:translate-x-[11px]',
 
-            // Checked - Dark Mode
-            'dark:data-[state=checked]:bg-primary-foreground',
-
             // Unchecked - Default Size
             'group-data-[size=default]/switch:data-[state=unchecked]:-translate-x-[1px]',
 
             // Unchecked - Small Size
             'group-data-[size=sm]/switch:data-[state=unchecked]:-translate-x-[1px]',
-
-            // Unchecked - Dark Mode
-            'dark:data-[state=unchecked]:bg-foreground',
           ].join(' '),
         )}
       />

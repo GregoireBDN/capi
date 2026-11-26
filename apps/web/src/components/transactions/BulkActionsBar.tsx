@@ -42,7 +42,7 @@ export function BulkActionsBar({
       role="region"
       data-sticky-bottom-bar
       aria-label="Actions groupées"
-      className="bg-card short-screen:flex-row short-screen:items-center short-screen:overflow-x-auto short-screen:py-2 sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex flex-col gap-2 rounded-xl border p-3 shadow-lg @2xl:flex-row @2xl:flex-wrap @2xl:items-center @2xl:gap-3"
+      className="glass-panel short-screen:flex-row short-screen:items-center short-screen:overflow-x-auto short-screen:py-2 sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex flex-col gap-2 rounded-card p-3 @2xl:flex-row @2xl:flex-wrap @2xl:items-center @2xl:gap-3"
     >
       <div className="short-screen:shrink-0 flex items-center justify-between gap-2 @2xl:shrink-0 @2xl:justify-start">
         <p className="short-screen:whitespace-nowrap min-w-0 text-sm font-medium @2xl:whitespace-nowrap">

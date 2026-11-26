@@ -38,8 +38,9 @@ export function BudgetList({ month, items, onEdit }: BudgetListProps) {
             key={item.categoryId}
             data-status={item.status}
             className={cn(
-              'bg-card flex items-start gap-1 rounded-xl border p-1',
-              item.status === 'over' && 'border-chart-over/50 bg-chart-over/5',
+              'bg-card rounded-card flex items-start gap-1 p-1 shadow-[var(--glass-edge),var(--glass-shadow-md)]',
+              item.status === 'over' &&
+                'bg-[color-mix(in_oklch,var(--chart-over)_6%,var(--card))]',
             )}
           >
             <Link

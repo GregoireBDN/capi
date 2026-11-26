@@ -64,7 +64,7 @@ export function useLinkedTransfersDetail({
       </>
     ),
     content: (
-      <ul className="divide-border divide-y" aria-label="Virements liés">
+      <ul className="space-y-1" aria-label="Virements liés">
         {items.map((item) => (
           <li
             key={item.id}

@@ -55,11 +55,13 @@ function Tile({
       data-slot="month-flow-tile"
       // The part's colour as a strip along the top: the label keeps the
       // tile's whole width at 320px.
-      style={{ boxShadow: `inset 0 3px 0 ${KIND_COLOR[kind]}` }}
+      style={{
+        boxShadow: `inset 0 3px 0 ${KIND_COLOR[kind]}, var(--glass-edge), var(--glass-shadow-md)`,
+      }}
       className={cn(
-        '@container min-w-0 rounded-xl border px-2 pt-2.5 pb-2 text-left transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:px-3 md:pt-3.5 md:pb-3',
+        '@container min-w-0 rounded-card px-2 pt-2.5 pb-2 text-left transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:px-3 md:pt-3.5 md:pb-3',
         selected
-          ? 'border-primary bg-primary/5 ring-primary ring-1'
+          ? 'bg-[color-mix(in_oklch,var(--primary)_6%,var(--card))] ring-primary ring-2'
           : 'bg-card hover:bg-muted/60',
       )}
     >

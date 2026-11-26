@@ -118,11 +118,13 @@ function ReviewButton({
       aria-pressed={on}
       onClick={onToggle}
       className={cn(
-        'border-warning/70 inline-flex h-[44px] shrink-0 items-center justify-center gap-2 rounded-full border pr-2 pl-3 text-[15px] font-semibold whitespace-nowrap transition-colors outline-none @[672px]:rounded-lg @[672px]:pr-3',
-        'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+        // In glass (#506): no border; on, the solid warning button with its
+        // sheen and shadow, off, its tint
+        'inline-flex h-[44px] shrink-0 items-center justify-center gap-2 rounded-full pr-2 pl-3 text-[15px] font-semibold whitespace-nowrap transition-colors outline-none active:translate-y-px @[672px]:rounded-control @[672px]:pr-3',
+        'focus-visible:ring-ring/85 focus-visible:ring-[3px]',
         on
-          ? 'bg-warning text-warning-foreground'
-          : 'bg-[color-mix(in_srgb,var(--warning)_18%,var(--card))] hover:bg-[color-mix(in_srgb,var(--warning)_28%,var(--card))]',
+          ? 'bg-warning text-warning-foreground glass-solid [--glass-tint:var(--warning)]'
+          : 'text-warning-foreground bg-[color-mix(in_srgb,var(--warning)_20%,var(--card))] hover:bg-[color-mix(in_srgb,var(--warning)_30%,var(--card))] dark:text-foreground',
       )}
     >
       <InboxIcon aria-hidden className="hidden size-[18px] @[672px]:block" />À
@@ -163,7 +165,7 @@ function SheetFilters({
   const oneOffId = useId()
   return (
     <>
-      <div className="divide-y border-b">
+      <div className="space-y-1">
         <div className="flex min-h-[56px] items-center gap-3 px-4">
           <FilterBadge icon={ZapIcon} />
           <label htmlFor={oneOffId} className="flex-1 text-[16px]">
@@ -342,7 +344,7 @@ export function TransactionFilters({
           className="flex flex-wrap items-center gap-2"
         >
           {/* The search fills its row; the filters follow on the next. */}
-          <InputGroup className="bg-card h-[44px] min-w-0 flex-[1_1_320px] shadow-xs dark:bg-card">
+          <InputGroup className="h-[44px] min-w-0 flex-[1_1_320px]">
             <InputGroupAddon>
               <SearchIcon />
             </InputGroupAddon>
@@ -359,7 +361,6 @@ export function TransactionFilters({
             {/* Phones: « Filtres » inside the search, its word from 330px
                 of toolbar (#406, the owner's 1a·A). */}
             <InputGroupAddon align="inline-end" className="@[672px]:hidden">
-              <span aria-hidden className="bg-border h-6 w-px shrink-0" />
               <button
                 type="button"
                 aria-label={
@@ -368,7 +369,7 @@ export function TransactionFilters({
                     : 'Filtres'
                 }
                 onClick={() => openSheet()}
-                className="text-foreground hover:bg-muted focus-visible:ring-ring/50 pointer-coarse:touch-hitbox relative -mr-1 flex h-[38px] items-center gap-1.5 rounded-md px-2 text-[15px] font-medium outline-none focus-visible:ring-[3px]"
+                className="text-foreground bg-glass-fill hover:bg-foreground/10 focus-visible:ring-ring/50 pointer-coarse:touch-hitbox relative -mr-1 flex h-[36px] items-center gap-1.5 rounded-full px-3 text-[15px] font-medium outline-none focus-visible:ring-[3px]"
               >
                 <SlidersHorizontalIcon aria-hidden className="size-[18px]" />
                 <span className="hidden @[330px]:inline">Filtres</span>
@@ -464,12 +465,15 @@ export function TransactionFilters({
                 />
               )
             })}
+            {/* Read like the other filters once set: its name above, a ×
+                (#507, the owner found the check box out of place here). */}
             {search.oneOff === true && (
-              <FilterToggle
-                label="Exceptionnelles"
+              <FilterControl
+                label="Seulement"
                 icon={<ZapIcon />}
-                pressed
-                onPressedChange={(on) => set('oneOff', on || undefined)}
+                value={{ label: 'Exceptionnelles' }}
+                onClear={() => set('oneOff', undefined)}
+                onOpen={() => openSheet()}
                 className="w-full"
               />
             )}

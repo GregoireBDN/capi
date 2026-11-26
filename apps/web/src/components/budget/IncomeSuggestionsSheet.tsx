@@ -183,7 +183,7 @@ export function IncomeSuggestionsSheet({
             </p>
           )}
           {items.length > 0 && (
-            <ul className="divide-y" aria-label="Revenus proposés">
+            <ul className="space-y-1" aria-label="Revenus proposés">
               {items.map((item) => {
                 const draft = draftOf(item.categoryId)
                 const error = draft.accepted ? targetError(draft.amount) : null

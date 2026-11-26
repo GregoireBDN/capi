@@ -90,7 +90,7 @@ export function IntegrityStep({ integrity }: { integrity: IntegrityState }) {
           Soldes, crypto, dépenses partagées et totaux du mois concordent.
         </p>
       ) : (
-        <ul className="divide-y" aria-label="Incohérences">
+        <ul className="space-y-1" aria-label="Incohérences">
           {findings.map((finding, index) => (
             <FindingRow key={index} finding={finding} />
           ))}

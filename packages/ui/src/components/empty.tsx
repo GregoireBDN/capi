@@ -1,21 +1,21 @@
-import { cva, type VariantProps } from "class-variance-authority";
-import * as React from "react";
+import { cva, type VariantProps } from 'class-variance-authority'
+import * as React from 'react'
 
-import { cn } from "../lib/utils";
+import { cn } from '../lib/utils'
 
 /* ============================================================================
  * TYPES
  * ========================================================================= */
 
-type EmptyMediaVariant = "default" | "icon";
+type EmptyMediaVariant = 'default' | 'icon'
 
-type EmptyProps = React.ComponentProps<"div">;
-type EmptyHeaderProps = React.ComponentProps<"div">;
-type EmptyTitleProps = React.ComponentProps<"div">;
-type EmptyDescriptionProps = React.ComponentProps<"p">;
-type EmptyContentProps = React.ComponentProps<"div">;
-type EmptyMediaProps = React.ComponentProps<"div"> &
-  VariantProps<typeof emptyMediaVariants>;
+type EmptyProps = React.ComponentProps<'div'>
+type EmptyHeaderProps = React.ComponentProps<'div'>
+type EmptyTitleProps = React.ComponentProps<'div'>
+type EmptyDescriptionProps = React.ComponentProps<'p'>
+type EmptyContentProps = React.ComponentProps<'div'>
+type EmptyMediaProps = React.ComponentProps<'div'> &
+  VariantProps<typeof emptyMediaVariants>
 
 /* ============================================================================
  * VARIANTS (CVA)
@@ -29,28 +29,28 @@ type EmptyMediaProps = React.ComponentProps<"div"> &
 const emptyMediaVariants = cva(
   [
     // Layout
-    "mb-2 flex shrink-0 items-center justify-center",
+    'mb-2 flex shrink-0 items-center justify-center',
 
     // Icon Styling
-    "[&_svg]:pointer-events-none [&_svg]:shrink-0",
-  ].join(" "),
+    '[&_svg]:pointer-events-none [&_svg]:shrink-0',
+  ].join(' '),
   {
     variants: {
       variant: {
-        default: "bg-transparent",
+        default: 'bg-transparent',
 
         icon: [
-          "flex size-8 shrink-0 items-center justify-center",
-          "rounded-lg bg-muted text-foreground",
+          'flex size-8 shrink-0 items-center justify-center',
+          'rounded-lg bg-muted text-foreground',
           "[&_svg:not([class*='size-'])]:size-4",
-        ].join(" "),
+        ].join(' '),
       },
     },
     defaultVariants: {
-      variant: "default",
+      variant: 'default',
     },
   },
-);
+)
 
 /* ============================================================================
  * COMPONENTS
@@ -67,19 +67,19 @@ function Empty({ className, ...props }: EmptyProps) {
       className={cn(
         [
           // Layout
-          "flex w-full min-w-0 flex-1 flex-col items-center justify-center",
+          'flex w-full min-w-0 flex-1 flex-col items-center justify-center',
 
           // Spacing & Styling
-          "gap-4 rounded-xl border-dashed p-6",
+          'gap-4 rounded-card p-6',
 
           // Typography
-          "text-center text-balance",
-        ].join(" "),
+          'text-center text-balance',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -90,10 +90,10 @@ function EmptyHeader({ className, ...props }: EmptyHeaderProps) {
   return (
     <div
       data-slot="empty-header"
-      className={cn("flex max-w-sm flex-col items-center gap-2", className)}
+      className={cn('flex max-w-sm flex-col items-center gap-2', className)}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -102,7 +102,7 @@ function EmptyHeader({ className, ...props }: EmptyHeaderProps) {
  */
 function EmptyMedia({
   className,
-  variant = "default",
+  variant = 'default',
   ...props
 }: EmptyMediaProps) {
   return (
@@ -112,7 +112,7 @@ function EmptyMedia({
       className={cn(emptyMediaVariants({ variant, className }))}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -124,12 +124,12 @@ function EmptyTitle({ className, ...props }: EmptyTitleProps) {
     <div
       data-slot="empty-title"
       className={cn(
-        "font-heading text-sm font-medium tracking-tight",
+        'font-heading text-sm font-medium tracking-tight',
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -143,16 +143,16 @@ function EmptyDescription({ className, ...props }: EmptyDescriptionProps) {
       className={cn(
         [
           // Typography
-          "text-sm/relaxed text-muted-foreground",
+          'text-sm/relaxed text-muted-foreground',
 
           // Link Styling
-          "[&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary",
-        ].join(" "),
+          '[&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -166,16 +166,16 @@ function EmptyContent({ className, ...props }: EmptyContentProps) {
       className={cn(
         [
           // Layout
-          "flex w-full max-w-sm min-w-0 flex-col items-center",
+          'flex w-full max-w-sm min-w-0 flex-col items-center',
 
           // Spacing & Typography
-          "gap-2.5 text-sm text-balance",
-        ].join(" "),
+          'gap-2.5 text-sm text-balance',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -197,4 +197,4 @@ export {
   type EmptyMediaVariant,
   type EmptyProps,
   type EmptyTitleProps,
-};
+}

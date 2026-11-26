@@ -153,7 +153,7 @@ export function MealVoucherAccount({
               description="Ajoutez le crédit du mois, puis vos paiements avec la carte."
             />
           ) : (
-            <ul className="divide-y">
+            <ul className="space-y-1">
               {rows.map((row) => (
                 <LatestRow key={row.id} row={row} />
               ))}

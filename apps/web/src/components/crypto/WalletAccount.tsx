@@ -758,7 +758,7 @@ function KeyFact({
   warning?: boolean
 }) {
   return (
-    <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-b py-1.5 text-sm last:border-b-0">
+    <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 py-1.5 text-sm">
       <dt className="text-muted-foreground">{label}</dt>
       <dd
         className={cn(

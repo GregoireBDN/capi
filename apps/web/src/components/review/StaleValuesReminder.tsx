@@ -37,7 +37,7 @@ export function StaleValuesReminder() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ul className="divide-y">
+        <ul className="space-y-1">
           {due.map((account) => (
             <li
               key={account.id}

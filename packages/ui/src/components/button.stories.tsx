@@ -153,7 +153,8 @@ export const Outline: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Outline visual style — border with transparent background.',
+        story:
+          'Outline visual style, in glass (#506): no border, a faint fill of the intent’s colour (secondary: the glass fill).',
       },
     },
   },
@@ -185,7 +186,7 @@ export const Ghost: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Ghost visual style — no border, subtle hover background.',
+        story: 'Ghost visual style — text only, the glass fill on hover.',
       },
     },
   },
@@ -227,6 +228,82 @@ export const Link: Story = {
   ),
 }
 
+const INTENTS = [
+  'primary',
+  'secondary',
+  'success',
+  'warning',
+  'danger',
+  'info',
+] as const
+const STYLES = ['solid', 'outline', 'ghost', 'link'] as const
+
+/** Every intent × style, on the page and on a card (#506). */
+function GlassMatrix() {
+  const grid = (
+    <div className="grid grid-cols-[auto_repeat(4,auto)] items-center gap-2">
+      <span />
+      {STYLES.map((style) => (
+        <span key={style} className="text-muted-foreground text-xs">
+          {style}
+        </span>
+      ))}
+      {INTENTS.map((intent) => (
+        <div key={intent} className="contents">
+          <span className="text-muted-foreground text-xs">{intent}</span>
+          {STYLES.map((style) => (
+            <Button
+              key={style}
+              variant={intent}
+              outline={style === 'outline'}
+              ghost={style === 'ghost'}
+              link={style === 'link'}
+            >
+              Libellé
+            </Button>
+          ))}
+        </div>
+      ))}
+      <span className="text-muted-foreground text-xs">icon</span>
+      <Button variant="secondary" iconOnly aria-label="Ajouter">
+        <PlusIcon />
+      </Button>
+      <Button variant="secondary" outline iconOnly aria-label="Partager">
+        <ShareIcon />
+      </Button>
+      <Button variant="secondary" ghost iconOnly aria-label="Copier">
+        <CopyIcon />
+      </Button>
+      <Button variant="danger" outline iconOnly aria-label="Supprimer">
+        <TrashIcon />
+      </Button>
+    </div>
+  )
+  return (
+    <div className="bg-background flex flex-wrap gap-6 p-4">
+      {grid}
+      <div className="glass-card rounded-card p-4">{grid}</div>
+    </div>
+  )
+}
+
+/**
+ * In glass (#506, « Voile »): solid buttons get a sheen and a soft shadow in
+ * their colour; secondary and outline buttons are a faint fill with no
+ * border; icon-only buttons are round. On the page and on a card.
+ */
+export const Glass: Story = {
+  parameters: { layout: 'fullscreen' },
+  render: () => <GlassMatrix />,
+}
+
+export const GlassDark: Story = {
+  name: 'Glass (dark)',
+  parameters: { layout: 'fullscreen' },
+  globals: { theme: 'dark' },
+  render: () => <GlassMatrix />,
+}
+
 export const Sizes: Story = {
   parameters: {
     docs: { description: { story: 'Five height + padding scales.' } },
@@ -247,7 +324,7 @@ export const WithIcons: Story = {
     docs: {
       description: {
         story:
-          'Icons via `iconStart` / `iconEnd` slots, plus `iconOnly` for square buttons.',
+          'Icons via `iconStart` / `iconEnd` slots, plus `iconOnly` for round icon buttons.',
       },
     },
   },

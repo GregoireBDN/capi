@@ -61,7 +61,7 @@ export function ClaudeAccessPage({ email }: { email: string }) {
         >
           Connecter Claude
         </h2>
-        <ul className="bg-card divide-border divide-y overflow-hidden rounded-xl border">
+        <ul className="glass-card rounded-card overflow-hidden py-1">
           <RowButton
             icon={LaptopIcon}
             tone="primary"
@@ -114,7 +114,7 @@ export function ClaudeAccessPage({ email }: { email: string }) {
         ) : (
           <ul
             aria-label="Accès actifs"
-            className="bg-card divide-border divide-y overflow-hidden rounded-xl border"
+            className="glass-card rounded-card overflow-hidden py-1"
           >
             {accesses.map((access) => (
               <AccessRow
@@ -145,7 +145,7 @@ export function ClaudeAccessPage({ email }: { email: string }) {
 /** The short « what Claude can and can't do » at the top. */
 export function ClaudeCanDo() {
   return (
-    <div className="bg-card space-y-2 rounded-xl border p-3 text-sm">
+    <div className="glass-card rounded-card space-y-2 p-3 text-sm">
       <p className="font-medium">Ce que Claude peut faire</p>
       <p className="flex gap-2">
         <CheckIcon

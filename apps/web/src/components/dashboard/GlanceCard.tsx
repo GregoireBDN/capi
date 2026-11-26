@@ -134,7 +134,7 @@ export function GlanceCard({
         )}
       </section>
       {rows.includes('forecast') && (
-        <div className="space-y-0.5 border-t pt-1.5">
+        <div className="space-y-0.5 pt-1.5">
           <ForecastPath />
         </div>
       )}

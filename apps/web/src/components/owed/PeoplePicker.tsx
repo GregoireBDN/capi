@@ -107,7 +107,7 @@ export function PeoplePicker({
         <div
           role={single ? 'radiogroup' : 'group'}
           aria-labelledby={id}
-          className="divide-y overflow-hidden rounded-lg border"
+          className="bg-muted/40 rounded-control space-y-1 py-1 overflow-hidden"
         >
           {people.map((person) => (
             <OptionRow

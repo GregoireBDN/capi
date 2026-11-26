@@ -158,7 +158,7 @@ export function MovementList({
     (account) => account.type === 'crypto' && !account.archivedAt,
   )
   return (
-    <ul className="divide-border divide-y">
+    <ul className="space-y-1">
       {movements.map((movement) => (
         <MovementRow
           key={movement.id}

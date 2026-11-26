@@ -1,36 +1,37 @@
-"use client";
+'use client'
 
-import { cva, type VariantProps } from "class-variance-authority";
-import * as React from "react";
+import { cva, type VariantProps } from 'class-variance-authority'
+import { CircleAlertIcon } from 'lucide-react'
+import * as React from 'react'
 
-import { Label } from "./label";
-import { Separator } from "./separator";
-import { cn } from "../lib/utils";
+import { Label } from './label'
+import { Separator } from './separator'
+import { cn } from '../lib/utils'
 
 /* ============================================================================
  * TYPES
  * ========================================================================= */
 
-type FieldOrientation = "vertical" | "horizontal" | "responsive";
-type FieldLegendVariant = "legend" | "label";
+type FieldOrientation = 'vertical' | 'horizontal' | 'responsive'
+type FieldLegendVariant = 'legend' | 'label'
 
-type FieldSetProps = React.ComponentProps<"fieldset">;
-type FieldLegendProps = React.ComponentProps<"legend"> & {
-  variant?: FieldLegendVariant;
-};
-type FieldGroupProps = React.ComponentProps<"div">;
-type FieldProps = React.ComponentProps<"div"> &
-  VariantProps<typeof fieldVariants>;
-type FieldContentProps = React.ComponentProps<"div">;
-type FieldLabelProps = React.ComponentProps<typeof Label>;
-type FieldTitleProps = React.ComponentProps<"div">;
-type FieldDescriptionProps = React.ComponentProps<"p">;
-type FieldSeparatorProps = React.ComponentProps<"div"> & {
-  children?: React.ReactNode;
-};
-type FieldErrorProps = React.ComponentProps<"div"> & {
-  errors?: Array<{ message?: string } | undefined>;
-};
+type FieldSetProps = React.ComponentProps<'fieldset'>
+type FieldLegendProps = React.ComponentProps<'legend'> & {
+  variant?: FieldLegendVariant
+}
+type FieldGroupProps = React.ComponentProps<'div'>
+type FieldProps = React.ComponentProps<'div'> &
+  VariantProps<typeof fieldVariants>
+type FieldContentProps = React.ComponentProps<'div'>
+type FieldLabelProps = React.ComponentProps<typeof Label>
+type FieldTitleProps = React.ComponentProps<'div'>
+type FieldDescriptionProps = React.ComponentProps<'p'>
+type FieldSeparatorProps = React.ComponentProps<'div'> & {
+  children?: React.ReactNode
+}
+type FieldErrorProps = React.ComponentProps<'div'> & {
+  errors?: Array<{ message?: string } | undefined>
+}
 
 /* ============================================================================
  * VARIANTS (CVA)
@@ -45,43 +46,43 @@ type FieldErrorProps = React.ComponentProps<"div"> & {
 const fieldVariants = cva(
   [
     // Layout & Grouping
-    "group/field flex w-full",
+    'group/field flex w-full',
 
     // Invalid State
-    "data-[invalid=true]:text-destructive",
-  ].join(" "),
+    'data-[invalid=true]:text-destructive',
+  ].join(' '),
   {
     variants: {
       orientation: {
-        vertical: ["flex-col *:w-full", "[&>.sr-only]:w-auto"].join(" "),
+        vertical: ['flex-col *:w-full', '[&>.sr-only]:w-auto'].join(' '),
 
         horizontal: [
-          "flex-row items-center gap-2",
-          "has-[>[data-slot=field-content]]:items-start",
-          "*:data-[slot=field-label]:flex-auto",
-          "has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px",
-        ].join(" "),
+          'flex-row items-center gap-2',
+          'has-[>[data-slot=field-content]]:items-start',
+          '*:data-[slot=field-label]:flex-auto',
+          'has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px',
+        ].join(' '),
 
         responsive: [
           // Mobile (default)
-          "flex-col *:w-full",
-          "[&>.sr-only]:w-auto",
+          'flex-col *:w-full',
+          '[&>.sr-only]:w-auto',
 
           // Desktop (@md breakpoint)
-          "@md/field-group:flex-row",
-          "@md/field-group:items-center",
-          "@md/field-group:*:w-auto",
-          "@md/field-group:has-[>[data-slot=field-content]]:items-start",
-          "@md/field-group:*:data-[slot=field-label]:flex-auto",
-          "@md/field-group:has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px",
-        ].join(" "),
+          '@md/field-group:flex-row',
+          '@md/field-group:items-center',
+          '@md/field-group:*:w-auto',
+          '@md/field-group:has-[>[data-slot=field-content]]:items-start',
+          '@md/field-group:*:data-[slot=field-label]:flex-auto',
+          '@md/field-group:has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px',
+        ].join(' '),
       },
     },
     defaultVariants: {
-      orientation: "vertical",
+      orientation: 'vertical',
     },
   },
-);
+)
 
 /* ============================================================================
  * COMPONENTS
@@ -98,17 +99,17 @@ function FieldSet({ className, ...props }: FieldSetProps) {
       className={cn(
         [
           // Layout
-          "flex flex-col gap-4",
+          'flex flex-col gap-4',
 
           // Checkbox/Radio Groups - Reduced spacing
-          "has-[>[data-slot=checkbox-group]]:gap-3",
-          "has-[>[data-slot=radio-group]]:gap-3",
-        ].join(" "),
+          'has-[>[data-slot=checkbox-group]]:gap-3',
+          'has-[>[data-slot=radio-group]]:gap-3',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -117,7 +118,7 @@ function FieldSet({ className, ...props }: FieldSetProps) {
  */
 function FieldLegend({
   className,
-  variant = "legend",
+  variant = 'legend',
   ...props
 }: FieldLegendProps) {
   return (
@@ -127,17 +128,17 @@ function FieldLegend({
       className={cn(
         [
           // Spacing & Typography
-          "mb-1.5 font-medium",
+          'mb-1.5 font-medium',
 
           // Variant Styles
-          "data-[variant=label]:text-sm",
-          "data-[variant=legend]:text-base",
-        ].join(" "),
+          'data-[variant=label]:text-sm',
+          'data-[variant=legend]:text-base',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -151,29 +152,29 @@ function FieldGroup({ className, ...props }: FieldGroupProps) {
       className={cn(
         [
           // Grouping & Container Queries
-          "group/field-group @container/field-group",
+          'group/field-group @container/field-group',
 
           // Layout
-          "flex w-full flex-col gap-5",
+          'flex w-full flex-col gap-5',
 
           // Checkbox/Radio Groups - Reduced spacing
-          "data-[slot=checkbox-group]:gap-3",
+          'data-[slot=checkbox-group]:gap-3',
 
           // Nested Field Groups
-          "*:data-[slot=field-group]:gap-4",
-        ].join(" "),
+          '*:data-[slot=field-group]:gap-4',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
  * Field
  * Root field component with responsive orientation support
  */
-function Field({ className, orientation = "vertical", ...props }: FieldProps) {
+function Field({ className, orientation = 'vertical', ...props }: FieldProps) {
   return (
     <div
       role="group"
@@ -182,7 +183,7 @@ function Field({ className, orientation = "vertical", ...props }: FieldProps) {
       className={cn(fieldVariants({ orientation }), className)}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -196,19 +197,19 @@ function FieldContent({ className, ...props }: FieldContentProps) {
       className={cn(
         [
           // Grouping
-          "group/field-content",
+          'group/field-content',
 
           // Layout
-          "flex flex-1 flex-col gap-0.5",
+          'flex flex-1 flex-col gap-0.5',
 
           // Typography
-          "leading-snug",
-        ].join(" "),
+          'leading-snug',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -222,40 +223,36 @@ function FieldLabel({ className, ...props }: FieldLabelProps) {
       className={cn(
         [
           // Grouping & Peering
-          "group/field-label peer/field-label",
+          'group/field-label peer/field-label',
 
           // Layout
-          "my-1 flex w-fit gap-2",
+          'my-1 flex w-fit gap-2',
 
           // Typography
-          "leading-snug",
+          'leading-snug',
 
           // Disabled State
-          "group-data-[disabled=true]/field:opacity-50",
+          'group-data-[disabled=true]/field:opacity-50',
 
           // Invalid State
-          "group-data-[invalid=true]/field:text-destructive",
+          'group-data-[invalid=true]/field:text-destructive',
 
-          // Checked State (Light)
-          "has-data-checked:border-primary/30",
-          "has-data-checked:bg-primary/5",
-
-          // Checked State (Dark)
-          "dark:has-data-checked:border-primary/20",
-          "dark:has-data-checked:bg-primary/10",
+          // Checked State: a primary tint and edge, drawn inside (#507)
+          'has-data-checked:bg-primary/8',
+          'has-data-checked:shadow-[inset_0_0_0_1.5px_oklch(from_var(--primary)_l_c_h/45%)]',
 
           // Nested Field Styling
-          "has-[>[data-slot=field]]:w-full",
-          "has-[>[data-slot=field]]:flex-col",
-          "has-[>[data-slot=field]]:rounded-lg",
-          "has-[>[data-slot=field]]:border",
-          "*:data-[slot=field]:p-2.5",
-        ].join(" "),
+          'has-[>[data-slot=field]]:w-full',
+          'has-[>[data-slot=field]]:flex-col',
+          'has-[>[data-slot=field]]:rounded-control',
+          'has-[>[data-slot=field]]:not-has-data-checked:glass-field',
+          '*:data-[slot=field]:p-2.5',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -269,19 +266,19 @@ function FieldTitle({ className, ...props }: FieldTitleProps) {
       className={cn(
         [
           // Layout
-          "flex w-fit items-center gap-2",
+          'flex w-fit items-center gap-2',
 
           // Typography
-          "text-sm font-medium",
+          'text-sm font-medium',
 
           // Disabled State
-          "group-data-[disabled=true]/field:opacity-50",
-        ].join(" "),
+          'group-data-[disabled=true]/field:opacity-50',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -295,26 +292,26 @@ function FieldDescription({ className, ...props }: FieldDescriptionProps) {
       className={cn(
         [
           // Typography
-          "text-left text-sm leading-normal font-normal text-muted-foreground",
+          'text-left text-sm leading-normal font-normal text-muted-foreground',
 
           // Responsive Text
-          "group-has-data-horizontal/field:text-balance",
+          'group-has-data-horizontal/field:text-balance',
 
           // Spacing Adjustments
-          "[[data-variant=legend]+&]:-mt-1.5",
-          "last:mt-0",
-          "nth-last-2:-mt-1",
+          '[[data-variant=legend]+&]:-mt-1.5',
+          'last:mt-0',
+          'nth-last-2:-mt-1',
 
           // Link Styling
-          "[&>a]:underline",
-          "[&>a]:underline-offset-4",
-          "[&>a:hover]:text-primary",
-        ].join(" "),
+          '[&>a]:underline',
+          '[&>a]:underline-offset-4',
+          '[&>a:hover]:text-primary',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /**
@@ -333,15 +330,15 @@ function FieldSeparator({
       className={cn(
         [
           // Layout
-          "relative h-5",
+          'relative h-5',
 
           // Spacing
-          "-my-2",
-          "group-data-[variant=outline]/field-group:-mb-2",
+          '-my-2',
+          'group-data-[variant=outline]/field-group:-mb-2',
 
           // Typography
-          "text-sm",
-        ].join(" "),
+          'text-sm',
+        ].join(' '),
         className,
       )}
       {...props}
@@ -356,7 +353,7 @@ function FieldSeparator({
         </span>
       )}
     </div>
-  );
+  )
 }
 
 /**
@@ -373,22 +370,22 @@ function FieldError({
   const content = React.useMemo(() => {
     // Manual content takes precedence
     if (children) {
-      return children;
+      return children
     }
 
     // No errors to display
     if (!errors?.length) {
-      return null;
+      return null
     }
 
     // Deduplicate errors by message
     const uniqueErrors = [
       ...new Map(errors.map((error) => [error?.message, error])).values(),
-    ];
+    ]
 
     // Single error - display as text
     if (uniqueErrors?.length === 1) {
-      return uniqueErrors[0]?.message;
+      return uniqueErrors[0]?.message
     }
 
     // Multiple errors - display as list
@@ -399,8 +396,8 @@ function FieldError({
             error?.message && <li key={index}>{error.message}</li>,
         )}
       </ul>
-    );
-  }, [children, errors]);
+    )
+  }, [children, errors])
 
   return (
     <div
@@ -408,14 +405,22 @@ function FieldError({
       aria-atomic="true"
       data-slot="field-error"
       className={cn(
-        "mt-0.5 min-h-[1rem] text-xs font-normal text-destructive",
+        'mt-0.5 flex min-h-[1rem] items-start gap-1 text-xs font-normal text-destructive',
         className,
       )}
       {...props}
     >
+      {/* An icon with the message: the error is not told by colour alone
+          (#507). */}
+      {content && (
+        <CircleAlertIcon
+          aria-hidden
+          className="mt-[0.1em] size-[1.15em] shrink-0"
+        />
+      )}
       {content}
     </div>
-  );
+  )
 }
 
 /* ============================================================================
@@ -446,4 +451,4 @@ export {
   type FieldSeparatorProps,
   type FieldSetProps,
   type FieldTitleProps,
-};
+}

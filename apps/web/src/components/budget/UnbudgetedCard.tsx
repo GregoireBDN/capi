@@ -40,7 +40,7 @@ export function UnbudgetedCard({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ul className="divide-y" aria-label="Dépenses hors budget">
+        <ul className="space-y-1" aria-label="Dépenses hors budget">
           {unbudgeted.top.map((row) => {
             const name = row.name ?? 'Sans catégorie'
             return (

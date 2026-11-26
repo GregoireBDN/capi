@@ -52,7 +52,7 @@ export function AppHeader({ user }: { user: UserDto }) {
       className={cn(
         // Its line drawn inside (no border), so its 3rem stay whole and the
         // 44px buttons sit on whole pixels (#434).
-        'bg-(--header-bg) group/header relative z-20 flex h-12 shrink-0 items-center gap-1 px-2 shadow-[inset_0_-1px_0_var(--border)] backdrop-blur-lg md:gap-2 md:px-3',
+        'bg-glass-chrome group/header relative z-20 flex h-12 shrink-0 items-center gap-1 px-2 shadow-[inset_0_-1px_0_var(--border)] backdrop-blur-(--glass-blur) md:gap-2 md:px-3',
         staging && 'env-banner',
       )}
     >
@@ -79,15 +79,9 @@ export function AppHeader({ user }: { user: UserDto }) {
         to={ROUTES.dashboard}
         className="flex h-11 shrink-0 items-center gap-2 rounded-lg px-1 no-underline group-has-[[data-page-back]:not(:empty)]/header:max-md:hidden"
       >
-        {/* On staging phones the mark alone: the badge takes the room of
-            « api » (both would push the avatar out at 320px). */}
         {/* 44px like the buttons, moved down by half the « p »'s descender
             so « Ca » sits on the header's middle line (#434). */}
-        <CapiWordmark
-          className="h-8 translate-y-[9%]"
-          onBanner={staging}
-          markOnPhones={staging}
-        />
+        <CapiWordmark className="h-8 translate-y-[9%]" onBanner={staging} />
         {staging && <StagingBadge />}
       </Link>
       <div
