@@ -46,7 +46,13 @@ type Story = StoryObj<typeof meta>
 export const Playground: Story = {}
 
 export const Solid: Story = {
-  parameters: { docs: { description: { story: 'All six semantic variants in the default solid style.' } } },
+  parameters: {
+    docs: {
+      description: {
+        story: 'All six semantic variants in the default solid style.',
+      },
+    },
+  },
   render: () => (
     <div className="flex flex-wrap gap-2">
       <Badge variant="primary">Primary</Badge>
@@ -60,15 +66,40 @@ export const Solid: Story = {
 }
 
 export const Outline: Story = {
-  parameters: { docs: { description: { story: 'Outline visual style — border with transparent background.' } } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Outline visual style, in glass (#506): no border, a faint fill of the intent’s colour.',
+      },
+    },
+  },
   render: () => (
     <div className="flex flex-wrap gap-2">
-      <Badge variant="primary" outline>Primary</Badge>
-      <Badge variant="secondary" outline>Secondary</Badge>
-      <Badge variant="success" outline>Success</Badge>
-      <Badge variant="warning" outline>Warning</Badge>
-      <Badge variant="danger" outline>Danger</Badge>
-      <Badge variant="info" outline>Info</Badge>
+      <Badge variant="primary" outline>
+        Primary
+      </Badge>
+      <Badge variant="secondary" outline>
+        Secondary
+      </Badge>
+      <Badge variant="success" outline>
+        Success
+      </Badge>
+      <Badge variant="warning" outline>
+        Warning
+      </Badge>
+      <Badge variant="danger" outline>
+        Danger
+      </Badge>
+      <Badge variant="info" outline>
+        Info
+      </Badge>
     </div>
   ),
+}
+
+export const OutlineDark: Story = {
+  name: 'Outline (dark)',
+  globals: { theme: 'dark' },
+  render: Outline.render,
 }

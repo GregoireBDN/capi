@@ -1,28 +1,28 @@
-import { cva, type VariantProps } from "class-variance-authority";
-import { Slot } from "radix-ui";
-import * as React from "react";
+import { cva, type VariantProps } from 'class-variance-authority'
+import { Slot } from 'radix-ui'
+import * as React from 'react'
 
-import { Separator, type SeparatorProps } from "./separator";
-import { cn } from "../lib/utils";
+import { Separator, type SeparatorProps } from './separator'
+import { cn } from '../lib/utils'
 
 /* ============================================================================
  * TYPES
  * ========================================================================= */
 
-type ButtonGroupOrientation = "horizontal" | "vertical";
+type ButtonGroupOrientation = 'horizontal' | 'vertical'
 
-type ButtonGroupProps = React.ComponentProps<"div"> &
+type ButtonGroupProps = React.ComponentProps<'div'> &
   VariantProps<typeof buttonGroupVariants> & {
     /** Orientation of the button group (default: horizontal) */
-    orientation?: ButtonGroupOrientation;
-  };
+    orientation?: ButtonGroupOrientation
+  }
 
-type ButtonGroupTextProps = React.ComponentProps<"div"> & {
+type ButtonGroupTextProps = React.ComponentProps<'div'> & {
   /** Render as a different component using Radix Slot */
-  asChild?: boolean;
-};
+  asChild?: boolean
+}
 
-type ButtonGroupSeparatorProps = SeparatorProps;
+type ButtonGroupSeparatorProps = SeparatorProps
 
 /* ============================================================================
  * BASE STYLES (CVA)
@@ -31,57 +31,57 @@ type ButtonGroupSeparatorProps = SeparatorProps;
 const buttonGroupVariants = cva(
   [
     // Layout
-    "group/button-group flex w-fit items-stretch",
+    'group/button-group flex w-fit items-stretch',
 
     // Focus management
-    "*:focus-visible:relative *:focus-visible:z-10",
+    '*:focus-visible:relative *:focus-visible:z-10',
 
     // Nested button group spacing
-    "has-[>[data-slot=button-group]]:gap-2",
+    'has-[>[data-slot=button-group]]:gap-2',
 
     // Select trigger handling
-    "has-[select[aria-hidden=true]:last-child]:[&>[data-slot=select-trigger]:last-of-type]:rounded-r-lg",
+    'has-[select[aria-hidden=true]:last-child]:[&>[data-slot=select-trigger]:last-of-type]:rounded-r-control',
     "[&>[data-slot=select-trigger]:not([class*='w-'])]:w-fit",
 
     // Input handling
-    "[&>input]:flex-1",
-  ].join(" "),
+    '[&>input]:flex-1',
+  ].join(' '),
   {
     variants: {
       orientation: {
         horizontal: [
           // Remove left border radius and border for non-first children
-          "[&>*:not(:first-child)]:rounded-l-none",
-          "[&>*:not(:first-child)]:border-l-0",
+          '[&>*:not(:first-child)]:rounded-l-none',
+          '[&>*:not(:first-child)]:border-l-0',
 
           // Remove right border radius for non-last children
-          "[&>*:not(:last-child)]:rounded-r-none",
+          '[&>*:not(:last-child)]:rounded-r-none',
 
           // Ensure last data-slot has rounded right
-          "[&>[data-slot]:not(:has(~[data-slot]))]:rounded-r-lg!",
-        ].join(" "),
+          '[&>[data-slot]:not(:has(~[data-slot]))]:rounded-r-control!',
+        ].join(' '),
 
         vertical: [
           // Vertical layout
-          "flex-col",
+          'flex-col',
 
           // Remove top border radius and border for non-first children
-          "[&>*:not(:first-child)]:rounded-t-none",
-          "[&>*:not(:first-child)]:border-t-0",
+          '[&>*:not(:first-child)]:rounded-t-none',
+          '[&>*:not(:first-child)]:border-t-0',
 
           // Remove bottom border radius for non-last children
-          "[&>*:not(:last-child)]:rounded-b-none",
+          '[&>*:not(:last-child)]:rounded-b-none',
 
           // Ensure last data-slot has rounded bottom
-          "[&>[data-slot]:not(:has(~[data-slot]))]:rounded-b-lg!",
-        ].join(" "),
+          '[&>[data-slot]:not(:has(~[data-slot]))]:rounded-b-control!',
+        ].join(' '),
       },
     },
     defaultVariants: {
-      orientation: "horizontal",
+      orientation: 'horizontal',
     },
   },
-);
+)
 
 /* ============================================================================
  * BUTTON GROUP (ROOT COMPONENT)
@@ -96,7 +96,7 @@ function ButtonGroup({ className, orientation, ...props }: ButtonGroupProps) {
       className={cn(buttonGroupVariants({ orientation }), className)}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -108,33 +108,33 @@ function ButtonGroupText({
   asChild = false,
   ...props
 }: ButtonGroupTextProps) {
-  const Comp = asChild ? Slot.Root : "div";
+  const Comp = asChild ? Slot.Root : 'div'
 
   return (
     <Comp
       className={cn(
         [
           // Layout
-          "flex items-center",
+          'flex items-center',
 
           // Spacing
-          "gap-2 px-2.5",
+          'gap-2 px-2.5',
 
           // Styling
-          "rounded-lg border bg-muted",
+          'rounded-control bg-glass-fill',
 
           // Typography
-          "text-sm font-medium",
+          'text-sm font-medium',
 
           // Icon styling
-          "[&_svg]:pointer-events-none",
+          '[&_svg]:pointer-events-none',
           "[&_svg:not([class*='size-'])]:size-4",
-        ].join(" "),
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -143,7 +143,7 @@ function ButtonGroupText({
 
 function ButtonGroupSeparator({
   className,
-  orientation = "vertical",
+  orientation = 'vertical',
   ...props
 }: ButtonGroupSeparatorProps) {
   return (
@@ -153,22 +153,22 @@ function ButtonGroupSeparator({
       className={cn(
         [
           // Layout
-          "relative self-stretch",
+          'relative self-stretch',
 
           // Styling
-          "bg-input",
+          'bg-input',
 
           // Horizontal orientation spacing
-          "data-horizontal:mx-px data-horizontal:w-auto",
+          'data-horizontal:mx-px data-horizontal:w-auto',
 
           // Vertical orientation spacing
-          "data-vertical:my-px data-vertical:h-auto",
-        ].join(" "),
+          'data-vertical:my-px data-vertical:h-auto',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -184,4 +184,4 @@ export {
   type ButtonGroupProps,
   type ButtonGroupSeparatorProps,
   type ButtonGroupTextProps,
-};
+}
