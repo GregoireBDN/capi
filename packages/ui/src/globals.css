@@ -37,6 +37,7 @@
   --glass-chrome: var(--env-banner);
   --glass-muted-foreground: var(--env-banner-muted-foreground);
   --glass-fill: oklch(from var(--env-banner-foreground) l c h / 6%);
+  --month-band: color-mix(in oklab, white 45%, var(--env-banner));
   background-color: var(--env-banner);
   color: var(--env-banner-foreground);
 }
@@ -148,6 +149,7 @@
   --color-glass-fill: var(--glass-fill);
   --color-glass-chrome: var(--glass-chrome);
   --color-glass-panel: var(--glass-panel);
+  --color-month-band: var(--month-band);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
 
@@ -342,6 +344,9 @@
   --glass-fill: oklch(from var(--foreground) l c h / 6%);
   --glass-overlay: rgb(15 23 42 / 18%);
   --glass-overlay-blur: 2px;
+  /* #502's folder tab and the month's band under it: the app's light blue
+     (a pale yellow on staging, `env-banner`). */
+  --month-band: color-mix(in oklab, var(--primary) 9%, transparent);
   /* Muted text on the chrome and on panels: `muted-foreground` drops under
      4.5:1 once content scrolls under them; 5.6:1 at worst. */
   --glass-muted-foreground: color-mix(

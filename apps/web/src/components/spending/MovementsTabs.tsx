@@ -58,7 +58,7 @@ export function MovementsTabs({
               'relative flex h-[60px] min-w-0 items-center justify-center gap-2 rounded-t-2xl text-sm font-medium whitespace-nowrap transition-colors outline-none',
               'focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:ring-inset',
               active
-                ? 'bg-primary/9 text-foreground font-semibold'
+                ? 'bg-month-band text-foreground font-semibold'
                 : 'text-glass-muted-foreground hover:text-foreground',
             )}
           >

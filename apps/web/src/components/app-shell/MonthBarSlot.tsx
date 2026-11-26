@@ -2,6 +2,7 @@ import { cn } from '@capi/ui'
 import { useMatches } from '@tanstack/react-router'
 import { useSetPageMonthSlot } from './page-actions'
 import { MovementsTabs } from '#/components/spending/MovementsTabs'
+import { useAppEnvironment } from '#/lib/app-environment'
 
 /**
  * Where a month page's month goes (#401, the owner's « B. Barre du mois »,
@@ -19,6 +20,9 @@ import { MovementsTabs } from '#/components/spending/MovementsTabs'
  */
 export function MonthBarSlot() {
   const setMonthSlot = useSetPageMonthSlot()
+  // On staging the bar is yellow like the header, its tab and month band a
+  // pale yellow, so the two stay one block (#504).
+  const staging = useAppEnvironment() === 'staging'
   const monthPage = useMatches({
     select: (matches) => matches.some((match) => match.staticData.monthBar),
   })
@@ -37,12 +41,13 @@ export function MonthBarSlot() {
   return (
     <div
       data-month-bar={monthPage || undefined}
-      className={
+      className={cn(
         // Shown on a month page only: once its month is in, or keeping its
         // room until then. Glass chrome (#434, #504): the header's colour and
         // blur, a shadow below instead of a line, one block with the header.
-        'glass-chrome relative z-10 hidden shrink-0 has-[[data-month-placeholder]]:block has-[[data-page-month]:not(:empty)]:block'
-      }
+        'glass-chrome relative z-10 hidden shrink-0 has-[[data-month-placeholder]]:block has-[[data-page-month]:not(:empty)]:block',
+        staging && 'env-banner',
+      )}
     >
       {tabs && (
         <div className="mx-auto w-full max-w-5xl px-2 sm:px-4">
@@ -51,7 +56,7 @@ export function MonthBarSlot() {
       )}
       {/* Under the tabs, the month is in the current tab's tint: the tab
           opens onto it like a folder's (#434). */}
-      <div className={cn(tabs && 'bg-primary/9')}>
+      <div className={cn(tabs && 'bg-month-band')}>
         {/* The bar fills the page's column, as wide as its content. */}
         <div
           ref={setMonthSlot}

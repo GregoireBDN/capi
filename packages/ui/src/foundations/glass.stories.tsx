@@ -10,7 +10,7 @@ import {
   TrainFrontIcon,
   UtensilsIcon,
 } from 'lucide-react'
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, type CSSProperties, type ReactNode } from 'react'
 
 import { cn } from '../lib/utils'
 
@@ -113,10 +113,25 @@ function Round({
   )
 }
 
+/**
+ * Staging (#454): how the month bar under the yellow header could follow it.
+ * a: all yellow, the tab and the month band a lighter yellow;
+ * b: all yellow, the tab and the band a deeper yellow;
+ * c: the tabs' row yellow, the tab and the band the app's light blue.
+ */
+type Staging = 'a' | 'b' | 'c'
+
+const BAND: Record<Staging | 'none', string> = {
+  none: 'var(--month-band)',
+  a: 'var(--month-band)',
+  b: 'oklch(from var(--env-banner) calc(l - 0.07) calc(c + 0.02) calc(h - 8))',
+  c: 'oklch(0.94 0.03 262)',
+}
+
 /** The app chrome: header + #502's month bar with its folder tabs. */
-function Chrome({ staging = false }: { staging?: boolean }) {
+function Chrome({ staging }: { staging?: Staging }) {
   return (
-    <div>
+    <div className="relative z-20">
       <div
         className={cn(
           'bg-glass-chrome relative z-20 flex h-12 items-center gap-2 px-2 backdrop-blur-(--glass-blur)',
@@ -134,9 +149,12 @@ function Chrome({ staging = false }: { staging?: boolean }) {
           <EllipsisVerticalIcon className="size-[1rem]" />
         </Round>
       </div>
-      <div className="glass-chrome relative z-10">
+      <div
+        className={cn('glass-chrome relative z-10', staging && 'env-banner')}
+        style={{ '--band': BAND[staging ?? 'none'] } as CSSProperties}
+      >
         <div className="grid grid-cols-2 gap-[6px] px-2 pt-[12px]">
-          <span className="bg-primary/9 text-foreground flex h-[60px] items-center justify-center rounded-t-2xl text-sm font-semibold">
+          <span className="bg-(--band) text-foreground flex h-[60px] items-center justify-center rounded-t-2xl text-sm font-semibold">
             Résumé
           </span>
           <span className="text-glass-muted-foreground flex h-[60px] items-center justify-center gap-2 text-sm font-medium">
@@ -146,7 +164,7 @@ function Chrome({ staging = false }: { staging?: boolean }) {
             </span>
           </span>
         </div>
-        <div className="bg-primary/9 flex h-12 items-center gap-2 px-2">
+        <div className="bg-(--band) flex h-12 items-center gap-2 px-2">
           <Round>
             <ChevronLeftIcon className="size-[1rem]" />
           </Round>
@@ -238,11 +256,11 @@ function Sheet() {
 function Phone({
   title,
   sheet = false,
-  staging = false,
+  staging,
 }: {
   title: string
   sheet?: boolean
-  staging?: boolean
+  staging?: Staging
 }) {
   return (
     <figure className="space-y-1.5">
@@ -253,12 +271,12 @@ function Phone({
         data-glass-frame
         className="bg-background text-foreground relative w-[390px] overflow-hidden rounded-[1.6rem] shadow-[0_0_0_1px_rgb(0_0_0/8%)]"
       >
-        <div className="absolute inset-x-0 top-0 z-20">
-          <Chrome staging={staging} />
-        </div>
         {/* The page as if scrolled: its busiest parts under the chrome and
             under the sheet. */}
-        <BusyStrip className="h-[240px]" />
+        <div className="relative">
+          <BusyStrip className="absolute inset-0" />
+          <Chrome staging={staging} />
+        </div>
         <Samples />
         <BusyStrip className="h-[300px]" />
         {sheet && <Sheet />}
@@ -281,7 +299,6 @@ export const Surfaces: Story = {
     <Board>
       <Phone title="Chrome, carte, champ, boutons" />
       <Phone title="Panneau et voile" sheet />
-      <Phone title="Staging : le jaune reste opaque" staging />
     </Board>
   ),
 }
@@ -318,4 +335,18 @@ function FallbackBoard() {
       <Phone title="Sans transparence, panneau" sheet />
     </Board>
   )
+}
+
+/**
+ * Staging (#454): the month bar under the yellow header, three ways to keep
+ * it one block with the header.
+ */
+export const Staging: Story = {
+  render: () => (
+    <Board>
+      <Phone title="A · jaune, onglet jaune clair" staging="a" />
+      <Phone title="B · jaune, onglet jaune foncé" staging="b" />
+      <Phone title="C · jaune, onglet bleu clair" staging="c" />
+    </Board>
+  ),
 }
