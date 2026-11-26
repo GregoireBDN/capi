@@ -114,10 +114,8 @@ describe('OwedPage (#359, « B. Deux listes »)', () => {
     const { unmount } = renderWithClient(
       <OwedPage side="owed" onSideChange={vi.fn()} />,
     )
-    expect(
-      await screen.findByText(/Il restera : Sam vous doit 45,00 €/),
-    ).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /Compenser 30,00\s€/ }))
+    expect(await screen.findByText('Compenser avec Sam ?')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Compenser' }))
     expect(api.contactsControllerCreateOffset).toHaveBeenCalledWith(
       expect.objectContaining({ path: { id: SAM }, body: {} }),
     )

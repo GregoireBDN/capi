@@ -298,7 +298,7 @@ function PaidForMeForm({
           .catch(() => null))
       if (offer && offer.amountCents > 0) {
         toast.success(`Vous devez ${formatCents(mine)} à ${name}`, {
-          description: `${name} vous doit ${formatCents(offer.owedToMeCents)} : compenser ${formatCents(offer.amountCents)} de chaque côté ? Il restera : ${offsetOutcome(offer)}.`,
+          description: `${name} vous doit aussi ${formatCents(offer.owedToMeCents)}. Après compensation : ${offsetOutcome(offer)}.`,
           duration: UNDO_TOAST_MS * 2,
           action: {
             label: `Compenser`,

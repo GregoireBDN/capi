@@ -1,9 +1,10 @@
 import { Button, Card, CardContent } from '@capi/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeftRightIcon } from 'lucide-react'
+import { ArrowLeftRightIcon, XIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import type { OffsetProposalDto } from '#/api/types.gen'
 import { formatCents } from '#/lib/money'
+import { ContactAvatar } from './ContactAvatar'
 import { netText } from './format'
 import {
   afterOwedChanged,
@@ -52,65 +53,59 @@ export function offsetOutcome(offer: OffsetProposalDto): string {
 }
 
 /**
- * The offset to propose with one person (#484): what each owes, what the
- * offset settles on each side, what is left, « Compenser » and, where the
- * owner can leave it for later, « Ignorer » (nothing changes).
+ * The offset to propose with one person (#484), in two short lines: who owes
+ * what both ways, then what is left after it; « Compenser » in one tap and,
+ * where it can wait, a ✕ that leaves it for later (nothing changes).
  */
 export function OffsetOfferCard({
   offer,
   onIgnore,
-  framed = true,
 }: {
   offer: OffsetProposalDto
   onIgnore?: () => void
-  /** In its own card (lists), or bare inside a sheet. */
-  framed?: boolean
 }) {
   const offset = useOffset()
-  const body = (
-    <div className="space-y-2 text-sm">
-      <p className="flex items-center gap-2">
-        <ArrowLeftRightIcon
-          aria-hidden
-          className="text-muted-foreground size-4 shrink-0"
-        />
-        <span className="font-medium break-normal">
-          Compenser avec {offer.contactName} ?
-        </span>
-      </p>
-      <p className="text-muted-foreground break-normal">
-        {offer.contactName} vous doit {formatCents(offer.owedToMeCents)} et vous
-        lui devez {formatCents(offer.iOweCents)}. Compenser règle{' '}
-        {formatCents(offer.amountCents)} de chaque côté, sans virement ni effet
-        sur vos dépenses. Il restera : {offsetOutcome(offer)}.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          iconStart={<ArrowLeftRightIcon />}
-          loading={offset.isPending}
-          onClick={() => offset.mutate(offer)}
-        >
-          Compenser {formatCents(offer.amountCents)}
-        </Button>
-        {onIgnore && (
+  return (
+    <Card size="sm">
+      <CardContent className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <ContactAvatar name={offer.contactName} />
+        <div className="min-w-[7rem] flex-1 space-y-0.5">
+          <p className="text-sm font-medium break-normal">
+            Compenser avec {offer.contactName} ?
+          </p>
+          <p className="text-muted-foreground text-xs tabular-nums break-normal">
+            Il vous doit {formatCents(offer.owedToMeCents)} · vous lui devez{' '}
+            {formatCents(offer.iOweCents)}
+          </p>
+          <p className="text-xs tabular-nums break-normal">
+            Après : <span className="font-medium">{offsetOutcome(offer)}</span>
+          </p>
+        </div>
+        <div className="ml-auto flex items-center gap-1">
           <Button
             type="button"
             size="sm"
-            variant="secondary"
-            onClick={onIgnore}
+            iconStart={<ArrowLeftRightIcon />}
+            loading={offset.isPending}
+            onClick={() => offset.mutate(offer)}
           >
-            Ignorer
+            Compenser
           </Button>
-        )}
-      </div>
-    </div>
-  )
-  if (!framed) return body
-  return (
-    <Card size="sm">
-      <CardContent>{body}</CardContent>
+          {onIgnore && (
+            <Button
+              type="button"
+              size="sm"
+              ghost
+              variant="secondary"
+              iconOnly
+              aria-label="Ignorer"
+              title="Ignorer"
+              iconStart={<XIcon />}
+              onClick={onIgnore}
+            />
+          )}
+        </div>
+      </CardContent>
     </Card>
   )
 }

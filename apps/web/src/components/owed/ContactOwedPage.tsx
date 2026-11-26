@@ -28,7 +28,7 @@ import { FigureTile } from '#/components/dashboard/FigureTile'
 import { currentMonth } from '#/lib/calendar'
 import { formatCalendarDate, formatCents } from '#/lib/money'
 import { ROUTES } from '#/lib/routes'
-import { netText, stateText } from './format'
+import { stateText } from './format'
 import type { OwedSide } from './format'
 import { OffsetOfferCard } from './OffsetOffer'
 import { ExpectedCard } from './OwedPage'
@@ -137,12 +137,6 @@ export function ContactOwedPage({
             notes={[totalsNote(data.iOwe, 'payés pour vous')]}
             notesOnPhone
           />
-          {contact.owedToMeCents > 0 && contact.iOweCents > 0 && (
-            <p className="text-muted-foreground px-1 text-sm @lg:col-span-2">
-              Net :{' '}
-              {netText(contact.name, contact.owedToMeCents - contact.iOweCents)}
-            </p>
-          )}
         </CardContent>
       </Card>
 
@@ -268,22 +262,18 @@ function OffsetsCard({
           checked={always.isPending ? always.variables : contact.alwaysOffset}
           onCheckedChange={(checked) => always.mutate(checked)}
         />
-        <p className="text-muted-foreground px-1 text-xs break-normal">
-          Quand {contact.name} vous doit et que vous lui devez, les deux se
-          règlent l’un contre l’autre dès qu’une dépense s’ajoute, sans vous
-          demander. Vos dépenses ne changent pas.
-        </p>
+
         {offsets.length > 0 && (
           <ul className="divide-y text-sm">
             {offsets.map((offset) => (
               <li key={offset.id} className="flex min-h-11 items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="tabular-nums">
-                    {formatCents(offset.amountCents)} de chaque côté
+                    {formatCents(offset.amountCents)} compensés
                   </p>
                   <p className="text-muted-foreground text-xs">
-                    {offset.automatic ? 'Compensé automatiquement' : 'Compensé'}{' '}
-                    le {formatCalendarDate(offset.offsetOn)}
+                    {formatCalendarDate(offset.offsetOn)}
+                    {offset.automatic ? ' · automatique' : ''}
                   </p>
                 </div>
                 <Button
