@@ -3,6 +3,7 @@ import {
   cn,
   PeriodBar,
   PeriodBarLabel,
+  PeriodBarStatus,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -26,6 +27,8 @@ import {
   useInShell,
   usePageMonthSlot,
 } from '#/components/app-shell/page-actions'
+import { closedMonthsQuery } from '#/components/month-close/queries'
+import { monthState } from '#/lib/month-state'
 import { coverageQuery } from './coverage'
 import { isMonthKey } from './month-keys'
 
@@ -225,6 +228,7 @@ export function MonthNavigator({
   const current = currentMonth()
   const max = maxProp ?? current
   const coverage = useQuery(coverageQuery)
+  const closedMonths = useQuery(closedMonthsQuery)
   const [open, setOpen] = useState(false)
   const free = label === undefined
   const canGoBack = free
@@ -266,6 +270,18 @@ export function MonthNavigator({
   const inShell = useInShell()
   const slot = usePageMonthSlot()
   const name = label ?? formatMonth(month)
+  // How far the month's data goes, on a computer only: on a phone it would
+  // take too much room (the owner, #505).
+  const state =
+    free && coverage.data
+      ? monthState({
+          month,
+          dataUntil: coverage.data.dataUntil,
+          monthsWithData: coverage.data.months,
+          closedAt: closedMonths.data?.closed.find((c) => c.month === month)
+            ?.closedAt,
+        })
+      : null
 
   const bar = (
     <PeriodBar
@@ -291,6 +307,8 @@ export function MonthNavigator({
             aria-label={`${name}, choisir un mois`}
             text={name}
             shortText={label ?? formatShortMonth(month)}
+            // As wide as its name beside the state on a computer.
+            className="md:flex-none"
           />
         </PopoverTrigger>
         <PopoverContent
@@ -343,6 +361,17 @@ export function MonthNavigator({
           )}
         </PopoverContent>
       </Popover>
+      {state ? (
+        <PeriodBarStatus
+          tone={state.tone}
+          text={state.text}
+          shortText={'shortText' in state ? state.shortText : undefined}
+          progress={state.tone === 'partial' ? state.progress : undefined}
+          className="hidden md:flex"
+        />
+      ) : (
+        <div aria-hidden className="hidden flex-1 md:block" />
+      )}
     </PeriodBar>
   )
 

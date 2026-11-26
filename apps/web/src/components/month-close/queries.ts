@@ -3,6 +3,7 @@ import {
   integrityControllerCheck,
   monthCloseControllerClose,
   monthCloseControllerGet,
+  monthCloseControllerList,
   monthCloseControllerReopen,
   monthCloseControllerUpdate,
 } from '#/api'
@@ -17,7 +18,14 @@ import { ApiRequestError, unwrap } from '#/lib/queries'
 export const monthCloseKeys = {
   month: (month: string) => ['dashboard', 'month-close', month] as const,
   integrity: (month: string) => ['dashboard', 'integrity', month] as const,
+  closed: ['dashboard', 'closed-months'] as const,
 }
+
+/** Every closed month, for the month bar's state (#505). */
+export const closedMonthsQuery = queryOptions({
+  queryKey: monthCloseKeys.closed,
+  queryFn: () => unwrap(monthCloseControllerList({ throwOnError: false })),
+})
 
 /** Steps, progress and report of `month`. Refetched on mount. */
 export function monthCloseQuery(month: string) {

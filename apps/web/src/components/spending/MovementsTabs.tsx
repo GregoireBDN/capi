@@ -20,12 +20,12 @@ const TABS = [
 ] as const
 
 /**
- * « Résumé · Opérations » (#498, with #434, the owner's choice: folder
- * tabs right above the month, part of the glass month bar, the current one
- * a rounded tab in light blue opening onto the month's band, no line): Mouvements and Opérations as two
+ * « Résumé · Opérations » (#498, then #505: pills on the month's toolbar,
+ * before the month on a computer, a bar of their own above it on a phone,
+ * the current one in light blue): Mouvements and Opérations as two
  * tabs of one page, each its own URL, one tap between them both ways (they
  * were a « ⋮ » item and a breadcrumb, #393). Rendered by `MonthBarSlot` on
- * the routes that declare `staticData.movementsTab`, in the bar's colours. The month shown
+ * the routes that declare `staticData.movementsTab`. The month shown
  * is carried (none from « Toutes les dates »); « Opérations » carries the
  * number of transactions to review, as the sidebar's « Mouvements » does.
  */
@@ -43,12 +43,11 @@ export function MovementsTabs({
     <nav
       aria-label="Mouvements"
       data-slot="movements-tabs"
-      // The app's segmented control (#506) made of links (#505, the owner:
-      // « dans le design system »): a glass track, the current page a raised
-      // white segment, two equal halves of the page's width.
-      // On a computer, the current page in the light blue pill of the menu's
-      // current page (the owner, #505), no track.
-      className="bg-glass-fill rounded-control md:gap-1.5 grid grid-cols-2 gap-0.5 p-[3px] md:bg-transparent md:p-0"
+      // Pills on the month's white toolbar (#505, the owner's « barre
+      // d'outils + état »), the current page in the light blue of the menu's
+      // current page: two equal halves of the bar on a phone, as wide as
+      // their names before the month on a computer.
+      className="grid grid-cols-2 gap-1 md:flex"
     >
       {TABS.map(({ key, to, label }) => {
         const active = key === current
@@ -60,11 +59,11 @@ export function MovementsTabs({
             aria-current={active ? 'page' : undefined}
             data-active={active || undefined}
             className={cn(
-              'relative flex h-[calc(2rem-6px)] md:h-[calc(2rem-4px)] md:rounded-control min-w-0 items-center justify-center gap-2 rounded-[calc(var(--radius-control)-3px)] text-sm font-medium whitespace-nowrap no-underline transition-[color,background-color,box-shadow] outline-none pointer-coarse:touch-hitbox',
+              'relative flex h-[calc(2rem-8px)] min-w-0 items-center justify-center gap-2 rounded-full text-sm font-medium whitespace-nowrap no-underline transition-[color,background-color] outline-none pointer-coarse:touch-hitbox md:px-4',
               'focus-visible:ring-ring/85 focus-visible:ring-[3px]',
               active
-                ? 'bg-card text-foreground font-semibold shadow-[var(--glass-edge),var(--glass-shadow-sm)] dark:bg-[oklch(from_var(--card)_calc(l+0.06)_c_h)] md:bg-month-band md:shadow-none md:dark:bg-month-band'
-                : 'text-glass-muted-foreground hover:text-foreground',
+                ? 'bg-month-band text-primary font-semibold'
+                : 'text-muted-foreground hover:bg-glass-fill hover:text-foreground',
             )}
           >
             {label}
