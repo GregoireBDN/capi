@@ -4,7 +4,7 @@ import { ArrowLeftRightIcon, XIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import type { OffsetProposalDto } from '#/api/types.gen'
 import { formatCents } from '#/lib/money'
-import { ContactAvatar } from './ContactAvatar'
+import { DebtArrows } from './DebtArrows'
 import { netText } from './format'
 import {
   afterOwedChanged,
@@ -53,9 +53,10 @@ export function offsetOutcome(offer: OffsetProposalDto): string {
 }
 
 /**
- * The offset to propose with one person (#484), in two short lines: who owes
- * what both ways, then what is left after it; « Compenser » in one tap and,
- * where it can wait, a ✕ that leaves it for later (nothing changes).
+ * The offset to propose with one person (#484): the two arrows between the
+ * owner and them, then « Compenser » in one tap and, where it can wait, a ✕
+ * that leaves it for later (nothing changes). Screen readers also get what
+ * is left after it.
  */
 export function OffsetOfferCard({
   offer,
@@ -67,24 +68,17 @@ export function OffsetOfferCard({
   const offset = useOffset()
   return (
     <Card size="sm">
-      <CardContent className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <ContactAvatar name={offer.contactName} />
-        <div className="min-w-[7rem] flex-1 space-y-0.5">
-          <p className="text-sm font-medium break-normal">
-            Compenser avec {offer.contactName} ?
-          </p>
-          <p className="text-muted-foreground text-xs tabular-nums break-normal">
-            Il vous doit {formatCents(offer.owedToMeCents)} · vous lui devez{' '}
-            {formatCents(offer.iOweCents)}
-          </p>
-          <p className="text-xs tabular-nums break-normal">
-            Après : <span className="font-medium">{offsetOutcome(offer)}</span>
-          </p>
-        </div>
-        <div className="ml-auto flex items-center gap-1">
+      <CardContent className="space-y-3">
+        <DebtArrows
+          name={offer.contactName}
+          owedToMeCents={offer.owedToMeCents}
+          iOweCents={offer.iOweCents}
+        />
+        <p className="sr-only">Après compensation : {offsetOutcome(offer)}.</p>
+        <div className="flex items-center gap-2">
           <Button
             type="button"
-            size="sm"
+            className="flex-1"
             iconStart={<ArrowLeftRightIcon />}
             loading={offset.isPending}
             onClick={() => offset.mutate(offer)}
@@ -94,8 +88,6 @@ export function OffsetOfferCard({
           {onIgnore && (
             <Button
               type="button"
-              size="sm"
-              ghost
               variant="secondary"
               iconOnly
               aria-label="Ignorer"

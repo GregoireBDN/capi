@@ -114,7 +114,9 @@ describe('OwedPage (#359, « B. Deux listes »)', () => {
     const { unmount } = renderWithClient(
       <OwedPage side="owed" onSideChange={vi.fn()} />,
     )
-    expect(await screen.findByText('Compenser avec Sam ?')).toBeInTheDocument()
+    expect(
+      await screen.findByText(/^Après compensation : .*Sam/),
+    ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Compenser' }))
     expect(api.contactsControllerCreateOffset).toHaveBeenCalledWith(
       expect.objectContaining({ path: { id: SAM }, body: {} }),
@@ -123,7 +125,7 @@ describe('OwedPage (#359, « B. Deux listes »)', () => {
     unmount()
     renderWithClient(<OwedPage side="owed" onSideChange={vi.fn()} />)
     await user.click(await screen.findByRole('button', { name: 'Ignorer' }))
-    expect(screen.queryByText(/Compenser avec Sam/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Après compensation/)).not.toBeInTheDocument()
   })
 
   it('switches lists with the segmented control', async () => {

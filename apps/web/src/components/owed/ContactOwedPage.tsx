@@ -12,7 +12,13 @@ import {
 } from '@capi/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowLeftRightIcon, ReceiptTextIcon, RepeatIcon } from 'lucide-react'
+import {
+  ArrowLeftRightIcon,
+  CheckIcon,
+  ReceiptTextIcon,
+  RepeatIcon,
+  RotateCcwIcon,
+} from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import type {
@@ -28,6 +34,7 @@ import { FigureTile } from '#/components/dashboard/FigureTile'
 import { currentMonth } from '#/lib/calendar'
 import { formatCalendarDate, formatCents } from '#/lib/money'
 import { ROUTES } from '#/lib/routes'
+import { DebtArrows, OWED_TONE, shortCents } from './DebtArrows'
 import { stateText } from './format'
 import type { OwedSide } from './format'
 import { OffsetOfferCard } from './OffsetOffer'
@@ -144,6 +151,7 @@ export function ContactOwedPage({
       <OffsetsCard
         contact={contact}
         offsets={data.offsets}
+        offered={data.offer != null}
         both={
           data.owedToMe.totals.totalCents > 0 && data.iOwe.totals.totalCents > 0
         }
@@ -224,10 +232,12 @@ function OffsetsCard({
   contact,
   offsets,
   both,
+  offered,
 }: {
   contact: ContactDto
   offsets: OffsetDto[]
   both: boolean
+  offered: boolean
 }) {
   const queryClient = useQueryClient()
   const always = useMutation({
@@ -256,6 +266,15 @@ function OffsetsCard({
     <Card size="sm">
       <DashboardCardHeader title="Compensations" />
       <CardContent className="space-y-2">
+        {!offered && (
+          <div className="pb-1">
+            <DebtArrows
+              name={contact.name}
+              owedToMeCents={contact.owedToMeCents}
+              iOweCents={contact.iOweCents}
+            />
+          </div>
+        )}
         <SettingSwitchRow
           icon={ArrowLeftRightIcon}
           label="Toujours compenser"
@@ -266,26 +285,33 @@ function OffsetsCard({
         {offsets.length > 0 && (
           <ul className="divide-y text-sm">
             {offsets.map((offset) => (
-              <li key={offset.id} className="flex min-h-11 items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="tabular-nums">
-                    {formatCents(offset.amountCents)} compensés
-                  </p>
-                  <p className="text-muted-foreground text-xs">
+              <li key={offset.id} className="flex min-h-11 items-center gap-2">
+                <CheckIcon
+                  aria-hidden
+                  className={cn('size-4 shrink-0', OWED_TONE)}
+                />
+                <p className="min-w-0 flex-1 break-normal">
+                  <span className="tabular-nums">
+                    {shortCents(offset.amountCents)} compensés
+                  </span>
+                  <span className="text-muted-foreground text-xs whitespace-nowrap">
+                    {' · '}
                     {formatCalendarDate(offset.offsetOn)}
-                    {offset.automatic ? ' · automatique' : ''}
-                  </p>
-                </div>
+                    {offset.automatic ? ' · auto' : ''}
+                  </span>
+                </p>
                 <Button
                   type="button"
                   size="sm"
                   ghost
                   variant="secondary"
+                  iconOnly
+                  aria-label="Annuler la compensation"
+                  title="Annuler la compensation"
+                  iconStart={<RotateCcwIcon />}
                   loading={undo.isPending && undo.variables === offset.id}
                   onClick={() => undo.mutate(offset.id)}
-                >
-                  Annuler
-                </Button>
+                />
               </li>
             ))}
           </ul>
