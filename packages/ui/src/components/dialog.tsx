@@ -1,46 +1,46 @@
-"use client";
+'use client'
 
-import { XIcon } from "lucide-react";
-import { Dialog as DialogPrimitive } from "radix-ui";
-import * as React from "react";
+import { XIcon } from 'lucide-react'
+import { Dialog as DialogPrimitive } from 'radix-ui'
+import * as React from 'react'
 
-import { Button } from "./button";
-import { cn } from "../lib/utils";
+import { Button } from './button'
+import { cn } from '../lib/utils'
 
 /* ============================================================================
  * TYPES
  * ========================================================================= */
 
-type DialogProps = React.ComponentProps<typeof DialogPrimitive.Root>;
-type DialogTriggerProps = React.ComponentProps<typeof DialogPrimitive.Trigger>;
-type DialogPortalProps = React.ComponentProps<typeof DialogPrimitive.Portal>;
-type DialogCloseProps = React.ComponentProps<typeof DialogPrimitive.Close>;
-type DialogOverlayProps = React.ComponentProps<typeof DialogPrimitive.Overlay>;
-type DialogTitleProps = React.ComponentProps<typeof DialogPrimitive.Title>;
+type DialogProps = React.ComponentProps<typeof DialogPrimitive.Root>
+type DialogTriggerProps = React.ComponentProps<typeof DialogPrimitive.Trigger>
+type DialogPortalProps = React.ComponentProps<typeof DialogPrimitive.Portal>
+type DialogCloseProps = React.ComponentProps<typeof DialogPrimitive.Close>
+type DialogOverlayProps = React.ComponentProps<typeof DialogPrimitive.Overlay>
+type DialogTitleProps = React.ComponentProps<typeof DialogPrimitive.Title>
 type DialogDescriptionProps = React.ComponentProps<
   typeof DialogPrimitive.Description
->;
+>
 
 type DialogContentProps = React.ComponentProps<
   typeof DialogPrimitive.Content
 > & {
   /** Show the close button in the top-right corner (default: true) */
-  showCloseButton?: boolean;
-};
+  showCloseButton?: boolean
+}
 
-type DialogHeaderProps = React.ComponentProps<"div">;
+type DialogHeaderProps = React.ComponentProps<'div'>
 
-type DialogFooterProps = React.ComponentProps<"div"> & {
+type DialogFooterProps = React.ComponentProps<'div'> & {
   /** Show a close button in the footer (default: false) */
-  showCloseButton?: boolean;
-};
+  showCloseButton?: boolean
+}
 
 /* ============================================================================
  * DIALOG (ROOT COMPONENT)
  * ========================================================================= */
 
 function Dialog({ ...props }: DialogProps) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />;
+  return <DialogPrimitive.Root data-slot="dialog" {...props} />
 }
 
 /* ============================================================================
@@ -48,7 +48,7 @@ function Dialog({ ...props }: DialogProps) {
  * ========================================================================= */
 
 function DialogTrigger({ ...props }: DialogTriggerProps) {
-  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
+  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
 }
 
 /* ============================================================================
@@ -56,7 +56,7 @@ function DialogTrigger({ ...props }: DialogTriggerProps) {
  * ========================================================================= */
 
 function DialogPortal({ ...props }: DialogPortalProps) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
+  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
 }
 
 /* ============================================================================
@@ -64,7 +64,7 @@ function DialogPortal({ ...props }: DialogPortalProps) {
  * ========================================================================= */
 
 function DialogClose({ ...props }: DialogCloseProps) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
+  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
 }
 
 /* ============================================================================
@@ -78,22 +78,21 @@ function DialogOverlay({ className, ...props }: DialogOverlayProps) {
       className={cn(
         [
           // Positioning
-          "fixed inset-0 isolate z-50",
+          'fixed inset-0 isolate z-50',
 
           // Styling
-          "bg-black/10",
-          "supports-backdrop-filter:backdrop-blur-xs",
+          'glass-overlay',
 
           // Animations
-          "duration-100",
-          "data-open:animate-in data-open:fade-in-0",
-          "data-closed:animate-out data-closed:fade-out-0",
-        ].join(" "),
+          'duration-100',
+          'data-open:animate-in data-open:fade-in-0',
+          'data-closed:animate-out data-closed:fade-out-0',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -114,27 +113,27 @@ function DialogContent({
         className={cn(
           [
             // Positioning
-            "fixed top-1/2 left-1/2 z-50",
-            "-translate-x-1/2 -translate-y-1/2",
+            'fixed top-1/2 left-1/2 z-50',
+            '-translate-x-1/2 -translate-y-1/2',
 
             // Layout
-            "grid w-full max-w-[calc(100%-2rem)]",
-            "sm:max-w-sm",
+            'grid w-full max-w-[calc(100%-2rem)]',
+            'sm:max-w-sm',
 
             // Spacing
-            "gap-4 p-4",
+            'gap-4 p-4',
 
             // Styling
-            "rounded-xl bg-popover text-sm text-popover-foreground",
-            "ring-1 ring-foreground/10",
+            // A frosted panel (#509), no ring
+            'glass-panel rounded-sheet text-sm text-popover-foreground',
 
             // Interactivity
-            "duration-100 outline-none",
+            'duration-100 outline-none',
 
             // Animations
-            "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
-            "data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          ].join(" "),
+            'data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95',
+            'data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
+          ].join(' '),
           className,
         )}
         {...props}
@@ -156,7 +155,7 @@ function DialogContent({
         )}
       </DialogPrimitive.Content>
     </DialogPortal>
-  );
+  )
 }
 
 /* ============================================================================
@@ -170,16 +169,16 @@ function DialogHeader({ className, ...props }: DialogHeaderProps) {
       className={cn(
         [
           // Layout
-          "flex flex-col",
+          'flex flex-col',
 
           // Spacing
-          "gap-2",
-        ].join(" "),
+          'gap-2',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -198,15 +197,13 @@ function DialogFooter({
       className={cn(
         [
           // Layout
-          "flex flex-col-reverse gap-2",
-          "sm:flex-row sm:justify-end",
+          'flex flex-col-reverse gap-2',
+          'sm:flex-row sm:justify-end',
 
           // Spacing
-          "-mx-4 -mb-4 p-4",
-
-          // Styling
-          "rounded-b-xl border-t bg-muted/50",
-        ].join(" "),
+          // No band or line under the content (#509): space only
+          'pt-2',
+        ].join(' '),
         className,
       )}
       {...props}
@@ -220,7 +217,7 @@ function DialogFooter({
         </DialogPrimitive.Close>
       )}
     </div>
-  );
+  )
 }
 
 /* ============================================================================
@@ -234,13 +231,13 @@ function DialogTitle({ className, ...props }: DialogTitleProps) {
       className={cn(
         [
           // Typography
-          "font-heading text-base leading-none font-medium",
-        ].join(" "),
+          'font-heading text-base leading-none font-medium',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -254,17 +251,17 @@ function DialogDescription({ className, ...props }: DialogDescriptionProps) {
       className={cn(
         [
           // Typography
-          "text-sm text-muted-foreground",
+          'text-sm text-glass-muted-foreground',
 
           // Link styling
-          "*:[a]:underline *:[a]:underline-offset-3",
-          "*:[a]:hover:text-foreground",
-        ].join(" "),
+          '*:[a]:underline *:[a]:underline-offset-3',
+          '*:[a]:hover:text-foreground',
+        ].join(' '),
         className,
       )}
       {...props}
     />
-  );
+  )
 }
 
 /* ============================================================================
@@ -292,4 +289,4 @@ export {
   type DialogProps,
   type DialogTitleProps,
   type DialogTriggerProps,
-};
+}

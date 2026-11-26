@@ -459,7 +459,8 @@
   --glass-shadow: rgb(0 0 0 / 60%);
   --glass-shadow-sm: 0 0 0 1px rgb(255 255 255 / 7%);
   --glass-shadow-md: 0 10px 24px -12px rgb(0 0 0 / 60%);
-  --glass-shadow-lg: 0 16px 40px -12px rgb(0 0 0 / 70%);
+  --glass-shadow-lg:
+    0 0 0 1px rgb(255 255 255 / 8%), 0 16px 40px -12px rgb(0 0 0 / 70%);
   --glass-overlay: rgb(0 0 0 / 40%);
   --line: var(--border);
 
@@ -551,7 +552,8 @@
     --glass-shadow: rgb(0 0 0 / 60%);
     --glass-shadow-sm: 0 0 0 1px rgb(255 255 255 / 7%);
     --glass-shadow-md: 0 10px 24px -12px rgb(0 0 0 / 60%);
-    --glass-shadow-lg: 0 16px 40px -12px rgb(0 0 0 / 70%);
+    --glass-shadow-lg:
+      0 0 0 1px rgb(255 255 255 / 8%), 0 16px 40px -12px rgb(0 0 0 / 70%);
     --glass-overlay: rgb(0 0 0 / 40%);
     --line: var(--border);
 
