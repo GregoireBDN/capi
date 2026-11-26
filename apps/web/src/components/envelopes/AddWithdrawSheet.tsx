@@ -12,7 +12,7 @@ import { AmountField } from '#/components/amount/AmountField'
 import { centsToInput, parseEurosToCents } from '#/components/budget/amount'
 import { formatCents } from '#/lib/money'
 import { accountsQuery, isBankAccount } from '#/lib/queries'
-import { ChoiceList } from './ChoiceList'
+import { AccountChips } from './AccountChips'
 import { EnvelopeSheet } from './EnvelopeSheet'
 import {
   accountEnvelopesQuery,
@@ -26,8 +26,8 @@ export type AddOrWithdraw = 'add' | 'withdraw'
 /**
  * « Ajouter » / « Retirer » on an envelope's page (#430, the owner: « the
  * account is asked at every gesture »): an amount, on the account chosen by
- * itself (the most « libre » to add, the most held to withdraw), changed
- * only when wanted. A move between two envelopes stays on the account's
+ * itself (the most « libre » to add, the most held to withdraw), one chip
+ * per account to change it. A move between two envelopes stays on the account's
  * page (`MoveSheet`).
  */
 export function AddWithdrawSheet({
@@ -44,7 +44,6 @@ export function AddWithdrawSheet({
   const open = mode !== null
   const adding = mode === 'add'
   const [accountId, setAccountId] = useState<string | null>(null)
-  const [choosing, setChoosing] = useState(false)
   const [amount, setAmount] = useState('')
   const [tried, setTried] = useState(false)
 
@@ -77,7 +76,6 @@ export function AddWithdrawSheet({
   useEffect(() => {
     if (!open) return
     setAccountId(null)
-    setChoosing(false)
     setAmount('')
     setTried(false)
   }, [open, mode])
@@ -135,6 +133,14 @@ export function AddWithdrawSheet({
         if (!error) move.mutate()
       }}
     >
+      <AccountChips
+        accounts={options}
+        value={accountId}
+        onChange={(next) => {
+          setAccountId(next)
+          setAmount('')
+        }}
+      />
       <Field data-invalid={tried && error !== null}>
         <FieldLabel htmlFor={`${id}-amount`}>Montant</FieldLabel>
         <div className="flex items-center gap-2">
@@ -142,7 +148,7 @@ export function AddWithdrawSheet({
             id={`${id}-amount`}
             groupClassName="flex-1"
             value={amount}
-            placeholder={available > 0 ? centsToInput(available) : '0'}
+            placeholder="0"
             onValueChange={(typed) => setAmount(typed)}
           />
           <Button
@@ -157,50 +163,6 @@ export function AddWithdrawSheet({
         </div>
         {tried && error && <FieldError>{error}</FieldError>}
       </Field>
-      {chosen && !choosing && (
-        <p className="text-muted-foreground flex flex-wrap items-baseline gap-x-2 text-sm">
-          <span>
-            {adding ? 'Sur' : 'Depuis'}{' '}
-            <span className="text-foreground font-medium">{chosen.name}</span> ·{' '}
-            {adding ? 'libre ' : ''}
-            <span className="whitespace-nowrap tabular-nums">
-              {formatCents(chosen.cents)}
-            </span>
-          </span>
-          {options.length > 1 && (
-            <Button
-              type="button"
-              variant="secondary"
-              ghost
-              size="sm"
-              onClick={() => setChoosing(true)}
-            >
-              Autre compte
-            </Button>
-          )}
-        </p>
-      )}
-      {choosing && (
-        <section className="space-y-2">
-          <h3 className="text-sm font-medium">Compte</h3>
-          <ChoiceList
-            label="Compte"
-            value={accountId}
-            onChange={(next) => {
-              setAccountId(next)
-              setChoosing(false)
-              setAmount('')
-            }}
-            choices={options.map((o) => ({
-              id: o.accountId,
-              icon: null,
-              label: o.name,
-              value: formatCents(o.cents),
-              disabled: o.cents <= 0,
-            }))}
-          />
-        </section>
-      )}
     </EnvelopeSheet>
   )
 }

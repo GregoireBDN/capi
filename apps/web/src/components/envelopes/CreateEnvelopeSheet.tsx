@@ -46,6 +46,7 @@ import { currentDay } from '#/lib/calendar'
 import { formatCalendarDate, formatCents, formatWholeEuros } from '#/lib/money'
 import { accountsQuery, categoriesQuery, isBankAccount } from '#/lib/queries'
 import { ROUTES } from '#/lib/routes'
+import { AccountChips } from './AccountChips'
 import { ChoiceList } from './ChoiceList'
 import { EnvelopeAvatar } from './EnvelopeAvatar'
 import { addMonthsTo, ENVELOPE_TEMPLATES, monthsUntil } from './format'
@@ -121,7 +122,6 @@ export function CreateEnvelopeSheet({
   const [date, setDate] = useState('')
   const [start, setStart] = useState('')
   const [startAccount, setStartAccount] = useState<string | null>(null)
-  const [choosingAccount, setChoosingAccount] = useState(false)
   const [tried, setTried] = useState(false)
 
   useEffect(() => {
@@ -136,7 +136,6 @@ export function CreateEnvelopeSheet({
     setDate('')
     setStart('')
     setStartAccount(null)
-    setChoosingAccount(false)
     setTried(false)
   }, [open])
   useEffect(() => {
@@ -169,7 +168,7 @@ export function CreateEnvelopeSheet({
         : addMonthsTo(today, Number(when))
   // « Déjà de côté ? » (#430, the owner: one amount like « Ajouter »): on
   // the account it was started from, else the one with the most « libre »;
-  // « Autre compte » changes it. More accounts later with « Ajouter ».
+  // one chip per account changes it. More accounts later with « Ajouter ».
   const bestStart = [...banks]
     .sort(
       (a, b) =>
@@ -442,6 +441,18 @@ export function CreateEnvelopeSheet({
     case 'start':
       body = (
         <div className="space-y-3">
+          <AccountChips
+            accounts={banks.map((a) => ({
+              accountId: a.id,
+              name: a.name,
+              cents: freeOf.get(a.id) ?? 0,
+            }))}
+            value={startOn?.id ?? null}
+            onChange={(chosen) => {
+              setStartAccount(chosen)
+              setStart('')
+            }}
+          />
           <Field data-invalid={tried && !!error}>
             <FieldLabel htmlFor={`${id}-start`} className="sr-only">
               Déjà de côté
@@ -467,49 +478,6 @@ export function CreateEnvelopeSheet({
             </div>
             {tried && error && <FieldError>{error}</FieldError>}
           </Field>
-          {startOn && !choosingAccount && (
-            <p className="text-muted-foreground flex flex-wrap items-baseline gap-x-2 text-sm">
-              <span>
-                Pris sur{' '}
-                <span className="text-foreground font-medium">
-                  {startOn.name}
-                </span>{' '}
-                · libre{' '}
-                <span className="whitespace-nowrap tabular-nums">
-                  {formatCents(startFree)}
-                </span>
-              </span>
-              {banks.length > 1 && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  ghost
-                  size="sm"
-                  onClick={() => setChoosingAccount(true)}
-                >
-                  Autre compte
-                </Button>
-              )}
-            </p>
-          )}
-          {choosingAccount && (
-            <ChoiceList
-              label="Compte"
-              value={startOn?.id ?? null}
-              onChange={(chosen) => {
-                setStartAccount(chosen)
-                setChoosingAccount(false)
-                setStart('')
-              }}
-              choices={banks.map((a) => ({
-                id: a.id,
-                icon: null,
-                label: a.name,
-                value: formatCents(freeOf.get(a.id) ?? 0),
-                disabled: (freeOf.get(a.id) ?? 0) <= 0,
-              }))}
-            />
-          )}
           <p className="text-muted-foreground text-xs">
             Vide : rien pour l’instant.
           </p>
