@@ -73,13 +73,18 @@ vi.mock('@tanstack/react-router', () => ({
     to,
     search,
     children,
+    ...props
   }: {
     to: string
     search?: Record<string, string>
     children: ReactNode
   }) => {
     const query = new URLSearchParams(search).toString()
-    return <a href={query ? `${to}?${query}` : to}>{children}</a>
+    return (
+      <a href={query ? `${to}?${query}` : to} {...props}>
+        {children}
+      </a>
+    )
   }, // The editor's « Je dois à … » leaves for the contact's page (#435).
   useNavigate: () => vi.fn(),
 }))
@@ -393,24 +398,11 @@ describe('TransactionsPage', () => {
     })
     expect(screen.getByText('Novembre 2026')).toBeInTheDocument()
 
-    const totals = await screen.findByRole('region', { name: 'Résumé' })
-    expect(within(totals).getByText('Revenus').nextSibling).toHaveTextContent(
-      euros(250_000),
-    )
-    expect(within(totals).getByText('Dépenses').nextSibling).toHaveTextContent(
-      euros(-4_550),
-    )
-    // « Net », not « Solde » (it isn't an account balance); only it is toned.
-    const net = within(totals).getByText('Net').nextSibling as HTMLElement
-    expect(net).toHaveTextContent(euros(245_450))
-    expect(net).toHaveClass('text-chart-delta-good')
+    // The month's totals are Mouvements' (#434): no strip of them here.
+    expect(screen.queryByText('Revenus')).not.toBeInTheDocument()
     expect(
-      within(totals).getByText('Dépenses').nextSibling as HTMLElement,
-    ).not.toHaveClass('text-chart-delta-bad')
-    expect(within(totals).queryByText('Solde')).not.toBeInTheDocument()
-    expect(totals).toHaveTextContent(
-      `Dont exceptionnelles ${euros(-1_000)} · 1 virement interne exclu`,
-    )
+      document.querySelector('[data-slot="filter-sum"]'),
+    ).not.toBeInTheDocument()
     // The count heads the list.
     expect(screen.getByText('3 opérations')).toBeInTheDocument()
   })
@@ -622,26 +614,53 @@ describe('TransactionsPage', () => {
     )
   })
 
-  it('puts « À revoir » first with its count while some wait (#393)', async () => {
+  it('shows what is left to review as the big figure while some wait (#434)', async () => {
     setReviewCount(7)
     const { user, onChange } = setup({ month: '2026-10' })
     await waitForRows()
-    const chips = screen.getAllByRole('button', { pressed: false })
-    const chip = screen.getByRole('button', {
-      name: /^À revoir\s*, 7 opérations à revoir$/,
-    })
-    expect(chips[0]).toBe(chip)
-    expect(chip).toHaveTextContent(/^À revoir7/)
+    const answer = document.querySelector(
+      '[data-slot="review-answer"]',
+    ) as HTMLElement
+    expect(answer).toHaveTextContent(/À revoir7/)
+    // Not twice: no « À revoir » at the end of the title then.
+    expect(
+      screen.queryByRole('button', { name: /^À revoir/ }),
+    ).not.toBeInTheDocument()
 
-    await user.click(chip)
+    await user.click(within(answer).getByRole('button', { name: 'Revoir' }))
     expect(onChange).toHaveBeenLastCalledWith(
       { review: true, month: 'all' },
       undefined,
     )
-    // On, it is a plain filter again: no count, × clears it.
+  })
+
+  it('puts « À revoir » at the end of the title once a filter is set (#393)', async () => {
+    setReviewCount(7)
+    setup({ month: '2026-10', q: 'fake' })
+    await waitForRows()
     expect(
-      screen.getByRole('button', { name: 'À revoir', pressed: true }),
-    ).not.toHaveTextContent('7')
+      screen.getByRole('button', {
+        name: /^À revoir\s*, 7 opérations à revoir$/,
+      }),
+    ).toHaveTextContent(/^À revoir7/)
+    expect(
+      document.querySelector('[data-slot="review-answer"]'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the sum of a search, never of a list of transfers (#434)', async () => {
+    setup({ month: '2026-10', q: 'fake' })
+    await waitForRows()
+    expect(await screen.findByText('Somme')).toBeInTheDocument()
+    expect(
+      document.querySelector('[data-slot="filter-sum"]'),
+    ).toHaveTextContent(`+${euros(245_450)}`)
+  })
+
+  it('shows no sum for a list of transfers', async () => {
+    setup({ month: '2026-10', kind: 'transfer' })
+    await waitForRows()
+    expect(screen.queryByText('Somme')).not.toBeInTheDocument()
   })
 
   it('offers no « À revoir » when nothing waits for review (#393)', async () => {
@@ -653,25 +672,15 @@ describe('TransactionsPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('goes back to Mouvements, its parent page, on the month shown (#393)', async () => {
+  it('has no breadcrumb back to Mouvements: the tabs are (#498)', async () => {
     setup({ month: '2026-10', review: true })
     await waitForRows()
-    expect(screen.getByRole('link', { name: 'Mouvements' })).toHaveAttribute(
-      'href',
-      '/spending?month=2026-10',
-    )
+    expect(
+      screen.queryByRole('link', { name: 'Mouvements' }),
+    ).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Ajouter une dépense' }),
     ).toBeInTheDocument()
-  })
-
-  it('goes back to Mouvements on its default month from every date (#393)', async () => {
-    setup({ month: 'all' })
-    await waitForRows()
-    expect(screen.getByRole('link', { name: 'Mouvements' })).toHaveAttribute(
-      'href',
-      '/spending',
-    )
   })
 
   it('moves back to the default month, then to the whole history', async () => {
@@ -1272,7 +1281,7 @@ describe('TransactionsPage', () => {
       screen.getByText('Vos relevés importés s’arrêtent au 3 nov.'),
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole('region', { name: 'Résumé' }),
+      document.querySelector('[data-slot="filter-sum"]'),
     ).not.toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: 'Importer un relevé' }),

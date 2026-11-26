@@ -51,6 +51,11 @@ declare module '@tanstack/react-router' {
      * (#401).
      */
     monthBar?: boolean
+    /**
+     * One of Mouvements' two tabs (#498): « Résumé · Opérations » under the
+     * month, in the month bar.
+     */
+    movementsTab?: 'summary' | 'operations'
   }
   interface Register {
     router: ReturnType<typeof getRouter>

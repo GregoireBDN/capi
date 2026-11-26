@@ -36,7 +36,7 @@ export interface NavItem {
   badge?: 'reviewCount' | 'owedTotal'
   /**
    * Sub-pages out of the sidebar whose current entry is this one (#393:
-   * Opérations, reached from Mouvements' « ⋮ », highlights « Mouvements »).
+   * Opérations, Mouvements' second tab since #498, highlights « Mouvements »).
    */
   alsoActiveOn?: readonly string[]
 }
@@ -93,7 +93,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         to: ROUTES.dashboard,
         icon: LayoutDashboardIcon,
       },
-      // Opérations is its sub-page (#393): reached from its « ⋮ », it
+      // Opérations is its second tab (#498, a sub-page since #393): it
       // keeps « Mouvements » current, and the « À revoir » count sits here.
       {
         label: 'Mouvements',

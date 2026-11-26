@@ -419,7 +419,11 @@ describe('BudgetPage', () => {
 
     const total = screen.getByRole('meter', { name: 'Total' })
     expect(total).toHaveAttribute('aria-valuenow', '35000')
-    expect(screen.getByText('1 / 2')).toBeInTheDocument()
+    // The page's answer (#434): what is left, the lines over their target.
+    const answer = document.querySelector('[data-slot="budget-answer"]')
+    expect(answer).toHaveTextContent(/Reste à dépenser|Dépassement/)
+    expect(answer).toHaveTextContent(/1\s*dépassé/)
+    expect(answer).not.toHaveTextContent('Hors budget')
     // Spending outside the budgets, uncategorized included.
     const outside = screen.getByRole('list', { name: 'Dépenses hors budget' })
     expect(within(outside).getByText('Sans catégorie')).toBeInTheDocument()
@@ -481,7 +485,6 @@ describe('BudgetPage', () => {
     })
     expect(envelopeLine).toHaveTextContent(/95\s€\s\/\s200\s€/)
     expect(await screen.findByText(/\+ 95\s€ par Lisbonne/)).toBeInTheDocument()
-    expect(screen.getByText(/par une enveloppe/)).toBeInTheDocument()
   })
 
   it('shows the planned income, what came in and what the plan leaves to save (#315)', async () => {

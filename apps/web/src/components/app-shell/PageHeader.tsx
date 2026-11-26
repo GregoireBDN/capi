@@ -168,13 +168,14 @@ function PageActionsMenu({ actions }: { actions: readonly PageAction[] }) {
         <Button
           type="button"
           variant="secondary"
-          // A light filled tile, neither outlined nor tinted like a chosen
-          // item, so its dot sits on a visible corner (#393, the owner).
+          // A light filled disc, neither outlined nor tinted like a chosen
+          // item, so its dot shows (#393, the owner); round like the
+          // avatar and the month's arrows (#434).
           iconOnly
           aria-label="Actions de la page"
           aria-describedby={waiting ? countId : undefined}
           title="Actions de la page"
-          className="relative [&_svg]:size-[1.1rem]"
+          className="bg-foreground/10 hover:bg-foreground/15 text-foreground relative rounded-full bg-clip-border [&_svg]:size-[24px]"
         >
           {busy ? <Spinner /> : <EllipsisVerticalIcon />}
           {waiting && (
