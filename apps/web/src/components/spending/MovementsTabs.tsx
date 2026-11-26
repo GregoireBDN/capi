@@ -43,7 +43,10 @@ export function MovementsTabs({
     <nav
       aria-label="Mouvements"
       data-slot="movements-tabs"
-      className="grid grid-cols-2 gap-[6px] pt-[12px]"
+      // On a computer (#505): tabs of their own size, on the left like the
+      // page's title (the owner); they sit in the header's row, so no empty band
+      // is left above them.
+      className="grid grid-cols-2 gap-[6px] pt-[12px] md:-mt-12 md:ml-2 md:w-[17rem] md:pt-0 lg:w-[20rem]"
     >
       {TABS.map(({ key, to, label }) => {
         const active = key === current
@@ -55,7 +58,7 @@ export function MovementsTabs({
             aria-current={active ? 'page' : undefined}
             data-active={active || undefined}
             className={cn(
-              'relative flex h-[60px] min-w-0 items-center justify-center gap-2 rounded-t-2xl text-sm font-medium whitespace-nowrap transition-colors outline-none',
+              'relative flex h-[60px] min-w-0 md:h-12 items-center justify-center gap-2 rounded-t-2xl text-sm font-medium whitespace-nowrap transition-colors outline-none',
               'focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:ring-inset',
               active
                 ? 'bg-month-band text-foreground font-semibold'

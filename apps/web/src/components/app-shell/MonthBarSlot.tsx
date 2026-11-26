@@ -45,7 +45,9 @@ export function MonthBarSlot() {
         // Shown on a month page only: once its month is in, or keeping its
         // room until then. Glass chrome (#434, #504): the header's colour and
         // blur, a shadow below instead of a line, one block with the header.
-        'glass-chrome relative z-10 hidden shrink-0 has-[[data-month-placeholder]]:block has-[[data-page-month]:not(:empty)]:block',
+        // Above the header from `md` up, where its tabs rise into the
+        // header's row (`MovementsTabs`, #505).
+        'glass-chrome relative z-10 hidden shrink-0 md:has-[[data-slot=movements-tabs]]:z-30 has-[[data-month-placeholder]]:block has-[[data-page-month]:not(:empty)]:block',
         staging && 'env-banner',
       )}
     >
