@@ -290,16 +290,15 @@ function OffsetsCard({
                   aria-hidden
                   className={cn('size-4 shrink-0', OWED_TONE)}
                 />
-                <p className="min-w-0 flex-1 break-normal">
-                  <span className="tabular-nums">
+                <div className="min-w-0 flex-1">
+                  <p className="tabular-nums">
                     {shortCents(offset.amountCents)} compensés
-                  </span>
-                  <span className="text-muted-foreground text-xs whitespace-nowrap">
-                    {' · '}
+                  </p>
+                  <p className="text-muted-foreground text-xs">
                     {formatCalendarDate(offset.offsetOn)}
                     {offset.automatic ? ' · auto' : ''}
-                  </span>
-                </p>
+                  </p>
+                </div>
                 <Button
                   type="button"
                   size="sm"

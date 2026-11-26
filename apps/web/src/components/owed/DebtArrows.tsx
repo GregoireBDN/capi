@@ -1,5 +1,7 @@
 import { cn } from '@capi/ui'
-import { ArrowLeftIcon, ArrowRightIcon, UserIcon } from 'lucide-react'
+import { UserIcon } from 'lucide-react'
+import { useId } from 'react'
+import type { ReactNode } from 'react'
 import { formatCents, formatWholeEuros } from '#/lib/money'
 import { ContactAvatar } from './ContactAvatar'
 
@@ -13,10 +15,12 @@ export const OWED_TONE = 'text-emerald-700 dark:text-emerald-400'
 export const OWE_TONE = 'text-orange-700 dark:text-orange-400'
 
 /**
- * The owner and someone face to face (#484), one arrow per direction with its
- * amount: green towards the owner (« X vous doit »), orange towards them
- * (« vous lui devez »). An empty direction stays, faded, so before and after
- * an offset read alike. Screen readers get one sentence instead.
+ * The owner and someone face to face (#484, the owner's « B. Les flèches »):
+ * two curved arrows between them, green on top towards the owner (« Sam vous
+ * doit »), orange below towards them (« vous lui devez »), each as thick as
+ * its share of the two and with its amount in a pill on the curve. An empty
+ * direction stays, dashed and faded, so after an offset one arrow is left.
+ * Screen readers get one sentence instead.
  */
 export function DebtArrows({
   name,
@@ -27,66 +31,143 @@ export function DebtArrows({
   owedToMeCents: number
   iOweCents: number
 }) {
+  const id = useId()
+  const max = Math.max(owedToMeCents, iOweCents, 1)
+  const width = (cents: number) => (cents === 0 ? 2.5 : 4 + (5 * cents) / max)
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1">
       <span className="sr-only">
         {name} vous doit {formatCents(owedToMeCents)}, vous lui devez{' '}
         {formatCents(iOweCents)}.
       </span>
-      <span
-        aria-hidden
-        className="bg-primary text-primary-foreground inline-flex size-8 shrink-0 items-center justify-center rounded-full"
-      >
-        <UserIcon className="size-4" />
-      </span>
-      <div aria-hidden className="flex min-w-0 flex-1 flex-col gap-1">
-        <Arrow
+      <Person label="Vous">
+        <span className="bg-primary text-primary-foreground inline-flex size-10 items-center justify-center rounded-full">
+          <UserIcon className="size-5" />
+        </span>
+      </Person>
+      <div aria-hidden className="relative min-w-0 flex-1 py-3">
+        <svg
+          viewBox="0 0 200 130"
+          className="block h-auto w-full overflow-visible"
+        >
+          <defs>
+            {(['in', 'out'] as const).map((direction) => (
+              <marker
+                key={direction}
+                id={`${id}-${direction}`}
+                viewBox="0 0 10 10"
+                refX="3"
+                refY="5"
+                markerWidth="3"
+                markerHeight="3"
+                markerUnits="strokeWidth"
+                orient="auto"
+              >
+                <path
+                  d="M1 1 L9 5 L1 9 Q3 5 1 1 Z"
+                  className={direction === 'in' ? IN_FILL : OUT_FILL}
+                />
+              </marker>
+            ))}
+          </defs>
+          <path
+            d="M192 58 Q100 -6 10 58"
+            fill="none"
+            strokeLinecap="round"
+            strokeWidth={width(owedToMeCents)}
+            strokeDasharray={owedToMeCents === 0 ? '4 6' : undefined}
+            markerEnd={owedToMeCents === 0 ? undefined : `url(#${id}-in)`}
+            className={cn(IN_STROKE, owedToMeCents === 0 && 'opacity-30')}
+          />
+          <path
+            d="M8 72 Q100 136 186 76"
+            fill="none"
+            strokeLinecap="round"
+            strokeWidth={width(iOweCents)}
+            strokeDasharray={iOweCents === 0 ? '4 6' : undefined}
+            markerEnd={iOweCents === 0 ? undefined : `url(#${id}-out)`}
+            className={cn(OUT_STROKE, iOweCents === 0 && 'opacity-30')}
+          />
+        </svg>
+        <Pill
           direction="in"
           cents={owedToMeCents}
           label={`${name} vous doit`}
+          className="top-[20%]"
         />
-        <Arrow direction="out" cents={iOweCents} label="vous lui devez" />
+        <Pill
+          direction="out"
+          cents={iOweCents}
+          label="vous lui devez"
+          className="top-[80%]"
+        />
       </div>
-      <ContactAvatar name={name} />
+      <Person label={name}>
+        <ContactAvatar name={name} className="size-10 text-sm" />
+      </Person>
     </div>
   )
 }
 
-function Arrow({
+const IN_STROKE = 'stroke-emerald-500'
+const OUT_STROKE = 'stroke-orange-500'
+const IN_FILL = 'fill-emerald-500'
+const OUT_FILL = 'fill-orange-500'
+
+function Person({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <span
+      aria-hidden
+      className="flex w-12 shrink-0 flex-col items-center gap-1"
+    >
+      {children}
+      <span className="text-muted-foreground max-w-full truncate text-xs">
+        {label}
+      </span>
+    </span>
+  )
+}
+
+/** The amount on its curve, its few words on the outer side. */
+function Pill({
   direction,
   cents,
   label,
+  className,
 }: {
   direction: 'in' | 'out'
   cents: number
   label: string
+  className: string
 }) {
-  const line = cn(
-    'h-1 min-w-3 flex-1 rounded-full',
-    direction === 'in' ? 'bg-emerald-500' : 'bg-orange-500',
-    cents === 0 && 'opacity-20',
-  )
   return (
-    <div
-      className={cn('flex flex-col items-center', cents === 0 && 'opacity-40')}
+    <span
+      className={cn(
+        'absolute left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5',
+        direction === 'in' ? 'flex-col-reverse' : 'flex-col',
+        className,
+      )}
     >
-      <div className="flex w-full items-center gap-1.5">
-        <span className={line} />
-        <span
-          className={cn(
-            'inline-flex items-center gap-0.5 text-sm font-semibold whitespace-nowrap tabular-nums',
-            direction === 'in' ? OWED_TONE : OWE_TONE,
-          )}
-        >
-          {direction === 'in' && <ArrowLeftIcon className="size-4" />}
-          {shortCents(cents)}
-          {direction === 'out' && <ArrowRightIcon className="size-4" />}
-        </span>
-        <span className={line} />
-      </div>
-      <span className="text-muted-foreground max-w-full truncate text-[0.6rem] leading-tight">
+      <span
+        className={cn(
+          'ring-card rounded-full px-2 py-px text-sm font-semibold whitespace-nowrap tabular-nums ring-4',
+          direction === 'in'
+            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+            : 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
+          cents === 0 && 'opacity-50',
+        )}
+      >
+        {shortCents(cents)}
+      </span>
+      <span
+        className={cn(
+          'text-muted-foreground absolute text-[0.6rem] leading-none whitespace-nowrap',
+          direction === 'in' ? 'bottom-full mb-1' : 'top-full mt-1',
+          cents === 0 && 'opacity-50',
+        )}
+      >
         {label}
       </span>
-    </div>
+    </span>
   )
 }
