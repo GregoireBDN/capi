@@ -252,14 +252,8 @@
   --radius: 0.75rem;
 
   --header-bg: oklch(0.975 0.007 260 / 80%);
-  /* Glass surfaces (#434, the month bar): a light sheen from the top, a
-     bright top edge and a soft shadow below instead of a line. */
-  --glass-sheen: linear-gradient(
-    to bottom,
-    rgb(255 255 255 / 55%),
-    rgb(255 255 255 / 5%)
-  );
-  --glass-edge: rgb(255 255 255 / 70%);
+  /* Glass surfaces (#434, the month bar): the header's colour, a soft
+     shadow below instead of a line. */
   --glass-shadow: rgb(15 23 42 / 35%);
   --line: var(--border);
 
@@ -362,12 +356,6 @@
   --sidebar-ring: var(--ring);
 
   --header-bg: oklch(0.16 0.03 272 / 80%);
-  --glass-sheen: linear-gradient(
-    to bottom,
-    rgb(255 255 255 / 6%),
-    rgb(255 255 255 / 0%)
-  );
-  --glass-edge: rgb(255 255 255 / 3%);
   --glass-shadow: rgb(0 0 0 / 60%);
   --line: var(--border);
 
@@ -455,12 +443,6 @@
     --sidebar-ring: var(--ring);
 
     --header-bg: oklch(0.16 0.03 272 / 80%);
-    --glass-sheen: linear-gradient(
-      to bottom,
-      rgb(255 255 255 / 6%),
-      rgb(255 255 255 / 0%)
-    );
-    --glass-edge: rgb(255 255 255 / 3%);
     --glass-shadow: rgb(0 0 0 / 60%);
     --line: var(--border);
 
