@@ -42,29 +42,22 @@ export function MonthBarSlot() {
       className="relative z-10 hidden shrink-0 has-[[data-month-placeholder]]:block has-[[data-page-month]:not(:empty)]:block"
     >
       {/* The month's toolbar (#505, the owner's « barre d'outils + état »),
-          as wide as the page's content: on a computer one white bar, the
-          tabs, then ‹ · the month and its state · ›; on a phone the tabs and
-          the month each a white bar of their own, the month without its
-          state (too much room, the owner). */}
+          as wide as the page's content: two white bars, the page's tabs then
+          ‹ · the month · ›, side by side on a computer (the month with its
+          state), one under the other on a phone (without it: too much room,
+          the owner). A gap tells « which page » from « which month », not a
+          line. */}
       <div className="mx-auto w-full max-w-5xl px-4 pt-4 sm:px-6">
         <div
           data-slot="month-toolbar-bar"
-          className={cn(
-            'flex flex-col gap-2',
-            'md:flex-row md:items-center md:gap-1.5',
-            'md:bg-card md:rounded-full md:p-[4px] md:shadow-[var(--glass-edge),var(--glass-shadow-md)] md:dark:bg-[oklch(from_var(--card)_calc(l+0.04)_c_h)]',
-          )}
+          className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3"
         >
           {tabs && (
-            <div className={cn(BAR, PHONE_ONLY, 'md:flex md:items-center')}>
+            <div className={cn(BAR, 'md:w-[15rem] md:shrink-0')}>
               <MovementsTabs current={tabs.current} month={tabs.month} />
-              <span
-                aria-hidden
-                className="bg-foreground/10 mr-0.5 ml-2 hidden h-6 w-px md:block"
-              />
             </div>
           )}
-          <div className={cn(BAR, PHONE_ONLY, 'md:min-w-0 md:flex-1')}>
+          <div className={cn(BAR, 'md:min-w-0 md:flex-1')}>
             <div
               ref={setMonthSlot}
               data-page-month
@@ -85,10 +78,6 @@ export function MonthBarSlot() {
 }
 
 /** A white bar with the sheen and a soft shadow, 44px high with its 36px
- * grey buttons (the owner, #505). */
+ * buttons, the chosen ones hollow (`glass-field`, the owner, #505). */
 const BAR =
   'bg-card rounded-full p-[4px] shadow-[var(--glass-edge),var(--glass-shadow-md)] dark:bg-[oklch(from_var(--card)_calc(l+0.04)_c_h)]'
-
-/** Undoes `BAR` from `md` up, where the whole toolbar is one bar. */
-const PHONE_ONLY =
-  'md:rounded-none md:bg-transparent md:p-0 md:shadow-none md:dark:bg-transparent'

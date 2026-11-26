@@ -53,17 +53,18 @@ type PeriodBarStatusProps = Omit<React.ComponentProps<'div'>, 'children'> & {
  * STYLES
  * ========================================================================= */
 
-/** A grey key of the white toolbar, in relief (#505, the owner: a white bar,
- * grey buttons « un peu en relief »), like the toolbar's open tab. */
+/** The period, hollow like a field showing its value (`glass-field`, the
+ * fields' « B · Creusé », the owner, #505). */
 const PIECE = cn(
-  'glass-key text-foreground bg-transparent hover:bg-transparent',
+  'glass-field text-foreground hover:bg-foreground/[0.08] dark:hover:bg-foreground/[0.1]',
 )
 
-/** A round arrow, 44px to the touch; off, a pale arrow without its disc. */
+/** A round arrow, flat on the bar, tinted on hover, hollow when pressed;
+ * off, a pale arrow. 44px to the touch. */
 const ARROW = cn(
-  PIECE,
+  'text-foreground hover:bg-glass-fill active:glass-field bg-transparent',
   'size-[calc(2rem-8px)] min-h-0 min-w-0 shrink-0 rounded-full pointer-coarse:touch-hitbox [&_svg]:size-[1.1rem]',
-  'disabled:bg-none disabled:opacity-35 disabled:shadow-none',
+  'disabled:opacity-30',
 )
 
 /* ============================================================================
@@ -73,8 +74,8 @@ const ARROW = cn(
 /**
  * The period of a page, part of the app's frame (#401, the owner's « B.
  * Barre du mois », then « barre d'outils + état », #505): ‹ · 📅 period ·
- * ›. The arrows and the period are grey buttons on the toolbar's white
- * bar (the owner, #505); the period opens a picker. Between the period and › a `PeriodBarStatus` can say how far its
+ * ›. The arrows are flat round buttons on the toolbar's white bar, the
+ * period hollow like a field (the owner, #505); it opens a picker. Between the period and › a `PeriodBarStatus` can say how far its
  * data goes (the app shows it on a computer only). The app lays it on a
  * white toolbar at the top of the page, fixed under its header.
  * `PeriodBarLabel` switches to its short text when its container (put the
@@ -93,7 +94,7 @@ function PeriodBar({
       role="group"
       className={cn(
         // As wide as its container (#505): ‹ · the period (and its state) · ›,
-        // grey pieces laid on the app's white toolbar.
+        // laid on the app's white toolbar.
         'flex w-full min-w-0 items-center gap-1.5',
         className,
       )}
@@ -154,7 +155,8 @@ function PeriodBarLabel({
     >
       <CalendarDaysIcon
         aria-hidden
-        className="text-muted-foreground size-[1.1rem]! shrink-0"
+        // In the text's colour, as high as its capitals (the owner, #505).
+        className="size-[1.05em]! shrink-0 opacity-70"
       />
       <span aria-live="polite" className="min-w-0 truncate">
         <span className={shortText ? 'hidden @[300px]:inline' : undefined}>

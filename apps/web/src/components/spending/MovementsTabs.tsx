@@ -22,7 +22,7 @@ const TABS = [
 /**
  * « Résumé · Opérations » (#498, then #505: pills on the month's toolbar,
  * before the month on a computer, a bar of their own above it on a phone,
- * the current one a grey pill): Mouvements and Opérations as two
+ * the current one hollow): Mouvements and Opérations as two
  * tabs of one page, each its own URL, one tap between them both ways (they
  * were a « ⋮ » item and a breadcrumb, #393). Rendered by `MonthBarSlot` on
  * the routes that declare `staticData.movementsTab`. The month shown
@@ -43,11 +43,11 @@ export function MovementsTabs({
     <nav
       aria-label="Mouvements"
       data-slot="movements-tabs"
-      // On the month's white toolbar (#505, the owner's « barre d'outils +
-      // état »), the current page a grey key in relief like the month's buttons (not
-      // blue, the owner): two equal halves of the bar on a phone, as wide as
-      // their names before the month on a computer.
-      className="grid grid-cols-2 gap-1 md:flex"
+      // On the month's white toolbar (#505), two equal halves: the current
+      // page hollow like a pressed key (`glass-field`, the fields' « B ·
+      // Creusé », the owner), the other flat in the text's colour, tinted on
+      // hover, so it reads as a choice.
+      className="grid grid-cols-2 gap-1"
     >
       {TABS.map(({ key, to, label }) => {
         const active = key === current
@@ -59,11 +59,11 @@ export function MovementsTabs({
             aria-current={active ? 'page' : undefined}
             data-active={active || undefined}
             className={cn(
-              'relative flex h-[calc(2rem-8px)] min-w-0 items-center justify-center gap-2 rounded-full text-sm leading-none font-medium whitespace-nowrap no-underline transition-[color,background-color] outline-none pointer-coarse:touch-hitbox md:px-4',
+              'relative flex h-[calc(2rem-8px)] min-w-0 items-center justify-center gap-2 rounded-full text-sm leading-none font-medium whitespace-nowrap no-underline transition-[color,background-color] outline-none pointer-coarse:touch-hitbox',
               'focus-visible:ring-ring/85 focus-visible:ring-[3px]',
               active
-                ? 'glass-key text-foreground font-semibold'
-                : 'text-muted-foreground hover:text-foreground',
+                ? 'glass-field text-foreground font-semibold'
+                : 'text-foreground/80 hover:bg-glass-fill hover:text-foreground',
             )}
           >
             {label}
