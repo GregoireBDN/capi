@@ -39,10 +39,19 @@ type PeriodBarLabelProps = Omit<React.ComponentProps<'button'>, 'children'> & {
  * STYLES
  * ========================================================================= */
 
-/** A round 44px arrow on a grey disc, darker on hover. */
+/** A raised white piece of the pill (#505, the owner's « C2 · Tout en
+ * blanc »): the card with the sheen and a small shadow, like a segmented
+ * control's thumb. */
+const PIECE = cn(
+  'bg-card text-foreground shadow-[var(--glass-edge),var(--glass-shadow-sm)] hover:bg-card',
+  'dark:bg-[oklch(from_var(--card)_calc(l+0.06)_c_h)]',
+)
+
+/** A round arrow, 44px to the touch. */
 const ARROW = cn(
-  'shrink-0 rounded-full bg-foreground/10 text-foreground hover:bg-foreground/15 [&_svg]:size-[1.1rem]',
-  'disabled:bg-foreground/5',
+  PIECE,
+  'size-[calc(2rem-8px)] min-w-0 shrink-0 rounded-full pointer-coarse:touch-hitbox [&_svg]:size-[1.1rem]',
+  'disabled:opacity-45 disabled:shadow-none',
 )
 
 /* ============================================================================
@@ -72,7 +81,9 @@ function PeriodBar({
       data-slot="period-bar"
       role="group"
       className={cn(
-        'mx-auto flex w-full min-w-0 items-center gap-1 @[640px]:w-auto @[640px]:gap-2',
+        // One pill as wide as its container (#505): a glass track holding
+        // ‹ · the period · ›, three raised white pieces.
+        'bg-glass-fill flex w-full min-w-0 items-center gap-1 rounded-full p-1',
         className,
       )}
       {...props}
@@ -124,7 +135,8 @@ function PeriodBarLabel({
       variant="secondary"
       ghost
       className={cn(
-        'text-foreground min-w-0 flex-1 gap-1.5 px-1 text-base font-semibold @[640px]:w-[12rem] @[640px]:flex-none',
+        PIECE,
+        'h-[calc(2rem-8px)] min-w-0 flex-1 gap-1.5 rounded-full px-2 text-base font-semibold',
         className,
       )}
       {...props}

@@ -53,21 +53,18 @@ export function MonthBarSlot() {
       )}
     >
       {tabs && (
-        // On a computer the tabs start where the band starts (the owner,
-        // #505).
-        <div className="mx-auto w-full max-w-5xl px-2 sm:px-4 md:max-w-none md:px-0">
+        // As wide as the page's content (#505).
+        <div className="mx-auto w-full max-w-5xl px-2 pt-2.5 sm:px-4 md:px-6">
           <MovementsTabs current={tabs.current} month={tabs.month} />
         </div>
       )}
-      {/* The month is always on its light blue band, with or without tabs
-          (#505); under tabs, the current one opens onto it like a folder's
-          (#434). */}
-      <div className="bg-month-band">
+      {/* The month under them, the same on every month page (#505). */}
+      <div>
         {/* The bar fills the page's column, as wide as its content. */}
         <div
           ref={setMonthSlot}
           data-page-month
-          className="@container mx-auto flex h-12 w-full max-w-5xl items-center px-2 empty:hidden sm:px-4"
+          className="@container mx-auto flex h-12 w-full max-w-5xl items-center px-2 empty:hidden sm:px-4 md:px-6"
         />
         {monthPage && (
           <div data-month-placeholder aria-hidden className="h-12" />

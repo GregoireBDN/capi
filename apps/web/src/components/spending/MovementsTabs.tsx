@@ -43,9 +43,12 @@ export function MovementsTabs({
     <nav
       aria-label="Mouvements"
       data-slot="movements-tabs"
-      // Two equal halves of the page's width, on every width (the owner,
-      // #505).
-      className="grid grid-cols-2 gap-[6px] pt-[12px]"
+      // The app's segmented control (#506) made of links (#505, the owner:
+      // « dans le design system »): a glass track, the current page a raised
+      // white segment, two equal halves of the page's width.
+      // On a computer, the current page in the light blue pill of the menu's
+      // current page (the owner, #505), no track.
+      className="bg-glass-fill rounded-control md:gap-1.5 grid grid-cols-2 gap-0.5 p-[3px] md:bg-transparent md:p-0"
     >
       {TABS.map(({ key, to, label }) => {
         const active = key === current
@@ -57,10 +60,10 @@ export function MovementsTabs({
             aria-current={active ? 'page' : undefined}
             data-active={active || undefined}
             className={cn(
-              'relative flex h-[60px] min-w-0 md:h-12 items-center justify-center gap-2 rounded-t-2xl text-sm font-medium whitespace-nowrap transition-colors outline-none',
-              'focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:ring-inset',
+              'relative flex h-[calc(2rem-6px)] md:h-[calc(2rem-4px)] md:rounded-control min-w-0 items-center justify-center gap-2 rounded-[calc(var(--radius-control)-3px)] text-sm font-medium whitespace-nowrap no-underline transition-[color,background-color,box-shadow] outline-none pointer-coarse:touch-hitbox',
+              'focus-visible:ring-ring/85 focus-visible:ring-[3px]',
               active
-                ? 'bg-month-band text-foreground font-semibold'
+                ? 'bg-card text-foreground font-semibold shadow-[var(--glass-edge),var(--glass-shadow-sm)] dark:bg-[oklch(from_var(--card)_calc(l+0.06)_c_h)] md:bg-month-band md:shadow-none md:dark:bg-month-band'
                 : 'text-glass-muted-foreground hover:text-foreground',
             )}
           >
@@ -70,7 +73,7 @@ export function MovementsTabs({
               reviewCount > 0 && (
                 <CountPill
                   // A round disc, not a tag (the owner, #434).
-                  className="h-[24px] min-w-[24px] px-0 text-[12px] normal-nums [&>span]:[text-box:trim-both_cap_alphabetic]"
+                  className="h-[20px] min-w-[20px] px-0 text-[11px] normal-nums [&>span]:[text-box:trim-both_cap_alphabetic]"
                   value={reviewCount}
                   label={plural(
                     reviewCount,
