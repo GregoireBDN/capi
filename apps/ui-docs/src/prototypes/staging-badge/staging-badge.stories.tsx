@@ -139,3 +139,78 @@ export const Propositions: StoryObj = {
     </Board>
   ),
 }
+
+/* ------------------------------------------- the owner's pick: the flask */
+
+type Flask = 'today' | 'violet' | 'sunset' | 'emerald' | 'glass' | 'night'
+
+const FLASK_NAMES: Record<Flask, string> = {
+  today: 'Fiole foncée (B)',
+  violet: '1 · Violet néon',
+  sunset: '2 · Coucher de soleil',
+  emerald: '3 · Émeraude',
+  glass: '4 · Verre blanc, fiole violette',
+  night: '5 · Nuit, fiole rose',
+}
+
+const DISC: Record<Flask, string> = {
+  today: 'bg-env-banner-foreground text-env-banner',
+  violet:
+    'bg-[linear-gradient(135deg,#a855f7,#ec4899)] text-white shadow-[0_4px_12px_-4px_rgb(168_85_247/70%),inset_0_1px_0_rgb(255_255_255/35%)]',
+  sunset:
+    'bg-[linear-gradient(135deg,#fb7185,#f97316)] text-white shadow-[0_4px_12px_-4px_rgb(249_115_22/70%),inset_0_1px_0_rgb(255_255_255/35%)]',
+  emerald:
+    'bg-[linear-gradient(135deg,#34d399,#0d9488)] text-white shadow-[0_4px_12px_-4px_rgb(13_148_136/70%),inset_0_1px_0_rgb(255_255_255/35%)]',
+  glass:
+    'bg-white/75 text-[#9333ea] shadow-[0_4px_12px_-6px_rgb(15_23_42/35%),inset_0_1px_0_rgb(255_255_255)]',
+  night:
+    'bg-[linear-gradient(135deg,#3b0764,#1e1b4b)] text-[#f472b6] shadow-[0_4px_12px_-4px_rgb(59_7_100/70%),inset_0_1px_0_rgb(255_255_255/15%)]',
+}
+
+function FlaskHeader({ flask, width }: { flask: Flask; width: number }) {
+  return (
+    <div
+      style={{ width }}
+      className="bg-background overflow-hidden rounded-xl shadow-[0_0_0_1px_rgb(0_0_0/8%)]"
+    >
+      <div className="env-banner flex h-12 items-center gap-1 px-2">
+        <span className="text-foreground grid size-11 shrink-0 place-items-center">
+          <MenuIcon className="size-[1.1rem]" />
+        </span>
+        <span className="flex h-11 min-w-0 items-center gap-2 px-1">
+          <img src={wordmark} alt="" className="h-8 translate-y-[9%]" />
+          <span
+            aria-label="Staging"
+            className={cn(
+              'grid size-7 shrink-0 place-items-center rounded-full',
+              DISC[flask],
+            )}
+          >
+            <FlaskConicalIcon className="size-[0.8rem]" strokeWidth={2.4} />
+          </span>
+        </span>
+        <span className="bg-primary text-primary-foreground ml-auto grid size-11 shrink-0 place-items-center rounded-full text-xs font-semibold">
+          CD
+        </span>
+      </div>
+    </div>
+  )
+}
+
+export const Fioles: StoryObj = {
+  render: () => (
+    <Board>
+      {(Object.keys(FLASK_NAMES) as Flask[]).map((f) => (
+        <figure key={f} className="space-y-2">
+          <figcaption className="text-foreground text-sm font-semibold">
+            {FLASK_NAMES[f]}
+          </figcaption>
+          <div className="flex flex-wrap items-start gap-4">
+            <FlaskHeader flask={f} width={390} />
+            <FlaskHeader flask={f} width={320} />
+          </div>
+        </figure>
+      ))}
+    </Board>
+  ),
+}
