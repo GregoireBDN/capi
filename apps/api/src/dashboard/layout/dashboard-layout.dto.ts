@@ -17,8 +17,6 @@ import {
 
 /** Days ahead the « Prochains prélèvements » element looks. */
 export const UPCOMING_DAYS = [7, 30] as const
-/** Years of month ends the « Patrimoine » element draws. */
-export const NET_WORTH_YEARS = [1, 3, 10] as const
 /** Which side of the money owed the « Argent dû » element shows. */
 export const OWED_SIDES = ['both', 'owed_to_me', 'i_owe'] as const
 export type OwedSide = (typeof OWED_SIDES)[number]
@@ -35,19 +33,9 @@ export const DASHBOARD_CHOICES_MAX = 100
 
 /**
  * An element's own scalars. Each type takes only its own: `upcomingDays`
- * on `upcoming_debits`, `owedSide` on `owed`, `balancesSort` on `balances`,
- * `netWorthYears` on `net_worth`.
+ * on `upcoming_debits`, `owedSide` on `owed`, `balancesSort` on `balances`.
  */
 export class DashboardWidgetSettingsDto {
-  @ApiPropertyOptional({
-    enum: NET_WORTH_YEARS,
-    type: Number,
-    description: '`net_worth`: the curve over the last 1, 3 or 10 years.',
-  })
-  @IsOptional()
-  @IsIn(NET_WORTH_YEARS)
-  netWorthYears?: (typeof NET_WORTH_YEARS)[number]
-
   @ApiPropertyOptional({
     enum: UPCOMING_DAYS,
     type: Number,

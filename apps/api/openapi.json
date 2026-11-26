@@ -17851,15 +17851,6 @@
       "DashboardWidgetSettingsDto": {
         "type": "object",
         "properties": {
-          "netWorthYears": {
-            "type": "number",
-            "enum": [
-              1,
-              3,
-              10
-            ],
-            "description": "`net_worth`: the curve over the last 1, 3 or 10 years."
-          },
           "upcomingDays": {
             "type": "number",
             "enum": [

@@ -476,15 +476,49 @@ describe('DashboardPage', () => {
     const link = await screen.findByRole('link', { name: /Patrimoine/ })
     expect(link).toHaveAttribute('href', '/accounts')
     expect(screen.getByTestId('net-worth')).toHaveTextContent(euros(1_623_456))
-    expect(
-      await screen.findByText(`+${euros(123_456)} ce mois`),
-    ).toBeInTheDocument()
-    // A year asked, less known: the gain since the first month end.
+    // Less than a year known: the gain since the first month end, and no
+    // longer period to pick.
     expect(await screen.findByTestId('net-worth-gain')).toHaveTextContent(
-      `+${euros(223_456)} depuis sept. 2026`,
+      `+${euros(223_456)}`,
     )
+    expect(
+      screen.queryByRole('radiogroup', { name: 'Période' }),
+    ).not.toBeInTheDocument()
     // The accounts themselves are on Comptes.
     expect(screen.queryByText('PEA test')).not.toBeInTheDocument()
+  })
+
+  it('switches the net worth curve between the periods the data reaches', async () => {
+    // 30 month ends, 10 000 € more each month, the current month last.
+    api.dashboardControllerHistory.mockImplementation(() =>
+      ok({
+        months: Array.from({ length: 30 }, (_, i) => ({
+          month: `20${String(24 + Math.floor((i + 5) / 12))}-${String(((i + 5) % 12) + 1).padStart(2, '0')}`,
+          incomeCents: 0,
+          expenseCents: 0,
+          netCents: 0,
+          netWorthCents: 1_000_000 + i * 1_000_000,
+          accounts: [],
+        })),
+      }),
+    )
+    renderPage()
+    const periods = await screen.findByRole('radiogroup', { name: 'Période' })
+    expect(
+      within(periods)
+        .getAllByRole('radio')
+        .map((radio) => radio.textContent),
+    ).toEqual(['1 an', '3 ans'])
+    // A year: from the month end 12 months back (180 000 €) to today, a loss.
+    expect(screen.getByTestId('net-worth-gain')).toHaveTextContent(
+      euros(18_000_000 - 1_623_456),
+    )
+    await userEvent.click(within(periods).getByRole('radio', { name: '3 ans' }))
+    expect(screen.getByTestId('net-worth-gain')).toHaveTextContent(
+      euros(Math.abs(1_623_456 - 1_000_000)),
+    )
+    expect(localStorage.getItem('capi.dashboard.netWorthYears')).toBe('3')
+    localStorage.clear()
   })
 
   it('has nothing to do when everything is up to date', async () => {
@@ -671,11 +705,8 @@ describe('DashboardPage', () => {
     // On chosen accounts, never passed off as the whole net worth.
     expect(await screen.findByText('Patrimoine · 1 compte')).toBeInTheDocument()
     expect(screen.getByText(euros(1_000_000))).toBeInTheDocument()
-    expect(
-      await screen.findByText(`+${euros(100_000)} ce mois`),
-    ).toBeInTheDocument()
-    expect(screen.getByTestId('net-worth-gain')).toHaveTextContent(
-      `+${euros(200_000)} depuis sept. 2026`,
+    expect(await screen.findByTestId('net-worth-gain')).toHaveTextContent(
+      `+${euros(200_000)}`,
     )
     expect(screen.queryByTestId('left-to-spend')).not.toBeInTheDocument()
     expect(

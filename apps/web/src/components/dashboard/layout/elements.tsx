@@ -9,9 +9,8 @@ import {
   ChevronRightIcon,
   PiggyBankIcon,
   Settings2Icon,
-  TrendingDownIcon,
-  TrendingUpIcon,
 } from 'lucide-react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   CategoryAvatar,
@@ -291,47 +290,64 @@ function balanceDetail(
  * Patrimoine, Fin de mois on their own
  * ------------------------------------------------------------------------- */
 
-const monthYear = new Intl.DateTimeFormat('fr-FR', {
-  month: 'short',
-  year: 'numeric',
-  timeZone: 'UTC',
-})
+/** The periods the curve can cover, in years (#495, on the card itself). */
+const WORTH_PERIODS = [1, 3, 10] as const
+type WorthPeriod = (typeof WORTH_PERIODS)[number]
+const WORTH_PERIOD_KEY = 'capi.dashboard.netWorthYears'
 
-/** `2025-11` → « nov. 2025 ». */
-function formatMonthYear(month: string): string {
-  return monthYear.format(new Date(`${month}-01T00:00:00Z`))
+/** The period last picked on this device; storage may be refused. */
+function storedPeriod(): WorthPeriod {
+  try {
+    const value = Number(localStorage.getItem(WORTH_PERIOD_KEY))
+    return (WORTH_PERIODS as readonly number[]).includes(value)
+      ? (value as WorthPeriod)
+      : 1
+  } catch {
+    return 1
+  }
 }
 
-/** « en 1 an », « en 3 ans ». */
-function inYears(years: number): string {
-  return years === 1 ? 'en 1 an' : `en ${years} ans`
-}
-
-/** A change as a pill, green up, red down: never a sentence. */
-function ChangePill({ cents, label }: { cents: number; label: string }) {
+/** « 1 an · 3 ans · 10 ans » as a small segmented control. */
+function PeriodSwitch({
+  periods,
+  value,
+  onChange,
+}: {
+  periods: readonly WorthPeriod[]
+  value: WorthPeriod
+  onChange: (period: WorthPeriod) => void
+}) {
   return (
-    <span
-      className={cn(
-        'flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap tabular-nums',
-        cents >= 0
-          ? 'bg-chart-delta-good/10 text-chart-delta-good'
-          : 'bg-chart-delta-bad/10 text-chart-delta-bad',
-      )}
+    <div
+      role="radiogroup"
+      aria-label="Période"
+      className="bg-muted flex rounded-full p-0.5 text-xs font-medium"
     >
-      {cents >= 0 ? (
-        <TrendingUpIcon aria-hidden className="size-3.5" />
-      ) : (
-        <TrendingDownIcon aria-hidden className="size-3.5" />
-      )}
-      {formatSignedWholeEuros(cents)} {label}
-    </span>
+      {periods.map((period) => (
+        <button
+          key={period}
+          type="button"
+          role="radio"
+          aria-checked={value === period}
+          onClick={() => onChange(period)}
+          className={cn(
+            'focus-visible:ring-ring min-h-8 flex-1 rounded-full px-2.5 whitespace-nowrap outline-none focus-visible:ring-2',
+            value === period
+              ? 'bg-card text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {period === 1 ? '1 an' : `${period} ans`}
+        </button>
+      ))}
+    </div>
   )
 }
 
-/** The month ends as a line over a soft area, today as a dot. */
+/** The month ends as a line over a soft area. */
 function WorthCurve({ values }: { values: number[] }) {
   const w = 300
-  const h = 56
+  const h = 64
   const low = Math.min(...values)
   const high = Math.max(...values)
   const span = high - low || 1
@@ -345,7 +361,7 @@ function WorthCurve({ values }: { values: number[] }) {
       aria-hidden
       viewBox={`0 0 ${w} ${h}`}
       preserveAspectRatio="none"
-      className="block h-14 w-full overflow-visible"
+      className="block h-16 w-full overflow-visible"
     >
       <path
         d={`${line} L${w},${h} L0,${h} Z`}
@@ -365,11 +381,12 @@ function WorthCurve({ values }: { values: number[] }) {
 }
 
 /**
- * « Patrimoine » (#495, the owner's « A. Courbe »): today's net worth in
- * large, its change since the last month end as a pill, then its month ends
- * over the last 1, 3 or 10 years (`netWorthYears`) as a curve, with what it
- * gained over them. On chosen accounts it is titled « n comptes », never
- * passed off as the whole, and every figure is those accounts' own.
+ * « Patrimoine » (#495, the owner's « A »): today's net worth in large and
+ * what it gained over the period beside it, the month ends as a curve, and
+ * « 1 an · 3 ans · 10 ans » under it, picked on the card (remembered on the
+ * device), never a setting. A period the data does not reach is not
+ * offered. On chosen accounts it is titled « n comptes », never passed off
+ * as the whole, and every figure is those accounts' own.
  */
 export function NetWorthElement({
   overview,
@@ -380,9 +397,9 @@ export function NetWorthElement({
   widget: DashboardWidgetDto
   onEdit?: () => void
 }) {
-  const years = widget.settings.netWorthYears ?? 1
-  // The month ends from the same month `years` ago to the current one.
-  const history = useQuery(dashboardHistoryQuery(years * 12 + 1))
+  const [picked, setPicked] = useState<WorthPeriod>(storedPeriod)
+  // Ten years of month ends at once: switching is instant.
+  const history = useQuery(dashboardHistoryQuery(10 * 12 + 1))
   const chosen = widget.accountIds
   const accounts =
     chosen === null ? null : pickAccounts(overview.accounts, chosen)
@@ -402,10 +419,9 @@ export function NetWorthElement({
     accounts === null
       ? overview.netWorth.totalCents
       : accounts.reduce((sum, account) => sum + (account.balanceCents ?? 0), 0)
-  // Each month end's value, the months before any balance left out; the
-  // current month is today's figure.
-  const months = history.data?.months ?? []
-  const points = months.slice(0, -1).flatMap((month) => {
+  // Each past month end's value, the months before any balance left out;
+  // today's figure closes the curve.
+  const ends = (history.data?.months ?? []).slice(0, -1).flatMap((month) => {
     const value =
       ids === null
         ? month.netWorthCents
@@ -414,54 +430,58 @@ export function NetWorthElement({
               .filter((account) => ids.has(account.accountId))
               .reduce((sum, account) => sum + account.balanceCents, 0)
           : null
-    return value === null ? [] : [{ month: month.month, value }]
+    return value === null ? [] : [value]
   })
-  const previous = points.at(-1)?.value ?? null
-  const first = points.at(0)
-  const values = [...points.map((point) => point.value), total]
-  // The whole period known: « en 3 ans », else « depuis » the first month end.
-  const full =
-    months.length >= years * 12 + 1 && first?.month === months[0].month
+  // A longer period only once the data goes past the shorter one.
+  const periods = WORTH_PERIODS.filter(
+    (_, i) => i === 0 || ends.length > WORTH_PERIODS[i - 1] * 12 + 1,
+  )
+  const period = periods.includes(picked) ? picked : periods.at(-1)!
+  const values = [...ends.slice(-period * 12), total]
+  const gain = values.length > 1 ? total - values[0] : null
+  function pick(next: WorthPeriod) {
+    setPicked(next)
+    try {
+      localStorage.setItem(WORTH_PERIOD_KEY, String(next))
+    } catch {
+      // Not remembered: the card still switches.
+    }
+  }
   return (
     <ElementCard title={title} to={ROUTES.accounts}>
-      <div className="space-y-2 px-2 pb-1">
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <div className="space-y-3 px-2 pb-1">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
           <span
             data-testid="net-worth"
             className="text-[2rem] leading-tight font-semibold tracking-tight whitespace-nowrap tabular-nums"
           >
             {formatWholeEuros(total)}
           </span>
-          {previous !== null && (
-            <ChangePill cents={total - previous} label="ce mois" />
+          {gain !== null && (
+            <span
+              data-testid="net-worth-gain"
+              className={cn(
+                'text-sm font-medium whitespace-nowrap tabular-nums',
+                gain >= 0 ? 'text-chart-delta-good' : 'text-chart-delta-bad',
+              )}
+            >
+              {formatSignedWholeEuros(gain)}
+            </span>
           )}
         </div>
         {history.isPending ? (
-          <Skeleton className="h-14 w-full" />
+          <Skeleton className="h-16 w-full" />
         ) : (
-          first &&
           values.length > 2 && (
             <>
               <WorthCurve values={values} />
-              <div className="flex justify-between gap-3 text-xs">
-                <span className="text-muted-foreground">
-                  {full && formatMonthYear(first.month)}
-                </span>
-                <span
-                  data-testid="net-worth-gain"
-                  className={cn(
-                    'font-medium whitespace-nowrap tabular-nums',
-                    total >= first.value
-                      ? 'text-chart-delta-good'
-                      : 'text-chart-delta-bad',
-                  )}
-                >
-                  {formatSignedWholeEuros(total - first.value)}{' '}
-                  {full
-                    ? inYears(years)
-                    : `depuis ${formatMonthYear(first.month)}`}
-                </span>
-              </div>
+              {periods.length > 1 && (
+                <PeriodSwitch
+                  periods={periods}
+                  value={period}
+                  onChange={pick}
+                />
+              )}
             </>
           )
         )}
