@@ -83,18 +83,20 @@ function Chrome() {
           CD
         </span>
       </div>
-      <div className="grid grid-cols-2 px-2">
-        <span className="text-primary border-primary flex h-10 items-center justify-center border-b-2 text-sm font-medium">
+      {/* #502's folder tabs: the current one is a rounded tab that runs
+          into the month's band, the app's light blue, dark text. */}
+      <div className="grid grid-cols-2 px-2 pt-1">
+        <span className="g-tab text-foreground flex h-10 items-center justify-center rounded-t-[0.9rem] text-sm font-semibold">
           Résumé
         </span>
-        <span className="text-muted-foreground flex h-10 items-center justify-center gap-2 border-b-2 border-transparent text-sm font-medium">
+        <span className="text-muted-foreground flex h-10 items-center justify-center gap-2 text-sm font-medium">
           Opérations
           <span className="bg-primary text-primary-foreground rounded-full px-1.5 text-[0.55rem] leading-4 font-semibold">
             12
           </span>
         </span>
       </div>
-      <div className="flex h-14 items-center gap-2 px-2">
+      <div className="g-tab mx-2 mb-2 flex h-14 items-center gap-2 rounded-[0.9rem] rounded-tl-none px-1.5">
         <span className="g-icon text-foreground grid size-11 place-items-center">
           <ChevronLeftIcon className="size-[1rem]" />
         </span>

@@ -219,6 +219,26 @@
   --g-sheet: oklch(0.21 0.035 272);
 }
 
+/* #502's folder tabs: the app's light blue, the same in every recipe
+   (a little translucent in B). */
+[data-recipe] {
+  --g-tab-fill: oklch(0.93 0.035 262);
+}
+.dark [data-recipe],
+[data-recipe].dark {
+  --g-tab-fill: oklch(0.26 0.05 268);
+}
+[data-recipe='b'] {
+  --g-tab-fill: oklch(0.9 0.05 262 / 60%);
+}
+.dark [data-recipe='b'],
+[data-recipe='b'].dark {
+  --g-tab-fill: oklch(0.32 0.07 268 / 60%);
+}
+.g-tab {
+  background: var(--g-tab-fill);
+}
+
 /* ----------------------------------------------------------- the surfaces */
 .g-page {
   background: var(--g-page);
