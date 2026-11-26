@@ -1,7 +1,6 @@
 import {
   CalendarDaysIcon,
   CheckIcon,
-  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
 } from 'lucide-react'
@@ -62,10 +61,11 @@ const PIECE = cn(
   'dark:bg-[oklch(from_var(--card)_calc(l+0.08)_c_h)] dark:hover:bg-[oklch(from_var(--card)_calc(l+0.08)_c_h)]',
 )
 
-/** A round arrow on a grey disc, 44px to the touch. */
+/** A round arrow, a raised white piece like the period, 44px to the touch. */
 const ARROW = cn(
-  'bg-glass-fill hover:bg-foreground/10 text-foreground size-[calc(2rem-8px)] min-h-0 min-w-0 shrink-0 rounded-full bg-clip-border pointer-coarse:touch-hitbox [&_svg]:size-[1.1rem]',
-  'disabled:opacity-45',
+  PIECE,
+  'size-[calc(2rem-8px)] min-h-0 min-w-0 shrink-0 rounded-full pointer-coarse:touch-hitbox [&_svg]:size-[1.1rem]',
+  'disabled:bg-transparent disabled:opacity-45 disabled:shadow-none dark:disabled:bg-transparent',
 )
 
 /* ============================================================================
@@ -74,10 +74,10 @@ const ARROW = cn(
 
 /**
  * The period of a page, part of the app's frame (#401, the owner's « B.
- * Barre du mois », then « barre d'outils + état », #505): ‹ · 📅 period ⌄ ·
- * ›. The arrows are round buttons on a grey disc, so they read as buttons
- * (the owner, 20 Nov); the period is a raised white button that opens a
- * picker. Between the period and › a `PeriodBarStatus` can say how far its
+ * Barre du mois », then « barre d'outils + état », #505): ‹ · 📅 period ·
+ * ›. The arrows and the period are raised white buttons on the toolbar's
+ * glass track, like a segmented control's thumb (the owner, #505); the
+ * period opens a picker. Between the period and › a `PeriodBarStatus` can say how far its
  * data goes (the app shows it on a computer only). The app lays it on a
  * white toolbar at the top of the page, fixed under its header.
  * `PeriodBarLabel` switches to its short text when its container (put the
@@ -96,7 +96,7 @@ function PeriodBar({
       role="group"
       className={cn(
         // As wide as its container (#505): ‹ · the period (and its state) · ›,
-        // laid on the app's white toolbar.
+        // raised white pieces laid on the app's glass toolbar.
         'flex w-full min-w-0 items-center gap-1.5',
         className,
       )}
@@ -132,9 +132,9 @@ function PeriodBar({
 }
 
 /**
- * The middle of a `PeriodBar`: a calendar, the period's name and a ⌄,
- * filling the space between the arrows (the calendar says what a tap opens,
- * #401; the ⌄ that it opens a list, #505). It is a button, so it can open a
+ * The middle of a `PeriodBar`: a calendar, then the period's name, filling
+ * the space between the arrows (the calendar says what a tap opens, #401;
+ * no ⌄ beside the two arrows, the owner, #505). It is a button, so it can open a
  * picker (`PopoverTrigger asChild`).
  */
 function PeriodBarLabel({
@@ -150,15 +150,14 @@ function PeriodBarLabel({
       ghost
       className={cn(
         PIECE,
-        'h-[calc(2rem-8px)] min-h-0 min-w-0 flex-1 gap-1.5 rounded-full px-3 text-base font-semibold',
+        'h-[calc(2rem-8px)] min-h-0 min-w-0 flex-1 gap-1.5 rounded-full px-3 text-base leading-none font-semibold',
         className,
       )}
       {...props}
     >
-      {/* Only where there is room: on a phone the ⌄ says it opens a list. */}
       <CalendarDaysIcon
         aria-hidden
-        className="text-muted-foreground hidden size-[1.1rem]! shrink-0 @[400px]:block"
+        className="text-muted-foreground size-[1.1rem]! shrink-0"
       />
       <span aria-live="polite" className="min-w-0 truncate">
         <span className={shortText ? 'hidden @[300px]:inline' : undefined}>
@@ -166,10 +165,6 @@ function PeriodBarLabel({
         </span>
         {shortText && <span className="@[300px]:hidden">{shortText}</span>}
       </span>
-      <ChevronDownIcon
-        aria-hidden
-        className="text-muted-foreground size-[0.9rem]! shrink-0"
-      />
     </Button>
   )
 }
