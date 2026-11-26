@@ -1262,9 +1262,8 @@ describe('SpendingPage', () => {
         within(tabs).getByRole('tab', { name: /^Dépenses/ }),
       ).toHaveAttribute('aria-selected', 'true')
       // One-offs included: 2 700 − 1 250 − 400 = 1 050 €.
-      expect(
-        screen.getByText('Resté sur le compte courant'),
-      ).toBeInTheDocument()
+      // The page's answer (#434), above the tiles.
+      expect(screen.getByText('Gardé ce mois')).toBeInTheDocument()
       expect(
         document.querySelector('[data-slot="month-flow-kept"]'),
       ).toHaveTextContent(/\+1\s050\s€/)

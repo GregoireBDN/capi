@@ -64,11 +64,16 @@ function PageSkeleton() {
 }
 
 /**
- * Monthly budget, both sides: the planned income vs what came in and what
- * the plan leaves to save (#315), then the targets per expense category vs
+ * Budget answers « Suis-je dans mes objectifs ? » (#434, one question per
+ * page): what is left to spend as the big figure, the lines over or near
+ * their target, envelopes included. The month's totals and its spending per
+ * category as such are Mouvements'.
+ *
+ * Monthly budget, both sides: the targets per expense category vs
  * the month's spending (transfers never count), overruns flagged, targets
- * edited from the month shown on, suggestions from past spending, and the
- * last months' history.
+ * edited from the month shown on, suggestions from past spending, then the
+ * planned income vs what came in and what the plan leaves to save (#315),
+ * and the last months' history.
  */
 export function BudgetPage({
   month: monthParam,
@@ -135,10 +140,7 @@ export function BudgetPage({
 
   return (
     <div className="@container space-y-6">
-      <PageHeader
-        title="Budget"
-        description="Vos revenus et dépenses du mois par rapport au plan."
-      />
+      <PageHeader title="Budget" description="Suis-je dans mes objectifs ?" />
 
       <MonthToolbar
         navigator={<MonthNavigator month={month} onMonthChange={go} />}
@@ -182,36 +184,6 @@ export function BudgetPage({
         </Alert>
       )}
 
-      {budget.isSuccess && (
-        <IncomePlanCard
-          month={month}
-          income={budget.data.income}
-          plan={budget.data.plan}
-          onPrepare={() => setPrepareOpen(true)}
-          addInPageMenu={inMenu}
-          onAdd={
-            available.income.length > 0
-              ? () => setEditor({ open: true, kind: 'income' })
-              : undefined
-          }
-          onEdit={(line) =>
-            setEditor({
-              open: true,
-              kind: 'income',
-              budget: {
-                categoryId: line.categoryId,
-                name: line.name,
-                color: line.color,
-                icon: line.icon,
-                targetCents: line.plannedCents,
-                note: line.note,
-                tracked: false,
-              },
-            })
-          }
-        />
-      )}
-
       {empty && (
         <Empty className="border">
           <EmptyHeader>
@@ -246,12 +218,14 @@ export function BudgetPage({
         </Empty>
       )}
 
+      {/* The page's answer first (#434), its lines under it. */}
+      {budget.isSuccess && !empty && <BudgetSummary data={budget.data} />}
+
       {budget.isSuccess && !empty && (
         <section aria-labelledby="budget-expenses" className="space-y-3">
           <h2 id="budget-expenses" className="text-base font-semibold">
             Dépenses prévues
           </h2>
-          <BudgetSummary data={budget.data} />
           {/* What envelopes paid this month (#430): a line each. */}
           <EnvelopeMonthLines month={month} />
           <BudgetList
@@ -274,6 +248,36 @@ export function BudgetPage({
             }
           />
         </section>
+      )}
+
+      {budget.isSuccess && (
+        <IncomePlanCard
+          month={month}
+          income={budget.data.income}
+          plan={budget.data.plan}
+          onPrepare={() => setPrepareOpen(true)}
+          addInPageMenu={inMenu}
+          onAdd={
+            available.income.length > 0
+              ? () => setEditor({ open: true, kind: 'income' })
+              : undefined
+          }
+          onEdit={(line) =>
+            setEditor({
+              open: true,
+              kind: 'income',
+              budget: {
+                categoryId: line.categoryId,
+                name: line.name,
+                color: line.color,
+                icon: line.icon,
+                targetCents: line.plannedCents,
+                note: line.note,
+                tracked: false,
+              },
+            })
+          }
+        />
       )}
 
       {budget.isSuccess && (

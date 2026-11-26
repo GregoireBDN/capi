@@ -178,7 +178,12 @@ function partNotes(data: SpendingByCategoryDto) {
 }
 
 /**
- * Mouvements (#410, the owner's « B. Le mois en tête »): the month's
+ * Mouvements answers « Où est passé l’argent ce mois-ci ? » (#434, one
+ * question per page): what was kept as the page's big figure, then where
+ * the money went. Finding or fixing a transaction is Opérations', being
+ * within targets Budget's; their figures are not repeated here.
+ *
+ * Since #410 (the owner's « B. Le mois en tête »): the month's
  * Revenus, Dépenses and Épargne as three tiles that are also the tabs (`?vue=`),
  * with the flow bar of where the income went; below, the part chosen as
  * Dépenses always showed itself: comparisons, donut, ranked list with
@@ -291,7 +296,7 @@ export function SpendingPage({ search, onSearchChange }: SpendingPageProps) {
     <div className="@container space-y-6">
       <PageHeader
         title="Mouvements"
-        description="Ce qui entre, ce qui sort et ce que vous mettez de côté."
+        description="Où est passé l’argent ?"
         actions={pageActions({
           kind,
           add: setAdding,
