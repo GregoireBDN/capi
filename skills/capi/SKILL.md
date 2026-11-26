@@ -43,7 +43,7 @@ For a plain question, call the read tool that fits, without loading a method fil
 | Where the budget stands                          | `budget_status`            |
 | Finding transactions (a shop, an amount, a note) | `search_transactions`      |
 | Balances, net worth                              | `accounts_overview`        |
-| Savings, envelopes, goals                        | `savings_and_goals`        |
+| Savings, envelopes                               | `savings_and_goals`        |
 | How the month will end                           | `month_end_forecast`       |
 | Subscriptions, fixed costs, renewals             | `subscriptions`            |
 | Who owes what                                    | `owed_to_me`               |
@@ -56,7 +56,7 @@ Answer in a few lines: the figure, its period and how far the data goes, and the
 
 ## Good to know
 
-- **Envelopes** (« Enveloppes »): money set aside for a goal, spread across accounts. Never a transaction: they change no balance and no statistic; « libre » is the balance minus the envelopes. A balance below its envelopes is reported, never changed. What an envelope paid adds to that month's budget of its categories. They are changed in the app only.
+- **Envelopes** (« Enveloppes »): money set aside for a project, spread across accounts (they replaced the former savings goals). Never a transaction: they change no balance and no statistic; « libre » is the balance minus the envelopes. A balance below its envelopes is reported, never changed. What an envelope paid adds to that month's budget of its categories. They are changed in the app only.
 - **Subscriptions**: a confirmed quarterly or yearly debit shows as a prepaid item (term, monthly equivalent, renewal date). Detected items not yet confirmed are flagged: the owner confirms them in « Abonnements »; cancelling is « Résilier », in the app.
 - **Money owed**: the owner's spending already counts only their own part of a shared expense; what is owed is never part of net worth; offsetting both sides is « Compenser », in the app.
 - **Forecast**: it projects from the day after the imported data ends, not from today; with old data, say it is only indicative and suggest importing the statement.

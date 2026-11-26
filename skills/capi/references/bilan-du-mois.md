@@ -14,7 +14,7 @@ What the tools cannot do (values typed by hand, ticking a step, reopening a mont
    - a merchant that comes back: propose a rule with `create_rule` (see [operations.md](operations.md#rules)).
 4. **Subscriptions.** `subscriptions`: newly detected subscriptions, price changes in the month, upcoming renewals. The owner confirms them and ticks the step in the app.
 5. **Budget.** `budget_status` (month): planned income that did not arrive (or not in full), what the budget leaves to save, categories above and below their target. If the owner asks, a note on the transaction that explains a gap (`set_transaction_note`).
-6. **Savings.** `savings_and_goals`: what was saved against the target, the envelopes (money set aside) and the goals.
+6. **Savings.** `savings_and_goals`: what was saved against the target, and the envelopes (money set aside), each against its target.
 7. **Investments and consistency.**
    - Investment accounts with no value at the end of the month (`month_close_status`): offer to update them with [placements.md](placements.md), or the owner does it in the app.
    - `integrity_checks` (month): list each point with its account and its day. **Fix nothing yourself**: explain what the point means and what the owner can check.
